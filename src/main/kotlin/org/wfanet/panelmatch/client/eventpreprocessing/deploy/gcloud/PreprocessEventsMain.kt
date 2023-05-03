@@ -82,13 +82,11 @@ interface Options : DataflowPipelineOptions {
  * cross-media-measurement repository cloned and docker installed.
  *
  * To build the pipeline:
- *
  * ```
  * ../cross-media-measurement/tools/bazel-container build //src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing/deploy/gcloud:process_events
  * ```
  *
  * And to run it:
- *
  * ```
  * bazel-bin/src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing/deploy/gcloud/process_events --batchSize=SIZE --cryptokey=KEY --hkdfPepper=HKDFPEPPER --identifierHashPepper=IDHPEPPER --bigQueryInputTable=INPUT_TABLE --bigQueryOutputTable=OUTPUT_TABLE --project=PROJECT --runner=dataflow --region=us-central1 --tempLocation=TEMP_LOCATION --defaultWorkerLogLevel=DEBUG
  * ```

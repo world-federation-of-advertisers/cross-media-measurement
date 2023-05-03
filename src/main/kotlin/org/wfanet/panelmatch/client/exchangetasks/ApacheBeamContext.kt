@@ -32,9 +32,10 @@ import org.wfanet.panelmatch.common.storage.toStringUtf8
 
 /**
  * Necessary context for an apache beam task to execute.
+ *
  * @param pipeline the pipeline to run the task on
  * @param outputManifests location of manifest file which itself contains a list of sharded
- * filenames
+ *   filenames
  * @param outputLabels map of labels for writing single blobs
  * @param inputLabels map of expected inputs
  * @param inputBlobs map of keys to blobs

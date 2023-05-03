@@ -24,13 +24,12 @@ import org.wfanet.panelmatch.common.storage.StorageFactory
  * Builds storage clients for the panel exchange workflow.
  *
  * @param[privateStorageFactories] is a map of storage factory constructors supported by our daemon.
- * As not all types of StorageClients are expected to be supported by all EDPs and MPs, this gives
- * each party the option to not depend on a StorageFactory they choose not to support.
- *
+ *   As not all types of StorageClients are expected to be supported by all EDPs and MPs, this gives
+ *   each party the option to not depend on a StorageFactory they choose not to support.
  * @param[storageDetailsProvider] provides access to all information required to build private
- * storage for all active exchanges. These are expected to be configured by a party at the time an
- * exchange is first built and stored securely. This SecretMap is the abstraction used to retrieve
- * those credentials.
+ *   storage for all active exchanges. These are expected to be configured by a party at the time an
+ *   exchange is first built and stored securely. This SecretMap is the abstraction used to retrieve
+ *   those credentials.
  */
 class PrivateStorageSelector(
   private val privateStorageFactories:

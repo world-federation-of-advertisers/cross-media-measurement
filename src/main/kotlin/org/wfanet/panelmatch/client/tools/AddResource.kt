@@ -43,7 +43,6 @@ class AddResource : Callable<Int> {
  * Creates resources for each client
  *
  * Use the `help` command to see usage details:
- *
  * ```
  * $ bazel build //src/main/kotlin/org/wfanet/panelmatch/client/tools:AddResource
  * $ bazel-bin/src/main/kotlin/org/wfanet/panelmatch/client/tools/AddResource help

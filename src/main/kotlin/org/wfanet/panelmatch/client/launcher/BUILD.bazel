@@ -30,6 +30,6 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/proto/google/type:date_kt_jvm_proto",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
-        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
     ],
 )

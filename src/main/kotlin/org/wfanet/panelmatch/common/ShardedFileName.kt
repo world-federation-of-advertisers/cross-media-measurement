@@ -22,10 +22,9 @@ private val SPEC_REGEX = """^([\w-.]+)-(\*|\?+)-of-(\d+)$""".toRegex()
  * Represents a set of filenames with format "baseName-0001-of-9876", "baseName-0002-of-9876", etc.
  *
  * A sharded file spec has one of the following formats:
- *
  * 1. "baseName-*-of-X", where X is a number
  * 2. "baseName-????-of-X", where X is a number and the number of question marks is equal to the
- * number of base-10 digits in X.
+ *    number of base-10 digits in X.
  */
 data class ShardedFileName(val spec: String) : Serializable {
   constructor(baseName: String, shardCount: Int) : this("$baseName-*-of-$shardCount")

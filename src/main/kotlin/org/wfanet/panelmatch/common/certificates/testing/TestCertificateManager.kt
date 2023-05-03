@@ -18,12 +18,12 @@ import java.security.PrivateKey
 import java.security.cert.X509Certificate
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
-import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_PEM_FILE
-import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_FILE
-import org.wfanet.measurement.common.crypto.testing.KEY_ALGORITHM
+import org.wfanet.measurement.common.crypto.testing.TestData
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.certificates.CertificateManager
 import org.wfanet.panelmatch.common.certificates.CertificateManager.KeyPair
+
+private const val KEY_ALGORITHM = "EC"
 
 object TestCertificateManager : CertificateManager {
   override suspend fun getCertificate(
@@ -51,6 +51,8 @@ object TestCertificateManager : CertificateManager {
   }
 
   const val RESOURCE_NAME = "some-resource-name"
-  val CERTIFICATE: X509Certificate by lazy { readCertificate(FIXED_SERVER_CERT_PEM_FILE) }
-  val PRIVATE_KEY: PrivateKey by lazy { readPrivateKey(FIXED_SERVER_KEY_FILE, KEY_ALGORITHM) }
+  val CERTIFICATE: X509Certificate by lazy { readCertificate(TestData.FIXED_SERVER_CERT_PEM_FILE) }
+  val PRIVATE_KEY: PrivateKey by lazy {
+    readPrivateKey(TestData.FIXED_SERVER_KEY_FILE, KEY_ALGORITHM)
+  }
 }

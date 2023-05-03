@@ -14,10 +14,9 @@ kt_jvm_library(
         "//src/main/proto/wfa/panelmatch/client/exchangetasks:exchangesteps_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/client/storage:storage_details_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//imports/java/software/amazon/awssdk/core",
         "@wfa_common_jvm//imports/java/software/amazon/awssdk/services/s3",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/aws/s3",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
-        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
     ],
 )
