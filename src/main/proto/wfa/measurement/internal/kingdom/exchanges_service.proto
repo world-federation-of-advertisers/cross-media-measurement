@@ -65,7 +65,7 @@ message CreateExchangeRequest {
 message StreamExchangesRequest {
   // Restricts results to those matching the given criteria.
   message Filter {
-    google.type.Date exchanged_before = 1;
+    google.type.Date date_before = 1;
   }
   Filter filter = 1;
 
