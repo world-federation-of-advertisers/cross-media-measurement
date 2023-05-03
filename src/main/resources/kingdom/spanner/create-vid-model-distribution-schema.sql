@@ -66,11 +66,11 @@ CREATE TABLE ModelRollouts (
     ModelLineId INT64 NOT NULL,
     ModelRolloutId INT64 NOT NULL,
     ExternalModelRolloutId INT64 NOT NULL,
-    RolloutPeriodStartTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
-    RolloutPeriodEndTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
-    RolloutFreezeTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+    RolloutPeriodStartTime TIMESTAMP NOT NULL,
+    RolloutPeriodEndTime TIMESTAMP NOT NULL,
+    RolloutFreezeTime TIMESTAMP,
     PreviousModelRollout INT64,
-    ModelRelease INT64,
+    ModelRelease INT64 NOT NULL,
     CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
     UpdateTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
 
@@ -83,8 +83,8 @@ CREATE TABLE ModelOutages (
     ModelLineId INT64 NOT NULL,
     ModelOutageId INT64 NOT NULL,
     ExternalModelOutageId INT64 NOT NULL,
-    OutageStartTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
-    OutageEndTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+    OutageStartTime TIMESTAMP NOT NULL,
+    OutageEndTime TIMESTAMP NOT NULL,
 
     -- org.wfanet.measurement.internal.kingdom.ModelOutage.State
     -- protobuf name encoded as an integer.
@@ -97,19 +97,19 @@ CREATE TABLE ModelOutages (
 
 
 CREATE TABLE ModelReleases (
-  ModelProviderId INT64 NOT NULL,
+  ModelSuiteId INT64 NOT NULL,
   ModelReleaseId INT64 NOT NULL,
   ExternalModelReleaseId INT64 NOT NULL,
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
-) PRIMARY KEY (ModelProviderId, ModelReleaseId),
+) PRIMARY KEY (ModelSuiteId, ModelReleaseId),
   INTERLEAVE IN PARENT ModelSuites ON DELETE CASCADE;
 
 CREATE TABLE ModelShards (
   DataProviderId INT64 NOT NULL,
   ModelShardId INT64 NOT NULL,
   ExternalModelShardId INT64 NOT NULL,
-  ModelRelease INT64,
-  ModelBlob STRING(MAX) NOT NULL,
+  ModelRelease INT64 NOT NULL,
+  ModelBlobPath STRING(MAX) NOT NULL,
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
 
   FOREIGN KEY (ModelRelease) REFERENCES ModelReleases(ModelReleaseId),
