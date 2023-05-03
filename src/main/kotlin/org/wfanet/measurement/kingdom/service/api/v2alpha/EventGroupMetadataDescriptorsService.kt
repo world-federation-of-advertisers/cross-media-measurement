@@ -435,12 +435,11 @@ private fun ListEventGroupMetadataDescriptorsPageToken
     limit = source.pageSize + 1
     filter = filter {
       externalDataProviderId = source.externalDataProviderId
-      keyAfter =
-        eventGroupMetadataDescriptorKey {
-          externalDataProviderId = source.lastEventGroupMetadataDescriptor.externalDataProviderId
-          externalEventGroupMetadataDescriptorId =
-            source.lastEventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
-        }
+      keyAfter = eventGroupMetadataDescriptorKey {
+        externalDataProviderId = source.lastEventGroupMetadataDescriptor.externalDataProviderId
+        externalEventGroupMetadataDescriptorId =
+          source.lastEventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
+      }
     }
   }
 }
