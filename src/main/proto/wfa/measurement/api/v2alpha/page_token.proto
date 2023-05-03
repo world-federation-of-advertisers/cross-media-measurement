@@ -42,7 +42,7 @@ message ListEventGroupMetadataDescriptorsPageToken {
     fixed64 external_data_provider_id = 1;
     fixed64 external_event_group_metadata_descriptor_id = 2;
   }
-  PreviousPageEnd last_event_group_metadata_Descriptor = 3;
+  PreviousPageEnd last_event_group_metadata_descriptor = 3;
 }
 
 message ListMeasurementsPageToken {

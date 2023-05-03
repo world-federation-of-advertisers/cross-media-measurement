@@ -91,13 +91,6 @@ class SpannerEventGroupMetadataDescriptorsService(
 
     grpcRequire(request.limit >= 0) { "Limit cannot be less than 0" }
 
-    grpcRequire(
-      request.filter.externalDataProviderIdAfter >= 0L &&
-        request.filter.externalEventGroupMetadataDescriptorIdAfter >= 0L
-    ) {
-      "After Ids cannot be less than 0"
-    }
-
     return StreamEventGroupMetadataDescriptors(request.filter, request.limit)
       .execute(client.singleUse())
       .map { it.eventGroupMetadataDescriptor }

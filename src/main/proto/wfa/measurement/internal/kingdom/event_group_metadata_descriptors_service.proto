@@ -54,9 +54,11 @@ message StreamEventGroupMetadataDescriptorsRequest {
     fixed64 external_data_provider_id = 1;
     repeated fixed64 external_event_group_metadata_descriptor_ids = 2;
 
-    // for next page token, both after fields need to be set
-    fixed64 external_data_provider_id_after = 3;
-    fixed64 external_event_group_metadata_descriptor_id_after = 4;
+    message Key {
+      fixed64 external_data_provider_id = 1;
+      fixed64 external_event_group_metadata_descriptor_id = 2;
+    }
+    Key key_after = 3;
   }
   Filter filter = 1;
 

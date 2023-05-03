@@ -36,6 +36,7 @@ import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProviders
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorKt.details
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescriptorsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescriptorsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptor
@@ -392,16 +393,18 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
           streamEventGroupMetadataDescriptorsRequest {
             filter = filter {
               this.externalDataProviderId = externalDataProviderId
-              externalDataProviderIdAfter = externalDataProviderId
-              externalEventGroupMetadataDescriptorIdAfter =
-                if (
-                  eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId <
+              keyAfter = StreamEventGroupMetadataDescriptorsRequestKt.FilterKt.key {
+                this.externalDataProviderId = externalDataProviderId
+                this.externalEventGroupMetadataDescriptorId =
+                  if (
+                    eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId <
                     eventGroupMetadataDescriptor2.externalEventGroupMetadataDescriptorId
-                ) {
-                  eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
-                } else {
-                  eventGroupMetadataDescriptor2.externalEventGroupMetadataDescriptorId
-                }
+                  ) {
+                    eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
+                  } else {
+                    eventGroupMetadataDescriptor2.externalEventGroupMetadataDescriptorId
+                  }
+              }
             }
             limit = 1
           }
@@ -446,38 +449,6 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception).hasMessageThat().contains("Limit")
   }
-
-  @Test
-  fun `streamEventGroupMetadataDescriptors fails for negative externalDataProviderAfterId`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          eventGroupMetadataDescriptorService.streamEventGroupMetadataDescriptors(
-            streamEventGroupMetadataDescriptorsRequest {
-              filter = filter { externalDataProviderIdAfter = -1L }
-            }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception).hasMessageThat().contains("After")
-    }
-
-  @Test
-  fun `streamEventGroupMetadataDescriptors fails for negative metadata descriptor after id`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          eventGroupMetadataDescriptorService.streamEventGroupMetadataDescriptors(
-            streamEventGroupMetadataDescriptorsRequest {
-              filter = filter { externalEventGroupMetadataDescriptorIdAfter = -1L }
-            }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception).hasMessageThat().contains("After")
-    }
 }
 
 data class EventGroupMetadataDescriptorsAndHelperServices<

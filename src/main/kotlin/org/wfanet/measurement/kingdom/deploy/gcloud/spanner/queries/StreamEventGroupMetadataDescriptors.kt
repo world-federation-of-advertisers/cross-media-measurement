@@ -54,8 +54,8 @@ class StreamEventGroupMetadataDescriptors(
     }
 
     if (
-      filter.externalDataProviderIdAfter > 0L &&
-        filter.externalEventGroupMetadataDescriptorIdAfter > 0L
+      filter.keyAfter.externalDataProviderId != 0L &&
+        filter.keyAfter.externalEventGroupMetadataDescriptorId != 0L
     ) {
       conjuncts.add(
         """
@@ -65,9 +65,9 @@ class StreamEventGroupMetadataDescriptors(
         """
           .trimIndent()
       )
-      bind(EXTERNAL_DATA_PROVIDER_ID_AFTER).to(filter.externalDataProviderIdAfter)
+      bind(EXTERNAL_DATA_PROVIDER_ID_AFTER).to(filter.keyAfter.externalDataProviderId)
       bind(EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_ID_AFTER)
-        .to(filter.externalEventGroupMetadataDescriptorIdAfter)
+        .to(filter.keyAfter.externalEventGroupMetadataDescriptorId)
     }
 
     if (conjuncts.isEmpty()) {
