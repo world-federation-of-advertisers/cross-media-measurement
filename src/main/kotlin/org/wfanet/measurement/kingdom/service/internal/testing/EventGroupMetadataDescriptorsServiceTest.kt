@@ -393,18 +393,19 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
           streamEventGroupMetadataDescriptorsRequest {
             filter = filter {
               this.externalDataProviderId = externalDataProviderId
-              keyAfter = StreamEventGroupMetadataDescriptorsRequestKt.FilterKt.key {
-                this.externalDataProviderId = externalDataProviderId
-                this.externalEventGroupMetadataDescriptorId =
-                  if (
-                    eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId <
-                    eventGroupMetadataDescriptor2.externalEventGroupMetadataDescriptorId
-                  ) {
-                    eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
-                  } else {
-                    eventGroupMetadataDescriptor2.externalEventGroupMetadataDescriptorId
-                  }
-              }
+              keyAfter =
+                StreamEventGroupMetadataDescriptorsRequestKt.FilterKt.key {
+                  this.externalDataProviderId = externalDataProviderId
+                  this.externalEventGroupMetadataDescriptorId =
+                    if (
+                      eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId <
+                        eventGroupMetadataDescriptor2.externalEventGroupMetadataDescriptorId
+                    ) {
+                      eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
+                    } else {
+                      eventGroupMetadataDescriptor2.externalEventGroupMetadataDescriptorId
+                    }
+                }
             }
             limit = 1
           }

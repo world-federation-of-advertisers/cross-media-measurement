@@ -53,9 +53,9 @@ import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor as I
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorKt.details
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescriptorsRequest
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescriptorsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescriptorsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptor as internalEventGroupMetadataDescriptor
-import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescriptorsRequestKt
 import org.wfanet.measurement.internal.kingdom.getEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupMetadataDescriptorRequest
@@ -435,11 +435,12 @@ private fun ListEventGroupMetadataDescriptorsPageToken
     limit = source.pageSize + 1
     filter = filter {
       externalDataProviderId = source.externalDataProviderId
-      keyAfter = StreamEventGroupMetadataDescriptorsRequestKt.FilterKt.key {
-        externalDataProviderId = source.lastEventGroupMetadataDescriptor.externalDataProviderId
-        externalEventGroupMetadataDescriptorId =
-          source.lastEventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
-      }
+      keyAfter =
+        StreamEventGroupMetadataDescriptorsRequestKt.FilterKt.key {
+          externalDataProviderId = source.lastEventGroupMetadataDescriptor.externalDataProviderId
+          externalEventGroupMetadataDescriptorId =
+            source.lastEventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
+        }
     }
   }
 }

@@ -453,7 +453,7 @@ class EventGroupMetadataDescriptorsServiceTest {
           filter =
             StreamEventGroupMetadataDescriptorsRequestKt.filter {
               externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
-              keyAfter = StreamEventGroupMetadataDescriptorsRequestKt.FilterKt.key {  }
+              keyAfter = StreamEventGroupMetadataDescriptorsRequestKt.FilterKt.key {}
             }
         }
       )
@@ -487,9 +487,10 @@ class EventGroupMetadataDescriptorsServiceTest {
       .isEqualTo(
         streamEventGroupMetadataDescriptorsRequest {
           limit = DEFAULT_LIMIT + 1
-          filter = StreamEventGroupMetadataDescriptorsRequestKt.filter {
-            keyAfter = StreamEventGroupMetadataDescriptorsRequestKt.FilterKt.key {  }
-          }
+          filter =
+            StreamEventGroupMetadataDescriptorsRequestKt.filter {
+              keyAfter = StreamEventGroupMetadataDescriptorsRequestKt.FilterKt.key {}
+            }
         }
       )
 
@@ -547,11 +548,12 @@ class EventGroupMetadataDescriptorsServiceTest {
           filter =
             StreamEventGroupMetadataDescriptorsRequestKt.filter {
               externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
-              keyAfter = StreamEventGroupMetadataDescriptorsRequestKt.FilterKt.key {
-                externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
-                externalEventGroupMetadataDescriptorId =
-                  EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
-              }
+              keyAfter =
+                StreamEventGroupMetadataDescriptorsRequestKt.FilterKt.key {
+                  externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
+                  externalEventGroupMetadataDescriptorId =
+                    EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
+                }
             }
         }
       )
@@ -602,11 +604,12 @@ class EventGroupMetadataDescriptorsServiceTest {
           filter =
             StreamEventGroupMetadataDescriptorsRequestKt.filter {
               externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
-              keyAfter = StreamEventGroupMetadataDescriptorsRequestKt.FilterKt.key {
-                externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
-                externalEventGroupMetadataDescriptorId =
-                  EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
-              }
+              keyAfter =
+                StreamEventGroupMetadataDescriptorsRequestKt.FilterKt.key {
+                  externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
+                  externalEventGroupMetadataDescriptorId =
+                    EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
+                }
             }
         }
       )
@@ -656,11 +659,12 @@ class EventGroupMetadataDescriptorsServiceTest {
           filter =
             StreamEventGroupMetadataDescriptorsRequestKt.filter {
               externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
-              keyAfter = StreamEventGroupMetadataDescriptorsRequestKt.FilterKt.key {
-                externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
-                externalEventGroupMetadataDescriptorId =
-                  EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
-              }
+              keyAfter =
+                StreamEventGroupMetadataDescriptorsRequestKt.FilterKt.key {
+                  externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
+                  externalEventGroupMetadataDescriptorId =
+                    EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
+                }
             }
         }
       )
