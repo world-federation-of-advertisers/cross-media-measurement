@@ -1,6 +1,6 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 load("@rules_java//java:defs.bzl", "java_binary")
-load("@io_bazel_rules_docker//java:image.bzl", "java_image")
+load("//src/main/docker:macros.bzl", "java_image")
 
 kt_jvm_library(
     name = "herald_daemon",
@@ -29,7 +29,7 @@ java_binary(
 
 java_image(
     name = "herald_daemon_image",
+    binary = ":HeraldDaemon",
     main_class = "org.wfanet.measurement.duchy.deploy.common.daemon.herald.HeraldDaemonKt",
     visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":herald_daemon"],
 )

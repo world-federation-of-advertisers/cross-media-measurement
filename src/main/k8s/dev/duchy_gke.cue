@@ -22,7 +22,7 @@ _certificateId:                string @tag("certificate_id")
 
 _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 
-#KingdomSystemApiTarget:             "system.kingdom.dev.halo-cmm.org:8443"
+#KingdomSystemApiTarget:             string @tag("kingdom_system_api_target")
 #InternalServerServiceAccount:       "internal-server"
 #StorageServiceAccount:              "storage"
 #InternalServerResourceRequirements: #ResourceRequirements & {

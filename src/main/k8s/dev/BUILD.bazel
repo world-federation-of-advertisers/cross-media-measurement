@@ -2,13 +2,21 @@ load("@wfa_rules_cue//cue:defs.bzl", "cue_library")
 load(
     "//build:variables.bzl",
     "DUCHY_K8S_SETTINGS",
+    "GCLOUD_SETTINGS",
     "GRAFANA_K8S_SETTINGS",
     "IMAGE_REPOSITORY_SETTINGS",
     "KINGDOM_K8S_SETTINGS",
-    "REPORTING_K8S_SETTINGS",
     "SIMULATOR_K8S_SETTINGS",
 )
+load("@wfa_common_jvm//build:defs.bzl", "expand_template")
 load("//src/main/k8s:macros.bzl", "cue_dump")
+load("//build/k8s:defs.bzl", "kustomization_dir")
+
+SECRET_NAME = "certs-and-configs"
+
+MC_CONFIG_SECRET_NAME = "mc-config"
+
+SIGNING_SECRET_NAME = "signing"
 
 cue_library(
     name = "base_gke",
@@ -29,10 +37,12 @@ cue_dump(
     name = "kingdom_gke",
     srcs = ["kingdom_gke.cue"],
     cue_tags = {
-        "secret_name": KINGDOM_K8S_SETTINGS.secret_name,
+        "secret_name": SECRET_NAME,
         "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
         "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
         "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+        "google_cloud_project": GCLOUD_SETTINGS.project,
+        "spanner_instance": GCLOUD_SETTINGS.spanner_instance,
     },
     tags = ["manual"],
     deps = [
@@ -42,37 +52,29 @@ cue_dump(
     ],
 )
 
-cue_dump(
-    name = "resource_setup_gke",
-    srcs = ["resource_setup_gke.cue"],
-    cue_tags = {
-        "secret_name": KINGDOM_K8S_SETTINGS.secret_name,
-        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
-        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
-        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
-    },
-    tags = ["manual"],
-    deps = [
-        ":base_gke",
-        ":config",
-        "//src/main/k8s:resource_setup",
-    ],
+kustomization_dir(
+    name = "kingdom_secret",
+    srcs = ["kingdom_secret_kustomization.yaml"],
+    renames = {"kingdom_secret_kustomization.yaml": "kustomization.yaml"},
 )
 
-cue_dump(
-    name = "panel_match_resource_setup_gke",
-    srcs = ["panel_match_resource_setup_gke.cue"],
-    cue_tags = {
-        "secret_name": KINGDOM_K8S_SETTINGS.secret_name,
-        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
-        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
-        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
-    },
+kustomization_dir(
+    name = "config_files",
+    srcs = ["config_files_kustomization.yaml"],
+    renames = {"config_files_kustomization.yaml": "kustomization.yaml"},
+)
+
+kustomization_dir(
+    name = "kingdom",
+    srcs = [
+        "resource_requirements.yaml",
+        ":kingdom_gke",
+    ],
+    generate_kustomization = True,
     tags = ["manual"],
     deps = [
-        ":base_gke",
-        ":config",
-        "//src/main/k8s:panel_match_resource_setup",
+        "config_files",
+        ":kingdom_secret",
     ],
 )
 
@@ -82,12 +84,15 @@ cue_dump(
     cue_tags = {
         "duchy_name": "aggregator",
         "duchy_protocols_setup_config": "aggregator_protocols_setup_config.textproto",
-        "secret_name": DUCHY_K8S_SETTINGS.secret_name,
+        "secret_name": SECRET_NAME,
         "certificate_id": DUCHY_K8S_SETTINGS.certificate_id,
         "cloud_storage_bucket": DUCHY_K8S_SETTINGS.storage_bucket,
         "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
         "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
         "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+        "google_cloud_project": GCLOUD_SETTINGS.project,
+        "spanner_instance": GCLOUD_SETTINGS.spanner_instance,
+        "kingdom_system_api_target": KINGDOM_K8S_SETTINGS.system_api_target,
     },
     tags = ["manual"],
     deps = [
@@ -104,12 +109,15 @@ cue_dump(
     cue_tags = {
         "duchy_name": "worker1",
         "duchy_protocols_setup_config": "non_aggregator_protocols_setup_config.textproto",
-        "secret_name": DUCHY_K8S_SETTINGS.secret_name,
+        "secret_name": SECRET_NAME,
         "certificate_id": DUCHY_K8S_SETTINGS.certificate_id,
         "cloud_storage_bucket": DUCHY_K8S_SETTINGS.storage_bucket,
         "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
         "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
         "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+        "google_cloud_project": GCLOUD_SETTINGS.project,
+        "spanner_instance": GCLOUD_SETTINGS.spanner_instance,
+        "kingdom_system_api_target": KINGDOM_K8S_SETTINGS.system_api_target,
     },
     tags = ["manual"],
     deps = [
@@ -126,12 +134,15 @@ cue_dump(
     cue_tags = {
         "duchy_name": "worker2",
         "duchy_protocols_setup_config": "non_aggregator_protocols_setup_config.textproto",
-        "secret_name": DUCHY_K8S_SETTINGS.secret_name,
+        "secret_name": SECRET_NAME,
         "certificate_id": DUCHY_K8S_SETTINGS.certificate_id,
         "cloud_storage_bucket": DUCHY_K8S_SETTINGS.storage_bucket,
         "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
         "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
         "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+        "google_cloud_project": GCLOUD_SETTINGS.project,
+        "spanner_instance": GCLOUD_SETTINGS.spanner_instance,
+        "kingdom_system_api_target": KINGDOM_K8S_SETTINGS.system_api_target,
     },
     tags = ["manual"],
     deps = [
@@ -142,10 +153,101 @@ cue_dump(
     ],
 )
 
+expand_template(
+    name = "gen_aggregator_secret_kustomization",
+    out = "aggregator_secret_kustomization.yaml",
+    substitutions = {
+        "{duchy_id}": "aggregator",
+        "{duchy_role}": "aggregator",
+    },
+    template = "duchy_secret_kustomization.tmpl.yaml",
+)
+
+expand_template(
+    name = "gen_worker1_secret_kustomization",
+    out = "worker1_secret_kustomization.yaml",
+    substitutions = {
+        "{duchy_id}": "worker1",
+        "{duchy_role}": "non_aggregator",
+    },
+    template = "duchy_secret_kustomization.tmpl.yaml",
+)
+
+expand_template(
+    name = "gen_worker2_secret_kustomization",
+    out = "worker2_secret_kustomization.yaml",
+    substitutions = {
+        "{duchy_id}": "worker2",
+        "{duchy_role}": "non_aggregator",
+    },
+    template = "duchy_secret_kustomization.tmpl.yaml",
+)
+
+kustomization_dir(
+    name = "aggregator_duchy_secret",
+    srcs = [":aggregator_secret_kustomization.yaml"],
+    renames = {"aggregator_secret_kustomization.yaml": "kustomization.yaml"},
+)
+
+kustomization_dir(
+    name = "worker1_duchy_secret",
+    srcs = [":worker1_secret_kustomization.yaml"],
+    renames = {"worker1_secret_kustomization.yaml": "kustomization.yaml"},
+)
+
+kustomization_dir(
+    name = "worker2_duchy_secret",
+    srcs = [":worker2_secret_kustomization.yaml"],
+    renames = {"worker2_secret_kustomization.yaml": "kustomization.yaml"},
+)
+
+kustomization_dir(
+    name = "aggregator_duchy",
+    srcs = [
+        "resource_requirements.yaml",
+        ":aggregator_duchy_gke",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+    deps = [
+        ":aggregator_duchy_secret",
+        ":config_files",
+    ],
+)
+
+kustomization_dir(
+    name = "worker1_duchy",
+    srcs = [
+        "resource_requirements.yaml",
+        ":worker1_duchy_gke",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+    deps = [
+        ":config_files",
+        ":worker1_duchy_secret",
+    ],
+)
+
+kustomization_dir(
+    name = "worker2_duchy",
+    srcs = [
+        "resource_requirements.yaml",
+        ":worker2_duchy_gke",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+    deps = [
+        ":config_files",
+        ":worker2_duchy_secret",
+    ],
+)
+
 cue_dump(
     name = "edp_simulator_gke",
     srcs = ["edp_simulator_gke.cue"],
     cue_tags = {
+        "secret_name": SECRET_NAME,
         "mc_name": SIMULATOR_K8S_SETTINGS.mc_name,
         "edp1_name": SIMULATOR_K8S_SETTINGS.edp1_name,
         "edp2_name": SIMULATOR_K8S_SETTINGS.edp2_name,
@@ -153,11 +255,13 @@ cue_dump(
         "edp4_name": SIMULATOR_K8S_SETTINGS.edp4_name,
         "edp5_name": SIMULATOR_K8S_SETTINGS.edp5_name,
         "edp6_name": SIMULATOR_K8S_SETTINGS.edp6_name,
-        "secret_name": SIMULATOR_K8S_SETTINGS.secret_name,
+        "google_cloud_project": GCLOUD_SETTINGS.project,
         "cloud_storage_bucket": SIMULATOR_K8S_SETTINGS.storage_bucket,
         "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
         "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
         "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+        "kingdom_public_api_target": KINGDOM_K8S_SETTINGS.public_api_target,
+        "duchy_public_api_target": DUCHY_K8S_SETTINGS.public_api_target,
     },
     tags = ["manual"],
     deps = [
@@ -167,24 +271,17 @@ cue_dump(
     ],
 )
 
-cue_dump(
-    name = "frontend_simulator_gke",
-    srcs = ["frontend_simulator_gke.cue"],
-    cue_tags = {
-        "mc_name": SIMULATOR_K8S_SETTINGS.mc_name,
-        "mc_api_key": SIMULATOR_K8S_SETTINGS.mc_api_key,
-        "secret_name": SIMULATOR_K8S_SETTINGS.secret_name,
-        "cloud_storage_bucket": SIMULATOR_K8S_SETTINGS.storage_bucket,
-        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
-        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
-        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
-    },
+kustomization_dir(
+    name = "edp_simulators",
+    testonly = True,
+    srcs = [
+        "resource_requirements.yaml",
+        ":edp_simulator_gke",
+    ],
+    generate_kustomization = True,
     tags = ["manual"],
     deps = [
-        ":base_gke",
-        ":config",
-        "//src/main/k8s:base",
-        "//src/main/k8s:frontend_simulator",
+        "//src/main/k8s/testing/secretfiles:kustomization",
     ],
 )
 
@@ -192,17 +289,45 @@ cue_dump(
     name = "reporting_gke",
     srcs = ["reporting_gke.cue"],
     cue_tags = {
-        "secret_name": REPORTING_K8S_SETTINGS.secret_name,
-        "mc_config_secret_name": REPORTING_K8S_SETTINGS.mc_config_secret_name,
+        "secret_name": SIGNING_SECRET_NAME,
+        "mc_config_secret_name": MC_CONFIG_SECRET_NAME,
         "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
         "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
         "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+        "google_cloud_project": GCLOUD_SETTINGS.project,
+        "postgres_instance": GCLOUD_SETTINGS.postgres_instance,
+        "postgres_region": GCLOUD_SETTINGS.postgres_region,
+        "kingdom_public_api_target": KINGDOM_K8S_SETTINGS.public_api_target,
     },
     tags = ["manual"],
     deps = [
         ":base_gke",
         ":config",
         "//src/main/k8s:reporting",
+    ],
+)
+
+kustomization_dir(
+    name = "reporting_config_files",
+    srcs = ["reporting_config_files_kustomization.yaml"],
+    renames = {"reporting_config_files_kustomization.yaml": "kustomization.yaml"},
+)
+
+kustomization_dir(
+    name = "reporting_secrets",
+)
+
+kustomization_dir(
+    name = "reporting",
+    srcs = [
+        "resource_requirements.yaml",
+        ":reporting_gke",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+    deps = [
+        ":reporting_config_files",
+        ":reporting_secrets",
     ],
 )
 
@@ -218,6 +343,7 @@ cue_dump(
 cue_dump(
     name = "prometheus_gke",
     srcs = ["prometheus_gke.cue"],
+    cue_tags = {"google_cloud_project": GCLOUD_SETTINGS.project},
     tags = ["manual"],
     deps = [
         ":base_gke",
