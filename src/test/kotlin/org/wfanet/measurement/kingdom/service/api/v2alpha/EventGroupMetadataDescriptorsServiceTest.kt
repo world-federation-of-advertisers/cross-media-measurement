@@ -63,6 +63,7 @@ import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescripto
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptor as internalEventGroupMetadataDescriptor
 import org.wfanet.measurement.internal.kingdom.getEventGroupMetadataDescriptorRequest as internalGetEventGroupMetadataDescriptorRequest
+import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptorKey
 import org.wfanet.measurement.internal.kingdom.streamEventGroupMetadataDescriptorsRequest
 
 private const val DEFAULT_LIMIT = 50
@@ -453,7 +454,7 @@ class EventGroupMetadataDescriptorsServiceTest {
           filter =
             StreamEventGroupMetadataDescriptorsRequestKt.filter {
               externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
-              keyAfter = StreamEventGroupMetadataDescriptorsRequestKt.FilterKt.key {}
+              keyAfter = eventGroupMetadataDescriptorKey {}
             }
         }
       )
@@ -489,7 +490,7 @@ class EventGroupMetadataDescriptorsServiceTest {
           limit = DEFAULT_LIMIT + 1
           filter =
             StreamEventGroupMetadataDescriptorsRequestKt.filter {
-              keyAfter = StreamEventGroupMetadataDescriptorsRequestKt.FilterKt.key {}
+              keyAfter = eventGroupMetadataDescriptorKey {}
             }
         }
       )
@@ -549,7 +550,7 @@ class EventGroupMetadataDescriptorsServiceTest {
             StreamEventGroupMetadataDescriptorsRequestKt.filter {
               externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
               keyAfter =
-                StreamEventGroupMetadataDescriptorsRequestKt.FilterKt.key {
+                eventGroupMetadataDescriptorKey {
                   externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
                   externalEventGroupMetadataDescriptorId =
                     EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
@@ -605,7 +606,7 @@ class EventGroupMetadataDescriptorsServiceTest {
             StreamEventGroupMetadataDescriptorsRequestKt.filter {
               externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
               keyAfter =
-                StreamEventGroupMetadataDescriptorsRequestKt.FilterKt.key {
+                eventGroupMetadataDescriptorKey {
                   externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
                   externalEventGroupMetadataDescriptorId =
                     EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
@@ -660,7 +661,7 @@ class EventGroupMetadataDescriptorsServiceTest {
             StreamEventGroupMetadataDescriptorsRequestKt.filter {
               externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
               keyAfter =
-                StreamEventGroupMetadataDescriptorsRequestKt.FilterKt.key {
+                eventGroupMetadataDescriptorKey {
                   externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
                   externalEventGroupMetadataDescriptorId =
                     EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value

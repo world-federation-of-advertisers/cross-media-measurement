@@ -53,10 +53,7 @@ class StreamEventGroupMetadataDescriptors(
       bind(EXTERNAL_DATA_PROVIDER_ID to filter.externalDataProviderId)
     }
 
-    if (
-      filter.keyAfter.externalDataProviderId != 0L &&
-        filter.keyAfter.externalEventGroupMetadataDescriptorId != 0L
-    ) {
+    if (filter.hasKeyAfter()) {
       conjuncts.add(
         """
           ((ExternalDataProviderId > @${EXTERNAL_DATA_PROVIDER_ID_AFTER})

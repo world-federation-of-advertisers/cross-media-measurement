@@ -36,10 +36,10 @@ import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProviders
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorKt.details
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescriptorsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescriptorsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptor
+import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptorKey
 import org.wfanet.measurement.internal.kingdom.getEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupMetadataDescriptorRequest
@@ -367,7 +367,7 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
   }
 
   @Test
-  fun `streamEventGroupMetadataDescriptors skips results based on after Ids`(): Unit = runBlocking {
+  fun `streamEventGroupMetadataDescriptors skips results based on key after`(): Unit = runBlocking {
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId
 
@@ -394,7 +394,7 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
             filter = filter {
               this.externalDataProviderId = externalDataProviderId
               keyAfter =
-                StreamEventGroupMetadataDescriptorsRequestKt.FilterKt.key {
+                eventGroupMetadataDescriptorKey {
                   this.externalDataProviderId = externalDataProviderId
                   this.externalEventGroupMetadataDescriptorId =
                     if (
@@ -421,22 +421,6 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
       assertThat(eventGroupMetadataDescriptors).containsExactly(eventGroupMetadataDescriptor)
     }
   }
-
-  @Test
-  fun `streamEventGroupMetadataDescriptors fails for negative external data provider id`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          eventGroupMetadataDescriptorService.streamEventGroupMetadataDescriptors(
-            streamEventGroupMetadataDescriptorsRequest {
-              filter = filter { externalDataProviderId = -1L }
-            }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception).hasMessageThat().contains("ExternalDataProviderId")
-    }
 
   @Test
   fun `streamEventGroupMetadataDescriptors fails for negative limit`() = runBlocking {

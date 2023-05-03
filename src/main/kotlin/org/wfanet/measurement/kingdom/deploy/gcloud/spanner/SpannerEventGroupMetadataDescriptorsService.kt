@@ -85,10 +85,6 @@ class SpannerEventGroupMetadataDescriptorsService(
   override fun streamEventGroupMetadataDescriptors(
     request: StreamEventGroupMetadataDescriptorsRequest,
   ): Flow<EventGroupMetadataDescriptor> {
-    grpcRequire(request.filter.externalDataProviderId >= 0L) {
-      "ExternalDataProviderId cannot be less than 0"
-    }
-
     grpcRequire(request.limit >= 0) { "Limit cannot be less than 0" }
 
     return StreamEventGroupMetadataDescriptors(request.filter, request.limit)
