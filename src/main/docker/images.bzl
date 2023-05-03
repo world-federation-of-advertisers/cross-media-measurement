@@ -47,6 +47,16 @@ COMMON_IMAGES = [
         repository = _PREFIX + "/kingdom/data-server",
     ),
     struct(
+        name = "kingdom_completed_measurements_deletion_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/job:completed_measurements_deletion_image",
+        repository = _PREFIX + "/kingdom/completed-measurements-deletion",
+    ),
+    struct(
+        name = "kingdom_pending_measurements_cancellation_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/job:pending_measurements_cancellation_image",
+        repository = _PREFIX + "/kingdom/pending-measurements-cancellation",
+    ),
+    struct(
         name = "kingdom_system_api_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:system_api_server_image",
         repository = _PREFIX + "/kingdom/system-api",
@@ -97,11 +107,6 @@ GKE_IMAGES = [
         repository = _PREFIX + "/duchy/liquid-legions-v2-mill",
     ),
     struct(
-        name = "gcs_frontend_simulator_runner_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/loadtest/frontend:gcs_frontend_simulator_runner_image",
-        repository = _PREFIX + "/loadtest/frontend-simulator",
-    ),
-    struct(
         name = "gcs_edp_simulator_runner_image",
         image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:gcs_edp_simulator_runner_image",
         repository = _PREFIX + "/loadtest/edp-simulator",
@@ -129,11 +134,6 @@ LOCAL_IMAGES = [
         name = "forwarded_storage_requisition_fulfillment_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:forwarded_storage_requisition_fulfillment_server_image",
         repository = _PREFIX + "/duchy/local-requisition-fulfillment",
-    ),
-    struct(
-        name = "forwarded_storage_frontend_simulator_runner_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/loadtest/frontend:forwarded_storage_frontend_simulator_runner_image",
-        repository = _PREFIX + "/simulator/local-mc",
     ),
     struct(
         name = "forwarded_storage_edp_simulator_runner_image",
@@ -186,3 +186,5 @@ ALL_GKE_IMAGES = COMMON_IMAGES + GKE_IMAGES + REPORTING_COMMON_IMAGES + REPORTIN
 ALL_LOCAL_IMAGES = COMMON_IMAGES + LOCAL_IMAGES + REPORTING_COMMON_IMAGES + REPORTING_LOCAL_IMAGES
 
 ALL_IMAGES = COMMON_IMAGES + LOCAL_IMAGES + GKE_IMAGES + REPORTING_COMMON_IMAGES + REPORTING_LOCAL_IMAGES + REPORTING_GKE_IMAGES
+
+ALL_REPORTING_GKE_IMAGES = REPORTING_COMMON_IMAGES + REPORTING_GKE_IMAGES

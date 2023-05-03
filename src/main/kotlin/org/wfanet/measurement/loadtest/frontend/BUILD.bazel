@@ -1,7 +1,4 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
-load("@rules_java//java:defs.bzl", "java_binary")
-load("@io_bazel_rules_docker//java:image.bzl", "java_image")
-load("//build/platforms:constraints.bzl", "DISTROLESS_JAVA")
 
 package(
     default_testonly = True,
@@ -49,77 +46,4 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:hashing",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
     ],
-)
-
-kt_jvm_library(
-    name = "frontend_simulator_runner",
-    srcs = [
-        "FrontendSimulatorFlags.kt",
-        "FrontendSimulatorRunner.kt",
-    ],
-    deps = [
-        ":frontend_simulator",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:flags",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest:service_flags",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:event_filters",
-        "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc_proto",
-        "@wfa_common_jvm//imports/java/io/grpc:api",
-        "@wfa_common_jvm//imports/java/picocli",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
-    ],
-)
-
-kt_jvm_library(
-    name = "forwarded_storage_frontend_simulator_runner",
-    srcs = ["ForwardedStorageFrontendSimulatorRunner.kt"],
-    deps = [
-        ":frontend_simulator_runner",
-        "@wfa_common_jvm//imports/java/picocli",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/forwarded",
-    ],
-)
-
-java_binary(
-    name = "ForwardedStorageFrontendSimulatorRunner",
-    main_class = "org.wfanet.measurement.loadtest.frontend.ForwardedStorageFrontendSimulatorRunnerKt",
-    runtime_deps = [":forwarded_storage_frontend_simulator_runner"],
-)
-
-java_image(
-    name = "forwarded_storage_frontend_simulator_runner_image",
-    main_class = "org.wfanet.measurement.loadtest.frontend.ForwardedStorageFrontendSimulatorRunnerKt",
-    target_compatible_with = DISTROLESS_JAVA,
-    visibility = [
-        "//src:docker_image_deployment",
-    ],
-    runtime_deps = [":forwarded_storage_frontend_simulator_runner"],
-)
-
-kt_jvm_library(
-    name = "gcs_frontend_simulator_runner",
-    srcs = ["GcsFrontendSimulatorRunner.kt"],
-    deps = [
-        ":frontend_simulator_runner",
-        "@wfa_common_jvm//imports/java/picocli",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
-    ],
-)
-
-java_binary(
-    name = "GcsFrontendSimulatorRunner",
-    main_class = "org.wfanet.measurement.loadtest.frontend.GcsFrontendSimulatorRunnerKt",
-    runtime_deps = [":gcs_frontend_simulator_runner"],
-)
-
-java_image(
-    name = "gcs_frontend_simulator_runner_image",
-    main_class = "org.wfanet.measurement.loadtest.frontend.GcsFrontendSimulatorRunnerKt",
-    target_compatible_with = DISTROLESS_JAVA,
-    visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":gcs_frontend_simulator_runner"],
 )
