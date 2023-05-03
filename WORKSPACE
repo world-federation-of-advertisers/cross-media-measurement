@@ -1,5 +1,9 @@
 workspace(name = "wfa_measurement_system")
 
+load("//build:reporting_ui/reporting_ui_deps.bzl", "reporting_ui_repositories")
+
+reporting_ui_repositories()
+
 load("//build:repositories.bzl", "wfa_measurement_system_repositories")
 
 wfa_measurement_system_repositories()
@@ -56,6 +60,15 @@ maven_install(
     repositories = [
         "https://repo.maven.apache.org/maven2/",
     ],
+)
+
+load("@bazel_gazelle//:deps.bzl", "go_repository")
+
+go_repository(
+    name = "org_golang_google_grpc_cmd_protoc_gen_go_grpc",
+    importpath = "google.golang.org/grpc/cmd/protoc-gen-go-grpc",
+    sum = "h1:TLkBREm4nIsEcexnCjgQd5GQWaHcqMzwQV0TX9pq8S0=",
+    version = "v1.2.0",
 )
 
 load("@wfa_common_jvm//build:common_jvm_extra_deps.bzl", "common_jvm_extra_deps")
