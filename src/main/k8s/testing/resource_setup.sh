@@ -44,4 +44,4 @@ exec $BAZEL_BIN/src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup/Re
 --edp-encryption-public-keysets=edp4=src/main/k8s/testing/secretfiles/edp4_enc_public.tink \
 --edp-encryption-public-keysets=edp5=src/main/k8s/testing/secretfiles/edp5_enc_public.tink \
 --edp-encryption-public-keysets=edp6=src/main/k8s/testing/secretfiles/edp6_enc_public.tink \
---bazel-config-name=halo-local "$@"
+"$@"

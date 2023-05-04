@@ -36,7 +36,7 @@ message BatchGetReportingSetsRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
   string cmms_measurement_consumer_id = 1;
 
-  // Maximum is 200.
+  // Maximum is 1000.
   repeated fixed64 external_reporting_set_ids = 2;
 }
 
@@ -46,7 +46,7 @@ message BatchGetReportingSetsResponse {
 
 message StreamReportingSetsRequest {
   message Filter {
-    // `MeasurementConsumer` ID from the CMMS public API.
+    // `MeasurementConsumer` ID from the CMMS public API. Required.
     string cmms_measurement_consumer_id = 1;
     // Skips to results with an external id greater than this.
     fixed64 external_reporting_set_id_after = 2;

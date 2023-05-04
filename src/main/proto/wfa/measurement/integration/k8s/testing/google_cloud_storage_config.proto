@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2023 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,15 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package k8s
+syntax = "proto3";
 
-_secret_name: string @tag("secret_name")
+package wfa.measurement.integration.k8s.testing;
 
-objectSets: [resourceSetup]
+option java_package = "org.measurement.integration.k8s.testing";
+option java_multiple_files = true;
 
-resourceSetup: #ResourceSetup & {
-	_edp_display_names: ["edp1", "edp2", "edp3", "edp4", "edp5", "edp6"]
-	_duchy_ids: ["aggregator", "worker1", "worker2"]
-	_resource_setup_secret_name: _secret_name
-	_dependencies: ["gcp-kingdom-data-server"]
+// Configuration for Google Cloud Storage (GCS).
+message GoogleCloudStorageConfig {
+  // Google Cloud project.
+  string project = 1;
+
+  // Google Cloud Storage bucket.
+  string bucket = 2;
 }

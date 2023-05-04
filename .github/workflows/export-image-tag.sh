@@ -13,15 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#set -eu -o pipefail
-
-DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
-
 declare tag
-if [[ "$GITHUB_EVENT_NAME" == 'release' ]]; then
+if [[ "$GITHUB_REF_TYPE" == 'tag' ]]; then
   tag="${GITHUB_REF_NAME#v}"
-elif [[ "$GITHUB_REF_NAME" == "$DEFAULT_BRANCH" ]]; then
-  tag="latest"
 else
   tag="$GITHUB_SHA"
 fi

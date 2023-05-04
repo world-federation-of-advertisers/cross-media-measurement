@@ -30,8 +30,10 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
+import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
@@ -54,6 +56,7 @@ import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProviders
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest as internalGetDataProviderRequest
+import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest as internalReplaceDataProviderRequiredDuchiesRequest
 
 private const val DATA_PROVIDER_ID = 123L
 private const val DATA_PROVIDER_ID_2 = 124L
@@ -62,13 +65,18 @@ private const val CERTIFICATE_ID = 456L
 private val DATA_PROVIDER_NAME = makeDataProvider(DATA_PROVIDER_ID)
 private val DATA_PROVIDER_NAME_2 = makeDataProvider(DATA_PROVIDER_ID_2)
 private val CERTIFICATE_NAME = "$DATA_PROVIDER_NAME/certificates/AAAAAAAAAcg"
+private val DUCHY = DuchyKey("worker1")
+private val DUCHIES = listOf(DUCHY).map { it.toName() }
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
 
 @RunWith(JUnit4::class)
 class DataProvidersServiceTest {
   private val internalServiceMock: InternalDataProvidersService =
-    mockService() { onBlocking { getDataProvider(any()) }.thenReturn(INTERNAL_DATA_PROVIDER) }
+    mockService() {
+      onBlocking { getDataProvider(any()) }.thenReturn(INTERNAL_DATA_PROVIDER)
+      onBlocking { replaceDataProviderRequiredDuchies(any()) }.thenReturn(INTERNAL_DATA_PROVIDER)
+    }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalServiceMock) }
 
@@ -93,6 +101,7 @@ class DataProvidersServiceTest {
       certificate = CERTIFICATE_NAME
       certificateDer = SERVER_CERTIFICATE_DER
       publicKey = SIGNED_PUBLIC_KEY
+      requiredExternalDuchyIds += DUCHIES
     }
     assertThat(dataProvider).isEqualTo(expectedDataProvider)
     verifyProtoArgument(internalServiceMock, InternalDataProvidersService::getDataProvider)
@@ -113,6 +122,7 @@ class DataProvidersServiceTest {
       certificate = CERTIFICATE_NAME
       certificateDer = SERVER_CERTIFICATE_DER
       publicKey = SIGNED_PUBLIC_KEY
+      requiredExternalDuchyIds += DUCHIES
     }
     assertThat(dataProvider).isEqualTo(expectedDataProvider)
     verifyProtoArgument(internalServiceMock, InternalDataProvidersService::getDataProvider)
@@ -178,6 +188,146 @@ class DataProvidersServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
+  @Test
+  fun `replaceDataProviderRequiredDuchies from edp succeeds`() {
+    val dataProvider =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking {
+          service.replaceDataProviderRequiredDuchies(
+            replaceDataProviderRequiredDuchiesRequest {
+              name = DATA_PROVIDER_NAME
+              requiredExternalDuchies += DUCHIES
+            }
+          )
+        }
+      }
+
+    val expectedDataProvider = dataProvider {
+      name = DATA_PROVIDER_NAME
+      certificate = CERTIFICATE_NAME
+      certificateDer = SERVER_CERTIFICATE_DER
+      publicKey = SIGNED_PUBLIC_KEY
+      requiredExternalDuchyIds += DUCHIES
+    }
+    assertThat(dataProvider).isEqualTo(expectedDataProvider)
+    verifyProtoArgument(
+        internalServiceMock,
+        InternalDataProvidersService::replaceDataProviderRequiredDuchies
+      )
+      .isEqualTo(
+        internalReplaceDataProviderRequiredDuchiesRequest {
+          externalDataProviderId = DATA_PROVIDER_ID
+          requiredExternalDuchyIds += listOf("worker1")
+        }
+      )
+  }
+
+  @Test
+  fun `replaceDataProviderRequiredDuchies throws INVALID_ARGUMENT when name is invalid`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.replaceDataProviderRequiredDuchies(
+              replaceDataProviderRequiredDuchiesRequest {
+                name = "foo"
+                requiredExternalDuchies += DUCHIES
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `replaceDataProviderRequiredDuchies throws INVALID_ARGUMENT when requiredExternalDuchies is invalid`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.replaceDataProviderRequiredDuchies(
+              replaceDataProviderRequiredDuchiesRequest {
+                name = DATA_PROVIDER_NAME
+                requiredExternalDuchies += listOf("worker1")
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `replaceDataProviderRequiredDuchies throws UNAUTHENTICATED when no principal found`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.replaceDataProviderRequiredDuchies(
+            replaceDataProviderRequiredDuchiesRequest {
+              name = DATA_PROVIDER_NAME
+              requiredExternalDuchies += DUCHIES
+            }
+          )
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `replaceDataProviderRequiredDuchies throws PERMISSION_DENIED when edp caller doesn't match`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME_2) {
+          runBlocking {
+            service.replaceDataProviderRequiredDuchies(
+              replaceDataProviderRequiredDuchiesRequest {
+                name = DATA_PROVIDER_NAME
+                requiredExternalDuchies += DUCHIES
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `replaceDataProviderRequiredDuchies throws PERMISSION_DENIED with mc caller`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.replaceDataProviderRequiredDuchies(
+              replaceDataProviderRequiredDuchiesRequest {
+                name = DATA_PROVIDER_NAME
+                requiredExternalDuchies += DUCHIES
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `replaceDataProviderRequiredDuchies throws PERMISSION_DENIED with model provider caller`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking {
+            service.replaceDataProviderRequiredDuchies(
+              replaceDataProviderRequiredDuchiesRequest {
+                name = DATA_PROVIDER_NAME
+                requiredExternalDuchies += DUCHIES
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
   companion object {
     private val serverCertificate: X509Certificate =
       readCertificate(TestData.FIXED_SERVER_CERT_PEM_FILE)
@@ -205,6 +355,7 @@ class DataProvidersServiceTest {
         notValidAfter = serverCertificate.notAfter.toInstant().toProtoTime()
         details = CertificateKt.details { x509Der = SERVER_CERTIFICATE_DER }
       }
+      requiredExternalDuchyIds += DUCHIES
     }
   }
 }
