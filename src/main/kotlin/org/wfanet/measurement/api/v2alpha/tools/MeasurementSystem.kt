@@ -132,6 +132,7 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = systemDuration.ofSeconds(30)
       MeasurementConsumers::class,
       Measurements::class,
       ApiKeys::class,
+      DataProviders::class,
     ]
 )
 class MeasurementSystem private constructor() : Runnable {
@@ -1013,36 +1014,44 @@ class GetMeasurement : Runnable {
 }
 
 @Command(
-  name = "replace-data-provider-duchies",
-  description = ["Replaces DataProvider's duchy list"]
+  name = "data-providers",
+  subcommands = [CommandLine.HelpCommand::class],
 )
-class ReplaceDataProviderRequiredDuchiesCommand : Runnable {
-  @ParentCommand private lateinit var parentCommand: Measurements
+private class DataProviders {
+  @ParentCommand
+  lateinit var parentCommand: MeasurementSystem
+    private set
 
-  @Option(
-    names = ["--name"],
-    description = ["API resource name of the DataProvider"],
-    required = true,
+  val dataProviderStub: DataProvidersCoroutineStub by lazy {
+    DataProvidersCoroutineStub(parentCommand.kingdomChannel)
+  }
+
+  @Command(
+    name = "replace-data-provider-duchies",
+    description = ["Replaces DataProvider's duchy list"]
   )
-  private lateinit var name: String
+  fun replaceRequiredDuchyList(
+    @Option(
+      names = ["--data-provider"],
+      description = ["API resource name of the DataProvider"],
+      required = true,
+    ) dataProviderName: String,
 
-  @Option(
-    names = ["--required-duchies"],
-    description =
-    [
+    @Option(
+      names = ["--required-duchies"],
+      description =
+      [
       "The set of new duchies externals IDS that that will replace the old duchy list for this DataProvider"
-    ],
-    required = true,
-  )
-  private lateinit var requiredDuchies: List<String>
-
-  override fun run() {
+      ],
+      required = true,
+      ) requiredDuchies: List<String>,
+  ) {
     val request = replaceDataProviderRequiredDuchiesRequest {
-      name = name
+      name = dataProviderName
       requiredExternalDuchies += requiredDuchies
     }
-    val outputDataProvider = runBlocking(parentCommand.parentCommand.rpcDispatcher) {
-      parentCommand.dataProviderStub
+    val outputDataProvider = runBlocking(parentCommand.rpcDispatcher) {
+      dataProviderStub
         .replaceDataProviderRequiredDuchies(request)
     }
 
@@ -1050,6 +1059,8 @@ class ReplaceDataProviderRequiredDuchiesCommand : Runnable {
       "Data Provider ${outputDataProvider.name} duchy list replaced with ${outputDataProvider.requiredExternalDuchyIdsList}"
     )
   }
+
+  @Command
 }
 
 @Command(
