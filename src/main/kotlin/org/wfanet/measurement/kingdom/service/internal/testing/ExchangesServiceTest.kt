@@ -16,7 +16,9 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.type.date
 import kotlin.test.assertFails
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -37,6 +39,10 @@ import org.wfanet.measurement.internal.kingdom.GetExchangeRequest
 import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.StreamExchangesRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.createExchangeRequest
+import org.wfanet.measurement.internal.kingdom.streamExchangesRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
 
@@ -203,6 +209,95 @@ abstract class ExchangesServiceTest {
   @Test
   fun `getExchange for missing exchange fails`() {
     assertFails { getExchange() }
+  }
+
+  @Test
+  fun `streamExchange returns all exchanges`(): Unit = runBlocking {
+    val createRequest1 = createExchangeRequest { exchange = EXCHANGE }
+    val createRequest2 = createExchangeRequest {
+      exchange =
+        EXCHANGE.copy {
+          date = date {
+            year = 2021
+            month = 1
+            day = 1
+          }
+        }
+    }
+
+    val exchange1 = createExchange(createRequest1)
+    val exchange2 = createExchange(createRequest2)
+
+    val response = exchanges.streamExchanges(streamExchangesRequest {}).toList()
+
+    assertThat(response).hasSize(2)
+    assertThat(response).containsExactly(exchange1, exchange2)
+  }
+
+  @Test
+  fun `streamExchange respects filter before date`(): Unit = runBlocking {
+    val oldExchangeRequest = createExchangeRequest {
+      exchange =
+        EXCHANGE.copy {
+          date = date {
+            year = 2021
+            month = 1
+            day = 1
+          }
+        }
+    }
+    val newExchangeRequest = createExchangeRequest {
+      exchange =
+        EXCHANGE.copy {
+          date = date {
+            year = 2023
+            month = 1
+            day = 1
+          }
+        }
+    }
+
+    val oldExchange = createExchange(oldExchangeRequest)
+    createExchange(newExchangeRequest)
+
+    val response =
+      exchanges
+        .streamExchanges(
+          streamExchangesRequest {
+            filter = filter {
+              dateBefore = date {
+                year = 2022
+                month = 1
+                day = 1
+              }
+            }
+          }
+        )
+        .toList()
+
+    assertThat(response).containsExactly(oldExchange)
+  }
+
+  @Test
+  fun `streamExchange respects limit`(): Unit = runBlocking {
+    val createRequest1 = CreateExchangeRequest.newBuilder().apply { exchange = EXCHANGE }.build()
+    val createRequest2 = createExchangeRequest {
+      exchange =
+        EXCHANGE.copy {
+          date = date {
+            year = 2021
+            month = 1
+            day = 1
+          }
+        }
+    }
+
+    createExchange(createRequest1)
+    createExchange(createRequest2)
+
+    val response = exchanges.streamExchanges(streamExchangesRequest { limit = 1 }).toList()
+
+    assertThat(response).hasSize(1)
   }
 
   private fun createExchange(request: CreateExchangeRequest): Exchange {
