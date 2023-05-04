@@ -56,5 +56,5 @@ message SetModelLineHoldbackModelLineRequest {
 
 message SetActiveEndTimeRequest {
   fixed64 external_model_line_id = 1;
-  fixed64 active_end_time = 2;
+  google.protobuf.Timestamp active_end_time = 2;
 }
