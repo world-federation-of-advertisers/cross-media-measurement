@@ -74,6 +74,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:metrics_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:page_token_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:reporting_sets_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf/util",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
@@ -104,6 +105,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:metrics_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:page_token_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:reporting_sets_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf/util",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
@@ -119,5 +121,24 @@ kt_jvm_library(
     srcs = ["SetExpressionCompiler.kt"],
     deps = [
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
+    name = "reporting_sets_service",
+    srcs = ["ReportingSetsService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:principal_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:proto_conversions",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:reporting_principal",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:set_expression_compiler",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:page_token_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:reporting_sets_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
     ],
 )

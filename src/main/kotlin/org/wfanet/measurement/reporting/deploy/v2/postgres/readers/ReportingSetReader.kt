@@ -215,7 +215,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
           if (reportingSetInfo.displayName != null) {
             displayName = reportingSetInfo.displayName
           }
-          if (reportingSetInfo.filter != null) {
+          if (!reportingSetInfo.filter.isNullOrEmpty()) {
             filter = reportingSetInfo.filter
           }
 
