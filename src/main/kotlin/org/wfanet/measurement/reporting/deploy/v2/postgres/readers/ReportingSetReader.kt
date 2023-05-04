@@ -215,7 +215,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
           if (reportingSetInfo.displayName != null) {
             displayName = reportingSetInfo.displayName
           }
-          if (reportingSetInfo.filter != null) {
+          if (!reportingSetInfo.filter.isNullOrEmpty()) {
             filter = reportingSetInfo.filter
           }
 
@@ -238,7 +238,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
                 primitiveReportingSetBases +=
                   ReportingSetKt.primitiveReportingSetBasis {
                     this.externalReportingSetId = reportingSetInfo.externalReportingSetId.value
-                    if (reportingSetInfo.filter != null) {
+                    if (!reportingSetInfo.filter.isNullOrEmpty()) {
                       filters += reportingSetInfo.filter
                     }
                   }
