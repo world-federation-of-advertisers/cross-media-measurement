@@ -40,6 +40,8 @@ import org.wfanet.measurement.integration.common.reporting.identity.withMetadata
 import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
+import java.time.Duration
+import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.reporting.deploy.common.server.ReportingDataServer
 import org.wfanet.measurement.reporting.deploy.common.server.ReportingDataServer.Companion.toList
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
@@ -115,8 +117,9 @@ class InProcessReportingServer(
       listOf(
           EventGroupsService(
               publicKingdomEventGroupsClient,
-              publicKingdomEventGroupMetadataDescriptorsClient,
-              encryptionKeyPairStore
+              publicKingdomEventGroupMetadataDescriptorsClient.withAuthenticationKey(measurementConsumerConfig.apiKey),
+              encryptionKeyPairStore,
+              Duration.ofSeconds(5)
             )
             .withMetadataPrincipalIdentities(measurementConsumerConfig),
           ReportingSetsService(internalReportingSetsClient)

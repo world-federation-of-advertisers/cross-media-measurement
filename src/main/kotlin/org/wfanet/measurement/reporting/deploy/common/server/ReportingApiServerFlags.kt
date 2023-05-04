@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.reporting.deploy.common.server
 
+import java.time.Duration
 import kotlin.properties.Delegates
 import org.wfanet.measurement.reporting.deploy.common.InternalApiFlags
 import picocli.CommandLine
@@ -29,5 +30,14 @@ class ReportingApiServerFlags {
     defaultValue = "false"
   )
   var debugVerboseGrpcClientLogging by Delegates.notNull<Boolean>()
+    private set
+
+  @CommandLine.Option(
+    names = ["--list-event-groups-cache-refresh-interval"],
+    description = ["How often the list event groups cache refreshes in format 1d1h1m1s1ms1ns"],
+    defaultValue = "1h",
+    required = false,
+  )
+  lateinit var listEventGroupsCacheRefreshInterval: Duration
     private set
 }

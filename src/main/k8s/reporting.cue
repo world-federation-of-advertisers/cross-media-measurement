@@ -116,6 +116,7 @@ package k8s
 						_encryptionKeyPairConfigFileFlag,
 						"--port=8443",
 						"--health-port=8080",
+						"--list-event-groups-cache-refresh-interval=1h",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args
 
 			spec: template: spec: {

@@ -35,6 +35,9 @@ import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
+import org.wfanet.measurement.api.withAuthenticationKey
+import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.reporting.deploy.common.EncryptionKeyPairMap
 import org.wfanet.measurement.reporting.deploy.common.KingdomApiFlags
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
@@ -86,12 +89,16 @@ private fun run(
       )
       .memoizing()
 
+  val measurementConsumerConfigs = parseTextProto(v1AlphaFlags.measurementConsumerConfigFile, MeasurementConsumerConfigs.getDefaultInstance())
+  val apiKey = measurementConsumerConfigs.configsMap.values.first().apiKey
+
   val services: List<ServerServiceDefinition> =
     listOf(
       EventGroupsService(
           KingdomEventGroupsCoroutineStub(kingdomChannel),
-          KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel),
-          InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs)
+          KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel).withAuthenticationKey(apiKey),
+          InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
+          reportingApiServerFlags.listEventGroupsCacheRefreshInterval,
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ReportingSetsService(InternalReportingSetsCoroutineStub(channel))
