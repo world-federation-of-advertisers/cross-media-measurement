@@ -1059,8 +1059,6 @@ private class DataProviders {
       "Data Provider ${outputDataProvider.name} duchy list replaced with ${outputDataProvider.requiredExternalDuchyIdsList}"
     )
   }
-
-  @Command
 }
 
 @Command(
