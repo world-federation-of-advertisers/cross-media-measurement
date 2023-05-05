@@ -49,6 +49,7 @@ import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.timeInterval
 
 private const val CMMS_MEASUREMENT_CONSUMER_ID = "1234"
+private const val MAX_BATCH_CREATE_SIZE = 200
 
 @RunWith(JUnit4::class)
 abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
@@ -936,7 +937,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   }
 
   @Test
-  fun `batchCreateMetric succeeds for one create metric request`() = runBlocking {
+  fun `batchCreateMetrics succeeds for one create metric request`() = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
@@ -1022,7 +1023,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   }
 
   @Test
-  fun `batchCreateMetric succeeds for two create metric requests`() = runBlocking {
+  fun `batchCreateMetrics succeeds for two create metric requests`() = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
@@ -1112,7 +1113,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   /** TODO(tristanvuong2021): implement read methods for metric */
   @Ignore
   @Test
-  fun `batchCreateMetric succeeds for two create metric requests with one already existing`() =
+  fun `batchCreateMetrics succeeds for two create metric requests with one already existing`() =
     runBlocking {
       measurementConsumersService.createMeasurementConsumer(
         measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
@@ -1213,7 +1214,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     }
 
   @Test
-  fun `batchCreateMetric throws INVALID_ARGUMENT when metric spec missing type`() = runBlocking {
+  fun `batchCreateMetrics throws INVALID_ARGUMENT when metric spec missing type`() = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
@@ -1304,7 +1305,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   }
 
   @Test
-  fun `batchCreateMetric throws INVALID_ARGUMENT when cmms mc id doesn't match create request`() =
+  fun `batchCreateMetrics throws INVALID_ARGUMENT when cmms mc id doesn't match create request`() =
     runBlocking {
       measurementConsumersService.createMeasurementConsumer(
         measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
@@ -1395,4 +1396,94 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.message).contains("CmmsMeasurementConsumerId")
     }
+
+  @Test
+  fun `batchCreateMetrics throws INVALID_ARGUMENT when too many requests`() = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    val reportingSet = reportingSet {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      primitive =
+        ReportingSetKt.primitive {
+          eventGroupKeys +=
+            ReportingSetKt.PrimitiveKt.eventGroupKey {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              cmmsDataProviderId = "1235"
+              cmmsEventGroupId = "1236"
+            }
+        }
+    }
+
+    val createdReportingSet = reportingSetsService.createReportingSet(reportingSet)
+
+    val metric = metric {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalReportingSetId = createdReportingSet.externalReportingSetId
+      timeInterval = timeInterval {
+        startTime = timestamp { seconds = 10 }
+        endTime = timestamp { seconds = 100 }
+      }
+      metricSpec = metricSpec {
+        frequencyHistogram =
+          MetricSpecKt.frequencyHistogramParams {
+            reachPrivacyParams =
+              MetricSpecKt.differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+            frequencyPrivacyParams =
+              MetricSpecKt.differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+            maximumFrequencyPerUser = 5
+          }
+        vidSamplingInterval =
+          MetricSpecKt.vidSamplingInterval {
+            start = 1.0f
+            width = 2.0f
+          }
+      }
+      weightedMeasurements +=
+        MetricKt.weightedMeasurement {
+          weight = 2
+          measurement = measurement {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            timeInterval = timeInterval {
+              startTime = timestamp { seconds = 10 }
+              endTime = timestamp { seconds = 100 }
+            }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            state = Measurement.State.PENDING
+          }
+        }
+      details =
+        MetricKt.details {
+          filters += "filter1"
+          filters += "filter2"
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchCreateMetrics(
+          batchCreateMetricsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            for (i in 1..(MAX_BATCH_CREATE_SIZE + 1)) {
+              requests += createMetricRequest { this.metric = metric }
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("Too many")
+  }
 }

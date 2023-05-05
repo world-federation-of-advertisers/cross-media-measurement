@@ -35,6 +35,8 @@ import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateMetrics
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
+private const val MAX_BATCH_CREATE_SIZE = 200
+
 class PostgresMetricsService(
   private val idGenerator: IdGenerator,
   private val client: DatabaseClient,
@@ -58,6 +60,10 @@ class PostgresMetricsService(
   override suspend fun batchCreateMetrics(
     request: BatchCreateMetricsRequest
   ): BatchCreateMetricsResponse {
+    grpcRequire(request.requestsList.size <= MAX_BATCH_CREATE_SIZE) {
+      "Too many requests."
+    }
+
     request.requestsList.forEach {
       grpcRequire(!it.metric.metricSpec.typeCase.equals(MetricSpec.TypeCase.TYPE_NOT_SET)) {
         "Metric Spec missing type."
