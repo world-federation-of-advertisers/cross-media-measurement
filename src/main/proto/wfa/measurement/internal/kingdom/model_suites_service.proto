@@ -32,7 +32,8 @@ service ModelSuites {
 }
 
 message GetModelSuiteRequest {
-  fixed64 external_model_suite_id = 1;
+  fixed64 external_model_provider_id = 1;
+  fixed64 external_model_suite_id = 2;
 }
 
 message StreamModelSuitesRequest {

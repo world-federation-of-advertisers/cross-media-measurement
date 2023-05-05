@@ -46,7 +46,11 @@ class SpannerModelSuitesService(
 
   override suspend fun getModelSuite(request: GetModelSuiteRequest): ModelSuite {
     return ModelSuiteReader()
-      .readByExternalModelSuiteId(client.singleUse(), ExternalId(request.externalModelSuiteId))
+      .readByExternalModelSuiteId(
+        client.singleUse(),
+        ExternalId(request.externalModelProviderId),
+        ExternalId(request.externalModelSuiteId)
+      )
       ?.modelSuite
       ?: failGrpc(Status.NOT_FOUND) { "ModelSuite not found" }
   }

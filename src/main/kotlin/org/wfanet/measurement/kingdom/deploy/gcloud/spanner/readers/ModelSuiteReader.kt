@@ -56,10 +56,13 @@ class ModelSuiteReader : SpannerReader<ModelSuiteReader.Result>() {
 
   suspend fun readByExternalModelSuiteId(
     readContext: AsyncDatabaseClient.ReadContext,
+    externalModelProviderId: ExternalId,
     externalModelSuiteId: ExternalId,
   ): Result? {
     return fillStatementBuilder {
-        appendClause("WHERE ExternalModelSuiteId = @externalModelSuiteId")
+        appendClause(
+          "WHERE ExternalModelSuiteId = @externalModelSuiteId AND ExternalModelProviderId = @externalModelProviderId"
+        )
         bind("externalModelSuiteId").to(externalModelSuiteId.value)
         appendClause("LIMIT 1")
       }
