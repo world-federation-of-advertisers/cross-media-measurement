@@ -1,7 +1,6 @@
 package org.wfanet.measurement.reporting.service.internal.testing.v2
 
 import com.google.common.truth.Truth.assertThat
-import com.google.common.truth.extensions.proto.ProtoTruth
 import com.google.protobuf.timestamp
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -87,84 +86,80 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportingSetId = createdReportingSet.externalReportingSetId
       timeInterval = timeInterval {
-        startTime = timestamp {
-          seconds = 10
-        }
-        endTime = timestamp {
-          seconds = 100
-        }
+        startTime = timestamp { seconds = 10 }
+        endTime = timestamp { seconds = 100 }
       }
       metricSpec = metricSpec {
-        reach = MetricSpecKt.reachParams {
-          privacyParams = MetricSpecKt.differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 2.0
+        reach =
+          MetricSpecKt.reachParams {
+            privacyParams =
+              MetricSpecKt.differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+          }
+        vidSamplingInterval =
+          MetricSpecKt.vidSamplingInterval {
+            start = 1.0f
+            width = 2.0f
+          }
+      }
+      weightedMeasurements +=
+        MetricKt.weightedMeasurement {
+          weight = 2
+          measurement = measurement {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            timeInterval = timeInterval {
+              startTime = timestamp { seconds = 10 }
+              endTime = timestamp { seconds = 100 }
+            }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            state = Measurement.State.PENDING
           }
         }
-        vidSamplingInterval = MetricSpecKt.vidSamplingInterval {
-          start = 1.0f
-          width = 2.0f
+      weightedMeasurements +=
+        MetricKt.weightedMeasurement {
+          weight = 3
+          measurement = measurement {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID + "2"
+            timeInterval = timeInterval {
+              startTime = timestamp { seconds = 10 }
+              endTime = timestamp { seconds = 100 }
+            }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            state = Measurement.State.PENDING
+          }
         }
-      }
-      weightedMeasurements += MetricKt.weightedMeasurement {
-        weight = 2
-        measurement = measurement {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          timeInterval = timeInterval {
-            startTime = timestamp {
-              seconds = 10
-            }
-            endTime = timestamp {
-              seconds = 100
-            }
-          }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          state = Measurement.State.PENDING
+      details =
+        MetricKt.details {
+          filters += "filter1"
+          filters += "filter2"
         }
-      }
-      weightedMeasurements += MetricKt.weightedMeasurement {
-        weight = 3
-        measurement = measurement {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID + "2"
-          timeInterval = timeInterval {
-            startTime = timestamp {
-              seconds = 10
-            }
-            endTime = timestamp {
-              seconds = 100
-            }
-          }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          state = Measurement.State.PENDING
-        }
-      }
-      details = MetricKt.details {
-        filters += "filter1"
-        filters += "filter2"
-      }
     }
 
-    val createdMetric = service.createMetric(createMetricRequest {
-      this.metric = metric
-    })
+    val createdMetric = service.createMetric(createMetricRequest { this.metric = metric })
 
     assertThat(createdMetric.externalMetricId).isNotEqualTo(0L)
   }
@@ -194,89 +189,86 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportingSetId = createdReportingSet.externalReportingSetId
       timeInterval = timeInterval {
-        startTime = timestamp {
-          seconds = 10
-        }
-        endTime = timestamp {
-          seconds = 100
-        }
+        startTime = timestamp { seconds = 10 }
+        endTime = timestamp { seconds = 100 }
       }
       metricSpec = metricSpec {
-        frequencyHistogram = MetricSpecKt.frequencyHistogramParams {
-          reachPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 2.0
+        frequencyHistogram =
+          MetricSpecKt.frequencyHistogramParams {
+            reachPrivacyParams =
+              MetricSpecKt.differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+            frequencyPrivacyParams =
+              MetricSpecKt.differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+            maximumFrequencyPerUser = 5
           }
-          frequencyPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 2.0
+        vidSamplingInterval =
+          MetricSpecKt.vidSamplingInterval {
+            start = 1.0f
+            width = 2.0f
           }
-          maximumFrequencyPerUser = 5
-        }
-        vidSamplingInterval = MetricSpecKt.vidSamplingInterval {
-          start = 1.0f
-          width = 2.0f
-        }
       }
-      weightedMeasurements += MetricKt.weightedMeasurement {
-        weight = 2
-        measurement = measurement {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          timeInterval = timeInterval {
-            startTime = timestamp {
-              seconds = 10
+      weightedMeasurements +=
+        MetricKt.weightedMeasurement {
+          weight = 2
+          measurement = measurement {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            timeInterval = timeInterval {
+              startTime = timestamp { seconds = 10 }
+              endTime = timestamp { seconds = 100 }
             }
-            endTime = timestamp {
-              seconds = 100
-            }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            state = Measurement.State.PENDING
           }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          state = Measurement.State.PENDING
         }
-      }
-      weightedMeasurements += MetricKt.weightedMeasurement {
-        weight = 3
-        measurement = measurement {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID + "2"
-          timeInterval = timeInterval {
-            startTime = timestamp {
-              seconds = 10
+      weightedMeasurements +=
+        MetricKt.weightedMeasurement {
+          weight = 3
+          measurement = measurement {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID + "2"
+            timeInterval = timeInterval {
+              startTime = timestamp { seconds = 10 }
+              endTime = timestamp { seconds = 100 }
             }
-            endTime = timestamp {
-              seconds = 100
-            }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            state = Measurement.State.PENDING
           }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          state = Measurement.State.PENDING
         }
-      }
-      details = MetricKt.details {
-        filters += "filter1"
-        filters += "filter2"
-      }
+      details =
+        MetricKt.details {
+          filters += "filter1"
+          filters += "filter2"
+        }
     }
 
-    val createdMetric = service.createMetric(createMetricRequest {
-      this.metric = metric
-    })
+    val createdMetric = service.createMetric(createMetricRequest { this.metric = metric })
 
     assertThat(createdMetric.externalMetricId).isNotEqualTo(0L)
   }
@@ -306,85 +298,81 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportingSetId = createdReportingSet.externalReportingSetId
       timeInterval = timeInterval {
-        startTime = timestamp {
-          seconds = 10
-        }
-        endTime = timestamp {
-          seconds = 100
-        }
+        startTime = timestamp { seconds = 10 }
+        endTime = timestamp { seconds = 100 }
       }
       metricSpec = metricSpec {
-        impressionCount = MetricSpecKt.impressionCountParams {
-          privacyParams = MetricSpecKt.differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 2.0
+        impressionCount =
+          MetricSpecKt.impressionCountParams {
+            privacyParams =
+              MetricSpecKt.differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+            maximumFrequencyPerUser = 5
           }
-          maximumFrequencyPerUser = 5
-        }
-        vidSamplingInterval = MetricSpecKt.vidSamplingInterval {
-          start = 1.0f
-          width = 2.0f
-        }
+        vidSamplingInterval =
+          MetricSpecKt.vidSamplingInterval {
+            start = 1.0f
+            width = 2.0f
+          }
       }
-      weightedMeasurements += MetricKt.weightedMeasurement {
-        weight = 2
-        measurement = measurement {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          timeInterval = timeInterval {
-            startTime = timestamp {
-              seconds = 10
+      weightedMeasurements +=
+        MetricKt.weightedMeasurement {
+          weight = 2
+          measurement = measurement {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            timeInterval = timeInterval {
+              startTime = timestamp { seconds = 10 }
+              endTime = timestamp { seconds = 100 }
             }
-            endTime = timestamp {
-              seconds = 100
-            }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            state = Measurement.State.PENDING
           }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          state = Measurement.State.PENDING
         }
-      }
-      weightedMeasurements += MetricKt.weightedMeasurement {
-        weight = 3
-        measurement = measurement {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID + "2"
-          timeInterval = timeInterval {
-            startTime = timestamp {
-              seconds = 10
+      weightedMeasurements +=
+        MetricKt.weightedMeasurement {
+          weight = 3
+          measurement = measurement {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID + "2"
+            timeInterval = timeInterval {
+              startTime = timestamp { seconds = 10 }
+              endTime = timestamp { seconds = 100 }
             }
-            endTime = timestamp {
-              seconds = 100
-            }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            state = Measurement.State.PENDING
           }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          state = Measurement.State.PENDING
         }
-      }
-      details = MetricKt.details {
-        filters += "filter1"
-        filters += "filter2"
-      }
+      details =
+        MetricKt.details {
+          filters += "filter1"
+          filters += "filter2"
+        }
     }
 
-    val createdMetric = service.createMetric(createMetricRequest {
-      this.metric = metric
-    })
+    val createdMetric = service.createMetric(createMetricRequest { this.metric = metric })
 
     assertThat(createdMetric.externalMetricId).isNotEqualTo(0L)
   }
@@ -414,92 +402,86 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportingSetId = createdReportingSet.externalReportingSetId
       timeInterval = timeInterval {
-        startTime = timestamp {
-          seconds = 10
-        }
-        endTime = timestamp {
-          seconds = 100
-        }
+        startTime = timestamp { seconds = 10 }
+        endTime = timestamp { seconds = 100 }
       }
       metricSpec = metricSpec {
-        watchDuration = MetricSpecKt.watchDurationParams {
-          privacyParams = MetricSpecKt.differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 2.0
+        watchDuration =
+          MetricSpecKt.watchDurationParams {
+            privacyParams =
+              MetricSpecKt.differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+            maximumWatchDurationPerUser = 100
           }
-          maximumWatchDurationPerUser = 100
-        }
-        vidSamplingInterval = MetricSpecKt.vidSamplingInterval {
-          start = 1.0f
-          width = 2.0f
-        }
+        vidSamplingInterval =
+          MetricSpecKt.vidSamplingInterval {
+            start = 1.0f
+            width = 2.0f
+          }
       }
-      weightedMeasurements += MetricKt.weightedMeasurement {
-        weight = 2
-        measurement = measurement {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          timeInterval = timeInterval {
-            startTime = timestamp {
-              seconds = 10
+      weightedMeasurements +=
+        MetricKt.weightedMeasurement {
+          weight = 2
+          measurement = measurement {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            timeInterval = timeInterval {
+              startTime = timestamp { seconds = 10 }
+              endTime = timestamp { seconds = 100 }
             }
-            endTime = timestamp {
-              seconds = 100
-            }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            state = Measurement.State.PENDING
           }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          state = Measurement.State.PENDING
         }
-      }
-      weightedMeasurements += MetricKt.weightedMeasurement {
-        weight = 3
-        measurement = measurement {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID + "2"
-          timeInterval = timeInterval {
-            startTime = timestamp {
-              seconds = 10
+      weightedMeasurements +=
+        MetricKt.weightedMeasurement {
+          weight = 3
+          measurement = measurement {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID + "2"
+            timeInterval = timeInterval {
+              startTime = timestamp { seconds = 10 }
+              endTime = timestamp { seconds = 100 }
             }
-            endTime = timestamp {
-              seconds = 100
-            }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            state = Measurement.State.PENDING
           }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          state = Measurement.State.PENDING
         }
-      }
-      details = MetricKt.details {
-        filters += "filter1"
-        filters += "filter2"
-      }
+      details =
+        MetricKt.details {
+          filters += "filter1"
+          filters += "filter2"
+        }
     }
 
-    val createdMetric = service.createMetric(createMetricRequest {
-      this.metric = metric
-    })
+    val createdMetric = service.createMetric(createMetricRequest { this.metric = metric })
 
     assertThat(createdMetric.externalMetricId).isNotEqualTo(0L)
   }
 
-  /**
-   * TODO(tristanvuong2021): implement read methods for metric
-   */
+  /** TODO(tristanvuong2021): implement read methods for metric */
   @Ignore
   @Test
   fun `createMetric returns the same metric when using an existing request id`() = runBlocking {
@@ -526,97 +508,102 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportingSetId = createdReportingSet.externalReportingSetId
       timeInterval = timeInterval {
-        startTime = timestamp {
-          seconds = 10
-        }
-        endTime = timestamp {
-          seconds = 100
-        }
+        startTime = timestamp { seconds = 10 }
+        endTime = timestamp { seconds = 100 }
       }
       metricSpec = metricSpec {
-        frequencyHistogram = MetricSpecKt.frequencyHistogramParams {
-          reachPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 2.0
+        frequencyHistogram =
+          MetricSpecKt.frequencyHistogramParams {
+            reachPrivacyParams =
+              MetricSpecKt.differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+            frequencyPrivacyParams =
+              MetricSpecKt.differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+            maximumFrequencyPerUser = 5
           }
-          frequencyPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 2.0
+        vidSamplingInterval =
+          MetricSpecKt.vidSamplingInterval {
+            start = 1.0f
+            width = 2.0f
           }
-          maximumFrequencyPerUser = 5
-        }
-        vidSamplingInterval = MetricSpecKt.vidSamplingInterval {
-          start = 1.0f
-          width = 2.0f
-        }
       }
-      weightedMeasurements += MetricKt.weightedMeasurement {
-        weight = 2
-        measurement = measurement {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          timeInterval = timeInterval {
-            startTime = timestamp {
-              seconds = 10
+      weightedMeasurements +=
+        MetricKt.weightedMeasurement {
+          weight = 2
+          measurement = measurement {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            timeInterval = timeInterval {
+              startTime = timestamp { seconds = 10 }
+              endTime = timestamp { seconds = 100 }
             }
-            endTime = timestamp {
-              seconds = 100
-            }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            state = Measurement.State.PENDING
           }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          state = Measurement.State.PENDING
         }
-      }
-      weightedMeasurements += MetricKt.weightedMeasurement {
-        weight = 3
-        measurement = measurement {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID + "2"
-          timeInterval = timeInterval {
-            startTime = timestamp {
-              seconds = 10
+      weightedMeasurements +=
+        MetricKt.weightedMeasurement {
+          weight = 3
+          measurement = measurement {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID + "2"
+            timeInterval = timeInterval {
+              startTime = timestamp { seconds = 10 }
+              endTime = timestamp { seconds = 100 }
             }
-            endTime = timestamp {
-              seconds = 100
-            }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            state = Measurement.State.PENDING
           }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          state = Measurement.State.PENDING
         }
-      }
-      details = MetricKt.details {
-        filters += "filter1"
-        filters += "filter2"
-      }
+      details =
+        MetricKt.details {
+          filters += "filter1"
+          filters += "filter2"
+        }
     }
 
-    val createdMetric = service.createMetric(createMetricRequest {
-      this.metric = metric
-      requestId = "requestId"
-    })
+    val createdMetric =
+      service.createMetric(
+        createMetricRequest {
+          this.metric = metric
+          requestId = "requestId"
+        }
+      )
 
     assertThat(createdMetric.externalMetricId).isNotEqualTo(0L)
 
-    val sameCreatedMetric = service.createMetric(createMetricRequest {
-      this.metric = metric
-      requestId = "requestId"
-    })
+    val sameCreatedMetric =
+      service.createMetric(
+        createMetricRequest {
+          this.metric = metric
+          requestId = "requestId"
+        }
+      )
 
     assertThat(createdMetric).isEqualTo(sameCreatedMetric)
   }
@@ -646,61 +633,59 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportingSetId = createdReportingSet.externalReportingSetId
       timeInterval = timeInterval {
-        startTime = timestamp {
-          seconds = 10
-        }
-        endTime = timestamp {
-          seconds = 100
-        }
+        startTime = timestamp { seconds = 10 }
+        endTime = timestamp { seconds = 100 }
       }
       metricSpec = metricSpec {
-        frequencyHistogram = MetricSpecKt.frequencyHistogramParams {
-          reachPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 2.0
+        frequencyHistogram =
+          MetricSpecKt.frequencyHistogramParams {
+            reachPrivacyParams =
+              MetricSpecKt.differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+            frequencyPrivacyParams =
+              MetricSpecKt.differentialPrivacyParams {
+                epsilon = 3.0
+                delta = 4.0
+              }
+            maximumFrequencyPerUser = 5
           }
-          frequencyPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-            epsilon = 3.0
-            delta = 4.0
+        vidSamplingInterval =
+          MetricSpecKt.vidSamplingInterval {
+            start = 1.0f
+            width = 2.0f
           }
-          maximumFrequencyPerUser = 5
-        }
-        vidSamplingInterval = MetricSpecKt.vidSamplingInterval {
-          start = 1.0f
-          width = 2.0f
-        }
       }
-      weightedMeasurements += MetricKt.weightedMeasurement {
-        weight = 2
-        measurement = measurement {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          timeInterval = timeInterval {
-            startTime = timestamp {
-              seconds = 10
+      weightedMeasurements +=
+        MetricKt.weightedMeasurement {
+          weight = 2
+          measurement = measurement {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            timeInterval = timeInterval {
+              startTime = timestamp { seconds = 10 }
+              endTime = timestamp { seconds = 100 }
             }
-            endTime = timestamp {
-              seconds = 100
-            }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = 1234
+                filters += "filter1"
+                filters += "filter2"
+              }
+            state = Measurement.State.PENDING
           }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = 1234
-            filters += "filter1"
-            filters += "filter2"
-          }
-          state = Measurement.State.PENDING
         }
-      }
-      details = MetricKt.details {
-        filters += "filter1"
-        filters += "filter2"
-      }
+      details =
+        MetricKt.details {
+          filters += "filter1"
+          filters += "filter2"
+        }
     }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.createMetric(createMetricRequest {
-        this.metric = metric
-      }) }
+        service.createMetric(createMetricRequest { this.metric = metric })
+      }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.message).contains("Reporting Set")
@@ -731,61 +716,59 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportingSetId = 1234
       timeInterval = timeInterval {
-        startTime = timestamp {
-          seconds = 10
-        }
-        endTime = timestamp {
-          seconds = 100
-        }
+        startTime = timestamp { seconds = 10 }
+        endTime = timestamp { seconds = 100 }
       }
       metricSpec = metricSpec {
-        frequencyHistogram = MetricSpecKt.frequencyHistogramParams {
-          reachPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 2.0
+        frequencyHistogram =
+          MetricSpecKt.frequencyHistogramParams {
+            reachPrivacyParams =
+              MetricSpecKt.differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+            frequencyPrivacyParams =
+              MetricSpecKt.differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+            maximumFrequencyPerUser = 5
           }
-          frequencyPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 2.0
+        vidSamplingInterval =
+          MetricSpecKt.vidSamplingInterval {
+            start = 1.0f
+            width = 2.0f
           }
-          maximumFrequencyPerUser = 5
-        }
-        vidSamplingInterval = MetricSpecKt.vidSamplingInterval {
-          start = 1.0f
-          width = 2.0f
-        }
       }
-      weightedMeasurements += MetricKt.weightedMeasurement {
-        weight = 2
-        measurement = measurement {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          timeInterval = timeInterval {
-            startTime = timestamp {
-              seconds = 10
+      weightedMeasurements +=
+        MetricKt.weightedMeasurement {
+          weight = 2
+          measurement = measurement {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            timeInterval = timeInterval {
+              startTime = timestamp { seconds = 10 }
+              endTime = timestamp { seconds = 100 }
             }
-            endTime = timestamp {
-              seconds = 100
-            }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            state = Measurement.State.PENDING
           }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          state = Measurement.State.PENDING
         }
-      }
-      details = MetricKt.details {
-        filters += "filter1"
-        filters += "filter2"
-      }
+      details =
+        MetricKt.details {
+          filters += "filter1"
+          filters += "filter2"
+        }
     }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.createMetric(createMetricRequest {
-          this.metric = metric
-        }) }
+        service.createMetric(createMetricRequest { this.metric = metric })
+      }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.message).contains("Reporting Set")
@@ -816,44 +799,38 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportingSetId = createdReportingSet.externalReportingSetId
       timeInterval = timeInterval {
-        startTime = timestamp {
-          seconds = 10
-        }
-        endTime = timestamp {
-          seconds = 100
-        }
+        startTime = timestamp { seconds = 10 }
+        endTime = timestamp { seconds = 100 }
       }
-      weightedMeasurements += MetricKt.weightedMeasurement {
-        weight = 2
-        measurement = measurement {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          timeInterval = timeInterval {
-            startTime = timestamp {
-              seconds = 10
+      weightedMeasurements +=
+        MetricKt.weightedMeasurement {
+          weight = 2
+          measurement = measurement {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            timeInterval = timeInterval {
+              startTime = timestamp { seconds = 10 }
+              endTime = timestamp { seconds = 100 }
             }
-            endTime = timestamp {
-              seconds = 100
-            }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            state = Measurement.State.PENDING
           }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          state = Measurement.State.PENDING
         }
-      }
-      details = MetricKt.details {
-        filters += "filter1"
-        filters += "filter2"
-      }
+      details =
+        MetricKt.details {
+          filters += "filter1"
+          filters += "filter2"
+        }
     }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.createMetric(createMetricRequest {
-          this.metric = metric
-        }) }
+        service.createMetric(createMetricRequest { this.metric = metric })
+      }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.message).contains("Metric Spec")
@@ -884,61 +861,59 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID + "2"
       externalReportingSetId = createdReportingSet.externalReportingSetId
       timeInterval = timeInterval {
-        startTime = timestamp {
-          seconds = 10
-        }
-        endTime = timestamp {
-          seconds = 100
-        }
+        startTime = timestamp { seconds = 10 }
+        endTime = timestamp { seconds = 100 }
       }
       metricSpec = metricSpec {
-        frequencyHistogram = MetricSpecKt.frequencyHistogramParams {
-          reachPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 2.0
+        frequencyHistogram =
+          MetricSpecKt.frequencyHistogramParams {
+            reachPrivacyParams =
+              MetricSpecKt.differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+            frequencyPrivacyParams =
+              MetricSpecKt.differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+            maximumFrequencyPerUser = 5
           }
-          frequencyPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 2.0
+        vidSamplingInterval =
+          MetricSpecKt.vidSamplingInterval {
+            start = 1.0f
+            width = 2.0f
           }
-          maximumFrequencyPerUser = 5
-        }
-        vidSamplingInterval = MetricSpecKt.vidSamplingInterval {
-          start = 1.0f
-          width = 2.0f
-        }
       }
-      weightedMeasurements += MetricKt.weightedMeasurement {
-        weight = 2
-        measurement = measurement {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          timeInterval = timeInterval {
-            startTime = timestamp {
-              seconds = 10
+      weightedMeasurements +=
+        MetricKt.weightedMeasurement {
+          weight = 2
+          measurement = measurement {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            timeInterval = timeInterval {
+              startTime = timestamp { seconds = 10 }
+              endTime = timestamp { seconds = 100 }
             }
-            endTime = timestamp {
-              seconds = 100
-            }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            state = Measurement.State.PENDING
           }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          state = Measurement.State.PENDING
         }
-      }
-      details = MetricKt.details {
-        filters += "filter1"
-        filters += "filter2"
-      }
+      details =
+        MetricKt.details {
+          filters += "filter1"
+          filters += "filter2"
+        }
     }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.createMetric(createMetricRequest {
-          this.metric = metric
-        }) }
+        service.createMetric(createMetricRequest { this.metric = metric })
+      }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception.message).contains("Measurement Consumer")
@@ -969,63 +944,62 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportingSetId = createdReportingSet.externalReportingSetId
       timeInterval = timeInterval {
-        startTime = timestamp {
-          seconds = 10
-        }
-        endTime = timestamp {
-          seconds = 100
-        }
+        startTime = timestamp { seconds = 10 }
+        endTime = timestamp { seconds = 100 }
       }
       metricSpec = metricSpec {
-        frequencyHistogram = MetricSpecKt.frequencyHistogramParams {
-          reachPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 2.0
+        frequencyHistogram =
+          MetricSpecKt.frequencyHistogramParams {
+            reachPrivacyParams =
+              MetricSpecKt.differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+            frequencyPrivacyParams =
+              MetricSpecKt.differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+            maximumFrequencyPerUser = 5
           }
-          frequencyPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 2.0
+        vidSamplingInterval =
+          MetricSpecKt.vidSamplingInterval {
+            start = 1.0f
+            width = 2.0f
           }
-          maximumFrequencyPerUser = 5
-        }
-        vidSamplingInterval = MetricSpecKt.vidSamplingInterval {
-          start = 1.0f
-          width = 2.0f
-        }
       }
-      weightedMeasurements += MetricKt.weightedMeasurement {
-        weight = 2
-        measurement = measurement {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          timeInterval = timeInterval {
-            startTime = timestamp {
-              seconds = 10
+      weightedMeasurements +=
+        MetricKt.weightedMeasurement {
+          weight = 2
+          measurement = measurement {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            timeInterval = timeInterval {
+              startTime = timestamp { seconds = 10 }
+              endTime = timestamp { seconds = 100 }
             }
-            endTime = timestamp {
-              seconds = 100
-            }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            state = Measurement.State.PENDING
           }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          state = Measurement.State.PENDING
         }
-      }
-      details = MetricKt.details {
-        filters += "filter1"
-        filters += "filter2"
-      }
+      details =
+        MetricKt.details {
+          filters += "filter1"
+          filters += "filter2"
+        }
     }
 
     val batchCreateMetricsResponse =
-        service.batchCreateMetrics(batchCreateMetricsRequest {
+      service.batchCreateMetrics(
+        batchCreateMetricsRequest {
           cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          requests += createMetricRequest {
-            this.metric = metric
-          }
-        })
+          requests += createMetricRequest { this.metric = metric }
+        }
+      )
 
     assertThat(batchCreateMetricsResponse.metricsList).hasSize(1)
     assertThat(batchCreateMetricsResponse.metricsList.first().externalMetricId).isNotEqualTo(0)
@@ -1056,75 +1030,70 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportingSetId = createdReportingSet.externalReportingSetId
       timeInterval = timeInterval {
-        startTime = timestamp {
-          seconds = 10
-        }
-        endTime = timestamp {
-          seconds = 100
-        }
+        startTime = timestamp { seconds = 10 }
+        endTime = timestamp { seconds = 100 }
       }
       metricSpec = metricSpec {
-        frequencyHistogram = MetricSpecKt.frequencyHistogramParams {
-          reachPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 2.0
+        frequencyHistogram =
+          MetricSpecKt.frequencyHistogramParams {
+            reachPrivacyParams =
+              MetricSpecKt.differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+            frequencyPrivacyParams =
+              MetricSpecKt.differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+            maximumFrequencyPerUser = 5
           }
-          frequencyPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 2.0
+        vidSamplingInterval =
+          MetricSpecKt.vidSamplingInterval {
+            start = 1.0f
+            width = 2.0f
           }
-          maximumFrequencyPerUser = 5
-        }
-        vidSamplingInterval = MetricSpecKt.vidSamplingInterval {
-          start = 1.0f
-          width = 2.0f
-        }
       }
-      weightedMeasurements += MetricKt.weightedMeasurement {
-        weight = 2
-        measurement = measurement {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          timeInterval = timeInterval {
-            startTime = timestamp {
-              seconds = 10
+      weightedMeasurements +=
+        MetricKt.weightedMeasurement {
+          weight = 2
+          measurement = measurement {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            timeInterval = timeInterval {
+              startTime = timestamp { seconds = 10 }
+              endTime = timestamp { seconds = 100 }
             }
-            endTime = timestamp {
-              seconds = 100
-            }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            state = Measurement.State.PENDING
           }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          state = Measurement.State.PENDING
         }
-      }
-      details = MetricKt.details {
-        filters += "filter1"
-        filters += "filter2"
-      }
+      details =
+        MetricKt.details {
+          filters += "filter1"
+          filters += "filter2"
+        }
     }
 
     val batchCreateMetricsResponse =
-      service.batchCreateMetrics(batchCreateMetricsRequest {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        requests += createMetricRequest {
-          this.metric = metric
+      service.batchCreateMetrics(
+        batchCreateMetricsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          requests += createMetricRequest { this.metric = metric }
+          requests += createMetricRequest { this.metric = metric }
         }
-        requests += createMetricRequest {
-          this.metric = metric
-        }
-      })
+      )
 
     assertThat(batchCreateMetricsResponse.metricsList).hasSize(2)
     assertThat(batchCreateMetricsResponse.metricsList.first().externalMetricId).isNotEqualTo(0)
     assertThat(batchCreateMetricsResponse.metricsList.last().externalMetricId).isNotEqualTo(0)
   }
 
-  /**
-   * TODO(tristanvuong2021): implement read methods for metric
-   */
+  /** TODO(tristanvuong2021): implement read methods for metric */
   @Ignore
   @Test
   fun `batchCreateMetric succeeds for two create metric requests with one already existing`() =
@@ -1152,78 +1121,80 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         externalReportingSetId = createdReportingSet.externalReportingSetId
         timeInterval = timeInterval {
-          startTime = timestamp {
-            seconds = 10
-          }
-          endTime = timestamp {
-            seconds = 100
-          }
+          startTime = timestamp { seconds = 10 }
+          endTime = timestamp { seconds = 100 }
         }
         metricSpec = metricSpec {
-          frequencyHistogram = MetricSpecKt.frequencyHistogramParams {
-            reachPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-              epsilon = 1.0
-              delta = 2.0
+          frequencyHistogram =
+            MetricSpecKt.frequencyHistogramParams {
+              reachPrivacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              frequencyPrivacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              maximumFrequencyPerUser = 5
             }
-            frequencyPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-              epsilon = 1.0
-              delta = 2.0
+          vidSamplingInterval =
+            MetricSpecKt.vidSamplingInterval {
+              start = 1.0f
+              width = 2.0f
             }
-            maximumFrequencyPerUser = 5
-          }
-          vidSamplingInterval = MetricSpecKt.vidSamplingInterval {
-            start = 1.0f
-            width = 2.0f
-          }
         }
-        weightedMeasurements += MetricKt.weightedMeasurement {
-          weight = 2
-          measurement = measurement {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            timeInterval = timeInterval {
-              startTime = timestamp {
-                seconds = 10
+        weightedMeasurements +=
+          MetricKt.weightedMeasurement {
+            weight = 2
+            measurement = measurement {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              timeInterval = timeInterval {
+                startTime = timestamp { seconds = 10 }
+                endTime = timestamp { seconds = 100 }
               }
-              endTime = timestamp {
-                seconds = 100
-              }
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis {
+                  externalReportingSetId = createdReportingSet.externalReportingSetId
+                  filters += "filter1"
+                  filters += "filter2"
+                }
+              state = Measurement.State.PENDING
             }
-            primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-              externalReportingSetId = createdReportingSet.externalReportingSetId
-              filters += "filter1"
-              filters += "filter2"
-            }
-            state = Measurement.State.PENDING
           }
-        }
-        details = MetricKt.details {
-          filters += "filter1"
-          filters += "filter2"
-        }
+        details =
+          MetricKt.details {
+            filters += "filter1"
+            filters += "filter2"
+          }
       }
 
-      val createdMetric = service.createMetric(createMetricRequest {
-        this.metric = metric
-        requestId = "one"
-      })
+      val createdMetric =
+        service.createMetric(
+          createMetricRequest {
+            this.metric = metric
+            requestId = "one"
+          }
+        )
 
+      val batchCreateMetricsResponse =
+        service.batchCreateMetrics(
+          batchCreateMetricsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            requests += createMetricRequest {
+              this.metric = metric
+              requestId = "one"
+            }
+            requests += createMetricRequest { this.metric = metric }
+          }
+        )
 
-    val batchCreateMetricsResponse =
-      service.batchCreateMetrics(batchCreateMetricsRequest {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        requests += createMetricRequest {
-          this.metric = metric
-          requestId = "one"
-        }
-        requests += createMetricRequest {
-          this.metric = metric
-        }
-      })
-
-    assertThat(batchCreateMetricsResponse.metricsList).hasSize(2)
-    assertThat(batchCreateMetricsResponse.metricsList.first().externalMetricId).isEqualTo(createdMetric.externalMetricId)
-    assertThat(batchCreateMetricsResponse.metricsList.last().externalMetricId).isNotEqualTo(0)
-  }
+      assertThat(batchCreateMetricsResponse.metricsList).hasSize(2)
+      assertThat(batchCreateMetricsResponse.metricsList.first().externalMetricId)
+        .isEqualTo(createdMetric.externalMetricId)
+      assertThat(batchCreateMetricsResponse.metricsList.last().externalMetricId).isNotEqualTo(0)
+    }
 
   @Test
   fun `batchCreateMetric throws INVALID_ARGUMENT when metric spec missing type`() = runBlocking {
@@ -1250,71 +1221,67 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportingSetId = createdReportingSet.externalReportingSetId
       timeInterval = timeInterval {
-        startTime = timestamp {
-          seconds = 10
-        }
-        endTime = timestamp {
-          seconds = 100
-        }
+        startTime = timestamp { seconds = 10 }
+        endTime = timestamp { seconds = 100 }
       }
       metricSpec = metricSpec {
-        frequencyHistogram = MetricSpecKt.frequencyHistogramParams {
-          reachPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 2.0
+        frequencyHistogram =
+          MetricSpecKt.frequencyHistogramParams {
+            reachPrivacyParams =
+              MetricSpecKt.differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+            frequencyPrivacyParams =
+              MetricSpecKt.differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+            maximumFrequencyPerUser = 5
           }
-          frequencyPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 2.0
+        vidSamplingInterval =
+          MetricSpecKt.vidSamplingInterval {
+            start = 1.0f
+            width = 2.0f
           }
-          maximumFrequencyPerUser = 5
-        }
-        vidSamplingInterval = MetricSpecKt.vidSamplingInterval {
-          start = 1.0f
-          width = 2.0f
-        }
       }
-      weightedMeasurements += MetricKt.weightedMeasurement {
-        weight = 2
-        measurement = measurement {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          timeInterval = timeInterval {
-            startTime = timestamp {
-              seconds = 10
+      weightedMeasurements +=
+        MetricKt.weightedMeasurement {
+          weight = 2
+          measurement = measurement {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            timeInterval = timeInterval {
+              startTime = timestamp { seconds = 10 }
+              endTime = timestamp { seconds = 100 }
             }
-            endTime = timestamp {
-              seconds = 100
-            }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            state = Measurement.State.PENDING
           }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += "filter1"
-            filters += "filter2"
-          }
-          state = Measurement.State.PENDING
         }
-      }
-      details = MetricKt.details {
-        filters += "filter1"
-        filters += "filter2"
-      }
+      details =
+        MetricKt.details {
+          filters += "filter1"
+          filters += "filter2"
+        }
     }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.batchCreateMetrics(batchCreateMetricsRequest {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          requests += createMetricRequest {
-            this.metric = metric
-          }
-          requests += createMetricRequest {
-            this.metric = metric.copy {
-              metricSpec = metricSpec.copy {
-                clearType()
-              }
+        service.batchCreateMetrics(
+          batchCreateMetricsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            requests += createMetricRequest { this.metric = metric }
+            requests += createMetricRequest {
+              this.metric = metric.copy { metricSpec = metricSpec.copy { clearType() } }
             }
           }
-        }) }
+        )
+      }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.message).contains("Metric Spec")
@@ -1323,94 +1290,93 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   @Test
   fun `batchCreateMetric throws INVALID_ARGUMENT when cmms mc id doesn't match create request`() =
     runBlocking {
-    measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
-    )
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+      )
 
-    val reportingSet = reportingSet {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      primitive =
-        ReportingSetKt.primitive {
-          eventGroupKeys +=
-            ReportingSetKt.PrimitiveKt.eventGroupKey {
+      val reportingSet = reportingSet {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        primitive =
+          ReportingSetKt.primitive {
+            eventGroupKeys +=
+              ReportingSetKt.PrimitiveKt.eventGroupKey {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                cmmsDataProviderId = "1235"
+                cmmsEventGroupId = "1236"
+              }
+          }
+      }
+
+      val createdReportingSet = reportingSetsService.createReportingSet(reportingSet)
+
+      val metric = metric {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        externalReportingSetId = createdReportingSet.externalReportingSetId
+        timeInterval = timeInterval {
+          startTime = timestamp { seconds = 10 }
+          endTime = timestamp { seconds = 100 }
+        }
+        metricSpec = metricSpec {
+          frequencyHistogram =
+            MetricSpecKt.frequencyHistogramParams {
+              reachPrivacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              frequencyPrivacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  epsilon = 1.0
+                  delta = 2.0
+                }
+              maximumFrequencyPerUser = 5
+            }
+          vidSamplingInterval =
+            MetricSpecKt.vidSamplingInterval {
+              start = 1.0f
+              width = 2.0f
+            }
+        }
+        weightedMeasurements +=
+          MetricKt.weightedMeasurement {
+            weight = 2
+            measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              cmmsDataProviderId = "1235"
-              cmmsEventGroupId = "1236"
-            }
-        }
-    }
-
-    val createdReportingSet = reportingSetsService.createReportingSet(reportingSet)
-
-    val metric = metric {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalReportingSetId = createdReportingSet.externalReportingSetId
-      timeInterval = timeInterval {
-        startTime = timestamp {
-          seconds = 10
-        }
-        endTime = timestamp {
-          seconds = 100
-        }
-      }
-      metricSpec = metricSpec {
-        frequencyHistogram = MetricSpecKt.frequencyHistogramParams {
-          reachPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 2.0
-          }
-          frequencyPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 2.0
-          }
-          maximumFrequencyPerUser = 5
-        }
-        vidSamplingInterval = MetricSpecKt.vidSamplingInterval {
-          start = 1.0f
-          width = 2.0f
-        }
-      }
-      weightedMeasurements += MetricKt.weightedMeasurement {
-        weight = 2
-        measurement = measurement {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          timeInterval = timeInterval {
-            startTime = timestamp {
-              seconds = 10
-            }
-            endTime = timestamp {
-              seconds = 100
+              timeInterval = timeInterval {
+                startTime = timestamp { seconds = 10 }
+                endTime = timestamp { seconds = 100 }
+              }
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis {
+                  externalReportingSetId = createdReportingSet.externalReportingSetId
+                  filters += "filter1"
+                  filters += "filter2"
+                }
+              state = Measurement.State.PENDING
             }
           }
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            externalReportingSetId = createdReportingSet.externalReportingSetId
+        details =
+          MetricKt.details {
             filters += "filter1"
             filters += "filter2"
           }
-          state = Measurement.State.PENDING
-        }
       }
-      details = MetricKt.details {
-        filters += "filter1"
-        filters += "filter2"
-      }
-    }
 
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.batchCreateMetrics(batchCreateMetricsRequest {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          requests += createMetricRequest {
-            this.metric = metric
-          }
-          requests += createMetricRequest {
-            this.metric = metric.copy {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID + "2"
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateMetrics(
+            batchCreateMetricsRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              requests += createMetricRequest { this.metric = metric }
+              requests += createMetricRequest {
+                this.metric =
+                  metric.copy { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID + "2" }
+              }
             }
-          }
-        }) }
+          )
+        }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("CmmsMeasurementConsumerId")
-  }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.message).contains("CmmsMeasurementConsumerId")
+    }
 }

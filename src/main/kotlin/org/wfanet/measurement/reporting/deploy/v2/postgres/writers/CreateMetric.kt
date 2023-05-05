@@ -45,7 +45,8 @@ import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundExc
  * * [ReportingSetNotFoundException] ReportingSet not found
  * * [MeasurementConsumerNotFoundException] MeasurementConsumer not found
  */
-class CreateMetrics(private val requests: List<CreateMetricRequest>) : PostgresWriter<List<Metric>>() {
+class CreateMetrics(private val requests: List<CreateMetricRequest>) :
+  PostgresWriter<List<Metric>>() {
   private data class WeightedMeasurementsBinders(
     val measurementsBinders: List<BoundStatement.Binder.() -> Unit>,
     val metricMeasurementsBinders: List<BoundStatement.Binder.() -> Unit>,
@@ -63,20 +64,17 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) : PostgresW
   override suspend fun TransactionScope.runTransaction(): List<Metric> {
     val measurementConsumerId =
       (MeasurementConsumerReader(transactionContext)
-        .getByCmmsId(requests[0].metric.cmmsMeasurementConsumerId)
-        ?: throw MeasurementConsumerNotFoundException())
+          .getByCmmsId(requests[0].metric.cmmsMeasurementConsumerId)
+          ?: throw MeasurementConsumerNotFoundException())
         .measurementConsumerId
 
-    val createMetricRequestIds: List<String> =
-      requests
-        .map { it.requestId }
-        .distinct()
+    val createMetricRequestIds: List<String> = requests.map { it.requestId }.distinct()
 
     val existingMetricsMap: Map<String, Metric> =
       MetricReader(transactionContext)
         .readMetricsByRequestId(measurementConsumerId, createMetricRequestIds)
         .toList()
-        .associateBy( { it.createMetricRequestId }, { it.metric } )
+        .associateBy({ it.createMetricRequestId }, { it.metric })
 
     val externalReportingSetIds = mutableSetOf<ExternalId>()
     requests.forEach {
@@ -94,7 +92,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) : PostgresW
       ReportingSetReader(transactionContext)
         .readIds(measurementConsumerId, externalReportingSetIds)
         .toList()
-        .associateBy( { it.externalReportingSetId }, { it.reportingSetId } )
+        .associateBy({ it.externalReportingSetId }, { it.reportingSetId })
 
     if (reportingSetMap.size < externalReportingSetIds.size) {
       throw ReportingSetNotFoundException()
@@ -106,7 +104,8 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) : PostgresW
     val metricMeasurementsBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
     val primitiveReportingSetBasesBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
     val primitiveReportingSetBasisFiltersBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
-    val measurementPrimitiveReportingSetBasesBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
+    val measurementPrimitiveReportingSetBasesBinders =
+      mutableListOf<BoundStatement.Binder.() -> Unit>()
 
     val statement =
       boundStatement(
@@ -143,11 +142,10 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) : PostgresW
           } else {
             val metricId = idGenerator.generateInternalId()
             val externalMetricId = idGenerator.generateExternalId()
-            val reportingSetId: InternalId? = reportingSetMap[ExternalId(it.metric.externalReportingSetId)]
+            val reportingSetId: InternalId? =
+              reportingSetMap[ExternalId(it.metric.externalReportingSetId)]
 
-            metrics.add(it.metric.copy {
-              this.externalMetricId = externalMetricId.value
-            })
+            metrics.add(it.metric.copy { this.externalMetricId = externalMetricId.value })
 
             addBinding {
               bind("$1", measurementConsumerId)
@@ -219,9 +217,15 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) : PostgresW
 
             measurementsBinders.addAll(weightedMeasurementsBindings.measurementsBinders)
             metricMeasurementsBinders.addAll(weightedMeasurementsBindings.metricMeasurementsBinders)
-            primitiveReportingSetBasesBinders.addAll(weightedMeasurementsBindings.primitiveReportingSetBasesBinders)
-            primitiveReportingSetBasisFiltersBinders.addAll(weightedMeasurementsBindings.primitiveReportingSetBasisFiltersBinders)
-            measurementPrimitiveReportingSetBasesBinders.addAll(weightedMeasurementsBindings.measurementPrimitiveReportingSetBasesBinders)
+            primitiveReportingSetBasesBinders.addAll(
+              weightedMeasurementsBindings.primitiveReportingSetBasesBinders
+            )
+            primitiveReportingSetBasisFiltersBinders.addAll(
+              weightedMeasurementsBindings.primitiveReportingSetBasisFiltersBinders
+            )
+            measurementPrimitiveReportingSetBasesBinders.addAll(
+              weightedMeasurementsBindings.measurementPrimitiveReportingSetBasesBinders
+            )
           }
         }
       }
@@ -244,9 +248,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) : PostgresW
         VALUES ($1, $2, gen_random_uuid (), $3, $4, $5, $6, $7, $8)
       """
       ) {
-        measurementsBinders.forEach {
-          addBinding(it)
-        }
+        measurementsBinders.forEach { addBinding(it) }
       }
 
     val metricMeasurementsStatement =
@@ -262,9 +264,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) : PostgresW
         VALUES ($1, $2, $3, $4)
       """
       ) {
-        metricMeasurementsBinders.forEach {
-          addBinding(it)
-        }
+        metricMeasurementsBinders.forEach { addBinding(it) }
       }
 
     val primitiveReportingSetBasesStatement =
@@ -279,9 +279,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) : PostgresW
         VALUES ($1, $2, $3)
       """
       ) {
-        primitiveReportingSetBasesBinders.forEach {
-          addBinding(it)
-        }
+        primitiveReportingSetBasesBinders.forEach { addBinding(it) }
       }
 
     val primitiveReportingSetBasisFiltersStatement =
@@ -297,9 +295,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) : PostgresW
         VALUES ($1, $2, $3, $4)
       """
       ) {
-        primitiveReportingSetBasisFiltersBinders.forEach {
-          addBinding(it)
-        }
+        primitiveReportingSetBasisFiltersBinders.forEach { addBinding(it) }
       }
 
     val measurementPrimitiveReportingSetBasesStatement =
@@ -314,9 +310,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) : PostgresW
         VALUES ($1, $2, $3)
       """
       ) {
-        measurementPrimitiveReportingSetBasesBinders.forEach {
-          addBinding(it)
-        }
+        measurementPrimitiveReportingSetBasesBinders.forEach { addBinding(it) }
       }
 
     transactionContext.run {
@@ -341,7 +335,8 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) : PostgresW
     val metricMeasurementsBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
     val primitiveReportingSetBasesBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
     val primitiveReportingSetBasisFiltersBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
-    val measurementPrimitiveReportingSetBasesBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
+    val measurementPrimitiveReportingSetBasesBinders =
+      mutableListOf<BoundStatement.Binder.() -> Unit>()
 
     weightedMeasurements.forEach {
       val measurementId = idGenerator.generateInternalId()
@@ -371,9 +366,15 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) : PostgresW
           reportingSetMap
         )
 
-      primitiveReportingSetBasesBinders.addAll(primitiveReportingSetBasesBindings.primitiveReportingSetBasesBinders)
-      primitiveReportingSetBasisFiltersBinders.addAll(primitiveReportingSetBasesBindings.primitiveReportingSetBasisFiltersBinders)
-      measurementPrimitiveReportingSetBasesBinders.addAll(primitiveReportingSetBasesBindings.measurementPrimitiveReportingSetBasesBinders)
+      primitiveReportingSetBasesBinders.addAll(
+        primitiveReportingSetBasesBindings.primitiveReportingSetBasesBinders
+      )
+      primitiveReportingSetBasisFiltersBinders.addAll(
+        primitiveReportingSetBasesBindings.primitiveReportingSetBasisFiltersBinders
+      )
+      measurementPrimitiveReportingSetBasesBinders.addAll(
+        primitiveReportingSetBasesBindings.measurementPrimitiveReportingSetBasesBinders
+      )
     }
 
     return WeightedMeasurementsBinders(
@@ -393,7 +394,8 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) : PostgresW
   ): PrimitiveReportingSetBasesBinders {
     val primitiveReportingSetBasesBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
     val primitiveReportingSetBasisFiltersBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
-    val measurementPrimitiveReportingSetBasesBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
+    val measurementPrimitiveReportingSetBasesBinders =
+      mutableListOf<BoundStatement.Binder.() -> Unit>()
 
     primitiveReportingSetBases.forEach {
       val primitiveReportingSetBasisId = idGenerator.generateInternalId()

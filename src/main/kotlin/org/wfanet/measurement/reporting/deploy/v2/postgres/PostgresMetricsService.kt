@@ -49,11 +49,15 @@ class PostgresMetricsService(
     } catch (e: ReportingSetNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Reporting Set not found." }
     } catch (e: MeasurementConsumerNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Measurement Consumer not found." }
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+        "Measurement Consumer not found."
+      }
     }
   }
 
-  override suspend fun batchCreateMetrics(request: BatchCreateMetricsRequest): BatchCreateMetricsResponse {
+  override suspend fun batchCreateMetrics(
+    request: BatchCreateMetricsRequest
+  ): BatchCreateMetricsResponse {
     request.requestsList.forEach {
       grpcRequire(!it.metric.metricSpec.typeCase.equals(MetricSpec.TypeCase.TYPE_NOT_SET)) {
         "Metric Spec missing type."
@@ -71,7 +75,9 @@ class PostgresMetricsService(
     } catch (e: ReportingSetNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Reporting Set not found." }
     } catch (e: MeasurementConsumerNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Measurement Consumer not found." }
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+        "Measurement Consumer not found."
+      }
     }
   }
 
