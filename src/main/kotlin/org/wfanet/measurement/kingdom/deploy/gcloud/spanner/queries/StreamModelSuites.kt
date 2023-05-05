@@ -42,7 +42,7 @@ class StreamModelSuites(
     val conjuncts = mutableListOf<String>()
 
     if (filter.externalModelProviderId != 0L) {
-      conjuncts.add("ExternalDataProviderId = @${EXTERNAL_MODEL_PROVIDER_ID_PARAM}")
+      conjuncts.add("ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID_PARAM}")
       bind(EXTERNAL_MODEL_PROVIDER_ID_PARAM to filter.externalModelProviderId)
     }
 

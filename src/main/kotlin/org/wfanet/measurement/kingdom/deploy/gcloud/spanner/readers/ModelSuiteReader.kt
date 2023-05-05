@@ -31,6 +31,7 @@ class ModelSuiteReader : SpannerReader<ModelSuiteReader.Result>() {
     """
     SELECT
       ModelSuites.ModelSuiteId,
+      ModelSuites.ModelProviderId,
       ModelSuites.ExternalModelSuiteId,
       ModelSuites.DisplayName,
       ModelSuites.Description,
@@ -47,6 +48,7 @@ class ModelSuiteReader : SpannerReader<ModelSuiteReader.Result>() {
   private fun buildModelSuite(struct: Struct): ModelSuite =
     ModelSuite.newBuilder()
       .apply {
+        externalModelProviderId = struct.getLong("ExternalModelProviderId")
         externalModelSuiteId = struct.getLong("ExternalModelSuiteId")
         displayName = struct.getString("DisplayName")
         description = struct.getString("Description")
@@ -64,6 +66,7 @@ class ModelSuiteReader : SpannerReader<ModelSuiteReader.Result>() {
           "WHERE ExternalModelSuiteId = @externalModelSuiteId AND ExternalModelProviderId = @externalModelProviderId"
         )
         bind("externalModelSuiteId").to(externalModelSuiteId.value)
+        bind("externalModelProviderId").to(externalModelProviderId.value)
         appendClause("LIMIT 1")
       }
       .execute(readContext)

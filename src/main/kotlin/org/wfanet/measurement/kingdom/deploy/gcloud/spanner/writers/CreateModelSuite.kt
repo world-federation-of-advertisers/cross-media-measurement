@@ -17,6 +17,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Key
+import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -42,6 +43,7 @@ class CreateModelSuite(private val modelSuite: ModelSuite) :
       set("ExternalModelSuiteId" to externalModelSuiteId)
       set("DisplayName" to modelSuite.displayName)
       set("Description" to modelSuite.description)
+      set("CreateTime" to Value.COMMIT_TIMESTAMP)
     }
 
     return modelSuite.copy { this.externalModelSuiteId = externalModelSuiteId.value }
