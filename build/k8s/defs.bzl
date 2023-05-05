@@ -15,7 +15,7 @@
 """Build defs for Kubernetes (K8s)."""
 
 load("@bazel_skylib//lib:shell.bzl", "shell")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "pkg_mkdirs")
 load("@rules_pkg//pkg:pkg.bzl", "pkg_tar")
 load(
     "@rules_pkg//pkg:providers.bzl",
@@ -186,7 +186,13 @@ def kustomization_dir(
             visibility = ["//visibility:private"],
             **kwargs
         )
-        pkg_srcs.append(files_name)
+    else:
+        # Empty Kustomization dir.
+        pkg_mkdirs(
+            name = files_name,
+            dirs = [path],
+        )
+    pkg_srcs.append(files_name)
 
     pkg_filegroup(
         name = group_name,

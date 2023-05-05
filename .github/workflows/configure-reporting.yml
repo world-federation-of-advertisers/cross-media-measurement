@@ -1,0 +1,149 @@
+# Copyright 2023 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: "Configure Reporting"
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      image-tag:
+        description: "Tag of container images"
+        type: string
+        required: true
+      apply:
+        description: "Apply the new configuration"
+        type: boolean
+        required: true
+  workflow_dispatch:
+    inputs:
+      environment:
+        required: true
+        type: choice
+        options:
+        - dev
+      image-tag:
+        description: "Tag of container images"
+        type: string
+        required: true
+      apply:
+        description: "Apply the new configuration"
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+
+env:
+  KUSTOMIZATION_PATH: "k8s/reporting"
+
+jobs:
+  update-reporting:
+    runs-on: ubuntu-20.04
+    environment: ${{ inputs.environment }}
+    steps:
+    - uses: actions/checkout@v3
+
+    # Authenticate to Google Cloud. This will export some environment
+    # variables, including GCLOUD_PROJECT.
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
+
+    - name: Generate archives
+      env:
+        IMAGE_TAG: ${{ inputs.image-tag }}
+        POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
+        POSTGRES_REGION: ${{ vars.POSTGRES_REGION }}
+        KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
+      run: >
+        bazelisk build 
+        "//src/main/k8s/dev:reporting.tar"
+        //src/main/k8s/testing/secretfiles:archive
+        --config ghcr
+        --define "image_tag=$IMAGE_TAG"
+        --define "google_cloud_project=$GCLOUD_PROJECT"
+        --define "postgres_instance=$POSTGRES_INSTANCE"
+        --define "postgres_region=$POSTGRES_REGION"
+        --define "kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
+
+
+    - name: Make Kustomization dir
+      run: mkdir -p "$KUSTOMIZATION_PATH"
+
+    - name: Export BAZEL_BIN
+      run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
+
+    - name: Extract Kustomization archive
+      run: >
+        tar -xf "$BAZEL_BIN/src/main/k8s/dev/reporting.tar"
+        -C "$KUSTOMIZATION_PATH"
+
+    - name: Extract secret files archive
+      run: >
+        tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/archive.tar"
+        -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_secrets"
+
+    # Write files from configuration variables. Since it appears that GitHub
+    # configuration variables use DOS (CRLF) line endings, we convert these to
+    # Unix (LF) line endings.
+
+    - name: Write AKID to principal map
+      env:
+        AKID_TO_PRINCIPAL_MAP: ${{ vars.AKID_TO_PRINCIPAL_MAP }}
+      run: >
+        echo "$AKID_TO_PRINCIPAL_MAP" | sed $'s/\r$//'  >
+        "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_config_files/authority_key_identifier_to_principal_map.textproto"
+
+    - name: Write encryption key-pair config
+      env:
+        ENCRYPTION_KEY_PAIR_CONFIG: ${{ vars.ENCRYPTION_KEY_PAIR_CONFIG }}
+      run: >
+        echo "$ENCRYPTION_KEY_PAIR_CONFIG" | sed $'s/\r$//'  >
+        "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_config_files/encryption_key_pair_config.textproto"
+
+    - name: Write measurement consumer config
+      env:
+        MEASUREMENT_CONSUMER_CONFIG: ${{ vars.MEASUREMENT_CONSUMER_CONFIG }}
+      run: >
+        echo "$MEASUREMENT_CONSUMER_CONFIG" | sed $'s/\r$//'  >
+        "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_secrets/measurement_consumer_config.textproto"
+
+    - name: Copy secret generator
+      run: >
+        cp src/main/k8s/testing/secretfiles/reporting_secrets_kustomization.yaml
+        "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_secrets/kustomization.yaml"
+
+    - name: Get GKE cluster credentials
+      uses: google-github-actions/get-gke-credentials@v1
+      with:
+        cluster_name: reporting
+        location: ${{ vars.REPORTING_CLUSTER_LOCATION }}
+
+    - name: Export KUSTOMIZE_PATH
+      run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting" >> $GITHUB_ENV
+
+    # Run kubectl diff, treating the command as succeeded even if the exit
+    # code is 1 as kubectl uses this code to indicate there's a diff.
+    - name: kubectl diff
+      id: kubectl-diff
+      run: kubectl diff -k "$KUSTOMIZE_PATH" || (( $? == 1 ))
+
+    - name: kubectl apply
+      if: ${{ inputs.apply }}
+      run: kubectl apply -k "$KUSTOMIZE_PATH"
