@@ -1035,25 +1035,26 @@ private class DataProviders {
       names = ["--data-provider"],
       description = ["API resource name of the DataProvider"],
       required = true,
-    ) dataProviderName: String,
-
+    )
+    dataProviderName: String,
     @Option(
       names = ["--required-duchies"],
       description =
-      [
-      "The set of new duchies externals IDS that that will replace the old duchy list for this DataProvider"
-      ],
+        [
+          "The set of new duchies externals IDS that that will replace the old duchy list for this DataProvider"
+        ],
       required = true,
-      ) requiredDuchies: List<String>,
+    )
+    requiredDuchies: List<String>,
   ) {
     val request = replaceDataProviderRequiredDuchiesRequest {
       name = dataProviderName
       requiredExternalDuchies += requiredDuchies
     }
-    val outputDataProvider = runBlocking(parentCommand.rpcDispatcher) {
-      dataProviderStub
-        .replaceDataProviderRequiredDuchies(request)
-    }
+    val outputDataProvider =
+      runBlocking(parentCommand.rpcDispatcher) {
+        dataProviderStub.replaceDataProviderRequiredDuchies(request)
+      }
 
     println(
       "Data Provider ${outputDataProvider.name} duchy list replaced with ${outputDataProvider.requiredExternalDuchyIdsList}"
