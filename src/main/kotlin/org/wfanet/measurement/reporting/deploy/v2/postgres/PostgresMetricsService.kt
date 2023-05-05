@@ -60,9 +60,7 @@ class PostgresMetricsService(
   override suspend fun batchCreateMetrics(
     request: BatchCreateMetricsRequest
   ): BatchCreateMetricsResponse {
-    grpcRequire(request.requestsList.size <= MAX_BATCH_CREATE_SIZE) {
-      "Too many requests."
-    }
+    grpcRequire(request.requestsList.size <= MAX_BATCH_CREATE_SIZE) { "Too many requests." }
 
     request.requestsList.forEach {
       grpcRequire(!it.metric.metricSpec.typeCase.equals(MetricSpec.TypeCase.TYPE_NOT_SET)) {
