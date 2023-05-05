@@ -27,7 +27,7 @@ on:
       apply:
         description: "Apply the new configuration"
         type: boolean
-        default: true
+        required: true
   workflow_dispatch:
     inputs:
       environment:
@@ -55,7 +55,7 @@ jobs:
     runs-on: ubuntu-20.04
     environment: ${{ inputs.environment }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       # Authenticate to Google Cloud. This will export some environment
       # variables, including GCLOUD_PROJECT.
