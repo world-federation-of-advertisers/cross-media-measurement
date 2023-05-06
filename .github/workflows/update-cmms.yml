@@ -77,4 +77,14 @@ jobs:
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
 
+  # Update the Reporting system.
+  #
+  # This isn't technically part of the CMMS, but we do it here for simplicity.
+  update-reporting:
+    uses: ./.github/workflows/configure-reporting.yml
+    with:
+      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      environment: ${{ inputs.environment }}
+      apply: ${{ inputs.apply }}
+
   # TODO(@SanjayVas): Run correctness test.
