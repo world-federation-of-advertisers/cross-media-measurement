@@ -178,7 +178,10 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
 
     val createdMetric = service.createMetric(createMetricRequest { this.metric = metric })
 
-    assertThat(createdMetric.externalMetricId).isNotEqualTo(0L)
+    assertThat(createdMetric.externalMetricId).isNotEqualTo(0)
+    createdMetric.weightedMeasurementsList.forEach {
+      assertThat(it.measurement.cmmsCreateMeasurementRequestId).isNotEmpty()
+    }
   }
 
   @Test
@@ -287,7 +290,10 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
 
     val createdMetric = service.createMetric(createMetricRequest { this.metric = metric })
 
-    assertThat(createdMetric.externalMetricId).isNotEqualTo(0L)
+    assertThat(createdMetric.externalMetricId).isNotEqualTo(0)
+    createdMetric.weightedMeasurementsList.forEach {
+      assertThat(it.measurement.cmmsCreateMeasurementRequestId).isNotEmpty()
+    }
   }
 
   @Test
@@ -391,7 +397,10 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
 
     val createdMetric = service.createMetric(createMetricRequest { this.metric = metric })
 
-    assertThat(createdMetric.externalMetricId).isNotEqualTo(0L)
+    assertThat(createdMetric.externalMetricId).isNotEqualTo(0)
+    createdMetric.weightedMeasurementsList.forEach {
+      assertThat(it.measurement.cmmsCreateMeasurementRequestId).isNotEmpty()
+    }
   }
 
   @Test
@@ -495,7 +504,10 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
 
     val createdMetric = service.createMetric(createMetricRequest { this.metric = metric })
 
-    assertThat(createdMetric.externalMetricId).isNotEqualTo(0L)
+    assertThat(createdMetric.externalMetricId).isNotEqualTo(0)
+    createdMetric.weightedMeasurementsList.forEach {
+      assertThat(it.measurement.cmmsCreateMeasurementRequestId).isNotEmpty()
+    }
   }
 
   /** TODO(tristanvuong2021): implement read methods for metric */
@@ -1020,6 +1032,11 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
 
     assertThat(batchCreateMetricsResponse.metricsList).hasSize(1)
     assertThat(batchCreateMetricsResponse.metricsList.first().externalMetricId).isNotEqualTo(0)
+    batchCreateMetricsResponse.metricsList.forEach {
+      it.weightedMeasurementsList.forEach { weightedMeasurement ->
+        assertThat(weightedMeasurement.measurement.cmmsCreateMeasurementRequestId).isNotEmpty()
+      }
+    }
   }
 
   @Test
@@ -1108,6 +1125,11 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     assertThat(batchCreateMetricsResponse.metricsList).hasSize(2)
     assertThat(batchCreateMetricsResponse.metricsList.first().externalMetricId).isNotEqualTo(0)
     assertThat(batchCreateMetricsResponse.metricsList.last().externalMetricId).isNotEqualTo(0)
+    batchCreateMetricsResponse.metricsList.forEach {
+      it.weightedMeasurementsList.forEach { weightedMeasurement ->
+        assertThat(weightedMeasurement.measurement.cmmsCreateMeasurementRequestId).isNotEmpty()
+      }
+    }
   }
 
   /** TODO(tristanvuong2021): implement read methods for metric */
@@ -1211,6 +1233,9 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       assertThat(batchCreateMetricsResponse.metricsList.first().externalMetricId)
         .isEqualTo(createdMetric.externalMetricId)
       assertThat(batchCreateMetricsResponse.metricsList.last().externalMetricId).isNotEqualTo(0)
+      batchCreateMetricsResponse.metricsList.last().weightedMeasurementsList.forEach {
+        assertThat(it.measurement.cmmsCreateMeasurementRequestId).isNotEmpty()
+      }
     }
 
   @Test

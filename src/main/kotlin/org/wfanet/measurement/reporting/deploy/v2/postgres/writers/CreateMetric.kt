@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.deploy.v2.postgres.writers
 
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.UUID
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.db.r2dbc.BoundStatement
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
@@ -47,7 +48,8 @@ import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundExc
  */
 class CreateMetrics(private val requests: List<CreateMetricRequest>) :
   PostgresWriter<List<Metric>>() {
-  private data class WeightedMeasurementsBinders(
+  private data class WeightedMeasurementsAndBinders(
+    val weightedMeasurements: Collection<Metric.WeightedMeasurement>,
     val measurementsBinders: List<BoundStatement.Binder.() -> Unit>,
     val metricMeasurementsBinders: List<BoundStatement.Binder.() -> Unit>,
     val primitiveReportingSetBasesBinders: List<BoundStatement.Binder.() -> Unit>,
@@ -145,8 +147,6 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
             val reportingSetId: InternalId? =
               reportingSetMap[ExternalId(it.metric.externalReportingSetId)]
 
-            metrics.add(it.metric.copy { this.externalMetricId = externalMetricId.value })
-
             addBinding {
               bind("$1", measurementConsumerId)
               bind("$2", metricId)
@@ -207,7 +207,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
               bind("$19", it.metric.details.toJson())
             }
 
-            val weightedMeasurementsBindings =
+            val weightedMeasurementsAndBindings =
               createWeightedMeasurementsBindings(
                 measurementConsumerId = measurementConsumerId,
                 metricId = metricId,
@@ -215,16 +215,22 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                 reportingSetMap
               )
 
-            measurementsBinders.addAll(weightedMeasurementsBindings.measurementsBinders)
-            metricMeasurementsBinders.addAll(weightedMeasurementsBindings.metricMeasurementsBinders)
+            metrics.add(it.metric.copy {
+              this.externalMetricId = externalMetricId.value
+              weightedMeasurements.clear()
+              weightedMeasurements.addAll(weightedMeasurementsAndBindings.weightedMeasurements)
+            })
+
+            measurementsBinders.addAll(weightedMeasurementsAndBindings.measurementsBinders)
+            metricMeasurementsBinders.addAll(weightedMeasurementsAndBindings.metricMeasurementsBinders)
             primitiveReportingSetBasesBinders.addAll(
-              weightedMeasurementsBindings.primitiveReportingSetBasesBinders
+              weightedMeasurementsAndBindings.primitiveReportingSetBasesBinders
             )
             primitiveReportingSetBasisFiltersBinders.addAll(
-              weightedMeasurementsBindings.primitiveReportingSetBasisFiltersBinders
+              weightedMeasurementsAndBindings.primitiveReportingSetBasisFiltersBinders
             )
             measurementPrimitiveReportingSetBasesBinders.addAll(
-              weightedMeasurementsBindings.measurementPrimitiveReportingSetBasesBinders
+              weightedMeasurementsAndBindings.measurementPrimitiveReportingSetBasesBinders
             )
           }
         }
@@ -245,7 +251,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
           MeasurementDetails,
           MeasurementDetailsJson
         )
-        VALUES ($1, $2, gen_random_uuid (), $3, $4, $5, $6, $7, $8)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       """
       ) {
         measurementsBinders.forEach { addBinding(it) }
@@ -330,7 +336,8 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
     metricId: InternalId,
     weightedMeasurements: Collection<Metric.WeightedMeasurement>,
     reportingSetMap: Map<ExternalId, InternalId>,
-  ): WeightedMeasurementsBinders {
+  ): WeightedMeasurementsAndBinders {
+    val updatedWeightedMeasurements = mutableListOf<Metric.WeightedMeasurement>()
     val measurementsBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
     val metricMeasurementsBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
     val primitiveReportingSetBasesBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
@@ -340,15 +347,22 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
 
     weightedMeasurements.forEach {
       val measurementId = idGenerator.generateInternalId()
+      val uuid = UUID.randomUUID()
+      updatedWeightedMeasurements.add(it.copy {
+        measurement = measurement.copy {
+          cmmsCreateMeasurementRequestId = uuid.toString()
+        }
+      })
       measurementsBinders.add {
         bind("$1", measurementConsumerId)
         bind("$2", measurementId)
-        bind<String?>("$3", null)
-        bind("$4", it.measurement.timeInterval.startTime.toInstant().atOffset(ZoneOffset.UTC))
-        bind("$5", it.measurement.timeInterval.endTime.toInstant().atOffset(ZoneOffset.UTC))
-        bind("$6", Measurement.State.STATE_UNSPECIFIED)
-        bind("$7", it.measurement.details)
-        bind("$8", it.measurement.details.toJson())
+        bind("$3", uuid)
+        bind<String?>("$4", null)
+        bind("$5", it.measurement.timeInterval.startTime.toInstant().atOffset(ZoneOffset.UTC))
+        bind("$6", it.measurement.timeInterval.endTime.toInstant().atOffset(ZoneOffset.UTC))
+        bind("$7", Measurement.State.STATE_UNSPECIFIED)
+        bind("$8", it.measurement.details)
+        bind("$9", it.measurement.details.toJson())
       }
 
       metricMeasurementsBinders.add {
@@ -377,7 +391,8 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
       )
     }
 
-    return WeightedMeasurementsBinders(
+    return WeightedMeasurementsAndBinders(
+      weightedMeasurements = updatedWeightedMeasurements,
       measurementsBinders = measurementsBinders,
       metricMeasurementsBinders = metricMeasurementsBinders,
       primitiveReportingSetBasesBinders = primitiveReportingSetBasesBinders,
