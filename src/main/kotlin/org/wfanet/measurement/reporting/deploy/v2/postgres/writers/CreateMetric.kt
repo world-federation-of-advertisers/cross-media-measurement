@@ -215,14 +215,18 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                 reportingSetMap
               )
 
-            metrics.add(it.metric.copy {
-              this.externalMetricId = externalMetricId.value
-              weightedMeasurements.clear()
-              weightedMeasurements.addAll(weightedMeasurementsAndBindings.weightedMeasurements)
-            })
+            metrics.add(
+              it.metric.copy {
+                this.externalMetricId = externalMetricId.value
+                weightedMeasurements.clear()
+                weightedMeasurements.addAll(weightedMeasurementsAndBindings.weightedMeasurements)
+              }
+            )
 
             measurementsBinders.addAll(weightedMeasurementsAndBindings.measurementsBinders)
-            metricMeasurementsBinders.addAll(weightedMeasurementsAndBindings.metricMeasurementsBinders)
+            metricMeasurementsBinders.addAll(
+              weightedMeasurementsAndBindings.metricMeasurementsBinders
+            )
             primitiveReportingSetBasesBinders.addAll(
               weightedMeasurementsAndBindings.primitiveReportingSetBasesBinders
             )
@@ -348,11 +352,11 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
     weightedMeasurements.forEach {
       val measurementId = idGenerator.generateInternalId()
       val uuid = UUID.randomUUID()
-      updatedWeightedMeasurements.add(it.copy {
-        measurement = measurement.copy {
-          cmmsCreateMeasurementRequestId = uuid.toString()
+      updatedWeightedMeasurements.add(
+        it.copy {
+          measurement = measurement.copy { cmmsCreateMeasurementRequestId = uuid.toString() }
         }
-      })
+      )
       measurementsBinders.add {
         bind("$1", measurementConsumerId)
         bind("$2", measurementId)
