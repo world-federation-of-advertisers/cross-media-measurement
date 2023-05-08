@@ -14,11 +14,25 @@
 
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
+import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.Descriptors
 import com.google.protobuf.DynamicMessage
+import com.google.protobuf.TypeRegistry
 import io.grpc.Status
 import io.grpc.StatusException
 import java.security.GeneralSecurityException
+import java.time.Clock
+import java.time.Duration
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import org.projectnessie.cel.Env
+import org.projectnessie.cel.EnvOption
+import org.projectnessie.cel.checker.Decls
 import org.projectnessie.cel.common.types.Err
+import org.projectnessie.cel.common.types.pb.Checked
+import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
 import org.projectnessie.cel.common.types.ref.Val
 import org.wfanet.measurement.api.v2alpha.DataProviderKey as CmmsDataProviderKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
@@ -29,22 +43,8 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.Ev
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
-import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
-import com.google.protobuf.DescriptorProtos
-import com.google.protobuf.Descriptors
-import com.google.protobuf.TypeRegistry
-import java.time.Clock
-import java.time.Duration
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
-import org.projectnessie.cel.Env
-import org.projectnessie.cel.EnvOption
-import org.projectnessie.cel.checker.Decls
-import org.projectnessie.cel.common.types.pb.Checked
-import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
 import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsRequest
+import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
@@ -140,8 +140,7 @@ class EventGroupsService(
       }
     }
 
-    val filteredEventGroups =
-      filterEventGroups(eventGroups, filter)
+    val filteredEventGroups = filterEventGroups(eventGroups, filter)
     return listEventGroupsResponse {
       this.eventGroups += filteredEventGroups
       nextPageToken = cmmsListEventGroupResponse.nextPageToken
@@ -169,11 +168,11 @@ class EventGroupsService(
       .distinctBy { it.metadata.metadata.typeUrl }
       .forEach {
         val typeUrl = it.metadata.metadata.typeUrl
-          typeRegistry.getDescriptorForTypeUrl(typeUrl)
-            ?: throw Status.FAILED_PRECONDITION.withDescription(
+        typeRegistry.getDescriptorForTypeUrl(typeUrl)
+          ?: throw Status.FAILED_PRECONDITION.withDescription(
               "${it.metadata.eventGroupMetadataDescriptor} does not contain descriptor for $typeUrl"
             )
-              .asRuntimeException()
+            .asRuntimeException()
       }
 
     return eventGroups.filter { eventGroup ->
@@ -269,10 +268,7 @@ class EventGroupsService(
       val env = buildCelEnvironment(fileDescriptors)
       val typeRegistry: TypeRegistry = buildTypeRegistry(fileDescriptors)
 
-      return TypeRegistryAndEnv(
-        typeRegistry,
-        env
-      )
+      return TypeRegistryAndEnv(typeRegistry, env)
     }
 
     private fun buildCelEnvironment(
@@ -280,9 +276,7 @@ class EventGroupsService(
     ): Env {
       // Build CEL ProtoTypeRegistry.
       val celTypeRegistry = ProtoTypeRegistry.newRegistry()
-      descriptors.forEach {
-        celTypeRegistry.registerDescriptor(it.file)
-      }
+      descriptors.forEach { celTypeRegistry.registerDescriptor(it.file) }
 
       celTypeRegistry.registerMessage(EventGroup.getDefaultInstance())
 
@@ -311,8 +305,8 @@ class EventGroupsService(
     private suspend fun getEventGroupMetadataDescriptors(): List<EventGroupMetadataDescriptor> {
       val eventGroupMetadataDescriptors = mutableListOf<EventGroupMetadataDescriptor>()
       return try {
-        var response = eventGroupsMetadataDescriptorsStub
-          .listEventGroupMetadataDescriptors(
+        var response =
+          eventGroupsMetadataDescriptorsStub.listEventGroupMetadataDescriptors(
             listEventGroupMetadataDescriptorsRequest {
               parent = "dataProviders/-"
               pageSize = MAX_PAGE_SIZE
@@ -321,8 +315,8 @@ class EventGroupsService(
         eventGroupMetadataDescriptors.addAll(response.eventGroupMetadataDescriptorsList)
 
         while (response.nextPageToken.isNotBlank()) {
-          response = eventGroupsMetadataDescriptorsStub
-            .listEventGroupMetadataDescriptors(
+          response =
+            eventGroupsMetadataDescriptorsStub.listEventGroupMetadataDescriptors(
               listEventGroupMetadataDescriptorsRequest {
                 parent = "dataProviders/-"
                 pageSize = MAX_PAGE_SIZE
@@ -335,10 +329,10 @@ class EventGroupsService(
         eventGroupMetadataDescriptors
       } catch (e: StatusException) {
         throw when (e.status.code) {
-          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-          Status.Code.CANCELLED -> Status.CANCELLED
-          else -> Status.UNKNOWN
-        }
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            Status.Code.CANCELLED -> Status.CANCELLED
+            else -> Status.UNKNOWN
+          }
           .withDescription("Error retrieving EventGroupMetadataDescriptors")
           .withCause(e)
           .asRuntimeException()

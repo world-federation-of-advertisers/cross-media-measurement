@@ -25,6 +25,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.Ev
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as KingdomEventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as KingdomMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as KingdomMeasurementsCoroutineStub
+import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.api.PrincipalLookup
 import org.wfanet.measurement.common.api.memoizing
 import org.wfanet.measurement.common.commandLineMain
@@ -32,12 +33,11 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
+import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
-import org.wfanet.measurement.api.withAuthenticationKey
-import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.reporting.deploy.common.EncryptionKeyPairMap
 import org.wfanet.measurement.reporting.deploy.common.KingdomApiFlags
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
@@ -89,14 +89,19 @@ private fun run(
       )
       .memoizing()
 
-  val measurementConsumerConfigs = parseTextProto(v1AlphaFlags.measurementConsumerConfigFile, MeasurementConsumerConfigs.getDefaultInstance())
+  val measurementConsumerConfigs =
+    parseTextProto(
+      v1AlphaFlags.measurementConsumerConfigFile,
+      MeasurementConsumerConfigs.getDefaultInstance()
+    )
   val apiKey = measurementConsumerConfigs.configsMap.values.first().apiKey
 
   val services: List<ServerServiceDefinition> =
     listOf(
       EventGroupsService(
           KingdomEventGroupsCoroutineStub(kingdomChannel),
-          KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel).withAuthenticationKey(apiKey),
+          KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel)
+            .withAuthenticationKey(apiKey),
           InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
           reportingApiServerFlags.listEventGroupsCacheRefreshInterval,
         )
