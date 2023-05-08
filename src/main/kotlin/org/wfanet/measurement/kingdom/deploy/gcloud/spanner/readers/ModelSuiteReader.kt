@@ -27,7 +27,11 @@ import org.wfanet.measurement.internal.kingdom.modelSuite
 
 class ModelSuiteReader : SpannerReader<ModelSuiteReader.Result>() {
 
-  data class Result(val modelSuite: ModelSuite, val modelSuiteId: InternalId, val modelProviderId: InternalId)
+  data class Result(
+    val modelSuite: ModelSuite,
+    val modelSuiteId: InternalId,
+    val modelProviderId: InternalId
+  )
 
   override val baseSql: String =
     """
@@ -45,16 +49,19 @@ class ModelSuiteReader : SpannerReader<ModelSuiteReader.Result>() {
       .trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
-    Result(buildModelSuite(struct), InternalId(struct.getLong("ModelSuiteId")), InternalId(struct.getLong("ModelProviderId")))
+    Result(
+      buildModelSuite(struct),
+      InternalId(struct.getLong("ModelSuiteId")),
+      InternalId(struct.getLong("ModelProviderId"))
+    )
 
-  private fun buildModelSuite(struct: Struct): ModelSuite =
-    modelSuite {
-      externalModelProviderId = struct.getLong("ExternalModelProviderId")
-      externalModelSuiteId = struct.getLong("ExternalModelSuiteId")
-      displayName = struct.getString("DisplayName")
-      description = struct.getString("Description")
-      createTime = struct.getTimestamp("CreateTime").toProto()
-    }
+  private fun buildModelSuite(struct: Struct): ModelSuite = modelSuite {
+    externalModelProviderId = struct.getLong("ExternalModelProviderId")
+    externalModelSuiteId = struct.getLong("ExternalModelSuiteId")
+    displayName = struct.getString("DisplayName")
+    description = struct.getString("Description")
+    createTime = struct.getTimestamp("CreateTime").toProto()
+  }
 
   suspend fun readByExternalModelSuiteId(
     readContext: AsyncDatabaseClient.ReadContext,

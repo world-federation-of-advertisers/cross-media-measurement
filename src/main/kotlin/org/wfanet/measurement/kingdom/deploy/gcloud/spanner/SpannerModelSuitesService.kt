@@ -38,9 +38,7 @@ class SpannerModelSuitesService(
 ) : ModelSuitesCoroutineImplBase() {
 
   override suspend fun createModelSuite(request: ModelSuite): ModelSuite {
-    grpcRequire(request.displayName.isNotEmpty()) {
-      "DisplayName field of ModelSuite is missing."
-    }
+    grpcRequire(request.displayName.isNotEmpty()) { "DisplayName field of ModelSuite is missing." }
     return CreateModelSuite(request).execute(client, idGenerator)
   }
 

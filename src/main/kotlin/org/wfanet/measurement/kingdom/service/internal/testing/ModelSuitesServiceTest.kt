@@ -76,9 +76,7 @@ abstract class ModelSuitesServiceTest<T : ModelSuitesCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { modelSuitesService.createModelSuite(modelSuite) }
 
     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    Truth.assertThat(exception)
-      .hasMessageThat()
-      .contains("DisplayName field")
+    Truth.assertThat(exception).hasMessageThat().contains("DisplayName field")
   }
 
   @Test
