@@ -23,20 +23,21 @@ option java_multiple_files = true;
 
 // Proto representation of the internal ModelLine entity type.
 message ModelLine {
-  fixed64 external_model_suite_id = 1;
-  fixed64 external_model_line_id = 2;
+  fixed64 external_model_provider_id = 1;
+  fixed64 external_model_suite_id = 2;
+  fixed64 external_model_line_id = 3;
 
   // Human-readable nickname for this ModelLine.
-  string display_name = 3;
+  string display_name = 4;
 
   // Human-readable string to describe the usage of this model line.
-  string description = 4;
+  string description = 5;
 
   // The start of the time range when this `ModelLine` is active, inclusive.
-  google.protobuf.Timestamp active_start_time = 5;
+  google.protobuf.Timestamp active_start_time = 6;
 
   // The end of the time range when this `ModelLine` is active, exclusive.
-  google.protobuf.Timestamp active_end_time = 6;
+  google.protobuf.Timestamp active_end_time = 7;
 
   enum Type {
     TYPE_UNSPECIFIED = 0;
@@ -46,12 +47,12 @@ message ModelLine {
   }
 
   // Defines the type of the `ModelLine`.
-  Type type = 7;
+  Type type = 8;
 
-  fixed64 external_holdback_model_line_id = 8;
+  fixed64 external_holdback_model_line_id = 9;
 
   // When the 'ModelLine' was created.
-  google.protobuf.Timestamp create_time = 9;
+  google.protobuf.Timestamp create_time = 10;
   // When the 'ModelLine' was last updated.
-  google.protobuf.Timestamp update_time = 10;
+  google.protobuf.Timestamp update_time = 11;
 }

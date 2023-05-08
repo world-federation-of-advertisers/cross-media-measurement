@@ -34,32 +34,54 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
+import com.google.cloud.spanner.Value
 import com.google.protobuf.util.Timestamps
 import java.time.Clock
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.bind
+import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
+import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.SetActiveEndTimeRequest
+import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelLineReader
 
 class SetActiveEndTime(private val request: SetActiveEndTimeRequest, private val clock: Clock) :
   SpannerWriter<ModelLine, ModelLine>() {
 
   override suspend fun TransactionScope.runTransaction(): ModelLine {
-    val modelLineData = readModelLineData(ExternalId(request.externalModelLineId))
-
-    require(modelLineData != null) { "ModelLine not found." }
+    val modelLineResult =
+      ModelLineReader().readByExternalModelLineId(transactionContext, ExternalId(request.externalModelProviderId), ExternalId(request.externalModelSuiteId), ExternalId(request.externalModelLineId))
+        ?: throw ModelLineNotFoundException(ExternalId(request.externalModelLineId))
 
     val now = clock.instant().toProtoTime()
-    val activeStartTime = modelLineData.getTimestamp("ActiveStartTime").toProto()
+    val activeStartTime = modelLineResult.modelLine.activeStartTime
     require(Timestamps.compare(activeStartTime, request.activeEndTime) < 0) {
       "ActiveEndTime must be later than ActiveStartTime"
     }
     require(Timestamps.compare(now, request.activeEndTime) < 0) {
       "ActiveEndTime must be in the future"
     }
+
+    transactionContext.bufferUpdateMutation("ModelLines") {
+      set("ModelLineId" to modelLineResult.modelLineId.value)
+      set("ModelSuiteId" to modelLineResult.modelSuiteId.value)
+      set("ModelProviderId" to modelLineResult.modelProviderId.value)
+      set("UpdateTime" to Value.COMMIT_TIMESTAMP)
+      set("ActiveEndTime" to request.activeEndTime.toGcloudTimestamp())
+    }
+
+    return modelLineResult.modelLine.copy {
+      activeEndTime = request.activeEndTime
+    }
+
   }
 
   private suspend fun TransactionScope.readModelLineData(externalModelLineId: ExternalId): Struct? {
@@ -80,6 +102,6 @@ class SetActiveEndTime(private val request: SetActiveEndTimeRequest, private val
   }
 
   override fun ResultScope<ModelLine>.buildResult(): ModelLine {
-    return checkNotNull(transactionResult)
+    return checkNotNull(transactionResult).copy { updateTime = commitTimestamp.toProto() }
   }
 }

@@ -17,27 +17,34 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Key
+import com.google.cloud.spanner.Statement
+import com.google.cloud.spanner.Struct
+import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
+import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
 
 class CreateModelLine(private val modelLine: ModelLine) : SpannerWriter<ModelLine, ModelLine>() {
 
   override suspend fun TransactionScope.runTransaction(): ModelLine {
 
-    val modelSuiteId: InternalId = readModelSuiteId(ExternalId(modelLine.externalModelSuiteId))
+    val modelSuiteData: Struct? = readModelSuiteData(ExternalId(modelLine.externalModelSuiteId))
+
+    require(modelSuiteData != null) { "ModelSuite not found." }
 
     val internalModelLineId = idGenerator.generateInternalId()
     val externalModelLineId = idGenerator.generateExternalId()
 
     transactionContext.bufferInsertMutation("ModelLines") {
-      set("ModelSuiteId" to modelSuiteId)
+      set("ModelProviderId" to modelSuiteData.getLong("ModelProviderId"))
+      set("ModelSuiteId" to modelSuiteData.getLong("ModelSuiteId"))
       set("ModelLineId" to internalModelLineId)
       set("ExternalModelLineId" to externalModelLineId)
       if (modelLine.displayName.isNotBlank()) {
@@ -52,28 +59,13 @@ class CreateModelLine(private val modelLine: ModelLine) : SpannerWriter<ModelLin
       }
       set("Type" to modelLine.type)
       if (modelLine.externalHoldbackModelLineId != null) {
-        set("HoldbackModelLine" to readModelLineId(ExternalId(modelLine.externalModelLineId)))
+        set(
+          "HoldbackModelLine" to readModelLineId(ExternalId(modelLine.externalHoldbackModelLineId))
+        )
       }
     }
 
     return modelLine.copy { this.externalModelLineId = externalModelLineId.value }
-  }
-
-  private suspend fun TransactionScope.readModelSuiteId(
-    externalModelSuiteId: ExternalId
-  ): InternalId {
-    val column = "ModelSuiteId"
-    return transactionContext
-      .readRowUsingIndex(
-        "ModelSuites",
-        "ExternalModelSuiteId",
-        Key.of(externalModelSuiteId.value),
-        column
-      )
-      ?.let { struct -> InternalId(struct.getLong(column)) }
-      ?: throw ModelSuiteNotFoundException(externalModelSuiteId) {
-        "ModelSuite with external ID $externalModelSuiteId not found"
-      }
   }
 
   private suspend fun TransactionScope.readModelLineId(
@@ -82,7 +74,7 @@ class CreateModelLine(private val modelLine: ModelLine) : SpannerWriter<ModelLin
     val column = "ModelLineId"
     return transactionContext
       .readRowUsingIndex(
-        "ModelLines",
+        "ModelLiness",
         "ModelLinesByExternalId",
         Key.of(externalModelLineId.value),
         column
@@ -91,6 +83,25 @@ class CreateModelLine(private val modelLine: ModelLine) : SpannerWriter<ModelLin
       ?: throw ModelLineNotFoundException(externalModelLineId) {
         "ModelLine with external ID $externalModelLineId not found"
       }
+  }
+
+  private suspend fun TransactionScope.readModelSuiteData(
+    externalModelSuiteId: ExternalId
+  ): Struct? {
+    val sql =
+      """
+    SELECT
+    ModelSuites.ModelSuiteId,
+    ModelSuites.ModelProviderId
+    FROM ModelSuites
+    WHERE ExternalModelSuiteId = @externalModelSuiteId
+    """
+        .trimIndent()
+
+    val statement: Statement =
+      statement(sql) { bind("externalModelSuiteId" to externalModelSuiteId.value) }
+
+    return transactionContext.executeQuery(statement).singleOrNull()
   }
 
   override fun ResultScope<ModelLine>.buildResult(): ModelLine {
