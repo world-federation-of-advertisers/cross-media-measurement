@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2023 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import "wfa/measurement/internal/kingdom/model_shard.proto";
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
-// Internal service for persistence of ModelProvider entities.
+// Internal service for persistence of ModelShard entities.
 service ModelShards {
   // Creates a new `ModelShard`.
   rpc CreateModelShard(ModelShard) returns (ModelShard);
@@ -38,7 +38,7 @@ service ModelShards {
 message StreamModelShardsRequest {
   // Filter criteria as a conjunction of specified fields.
   message Filter {
-    int64 external_model_shard_id = 1;
+    fixed64 external_data_provider_id = 1;
     // for next page token, both after fields need to be set
     google.protobuf.Timestamp created_after = 2;
   }

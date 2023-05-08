@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2023 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,11 +23,13 @@ option java_multiple_files = true;
 
 // Represents a model shard entity.
 message ModelShard {
-  fixed64 external_model_shard_id = 1;
+  fixed64 external_data_provider_id = 1;
 
-  string model_release = 2;
+  fixed64 external_model_shard_id = 2;
 
-  string model_blob_path = 3;
+  string model_release = 3;
 
-  google.protobuf.Timestamp create_time = 4;
+  string model_blob_path = 4;
+
+  google.protobuf.Timestamp create_time = 5;
 }
