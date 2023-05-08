@@ -19,13 +19,15 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.internal.kingdom.ModelSuite
+import org.wfanet.measurement.internal.kingdom.modelSuite
 
 class ModelSuiteReader : SpannerReader<ModelSuiteReader.Result>() {
 
-  data class Result(val modelSuite: ModelSuite, val modelSuiteId: Long)
+  data class Result(val modelSuite: ModelSuite, val modelSuiteId: InternalId, val modelProviderId: InternalId)
 
   override val baseSql: String =
     """
@@ -43,18 +45,16 @@ class ModelSuiteReader : SpannerReader<ModelSuiteReader.Result>() {
       .trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
-    Result(buildModelSuite(struct), struct.getLong("ModelSuiteId"))
+    Result(buildModelSuite(struct), InternalId(struct.getLong("ModelSuiteId")), InternalId(struct.getLong("ModelProviderId")))
 
   private fun buildModelSuite(struct: Struct): ModelSuite =
-    ModelSuite.newBuilder()
-      .apply {
-        externalModelProviderId = struct.getLong("ExternalModelProviderId")
-        externalModelSuiteId = struct.getLong("ExternalModelSuiteId")
-        displayName = struct.getString("DisplayName")
-        description = struct.getString("Description")
-        createTime = struct.getTimestamp("CreateTime").toProto()
-      }
-      .build()
+    modelSuite {
+      externalModelProviderId = struct.getLong("ExternalModelProviderId")
+      externalModelSuiteId = struct.getLong("ExternalModelSuiteId")
+      displayName = struct.getString("DisplayName")
+      description = struct.getString("Description")
+      createTime = struct.getTimestamp("CreateTime").toProto()
+    }
 
   suspend fun readByExternalModelSuiteId(
     readContext: AsyncDatabaseClient.ReadContext,
