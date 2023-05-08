@@ -48,9 +48,7 @@ import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.SetActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.copy
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelLineReader
 
 class SetActiveEndTime(private val request: SetActiveEndTimeRequest, private val clock: Clock) :
@@ -58,7 +56,13 @@ class SetActiveEndTime(private val request: SetActiveEndTimeRequest, private val
 
   override suspend fun TransactionScope.runTransaction(): ModelLine {
     val modelLineResult =
-      ModelLineReader().readByExternalModelLineId(transactionContext, ExternalId(request.externalModelProviderId), ExternalId(request.externalModelSuiteId), ExternalId(request.externalModelLineId))
+      ModelLineReader()
+        .readByExternalModelLineId(
+          transactionContext,
+          ExternalId(request.externalModelProviderId),
+          ExternalId(request.externalModelSuiteId),
+          ExternalId(request.externalModelLineId)
+        )
         ?: throw ModelLineNotFoundException(ExternalId(request.externalModelLineId))
 
     val now = clock.instant().toProtoTime()
@@ -78,10 +82,7 @@ class SetActiveEndTime(private val request: SetActiveEndTimeRequest, private val
       set("ActiveEndTime" to request.activeEndTime.toGcloudTimestamp())
     }
 
-    return modelLineResult.modelLine.copy {
-      activeEndTime = request.activeEndTime
-    }
-
+    return modelLineResult.modelLine.copy { activeEndTime = request.activeEndTime }
   }
 
   private suspend fun TransactionScope.readModelLineData(externalModelLineId: ExternalId): Struct? {
