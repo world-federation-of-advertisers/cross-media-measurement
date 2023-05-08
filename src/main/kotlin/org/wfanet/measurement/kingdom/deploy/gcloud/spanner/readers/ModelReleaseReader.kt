@@ -19,13 +19,15 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.internal.kingdom.ModelRelease
+import org.wfanet.measurement.internal.kingdom.modelRelease
 
 class ModelReleaseReader : SpannerReader<ModelReleaseReader.Result>() {
 
-  data class Result(val modelRelease: ModelRelease, val modelReleaseId: Long)
+  data class Result(val modelRelease: ModelRelease, val modelReleaseId: InternalId)
 
   override val baseSql: String =
     """
@@ -44,17 +46,15 @@ class ModelReleaseReader : SpannerReader<ModelReleaseReader.Result>() {
       .trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
-    Result(buildModelRelease(struct), struct.getLong("ModelReleaseId"))
+    Result(buildModelRelease(struct), InternalId(struct.getLong("ModelReleaseId")))
 
   private fun buildModelRelease(struct: Struct): ModelRelease =
-    ModelRelease.newBuilder()
-      .apply {
-        externalModelReleaseId = struct.getLong("ExternalModelReleaseId")
-        externalModelSuiteId = struct.getLong("ExternalModelSuiteId")
-        externalModelProviderId = struct.getLong("ExternalModelProviderId")
-        createTime = struct.getTimestamp("CreateTime").toProto()
-      }
-      .build()
+    modelRelease {
+      externalModelReleaseId = struct.getLong("ExternalModelReleaseId")
+      externalModelSuiteId = struct.getLong("ExternalModelSuiteId")
+      externalModelProviderId = struct.getLong("ExternalModelProviderId")
+      createTime = struct.getTimestamp("CreateTime").toProto()
+    }
 
   suspend fun readByExternalModelReleaseId(
     readContext: AsyncDatabaseClient.ReadContext,
