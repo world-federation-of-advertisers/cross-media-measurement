@@ -54,7 +54,8 @@ interface CelEnvProvider {
 }
 
 class CelEnvCacheProvider(
-  private val eventGroupsMetadataDescriptorsStub: EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub,
+  private val eventGroupsMetadataDescriptorsStub:
+    EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub,
   cacheRefreshInterval: Duration,
   coroutineDispatcher: CoroutineDispatcher,
   clock: Clock,
@@ -79,9 +80,7 @@ class CelEnvCacheProvider(
   }
 
   private suspend fun setTypeRegistryAndEnv() {
-    mutex.withLock {
-      typeRegistryAndEnv = buildTypeRegistryAndEnv()
-    }
+    mutex.withLock { typeRegistryAndEnv = buildTypeRegistryAndEnv() }
   }
 
   private suspend fun buildTypeRegistryAndEnv(): CelEnvProvider.TypeRegistryAndEnv {
@@ -157,10 +156,10 @@ class CelEnvCacheProvider(
       eventGroupMetadataDescriptors
     } catch (e: StatusException) {
       throw when (e.status.code) {
-        Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-        Status.Code.CANCELLED -> Status.CANCELLED
-        else -> Status.UNKNOWN
-      }
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          Status.Code.CANCELLED -> Status.CANCELLED
+          else -> Status.UNKNOWN
+        }
         .withDescription("Error retrieving EventGroupMetadataDescriptors")
         .withCause(e)
         .asRuntimeException()

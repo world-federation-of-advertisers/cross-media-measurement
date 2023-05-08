@@ -34,7 +34,10 @@ class ReportingApiServerFlags {
 
   @CommandLine.Option(
     names = ["--event-group-metadata-descriptor-cache-duration"],
-    description = ["How long the event group metadata descriptors are cached for before refreshing in format 1d1h1m1s1ms1ns"],
+    description =
+      [
+        "How long the event group metadata descriptors are cached for before refreshing in format 1d1h1m1s1ms1ns"
+      ],
     defaultValue = "1h",
     required = false,
   )
