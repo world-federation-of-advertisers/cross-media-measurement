@@ -69,7 +69,7 @@ abstract class ModelSuitesServiceTest<T : ModelSuitesCoroutineImplBase> {
   }
 
   @Test
-  fun `createModelSuite fails for missing fields`() = runBlocking {
+  fun `createModelSuite fails for missing 'DisplayName'`() = runBlocking {
     val modelSuite = modelSuite { description = "description" }
 
     val exception =
@@ -78,7 +78,7 @@ abstract class ModelSuitesServiceTest<T : ModelSuitesCoroutineImplBase> {
     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     Truth.assertThat(exception)
       .hasMessageThat()
-      .contains("DisplayName field of ModelSuite is missing fields.")
+      .contains("DisplayName field")
   }
 
   @Test
