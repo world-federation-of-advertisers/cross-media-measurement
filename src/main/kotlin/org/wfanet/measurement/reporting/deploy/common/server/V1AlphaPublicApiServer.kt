@@ -38,8 +38,11 @@ import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
+import java.time.Clock
+import kotlinx.coroutines.Dispatchers
 import org.wfanet.measurement.reporting.deploy.common.EncryptionKeyPairMap
 import org.wfanet.measurement.reporting.deploy.common.KingdomApiFlags
+import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v1alpha.AkidPrincipalLookup
 import org.wfanet.measurement.reporting.service.api.v1alpha.EventGroupsService
@@ -94,16 +97,23 @@ private fun run(
       v1AlphaFlags.measurementConsumerConfigFile,
       MeasurementConsumerConfigs.getDefaultInstance()
     )
+
   val apiKey = measurementConsumerConfigs.configsMap.values.first().apiKey
+  val celEnvCacheProvider =
+    CelEnvCacheProvider(
+      KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel)
+        .withAuthenticationKey(apiKey),
+        reportingApiServerFlags.eventGroupMetadataDescriptorCacheDuration,
+        Dispatchers.Default,
+        Clock.systemUTC(),
+      )
 
   val services: List<ServerServiceDefinition> =
     listOf(
       EventGroupsService(
           KingdomEventGroupsCoroutineStub(kingdomChannel),
-          KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel)
-            .withAuthenticationKey(apiKey),
           InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
-          reportingApiServerFlags.listEventGroupsCacheRefreshInterval,
+          celEnvCacheProvider,
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ReportingSetsService(InternalReportingSetsCoroutineStub(channel))

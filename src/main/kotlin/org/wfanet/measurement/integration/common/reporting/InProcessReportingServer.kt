@@ -42,8 +42,11 @@ import org.wfanet.measurement.integration.common.reporting.identity.withMetadata
 import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
+import java.time.Clock
+import kotlinx.coroutines.Dispatchers
 import org.wfanet.measurement.reporting.deploy.common.server.ReportingDataServer
 import org.wfanet.measurement.reporting.deploy.common.server.ReportingDataServer.Companion.toList
+import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v1alpha.EventGroupsService
 import org.wfanet.measurement.reporting.service.api.v1alpha.ReportingSetsService
@@ -114,14 +117,21 @@ class InProcessReportingServer(
           )
         )
 
+      val celEnvCacheProvider =
+        CelEnvCacheProvider(
+          publicKingdomEventGroupMetadataDescriptorsClient.withAuthenticationKey(
+            measurementConsumerConfig.apiKey
+          ),
+          Duration.ofSeconds(5),
+          Dispatchers.Default,
+          Clock.systemUTC(),
+        )
+
       listOf(
           EventGroupsService(
               publicKingdomEventGroupsClient,
-              publicKingdomEventGroupMetadataDescriptorsClient.withAuthenticationKey(
-                measurementConsumerConfig.apiKey
-              ),
               encryptionKeyPairStore,
-              Duration.ofSeconds(5)
+              celEnvCacheProvider,
             )
             .withMetadataPrincipalIdentities(measurementConsumerConfig),
           ReportingSetsService(internalReportingSetsClient)

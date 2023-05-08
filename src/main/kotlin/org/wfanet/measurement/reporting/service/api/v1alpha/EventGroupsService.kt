@@ -14,43 +14,25 @@
 
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
-import com.google.protobuf.DescriptorProtos
-import com.google.protobuf.Descriptors
 import com.google.protobuf.DynamicMessage
-import com.google.protobuf.TypeRegistry
 import io.grpc.Status
 import io.grpc.StatusException
 import java.security.GeneralSecurityException
-import java.time.Clock
-import java.time.Duration
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
-import org.projectnessie.cel.Env
-import org.projectnessie.cel.EnvOption
-import org.projectnessie.cel.checker.Decls
 import org.projectnessie.cel.common.types.Err
-import org.projectnessie.cel.common.types.pb.Checked
-import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
 import org.projectnessie.cel.common.types.ref.Val
 import org.wfanet.measurement.api.v2alpha.DataProviderKey as CmmsDataProviderKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
-import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.withAuthenticationKey
-import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.grpc.failGrpc
-import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptMetadata
+import org.wfanet.measurement.reporting.service.api.CelEnvProvider
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v1alpha.EventGroup
 import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.eventTemplate
@@ -69,11 +51,9 @@ private const val MAX_PAGE_SIZE = 1000
 
 class EventGroupsService(
   private val cmmsEventGroupsStub: EventGroupsCoroutineStub,
-  eventGroupsMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
   private val encryptionKeyPairStore: EncryptionKeyPairStore,
-  cacheRefreshInterval: Duration = Duration.ofHours(1L),
+  private val celEnvProvider: CelEnvProvider,
 ) : EventGroupsCoroutineImplBase() {
-  private val cache = ListEventGroupsCache(eventGroupsMetadataDescriptorsStub, cacheRefreshInterval)
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
     val principal: ReportingPrincipal = principalFromCurrentContext
 
@@ -151,7 +131,7 @@ class EventGroupsService(
     eventGroups: Iterable<EventGroup>,
     filter: String,
   ): List<EventGroup> {
-    val typeRegistryAndEnv = cache.getTypeRegistryAndEnv()
+    val typeRegistryAndEnv = celEnvProvider.getTypeRegistryAndEnv()
     val env = typeRegistryAndEnv.env
     val typeRegistry = typeRegistryAndEnv.typeRegistry
 
@@ -223,132 +203,6 @@ class EventGroupsService(
       throw Status.FAILED_PRECONDITION.withCause(e)
         .withDescription("Metadata cannot be decrypted")
         .asRuntimeException()
-    }
-  }
-
-  private class ListEventGroupsCache(
-    private val eventGroupsMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
-    cacheRefreshInterval: Duration,
-  ) {
-    data class TypeRegistryAndEnv(
-      val typeRegistry: TypeRegistry,
-      val env: Env,
-    )
-
-    private lateinit var typeRegistryAndEnv: TypeRegistryAndEnv
-
-    init {
-      CoroutineScope(Dispatchers.Default + SupervisorJob()).launch {
-        MinimumIntervalThrottler(Clock.systemUTC(), cacheRefreshInterval).loopOnReady {
-          launch { setTypeRegistryAndEnv() }
-        }
-      }
-    }
-
-    suspend fun getTypeRegistryAndEnv(): TypeRegistryAndEnv {
-      if (!this::typeRegistryAndEnv.isInitialized) {
-        setTypeRegistryAndEnv()
-      }
-      return typeRegistryAndEnv
-    }
-
-    private suspend fun setTypeRegistryAndEnv() {
-      typeRegistryAndEnv = buildTypeRegistryAndEnv()
-    }
-
-    private suspend fun buildTypeRegistryAndEnv(): TypeRegistryAndEnv {
-      val eventGroupMetadataDescriptors: List<EventGroupMetadataDescriptor> =
-        getEventGroupMetadataDescriptors()
-
-      val fileDescriptorSets: List<DescriptorProtos.FileDescriptorSet> =
-        eventGroupMetadataDescriptors.map { it.descriptorSet }
-      val fileDescriptors: List<Descriptors.Descriptor> =
-        ProtoReflection.buildDescriptors(fileDescriptorSets)
-
-      val env = buildCelEnvironment(fileDescriptors)
-      val typeRegistry: TypeRegistry = buildTypeRegistry(fileDescriptors)
-
-      return TypeRegistryAndEnv(typeRegistry, env)
-    }
-
-    private fun buildCelEnvironment(
-      descriptors: List<Descriptors.Descriptor>,
-    ): Env {
-      // Build CEL ProtoTypeRegistry.
-      val celTypeRegistry = ProtoTypeRegistry.newRegistry()
-      descriptors.forEach { celTypeRegistry.registerDescriptor(it.file) }
-
-      celTypeRegistry.registerMessage(EventGroup.getDefaultInstance())
-
-      // Build CEL Env.
-      val eventGroupDescriptor = EventGroup.getDescriptor()
-      val env =
-        Env.newEnv(
-          EnvOption.container(eventGroupDescriptor.fullName),
-          EnvOption.customTypeProvider(celTypeRegistry),
-          EnvOption.customTypeAdapter(celTypeRegistry),
-          EnvOption.declarations(
-            eventGroupDescriptor.fields
-              .map {
-                Decls.newVar(
-                  it.name,
-                  celTypeRegistry.findFieldType(eventGroupDescriptor.fullName, it.name).type
-                )
-              }
-              // TODO(projectnessie/cel-java#295): Remove when fixed.
-              .plus(Decls.newVar(METADATA_FIELD, Checked.checkedAny))
-          )
-        )
-      return env
-    }
-
-    private suspend fun getEventGroupMetadataDescriptors(): List<EventGroupMetadataDescriptor> {
-      val eventGroupMetadataDescriptors = mutableListOf<EventGroupMetadataDescriptor>()
-      return try {
-        var response =
-          eventGroupsMetadataDescriptorsStub.listEventGroupMetadataDescriptors(
-            listEventGroupMetadataDescriptorsRequest {
-              parent = "dataProviders/-"
-              pageSize = MAX_PAGE_SIZE
-            }
-          )
-        eventGroupMetadataDescriptors.addAll(response.eventGroupMetadataDescriptorsList)
-
-        while (response.nextPageToken.isNotBlank()) {
-          response =
-            eventGroupsMetadataDescriptorsStub.listEventGroupMetadataDescriptors(
-              listEventGroupMetadataDescriptorsRequest {
-                parent = "dataProviders/-"
-                pageSize = MAX_PAGE_SIZE
-                pageToken = response.nextPageToken
-              }
-            )
-          eventGroupMetadataDescriptors.addAll(response.eventGroupMetadataDescriptorsList)
-        }
-
-        eventGroupMetadataDescriptors
-      } catch (e: StatusException) {
-        throw when (e.status.code) {
-            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-            Status.Code.CANCELLED -> Status.CANCELLED
-            else -> Status.UNKNOWN
-          }
-          .withDescription("Error retrieving EventGroupMetadataDescriptors")
-          .withCause(e)
-          .asRuntimeException()
-      }
-    }
-
-    private fun buildTypeRegistry(
-      descriptors: List<Descriptors.Descriptor>,
-    ): TypeRegistry {
-      return TypeRegistry.newBuilder()
-        .apply {
-          for (descriptor in descriptors) {
-            add(descriptor)
-          }
-        }
-        .build()
     }
   }
 }

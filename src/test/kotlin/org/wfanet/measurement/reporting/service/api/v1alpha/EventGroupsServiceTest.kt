@@ -50,6 +50,9 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testParen
 import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse as cmmsListEventGroupsResponse
+import java.time.Clock
+import java.time.Duration
+import kotlinx.coroutines.Dispatchers
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
@@ -63,6 +66,7 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
+import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.metadata
 import org.wfanet.measurement.reporting.v1alpha.eventGroup
@@ -195,11 +199,19 @@ class EventGroupsServiceTest {
 
   @Before
   fun initService() {
+    val celEnvCacheProvider =
+      CelEnvCacheProvider(
+        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
+        Duration.ofSeconds(5),
+        Dispatchers.Default,
+        Clock.systemUTC(),
+      )
+
     service =
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
-        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
         ENCRYPTION_KEY_PAIR_STORE,
+        celEnvCacheProvider,
       )
   }
 
