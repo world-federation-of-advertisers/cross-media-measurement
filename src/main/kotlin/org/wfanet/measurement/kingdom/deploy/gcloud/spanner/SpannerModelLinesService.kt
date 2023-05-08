@@ -57,13 +57,13 @@ class SpannerModelLinesService(
 ) : ModelLinesCoroutineImplBase() {
 
   override suspend fun createModelLine(request: ModelLine): ModelLine {
-    grpcRequire(request.activeStartTime.isInitialized()) {
+    grpcRequire(request.hasActiveStartTime()) {
       "ActiveStartTime field of ModelLine is missing fields."
     }
-    grpcRequire(request.type != ModelLine.Type.UNRECOGNIZED) {
+    grpcRequire(request.type != ModelLine.Type.TYPE_UNSPECIFIED) {
       "Unrecognized ModelLine's type ${request.type}"
     }
-    return CreateModelLine(request).execute(client, idGenerator)
+    return CreateModelLine(request, clock).execute(client, idGenerator)
   }
 
   override suspend fun setActiveEndTime(request: SetActiveEndTimeRequest): ModelLine {

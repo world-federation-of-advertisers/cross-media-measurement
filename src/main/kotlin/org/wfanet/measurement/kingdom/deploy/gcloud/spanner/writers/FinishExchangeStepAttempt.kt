@@ -239,7 +239,8 @@ class FinishExchangeStepAttempt(
       return exchangeStepAttemptResult.exchangeStepAttempt
     }
     require(!exchangeStepAttempt.state.isTerminal) {
-      "Attempt for Step: ${exchangeStepAttempt.stepIndex} is in a terminal state."
+      "Attempt for Step: ${exchangeStepAttempt.stepIndex} " +
+        "."
     }
 
     val now = clock.instant().toProtoTime()

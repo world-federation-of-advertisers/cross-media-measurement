@@ -19,9 +19,13 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
+import com.google.cloud.spanner.Value
+import com.google.protobuf.util.Timestamps
+import java.time.Clock
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -31,11 +35,16 @@ import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
 
-class CreateModelLine(private val modelLine: ModelLine) : SpannerWriter<ModelLine, ModelLine>() {
+class CreateModelLine(private val modelLine: ModelLine, private val clock: Clock) : SpannerWriter<ModelLine, ModelLine>() {
 
   override suspend fun TransactionScope.runTransaction(): ModelLine {
 
-    val modelSuiteData: Struct? = readModelSuiteData(ExternalId(modelLine.externalModelSuiteId))
+    val now = clock.instant().toProtoTime()
+    require(Timestamps.compare(now, modelLine.activeStartTime) < 0) {
+      "ActiveStartTime must be in the future."
+    }
+
+    val modelSuiteData: Struct? = readModelSuiteData(ExternalId(modelLine.externalModelSuiteId), ExternalId(modelLine.externalModelProviderId))
 
     require(modelSuiteData != null) { "ModelSuite not found." }
 
@@ -58,11 +67,12 @@ class CreateModelLine(private val modelLine: ModelLine) : SpannerWriter<ModelLin
         set("ActiveEndTime" to modelLine.activeEndTime.toGcloudTimestamp())
       }
       set("Type" to modelLine.type)
-      if (modelLine.externalHoldbackModelLineId != null) {
+      if (modelLine.externalHoldbackModelLineId != 0L) {
         set(
           "HoldbackModelLine" to readModelLineId(ExternalId(modelLine.externalHoldbackModelLineId))
         )
       }
+      set("CreateTime" to Value.COMMIT_TIMESTAMP)
     }
 
     return modelLine.copy { this.externalModelLineId = externalModelLineId.value }
@@ -86,20 +96,24 @@ class CreateModelLine(private val modelLine: ModelLine) : SpannerWriter<ModelLin
   }
 
   private suspend fun TransactionScope.readModelSuiteData(
-    externalModelSuiteId: ExternalId
+    externalModelSuiteId: ExternalId,
+    externalModelProviderId: ExternalId
   ): Struct? {
     val sql =
       """
     SELECT
     ModelSuites.ModelSuiteId,
     ModelSuites.ModelProviderId
-    FROM ModelSuites
-    WHERE ExternalModelSuiteId = @externalModelSuiteId
+    FROM ModelSuites JOIN ModelProviders USING(ModelProviderId)
+    WHERE ExternalModelSuiteId = @externalModelSuiteId AND ExternalModelProviderId = @externalModelProviderId
     """
         .trimIndent()
 
     val statement: Statement =
-      statement(sql) { bind("externalModelSuiteId" to externalModelSuiteId.value) }
+      statement(sql) {
+        bind("externalModelSuiteId" to externalModelSuiteId.value)
+        bind("externalModelProviderId" to externalModelProviderId.value)
+        }
 
     return transactionContext.executeQuery(statement).singleOrNull()
   }
