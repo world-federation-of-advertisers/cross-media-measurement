@@ -42,7 +42,12 @@ class SpannerModelReleasesService(
 
   override suspend fun getModelRelease(request: GetModelReleaseRequest): ModelRelease {
     return ModelReleaseReader()
-      .readByExternalModelReleaseId(client.singleUse(), ExternalId(request.externalModelReleaseId))
+      .readByExternalModelReleaseId(
+        client.singleUse(),
+        ExternalId(request.externalModelReleaseId),
+        ExternalId(request.externalModelSuiteId),
+        ExternalId(request.externalModelProviderId)
+      )
       ?.modelRelease
       ?: failGrpc(Status.NOT_FOUND) { "ModelRelease not found" }
   }

@@ -16,50 +16,58 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.Key
+import com.google.cloud.spanner.Statement
+import com.google.cloud.spanner.Struct
+import com.google.cloud.spanner.Value
+import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ModelRelease
 import org.wfanet.measurement.internal.kingdom.copy
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
 
 class CreateModelRelease(private val modelRelease: ModelRelease) :
   SpannerWriter<ModelRelease, ModelRelease>() {
 
   override suspend fun TransactionScope.runTransaction(): ModelRelease {
 
-    val modelProviderId: InternalId =
-      readModelSuiteId(ExternalId(modelRelease.externalModelSuiteId))
+    val modelSuiteData: Struct? = readModelSuiteData(ExternalId(modelRelease.externalModelSuiteId))
+
+    require(modelSuiteData != null) { "ModelSuite not found." }
 
     val internalModelReleaseId = idGenerator.generateInternalId()
     val externalModelReleaseId = idGenerator.generateExternalId()
 
     transactionContext.bufferInsertMutation("ModelReleases") {
-      set("ModelSuiteId" to modelProviderId)
+      set("ModelProviderId" to modelSuiteData.getLong("ModelProviderId"))
+      set("ModelSuiteId" to modelSuiteData.getLong("ModelSuiteId"))
       set("ModelReleaseId" to internalModelReleaseId)
       set("ExternalModelReleaseId" to externalModelReleaseId)
+      set("CreateTime" to Value.COMMIT_TIMESTAMP)
     }
 
     return modelRelease.copy { this.externalModelReleaseId = externalModelReleaseId.value }
   }
 
-  private suspend fun TransactionScope.readModelSuiteId(
+  private suspend fun TransactionScope.readModelSuiteData(
     externalModelSuiteId: ExternalId
-  ): InternalId {
-    val column = "ModelSuiteId"
-    return transactionContext
-      .readRowUsingIndex(
-        "ModelSuites",
-        "ModelSuitesByExternalId",
-        Key.of(externalModelSuiteId.value),
-        column
-      )
-      ?.let { struct -> InternalId(struct.getLong(column)) }
-      ?: throw ModelSuiteNotFoundException(externalModelSuiteId) {
-        "ModelSuite with external ID $externalModelSuiteId not found"
-      }
+  ): Struct? {
+    val sql =
+      """
+    SELECT
+    ModelSuites.ModelSuiteId,
+    ModelSuites.ModelProviderId
+    FROM ModelSuites
+    WHERE ExternalModelSuiteId = @externalModelSuiteId
+    """
+        .trimIndent()
+
+    val statement: Statement =
+      statement(sql) { bind("externalModelSuiteId" to externalModelSuiteId.value) }
+
+    return transactionContext.executeQuery(statement).singleOrNull()
   }
 
   override fun ResultScope<ModelRelease>.buildResult(): ModelRelease {

@@ -511,6 +511,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":model_release_proto",
+        "@com_google_protobuf//:timestamp_proto",
     ],
 )
 

@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
+import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/kingdom/model_release.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
@@ -36,12 +37,18 @@ service ModelReleases {
 
 message GetModelReleaseRequest {
   fixed64 external_model_release_id = 1;
+  fixed64 external_model_suite_id = 2;
+  fixed64 external_model_provider_id = 3;
 }
 
 message StreamModelReleasesRequest {
   // Filter criteria as a conjunction of specified fields.
   message Filter {
     int64 external_model_suite_id = 1;
+    int64 external_model_provider_id = 2;
+
+    // for next page token, both after fields need to be set
+    google.protobuf.Timestamp created_after = 3;
   }
   Filter filter = 1;
 

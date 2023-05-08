@@ -33,9 +33,13 @@ class ModelReleaseReader : SpannerReader<ModelReleaseReader.Result>() {
       ModelReleases.ModelReleaseId,
       ModelReleases.ExternalModelReleaseId,
       ModelReleases.CreateTime,
-      ModelReleases.FROM ModelReleases,
-      ModelSuites.ExternalModelSuiteId
-      JOIN ModelSuites USING (ModelSuiteId)
+      ModelSuites.ExternalModelSuiteId,
+      ModelSuites.ModelProviderId,
+      ModelSuites.ModelSuiteId,
+      ModelProviders.ModelProviderId,
+      ModelProviders.ExternalModelProviderId,
+      FROM ModelReleases
+      JOIN (ModelSuites JOIN ModelProviders USING (ModelProviderId)) USING (ModelSuiteId)
     """
       .trimIndent()
 
@@ -46,6 +50,8 @@ class ModelReleaseReader : SpannerReader<ModelReleaseReader.Result>() {
     ModelRelease.newBuilder()
       .apply {
         externalModelReleaseId = struct.getLong("ExternalModelReleaseId")
+        externalModelSuiteId = struct.getLong("ExternalModelSuiteId")
+        externalModelProviderId = struct.getLong("ExternalModelProviderId")
         createTime = struct.getTimestamp("CreateTime").toProto()
       }
       .build()
@@ -53,10 +59,16 @@ class ModelReleaseReader : SpannerReader<ModelReleaseReader.Result>() {
   suspend fun readByExternalModelReleaseId(
     readContext: AsyncDatabaseClient.ReadContext,
     externalModelReleaseId: ExternalId,
+    externalModelSuiteId: ExternalId,
+    externalModelProviderId: ExternalId,
   ): Result? {
     return fillStatementBuilder {
-        appendClause("WHERE ExternalModelReleaseId = @externalModelReleaseId")
+        appendClause(
+          "WHERE ExternalModelReleaseId = @externalModelReleaseId AND ExternalModelSuiteId = @externalModelSuiteId AND ExternalModelProviderId = @externalModelProviderId"
+        )
         bind("externalModelReleaseId").to(externalModelReleaseId.value)
+        bind("externalModelSuiteId").to(externalModelSuiteId.value)
+        bind("externalModelProviderId").to(externalModelProviderId.value)
         appendClause("LIMIT 1")
       }
       .execute(readContext)
