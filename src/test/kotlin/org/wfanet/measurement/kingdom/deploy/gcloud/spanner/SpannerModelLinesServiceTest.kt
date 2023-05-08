@@ -28,8 +28,7 @@ import org.wfanet.measurement.kingdom.service.internal.testing.ModelLinesService
 @RunWith(JUnit4::class)
 class SpannerModelLinesServiceTest : ModelLinesServiceTest<SpannerModelLinesService>() {
 
-  @get:Rule
-  val spannerDatabase = SpannerEmulatorDatabaseRule(Schemata.KINGDOM_CHANGELOG_PATH)
+  @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(Schemata.KINGDOM_CHANGELOG_PATH)
 
   override fun newServices(
     clock: Clock,

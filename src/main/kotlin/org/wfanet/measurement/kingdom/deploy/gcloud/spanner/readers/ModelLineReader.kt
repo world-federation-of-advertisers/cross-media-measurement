@@ -50,12 +50,14 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
       ModelLines.HoldbackModelLine,
       ModelLines.CreateTime,
       ModelLines.UpdateTime,
+      ModelSuites.ExternalModelSuiteId,
+      ModelProviders.ExternalModelProviderId,
       HoldbackModelLine.ExternalModelLineId as ExternalHoldbackModelLineId,
       FROM ModelLines
       JOIN ModelSuites USING (ModelSuiteId)
-      JOIN ModelProviders USING (ModelProviderId)
+      JOIN ModelProviders ON (ModelSuites.ModelProviderId = ModelProviders.ModelProviderId)
       LEFT JOIN ModelLines as HoldbackModelLine
-      ON (ModelLines.ModelLineId = HoldbackModelLine.ModelLineId)
+      ON (ModelLines.HoldbackModelLine = HoldbackModelLine.ModelLineId)
     """
       .trimIndent()
 
@@ -68,9 +70,9 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
     )
 
   private fun buildModelLine(struct: Struct): ModelLine = modelLine {
-    externalModelProviderId = struct.getLong("ModelProviderId")
-    externalModelSuiteId = struct.getLong("ModelSuiteId")
-    externalModelLineId = struct.getLong("ModelLineId")
+    externalModelProviderId = struct.getLong("ExternalModelProviderId")
+    externalModelSuiteId = struct.getLong("ExternalModelSuiteId")
+    externalModelLineId = struct.getLong("ExternalModelLineId")
     if (!struct.isNull("DisplayName")) {
       displayName = struct.getString("DisplayName")
     }
@@ -86,7 +88,9 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
       externalHoldbackModelLineId = struct.getLong("ExternalHoldbackModelLineId")
     }
     createTime = struct.getTimestamp("CreateTime").toProto()
-    updateTime = struct.getTimestamp("UpdateTime").toProto()
+    if (!struct.isNull("UpdateTime")) {
+      updateTime = struct.getTimestamp("UpdateTime").toProto()
+    }
   }
 
   suspend fun readByExternalModelLineId(
@@ -97,7 +101,7 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
   ): ModelLineReader.Result? {
     return fillStatementBuilder {
         appendClause(
-          "WHERE ExternalModelSuiteId = @externalModelSuiteId AND ExternalModelProviderId = @externalModelProviderId  AND ExternalModelLineId = @externalModelLineId"
+          "WHERE ExternalModelSuiteId = @externalModelSuiteId AND ExternalModelProviderId = @externalModelProviderId  AND ModelLines.ExternalModelLineId = @externalModelLineId"
         )
         bind("externalModelSuiteId").to(externalModelSuiteId.value)
         bind("externalModelProviderId").to(externalModelProviderId.value)

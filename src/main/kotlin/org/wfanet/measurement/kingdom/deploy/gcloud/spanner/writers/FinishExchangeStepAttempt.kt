@@ -239,8 +239,7 @@ class FinishExchangeStepAttempt(
       return exchangeStepAttemptResult.exchangeStepAttempt
     }
     require(!exchangeStepAttempt.state.isTerminal) {
-      "Attempt for Step: ${exchangeStepAttempt.stepIndex} " +
-        "."
+      "Attempt for Step: ${exchangeStepAttempt.stepIndex} " + "."
     }
 
     val now = clock.instant().toProtoTime()

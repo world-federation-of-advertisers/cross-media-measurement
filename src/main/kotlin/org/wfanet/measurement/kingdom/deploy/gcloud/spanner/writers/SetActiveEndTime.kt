@@ -32,19 +32,14 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.Statement
-import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import com.google.protobuf.util.Timestamps
 import java.time.Clock
-import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
-import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.SetActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.copy
@@ -67,11 +62,11 @@ class SetActiveEndTime(private val request: SetActiveEndTimeRequest, private val
 
     val now = clock.instant().toProtoTime()
     val activeStartTime = modelLineResult.modelLine.activeStartTime
-    require(Timestamps.compare(activeStartTime, request.activeEndTime) < 0) {
-      "ActiveEndTime must be later than ActiveStartTime"
-    }
     require(Timestamps.compare(now, request.activeEndTime) < 0) {
-      "ActiveEndTime must be in the future"
+      "ActiveEndTime must be in the future."
+    }
+    require(Timestamps.compare(activeStartTime, request.activeEndTime) < 0) {
+      "ActiveEndTime must be later than ActiveStartTime."
     }
 
     transactionContext.bufferUpdateMutation("ModelLines") {
@@ -83,23 +78,6 @@ class SetActiveEndTime(private val request: SetActiveEndTimeRequest, private val
     }
 
     return modelLineResult.modelLine.copy { activeEndTime = request.activeEndTime }
-  }
-
-  private suspend fun TransactionScope.readModelLineData(externalModelLineId: ExternalId): Struct? {
-    val sql =
-      """
-    SELECT
-    ModelLines.ModelLineId,
-    ModelLines.ActiveStartTime
-    FROM ModelLines
-    WHERE ExternalModelLineId = @externalModelLineId
-    """
-        .trimIndent()
-
-    val statement: Statement =
-      statement(sql) { bind("externalModelLineId" to externalModelLineId.value) }
-
-    return transactionContext.executeQuery(statement).singleOrNull()
   }
 
   override fun ResultScope<ModelLine>.buildResult(): ModelLine {

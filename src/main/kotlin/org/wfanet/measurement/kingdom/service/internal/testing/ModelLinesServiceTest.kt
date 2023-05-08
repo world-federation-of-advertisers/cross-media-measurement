@@ -18,13 +18,13 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.Truth
 import com.google.common.truth.extensions.proto.ProtoTruth
-import com.google.protobuf.timestamp
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
 import java.time.Instant
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
@@ -36,11 +36,13 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.ModelSuite
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.modelLine
 import org.wfanet.measurement.internal.kingdom.modelSuite
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest
+import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest
+import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest
 
 private const val RANDOM_SEED = 1
 
@@ -112,9 +114,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     val exception =
       assertFailsWith<IllegalArgumentException> { modelLinesService.createModelLine(modelLine) }
 
-    Truth.assertThat(exception)
-      .hasMessageThat()
-      .contains("ActiveStartTime must be in the future.")
+    Truth.assertThat(exception).hasMessageThat().contains("ActiveStartTime must be in the future.")
   }
 
   @Test
@@ -134,9 +134,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { modelLinesService.createModelLine(modelLine) }
 
     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    Truth.assertThat(exception)
-      .hasMessageThat()
-      .contains("Unrecognized ModelLine's type")
+    Truth.assertThat(exception).hasMessageThat().contains("Unrecognized ModelLine's type")
   }
 
   @Test
@@ -176,8 +174,6 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
 
   @Test
   fun `setActiveEndTime fails if ModelLine is not found`() = runBlocking {
-    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
-
     val setActiveEndTimeRequest = setActiveEndTimeRequest {
       externalModelLineId = 123L
       externalModelSuiteId = 456L
@@ -186,12 +182,371 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> { modelLinesService.setActiveEndTime(setActiveEndTimeRequest) }
+      assertFailsWith<StatusRuntimeException> {
+        modelLinesService.setActiveEndTime(setActiveEndTimeRequest)
+      }
 
     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    Truth.assertThat(exception)
-      .hasMessageThat()
-      .contains("ModelLine not found.")
+    Truth.assertThat(exception).hasMessageThat().contains("ModelLine not found.")
   }
 
+  @Test
+  fun `setActiveEndTime fails if ActiveEndTime is in older than ActiveStartTime`() = runBlocking {
+    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+
+    val modelLine = modelLine {
+      externalModelSuiteId = modelSuite.externalModelSuiteId
+      externalModelProviderId = modelSuite.externalModelProviderId
+      activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+      type = ModelLine.Type.PROD
+      displayName = "display name"
+      description = "description"
+    }
+
+    val createdModelLine = modelLinesService.createModelLine(modelLine)
+
+    val setActiveEndTimeRequest = setActiveEndTimeRequest {
+      externalModelLineId = createdModelLine.externalModelLineId
+      externalModelSuiteId = createdModelLine.externalModelSuiteId
+      externalModelProviderId = createdModelLine.externalModelProviderId
+      activeEndTime = Instant.now().plusSeconds(500L).toProtoTime()
+    }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        modelLinesService.setActiveEndTime(setActiveEndTimeRequest)
+      }
+
+    Truth.assertThat(exception)
+      .hasMessageThat()
+      .contains("ActiveEndTime must be later than ActiveStartTime.")
+  }
+
+  @Test
+  fun `setActiveEndTime fails if ActiveEndTime is in the past`() = runBlocking {
+    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+
+    val modelLine = modelLine {
+      externalModelSuiteId = modelSuite.externalModelSuiteId
+      externalModelProviderId = modelSuite.externalModelProviderId
+      activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+      type = ModelLine.Type.PROD
+      displayName = "display name"
+      description = "description"
+    }
+
+    val createdModelLine = modelLinesService.createModelLine(modelLine)
+
+    val setActiveEndTimeRequest = setActiveEndTimeRequest {
+      externalModelLineId = createdModelLine.externalModelLineId
+      externalModelSuiteId = createdModelLine.externalModelSuiteId
+      externalModelProviderId = createdModelLine.externalModelProviderId
+      activeEndTime = Instant.now().minusSeconds(500L).toProtoTime()
+    }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        modelLinesService.setActiveEndTime(setActiveEndTimeRequest)
+      }
+
+    Truth.assertThat(exception).hasMessageThat().contains("ActiveEndTime must be in the future.")
+  }
+
+  @Test
+  fun `setActiveEndTime succeeds`() = runBlocking {
+    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+
+    val ast = Instant.now().plusSeconds(2000L).toProtoTime()
+    val aet = Instant.now().plusSeconds(3000L).toProtoTime()
+
+    val modelLine = modelLine {
+      externalModelSuiteId = modelSuite.externalModelSuiteId
+      externalModelProviderId = modelSuite.externalModelProviderId
+      activeStartTime = ast
+      type = ModelLine.Type.PROD
+      displayName = "display name"
+      description = "description"
+    }
+
+    val createdModelLine = modelLinesService.createModelLine(modelLine)
+
+    val setActiveEndTimeRequest = setActiveEndTimeRequest {
+      externalModelLineId = createdModelLine.externalModelLineId
+      externalModelSuiteId = createdModelLine.externalModelSuiteId
+      externalModelProviderId = createdModelLine.externalModelProviderId
+      activeEndTime = aet
+    }
+
+    val updatedModelLine = modelLinesService.setActiveEndTime(setActiveEndTimeRequest)
+
+    ProtoTruth.assertThat(updatedModelLine)
+      .ignoringFields(ModelLine.UPDATE_TIME_FIELD_NUMBER)
+      .isEqualTo(
+        modelLinesService
+          .streamModelLines(
+            streamModelLinesRequest {
+              filter = filter {
+                externalModelProviderId = createdModelLine.externalModelProviderId
+                externalModelSuiteId = createdModelLine.externalModelSuiteId
+              }
+            }
+          )
+          .toList()
+          .get(0)
+      )
+  }
+
+  @Test
+  fun `streamModelLines returns all model lines`(): Unit = runBlocking {
+    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+
+    val modelLine1 =
+      modelLinesService.createModelLine(
+        modelLine {
+          externalModelSuiteId = modelSuite.externalModelSuiteId
+          externalModelProviderId = modelSuite.externalModelProviderId
+          activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+          type = ModelLine.Type.PROD
+          displayName = "display name1"
+          description = "description1"
+        }
+      )
+
+    val modelLine2 =
+      modelLinesService.createModelLine(
+        modelLine {
+          externalModelSuiteId = modelSuite.externalModelSuiteId
+          externalModelProviderId = modelSuite.externalModelProviderId
+          activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+          type = ModelLine.Type.PROD
+          displayName = "display name2"
+          description = "description2"
+        }
+      )
+
+    val modelLines: List<ModelLine> =
+      modelLinesService
+        .streamModelLines(
+          streamModelLinesRequest {
+            filter = filter {
+              externalModelProviderId = modelSuite.externalModelProviderId
+              externalModelSuiteId = modelSuite.externalModelSuiteId
+            }
+          }
+        )
+        .toList()
+
+    ProtoTruth.assertThat(modelLines)
+      .comparingExpectedFieldsOnly()
+      .containsExactly(modelLine1, modelLine2)
+      .inOrder()
+  }
+
+  @Test
+  fun `streamModelLines can get one page at a time`(): Unit = runBlocking {
+    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+
+    val modelLine1 =
+      modelLinesService.createModelLine(
+        modelLine {
+          externalModelSuiteId = modelSuite.externalModelSuiteId
+          externalModelProviderId = modelSuite.externalModelProviderId
+          activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+          type = ModelLine.Type.PROD
+          displayName = "display name1"
+          description = "description1"
+        }
+      )
+
+    val modelLine2 =
+      modelLinesService.createModelLine(
+        modelLine {
+          externalModelSuiteId = modelSuite.externalModelSuiteId
+          externalModelProviderId = modelSuite.externalModelProviderId
+          activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+          type = ModelLine.Type.PROD
+          displayName = "display name2"
+          description = "description2"
+        }
+      )
+
+    val modelLines: List<ModelLine> =
+      modelLinesService
+        .streamModelLines(
+          streamModelLinesRequest {
+            limit = 1
+            filter = filter {
+              externalModelProviderId = modelSuite.externalModelProviderId
+              externalModelSuiteId = modelSuite.externalModelSuiteId
+            }
+          }
+        )
+        .toList()
+
+    ProtoTruth.assertThat(modelLines).hasSize(1)
+    ProtoTruth.assertThat(modelLines).contains(modelLine1)
+
+    val modelLines2: List<ModelLine> =
+      modelLinesService
+        .streamModelLines(
+          streamModelLinesRequest {
+            filter = filter {
+              externalModelProviderId = modelSuite.externalModelProviderId
+              externalModelSuiteId = modelSuite.externalModelSuiteId
+              createdAfter = modelLines[0].createTime
+            }
+          }
+        )
+        .toList()
+
+    ProtoTruth.assertThat(modelLines2).hasSize(1)
+    ProtoTruth.assertThat(modelLines2).contains(modelLine2)
+  }
+
+  @Test
+  fun `streamModelLines can return model lines with a given type`(): Unit = runBlocking {
+    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+
+    val modelLine1 =
+      modelLinesService.createModelLine(
+        modelLine {
+          externalModelSuiteId = modelSuite.externalModelSuiteId
+          externalModelProviderId = modelSuite.externalModelProviderId
+          activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+          type = ModelLine.Type.PROD
+          displayName = "display name1"
+          description = "description1"
+        }
+      )
+
+    modelLinesService.createModelLine(
+      modelLine {
+        externalModelSuiteId = modelSuite.externalModelSuiteId
+        externalModelProviderId = modelSuite.externalModelProviderId
+        activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+        type = ModelLine.Type.DEV
+        displayName = "display name2"
+        description = "description2"
+      }
+    )
+
+    val modelLines: List<ModelLine> =
+      modelLinesService
+        .streamModelLines(
+          streamModelLinesRequest {
+            filter = filter {
+              externalModelProviderId = modelSuite.externalModelProviderId
+              externalModelSuiteId = modelSuite.externalModelSuiteId
+              type += ModelLine.Type.PROD
+            }
+          }
+        )
+        .toList()
+
+    ProtoTruth.assertThat(modelLines).hasSize(1)
+    ProtoTruth.assertThat(modelLines).contains(modelLine1)
+  }
+
+  @Test
+  fun `setModelLineHoldbackModelLine fails if ModelLine has type != 'PROD'`() = runBlocking {
+    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+
+    val modelLine1 =
+      modelLinesService.createModelLine(
+        modelLine {
+          externalModelSuiteId = modelSuite.externalModelSuiteId
+          externalModelProviderId = modelSuite.externalModelProviderId
+          activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+          type = ModelLine.Type.DEV
+          displayName = "display name1"
+          description = "description1"
+        }
+      )
+
+    val modelLine2 =
+      modelLinesService.createModelLine(
+        modelLine {
+          externalModelSuiteId = modelSuite.externalModelSuiteId
+          externalModelProviderId = modelSuite.externalModelProviderId
+          activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+          type = ModelLine.Type.PROD
+          displayName = "display name2"
+          description = "description2"
+        }
+      )
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        modelLinesService.setModelLineHoldbackModelLine(
+          setModelLineHoldbackModelLineRequest {
+            externalModelLineId = modelLine1.externalModelLineId
+            externalModelSuiteId = modelSuite.externalModelSuiteId
+            externalModelProviderId = modelSuite.externalModelProviderId
+            externalHoldbackModelLineId = modelLine2.externalModelLineId
+            externalHoldbackModelSuiteId = modelSuite.externalModelSuiteId
+            externalHoldbackModelProviderId = modelSuite.externalModelProviderId
+          }
+        )
+      }
+
+    Truth.assertThat(exception)
+      .hasMessageThat()
+      .contains("Only ModelLine with type == PROD can have a Holdback ModelLine.")
+  }
+
+  @Test
+  fun `setModelLineHoldbackModelLine succeeds`() = runBlocking {
+    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+
+    val modelLine1 =
+      modelLinesService.createModelLine(
+        modelLine {
+          externalModelSuiteId = modelSuite.externalModelSuiteId
+          externalModelProviderId = modelSuite.externalModelProviderId
+          activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+          type = ModelLine.Type.PROD
+          displayName = "display name1"
+          description = "description1"
+        }
+      )
+
+    val modelLine2 =
+      modelLinesService.createModelLine(
+        modelLine {
+          externalModelSuiteId = modelSuite.externalModelSuiteId
+          externalModelProviderId = modelSuite.externalModelProviderId
+          activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+          type = ModelLine.Type.HOLDBACK
+          displayName = "display name2"
+          description = "description2"
+        }
+      )
+
+    modelLinesService.setModelLineHoldbackModelLine(
+      setModelLineHoldbackModelLineRequest {
+        externalModelLineId = modelLine1.externalModelLineId
+        externalModelSuiteId = modelSuite.externalModelSuiteId
+        externalModelProviderId = modelSuite.externalModelProviderId
+        externalHoldbackModelLineId = modelLine2.externalModelLineId
+        externalHoldbackModelSuiteId = modelSuite.externalModelSuiteId
+        externalHoldbackModelProviderId = modelSuite.externalModelProviderId
+      }
+    )
+
+    val modelLines: List<ModelLine> =
+      modelLinesService
+        .streamModelLines(
+          streamModelLinesRequest {
+            filter = filter {
+              externalModelProviderId = modelSuite.externalModelProviderId
+              externalModelSuiteId = modelSuite.externalModelSuiteId
+              type += ModelLine.Type.PROD
+            }
+          }
+        )
+        .toList()
+
+    Truth.assertThat(modelLines.get(0).externalHoldbackModelLineId)
+      .isEqualTo(modelLine2.externalModelLineId)
+  }
 }

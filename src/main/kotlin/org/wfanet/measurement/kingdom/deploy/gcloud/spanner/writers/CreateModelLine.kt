@@ -35,7 +35,8 @@ import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
 
-class CreateModelLine(private val modelLine: ModelLine, private val clock: Clock) : SpannerWriter<ModelLine, ModelLine>() {
+class CreateModelLine(private val modelLine: ModelLine, private val clock: Clock) :
+  SpannerWriter<ModelLine, ModelLine>() {
 
   override suspend fun TransactionScope.runTransaction(): ModelLine {
 
@@ -44,7 +45,11 @@ class CreateModelLine(private val modelLine: ModelLine, private val clock: Clock
       "ActiveStartTime must be in the future."
     }
 
-    val modelSuiteData: Struct? = readModelSuiteData(ExternalId(modelLine.externalModelSuiteId), ExternalId(modelLine.externalModelProviderId))
+    val modelSuiteData: Struct? =
+      readModelSuiteData(
+        ExternalId(modelLine.externalModelSuiteId),
+        ExternalId(modelLine.externalModelProviderId)
+      )
 
     require(modelSuiteData != null) { "ModelSuite not found." }
 
@@ -52,8 +57,8 @@ class CreateModelLine(private val modelLine: ModelLine, private val clock: Clock
     val externalModelLineId = idGenerator.generateExternalId()
 
     transactionContext.bufferInsertMutation("ModelLines") {
-      set("ModelProviderId" to modelSuiteData.getLong("ModelProviderId"))
-      set("ModelSuiteId" to modelSuiteData.getLong("ModelSuiteId"))
+      set("ModelProviderId" to InternalId(modelSuiteData.getLong("ModelProviderId")))
+      set("ModelSuiteId" to InternalId(modelSuiteData.getLong("ModelSuiteId")))
       set("ModelLineId" to internalModelLineId)
       set("ExternalModelLineId" to externalModelLineId)
       if (modelLine.displayName.isNotBlank()) {
@@ -113,7 +118,7 @@ class CreateModelLine(private val modelLine: ModelLine, private val clock: Clock
       statement(sql) {
         bind("externalModelSuiteId" to externalModelSuiteId.value)
         bind("externalModelProviderId" to externalModelProviderId.value)
-        }
+      }
 
     return transactionContext.executeQuery(statement).singleOrNull()
   }

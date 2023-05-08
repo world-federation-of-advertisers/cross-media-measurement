@@ -2,7 +2,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.ModelLine
@@ -25,7 +24,7 @@ class SetModelLineHoldbackModelLine(private val request: SetModelLineHoldbackMod
         )
         ?: throw ModelLineNotFoundException(ExternalId(request.externalModelLineId))
 
-    require(modelLineResult.modelLine.type != ModelLine.Type.PROD) {
+    require(modelLineResult.modelLine.type == ModelLine.Type.PROD) {
       "Only ModelLine with type == PROD can have a Holdback ModelLine."
     }
 
@@ -47,7 +46,9 @@ class SetModelLineHoldbackModelLine(private val request: SetModelLineHoldbackMod
       set("HoldbackModelLine" to holdbackModelLineResult.modelLineId.value)
     }
 
-    return modelLineResult.modelLine.copy { externalHoldbackModelLineId = request.externalHoldbackModelLineId }
+    return modelLineResult.modelLine.copy {
+      externalHoldbackModelLineId = request.externalHoldbackModelLineId
+    }
   }
 
   override fun ResultScope<ModelLine>.buildResult(): ModelLine {

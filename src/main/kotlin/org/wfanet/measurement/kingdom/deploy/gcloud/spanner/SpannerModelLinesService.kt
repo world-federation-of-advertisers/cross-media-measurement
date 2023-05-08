@@ -81,7 +81,9 @@ class SpannerModelLinesService(
     }
   }
 
-  override suspend fun setModelLineHoldbackModelLine(request: SetModelLineHoldbackModelLineRequest): ModelLine {
+  override suspend fun setModelLineHoldbackModelLine(
+    request: SetModelLineHoldbackModelLineRequest
+  ): ModelLine {
     return SetModelLineHoldbackModelLine(request).execute(client, idGenerator)
   }
 }
