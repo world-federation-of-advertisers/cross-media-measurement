@@ -24,7 +24,7 @@ using ::wfa::measurement::common::crypto::CreateProtocolCryptorWithKeys;
 using ::wfa::measurement::common::crypto::ElGamalCiphertext;
 
 absl::StatusOr<std::unique_ptr<MultithreadingHelper>>
-MultithreadingHelper::createMultithreadingHelper(
+MultithreadingHelper::CreateMultithreadingHelper(
     int n_threads, int curve_id,
     const ElGamalCiphertext& local_el_gamal_public_key,
     absl::string_view local_el_gamal_private_key,
@@ -33,14 +33,14 @@ MultithreadingHelper::createMultithreadingHelper(
     const ElGamalCiphertext& partial_composite_el_gamal_public_key) {
   std::unique_ptr<MultithreadingHelper> helper =
       absl::make_unique<MultithreadingHelper>(n_threads);
-  RETURN_IF_ERROR(helper->setupCryptors(
+  RETURN_IF_ERROR(helper->SetupCryptors(
       curve_id, local_el_gamal_public_key, local_el_gamal_private_key,
       local_pohlig_hellman_private_key, composite_el_gamal_public_key,
       partial_composite_el_gamal_public_key));
   return {std::move(helper)};
 }
 
-absl::Status MultithreadingHelper::setupCryptors(
+absl::Status MultithreadingHelper::SetupCryptors(
     int curve_id, const ElGamalCiphertext& local_el_gamal_public_key,
     absl::string_view local_el_gamal_private_key,
     absl::string_view local_pohlig_hellman_private_key,

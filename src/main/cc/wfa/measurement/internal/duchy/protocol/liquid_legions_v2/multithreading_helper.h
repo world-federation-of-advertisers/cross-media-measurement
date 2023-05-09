@@ -31,6 +31,7 @@ namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 using ::wfa::measurement::common::crypto::ElGamalCiphertext;
 using ::wfa::measurement::common::crypto::ProtocolCryptor;
 
+// A helper class to execute cryptor iterations in multi-threads.
 class MultithreadingHelper {
  private:
   absl::Mutex mutex_;
@@ -51,7 +52,7 @@ class MultithreadingHelper {
   //
   // As [ProtocolCryptor] is not thread-safe, each thread has its own cryptor to
   // execute tasks.
-  absl::Status setupCryptors(
+  absl::Status SetupCryptors(
       int curve_id, const ElGamalCiphertext& local_el_gamal_public_key,
       absl::string_view local_el_gamal_private_key,
       absl::string_view local_pohlig_hellman_private_key,
@@ -59,7 +60,7 @@ class MultithreadingHelper {
       const ElGamalCiphertext& partial_composite_el_gamal_public_key);
 
   static absl::StatusOr<std::unique_ptr<MultithreadingHelper>>
-  createMultithreadingHelper(
+  CreateMultithreadingHelper(
       int n_threads, int curve_id,
       const ElGamalCiphertext& local_el_gamal_public_key,
       absl::string_view local_el_gamal_private_key,
@@ -67,8 +68,10 @@ class MultithreadingHelper {
       const ElGamalCiphertext& composite_el_gamal_public_key,
       const ElGamalCiphertext& partial_composite_el_gamal_public_key);
 
+  // Execute function f with a batch input [data] and number of iterations.
+  // Note: The function f must be thread-safe.
   template <typename T>
-  absl::Status executeAndBlocking(
+  absl::Status ExecuteAndBlocking(
       T& data, int n_iterations,
       absl::AnyInvocable<absl::Status(ProtocolCryptor&, T&, size_t)>& f) {
     if (cryptors_.size() != n_threads_) {
@@ -81,7 +84,7 @@ class MultithreadingHelper {
     failure_status_.reset();
 
     for (int thread_index = 0; thread_index < n_threads_; thread_index++) {
-      threads_.emplace_back(std::thread(&MultithreadingHelper::execute<T>, this,
+      threads_.emplace_back(std::thread(&MultithreadingHelper::Execute<T>, this,
                                         std::ref(*cryptors_[thread_index]),
                                         std::ref(data), std::ref(f)));
     }
@@ -94,7 +97,7 @@ class MultithreadingHelper {
   }
 
   template <typename T>
-  void execute(
+  void Execute(
       ProtocolCryptor& cryptor, T& data,
       absl::AnyInvocable<absl::Status(ProtocolCryptor&, T&, size_t)>& f) {
     int current_index;

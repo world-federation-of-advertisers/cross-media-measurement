@@ -51,7 +51,7 @@ TEST(MultithreadingHelper, TasksAreExecutedInMultipleThreads) {
 
   ASSERT_OK_AND_ASSIGN(
       auto helper,
-      MultithreadingHelper::createMultithreadingHelper(
+      MultithreadingHelper::CreateMultithreadingHelper(
           kThreadCount, kTestCurveId, kGenerateWithNewElGamalPublicKey,
           kGenerateWithNewElGamalPrivateKey, kGenerateWithNewPohligHellmanKey,
           composite_el_gamal_public_key, kGenerateNewParitialCompositeCipher));
@@ -64,7 +64,7 @@ TEST(MultithreadingHelper, TasksAreExecutedInMultipleThreads) {
     return absl::OkStatus();
   };
   auto status =
-      helper->executeAndBlocking<std::string>(data, data.size(), func);
+      helper->ExecuteAndBlocking<std::string>(data, data.size(), func);
   ASSERT_TRUE(status.ok());
   EXPECT_EQ(results, std::vector<int>({0, 1, 2, 3, 4, 5, 6}));
 }
@@ -75,7 +75,7 @@ TEST(MultithreadingHelper, TasksAreExecutedInSingleThread) {
 
   ASSERT_OK_AND_ASSIGN(
       auto helper,
-      MultithreadingHelper::createMultithreadingHelper(
+      MultithreadingHelper::CreateMultithreadingHelper(
           1, kTestCurveId, kGenerateWithNewElGamalPublicKey,
           kGenerateWithNewElGamalPrivateKey, kGenerateWithNewPohligHellmanKey,
           composite_el_gamal_public_key, kGenerateNewParitialCompositeCipher));
@@ -88,7 +88,7 @@ TEST(MultithreadingHelper, TasksAreExecutedInSingleThread) {
     return absl::OkStatus();
   };
   auto status =
-      helper->executeAndBlocking<std::string>(data, data.size(), func);
+      helper->ExecuteAndBlocking<std::string>(data, data.size(), func);
   ASSERT_TRUE(status.ok());
   EXPECT_EQ(results, std::vector<int>({0, 1, 2, 3, 4, 5, 6}));
 }
@@ -99,7 +99,7 @@ TEST(MultithreadingHelper, ErrorReturnedWhenExecutionFails) {
 
   ASSERT_OK_AND_ASSIGN(
       auto helper,
-      MultithreadingHelper::createMultithreadingHelper(
+      MultithreadingHelper::CreateMultithreadingHelper(
           kThreadCount, kTestCurveId, kGenerateWithNewElGamalPublicKey,
           kGenerateWithNewElGamalPrivateKey, kGenerateWithNewPohligHellmanKey,
           composite_el_gamal_public_key, kGenerateNewParitialCompositeCipher));
@@ -117,7 +117,7 @@ TEST(MultithreadingHelper, ErrorReturnedWhenExecutionFails) {
     }
   };
   auto status =
-      helper->executeAndBlocking<std::string>(data, data.size(), func);
+      helper->ExecuteAndBlocking<std::string>(data, data.size(), func);
   ASSERT_FALSE(status.ok());
   EXPECT_THAT(status, StatusIs(absl::StatusCode::kInternal, error_message));
   EXPECT_EQ(results[3], -1);
