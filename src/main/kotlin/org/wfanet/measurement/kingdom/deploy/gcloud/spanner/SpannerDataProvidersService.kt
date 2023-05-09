@@ -54,7 +54,7 @@ class SpannerDataProvidersService(
   override suspend fun replaceDataProviderRequiredDuchies(
     request: ReplaceDataProviderRequiredDuchiesRequest
   ): DataProvider {
-    grpcRequire(request.externalDataProviderId > 0L) { "externalDataProviderId field is missing." }
+    grpcRequire(request.externalDataProviderId != 0L) { "externalDataProviderId field is missing." }
     try {
       return ReplaceDataProviderRequiredDuchies(request).execute(client, idGenerator)
     } catch (e: DataProviderNotFoundException) {
