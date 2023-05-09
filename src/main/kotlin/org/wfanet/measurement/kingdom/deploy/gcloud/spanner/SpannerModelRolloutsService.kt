@@ -16,11 +16,20 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import io.grpc.Status
 import java.time.Clock
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.ModelRollout
 import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutInvalidArgsException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelRollouts
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelRollout
 
 class SpannerModelRolloutsService(
   private val clock: Clock,
@@ -29,6 +38,27 @@ class SpannerModelRolloutsService(
 ) : ModelRolloutsCoroutineImplBase() {
 
   override suspend fun createModelRollout(request: ModelRollout): ModelRollout {
-    return super.createModelRollout(request)
+    grpcRequire(request.hasRolloutPeriodStartTime()) {
+      "RolloutPeriodStartTime field of ModelRollout is missing."
+    }
+    grpcRequire(request.hasRolloutPeriodEndTime()) {
+      "RolloutPeriodEndTime field of ModelRollout is missing."
+    }
+    grpcRequire(request.externalModelReleaseId > 0L) {
+      "ExternalModelReleaseId field of ModelRollout is missing."
+    }
+    try {
+      return CreateModelRollout(request, clock).execute(client, idGenerator)
+    } catch (e: ModelRolloutInvalidArgsException) {
+      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT)
+    } catch (e: ModelLineNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelLine not found." }
+    }
+  }
+
+  override fun streamModelRollouts(request: StreamModelRolloutsRequest): Flow<ModelRollout> {
+    return StreamModelRollouts(request.filter, request.limit).execute(client.singleUse()).map {
+      it.modelRollout
+    }
   }
 }

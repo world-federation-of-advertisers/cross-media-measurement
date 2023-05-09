@@ -131,6 +131,23 @@ class ModelLineInvalidArgsException(
       )
 }
 
+class ModelRolloutInvalidArgsException(
+  val externalModelProviderId: ExternalId,
+  val externalModelSuiteId: ExternalId,
+  val externalModelLineId: ExternalId,
+  val externalModelRolloutId: ExternalId? = null,
+  provideDescription: () -> String = { "ModelRollout invalid rollout period time arguments" }
+) : KingdomInternalException(ErrorCode.MODEL_ROLLOUT_INVALID_ARGS, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_model_provider_id" to externalModelProviderId.toString(),
+        "external_model_suite_id" to externalModelSuiteId.toString(),
+        "external_model_line_id" to externalModelLineId.toString(),
+        "externalModelRolloutId" to externalModelRolloutId.toString()
+      )
+}
+
 class DataProviderNotFoundException(
   val externalDataProviderId: ExternalId,
   provideDescription: () -> String = { "DataProvider not found" }

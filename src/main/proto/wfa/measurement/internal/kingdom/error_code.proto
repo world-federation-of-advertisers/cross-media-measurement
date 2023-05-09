@@ -88,4 +88,6 @@ enum ErrorCode {
   MODEL_LINE_TYPE_ILLEGAL = 31;
   /** ModelLine active time args are invalid. */
   MODEL_LINE_INVALID_ARGS = 32;
+  /** ModelRollout rollout time args are invalid. */
+  MODEL_ROLLOUT_INVALID_ARGS = 33;
 }
