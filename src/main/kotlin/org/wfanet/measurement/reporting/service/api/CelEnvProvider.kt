@@ -23,9 +23,14 @@ import io.grpc.Status
 import io.grpc.StatusException
 import java.time.Clock
 import java.time.Duration
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.retry
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -56,18 +61,22 @@ interface CelEnvProvider {
 class CelEnvCacheProvider(
   private val eventGroupsMetadataDescriptorsStub:
     EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub,
-  cacheRefreshInterval: Duration,
+  private val cacheRefreshInterval: Duration,
   coroutineDispatcher: CoroutineDispatcher,
-  clock: Clock,
+  private val clock: Clock,
+  private val numRefreshAttempts: Long = 3L,
 ) : CelEnvProvider {
   private val mutex = Mutex()
 
   private lateinit var typeRegistryAndEnv: CelEnvProvider.TypeRegistryAndEnv
+  private var lastUpdated = Instant.EPOCH
+  private val cacheRefreshIntervalPortion = cacheRefreshInterval.toMillis() * 0.90
 
   init {
     CoroutineScope(coroutineDispatcher + SupervisorJob()).launch {
       MinimumIntervalThrottler(clock, cacheRefreshInterval).loopOnReady {
-        launch { setTypeRegistryAndEnv() }
+        val updateFlow = flow<Unit> { setTypeRegistryAndEnv()  }
+        launch { updateFlow.retry(numRefreshAttempts) { e -> e is java.lang.RuntimeException}.collect() }
       }
     }
   }
@@ -80,7 +89,13 @@ class CelEnvCacheProvider(
   }
 
   private suspend fun setTypeRegistryAndEnv() {
-    mutex.withLock { typeRegistryAndEnv = buildTypeRegistryAndEnv() }
+    mutex.withLock {
+      val difference = ChronoUnit.MILLIS.between(lastUpdated, clock.instant())
+      if (difference >= cacheRefreshIntervalPortion) {
+        typeRegistryAndEnv = buildTypeRegistryAndEnv()
+        lastUpdated = clock.instant()
+      }
+    }
   }
 
   private suspend fun buildTypeRegistryAndEnv(): CelEnvProvider.TypeRegistryAndEnv {
