@@ -1,0 +1,71 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@io_bazel_rules_docker//java:image.bzl", "java_image")
+
+kt_jvm_library(
+    name = "completed_measurements_deletion_job",
+    srcs = ["CompletedMeasurementsDeletionJob.kt"],
+    runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
+    deps = [
+        "//imports/java/io/opentelemetry/api",
+        "//imports/java/io/opentelemetry/exporter/otlp",
+        "//imports/java/io/opentelemetry/sdk",
+        "//imports/java/io/opentelemetry/sdk:common",
+        "//imports/java/io/opentelemetry/sdk:metrics",
+        "//imports/java/io/opentelemetry/semconv",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/batch:completed_measurements_deletion",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:utils",
+        "//src/main/proto/wfa/measurement/internal/kingdom:measurements_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_certs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+java_binary(
+    name = "CompletedMeasurementsDeletionJob",
+    main_class = "org.wfanet.measurement.kingdom.deploy.common.job.CompletedMeasurementsDeletionJobKt",
+    runtime_deps = [":completed_measurements_deletion_job"],
+)
+
+java_image(
+    name = "completed_measurements_deletion_image",
+    main_class = "org.wfanet.measurement.kingdom.deploy.common.job.CompletedMeasurementsDeletionJobKt",
+    visibility = ["//src:docker_image_deployment"],
+    runtime_deps = [":completed_measurements_deletion_job"],
+)
+
+kt_jvm_library(
+    name = "pending_measurements_cancellation_job",
+    srcs = ["PendingMeasurementsCancellationJob.kt"],
+    runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
+    deps = [
+        "//imports/java/io/opentelemetry/api",
+        "//imports/java/io/opentelemetry/exporter/otlp",
+        "//imports/java/io/opentelemetry/sdk",
+        "//imports/java/io/opentelemetry/sdk:common",
+        "//imports/java/io/opentelemetry/sdk:metrics",
+        "//imports/java/io/opentelemetry/semconv",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/batch:pending_measurements_cancellation",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:utils",
+        "//src/main/proto/wfa/measurement/internal/kingdom:measurements_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_certs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+java_binary(
+    name = "PendingMeasurementsCancellationJob",
+    main_class = "org.wfanet.measurement.kingdom.deploy.common.job.PendingMeasurementsCancellationJobKt",
+    runtime_deps = [":pending_measurements_cancellation_job"],
+)
+
+java_image(
+    name = "pending_measurements_cancellation_image",
+    main_class = "org.wfanet.measurement.kingdom.deploy.common.job.PendingMeasurementsCancellationJobKt",
+    visibility = ["//src:docker_image_deployment"],
+    runtime_deps = [":pending_measurements_cancellation_job"],
+)

@@ -18,6 +18,8 @@ Adds external repos necessary for wfa_measurement_system.
 
 load("//build/wfa:repositories.bzl", "wfa_repo_archive")
 
+MEASUREMENT_SYSTEM_REPO = "https://github.com/world-federation-of-advertisers/cross-media-measurement"
+
 def wfa_measurement_system_repositories():
     """Imports all direct dependencies for wfa_measurement_system."""
 
@@ -38,8 +40,8 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_measurement_proto",
         repo = "cross-media-measurement-api",
-        sha256 = "333ec3153cfe20d9f0ceeb9c73b0d11daa9f0b61382596de76d7090511bc591a",
-        version = "0.28.1",
+        sha256 = "4ae6664c57496632dd75d9731b82aaaa7a6e3134ab81b2d70def3f6a07028683",
+        version = "0.30.0",
     )
 
     wfa_repo_archive(
@@ -73,6 +75,6 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_rules_cue",
         repo = "rules_cue",
-        sha256 = "652379dec5174ed7fa8fe4223d0adf9a1d610ff0aa02e1bd1e74f79834b526a6",
-        version = "0.2.0",
+        sha256 = "0261b7797fa9083183536667958b1094fc732725fc48fca5cb68e6f731cdce2f",
+        version = "0.3.0",
     )

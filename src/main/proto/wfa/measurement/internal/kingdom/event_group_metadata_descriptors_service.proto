@@ -47,12 +47,21 @@ message UpdateEventGroupMetadataDescriptorRequest {
   EventGroupMetadataDescriptor event_group_metadata_descriptor = 1;
 }
 
+message EventGroupMetadataDescriptorKey {
+  fixed64 external_data_provider_id = 1;
+  fixed64 external_event_group_metadata_descriptor_id = 2;
+}
+
 message StreamEventGroupMetadataDescriptorsRequest {
   // Filter criteria as a conjunction of specified fields. Repeated fields are
   // disjunctions of their items.
   message Filter {
     fixed64 external_data_provider_id = 1;
     repeated fixed64 external_event_group_metadata_descriptor_ids = 2;
+    EventGroupMetadataDescriptorKey key_after = 3;
   }
   Filter filter = 1;
+
+  // The maximum number of results to return.
+  int32 limit = 2;
 }

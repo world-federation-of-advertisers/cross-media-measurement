@@ -71,57 +71,42 @@ following:
 2.  Enable the `Cloud Spanner API` if you have not done so yet.
 3.  Click Create Instance
 
-    Notes:
-
-    *   Our `dev` configuration uses `dev-instance` as the instance name.
-    *   100 processing units is the current minimum value. This should be enough
-        to test things out, but you will likely want to adjust this depending on
-        expected load.
+Note: 100 processing units is the current minimum value. This should be enough
+to test things out, but you will likely want to adjust this depending on
+expected load.
 
 ## Step 1. Create the database
 
-The Kingdom expects its own database within your Spanner instance. You can
-create one with the `gcloud` CLI. For example, a database named `kingdom` in the
-`dev-instance` instance.
+The Kingdom expects its own database within your Spanner instance. The `dev`
+configuration assumes that this is named `kingdom`.
+
+You can create a database using the `gcloud` CLI. For example in the `halo-cmms`
+instance:
 
 ```shell
-gcloud spanner databases create kingdom --instance=dev-instance
+gcloud spanner databases create kingdom --instance=halo-cmms
 ```
 
 ## Step 2. Build and push the container images
 
-The `dev` configuration uses the
-[Container Registry](https://cloud.google.com/container-registry) to store our
-docker images. Enable the Google Container Registry API in the console if you
-haven't done it. If you use other repositories, adjust the commands accordingly.
+If you aren't using pre-built release images, you can build the images yourself
+from source and push them to a container registry. For example, if you're using
+the [Google Container Registry](https://cloud.google.com/container-registry),
+you would specify `gcr.io` as your container registry and your Cloud project
+name as your image repository prefix.
 
 Assuming a project named `halo-kingdom-demo` and an image tag `build-0001`, run
-the following to build the images:
+the following to build and push the images:
 
 ```shell
-bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
-  xargs bazel build -c opt --define container_registry=gcr.io \
+bazel run -c opt //src/main/docker:push_all_kingdom_gke_images \
+  --define container_registry=gcr.io \
   --define image_repo_prefix=halo-kingdom-demo --define image_tag=build-0001
 ```
-
-and then push them:
-
-```shell
-bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
-  xargs -n 1 bazel run -c opt --define container_registry=gcr.io \
-  --define image_repo_prefix=halo-kingdom-demo --define image_tag=build-0001
-```
-
-You should see output like "Successfully pushed Docker image to
-gcr.io/halo-kingdom-demo/kingdom/data-server:build-0001"
 
 Tip: If you're using [Hybrid Development](../building.md#hybrid-development) for
 containerized builds, replace `bazel build` with `tools/bazel-container build`
-and `bazel run` with `tools/bazel-container-run`. You'll also want to pass the
-`-o` option to `xargs`.
-
-Note: You may want to add a specific tag for the images in your container
-registry.
+and `bazel run` with `tools/bazel-container-run`.
 
 ## Step 3. Create resources for the cluster
 
@@ -214,10 +199,30 @@ kubectl annotate serviceaccount internal-server \
     iam.gke.io/gcp-service-account=kingdom-internal@halo-kingdom-demo.iam.gserviceaccount.com
 ```
 
-## Step 6. Create K8s secret
+## Step 6. Generate the K8s Kustomization
 
-***(Note: this step does not use any Halo code, and you don't need to do it
-within the cross-media-measurement repo.)***
+Populating a cluster is generally done by applying a K8s Kustomization. You can
+use the `dev` configuration as a base to get started. The Kustomization is
+generated using Bazel rules from files written in [CUE](https://cuelang.org/).
+
+To generate the `dev` Kustomization, run the following (substituting your own
+values):
+
+```shell
+bazel build //src/main/k8s/dev:kingdom.tar \
+  --define google_cloud_project=halo-kingdom-demo \
+  --define spanner_instance=halo-cmms \
+  --define container_registry=gcr.io \
+  --define image_repo_prefix=halo-kingdom-demo --define image_tag=build-0001
+```
+
+Extract the generated archive to some directory.
+
+You can customize this generated object configuration with your own settings
+such as the number of replicas per deployment, the memory and CPU requirements
+of each container, and the JVM options of each container.
+
+## Step 7. Customize the K8s secret
 
 We use a K8s secret to hold sensitive information, such as private keys.
 
@@ -244,6 +249,10 @@ First, prepare all the files we want to include in the Kubernetes secret. The
 
     Note: This assumes that all your root certificate PEM files end in newline.
 
+1.  `kingdom_root.pem`
+
+    The root certificate of the Kingdom's CA.
+
 1.  `kingdom_tls.pem`
 
     The Kingdom's TLS certificate.
@@ -258,6 +267,12 @@ First, prepare all the files we want to include in the Kubernetes secret. The
 
     -   [Example](../../src/main/k8s/testing/secretfiles/duchy_cert_config.textproto)
 
+1.  `duchy_id_config.textproto`
+
+    Configuration mapping external (public) Duchy IDs to internal Duchy IDs.
+
+    -   [Example](../../src/main/k8s/testing/secretfiles/duchy_id_config.textproto)
+
 1.  `llv2_protocol_config_config.textproto`
 
     Configuration for the Liquid Legions v2 protocol.
@@ -267,112 +282,43 @@ First, prepare all the files we want to include in the Kubernetes secret. The
 ***The private keys are confidential to the Kingdom, and are generated by the
 Kingdom's certificate authority (CA).***
 
-To generate the secret, put all above files in the same folder (on your local
-machine), and create a file with name `kustomization.yaml` with the following
-content:
-
-```
-secretGenerator:
-- name: certs-and-configs
-  files:
-  - all_root_certs.pem
-  - kingdom_tls.key
-  - kingdom_tls.pem
-  - duchy_cert_config.textproto
-  - llv2_protocol_config_config.textproto
-```
-
-and run
-
-```shell
-kubectl apply -k <path-to-the-above-folder>
-```
-
-Now the secret is created in the cluster. You should be able to see the secret
-by running
-
-```shell
-kubectl get secrets
-```
-
-We assume the name is `certs-and-configs-abcdedf` and will use it in the
-following documents.
+Place these files into the `src/main/k8s/dev/kingdom_secret/` path within the
+Kustomization directory.
 
 ### Secret files for testing
 
 There are some [secret files](../../src/main/k8s/testing/secretfiles) within the
-repository. These can be used to generate a secret for testing, but **must not**
-be used for production environments as doing so would be highly insecure.
+repository. These can be used for testing, but **must not** be used for
+production environments as doing so would be highly insecure.
+
+Generate the archive:
 
 ```shell
-bazel run //src/main/k8s/testing/secretfiles:apply_kustomization
+bazel build //src/main/k8s/testing/secretfiles:archive
 ```
 
-## Step 7. Create the K8s configMap
+Extract the generated archive to the `src/main/k8s/dev/kingdom_secret/` path
+within the Kustomization directory.
+
+## Step 8. Customize the K8s configMap
 
 Configuration that may frequently change is stored in a K8s configMap. The `dev`
 configuration uses one named `config-files` containing the file
-`authority_key_identifier_to_principal_map.textproto`. This file is initially
-empty.
+`authority_key_identifier_to_principal_map.textproto`.
 
-```shell
-kubectl create configmap config-files \
-  --from-file=authority_key_identifier_to_principal_map.textproto=/dev/null
-```
+Place this file in the `src/main/k8s/dev/config_files/` path within the
+Kustomization directory.
 
 See [Creating Resources](../operations/creating-resources.md) for information on
 this file format.
 
-## Step 8. Create the K8s manifest
+## Step 9. Apply the K8s Kustomization
 
-Deploying the Kingdom to the cluster is generally done by applying a K8s
-manifest. You can use the `dev` configuration as a base to get started. The
-`dev` manifest is a YAML file that is generated from files written in
-[CUE](https://cuelang.org/) using Bazel rules.
-
-The main file for the `dev` Kingdom is
-[`kingdom_gke.cue`](../../src/main/k8s/dev/kingdom_gke.cue). Some configuration
-is in [`config.cue`](../../src/main/k8s/dev/config.cue) You can modify these
-file to specify your own values for your Spanner instance. **Do not** push your
-modifications to the repository.
-
-For example,
-
-```
-# GloudProject:      "halo-kingdom-demo"
-# SpannerInstance:   "halo-kingdom-demo-instance"
-```
-
-You can also modify things such as the number of replicas per deployment, the
-memory and CPU requirements of each container, and the JVM options of each
-container.
-
-To generate the YAML manifest from the CUE files, run the following
-(substituting your own secret name and image tag):
+Use `kubectl` to apply the Kustomization. From the Kustomization directory run:
 
 ```shell
-bazel build //src/main/k8s/dev:kingdom_gke \
-  --define=k8s_kingdom_secret_name=certs-and-configs-abcdedg \
-  --define container_registry=gcr.io \
-  --define image_repo_prefix=halo-kingdom-demo --define image_tag=build-0001
+kubectl apply -k src/main/k8s/dev/kingdom
 ```
-
-You can also do your customization to the generated YAML file rather than to the
-CUE file.
-
-Note: The `dev` configuration does not specify a tag or digest for the container
-images. You likely want to change this for a production environment.
-
-## Step 9. Apply the K8s manifest
-
-If you're using a manifest generated by the `//src/main/k8s/dev:kingdom_gke`
-Bazel target, the command to apply that manifest is
-
-```shell
-kubectl apply -f bazel-bin/src/main/k8s/dev/kingdom_gke.yaml
-```
-
-Substitute that path if you're using a different K8s manifest.
 
 Now all Kingdom components should be successfully deployed to your GKE cluster.
 You can verify by running
@@ -429,65 +375,6 @@ For example, in the halo dev instance, we have subdomains:
 The domains/subdomains are what the EDPs/MPs/MCs/Duchies use to communicate with
 the kingdom.
 
-## Additional setting you may want to make
-
-After finishing the above steps, we have
-
--   1 system API, 1 public API and 1 internal API running.
--   Only gRPC requests are allowed and connections are via mTLS.
--   All communications between pods within the cluster are also encrypted via
-    mTLS.
--   Network policy is set such that
-    -   only the system API and public API are accessible via the external IP
-    -   only the Internal API is allowed to send requests outside (We plan to
-        restrict the target to only Cloud Spanner, not down yet).
-
-In this section, we list some additional settings/configurations you may want to
-consider. They are mostly for enhancing security.
-
-### 1. Application-layer secrets
-
-encryption Those certifications and configurations we stored in Kubernetes
-secret are encrypted on the storage layer, but not on the application layer. In
-other works, whoever has access to the cluster resource can just call
-
-```shell
-kubectl get secrets secret_name -o json
-```
-
-to see the content of the files in the secret.
-
-This may not be an issue if there are only a small number of people that have
-access to the cluster resources. These people should already have access to
-those secret files if they need to be able to create them.
-
-However, if we want, we can enable Application-layer secrets encryption in the
-cluster.
-
--   Go to Console -> Kubernetes Engine ->
-    [Clusters](https://console.cloud.google.com/kubernetes/list)
--   Open the cluster you want to config Under Security,
--   edit the "Application-layer secrets encryption"
-
-Note that you need to enable
-[Cloud KMS](https://console.cloud.google.com/security/kms) in your GCP project
-and create a private key for encrypting the secret. You also need to grant the
-service account "cloudkms.cryptoKeyEncrypterDecrypter" role in the Console ->
-[IAM & Admin](https://console.cloud.google.com/iam-admin) page. Check the
-"include Google-provided role grants" to see the service account you are looking
-for.
-
-(Note: Whether this part works or not is not confirmed yet.)
-
-### 2. Role Based Access Control
-
-You can use both IAM and Kubernetes
-[RBAC](https://kubernetes.io/docs/reference/access-authn-authz/rbac/) to control
-access to your GKE cluster. GCloud provides the "Google Groups for RBAC"
-feature. Follow this
-[instruction](https://cloud.google.com/kubernetes-engine/docs/how-to/role-based-access-control)
-if you want to set it up.
-
 ## Q/A
 
 ### Q1. How to generate certificates/key pairs?
@@ -509,10 +396,9 @@ Certificate requirements:
 Encryption keys can be generated using the
 [Tinkey tool](https://github.com/google/tink/blob/master/docs/TINKEY.md).
 
-### Q2. What if the secret files need to be updated?
+### Q2. What if the secret or configuration files need to be updated?
 
-You'll need to recreate the K8s secret and update your cluster resources
-accordingly. One way to do this is to update the K8s manifest and re-apply it.
+Modify the Kustomization directory and re-apply it.
 
 ### Q3. How to test if the kingdom is working properly?
 
@@ -520,7 +406,6 @@ Follow the
 ["How to complete multi-cluster correctnessTest on GKE"](correctness-test.md)
 doc and complete a correctness test using the Kingdom you have deployed.
 
-If you don't want to deploy duchies and simulators, you can just deploy the
-resourceSetupJob in the same kingdom cluster to see if you can create the
-resources successfully. If yes, you can consider the Kingdom is working
-properly.
+If you don't want to deploy Duchies and simulators, you can just run
+ResourceSetup to see if you can create the resources successfully. If yes, you
+can consider the Kingdom is working properly.

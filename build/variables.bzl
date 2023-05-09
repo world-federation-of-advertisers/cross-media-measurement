@@ -53,21 +53,28 @@ TEST_K8S_SETTINGS = struct(
     grafana_secret_name = "$(k8s_grafana_secret_name)",
 )
 
+GCLOUD_SETTINGS = struct(
+    project = "$(google_cloud_project)",
+    spanner_instance = "$(spanner_instance)",
+    postgres_instance = "$(postgres_instance)",
+    postgres_region = "$(postgres_region)",
+)
+
 # Settings for Kingdom Kubernetes deployments.
 KINGDOM_K8S_SETTINGS = struct(
-    secret_name = "$(k8s_kingdom_secret_name)",
+    public_api_target = "$(kingdom_public_api_target)",
+    system_api_target = "$(kingdom_system_api_target)",
 )
 
 # Settings for Duchy Kubernetes deployments.
 DUCHY_K8S_SETTINGS = struct(
-    secret_name = "$(k8s_duchy_secret_name)",
     certificate_id = "$(duchy_cert_id)",
     storage_bucket = "$(duchy_storage_bucket)",
+    public_api_target = "$(duchy_public_api_target)",
 )
 
 # Settings for simulator Kubernetes deployments.
 SIMULATOR_K8S_SETTINGS = struct(
-    secret_name = "$(k8s_simulator_secret_name)",
     storage_bucket = "$(simulator_storage_bucket)",
     mc_name = "$(mc_name)",
     mc_api_key = "$(mc_api_key)",
@@ -77,12 +84,6 @@ SIMULATOR_K8S_SETTINGS = struct(
     edp4_name = "$(edp4_name)",
     edp5_name = "$(edp5_name)",
     edp6_name = "$(edp6_name)",
-)
-
-# Settings for Reporting server Kubernetes deployments.
-REPORTING_K8S_SETTINGS = struct(
-    secret_name = "$(k8s_reporting_secret_name)",
-    mc_config_secret_name = "$(k8s_reporting_mc_config_secret_name)",
 )
 
 # Settings for Grafana Kubernetes deployments.

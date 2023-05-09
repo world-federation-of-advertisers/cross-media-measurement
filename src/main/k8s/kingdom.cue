@@ -14,6 +14,8 @@
 
 package k8s
 
+import ("strings")
+
 #Kingdom: {
 	_verboseGrpcServerLogging: bool | *false
 	_verboseGrpcClientLogging: bool | *false
@@ -22,12 +24,19 @@ package k8s
 
 	_kingdom_secret_name: string
 
+	_completedMeasurementsTimeToLive: string | *"180d"
+	_completedMeasurementsDryRun:     bool | *false
+	_pendingMeasurementsTimeToLive:   string | *"15d"
+	_pendingMeasurementsDryRun:       bool | *false
+
 	_imageSuffixes: [string]: string
 	_imageSuffixes: {
-		"gcp-kingdom-data-server":   string | *"kingdom/data-server"
-		"system-api-server":         string | *"kingdom/system-api"
-		"v2alpha-public-api-server": string | *"kingdom/v2alpha-public-api"
-		"update-kingdom-schema":     string | *"kingdom/spanner-update-schema"
+		"gcp-kingdom-data-server":           string | *"kingdom/data-server"
+		"system-api-server":                 string | *"kingdom/system-api"
+		"v2alpha-public-api-server":         string | *"kingdom/v2alpha-public-api"
+		"update-kingdom-schema":             string | *"kingdom/spanner-update-schema"
+		"completed-measurements-deletion":   string | *"kingdom/completed-measurements-deletion"
+		"pending-measurements-cancellation": string | *"kingdom/pending-measurements-cancellation"
 	}
 	_imageConfigs: [string]: #ImageConfig
 	_imageConfigs: {
@@ -57,6 +66,12 @@ package k8s
 	_internal_api_cert_host_flag: "--internal-api-cert-host=localhost"
 
 	_open_id_redirect_uri_flag: "--open-id-redirect-uri=https://localhost:2048"
+
+	_kingdomCompletedMeasurementsTimeToLiveFlag:            "--time-to-live=\(_completedMeasurementsTimeToLive)"
+	_kingdomCompletedMeasurementsDryRunRetentionPolicyFlag: "--dry-run=\(_completedMeasurementsDryRun)"
+	_kingdomPendingMeasurementsTimeToLiveFlag:              "--time-to-live=\(_pendingMeasurementsTimeToLive)"
+	_kingdomPendingMeasurementsDryRunRetentionPolicyFlag:   "--dry-run=\(_pendingMeasurementsDryRun)"
+	_otlpEndpoint:                                          "--otel-exporter-otlp-endpoint=\(#OpenTelemetryCollectorEndpoint)"
 
 	services: [Name=_]: #GrpcService & {
 		_name:   Name
@@ -154,6 +169,48 @@ package k8s
 		}
 	}
 
+	cronjobs: [Name=_]: #CronJob & {
+		_name:       strings.TrimSuffix(Name, "-cronjob")
+		_secretName: _kingdom_secret_name
+		_system:     "kingdom"
+		_container: {
+			image: _images[_name]
+		}
+	}
+
+	cronjobs: {
+		"completed-measurements-deletion": Cronjob={
+			_container: args: [
+				_internal_api_target_flag,
+				_internal_api_cert_host_flag,
+				_kingdom_tls_cert_file_flag,
+				_kingdom_tls_key_file_flag,
+				_kingdom_cert_collection_file_flag,
+				_kingdomCompletedMeasurementsTimeToLiveFlag,
+				_kingdomCompletedMeasurementsDryRunRetentionPolicyFlag,
+				_debug_verbose_grpc_client_logging_flag,
+				_otlpEndpoint,
+				"--otel-service-name=\(Cronjob.metadata.name)",
+			]
+			spec: schedule: "15 * * * *" // Hourly, 15 minutes past the hour
+		}
+		"pending-measurements-cancellation": Cronjob={
+			_container: args: [
+				_internal_api_target_flag,
+				_internal_api_cert_host_flag,
+				_kingdom_tls_cert_file_flag,
+				_kingdom_tls_key_file_flag,
+				_kingdom_cert_collection_file_flag,
+				_kingdomPendingMeasurementsTimeToLiveFlag,
+				_kingdomPendingMeasurementsDryRunRetentionPolicyFlag,
+				_debug_verbose_grpc_client_logging_flag,
+				_otlpEndpoint,
+				"--otel-service-name=\(Cronjob.metadata.name)",
+			]
+			spec: schedule: "45 * * * *" // Hourly, 45 minutes past the hour
+		}
+	}
+
 	networkPolicies: [Name=_]: #NetworkPolicy & {
 		_name: Name
 	}
@@ -165,6 +222,8 @@ package k8s
 				"v2alpha-public-api-server-app",
 				"system-api-server-app",
 				"resource-setup-app",
+				"completed-measurements-deletion-app",
+				"pending-measurements-cancellation-app",
 			]
 			_egresses: {
 				// Need to send external traffic to Spanner.
@@ -201,6 +260,18 @@ package k8s
 				"gcp-kingdom-data-server-app",
 				"v2alpha-public-api-server-app",
 				"opentelemetry-collector-app",
+			]
+		}
+		"completed-measurements-deletion": {
+			_app_label: "completed-measurements-deletion-app"
+			_destinationMatchLabels: [
+				"gcp-kingdom-data-server-app",
+			]
+		}
+		"pending-measurements-cancellation": {
+			_app_label: "pending-measurements-cancellation-app"
+			_destinationMatchLabels: [
+				"gcp-kingdom-data-server-app",
 			]
 		}
 	}

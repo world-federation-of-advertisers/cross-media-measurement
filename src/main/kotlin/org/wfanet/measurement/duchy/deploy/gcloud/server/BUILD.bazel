@@ -1,6 +1,6 @@
 load("@rules_java//java:defs.bzl", "java_binary")
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
-load("@io_bazel_rules_docker//java:image.bzl", "java_image")
+load("//src/main/docker:macros.bzl", "java_image")
 
 kt_jvm_library(
     name = "gcs_computation_control_server",
@@ -22,11 +22,11 @@ java_binary(
 
 java_image(
     name = "gcs_computation_control_server_image",
+    binary = ":GcsComputationControlServer",
     main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.GcsComputationControlServerKt",
     visibility = [
         "//src:docker_image_deployment",
     ],
-    runtime_deps = [":gcs_computation_control_server"],
 )
 
 kt_jvm_library(
@@ -51,9 +51,9 @@ java_binary(
 
 java_image(
     name = "forwarded_storage_spanner_computations_server_image",
+    binary = ":ForwardedStorageSpannerComputationsServer",
     main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.ForwardedStorageSpannerComputationServerKt",
     visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":forwarded_storage_spanner_computations_server"],
 )
 
 kt_jvm_library(
@@ -78,9 +78,9 @@ java_binary(
 
 java_image(
     name = "gcs_spanner_computations_server_image",
+    binary = ":GcsSpannerComputationServer",
     main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.GcsSpannerComputationsServerKt",
     visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":gcs_spanner_computations_server"],
 )
 
 kt_jvm_library(
@@ -102,9 +102,9 @@ java_binary(
 
 java_image(
     name = "gcs_requisition_fulfillment_server_image",
+    binary = ":GcsRequisitionFulfillmentServer",
     main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.GcsRequisitionFulfillmentServerKt",
     visibility = [
         "//src:docker_image_deployment",
     ],
-    runtime_deps = [":gcs_requisition_fulfillment_server"],
 )

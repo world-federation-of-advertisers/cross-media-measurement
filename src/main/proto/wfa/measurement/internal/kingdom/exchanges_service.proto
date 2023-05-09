@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
+import "google/protobuf/empty.proto";
 import "google/type/date.proto";
 import "wfa/measurement/internal/common/provider.proto";
 import "wfa/measurement/internal/kingdom/exchange.proto";
@@ -33,6 +34,13 @@ service Exchanges {
   // If there is already an Exchange for the same date for the given
   // `RecurringExchange`, this will do nothing and return that instead.
   rpc CreateExchange(CreateExchangeRequest) returns (Exchange);
+
+  // Streams `Exchange`s.
+  rpc StreamExchanges(StreamExchangesRequest) returns (stream Exchange);
+
+  // Permanently deletes `Exchange`s.
+  rpc BatchDeleteExchanges(BatchDeleteExchangesRequest)
+      returns (google.protobuf.Empty);
 }
 
 // Request for `/Exchanges.GetExchange`.
@@ -51,4 +59,29 @@ message GetExchangeRequest {
 message CreateExchangeRequest {
   // The `Exchange` to create.
   Exchange exchange = 1;
+}
+
+// Request for `/Exchanges.StreamExchange`.
+message StreamExchangesRequest {
+  // Restricts results to those matching the given criteria.
+  message Filter {
+    google.type.Date date_before = 1;
+  }
+  Filter filter = 1;
+
+  // The maximum number of results to return. If not specified or 0, it implies
+  // unlimited.
+  int32 limit = 2;
+}
+
+message DeleteExchangeRequest {
+  fixed64 external_recurring_exchange_id = 1;
+  google.type.Date date = 2;
+}
+
+// Request for `/Exchanges.BatchDeleteExchanges`.
+message BatchDeleteExchangesRequest {
+  // The request message specifying the `Exchange`s to permanently delete. A
+  // maximum of 1000 Exchanges can be deleted in a batch.
+  repeated DeleteExchangeRequest requests = 1;
 }

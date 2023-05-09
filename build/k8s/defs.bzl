@@ -15,7 +15,7 @@
 """Build defs for Kubernetes (K8s)."""
 
 load("@bazel_skylib//lib:shell.bzl", "shell")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "pkg_mkdirs")
 load("@rules_pkg//pkg:pkg.bzl", "pkg_tar")
 load(
     "@rules_pkg//pkg:providers.bzl",
@@ -186,7 +186,13 @@ def kustomization_dir(
             visibility = ["//visibility:private"],
             **kwargs
         )
-        pkg_srcs.append(files_name)
+    else:
+        # Empty Kustomization dir.
+        pkg_mkdirs(
+            name = files_name,
+            dirs = [path],
+        )
+    pkg_srcs.append(files_name)
 
     pkg_filegroup(
         name = group_name,
@@ -244,7 +250,10 @@ def _kustomization_file_impl(ctx):
             dir_info = src[KustomizationDirInfo]
             resources.append(_relative_path(dir_info.path, dir_path))
         else:
-            resources.append(src.files.to_list()[0].basename)
+            src_name = src.files.to_list()[0].basename
+            if not src_name.endswith(".yaml"):
+                fail("%s does not end in .yaml" % src_name)
+            resources.append(src_name)
 
     content_lines = ["resources:"] + [
         "- " + resource
@@ -263,7 +272,7 @@ _kustomization_file = rule(
     attrs = {
         "srcs": attr.label_list(
             doc = "Items to list in resources",
-            allow_files = [".yaml"],
+            allow_files = True,
             providers = [
                 [DefaultInfo],
                 [KustomizationDirInfo],

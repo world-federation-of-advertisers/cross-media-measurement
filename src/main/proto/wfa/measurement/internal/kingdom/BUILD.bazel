@@ -249,6 +249,7 @@ proto_library(
         ":exchange_proto",
         "//src/main/proto/wfa/measurement/internal/common:provider_proto",
         "@com_google_googleapis//google/type:date_proto",
+        "@com_google_protobuf//:empty_proto",
     ],
 )
 
@@ -473,4 +474,26 @@ kt_jvm_proto_library(
     name = "error_code_kt_jvm_proto",
     srcs = [":error_code_proto"],
     deps = [":error_code_java_proto"],
+)
+
+proto_and_java_proto_library(
+    name = "model_suite",
+    deps = [
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "model_suites_service_proto",
+    srcs = ["model_suites_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":model_suite_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "model_suites_service_kt_jvm_grpc_proto",
+    srcs = [":model_suites_service_proto"],
 )

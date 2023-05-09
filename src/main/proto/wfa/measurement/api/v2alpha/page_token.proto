@@ -20,14 +20,13 @@ import "google/protobuf/timestamp.proto";
 import "wfa/measurement/api/v2alpha/measurement.proto";
 import "wfa/measurement/api/v2alpha/requisition.proto";
 
-// TODO(riemanli): Fix the package version to v2alpha.
-option java_package = "org.wfanet.measurement.api.v2.alpha";
+option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
 
 message ListEventGroupsPageToken {
   int32 page_size = 1;
-  int64 external_data_provider_id = 2;
-  repeated int64 external_measurement_consumer_ids = 3;
+  fixed64 external_data_provider_id = 2;
+  repeated fixed64 external_measurement_consumer_ids = 3;
   message PreviousPageEnd {
     fixed64 external_data_provider_id = 1;
     fixed64 external_event_group_id = 2;
@@ -36,9 +35,19 @@ message ListEventGroupsPageToken {
   bool show_deleted = 5;
 }
 
+message ListEventGroupMetadataDescriptorsPageToken {
+  int32 page_size = 1;
+  fixed64 external_data_provider_id = 2;
+  message PreviousPageEnd {
+    fixed64 external_data_provider_id = 1;
+    fixed64 external_event_group_metadata_descriptor_id = 2;
+  }
+  PreviousPageEnd last_event_group_metadata_descriptor = 3;
+}
+
 message ListMeasurementsPageToken {
   int32 page_size = 1;
-  int64 external_measurement_consumer_id = 2;
+  fixed64 external_measurement_consumer_id = 2;
   repeated Measurement.State states = 3;
   message PreviousPageEnd {
     google.protobuf.Timestamp update_time = 1;
@@ -49,9 +58,9 @@ message ListMeasurementsPageToken {
 
 message ListRequisitionsPageToken {
   int32 page_size = 1;
-  int64 external_measurement_consumer_id = 2;
-  int64 external_measurement_id = 3;
-  int64 external_data_provider_id = 4;
+  fixed64 external_measurement_consumer_id = 2;
+  fixed64 external_measurement_id = 3;
+  fixed64 external_data_provider_id = 4;
   repeated Requisition.State states = 5;
   message PreviousPageEnd {
     fixed64 external_data_provider_id = 1;
@@ -59,34 +68,4 @@ message ListRequisitionsPageToken {
   }
   PreviousPageEnd last_requisition = 6;
   repeated Measurement.State measurement_states = 7;
-}
-
-message ListReportingSetsPageToken {
-  int32 page_size = 1;
-  string measurement_consumer_reference_id = 2;
-  message PreviousPageEnd {
-    string measurement_consumer_reference_id = 1;
-    fixed64 external_reporting_set_id = 2;
-  }
-  PreviousPageEnd last_reporting_set = 3;
-}
-
-message ListReportsPageToken {
-  int32 page_size = 1;
-  string measurement_consumer_reference_id = 2;
-  message PreviousPageEnd {
-    string measurement_consumer_reference_id = 1;
-    fixed64 external_report_id = 2;
-  }
-  PreviousPageEnd last_report = 3;
-}
-
-message ListMetricsPageToken {
-  int32 page_size = 1;
-  string cmms_measurement_consumer_id = 2;
-  message PreviousPageEnd {
-    string cmms_measurement_consumer_id = 1;
-    fixed64 external_metric_id = 2;
-  }
-  PreviousPageEnd last_metric = 3;
 }
