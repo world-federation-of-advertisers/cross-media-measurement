@@ -27,12 +27,14 @@ option java_multiple_files = true;
 service ModelRollouts {
   rpc CreateModelRollout(ModelRollout) returns (ModelRollout);
   // Streams `ModelRollout`s.
-  rpc StreamModelRollouts(StreamModelRolloutsRequest) returns (stream ModelRollout);
+  rpc StreamModelRollouts(StreamModelRolloutsRequest)
+      returns (stream ModelRollout);
 
   rpc ScheduleModelRolloutFreeze(ScheduleModelRolloutFreezeRequest)
       returns (ModelRollout);
   // Sets the active_end_time for a `ModelLine`.
-  rpc DeleteModelRollout(DeleteModelRolloutRequest) returns (google.protobuf.Empty);
+  rpc DeleteModelRollout(DeleteModelRolloutRequest)
+      returns (google.protobuf.Empty);
 }
 
 message StreamModelRolloutsRequest {

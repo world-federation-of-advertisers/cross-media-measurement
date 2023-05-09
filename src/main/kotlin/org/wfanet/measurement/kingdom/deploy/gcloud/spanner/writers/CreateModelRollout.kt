@@ -14,21 +14,18 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
+package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import java.time.Clock
-import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.ModelRollout
-import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.copy
 
-class SpannerModelRolloutsService(
-  private val clock: Clock,
-  private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
-) : ModelRolloutsCoroutineImplBase() {
+class CreateModelRollout(private val modelRollout: ModelRollout, private val clock: Clock) :
+  SpannerWriter<ModelRollout, ModelRollout>() {
 
-  override suspend fun createModelRollout(request: ModelRollout): ModelRollout {
-    return super.createModelRollout(request)
+  override suspend fun TransactionScope.runTransaction(): ModelRollout {}
+
+  override fun ResultScope<ModelRollout>.buildResult(): ModelRollout {
+    return checkNotNull(this.transactionResult).copy { createTime = commitTimestamp.toProto() }
   }
 }
