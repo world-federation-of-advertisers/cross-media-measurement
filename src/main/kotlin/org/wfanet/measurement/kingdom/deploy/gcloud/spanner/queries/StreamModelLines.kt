@@ -59,7 +59,10 @@ class StreamModelLines(private val requestFilter: StreamModelLinesRequest.Filter
       bind(STATES_PARAM).toInt64Array(filter.typeValueList.map { it.toLong() })
     }
 
-    check(conjuncts.isNotEmpty())
+    if (conjuncts.isEmpty()) {
+      return
+    }
+
     appendClause("WHERE ")
     append(conjuncts.joinToString(" AND "))
   }
