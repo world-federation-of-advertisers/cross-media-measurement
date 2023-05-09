@@ -1,6 +1,23 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
+    name = "CelEnvProviderTest",
+    srcs = ["CelEnvProviderTest.kt"],
+    associates = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:cel_env_provider",
+    ],
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptors_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:test_metadata_messages_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+    ],
+)
+
+kt_jvm_test(
     name = "EncryptionKeyPairStoreTest",
     srcs = ["EncryptionKeyPairStoreTest.kt"],
     associates = [
@@ -12,22 +29,5 @@ kt_jvm_test(
     deps = [
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
-    ],
-)
-
-kt_jvm_test(
-    name = "CelEnvProviderTest",
-    srcs = ["CelEnvProviderTest.kt"],
-    associates = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:cel_env_provider",
-    ],
-    deps = [
-         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptors_service_kt_jvm_grpc_proto",
-         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:test_metadata_messages_kt_jvm_proto",
-         "@wfa_common_jvm//imports/java/com/google/common/truth",
-         "@wfa_common_jvm//imports/kotlin/kotlin/test",
-         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
     ],
 )
