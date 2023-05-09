@@ -40,7 +40,10 @@ class StreamModelReleases(
       bind(CREATED_AFTER to filter.createdAfter.toGcloudTimestamp())
     }
 
-    check(conjuncts.isNotEmpty())
+    if (conjuncts.isEmpty()) {
+      return
+    }
+
     appendClause("WHERE ")
     append(conjuncts.joinToString(" AND "))
   }
