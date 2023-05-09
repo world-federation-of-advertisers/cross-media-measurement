@@ -75,8 +75,10 @@ class CelEnvCacheProvider(
   init {
     CoroutineScope(coroutineDispatcher + SupervisorJob()).launch {
       MinimumIntervalThrottler(clock, cacheRefreshInterval).loopOnReady {
-        val updateFlow = flow<Unit> { setTypeRegistryAndEnv()  }
-        launch { updateFlow.retry(numRefreshAttempts) { e -> e is java.lang.RuntimeException}.collect() }
+        val updateFlow = flow<Unit> { setTypeRegistryAndEnv() }
+        launch {
+          updateFlow.retry(numRefreshAttempts) { e -> e is java.lang.RuntimeException }.collect()
+        }
       }
     }
   }

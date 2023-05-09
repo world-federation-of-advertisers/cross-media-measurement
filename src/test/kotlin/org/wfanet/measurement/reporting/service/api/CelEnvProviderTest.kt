@@ -16,14 +16,12 @@
 
 package org.wfanet.measurement.reporting.service.api
 
-import com.google.common.truth.Truth.assertThat
 import io.grpc.Status
 import java.time.Clock
 import java.time.Duration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -53,7 +51,8 @@ private val TEST_MESSAGE = testMetadataMessage {
   duration = TestMetadataMessageKt.duration { value = 20 }
 }
 private const val DATA_PROVIDER_NAME = "dataProviders/123"
-private const val EVENT_GROUP_METADATA_DESCRIPTOR_NAME = "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/abc"
+private const val EVENT_GROUP_METADATA_DESCRIPTOR_NAME =
+  "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/abc"
 private val EVENT_GROUP_METADATA_DESCRIPTOR = eventGroupMetadataDescriptor {
   name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
   descriptorSet = ProtoReflection.buildFileDescriptorSet(TEST_MESSAGE.descriptorForType)
@@ -98,68 +97,84 @@ class CelEnvProviderTest {
       initCacheProvider()
       cacheProvider.getTypeRegistryAndEnv()
 
-      val eventGroupMetadataDescriptorsCaptor: KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> = argumentCaptor()
-      verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, times(1)) { listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture()) }
+      val eventGroupMetadataDescriptorsCaptor:
+        KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> =
+        argumentCaptor()
+      verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, times(1)) {
+        listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
+      }
     }
 
   @Test
   fun `cache provider retries cache update if exception occurs`() = runBlocking {
     whenever(cmmsEventGroupMetadataDescriptorsServiceMock)
-      .thenAnswer(object : Answer<ListEventGroupMetadataDescriptorsResponse> {
-        private var count = 0
+      .thenAnswer(
+        object : Answer<ListEventGroupMetadataDescriptorsResponse> {
+          private var count = 0
 
-        override fun answer(p0: InvocationOnMock?): ListEventGroupMetadataDescriptorsResponse {
-          if (count <= 0) {
-            count++
-            throw Status.DEADLINE_EXCEEDED.asRuntimeException()
-          } else {
-            return listEventGroupMetadataDescriptorsResponse {
-              eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
+          override fun answer(p0: InvocationOnMock?): ListEventGroupMetadataDescriptorsResponse {
+            if (count <= 0) {
+              count++
+              throw Status.DEADLINE_EXCEEDED.asRuntimeException()
+            } else {
+              return listEventGroupMetadataDescriptorsResponse {
+                eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
+              }
             }
           }
         }
-      })
+      )
 
     initCacheProvider()
 
     cacheProvider.getTypeRegistryAndEnv()
 
-    val eventGroupMetadataDescriptorsCaptor: KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> = argumentCaptor()
-    verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, times(1)) { listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture()) }
+    val eventGroupMetadataDescriptorsCaptor:
+      KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> =
+      argumentCaptor()
+    verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, times(1)) {
+      listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
+    }
   }
 
   @Test
   fun `cache provider is not stopped by exceptions`() = runBlocking {
     whenever(cmmsEventGroupMetadataDescriptorsServiceMock)
-      .thenAnswer(object : Answer<ListEventGroupMetadataDescriptorsResponse> {
-        private var count = 0
+      .thenAnswer(
+        object : Answer<ListEventGroupMetadataDescriptorsResponse> {
+          private var count = 0
 
-        override fun answer(p0: InvocationOnMock?): ListEventGroupMetadataDescriptorsResponse {
-          if (count <= 0) {
-            count++
-            throw Status.DEADLINE_EXCEEDED.asRuntimeException()
-          } else {
-            return listEventGroupMetadataDescriptorsResponse {
-              eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
+          override fun answer(p0: InvocationOnMock?): ListEventGroupMetadataDescriptorsResponse {
+            if (count <= 0) {
+              count++
+              throw Status.DEADLINE_EXCEEDED.asRuntimeException()
+            } else {
+              return listEventGroupMetadataDescriptorsResponse {
+                eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
+              }
             }
           }
         }
-      })
+      )
 
     cacheProvider =
       CelEnvCacheProvider(
         EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
           grpcTestServerRule.channel
         ),
-        Duration.ofMillis(200),
+        Duration.ofMillis(500),
         Dispatchers.Default,
         Clock.systemUTC(),
         1
       )
 
-    delay(350)
+    delay(800)
 
-    val eventGroupMetadataDescriptorsCaptor: KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> = argumentCaptor()
-    verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, times(2)) { listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture()) }
+    val eventGroupMetadataDescriptorsCaptor:
+      KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> =
+      argumentCaptor()
+    verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, times(2)) {
+      listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
+    }
   }
 }
