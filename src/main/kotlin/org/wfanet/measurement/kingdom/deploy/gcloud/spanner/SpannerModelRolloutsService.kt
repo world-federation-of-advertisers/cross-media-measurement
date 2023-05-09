@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.kingdom.DeleteModelRolloutRequest
 import org.wfanet.measurement.internal.kingdom.ModelRollout
 import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ScheduleModelRolloutFreezeRequest
@@ -32,6 +33,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutI
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelRollouts
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelRollout
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.DeleteModelRollout
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ScheduleModelRolloutFreeze
 
 class SpannerModelRolloutsService(
@@ -59,7 +61,9 @@ class SpannerModelRolloutsService(
     }
   }
 
-  override suspend fun scheduleModelRolloutFreeze(request: ScheduleModelRolloutFreezeRequest): ModelRollout {
+  override suspend fun scheduleModelRolloutFreeze(
+    request: ScheduleModelRolloutFreezeRequest
+  ): ModelRollout {
     grpcRequire(request.hasRolloutFreezeTime()) {
       "RolloutFreezeTime field of ModelRollout is missing."
     }
@@ -76,5 +80,9 @@ class SpannerModelRolloutsService(
     return StreamModelRollouts(request.filter, request.limit).execute(client.singleUse()).map {
       it.modelRollout
     }
+  }
+
+  override suspend fun deleteModelRollout(request: DeleteModelRolloutRequest): ModelRollout {
+    return DeleteModelRollout(request).execute(client, idGenerator)
   }
 }
