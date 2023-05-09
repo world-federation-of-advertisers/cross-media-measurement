@@ -27,6 +27,7 @@ import org.wfanet.measurement.internal.kingdom.GetModelReleaseRequest
 import org.wfanet.measurement.internal.kingdom.ModelRelease
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelReleases
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelReleaseReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelRelease
@@ -37,7 +38,11 @@ class SpannerModelReleasesService(
 ) : ModelReleasesCoroutineImplBase() {
 
   override suspend fun createModelRelease(request: ModelRelease): ModelRelease {
-    return CreateModelRelease(request).execute(client, idGenerator)
+    try {
+      return CreateModelRelease(request).execute(client, idGenerator)
+    } catch (e: ModelSuiteNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelSuite not found." }
+    }
   }
 
   override suspend fun getModelRelease(request: GetModelReleaseRequest): ModelRelease {

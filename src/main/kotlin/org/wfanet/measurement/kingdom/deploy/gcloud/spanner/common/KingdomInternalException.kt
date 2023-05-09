@@ -87,11 +87,16 @@ class ModelProviderNotFoundException(
 }
 
 class ModelSuiteNotFoundException(
+  val externalModelProviderId: ExternalId,
   val externalModelSuiteId: ExternalId,
   provideDescription: () -> String = { "ModelSuite not found" }
 ) : KingdomInternalException(ErrorCode.MODEL_SUITE_NOT_FOUND, provideDescription) {
   override val context
-    get() = mapOf("external_model_suite_id" to externalModelSuiteId.toString())
+    get() =
+      mapOf(
+        "external_model_provider_id" to externalModelProviderId.toString(),
+        "external_model_suite_id" to externalModelSuiteId.toString()
+      )
 }
 
 class DuchyNotFoundException(

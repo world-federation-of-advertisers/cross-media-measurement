@@ -63,7 +63,9 @@ class ModelReleaseReader : SpannerReader<ModelReleaseReader.Result>() {
   ): Result? {
     return fillStatementBuilder {
         appendClause(
-          "WHERE ExternalModelReleaseId = @externalModelReleaseId AND ExternalModelSuiteId = @externalModelSuiteId AND ExternalModelProviderId = @externalModelProviderId"
+          "WHERE ExternalModelReleaseId = @externalModelReleaseId " +
+            "AND ExternalModelSuiteId = @externalModelSuiteId " +
+            "AND ExternalModelProviderId = @externalModelProviderId"
         )
         bind("externalModelReleaseId").to(externalModelReleaseId.value)
         bind("externalModelSuiteId").to(externalModelSuiteId.value)

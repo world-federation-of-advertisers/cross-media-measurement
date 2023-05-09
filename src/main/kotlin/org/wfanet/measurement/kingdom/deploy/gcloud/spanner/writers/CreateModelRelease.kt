@@ -27,15 +27,22 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ModelRelease
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
 
 class CreateModelRelease(private val modelRelease: ModelRelease) :
   SpannerWriter<ModelRelease, ModelRelease>() {
 
   override suspend fun TransactionScope.runTransaction(): ModelRelease {
 
-    val modelSuiteData: Struct? = readModelSuiteData(ExternalId(modelRelease.externalModelSuiteId))
-
-    require(modelSuiteData != null) { "ModelSuite not found." }
+    val modelSuiteData: Struct =
+      readModelSuiteData(
+        ExternalId(modelRelease.externalModelProviderId),
+        ExternalId(modelRelease.externalModelSuiteId)
+      )
+        ?: throw ModelSuiteNotFoundException(
+          ExternalId(modelRelease.externalModelSuiteId),
+          ExternalId(modelRelease.externalModelSuiteId)
+        )
 
     val internalModelReleaseId = idGenerator.generateInternalId()
     val externalModelReleaseId = idGenerator.generateExternalId()
@@ -52,6 +59,7 @@ class CreateModelRelease(private val modelRelease: ModelRelease) :
   }
 
   private suspend fun TransactionScope.readModelSuiteData(
+    externalModelProviderId: ExternalId,
     externalModelSuiteId: ExternalId
   ): Struct? {
     val sql =
@@ -59,13 +67,16 @@ class CreateModelRelease(private val modelRelease: ModelRelease) :
     SELECT
     ModelSuites.ModelSuiteId,
     ModelSuites.ModelProviderId
-    FROM ModelSuites
-    WHERE ExternalModelSuiteId = @externalModelSuiteId
+    FROM ModelSuites JOIN ModelProviders USING(ModelProviderId)
+    WHERE ExternalModelSuiteId = @externalModelSuiteId AND ExternalModelProviderId = @externalModelProviderId
     """
         .trimIndent()
 
     val statement: Statement =
-      statement(sql) { bind("externalModelSuiteId" to externalModelSuiteId.value) }
+      statement(sql) {
+        bind("externalModelSuiteId" to externalModelSuiteId.value)
+        bind("externalModelProviderId" to externalModelProviderId.value)
+      }
 
     return transactionContext.executeQuery(statement).singleOrNull()
   }
