@@ -118,6 +118,29 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
   }
 
   @Test
+  fun `createModelLine fails for wrong activeEndTime fields`() = runBlocking {
+    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+
+    val modelLine = modelLine {
+      externalModelSuiteId = modelSuite.externalModelSuiteId
+      externalModelProviderId = modelSuite.externalModelProviderId
+      activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+      activeEndTime = Instant.now().plusSeconds(1000L).toProtoTime()
+      type = ModelLine.Type.PROD
+      displayName = "display name"
+      description = "description"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { modelLinesService.createModelLine(modelLine) }
+
+    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    Truth.assertThat(exception)
+      .hasMessageThat()
+      .contains("ActiveEndTime cannot precede ActiveStartTime.")
+  }
+
+  @Test
   fun `createModelLine fails for wrong type fields`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
 

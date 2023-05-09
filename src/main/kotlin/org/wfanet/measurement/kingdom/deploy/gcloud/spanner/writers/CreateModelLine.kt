@@ -53,6 +53,18 @@ class CreateModelLine(private val modelLine: ModelLine, private val clock: Clock
       }
     }
 
+    if (
+      modelLine.hasActiveEndTime() &&
+        Timestamps.compare(modelLine.activeStartTime, modelLine.activeEndTime) >= 0
+    ) {
+      throw ModelLineInvalidArgsException(
+        ExternalId(modelLine.externalModelProviderId),
+        ExternalId(modelLine.externalModelSuiteId)
+      ) {
+        "ActiveEndTime cannot precede ActiveStartTime."
+      }
+    }
+
     val modelSuiteData: Struct =
       readModelSuiteData(
         ExternalId(modelLine.externalModelProviderId),
