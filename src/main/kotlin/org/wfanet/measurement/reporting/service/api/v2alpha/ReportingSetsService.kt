@@ -94,7 +94,7 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
     return internalReportingSet {
       this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
       displayName = reportingSet.displayName
-      if (!reportingSet.filter.isNullOrEmpty()) {
+      if (!reportingSet.filter.isNullOrBlank()) {
         filter = reportingSet.filter
       }
 
@@ -129,14 +129,13 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
     val primitiveReportingSetBasesMap = mutableMapOf<PrimitiveReportingSetBasis, Int>()
     val initialFiltersStack = mutableListOf<String>()
 
-    if (!rootReportingSet.filter.isNullOrEmpty()) {
+    if (!rootReportingSet.filter.isNullOrBlank()) {
       initialFiltersStack += rootReportingSet.filter
     }
 
     val setOperationExpression =
       buildSetOperationExpression(
         rootReportingSet.composite.expression,
-        mutableSetOf(), // Initial parent list
         initialFiltersStack,
         primitiveReportingSetBasesMap,
         cmmsMeasurementConsumerId
@@ -181,7 +180,6 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
   /** Builds a [SetOperationExpression] by expanding the given [ReportingSet.SetExpression]. */
   private suspend fun buildSetOperationExpression(
     expression: ReportingSet.SetExpression,
-    parents: MutableSet<String>,
     filters: MutableList<String>,
     primitiveReportingSetBasesMap: MutableMap<PrimitiveReportingSetBasis, Int>,
     cmmsMeasurementConsumerId: String,
@@ -192,7 +190,6 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
         grpcRequireNotNull(
           buildSetOperationExpressionOperand(
             expression.lhs,
-            parents,
             filters,
             primitiveReportingSetBasesMap,
             cmmsMeasurementConsumerId
@@ -203,7 +200,6 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
       rhs =
         buildSetOperationExpressionOperand(
           expression.rhs,
-          parents,
           filters,
           primitiveReportingSetBasesMap,
           cmmsMeasurementConsumerId
@@ -214,7 +210,6 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
   /** Builds a nullable [Operand] from a [ReportingSet.SetExpression.Operand]. */
   private suspend fun buildSetOperationExpressionOperand(
     operand: ReportingSet.SetExpression.Operand,
-    parents: MutableSet<String>,
     filters: MutableList<String>,
     primitiveReportingSetBasesMap: MutableMap<PrimitiveReportingSetBasis, Int>,
     cmmsMeasurementConsumerId: String,
@@ -232,7 +227,7 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
               PrimitiveReportingSetBasis(
                 externalReportingSetId = internalReportingSet.externalReportingSetId,
                 filters =
-                  (filters + internalReportingSet.filter).filter { it.isNullOrEmpty() }.toSet(),
+                  (filters + internalReportingSet.filter).filter { !it.isNullOrBlank() }.toSet(),
               )
 
             // Avoid duplicates
@@ -246,28 +241,23 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
             ReportingSet(primitiveReportingSetBasesMap.getValue(primitiveReportingSetBasis))
           }
           InternalReportingSet.ValueCase.COMPOSITE -> {
-            grpcRequire(!parents.contains(operand.reportingSet)) {
-              "The composite reporting set contains cyclic dependency."
-            }
-
-            // Add the current operand node to parents and its filter to filters.
-            parents += operand.reportingSet
-            if (!internalReportingSet.filter.isNullOrEmpty()) {
+            // Add the reporting set's filter to the stack.
+            if (!internalReportingSet.filter.isNullOrBlank()) {
               filters += internalReportingSet.filter
             }
 
             // Return the set operation expression
             buildSetOperationExpression(
                 internalReportingSet.composite.toExpression(cmmsMeasurementConsumerId),
-                parents,
                 filters,
                 primitiveReportingSetBasesMap,
                 cmmsMeasurementConsumerId
               )
               .also {
-                // Remove current operand from parents and remove its filter from filters.
-                parents.remove(operand.reportingSet)
-                filters.removeLast()
+                // Remove the reporting set's filter from the stack if there is any.
+                if (!internalReportingSet.filter.isNullOrBlank()) {
+                  filters.removeLast()
+                }
               }
           }
           InternalReportingSet.ValueCase.VALUE_NOT_SET -> {
@@ -278,7 +268,6 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
       ReportingSet.SetExpression.Operand.OperandCase.EXPRESSION -> {
         buildSetOperationExpression(
           operand.expression,
-          parents,
           filters,
           primitiveReportingSetBasesMap,
           cmmsMeasurementConsumerId
