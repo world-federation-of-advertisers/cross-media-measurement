@@ -55,8 +55,8 @@ class StreamModelLines(private val requestFilter: StreamModelLinesRequest.Filter
     }
 
     if (filter.typeValueList.isNotEmpty()) {
-      conjuncts.add("ModelLines.Type IN UNNEST(@${STATES_PARAM})")
-      bind(STATES_PARAM).toInt64Array(filter.typeValueList.map { it.toLong() })
+      conjuncts.add("ModelLines.Type IN UNNEST(@${TYPES_PARAM})")
+      bind(TYPES_PARAM).toInt64Array(filter.typeValueList.map { it.toLong() })
     }
 
     if (conjuncts.isEmpty()) {
@@ -72,6 +72,6 @@ class StreamModelLines(private val requestFilter: StreamModelLinesRequest.Filter
     const val EXTERNAL_MODEL_PROVIDER_ID_PARAM = "externalModelProviderId"
     const val EXTERNAL_MODEL_SUITE_ID_PARAM = "externalModelSuiteId"
     const val CREATED_AFTER = "createdAfter"
-    const val STATES_PARAM = "states"
+    const val TYPES_PARAM = "types"
   }
 }
