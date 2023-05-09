@@ -83,5 +83,9 @@ enum ErrorCode {
   /** ModelSuite resource queried could not be found. */
   MODEL_SUITE_NOT_FOUND = 29;
   /** ModelLine resource queried could not be found. */
-  MODEL_Line_NOT_FOUND = 30;
+  MODEL_LINE_NOT_FOUND = 30;
+  /** ModelLine type is in an illegal state for the operation. */
+  MODEL_LINE_TYPE_ILLEGAL = 31;
+  /** ModelLine active time args are invalid. */
+  MODEL_LINE_INVALID_ARGS = 32;
 }

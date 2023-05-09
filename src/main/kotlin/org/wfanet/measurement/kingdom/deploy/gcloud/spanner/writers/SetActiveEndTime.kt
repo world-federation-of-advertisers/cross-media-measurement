@@ -43,6 +43,7 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.SetActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelLineReader
 
@@ -58,15 +59,33 @@ class SetActiveEndTime(private val request: SetActiveEndTimeRequest, private val
           ExternalId(request.externalModelSuiteId),
           ExternalId(request.externalModelLineId)
         )
-        ?: throw ModelLineNotFoundException(ExternalId(request.externalModelLineId))
+        ?: throw ModelLineNotFoundException(
+          ExternalId(request.externalModelProviderId),
+          ExternalId(request.externalModelSuiteId),
+          ExternalId(request.externalModelLineId)
+        )
 
     val now = clock.instant().toProtoTime()
     val activeStartTime = modelLineResult.modelLine.activeStartTime
-    require(Timestamps.compare(now, request.activeEndTime) < 0) {
-      "ActiveEndTime must be in the future."
+
+    if (Timestamps.compare(now, request.activeEndTime) >= 0) {
+      throw ModelLineInvalidArgsException(
+        ExternalId(request.externalModelProviderId),
+        ExternalId(request.externalModelSuiteId),
+        ExternalId(request.externalModelLineId)
+      ) {
+        "ActiveEndTime must be in the future."
+      }
     }
-    require(Timestamps.compare(activeStartTime, request.activeEndTime) < 0) {
-      "ActiveEndTime must be later than ActiveStartTime."
+
+    if (Timestamps.compare(activeStartTime, request.activeEndTime) >= 0) {
+      throw ModelLineInvalidArgsException(
+        ExternalId(request.externalModelProviderId),
+        ExternalId(request.externalModelSuiteId),
+        ExternalId(request.externalModelLineId)
+      ) {
+        "ActiveEndTime must be later than ActiveStartTime."
+      }
     }
 
     transactionContext.bufferUpdateMutation("ModelLines") {

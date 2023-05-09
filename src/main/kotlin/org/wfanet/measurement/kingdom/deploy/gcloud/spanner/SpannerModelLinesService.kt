@@ -44,7 +44,10 @@ import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCorout
 import org.wfanet.measurement.internal.kingdom.SetActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.SetModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineTypeIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelLines
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelLine
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetActiveEndTime
@@ -63,7 +66,17 @@ class SpannerModelLinesService(
     grpcRequire(request.type != ModelLine.Type.TYPE_UNSPECIFIED) {
       "Unrecognized ModelLine's type ${request.type}"
     }
-    return CreateModelLine(request, clock).execute(client, idGenerator)
+    try {
+      return CreateModelLine(request, clock).execute(client, idGenerator)
+    } catch (e: ModelSuiteNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelSuite not found." }
+    } catch (e: ModelLineTypeIllegalException) {
+      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
+        "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
+      }
+    } catch (e: ModelLineInvalidArgsException) {
+      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT)
+    }
   }
 
   override suspend fun setActiveEndTime(request: SetActiveEndTimeRequest): ModelLine {
@@ -72,6 +85,8 @@ class SpannerModelLinesService(
       return SetActiveEndTime(request, clock).execute(client, idGenerator)
     } catch (e: ModelLineNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelLine not found." }
+    } catch (e: ModelLineInvalidArgsException) {
+      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT)
     }
   }
 
@@ -84,6 +99,12 @@ class SpannerModelLinesService(
   override suspend fun setModelLineHoldbackModelLine(
     request: SetModelLineHoldbackModelLineRequest
   ): ModelLine {
-    return SetModelLineHoldbackModelLine(request).execute(client, idGenerator)
+    try {
+      return SetModelLineHoldbackModelLine(request).execute(client, idGenerator)
+    } catch (e: ModelLineTypeIllegalException) {
+      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
+        "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
+      }
+    }
   }
 }

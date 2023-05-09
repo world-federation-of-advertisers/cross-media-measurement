@@ -98,7 +98,7 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
     externalModelProviderId: ExternalId,
     externalModelSuiteId: ExternalId,
     externalModelLineId: ExternalId,
-  ): ModelLineReader.Result? {
+  ): Result? {
     return fillStatementBuilder {
         appendClause(
           "WHERE ExternalModelSuiteId = @externalModelSuiteId AND ExternalModelProviderId = @externalModelProviderId  AND ModelLines.ExternalModelLineId = @externalModelLineId"

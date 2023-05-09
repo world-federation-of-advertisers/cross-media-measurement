@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
@@ -33,7 +32,11 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineTypeIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelLineReader
 
 class CreateModelLine(private val modelLine: ModelLine, private val clock: Clock) :
   SpannerWriter<ModelLine, ModelLine>() {
@@ -41,17 +44,24 @@ class CreateModelLine(private val modelLine: ModelLine, private val clock: Clock
   override suspend fun TransactionScope.runTransaction(): ModelLine {
 
     val now = clock.instant().toProtoTime()
-    require(Timestamps.compare(now, modelLine.activeStartTime) < 0) {
-      "ActiveStartTime must be in the future."
+    if (Timestamps.compare(now, modelLine.activeStartTime) >= 0) {
+      throw ModelLineInvalidArgsException(
+        ExternalId(modelLine.externalModelProviderId),
+        ExternalId(modelLine.externalModelSuiteId)
+      ) {
+        "ActiveStartTime must be in the future."
+      }
     }
 
-    val modelSuiteData: Struct? =
+    val modelSuiteData: Struct =
       readModelSuiteData(
-        ExternalId(modelLine.externalModelSuiteId),
-        ExternalId(modelLine.externalModelProviderId)
+        ExternalId(modelLine.externalModelProviderId),
+        ExternalId(modelLine.externalModelSuiteId)
       )
-
-    require(modelSuiteData != null) { "ModelSuite not found." }
+        ?: throw ModelSuiteNotFoundException(
+          ExternalId(modelLine.externalModelProviderId),
+          ExternalId(modelLine.externalModelSuiteId)
+        )
 
     val internalModelLineId = idGenerator.generateInternalId()
     val externalModelLineId = idGenerator.generateExternalId()
@@ -73,9 +83,44 @@ class CreateModelLine(private val modelLine: ModelLine, private val clock: Clock
       }
       set("Type" to modelLine.type)
       if (modelLine.externalHoldbackModelLineId != 0L) {
-        set(
-          "HoldbackModelLine" to readModelLineId(ExternalId(modelLine.externalHoldbackModelLineId))
-        )
+        val holdbackModelLineResult =
+          ModelLineReader()
+            .readByExternalModelLineId(
+              transactionContext,
+              ExternalId(modelLine.externalModelProviderId),
+              ExternalId(modelLine.externalModelSuiteId),
+              ExternalId(modelLine.externalHoldbackModelLineId)
+            )
+            ?: throw ModelLineNotFoundException(
+              ExternalId(modelLine.externalModelProviderId),
+              ExternalId(modelLine.externalModelSuiteId),
+              ExternalId(modelLine.externalHoldbackModelLineId)
+            ) {
+              "HoldbackModelLine not found."
+            }
+
+        if (modelLine.type != ModelLine.Type.PROD) {
+          throw ModelLineTypeIllegalException(
+            ExternalId(modelLine.externalModelProviderId),
+            ExternalId(modelLine.externalModelSuiteId),
+            externalModelLineId,
+            modelLine.type
+          ) {
+            "Only ModelLine with type == PROD can have a Holdback ModelLine."
+          }
+        }
+        if (holdbackModelLineResult.modelLine.type != ModelLine.Type.HOLDBACK) {
+          throw ModelLineTypeIllegalException(
+            ExternalId(holdbackModelLineResult.modelLine.externalModelProviderId),
+            ExternalId(holdbackModelLineResult.modelLine.externalModelSuiteId),
+            ExternalId(holdbackModelLineResult.modelLine.externalModelLineId),
+            holdbackModelLineResult.modelLine.type
+          ) {
+            "Only ModelLine with type == HOLDBACK can be set as Holdback ModelLine."
+          }
+        }
+
+        set("HoldbackModelLine" to holdbackModelLineResult.modelLineId)
       }
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
     }
@@ -83,26 +128,9 @@ class CreateModelLine(private val modelLine: ModelLine, private val clock: Clock
     return modelLine.copy { this.externalModelLineId = externalModelLineId.value }
   }
 
-  private suspend fun TransactionScope.readModelLineId(
-    externalModelLineId: ExternalId
-  ): InternalId {
-    val column = "ModelLineId"
-    return transactionContext
-      .readRowUsingIndex(
-        "ModelLiness",
-        "ModelLinesByExternalId",
-        Key.of(externalModelLineId.value),
-        column
-      )
-      ?.let { struct -> InternalId(struct.getLong(column)) }
-      ?: throw ModelLineNotFoundException(externalModelLineId) {
-        "ModelLine with external ID $externalModelLineId not found"
-      }
-  }
-
   private suspend fun TransactionScope.readModelSuiteData(
-    externalModelSuiteId: ExternalId,
-    externalModelProviderId: ExternalId
+    externalModelProviderId: ExternalId,
+    externalModelSuiteId: ExternalId
   ): Struct? {
     val sql =
       """

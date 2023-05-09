@@ -39,7 +39,6 @@ import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvide
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.modelLine
-import org.wfanet.measurement.internal.kingdom.modelSuite
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest
@@ -112,8 +111,9 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     }
 
     val exception =
-      assertFailsWith<IllegalArgumentException> { modelLinesService.createModelLine(modelLine) }
+      assertFailsWith<StatusRuntimeException> { modelLinesService.createModelLine(modelLine) }
 
+    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     Truth.assertThat(exception).hasMessageThat().contains("ActiveStartTime must be in the future.")
   }
 
@@ -138,23 +138,129 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
   }
 
   @Test
+  fun `createModelLine fails if HoldbackModelLine is set but ModelLine type != 'PROD'`() =
+    runBlocking {
+      val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+
+      val ast = Instant.now().plusSeconds(2000L).toProtoTime()
+
+      val holdbackModelLine = modelLine {
+        externalModelSuiteId = modelSuite.externalModelSuiteId
+        externalModelProviderId = modelSuite.externalModelProviderId
+        activeStartTime = ast
+        type = ModelLine.Type.HOLDBACK
+        displayName = "display name1"
+        description = "description1"
+      }
+
+      val createdHoldbackModelLine = modelLinesService.createModelLine(holdbackModelLine)
+
+      val devModelLine = modelLine {
+        externalModelSuiteId = modelSuite.externalModelSuiteId
+        externalModelProviderId = modelSuite.externalModelProviderId
+        activeStartTime = ast
+        type = ModelLine.Type.DEV
+        externalHoldbackModelLineId = createdHoldbackModelLine.externalModelLineId
+        displayName = "display name2"
+        description = "description2"
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> { modelLinesService.createModelLine(devModelLine) }
+
+      Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      Truth.assertThat(exception)
+        .hasMessageThat()
+        .contains(
+          "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
+        )
+    }
+
+  @Test
+  fun `createModelLine fails if HoldbackModelLine is set has type != 'HOLDBACK'`() = runBlocking {
+    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+
+    val ast = Instant.now().plusSeconds(2000L).toProtoTime()
+
+    val devModelLine = modelLine {
+      externalModelSuiteId = modelSuite.externalModelSuiteId
+      externalModelProviderId = modelSuite.externalModelProviderId
+      activeStartTime = ast
+      type = ModelLine.Type.DEV
+      displayName = "display name1"
+      description = "description1"
+    }
+
+    val createdDevModelLine = modelLinesService.createModelLine(devModelLine)
+
+    val prodModelLine = modelLine {
+      externalModelSuiteId = modelSuite.externalModelSuiteId
+      externalModelProviderId = modelSuite.externalModelProviderId
+      activeStartTime = ast
+      type = ModelLine.Type.PROD
+      externalHoldbackModelLineId = createdDevModelLine.externalModelLineId
+      displayName = "display name2"
+      description = "description2"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { modelLinesService.createModelLine(prodModelLine) }
+
+    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    Truth.assertThat(exception)
+      .hasMessageThat()
+      .contains(
+        "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
+      )
+  }
+
+  @Test
   fun `createModelLine succeeds`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
 
     val ast = Instant.now().plusSeconds(2000L).toProtoTime()
 
-    val modelLine = modelLine {
+    val holdbackModelLine = modelLine {
+      externalModelSuiteId = modelSuite.externalModelSuiteId
+      externalModelProviderId = modelSuite.externalModelProviderId
+      activeStartTime = ast
+      type = ModelLine.Type.HOLDBACK
+      displayName = "display name1"
+      description = "description1"
+    }
+
+    val createdHoldbackModelLine = modelLinesService.createModelLine(holdbackModelLine)
+
+    ProtoTruth.assertThat(createdHoldbackModelLine)
+      .ignoringFields(
+        ModelLine.CREATE_TIME_FIELD_NUMBER,
+        ModelLine.UPDATE_TIME_FIELD_NUMBER,
+        ModelLine.EXTERNAL_MODEL_LINE_ID_FIELD_NUMBER
+      )
+      .isEqualTo(
+        modelLine {
+          externalModelSuiteId = modelSuite.externalModelSuiteId
+          externalModelProviderId = modelSuite.externalModelProviderId
+          activeStartTime = ast
+          type = ModelLine.Type.HOLDBACK
+          displayName = "display name1"
+          description = "description1"
+        }
+      )
+
+    val prodModelLine = modelLine {
       externalModelSuiteId = modelSuite.externalModelSuiteId
       externalModelProviderId = modelSuite.externalModelProviderId
       activeStartTime = ast
       type = ModelLine.Type.PROD
-      displayName = "display name"
-      description = "description"
+      externalHoldbackModelLineId = createdHoldbackModelLine.externalModelLineId
+      displayName = "display name2"
+      description = "description2"
     }
 
-    val createdModelLine = modelLinesService.createModelLine(modelLine)
+    val createdProdModelLine = modelLinesService.createModelLine(prodModelLine)
 
-    ProtoTruth.assertThat(createdModelLine)
+    ProtoTruth.assertThat(createdProdModelLine)
       .ignoringFields(
         ModelLine.CREATE_TIME_FIELD_NUMBER,
         ModelLine.UPDATE_TIME_FIELD_NUMBER,
@@ -166,8 +272,9 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
           externalModelProviderId = modelSuite.externalModelProviderId
           activeStartTime = ast
           type = ModelLine.Type.PROD
-          displayName = "display name"
-          description = "description"
+          externalHoldbackModelLineId = createdHoldbackModelLine.externalModelLineId
+          displayName = "display name2"
+          description = "description2"
         }
       )
   }
@@ -213,10 +320,11 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     }
 
     val exception =
-      assertFailsWith<IllegalArgumentException> {
+      assertFailsWith<StatusRuntimeException> {
         modelLinesService.setActiveEndTime(setActiveEndTimeRequest)
       }
 
+    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     Truth.assertThat(exception)
       .hasMessageThat()
       .contains("ActiveEndTime must be later than ActiveStartTime.")
@@ -245,10 +353,11 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     }
 
     val exception =
-      assertFailsWith<IllegalArgumentException> {
+      assertFailsWith<StatusRuntimeException> {
         modelLinesService.setActiveEndTime(setActiveEndTimeRequest)
       }
 
+    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     Truth.assertThat(exception).hasMessageThat().contains("ActiveEndTime must be in the future.")
   }
 
@@ -476,7 +585,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
       )
 
     val exception =
-      assertFailsWith<IllegalArgumentException> {
+      assertFailsWith<StatusRuntimeException> {
         modelLinesService.setModelLineHoldbackModelLine(
           setModelLineHoldbackModelLineRequest {
             externalModelLineId = modelLine1.externalModelLineId
@@ -489,10 +598,64 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
         )
       }
 
+    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     Truth.assertThat(exception)
       .hasMessageThat()
-      .contains("Only ModelLine with type == PROD can have a Holdback ModelLine.")
+      .contains(
+        "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
+      )
   }
+
+  @Test
+  fun `setModelLineHoldbackModelLine fails if HoldbackModelLine has type != 'HOLDBACK'`() =
+    runBlocking {
+      val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+
+      val modelLine1 =
+        modelLinesService.createModelLine(
+          modelLine {
+            externalModelSuiteId = modelSuite.externalModelSuiteId
+            externalModelProviderId = modelSuite.externalModelProviderId
+            activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+            type = ModelLine.Type.PROD
+            displayName = "display name1"
+            description = "description1"
+          }
+        )
+
+      val modelLine2 =
+        modelLinesService.createModelLine(
+          modelLine {
+            externalModelSuiteId = modelSuite.externalModelSuiteId
+            externalModelProviderId = modelSuite.externalModelProviderId
+            activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+            type = ModelLine.Type.DEV
+            displayName = "display name2"
+            description = "description2"
+          }
+        )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          modelLinesService.setModelLineHoldbackModelLine(
+            setModelLineHoldbackModelLineRequest {
+              externalModelLineId = modelLine1.externalModelLineId
+              externalModelSuiteId = modelSuite.externalModelSuiteId
+              externalModelProviderId = modelSuite.externalModelProviderId
+              externalHoldbackModelLineId = modelLine2.externalModelLineId
+              externalHoldbackModelSuiteId = modelSuite.externalModelSuiteId
+              externalHoldbackModelProviderId = modelSuite.externalModelProviderId
+            }
+          )
+        }
+
+      Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      Truth.assertThat(exception)
+        .hasMessageThat()
+        .contains(
+          "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
+        )
+    }
 
   @Test
   fun `setModelLineHoldbackModelLine succeeds`() = runBlocking {
