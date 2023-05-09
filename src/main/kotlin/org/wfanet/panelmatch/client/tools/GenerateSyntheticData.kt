@@ -33,11 +33,11 @@ import org.wfanet.panelmatch.common.compression.CompressionParametersKt.brotliCo
 import org.wfanet.panelmatch.common.compression.CompressionParametersKt.noCompression
 import org.wfanet.panelmatch.common.compression.compressionParameters
 import org.wfanet.panelmatch.common.toDelimitedByteString
+import org.wfanet.virtualpeople.common.dataProviderEvent
+import org.wfanet.virtualpeople.common.labelerInput
+import org.wfanet.virtualpeople.common.logEvent
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
-import wfa_virtual_people.dataProviderEvent
-import wfa_virtual_people.labelerInput
-import wfa_virtual_people.logEvent
 
 private val FROM_TIME = TimeUnit.SECONDS.toMicros(Instant.parse("2022-01-01T00:00:00Z").epochSecond)
 private val UNTIL_TIME =

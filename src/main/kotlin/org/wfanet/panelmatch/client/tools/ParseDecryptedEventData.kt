@@ -27,9 +27,9 @@ import org.wfanet.panelmatch.client.privatemembership.KeyedDecryptedEventDataSet
 import org.wfanet.panelmatch.client.privatemembership.isPaddingQuery
 import org.wfanet.panelmatch.client.tools.DataProviderEventSetKt.entry
 import org.wfanet.panelmatch.common.ShardedFileName
+import org.wfanet.virtualpeople.common.DataProviderEvent
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
-import wfa_virtual_people.Event.DataProviderEvent
 
 private const val BUFFER_SIZE_BYTES = 32 * 1024 * 1024 // 32MiB
 
