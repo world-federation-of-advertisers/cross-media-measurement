@@ -150,7 +150,7 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
               ReportingSetKt.primitiveReportingSetBasis {
                 this.externalReportingSetId = externalReportingSetId.value
 
-                if (!reportingSet.filter.isNullOrEmpty()) {
+                if (reportingSet.filter.isNotBlank()) {
                   filters += reportingSet.filter
                 }
               }
