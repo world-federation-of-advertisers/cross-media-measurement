@@ -90,4 +90,6 @@ enum ErrorCode {
   MODEL_LINE_INVALID_ARGS = 32;
   /** ModelRollout rollout time args are invalid. */
   MODEL_ROLLOUT_INVALID_ARGS = 33;
+  /** ModelRollout resource queried could not be found. */
+  MODEL_ROLLOUT_NOT_FOUND = 34;
 }

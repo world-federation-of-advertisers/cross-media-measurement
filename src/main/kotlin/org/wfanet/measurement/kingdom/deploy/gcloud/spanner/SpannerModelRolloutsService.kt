@@ -25,11 +25,14 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.ModelRollout
 import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ScheduleModelRolloutFreezeRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutInvalidArgsException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelRollouts
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelRollout
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ScheduleModelRolloutFreeze
 
 class SpannerModelRolloutsService(
   private val clock: Clock,
@@ -53,6 +56,19 @@ class SpannerModelRolloutsService(
       e.throwStatusRuntimeException(Status.INVALID_ARGUMENT)
     } catch (e: ModelLineNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelLine not found." }
+    }
+  }
+
+  override suspend fun scheduleModelRolloutFreeze(request: ScheduleModelRolloutFreezeRequest): ModelRollout {
+    grpcRequire(request.hasRolloutFreezeTime()) {
+      "RolloutFreezeTime field of ModelRollout is missing."
+    }
+    try {
+      return ScheduleModelRolloutFreeze(request, clock).execute(client, idGenerator)
+    } catch (e: ModelRolloutInvalidArgsException) {
+      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT)
+    } catch (e: ModelRolloutNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelRollout not found." }
     }
   }
 
