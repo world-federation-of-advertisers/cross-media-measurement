@@ -4,17 +4,15 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.requisition
-import org.wfanet.measurement.api.v2alpha.requisitionSpec
-import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
 import org.wfanet.measurement.api.v2alpha.Requisition.Refusal.Justification
+import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
+import org.wfanet.measurement.api.v2alpha.requisition
+import org.wfanet.measurement.api.v2alpha.requisitionSpec
 
 @RunWith(JUnit4::class)
 class CompoundValidatorTest {
-    
+
   @Test
   fun validatePassesWhenAllValidatorsPass() {
     val validator =
@@ -26,7 +24,7 @@ class CompoundValidatorTest {
         )
       )
 
-    assertThat(validator.validate(requisition{}, requisitionSpec{})).isNull()
+    assertThat(validator.validate(requisition {}, requisitionSpec {})).isNull()
   }
 
   @Test
@@ -41,7 +39,7 @@ class CompoundValidatorTest {
         )
       )
 
-    assertThat(validator.validate(requisition{}, requisitionSpec{})).isEqualTo(result)
+    assertThat(validator.validate(requisition {}, requisitionSpec {})).isEqualTo(result)
   }
 
   @Test
@@ -57,7 +55,7 @@ class CompoundValidatorTest {
         )
       )
 
-    assertThat(validator.validate(requisition{}, requisitionSpec{})).isEqualTo(result1)
+    assertThat(validator.validate(requisition {}, requisitionSpec {})).isEqualTo(result1)
   }
 
   companion object {

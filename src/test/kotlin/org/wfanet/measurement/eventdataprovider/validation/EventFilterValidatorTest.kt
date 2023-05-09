@@ -6,7 +6,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.Requisition.Refusal.Justification
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
@@ -25,12 +24,12 @@ class EventFilterValidatorTest {
   fun validatePassesForCorrectFilter() {
     val result =
       validator.validate(
-          EMPTY_REQUISITION,
-          requisitionSpec {
-            eventGroups += eventGroupEntry {
-              value = value { filter = eventFilter { expression = "person.gender.value == 1" } }
-            }
+        EMPTY_REQUISITION,
+        requisitionSpec {
+          eventGroups += eventGroupEntry {
+            value = value { filter = eventFilter { expression = "person.gender.value == 1" } }
           }
+        }
       )
 
     assertThat(result).isNull()
@@ -40,18 +39,18 @@ class EventFilterValidatorTest {
   fun validateFailsForWrongFilter() {
     val result =
       validator.validate(
-          EMPTY_REQUISITION,
-          requisitionSpec {
-            eventGroups += eventGroupEntry {
-              // Using "and" is not allowed (instead use "&&").
-              value = value {
-                filter = eventFilter {
-                  expression = "person.gender.value == 1 and person.gender.value == 2"
-                }
+        EMPTY_REQUISITION,
+        requisitionSpec {
+          eventGroups += eventGroupEntry {
+            // Using "and" is not allowed (instead use "&&").
+            value = value {
+              filter = eventFilter {
+                expression = "person.gender.value == 1 and person.gender.value == 2"
               }
             }
           }
-        )
+        }
+      )
 
     assertThat(result)
       .isEqualTo(
