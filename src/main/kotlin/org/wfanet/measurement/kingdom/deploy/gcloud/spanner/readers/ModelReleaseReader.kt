@@ -48,13 +48,12 @@ class ModelReleaseReader : SpannerReader<ModelReleaseReader.Result>() {
   override suspend fun translate(struct: Struct): Result =
     Result(buildModelRelease(struct), InternalId(struct.getLong("ModelReleaseId")))
 
-  private fun buildModelRelease(struct: Struct): ModelRelease =
-    modelRelease {
-      externalModelReleaseId = struct.getLong("ExternalModelReleaseId")
-      externalModelSuiteId = struct.getLong("ExternalModelSuiteId")
-      externalModelProviderId = struct.getLong("ExternalModelProviderId")
-      createTime = struct.getTimestamp("CreateTime").toProto()
-    }
+  private fun buildModelRelease(struct: Struct): ModelRelease = modelRelease {
+    externalModelReleaseId = struct.getLong("ExternalModelReleaseId")
+    externalModelSuiteId = struct.getLong("ExternalModelSuiteId")
+    externalModelProviderId = struct.getLong("ExternalModelProviderId")
+    createTime = struct.getTimestamp("CreateTime").toProto()
+  }
 
   suspend fun readByExternalModelReleaseId(
     readContext: AsyncDatabaseClient.ReadContext,

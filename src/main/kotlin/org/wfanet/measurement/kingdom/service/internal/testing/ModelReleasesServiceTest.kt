@@ -34,14 +34,12 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelRelease
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.ModelSuite
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.getModelReleaseRequest
 import org.wfanet.measurement.internal.kingdom.modelRelease
 import org.wfanet.measurement.internal.kingdom.modelSuite
 import org.wfanet.measurement.internal.kingdom.streamModelReleasesRequest
-import org.wfanet.measurement.internal.kingdom.streamModelSuitesRequest
 
 private const val RANDOM_SEED = 1
 
@@ -137,7 +135,7 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
       }
 
     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    Truth.assertThat(exception).hasMessageThat().contains("NOT_FOUND: ModelRelease not found")
+    Truth.assertThat(exception).hasMessageThat().contains("NOT_FOUND: ModelRelease not found.")
   }
 
   @Test

@@ -46,8 +46,6 @@ message StreamModelReleasesRequest {
   message Filter {
     int64 external_model_suite_id = 1;
     int64 external_model_provider_id = 2;
-
-    // for next page token, both after fields need to be set
     google.protobuf.Timestamp created_after = 3;
   }
   Filter filter = 1;
