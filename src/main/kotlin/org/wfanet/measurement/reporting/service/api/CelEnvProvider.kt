@@ -25,7 +25,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
-import kotlinx.coroutines.CoroutineDispatcher
+import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.collect
@@ -62,7 +62,7 @@ class CelEnvCacheProvider(
   private val eventGroupsMetadataDescriptorsStub:
     EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub,
   private val cacheRefreshInterval: Duration,
-  coroutineDispatcher: CoroutineDispatcher,
+  coroutineContext: CoroutineContext,
   private val clock: Clock,
   private val numRefreshAttempts: Long = 3L,
 ) : CelEnvProvider {
@@ -73,11 +73,17 @@ class CelEnvCacheProvider(
   private val cacheRefreshIntervalPortion = cacheRefreshInterval.toMillis() * 0.90
 
   init {
-    CoroutineScope(coroutineDispatcher + SupervisorJob()).launch {
+    CoroutineScope(coroutineContext + SupervisorJob()).launch {
       MinimumIntervalThrottler(clock, cacheRefreshInterval).loopOnReady {
         val updateFlow = flow<Unit> { setTypeRegistryAndEnv() }
         launch {
-          updateFlow.retry(numRefreshAttempts) { e -> e is java.lang.RuntimeException }.collect()
+          updateFlow.retry(numRefreshAttempts) { e ->
+            e is StatusException &&
+              (
+                e.status.code == Status.Code.UNAVAILABLE ||
+                  e.status.code == Status.Code.DEADLINE_EXCEEDED
+                )
+          }.collect()
         }
       }
     }
@@ -148,39 +154,28 @@ class CelEnvCacheProvider(
 
   private suspend fun getEventGroupMetadataDescriptors(): List<EventGroupMetadataDescriptor> {
     val eventGroupMetadataDescriptors = mutableListOf<EventGroupMetadataDescriptor>()
-    return try {
-      var response =
+    var response =
+      eventGroupsMetadataDescriptorsStub.listEventGroupMetadataDescriptors(
+        listEventGroupMetadataDescriptorsRequest {
+          parent = "dataProviders/-"
+          pageSize = MAX_PAGE_SIZE
+        }
+      )
+    eventGroupMetadataDescriptors.addAll(response.eventGroupMetadataDescriptorsList)
+
+    while (response.nextPageToken.isNotBlank()) {
+      response =
         eventGroupsMetadataDescriptorsStub.listEventGroupMetadataDescriptors(
           listEventGroupMetadataDescriptorsRequest {
             parent = "dataProviders/-"
             pageSize = MAX_PAGE_SIZE
+            pageToken = response.nextPageToken
           }
         )
       eventGroupMetadataDescriptors.addAll(response.eventGroupMetadataDescriptorsList)
-
-      while (response.nextPageToken.isNotBlank()) {
-        response =
-          eventGroupsMetadataDescriptorsStub.listEventGroupMetadataDescriptors(
-            listEventGroupMetadataDescriptorsRequest {
-              parent = "dataProviders/-"
-              pageSize = MAX_PAGE_SIZE
-              pageToken = response.nextPageToken
-            }
-          )
-        eventGroupMetadataDescriptors.addAll(response.eventGroupMetadataDescriptorsList)
-      }
-
-      eventGroupMetadataDescriptors
-    } catch (e: StatusException) {
-      throw when (e.status.code) {
-          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-          Status.Code.CANCELLED -> Status.CANCELLED
-          else -> Status.UNKNOWN
-        }
-        .withDescription("Error retrieving EventGroupMetadataDescriptors")
-        .withCause(e)
-        .asRuntimeException()
     }
+
+    return eventGroupMetadataDescriptors
   }
 
   private fun buildTypeRegistry(
