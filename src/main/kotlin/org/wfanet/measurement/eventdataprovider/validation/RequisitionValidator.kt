@@ -1,6 +1,5 @@
 package org.wfanet.measurement.eventdataprovider.validation
 
-
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 
@@ -14,6 +13,5 @@ fun interface RequisitionValidator {
    * Validates the given [requisitionAndSpec]. If the requisition is not valid, returns a
    * [RefusalResult] describing the reason. Returns null if the requisition is valid.
    */
-  fun validate(    requisition: Requisition,
-    requisitionSpec: RequisitionSpec): Requisition.Refusal?
+  fun validate(requisition: Requisition, requisitionSpec: RequisitionSpec): Requisition.Refusal?
 }
