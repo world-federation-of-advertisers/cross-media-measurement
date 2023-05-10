@@ -1,0 +1,12 @@
+name: Workflow testing
+
+on:
+  pull_request:
+    types: [ opened, synchronize, edited ]
+
+jobs:
+  terraform:
+    uses: ./.github/workflows/terraform-cmms.yml
+    with:
+      environment: dev
+      apply: false
