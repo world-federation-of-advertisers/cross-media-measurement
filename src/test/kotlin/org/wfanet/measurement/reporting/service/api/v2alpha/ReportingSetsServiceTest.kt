@@ -20,6 +20,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -31,6 +32,7 @@ import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
@@ -41,14 +43,26 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalRepo
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt as InternalReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequest
+import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsResponse
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
+import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
+import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageTokenKt.previousPageEnd
+import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsRequest
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
+import org.wfanet.measurement.reporting.v2alpha.listReportingSetsPageToken
+import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
+import org.wfanet.measurement.reporting.v2alpha.listReportingSetsResponse
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
+
+private const val DEFAULT_PAGE_SIZE = 50
+private const val MAX_PAGE_SIZE = 1000
+private const val PAGE_SIZE = 2
 
 private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
 private val CONFIG = measurementConsumerConfig { apiKey = API_AUTHENTICATION_KEY }
@@ -275,6 +289,17 @@ class ReportingSetsServiceTest {
               internalReportingSetsMap.getValue(externalReportingSetId)
             }
         }
+      }
+    onBlocking { streamReportingSets(any()) }
+      .thenAnswer {
+        val request = it.arguments[0] as StreamReportingSetsRequest
+        val externalReportingSetIdAfter = request.filter.externalReportingSetIdAfter
+        val index =
+          INTERNAL_PRIMITIVE_REPORTING_SETS.map { reportingSet ->
+              reportingSet.externalReportingSetId
+            }
+            .indexOf(externalReportingSetIdAfter)
+        INTERNAL_PRIMITIVE_REPORTING_SETS.drop(index + 1).asFlow()
       }
   }
 
@@ -762,6 +787,344 @@ class ReportingSetsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
     assertThat(exception.status.description).contains(notAccessibleEventGroupKey.toName())
+  }
+
+  @Test
+  fun `listReportingSets returns without a next page token when there is no previous page token`() {
+    val request = listReportingSetsRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        runBlocking { service.listReportingSets(request) }
+      }
+
+    val expected = listReportingSetsResponse { reportingSets += PRIMITIVE_REPORTING_SETS }
+
+    verifyProtoArgument(
+        internalReportingSetsMock,
+        ReportingSetsCoroutineImplBase::streamReportingSets
+      )
+      .isEqualTo(
+        streamReportingSetsRequest {
+          limit = DEFAULT_PAGE_SIZE + 1
+          filter =
+            StreamReportingSetsRequestKt.filter {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listReportingSets returns with a next page token when there is no previous page token`() {
+    val request = listReportingSetsRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      pageSize = PAGE_SIZE
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        runBlocking { service.listReportingSets(request) }
+      }
+
+    val expected = listReportingSetsResponse {
+      reportingSets += (0 until PAGE_SIZE).map { PRIMITIVE_REPORTING_SETS[it] }
+      nextPageToken =
+        listReportingSetsPageToken {
+            pageSize = PAGE_SIZE
+            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+            lastReportingSet = previousPageEnd {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+              externalReportingSetId =
+                INTERNAL_PRIMITIVE_REPORTING_SETS[PAGE_SIZE - 1].externalReportingSetId
+            }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    verifyProtoArgument(
+        internalReportingSetsMock,
+        ReportingSetsCoroutineImplBase::streamReportingSets
+      )
+      .isEqualTo(
+        streamReportingSetsRequest {
+          limit = PAGE_SIZE + 1
+          filter =
+            StreamReportingSetsRequestKt.filter {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listReportingSets returns with a next page token when there is a previous page token`() {
+    val request = listReportingSetsRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      pageSize = PAGE_SIZE
+      pageToken =
+        listReportingSetsPageToken {
+            pageSize = PAGE_SIZE
+            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+            lastReportingSet = previousPageEnd {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+              externalReportingSetId =
+                INTERNAL_PRIMITIVE_REPORTING_SETS.first().externalReportingSetId
+            }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        runBlocking { service.listReportingSets(request) }
+      }
+
+    val expected = listReportingSetsResponse {
+      reportingSets += (1 until PAGE_SIZE + 1).map { PRIMITIVE_REPORTING_SETS[it] }
+    }
+
+    verifyProtoArgument(
+        internalReportingSetsMock,
+        ReportingSetsCoroutineImplBase::streamReportingSets
+      )
+      .isEqualTo(
+        streamReportingSetsRequest {
+          limit = PAGE_SIZE + 1
+          filter =
+            StreamReportingSetsRequestKt.filter {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+              externalReportingSetIdAfter =
+                INTERNAL_PRIMITIVE_REPORTING_SETS.first().externalReportingSetId
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listReportingSets with page size replaced with a valid value and no previous page token`() {
+    val invalidPageSize = MAX_PAGE_SIZE * 2
+    val request = listReportingSetsRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      pageSize = invalidPageSize
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        runBlocking { service.listReportingSets(request) }
+      }
+
+    val expected = listReportingSetsResponse { reportingSets += PRIMITIVE_REPORTING_SETS }
+
+    verifyProtoArgument(
+        internalReportingSetsMock,
+        ReportingSetsCoroutineImplBase::streamReportingSets
+      )
+      .isEqualTo(
+        streamReportingSetsRequest {
+          limit = MAX_PAGE_SIZE + 1
+          filter =
+            StreamReportingSetsRequestKt.filter {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listReportingSets with invalid page size replaced with the one in previous page token`() {
+    val invalidPageSize = MAX_PAGE_SIZE * 2
+    val previousPageSize = PAGE_SIZE
+    val request = listReportingSetsRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      pageSize = invalidPageSize
+      pageToken =
+        listReportingSetsPageToken {
+            pageSize = previousPageSize
+            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+            lastReportingSet = previousPageEnd {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+              externalReportingSetId =
+                INTERNAL_PRIMITIVE_REPORTING_SETS.first().externalReportingSetId
+            }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        runBlocking { service.listReportingSets(request) }
+      }
+
+    val expected = listReportingSetsResponse {
+      reportingSets += (1 until previousPageSize + 1).map { PRIMITIVE_REPORTING_SETS[it] }
+    }
+
+    verifyProtoArgument(
+        internalReportingSetsMock,
+        ReportingSetsCoroutineImplBase::streamReportingSets
+      )
+      .isEqualTo(
+        streamReportingSetsRequest {
+          limit = previousPageSize + 1
+          filter =
+            StreamReportingSetsRequestKt.filter {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+              externalReportingSetIdAfter =
+                INTERNAL_PRIMITIVE_REPORTING_SETS.first().externalReportingSetId
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listReportingSets with page size replacing the one in previous page token`() {
+    val newPageSize = PAGE_SIZE
+    val previousPageSize = 1
+    val request = listReportingSetsRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      pageSize = newPageSize
+      pageToken =
+        listReportingSetsPageToken {
+            pageSize = previousPageSize
+            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+            lastReportingSet = previousPageEnd {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+              externalReportingSetId =
+                INTERNAL_PRIMITIVE_REPORTING_SETS.first().externalReportingSetId
+            }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        runBlocking { service.listReportingSets(request) }
+      }
+
+    val expected = listReportingSetsResponse {
+      reportingSets += (1 until newPageSize + 1).map { PRIMITIVE_REPORTING_SETS[it] }
+    }
+
+    verifyProtoArgument(
+        internalReportingSetsMock,
+        ReportingSetsCoroutineImplBase::streamReportingSets
+      )
+      .isEqualTo(
+        streamReportingSetsRequest {
+          limit = newPageSize + 1
+          filter =
+            StreamReportingSetsRequestKt.filter {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+              externalReportingSetIdAfter =
+                INTERNAL_PRIMITIVE_REPORTING_SETS.first().externalReportingSetId
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listReportingSets throws UNAUTHENTICATED when no principal is found`() {
+    val request = listReportingSetsRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.listReportingSets(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `listReportingSets throws PERMISSION_DENIED when MeasurementConsumer caller doesn't match`() {
+    val request = listReportingSetsRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.last().toName(), CONFIG) {
+          runBlocking { service.listReportingSets(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description)
+      .isEqualTo("Cannot list ReportingSets belonging to other MeasurementConsumers.")
+  }
+
+  @Test
+  fun `listReportingSets throws UNAUTHENTICATED when the caller is not MeasurementConsumer`() {
+    val request = listReportingSetsRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_KEYS.first().toName()) {
+          runBlocking { service.listReportingSets(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception.status.description).isEqualTo("No ReportingPrincipal found")
+  }
+
+  @Test
+  fun `listReportingSets throws INVALID_ARGUMENT when page size is less than 0`() {
+    val request = listReportingSetsRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      pageSize = -1
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.listReportingSets(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Page size cannot be less than 0")
+  }
+
+  @Test
+  fun `listReportingSets throws INVALID_ARGUMENT when parent is unspecified`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.listReportingSets(ListReportingSetsRequest.getDefaultInstance()) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `listReportingSets throws INVALID_ARGUMENT when mc id doesn't match one in page token`() {
+    val request = listReportingSetsRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      pageToken =
+        listReportingSetsPageToken {
+            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.last().measurementConsumerId
+            lastReportingSet = previousPageEnd {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.last().measurementConsumerId
+              externalReportingSetId =
+                INTERNAL_PRIMITIVE_REPORTING_SETS.first().externalReportingSetId
+            }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.listReportingSets(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 }
 
