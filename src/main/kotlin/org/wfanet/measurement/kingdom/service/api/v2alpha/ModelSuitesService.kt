@@ -81,8 +81,6 @@ class ModelSuitesService(private val internalClient: ModelSuitesCoroutineStub) :
       internalClient.createModelSuite(createModelSuiteRequest).toV2Alpha()
     } catch (ex: StatusException) {
       when (ex.status.code) {
-        Status.Code.INVALID_ARGUMENT ->
-          failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid" }
         Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "ModelProvider not found." }
         else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
       }
@@ -94,6 +92,15 @@ class ModelSuitesService(private val internalClient: ModelSuitesCoroutineStub) :
       grpcRequireNotNull(ModelSuiteKey.fromName(request.name)) {
         "Resource name is either unspecified or invalid"
       }
+
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is ModelProviderPrincipal -> {
+        if (principal.resourceKey.modelProviderId != key.modelProviderId) {
+          failGrpc(Status.PERMISSION_DENIED) { "Cannot get ModelSuite from another ModelProvider" }
+        }
+      }
+      else -> {}
+    }
 
     val getModelSuiteRequest = getModelSuiteRequest {
       externalModelProviderId = apiIdToExternalId(key.modelProviderId)
