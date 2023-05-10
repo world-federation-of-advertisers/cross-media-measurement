@@ -104,35 +104,6 @@ class ScheduleModelRolloutFreeze(
     return modelRolloutResult.modelRollout.copy { rolloutFreezeTime = request.rolloutFreezeTime }
   }
 
-  private suspend fun TransactionScope.readModelLineData(
-    externalModelProviderId: ExternalId,
-    externalModelSuiteId: ExternalId,
-    externalModelLineId: ExternalId
-  ): Struct? {
-    val sql =
-      """
-    SELECT
-    ModelSuites.ModelSuiteId,
-    ModelSuites.ModelProviderId,
-    ModelLines.ModelLineId,
-    FROM ModelSuites JOIN ModelProviders USING(ModelProviderId)
-    JOIN ModelLines USING (ModelSuiteId)
-    WHERE ExternalModelProviderId = @externalModelProviderId AND
-    ExternalModelSuiteId = @externalModelSuiteId AND
-    ExternalModelLineId = @externalModelLineId
-    """
-        .trimIndent()
-
-    val statement: Statement =
-      statement(sql) {
-        bind("externalModelProviderId" to externalModelProviderId.value)
-        bind("externalModelSuiteId" to externalModelSuiteId.value)
-        bind("externalModelLineId" to externalModelLineId.value)
-      }
-
-    return transactionContext.executeQuery(statement).singleOrNull()
-  }
-
   private suspend fun TransactionScope.readModelRollout(
     externalModelProviderId: ExternalId,
     externalModelSuiteId: ExternalId,

@@ -83,6 +83,14 @@ class SpannerModelRolloutsService(
   }
 
   override suspend fun deleteModelRollout(request: DeleteModelRolloutRequest): ModelRollout {
-    return DeleteModelRollout(request).execute(client, idGenerator)
+    grpcRequire(request.externalModelRolloutId != 0L) { "ExternalModelRolloutId unspecified" }
+    grpcRequire(request.externalModelSuiteId != 0L) { "ExternalModelSuiteId unspecified" }
+    grpcRequire(request.externalModelLineId != 0L) { "ExternalModelLineId unspecified" }
+    grpcRequire(request.externalModelProviderId != 0L) { "ExternalModelProviderId unspecified" }
+    try {
+      return DeleteModelRollout(request).execute(client, idGenerator)
+    } catch (e: ModelRolloutNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelRollout not found." }
+    }
   }
 }
