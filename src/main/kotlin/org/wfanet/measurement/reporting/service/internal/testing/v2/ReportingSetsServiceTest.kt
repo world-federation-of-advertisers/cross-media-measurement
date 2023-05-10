@@ -1209,7 +1209,6 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
 
       val createdReportingSet = service.createReportingSet(primitiveReportingSet)
 
-
       val retrievedReportingSets =
         service
           .batchGetReportingSets(
