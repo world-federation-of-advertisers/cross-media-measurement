@@ -17,7 +17,7 @@ module "clusters" {
   for_each = local.duchy_names
 
   name       = "${each.key}-duchy"
-  location   = var.cluster_location
+  location   = local.cluster_location
   secret_key = module.common.cluster_secret_key
 }
 
@@ -57,7 +57,7 @@ module "storage" {
   source = "../modules/storage-bucket"
 
   name     = var.storage_bucket_name
-  location = var.storage_bucket_location
+  location = local.storage_bucket_location
 }
 
 provider "kubernetes" {
