@@ -1590,9 +1590,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
             batchCreateMetricsRequest {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               requests += createMetricRequest { this.metric = metric }
-              requests += createMetricRequest {
-                this.metric = metric.copy { clearTimeInterval() }
-              }
+              requests += createMetricRequest { this.metric = metric.copy { clearTimeInterval() } }
             }
           )
         }
@@ -1772,9 +1770,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               requests += createMetricRequest { this.metric = metric }
               requests += createMetricRequest {
-                this.metric = metric.copy { metricSpec = metricSpec.copy {
-                  clearVidSamplingInterval()
-                } }
+                this.metric =
+                  metric.copy { metricSpec = metricSpec.copy { clearVidSamplingInterval() } }
               }
             }
           )
