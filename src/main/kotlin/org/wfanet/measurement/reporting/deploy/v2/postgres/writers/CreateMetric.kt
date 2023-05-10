@@ -27,6 +27,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toJson
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.reporting.v2.CreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.Measurement
 import org.wfanet.measurement.internal.reporting.v2.Metric
@@ -146,6 +147,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
             val externalMetricId = idGenerator.generateExternalId()
             val reportingSetId: InternalId? =
               reportingSetMap[ExternalId(it.metric.externalReportingSetId)]
+            val createTime = Instant.now().atOffset(ZoneOffset.UTC)
 
             addBinding {
               bind("$1", measurementConsumerId)
@@ -202,7 +204,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
               }
               bind("$15", it.metric.metricSpec.vidSamplingInterval.start)
               bind("$16", it.metric.metricSpec.vidSamplingInterval.width)
-              bind("$17", Instant.now().atOffset(ZoneOffset.UTC))
+              bind("$17", createTime)
               bind("$18", it.metric.details)
               bind("$19", it.metric.details.toJson())
             }
@@ -220,6 +222,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                 this.externalMetricId = externalMetricId.value
                 weightedMeasurements.clear()
                 weightedMeasurements.addAll(weightedMeasurementsAndBindings.weightedMeasurements)
+                this.createTime = createTime.toInstant().toProtoTime()
               }
             )
 
@@ -328,7 +331,9 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
       executeStatement(measurementsStatement)
       executeStatement(metricMeasurementsStatement)
       executeStatement(primitiveReportingSetBasesStatement)
-      executeStatement(primitiveReportingSetBasisFiltersStatement)
+      if (primitiveReportingSetBasisFiltersBinders.size > 0) {
+        executeStatement(primitiveReportingSetBasisFiltersStatement)
+      }
       executeStatement(measurementPrimitiveReportingSetBasesStatement)
     }
 
@@ -365,8 +370,8 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         bind("$5", it.measurement.timeInterval.startTime.toInstant().atOffset(ZoneOffset.UTC))
         bind("$6", it.measurement.timeInterval.endTime.toInstant().atOffset(ZoneOffset.UTC))
         bind("$7", Measurement.State.STATE_UNSPECIFIED)
-        bind("$8", it.measurement.details)
-        bind("$9", it.measurement.details.toJson())
+        bind("$8", Measurement.Details.getDefaultInstance())
+        bind("$9", Measurement.Details.getDefaultInstance().toJson())
       }
 
       metricMeasurementsBinders.add {

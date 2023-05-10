@@ -42,8 +42,20 @@ class PostgresMetricsService(
   private val client: DatabaseClient,
 ) : MetricsCoroutineImplBase() {
   override suspend fun createMetric(request: CreateMetricRequest): Metric {
+    grpcRequire(request.metric.hasTimeInterval()) {
+      "Metric missing time interval."
+    }
+
     grpcRequire(!request.metric.metricSpec.typeCase.equals(MetricSpec.TypeCase.TYPE_NOT_SET)) {
       "Metric Spec missing type."
+    }
+
+    grpcRequire(request.metric.metricSpec.hasVidSamplingInterval()) {
+      "Metric Spec missing vid sampling interval."
+    }
+
+    grpcRequire(request.metric.weightedMeasurementsCount > 0) {
+      "Metric missing weighted measurements."
     }
 
     return try {
@@ -63,8 +75,20 @@ class PostgresMetricsService(
     grpcRequire(request.requestsList.size <= MAX_BATCH_CREATE_SIZE) { "Too many requests." }
 
     request.requestsList.forEach {
+      grpcRequire(it.metric.hasTimeInterval()) {
+        "Metric missing time interval."
+      }
+
       grpcRequire(!it.metric.metricSpec.typeCase.equals(MetricSpec.TypeCase.TYPE_NOT_SET)) {
         "Metric Spec missing type."
+      }
+
+      grpcRequire(it.metric.metricSpec.hasVidSamplingInterval()) {
+        "Metric Spec missing vid sampling interval."
+      }
+
+      grpcRequire(it.metric.weightedMeasurementsCount > 0) {
+        "Metric missing weighted measurements."
       }
 
       grpcRequire(it.metric.cmmsMeasurementConsumerId.equals(request.cmmsMeasurementConsumerId)) {
