@@ -28,7 +28,6 @@ import org.wfanet.measurement.internal.kingdom.GetModelSuiteRequest
 import org.wfanet.measurement.internal.kingdom.ModelSuite
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequest
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelSuites
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelSuiteReader

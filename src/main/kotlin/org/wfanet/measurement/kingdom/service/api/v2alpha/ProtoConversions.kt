@@ -39,6 +39,9 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.ModelProviderKey
+import org.wfanet.measurement.api.v2alpha.ModelSuite
+import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.Direct
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
@@ -52,6 +55,7 @@ import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.api.v2alpha.exchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.measurement
+import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -69,6 +73,7 @@ import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.details
+import org.wfanet.measurement.internal.kingdom.ModelSuite as InternalModelSuite
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
@@ -76,11 +81,6 @@ import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
 import org.wfanet.measurement.internal.kingdom.modelSuite as internalModelSuite
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
-import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
-import org.wfanet.measurement.api.v2alpha.modelSuite
-import org.wfanet.measurement.internal.kingdom.ModelSuite as InternalModelSuite
-import org.wfanet.measurement.api.v2alpha.ModelProviderKey
-import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 
 /** Converts an internal [InternalMeasurement.State] to a public [State]. */
@@ -234,9 +234,9 @@ fun InternalModelSuite.toV2Alpha(): ModelSuite {
   return modelSuite {
     name =
       ModelSuiteKey(
-        externalIdToApiId(source.externalModelProviderId),
-        externalIdToApiId(source.externalModelSuiteId)
-      )
+          externalIdToApiId(source.externalModelProviderId),
+          externalIdToApiId(source.externalModelSuiteId)
+        )
         .toName()
     displayName = source.displayName
     description = source.description
@@ -253,7 +253,6 @@ fun ModelSuite.toInternal(modelProviderKey: ModelProviderKey): InternalModelSuit
     displayName = publicModelSuite.displayName
     description = publicModelSuite.description
   }
-
 }
 
 /** Converts an internal [InternalMeasurement] to a public [Measurement]. */
