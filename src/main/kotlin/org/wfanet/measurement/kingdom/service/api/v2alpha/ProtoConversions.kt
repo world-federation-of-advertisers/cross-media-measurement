@@ -74,7 +74,13 @@ import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as 
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
+import org.wfanet.measurement.internal.kingdom.modelSuite as internalModelSuite
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
+import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
+import org.wfanet.measurement.api.v2alpha.modelSuite
+import org.wfanet.measurement.internal.kingdom.ModelSuite as InternalModelSuite
+import org.wfanet.measurement.api.v2alpha.ModelProviderKey
+import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 
 /** Converts an internal [InternalMeasurement.State] to a public [State]. */
@@ -219,6 +225,35 @@ fun InternalProtocolConfig.toProtocolConfig(
       ProtocolConfig.MeasurementType.UNRECOGNIZED -> error("Invalid MeasurementType")
     }
   }
+}
+
+/** Converts an internal [InternalModelSuite] to a public [ModelSuite]. */
+fun InternalModelSuite.toV2Alpha(): ModelSuite {
+  val source = this
+
+  return modelSuite {
+    name =
+      ModelSuiteKey(
+        externalIdToApiId(source.externalModelProviderId),
+        externalIdToApiId(source.externalModelSuiteId)
+      )
+        .toName()
+    displayName = source.displayName
+    description = source.description
+    createTime = source.createTime
+  }
+}
+
+/** Converts a public [ModelSuite] to an internal [InternalModelSuite] */
+fun ModelSuite.toInternal(modelProviderKey: ModelProviderKey): InternalModelSuite {
+  val publicModelSuite = this
+
+  return internalModelSuite {
+    externalModelProviderId = apiIdToExternalId(modelProviderKey.modelProviderId)
+    displayName = publicModelSuite.displayName
+    description = publicModelSuite.description
+  }
+
 }
 
 /** Converts an internal [InternalMeasurement] to a public [Measurement]. */

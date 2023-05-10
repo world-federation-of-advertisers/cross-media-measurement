@@ -18,24 +18,219 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase as ModelSuitesCoroutineService
+import io.grpc.Status
+import io.grpc.StatusException
 import org.wfanet.measurement.api.v2alpha.CreateModelSuiteRequest
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.EventGroupKey
+import org.wfanet.measurement.api.v2alpha.EventGroupKt
 import org.wfanet.measurement.api.v2alpha.GetModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
+import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.ModelSuite
+import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
+import org.wfanet.measurement.api.v2alpha.eventGroup
+import org.wfanet.measurement.api.v2alpha.modelSuite
+import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
+import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.internal.kingdom.ModelSuite as InternalModelSuite
+import kotlin.math.min
+import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsPageToken
+import org.wfanet.measurement.api.v2alpha.ListMeasurementsPageToken
+import org.wfanet.measurement.api.v2alpha.ListMeasurementsPageTokenKt
+import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
+import org.wfanet.measurement.api.v2alpha.ListMeasurementsResponse
+import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageToken
+import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt
+import org.wfanet.measurement.api.v2alpha.ModelProviderKey
+import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.listMeasurementsPageToken
+import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
+import org.wfanet.measurement.api.v2alpha.listModelSuitesPageToken
+import org.wfanet.measurement.api.v2alpha.listModelSuitesResponse
+import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.grpcRequire
+import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt
+import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
+import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
+import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequest
+import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequestKt
+import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
+import org.wfanet.measurement.internal.kingdom.getModelSuiteRequest
+import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
+import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
+import org.wfanet.measurement.internal.kingdom.streamModelSuitesRequest
+
+private const val DEFAULT_PAGE_SIZE = 50
+private const val MAX_PAGE_SIZE = 1000
 
 class ModelSuitesService(private val internalClient: ModelSuitesCoroutineStub) : ModelSuitesCoroutineService() {
 
   override suspend fun createModelSuite(request: CreateModelSuiteRequest): ModelSuite {
-    return super.createModelSuite(request)
+    val parentKey =
+      grpcRequireNotNull(ModelProviderKey.fromName(request.parent)) {
+        "Parent is either unspecified or invalid"
+      }
+
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is ModelProviderPrincipal -> {
+        if (principal.resourceKey.toName() != request.parent) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot create ModelSuite for another ModelProvider"
+          }
+        }
+      }
+      else -> {
+        failGrpc(Status.PERMISSION_DENIED) {
+          "Caller does not have permission to create ModelSuite"
+        }
+      }
+    }
+
+    val createModelSuiteRequest = request.modelSuite.toInternal(parentKey)
+    return try {
+      internalClient.createModelSuite(createModelSuiteRequest).toV2Alpha()
+    } catch (ex: StatusException) {
+      when (ex.status.code) {
+        Status.Code.INVALID_ARGUMENT ->
+          failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid" }
+        Status.Code.NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND, ex) { "ModelProvider not found." }
+        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+      }
+    }
+
   }
 
   override suspend fun getModelSuite(request: GetModelSuiteRequest): ModelSuite {
-    return super.getModelSuite(request)
+    val key =
+      grpcRequireNotNull(ModelSuiteKey.fromName(request.name)) {
+        "Resource name is either unspecified or invalid"
+      }
+
+    val getModelSuiteRequest = getModelSuiteRequest {
+      externalModelProviderId = apiIdToExternalId(key.modelProviderId)
+      externalModelSuiteId = apiIdToExternalId(key.modelSuiteId)
+    }
+
+    try {
+      return internalClient.getModelSuite(getModelSuiteRequest).toV2Alpha()
+    } catch (ex: StatusException) {
+      when (ex.status.code) {
+        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "ModelSuite not found." }
+        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+      }
+    }
   }
 
   override suspend fun listModelSuites(request: ListModelSuitesRequest): ListModelSuitesResponse {
-    return super.listModelSuites(request)
+    val parentKey =
+      grpcRequireNotNull(ModelProviderKey.fromName(request.parent)) {
+        "Parent is either unspecified or invalid"
+      }
+
+    val listModelSuitesPageToken = request.toListModelSuitesPageToken()
+
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is ModelProviderPrincipal -> {
+        if (principal.resourceKey.toName() != request.parent) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot list ModelSuites from another ModelProvider"
+          }
+        }
+      }
+      else -> {}
+    }
+
+    val results: List<InternalModelSuite> =
+      internalClient
+        .streamModelSuites(listModelSuitesPageToken.toStreamModelSuitesRequest())
+        .toList()
+
+    if (results.isEmpty()) {
+      return ListModelSuitesResponse.getDefaultInstance()
+    }
+
+    return listModelSuitesResponse {
+      modelSuite +=
+        results.subList(0, min(results.size, listModelSuitesPageToken.pageSize)).map {
+            internalModelSuite ->
+          internalModelSuite.toV2Alpha()
+        }
+      if (results.size > listModelSuitesPageToken.pageSize) {
+        val pageToken =
+          listModelSuitesPageToken.copy {
+            lastModelSuite = ListModelSuitesPageTokenKt.previousPageEnd {
+              externalModelSuiteId = results[results.lastIndex - 1].externalModelSuiteId
+              createdAfter = results[results.lastIndex - 1].createTime
+            }
+          }
+        nextPageToken = pageToken.toByteArray().base64UrlEncode()
+      }
+    }
   }
 
+  /** Converts a public [ListModelSuitesRequest] to an internal [ListModelSuitesPageToken]. */
+  private fun ListModelSuitesRequest.toListModelSuitesPageToken(): ListModelSuitesPageToken {
+    val source = this
+
+    val key =
+      grpcRequireNotNull(ModelProviderKey.fromName(source.parent)) {
+        "Resource name is either unspecified or invalid"
+      }
+    grpcRequire(source.pageSize >= 0) { "Page size cannot be less than 0" }
+
+    val externalModelProviderId = apiIdToExternalId(key.modelProviderId)
+
+    return if (source.pageToken.isNotBlank()) {
+      ListModelSuitesPageToken.parseFrom(source.pageToken.base64UrlDecode()).copy {
+        grpcRequire(this.externalModelProviderId == externalModelProviderId) {
+          "Arguments must be kept the same when using a page token"
+        }
+
+        if (source.pageSize in 1..MAX_PAGE_SIZE) {
+          pageSize = source.pageSize
+        }
+      }
+    } else {
+      listModelSuitesPageToken {
+        pageSize =
+          when {
+            source.pageSize == 0 -> DEFAULT_PAGE_SIZE
+            source.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
+            else -> source.pageSize
+          }
+        this.externalModelProviderId = externalModelProviderId
+      }
+    }
+  }
+
+  /** Converts an internal [ListMeasurementsPageToken] to an internal [StreamMeasurementsRequest]. */
+  private fun ListModelSuitesPageToken.toStreamModelSuitesRequest(): StreamModelSuitesRequest {
+    val source = this
+    return streamModelSuitesRequest {
+      // get 1 more than the actual page size for deciding whether to set page token
+      limit = source.pageSize + 1
+      filter = StreamModelSuitesRequestKt.filter {
+        externalModelProviderId = source.externalModelProviderId
+        if(source.hasLastModelSuite()){
+          createdAfter = source.lastModelSuite.createdAfter
+        }
+      }
+    }
+  }
 }
