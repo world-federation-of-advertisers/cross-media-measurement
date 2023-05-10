@@ -368,3 +368,18 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
     ],
 )
+
+kt_jvm_library(
+    name = "model_suites_service",
+    srcs = ["ModelSuitesService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_suite_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_suites_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:model_suite_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:model_suites_service_kt_jvm_grpc_proto",
+    ],
+)
