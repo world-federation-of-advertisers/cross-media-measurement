@@ -21,7 +21,8 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpec
  * [RequisitionValidator] that validates a requisition against each validator in [validators].
  * Validators are applied in order, and the first non-valid result is returned.
  */
-class CompoundValidator(private val validators: List<RequisitionValidator>) : RequisitionValidator {
+class CompoundValidator(private val validators: Iterable<RequisitionValidator>) :
+  RequisitionValidator {
 
   override fun validate(
     requisition: Requisition,
