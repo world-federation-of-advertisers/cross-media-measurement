@@ -28,7 +28,7 @@ message ModelShard {
   fixed64 external_model_shard_id = 2;
 
   fixed64 external_model_release_id = 3;
-  
+
   string model_blob_path = 4;
 
   google.protobuf.Timestamp create_time = 5;

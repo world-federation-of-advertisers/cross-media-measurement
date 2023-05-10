@@ -18,6 +18,8 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.Truth
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.ByteString
+import com.google.protobuf.timestamp
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
@@ -25,20 +27,45 @@ import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
+import org.wfanet.measurement.internal.kingdom.CertificateKt
+import org.wfanet.measurement.internal.kingdom.DataProvider
+import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelShard
 import org.wfanet.measurement.internal.kingdom.ModelShardsGrpcKt.ModelShardsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.certificate
+import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.modelShard
+import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
-
+private const val EXTERNAL_DATA_PROVIDER_ID = 123L
+private const val FIXED_GENERATED_INTERNAL_ID = 2345L
+private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
+private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
+private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
+private val CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
+private val MODEL_RELEASE = 2L
+private val MODEL_BLOB_PATH = "model_blob_path"
 @RunWith(JUnit4::class)
 abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
+  @get:Rule
+  val duchyIdSetter = DuchyIdSetter(Population.DUCHIES)
+
+  protected val idGenerator =
+    FixedIdGenerator(
+      InternalId(FIXED_GENERATED_INTERNAL_ID),
+      ExternalId(FIXED_GENERATED_EXTERNAL_ID)
+    )
 
   protected data class Services<T>(
     val modelShardsService: T,
@@ -46,7 +73,7 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
   )
 
   protected val clock: Clock = Clock.systemUTC()
-  protected val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
+//  protected val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
   private val population = Population(clock, idGenerator)
 
   protected lateinit var dataProvidersService: DataProvidersCoroutineImplBase
@@ -66,20 +93,29 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
 
   @Test
   fun `createModelShard succeeds`() = runBlocking {
-    println("joji made it here")
-
-    val dataProvider = population.createDataProvider(dataProvidersService)
-    println("joji made it here b")
+    val dataProvider = dataProvider {
+      certificate {
+        notValidBefore = timestamp { seconds = 12345 }
+        notValidAfter = timestamp { seconds = 23456 }
+        details = CertificateKt.details { x509Der = CERTIFICATE_DER }
+      }
+      details =
+        DataProviderKt.details {
+          apiVersion = "v2alpha"
+          publicKey = PUBLIC_KEY
+          publicKeySignature = PUBLIC_KEY_SIGNATURE
+        }
+      requiredExternalDuchyIds += Population.DUCHIES.map { it.externalDuchyId }
+    }
+    val createdDataProvider = dataProvidersService.createDataProvider(dataProvider)
 
     val modelShard = modelShard {
-      externalDataProviderId = dataProvider.externalDataProviderId
-      externalModelReleaseId = "modelRelease"
+      externalDataProviderId = createdDataProvider.externalDataProviderId
+      externalModelReleaseId = MODEL_RELEASE
       modelBlobPath = "modelBlobPath"
     }
-    println("joji made it here c")
-
+    // getting error here because of invalid externalModelReleaseId. we need to create a model release in the ModelReleases table
     val createdModelShard = modelShardsService.createModelShard(modelShard)
-    println("joji made it here d")
 
     assertThat(createdModelShard)
       .ignoringFields(
@@ -89,8 +125,8 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
       .isEqualTo(
         modelShard {
           externalDataProviderId = dataProvider.externalDataProviderId
-          externalModelReleaseId = "modelRelease"
-          modelBlobPath = "modelBlobPath"
+          externalModelReleaseId = MODEL_RELEASE
+          modelBlobPath = MODEL_BLOB_PATH
         }
       )
 
@@ -100,8 +136,8 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
   @Test
   fun `createModelShard fails with no externalDataProviderId`() = runBlocking {
     val modelShard = modelShard {
-      externalModelReleaseId = "modelRelease"
-      modelBlobPath = "modelBlobPath"
+      externalModelReleaseId = MODEL_RELEASE
+      modelBlobPath = MODEL_BLOB_PATH
     }
 
     val exception =

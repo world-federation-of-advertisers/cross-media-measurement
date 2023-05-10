@@ -40,13 +40,12 @@ class CreateModelShard(private val modelShard: ModelShard) :
     val externalModelShardId = idGenerator.generateExternalId()
 
     // TODO(@jojijac0b): Add logic to get internal model release.
-    val internalModelRelease = ""
 
     transactionContext.bufferInsertMutation("ModelShards") {
       set("DataProviderId" to dataProviderId)
       set("ModelShardId" to internalModelShardId)
       set("ExternalModelShardId" to externalModelShardId)
-      set("ModelRelease" to internalModelRelease)
+      set("ModelRelease" to modelShard.externalModelReleaseId)
       set("ModelBlobPath" to modelShard.modelBlobPath)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
     }

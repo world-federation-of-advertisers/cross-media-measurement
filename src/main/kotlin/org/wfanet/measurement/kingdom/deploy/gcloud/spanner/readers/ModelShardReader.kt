@@ -64,7 +64,7 @@ class ModelShardReader : SpannerReader<ModelShardReader.Result>() {
   private fun buildModelShard(struct: Struct): ModelShard = modelShard {
     externalDataProviderId = struct.getLong("DataProviderId")
     externalModelShardId = struct.getLong("ExternalModelShardId")
-    externalModelReleaseId = struct.getString("ModelRelease")
+    externalModelReleaseId = struct.getLong("ModelRelease")
     modelBlobPath = struct.getString("ModelBlobPath")
     createTime = struct.getTimestamp("CreateTime").toProto()
   }
