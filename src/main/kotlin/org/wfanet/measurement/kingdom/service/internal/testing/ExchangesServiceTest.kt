@@ -280,7 +280,7 @@ abstract class ExchangesServiceTest {
 
   @Test
   fun `streamExchange respects limit`(): Unit = runBlocking {
-    val createRequest1 = CreateExchangeRequest.newBuilder().apply { exchange = EXCHANGE }.build()
+    val createRequest1 = createExchangeRequest { exchange = EXCHANGE }
     val createRequest2 = createExchangeRequest {
       exchange =
         EXCHANGE.copy {
