@@ -12,19 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-terraform {
-  required_providers {
-    google = {
-      source  = "hashicorp/google"
-      version = "~> 4.63.0"
-    }
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = "~> 2.20.0"
-    }
-    postgresql = {
-      source  = "cyrilgdn/postgresql"
-      version = "~> 1.19.0"
-    }
-  }
+variable "postgres_instance" {
+  description = "PostgreSQL `google_sql_database_instance`."
+  type = object({
+    name            = string
+    connection_name = string
+  })
+  nullable = false
 }
