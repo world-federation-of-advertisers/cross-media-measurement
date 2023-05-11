@@ -63,8 +63,7 @@ TEST(MultithreadingHelper, TasksAreExecutedInMultipleThreads) {
     results[index] = index;
     return absl::OkStatus();
   };
-  auto status =
-      helper->ExecuteAndBlocking<std::string>(data, data.size(), func);
+  auto status = helper->Execute<std::string>(data, data.size(), func);
   ASSERT_TRUE(status.ok());
   EXPECT_EQ(results, std::vector<int>({0, 1, 2, 3, 4, 5, 6}));
 }
@@ -87,8 +86,7 @@ TEST(MultithreadingHelper, TasksAreExecutedInSingleThread) {
     results[index] = index;
     return absl::OkStatus();
   };
-  auto status =
-      helper->ExecuteAndBlocking<std::string>(data, data.size(), func);
+  auto status = helper->Execute<std::string>(data, data.size(), func);
   ASSERT_TRUE(status.ok());
   EXPECT_EQ(results, std::vector<int>({0, 1, 2, 3, 4, 5, 6}));
 }
@@ -116,8 +114,7 @@ TEST(MultithreadingHelper, ErrorReturnedWhenExecutionFails) {
       return absl::OkStatus();
     }
   };
-  auto status =
-      helper->ExecuteAndBlocking<std::string>(data, data.size(), func);
+  auto status = helper->Execute<std::string>(data, data.size(), func);
   ASSERT_FALSE(status.ok());
   EXPECT_THAT(status, StatusIs(absl::StatusCode::kInternal, error_message));
   EXPECT_EQ(results[3], -1);

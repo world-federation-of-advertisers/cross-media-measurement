@@ -32,7 +32,7 @@ MultithreadingHelper::CreateMultithreadingHelper(
     const ElGamalCiphertext& composite_el_gamal_public_key,
     const ElGamalCiphertext& partial_composite_el_gamal_public_key) {
   std::unique_ptr<MultithreadingHelper> helper =
-      absl::make_unique<MultithreadingHelper>(n_threads);
+      absl::WrapUnique(new MultithreadingHelper(n_threads));
   RETURN_IF_ERROR(helper->SetupCryptors(
       curve_id, local_el_gamal_public_key, local_el_gamal_private_key,
       local_pohlig_hellman_private_key, composite_el_gamal_public_key,
@@ -46,7 +46,7 @@ absl::Status MultithreadingHelper::SetupCryptors(
     absl::string_view local_pohlig_hellman_private_key,
     const ElGamalCiphertext& composite_el_gamal_public_key,
     const ElGamalCiphertext& partial_composite_el_gamal_public_key) {
-  for (size_t i = 0; i < n_threads_; i++) {
+  for (size_t i = 0; i < num_threads_; i++) {
     ASSIGN_OR_RETURN(
         auto cryptor,
         CreateProtocolCryptorWithKeys(
