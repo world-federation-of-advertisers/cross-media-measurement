@@ -16,7 +16,7 @@
 #define SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_MULTITHREADING_HELPER_H_
 
 #include <memory>
-#include <thread>  // NOLINT [build/c++11]
+#include <thread>  // NOLINT(build/c++11)
 #include <vector>
 
 #include "absl/functional/any_invocable.h"
