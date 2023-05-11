@@ -14,8 +14,6 @@
 
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/multithreading_helper.h"
 
-#include <utility>
-
 #include "absl/memory/memory.h"
 
 namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
@@ -31,31 +29,36 @@ MultithreadingHelper::CreateMultithreadingHelper(
     absl::string_view local_pohlig_hellman_private_key,
     const ElGamalCiphertext& composite_el_gamal_public_key,
     const ElGamalCiphertext& partial_composite_el_gamal_public_key) {
-  std::unique_ptr<MultithreadingHelper> helper =
-      absl::WrapUnique(new MultithreadingHelper(n_threads));
-  RETURN_IF_ERROR(helper->SetupCryptors(
-      curve_id, local_el_gamal_public_key, local_el_gamal_private_key,
-      local_pohlig_hellman_private_key, composite_el_gamal_public_key,
-      partial_composite_el_gamal_public_key));
+  ASSIGN_OR_RETURN(
+      auto cryptors,
+      MultithreadingHelper::CreateCryptors(
+          n_threads, curve_id, local_el_gamal_public_key,
+          local_el_gamal_private_key, local_pohlig_hellman_private_key,
+          composite_el_gamal_public_key,
+          partial_composite_el_gamal_public_key));
+  std::unique_ptr<MultithreadingHelper> helper = absl::WrapUnique(
+      new MultithreadingHelper(n_threads, std::move(cryptors)));
   return {std::move(helper)};
 }
 
-absl::Status MultithreadingHelper::SetupCryptors(
-    int curve_id, const ElGamalCiphertext& local_el_gamal_public_key,
+absl::StatusOr<std::vector<std::unique_ptr<ProtocolCryptor>>>
+MultithreadingHelper::CreateCryptors(
+    int num, int curve_id, const ElGamalCiphertext& local_el_gamal_public_key,
     absl::string_view local_el_gamal_private_key,
     absl::string_view local_pohlig_hellman_private_key,
     const ElGamalCiphertext& composite_el_gamal_public_key,
     const ElGamalCiphertext& partial_composite_el_gamal_public_key) {
-  for (size_t i = 0; i < num_threads_; i++) {
+  std::vector<std::unique_ptr<ProtocolCryptor>> cryptors;
+  for (size_t i = 0; i < num; i++) {
     ASSIGN_OR_RETURN(
         auto cryptor,
         CreateProtocolCryptorWithKeys(
             curve_id, local_el_gamal_public_key, local_el_gamal_private_key,
             local_pohlig_hellman_private_key, composite_el_gamal_public_key,
             partial_composite_el_gamal_public_key));
-    cryptors_.emplace_back(std::move(cryptor));
+    cryptors.emplace_back(std::move(cryptor));
   }
-  return absl::OkStatus();
+  return cryptors;
 }
 
 }  // namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2

@@ -17,6 +17,7 @@
 
 #include <memory>
 #include <thread>  // NOLINT(build/c++11)
+#include <utility>
 #include <vector>
 
 #include "absl/functional/any_invocable.h"
@@ -34,28 +35,31 @@ using ::wfa::measurement::common::crypto::ProtocolCryptor;
 // A helper class to execute cryptor iterations in multi-threads.
 class MultithreadingHelper {
  private:
-  explicit MultithreadingHelper(int n_threads) : num_threads_(n_threads) {}
+  explicit MultithreadingHelper(
+      int n_threads, std::vector<std::unique_ptr<ProtocolCryptor>> cryptors)
+      : num_threads_(n_threads), cryptors_(std::move(cryptors)) {}
 
-  // Initialize [ProtocolCryptor] for threads.
+  // Create [ProtocolCryptor] for threads.
   //
   // As [ProtocolCryptor] is not thread-safe, each thread has its own cryptor to
   // execute tasks.
-  absl::Status SetupCryptors(
-      int curve_id, const ElGamalCiphertext& local_el_gamal_public_key,
+  static absl::StatusOr<std::vector<std::unique_ptr<ProtocolCryptor>>>
+  CreateCryptors(
+      int num, int curve_id, const ElGamalCiphertext& local_el_gamal_public_key,
       absl::string_view local_el_gamal_private_key,
       absl::string_view local_pohlig_hellman_private_key,
       const ElGamalCiphertext& composite_el_gamal_public_key,
       const ElGamalCiphertext& partial_composite_el_gamal_public_key);
 
-  absl::Mutex mutex_;
-
-  int num_threads_;
+  const int num_threads_;
   std::vector<std::thread> threads_;
-  std::vector<std::unique_ptr<ProtocolCryptor>> cryptors_;
+  const std::vector<std::unique_ptr<ProtocolCryptor>> cryptors_;
 
   int num_iterations = 0;
-  int iteration_index_ = 0;
-  std::optional<absl::Status> failure_status_;
+
+  absl::Mutex mutex_;
+  int iteration_index_ ABSL_GUARDED_BY(mutex_) = 0;
+  std::optional<absl::Status> failure_status_ ABSL_GUARDED_BY(mutex_);
 
  public:
   static absl::StatusOr<std::unique_ptr<MultithreadingHelper>>
@@ -69,6 +73,19 @@ class MultithreadingHelper {
 
   // Execute function f with a batch input [data] and number of iterations.
   // Note: The function f must be thread-safe.
+  //
+  // Example:
+  //  std::string data = "123";
+  //  std::vector<std::string> results(data.size(), "");
+  //  absl::AnyInvocable<absl::Status(ProtocolCryptor &, std::string &, size_t)>
+  //      f = [&](ProtocolCryptor &cryptor, std::string &data,
+  //                 size_t index) -> absl::Status {
+  //    string random = cryptor.NextRandomBigNumAsString()
+  //    results[index] = random + data[index];
+  //    return absl::OkStatus();
+  //  };
+  //  multithreading_helper.Execute(data, data.size(), f);
+
   template <typename T>
   absl::Status Execute(
       T& data, int n_iterations,
@@ -79,8 +96,11 @@ class MultithreadingHelper {
     }
 
     num_iterations = n_iterations;
-    iteration_index_ = 0;
-    failure_status_.reset();
+    {
+      absl::MutexLock lock(&mutex_);
+      iteration_index_ = 0;
+      failure_status_.reset();
+    }
 
     for (int thread_index = 0; thread_index < num_threads_; thread_index++) {
       threads_.emplace_back(std::thread(
@@ -91,8 +111,11 @@ class MultithreadingHelper {
       thread.join();
     }
 
-    return failure_status_.has_value() ? failure_status_.value()
-                                       : absl::OkStatus();
+    {
+      absl::MutexLock lock(&mutex_);
+      return failure_status_.has_value() ? failure_status_.value()
+                                         : absl::OkStatus();
+    }
   }
 
   template <typename T>
