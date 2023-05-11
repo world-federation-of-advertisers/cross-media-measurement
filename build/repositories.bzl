@@ -17,11 +17,15 @@ Adds external repos necessary for wfa_measurement_system.
 """
 
 load("//build/wfa:repositories.bzl", "wfa_repo_archive")
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("//build/com_google_riegeli:repo.bzl", "com_google_riegeli_repo")
 
 MEASUREMENT_SYSTEM_REPO = "https://github.com/world-federation-of-advertisers/cross-media-measurement"
 
 def wfa_measurement_system_repositories():
     """Imports all direct dependencies for wfa_measurement_system."""
+
+    com_google_riegeli_repo()
 
     wfa_repo_archive(
         name = "wfa_common_jvm",
@@ -66,6 +70,13 @@ def wfa_measurement_system_repositories():
     )
 
     wfa_repo_archive(
+        name = "wfa_rules_cue",
+        repo = "rules_cue",
+        sha256 = "0261b7797fa9083183536667958b1094fc732725fc48fca5cb68e6f731cdce2f",
+        version = "0.3.0",
+    )
+
+    wfa_repo_archive(
         name = "wfa_consent_signaling_client",
         repo = "consent-signaling-client",
         sha256 = "99fde5608b79ff12a2a466cdd213e1535c62f80a96035006433ae9ba5a4a4d21",
@@ -73,8 +84,24 @@ def wfa_measurement_system_repositories():
     )
 
     wfa_repo_archive(
-        name = "wfa_rules_cue",
-        repo = "rules_cue",
-        sha256 = "0261b7797fa9083183536667958b1094fc732725fc48fca5cb68e6f731cdce2f",
-        version = "0.3.0",
+        name = "wfa_virtual_people_common",
+        repo = "virtual-people-common",
+        sha256 = "0a663e5517f50052ecc5e5745564935a3c15ebce2e9550b11dda451e341ea624",
+        version = "0.2.3",
+    )
+
+    http_archive(
+        name = "private_membership",
+        sha256 = "b1e0e7f74f4da09a6011c6fa91d7b968cdff6bb571712490dae427704b2af14c",
+        strip_prefix = "private-membership-84e45669f7357bffcdafbc1b0cc26e72512808ce",
+        url = "https://github.com/google/private-membership/archive/84e45669f7357bffcdafbc1b0cc26e72512808ce.zip",
+    )
+
+    http_archive(
+        name = "rules_pkg",
+        urls = [
+            "https://mirror.bazel.build/github.com/bazelbuild/rules_pkg/releases/download/0.6.0/rules_pkg-0.6.0.tar.gz",
+            "https://github.com/bazelbuild/rules_pkg/releases/download/0.6.0/rules_pkg-0.6.0.tar.gz",
+        ],
+        sha256 = "62eeb544ff1ef41d786e329e1536c1d541bb9bcad27ae984d57f18f314018e66",
     )
