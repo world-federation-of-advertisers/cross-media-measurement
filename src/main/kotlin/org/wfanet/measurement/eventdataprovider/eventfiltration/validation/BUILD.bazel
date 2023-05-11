@@ -10,7 +10,6 @@ kt_jvm_library(
     ],
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:__pkg__",
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/validation:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration/validation:__pkg__",
     ],
     deps = [

@@ -21,16 +21,3 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
     ],
 )
-
-kt_jvm_library(
-    name = "event_filter_validator",
-    srcs = ["EventFilterValidator.kt"],
-    deps = [
-        ":requisition_validator",
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration/validation",
-        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
-    ],
-)
