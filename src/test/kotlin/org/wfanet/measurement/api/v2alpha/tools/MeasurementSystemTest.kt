@@ -946,16 +946,19 @@ class MeasurementSystemTest {
 
     val request =
       captureFirst<ReplaceDataProviderRequiredDuchiesRequest> {
-        runBlocking { verify(dataProvidersServiceMock).replaceDataProviderRequiredDuchies(capture()) }
+        runBlocking {
+          verify(dataProvidersServiceMock).replaceDataProviderRequiredDuchies(capture())
+        }
       }
-
 
     assertThat(request)
       .comparingExpectedFieldsOnly()
-      .isEqualTo(replaceDataProviderRequiredDuchiesRequest {
-        name = DATA_PROVIDER_NAME
-        requiredExternalDuchies += DUCHIES
-      })
+      .isEqualTo(
+        replaceDataProviderRequiredDuchiesRequest {
+          name = DATA_PROVIDER_NAME
+          requiredExternalDuchies += DUCHIES
+        }
+      )
   }
 
   companion object {

@@ -1026,10 +1026,7 @@ private class DataProviders {
     DataProvidersCoroutineStub(parentCommand.kingdomChannel)
   }
 
-  @Command(
-    name = "replace-required-duchies",
-    description = ["Replaces DataProvider's duchy list"]
-  )
+  @Command(name = "replace-required-duchies", description = ["Replaces DataProvider's duchy list"])
   fun replaceRequiredDuchyList(
     @Option(
       names = ["--data-provider"],
