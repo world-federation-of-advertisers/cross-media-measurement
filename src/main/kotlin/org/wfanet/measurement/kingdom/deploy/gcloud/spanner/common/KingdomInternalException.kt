@@ -556,3 +556,11 @@ class ModelShardNotFoundException(
   override val context
     get() = mapOf("external_model_shard_id" to externalModelShardId.toString())
 }
+
+class ModelReleaseNotFoundException(
+  val externalModelReleaseId: ExternalId,
+  provideDescription: () -> String = { "ModelRelease not found" }
+) : KingdomInternalException(ErrorCode.MODEL_RELEASE_NOT_FOUND, provideDescription) {
+  override val context
+    get() = mapOf("external_model_release_id" to externalModelReleaseId.toString())
+}

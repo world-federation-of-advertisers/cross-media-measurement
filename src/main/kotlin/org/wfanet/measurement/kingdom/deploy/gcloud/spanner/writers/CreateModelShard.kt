@@ -16,13 +16,16 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.ModelShard
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelReleaseNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 
 class CreateModelShard(private val modelShard: ModelShard) :
@@ -39,18 +42,36 @@ class CreateModelShard(private val modelShard: ModelShard) :
     val internalModelShardId = idGenerator.generateInternalId()
     val externalModelShardId = idGenerator.generateExternalId()
 
-    // TODO(@jojijac0b): Add logic to get internal model release.
+    val modelReleaseId: InternalId =
+      readModelReleaseId(ExternalId(modelShard.externalModelReleaseId))
 
     transactionContext.bufferInsertMutation("ModelShards") {
       set("DataProviderId" to dataProviderId)
       set("ModelShardId" to internalModelShardId)
       set("ExternalModelShardId" to externalModelShardId)
-      set("ModelRelease" to modelShard.externalModelReleaseId)
+      set("ModelRelease" to modelReleaseId)
       set("ModelBlobPath" to modelShard.modelBlobPath)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
     }
 
     return modelShard.copy { this.externalModelShardId = externalModelShardId.value }
+  }
+
+  private suspend fun TransactionScope.readModelReleaseId(
+    externalModelReleaseId: ExternalId
+  ): InternalId {
+    val column = "ModelReleaseId"
+    return transactionContext
+      .readRowUsingIndex(
+        "ModelReleases",
+        "ModelReleasesByExternalId",
+        Key.of(externalModelReleaseId.value),
+        column
+      )
+      ?.let { struct -> InternalId(struct.getLong(column)) }
+      ?: throw ModelReleaseNotFoundException(externalModelReleaseId) {
+        "ModelRelease with external ID $externalModelReleaseId not found"
+      }
   }
 
   override fun ResultScope<ModelShard>.buildResult(): ModelShard {

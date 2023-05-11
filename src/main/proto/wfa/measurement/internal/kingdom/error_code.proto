@@ -90,4 +90,6 @@ enum ErrorCode {
   MODEL_LINE_INVALID_ARGS = 32;
   /** ModelShard resource queried could not be found. */
   MODEL_SHARD_NOT_FOUND = 33;
+  /** ModelRelease resource queried could not be found. */
+  MODEL_RELEASE_NOT_FOUND = 34;
 }
