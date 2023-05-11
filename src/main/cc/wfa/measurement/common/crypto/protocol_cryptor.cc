@@ -314,40 +314,39 @@ std::string ProtocolCryptorImpl::NextRandomBigNumAsString() {
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<ProtocolCryptor>> CreateProtocolCryptorWithKeys(
-    int curve_id, const ElGamalCiphertext& local_el_gamal_public_key,
-    absl::string_view local_el_gamal_private_key,
-    absl::string_view local_pohlig_hellman_private_key,
-    const ElGamalCiphertext& composite_el_gamal_public_key,
-    const ElGamalCiphertext& partial_composite_el_gamal_public_key) {
+    const ProtocolCryptorKeys& keys) {
   auto ctx = absl::make_unique<Context>();
-  ASSIGN_OR_RETURN(ECGroup ec_group, ECGroup::Create(curve_id, ctx.get()));
+  ASSIGN_OR_RETURN(ECGroup ec_group, ECGroup::Create(keys.curve_id, ctx.get()));
   ASSIGN_OR_RETURN(
       auto local_el_gamal_cipher,
-      local_el_gamal_public_key.first.empty()
-          ? CommutativeElGamal::CreateWithNewKeyPair(curve_id)
-          : (local_el_gamal_private_key.empty()
+      keys.local_el_gamal_public_key.first.empty()
+          ? CommutativeElGamal::CreateWithNewKeyPair(keys.curve_id)
+          : (keys.local_el_gamal_private_key.empty()
                  ? CommutativeElGamal::CreateFromPublicKey(
-                       curve_id, local_el_gamal_public_key)
+                       keys.curve_id, keys.local_el_gamal_public_key)
                  : CommutativeElGamal::CreateFromPublicAndPrivateKeys(
-                       curve_id, local_el_gamal_public_key,
-                       local_el_gamal_private_key)));
-  ASSIGN_OR_RETURN(auto client_el_gamal_cipher,
-                   composite_el_gamal_public_key.first.empty()
-                       ? CommutativeElGamal::CreateWithNewKeyPair(curve_id)
-                       : CommutativeElGamal::CreateFromPublicKey(
-                             curve_id, composite_el_gamal_public_key));
-  ASSIGN_OR_RETURN(auto partial_composite_el_gamal_cipher,
-                   partial_composite_el_gamal_public_key.first.empty()
-                       ? CommutativeElGamal::CreateWithNewKeyPair(curve_id)
-                       : CommutativeElGamal::CreateFromPublicKey(
-                             curve_id, partial_composite_el_gamal_public_key));
-  ASSIGN_OR_RETURN(auto local_pohlig_hellman_cipher,
-                   local_pohlig_hellman_private_key.empty()
-                       ? ECCommutativeCipher::CreateWithNewKey(
-                             curve_id, ECCommutativeCipher::HashType::SHA256)
-                       : ECCommutativeCipher::CreateFromKey(
-                             curve_id, local_pohlig_hellman_private_key,
-                             ECCommutativeCipher::HashType::SHA256));
+                       keys.curve_id, keys.local_el_gamal_public_key,
+                       keys.local_el_gamal_private_key)));
+  ASSIGN_OR_RETURN(
+      auto client_el_gamal_cipher,
+      keys.composite_el_gamal_public_key.first.empty()
+          ? CommutativeElGamal::CreateWithNewKeyPair(keys.curve_id)
+          : CommutativeElGamal::CreateFromPublicKey(
+                keys.curve_id, keys.composite_el_gamal_public_key));
+  ASSIGN_OR_RETURN(
+      auto partial_composite_el_gamal_cipher,
+      keys.partial_composite_el_gamal_public_key.first.empty()
+          ? CommutativeElGamal::CreateWithNewKeyPair(keys.curve_id)
+          : CommutativeElGamal::CreateFromPublicKey(
+                keys.curve_id, keys.partial_composite_el_gamal_public_key));
+  ASSIGN_OR_RETURN(
+      auto local_pohlig_hellman_cipher,
+      keys.local_pohlig_hellman_private_key.empty()
+          ? ECCommutativeCipher::CreateWithNewKey(
+                keys.curve_id, ECCommutativeCipher::HashType::SHA256)
+          : ECCommutativeCipher::CreateFromKey(
+                keys.curve_id, keys.local_pohlig_hellman_private_key,
+                ECCommutativeCipher::HashType::SHA256));
 
   std::unique_ptr<ProtocolCryptor> result =
       absl::make_unique<ProtocolCryptorImpl>(

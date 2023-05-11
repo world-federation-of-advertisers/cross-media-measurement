@@ -20,6 +20,7 @@ namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 
 using ::wfa::measurement::common::crypto::CreateProtocolCryptorWithKeys;
 using ::wfa::measurement::common::crypto::ElGamalCiphertext;
+using ::wfa::measurement::common::crypto::ProtocolCryptorKeys;
 
 absl::StatusOr<std::unique_ptr<MultithreadingHelper>>
 MultithreadingHelper::CreateMultithreadingHelper(
@@ -50,12 +51,11 @@ MultithreadingHelper::CreateCryptors(
     const ElGamalCiphertext& partial_composite_el_gamal_public_key) {
   std::vector<std::unique_ptr<ProtocolCryptor>> cryptors;
   for (size_t i = 0; i < num; i++) {
-    ASSIGN_OR_RETURN(
-        auto cryptor,
-        CreateProtocolCryptorWithKeys(
-            curve_id, local_el_gamal_public_key, local_el_gamal_private_key,
-            local_pohlig_hellman_private_key, composite_el_gamal_public_key,
-            partial_composite_el_gamal_public_key));
+    ProtocolCryptorKeys keys(
+        curve_id, local_el_gamal_public_key, local_el_gamal_private_key,
+        local_pohlig_hellman_private_key, composite_el_gamal_public_key,
+        partial_composite_el_gamal_public_key);
+    ASSIGN_OR_RETURN(auto cryptor, CreateProtocolCryptorWithKeys(keys));
     cryptors.emplace_back(std::move(cryptor));
   }
   return cryptors;
