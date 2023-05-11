@@ -1027,7 +1027,7 @@ private class DataProviders {
   }
 
   @Command(
-    name = "replace-data-provider-duchies",
+    name = "replace-required-duchies",
     description = ["Replaces DataProvider's duchy list"]
   )
   fun replaceRequiredDuchyList(
