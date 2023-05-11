@@ -548,3 +548,16 @@ class ExchangeStepNotFoundException(
         "step_index" to stepIndex.toString(),
       )
 }
+
+class ExchangeNotFoundException(
+  val externalRecurringExchangeId: ExternalId,
+  val date: Date,
+  provideDescription: () -> String = { "Exchange not found" }
+) : KingdomInternalException(ErrorCode.EXCHANGE_NOT_FOUND, provideDescription) {
+  override val context: Map<String, String>
+    get() =
+      mapOf(
+        "external_recurring_exchange_id" to externalRecurringExchangeId.value.toString(),
+        "date" to date.toString(),
+      )
+}
