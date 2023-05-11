@@ -80,4 +80,6 @@ enum ErrorCode {
   DUCHY_NOT_ACTIVE = 27;
   /** Measurement etag requested does not match actual Measurement etag. */
   MEASUREMENT_ETAG_MISMATCH = 28;
+  /** Exchange could not be found. */
+  EXCHANGE_NOT_FOUND = 29;
 }
