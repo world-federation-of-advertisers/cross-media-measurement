@@ -21,6 +21,7 @@ import io.grpc.StatusException
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.CreateModelSuiteRequest
+import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.GetModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageToken
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt
@@ -43,8 +44,6 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.internal.kingdom.ModelSuite as InternalModelSuite
-import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequestKt

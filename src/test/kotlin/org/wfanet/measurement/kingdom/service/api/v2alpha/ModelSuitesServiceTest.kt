@@ -45,8 +45,11 @@ import org.wfanet.measurement.api.v2alpha.listModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.listModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.withDuchyPrincipal
+import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -62,9 +65,6 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getModelSuiteRequest as internalGetModelSuiteRequest
 import org.wfanet.measurement.internal.kingdom.modelSuite as internalModelSuite
 import org.wfanet.measurement.internal.kingdom.streamModelSuitesRequest as internalStreamModelSuitesRequest
-import org.wfanet.measurement.api.v2alpha.withDuchyPrincipal
-import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
-import org.wfanet.measurement.common.grpc.failGrpc
 
 private const val DEFAULT_LIMIT = 50
 
@@ -109,14 +109,15 @@ class ModelSuitesServiceTest {
 
   private val internalModelSuitesMock: ModelSuitesCoroutineImplBase =
     mockService() {
-      onBlocking { createModelSuite(any()) }.thenAnswer {
-        val request = it.getArgument<InternalModelSuite>(0)
-        if (request.externalModelProviderId != 123L) {
-          failGrpc(Status.NOT_FOUND) { "ModelProvider not found" }
-        } else {
-          INTERNAL_MODEL_SUITE
+      onBlocking { createModelSuite(any()) }
+        .thenAnswer {
+          val request = it.getArgument<InternalModelSuite>(0)
+          if (request.externalModelProviderId != 123L) {
+            failGrpc(Status.NOT_FOUND) { "ModelProvider not found" }
+          } else {
+            INTERNAL_MODEL_SUITE
+          }
         }
-      }
       onBlocking { getModelSuite(any()) }.thenReturn(INTERNAL_MODEL_SUITE)
       onBlocking { streamModelSuites(any()) }
         .thenReturn(
@@ -202,9 +203,7 @@ class ModelSuitesServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withDuchyPrincipal(DUCHY_NAME) {
-          runBlocking { service.createModelSuite(request) }
-        }
+        withDuchyPrincipal(DUCHY_NAME) { runBlocking { service.createModelSuite(request) } }
       }
     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
@@ -269,9 +268,7 @@ class ModelSuitesServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withModelProviderPrincipal(MODEL_PROVIDER_NAME_2) {
-          runBlocking {
-            service.createModelSuite(request)
-          }
+          runBlocking { service.createModelSuite(request) }
         }
       }
     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
@@ -327,9 +324,7 @@ class ModelSuitesServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withDuchyPrincipal(DUCHY_NAME) {
-          runBlocking { service.getModelSuite(request) }
-        }
+        withDuchyPrincipal(DUCHY_NAME) { runBlocking { service.getModelSuite(request) } }
       }
     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
@@ -590,9 +585,7 @@ class ModelSuitesServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withDuchyPrincipal(DUCHY_NAME) {
-          runBlocking { service.listModelSuites(request) }
-        }
+        withDuchyPrincipal(DUCHY_NAME) { runBlocking { service.listModelSuites(request) } }
       }
     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }

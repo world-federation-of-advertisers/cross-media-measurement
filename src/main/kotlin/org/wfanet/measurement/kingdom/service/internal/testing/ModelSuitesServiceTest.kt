@@ -80,6 +80,21 @@ abstract class ModelSuitesServiceTest<T : ModelSuitesCoroutineImplBase> {
   }
 
   @Test
+  fun `createModelSuite fails when Model Provider is not found`() = runBlocking {
+    val modelSuite = modelSuite {
+      externalModelProviderId = 123L
+      displayName = "displayName"
+      description = "description"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { modelSuitesService.createModelSuite(modelSuite) }
+
+    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    Truth.assertThat(exception).hasMessageThat().contains("ModelProvider not found")
+  }
+
+  @Test
   fun `createModelSuite succeeds`() = runBlocking {
     val modelProvider = population.createModelProvider(modelProvidersService)
 
