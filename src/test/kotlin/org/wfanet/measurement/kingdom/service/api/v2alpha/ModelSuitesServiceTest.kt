@@ -62,15 +62,21 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getModelSuiteRequest as internalGetModelSuiteRequest
 import org.wfanet.measurement.internal.kingdom.modelSuite as internalModelSuite
 import org.wfanet.measurement.internal.kingdom.streamModelSuitesRequest as internalStreamModelSuitesRequest
+import org.wfanet.measurement.api.v2alpha.withDuchyPrincipal
+import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
+import org.wfanet.measurement.common.grpc.failGrpc
 
 private const val DEFAULT_LIMIT = 50
 
+private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
+private const val DUCHY_NAME = "duchies/AAAAAAAAAHs"
 private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
 private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
 private const val MODEL_PROVIDER_NAME_2 = "modelProviders/BBBBBBBBBHs"
 private const val MODEL_SUITE_NAME = "$MODEL_PROVIDER_NAME/modelSuites/AAAAAAAAAHs"
 private const val MODEL_SUITE_NAME_2 = "$MODEL_PROVIDER_NAME/modelSuites/AAAAAAAAAJs"
 private const val MODEL_SUITE_NAME_3 = "$MODEL_PROVIDER_NAME/modelSuites/AAAAAAAAAKs"
+private const val MODEL_SUITE_NAME_4 = "$MODEL_PROVIDER_NAME_2/modelSuites/AAAAAAAAAHs"
 private val EXTERNAL_MODEL_PROVIDER_ID =
   apiIdToExternalId(ModelProviderKey.fromName(MODEL_PROVIDER_NAME)!!.modelProviderId)
 private val EXTERNAL_MODEL_SUITE_ID =
@@ -103,7 +109,14 @@ class ModelSuitesServiceTest {
 
   private val internalModelSuitesMock: ModelSuitesCoroutineImplBase =
     mockService() {
-      onBlocking { createModelSuite(any()) }.thenReturn(INTERNAL_MODEL_SUITE)
+      onBlocking { createModelSuite(any()) }.thenAnswer {
+        val request = it.getArgument<InternalModelSuite>(0)
+        if (request.externalModelProviderId != 123L) {
+          failGrpc(Status.NOT_FOUND) { "ModelProvider not found" }
+        } else {
+          INTERNAL_MODEL_SUITE
+        }
+      }
       onBlocking { getModelSuite(any()) }.thenReturn(INTERNAL_MODEL_SUITE)
       onBlocking { streamModelSuites(any()) }
         .thenReturn(
@@ -165,7 +178,7 @@ class ModelSuitesServiceTest {
   }
 
   @Test
-  fun `createModelSuite throws PERMISSION_DENIED when principal without authorization is found`() {
+  fun `createModelSuite throws PERMISSION_DENIED when principal is data provider`() {
     val request = createModelSuiteRequest {
       parent = MODEL_PROVIDER_NAME
       modelSuite = MODEL_SUITE
@@ -174,6 +187,38 @@ class ModelSuitesServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.createModelSuite(request) }
+        }
+      }
+    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `createModelSuite throws PERMISSION_DENIED when principal is duchy`() {
+    val request = createModelSuiteRequest {
+      parent = MODEL_PROVIDER_NAME
+      modelSuite = MODEL_SUITE
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDuchyPrincipal(DUCHY_NAME) {
+          runBlocking { service.createModelSuite(request) }
+        }
+      }
+    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `createModelSuite throws PERMISSION_DENIED when principal is measurement consumer`() {
+    val request = createModelSuiteRequest {
+      parent = MODEL_PROVIDER_NAME
+      modelSuite = MODEL_SUITE
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking { service.createModelSuite(request) }
         }
       }
@@ -207,6 +252,29 @@ class ModelSuitesServiceTest {
         }
       }
     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createModelSuite throws NOT_FOUND if model provider is not found`() {
+    val request = createModelSuiteRequest {
+      parent = MODEL_PROVIDER_NAME_2
+      modelSuite = modelSuite {
+        name = MODEL_SUITE_NAME_4
+        displayName = DISPLAY_NAME
+        description = DESCRIPTION
+        createTime = CREATE_TIME
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME_2) {
+          runBlocking {
+            service.createModelSuite(request)
+          }
+        }
+      }
+    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 
   @Test
@@ -251,6 +319,32 @@ class ModelSuitesServiceTest {
       )
 
     ProtoTruth.assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `getModelSuite throws PERMISSION_DENIED when principal is duchy`() {
+    val request = getModelSuiteRequest { name = MODEL_SUITE_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDuchyPrincipal(DUCHY_NAME) {
+          runBlocking { service.getModelSuite(request) }
+        }
+      }
+    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `getModelSuite throws PERMISSION_DENIED when principal is measurement consumer`() {
+    val request = getModelSuiteRequest { name = MODEL_SUITE_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.getModelSuite(request) }
+        }
+      }
+    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
@@ -358,10 +452,7 @@ class ModelSuitesServiceTest {
       val listModelSuitesPageToken = listModelSuitesPageToken {
         pageSize = 2
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-        lastModelSuite = previousPageEnd {
-          createdAfter = CREATE_TIME
-          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-        }
+        lastModelSuite = previousPageEnd { createdAfter = CREATE_TIME }
       }
       pageToken = listModelSuitesPageToken.toByteArray().base64UrlEncode()
     }
@@ -377,10 +468,7 @@ class ModelSuitesServiceTest {
       val listModelSuitesPageToken = listModelSuitesPageToken {
         pageSize = request.pageSize
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-        lastModelSuite = previousPageEnd {
-          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID_2
-          createdAfter = CREATE_TIME
-        }
+        lastModelSuite = previousPageEnd { createdAfter = CREATE_TIME }
       }
       nextPageToken = listModelSuitesPageToken.toByteArray().base64UrlEncode()
     }
@@ -413,10 +501,7 @@ class ModelSuitesServiceTest {
       val listModelSuitesPageToken = listModelSuitesPageToken {
         pageSize = 2
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-        lastModelSuite = previousPageEnd {
-          createdAfter = CREATE_TIME
-          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-        }
+        lastModelSuite = previousPageEnd { createdAfter = CREATE_TIME }
       }
       pageToken = listModelSuitesPageToken.toByteArray().base64UrlEncode()
     }
@@ -450,10 +535,7 @@ class ModelSuitesServiceTest {
       val listModelSuitesPageToken = listModelSuitesPageToken {
         pageSize = 2
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-        lastModelSuite = previousPageEnd {
-          createdAfter = CREATE_TIME
-          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-        }
+        lastModelSuite = previousPageEnd { createdAfter = CREATE_TIME }
       }
       pageToken = listModelSuitesPageToken.toByteArray().base64UrlEncode()
     }
@@ -503,6 +585,32 @@ class ModelSuitesServiceTest {
   }
 
   @Test
+  fun `listModelSuites throws PERMISSION_DENIED when principal is duchy`() {
+    val request = listModelSuitesRequest { parent = MODEL_PROVIDER_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDuchyPrincipal(DUCHY_NAME) {
+          runBlocking { service.listModelSuites(request) }
+        }
+      }
+    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `listModelSuites throws PERMISSION_DENIED when principal is measurement consumer`() {
+    val request = listModelSuitesRequest { parent = MODEL_PROVIDER_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.listModelSuites(request) }
+        }
+      }
+    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
   fun `listModelSuites throws INVALID_ARGUMENT when parent is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -538,10 +646,7 @@ class ModelSuitesServiceTest {
       val listModelSuitesPageToken = listModelSuitesPageToken {
         pageSize = 2
         externalModelProviderId = 987
-        lastModelSuite = previousPageEnd {
-          createdAfter = CREATE_TIME
-          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-        }
+        lastModelSuite = previousPageEnd { createdAfter = CREATE_TIME }
       }
       pageToken = listModelSuitesPageToken.toByteArray().base64UrlEncode()
     }

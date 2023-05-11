@@ -43,6 +43,8 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.internal.kingdom.ModelSuite as InternalModelSuite
+import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequestKt
@@ -99,7 +101,10 @@ class ModelSuitesService(private val internalClient: ModelSuitesCoroutineStub) :
           failGrpc(Status.PERMISSION_DENIED) { "Cannot get ModelSuite from another ModelProvider" }
         }
       }
-      else -> {}
+      is DataProviderPrincipal -> {}
+      else -> {
+        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to get ModelSuite" }
+      }
     }
 
     val getModelSuiteRequest = getModelSuiteRequest {
@@ -132,7 +137,10 @@ class ModelSuitesService(private val internalClient: ModelSuitesCoroutineStub) :
           }
         }
       }
-      else -> {}
+      is DataProviderPrincipal -> {}
+      else -> {
+        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to get ModelSuite" }
+      }
     }
 
     val results: List<InternalModelSuite> =
@@ -155,7 +163,6 @@ class ModelSuitesService(private val internalClient: ModelSuitesCoroutineStub) :
           listModelSuitesPageToken.copy {
             lastModelSuite =
               ListModelSuitesPageTokenKt.previousPageEnd {
-                externalModelSuiteId = results[results.lastIndex - 1].externalModelSuiteId
                 createdAfter = results[results.lastIndex - 1].createTime
               }
           }
