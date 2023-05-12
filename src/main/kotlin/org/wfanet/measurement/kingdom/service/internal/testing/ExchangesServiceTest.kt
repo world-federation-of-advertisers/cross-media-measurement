@@ -310,7 +310,7 @@ abstract class ExchangesServiceTest {
 
   @Test
   fun `batchDeleteExchanges deletes all requested Exchanges`(): Unit = runBlocking {
-    val exchangeRequest1 = CreateExchangeRequest.newBuilder().apply { exchange = EXCHANGE }.build()
+    val exchangeRequest1 = createExchangeRequest { exchange = EXCHANGE }
     val exchangeRequest2 = createExchangeRequest {
       exchange =
         EXCHANGE.copy {
@@ -346,8 +346,7 @@ abstract class ExchangesServiceTest {
   @Test
   fun `batchDeleteExchanges does not delete any Exchange when any is missing`(): Unit =
     runBlocking {
-      val exchangeRequest1 =
-        CreateExchangeRequest.newBuilder().apply { exchange = EXCHANGE }.build()
+      val exchangeRequest1 = createExchangeRequest { exchange = EXCHANGE }
       val validExchange = createExchange(exchangeRequest1)
 
       val validDeleteExchangeRequest = deleteExchangeRequest {
