@@ -246,6 +246,7 @@ abstract class ModelSuitesServiceTest<T : ModelSuitesCoroutineImplBase> {
             filter = filter {
               externalModelProviderId = modelProvider.externalModelProviderId
               createdAfter = modelSuites[0].createTime
+              externalModelSuiteId = modelSuites[0].externalModelSuiteId
             }
           }
         )

@@ -31,7 +31,7 @@ class StreamModelSuites(
   override val reader =
     ModelSuiteReader().fillStatementBuilder {
       appendWhereClause(requestFilter)
-      appendClause("ORDER BY ModelSuites.CreateTime ASC")
+      appendClause("ORDER BY ModelSuites.CreateTime ASC, ModelSuites.ExternalModelSuiteId ASC")
       if (limit > 0) {
         appendClause("LIMIT @${LIMIT_PARAM}")
         bind(LIMIT_PARAM to limit.toLong())
@@ -50,8 +50,9 @@ class StreamModelSuites(
       if (filter.externalModelSuiteId != 0L) {
         conjuncts.add(
           """
-          (ModelSuites.CreateTime  > @${CREATED_AFTER}
-          AND ModelSuites.ExternalModelSuiteId > @${EXTERNAL_MODEL_SUITE_ID})
+          ((ModelSuites.CreateTime  > @${CREATED_AFTER})
+          OR (ModelSuites.CreateTime  > @${CREATED_AFTER}
+          AND ModelSuites.ExternalModelSuiteId > @${EXTERNAL_MODEL_SUITE_ID}))
         """
             .trimIndent()
         )
