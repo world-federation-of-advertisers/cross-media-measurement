@@ -16,8 +16,8 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
-import com.google.common.truth.Truth
-import com.google.common.truth.extensions.proto.ProtoTruth
+import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -163,7 +163,7 @@ class ModelSuitesServiceTest {
         }
       )
 
-    ProtoTruth.assertThat(result).isEqualTo(expected)
+    assertThat(result).isEqualTo(expected)
   }
 
   @Test
@@ -175,7 +175,7 @@ class ModelSuitesServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> { runBlocking { service.createModelSuite(request) } }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
   @Test
@@ -191,7 +191,7 @@ class ModelSuitesServiceTest {
           runBlocking { service.createModelSuite(request) }
         }
       }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
@@ -205,7 +205,7 @@ class ModelSuitesServiceTest {
       assertFailsWith<StatusRuntimeException> {
         withDuchyPrincipal(DUCHY_NAME) { runBlocking { service.createModelSuite(request) } }
       }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
@@ -221,7 +221,7 @@ class ModelSuitesServiceTest {
           runBlocking { service.createModelSuite(request) }
         }
       }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
@@ -237,7 +237,7 @@ class ModelSuitesServiceTest {
           runBlocking { service.createModelSuite(request) }
         }
       }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
@@ -250,7 +250,7 @@ class ModelSuitesServiceTest {
           }
         }
       }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
@@ -271,7 +271,7 @@ class ModelSuitesServiceTest {
           runBlocking { service.createModelSuite(request) }
         }
       }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 
   @Test
@@ -293,7 +293,7 @@ class ModelSuitesServiceTest {
         }
       )
 
-    ProtoTruth.assertThat(result).isEqualTo(expected)
+    assertThat(result).isEqualTo(expected)
   }
 
   @Test
@@ -315,7 +315,7 @@ class ModelSuitesServiceTest {
         }
       )
 
-    ProtoTruth.assertThat(result).isEqualTo(expected)
+    assertThat(result).isEqualTo(expected)
   }
 
   @Test
@@ -326,7 +326,7 @@ class ModelSuitesServiceTest {
       assertFailsWith<StatusRuntimeException> {
         withDuchyPrincipal(DUCHY_NAME) { runBlocking { service.getModelSuite(request) } }
       }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
@@ -339,7 +339,7 @@ class ModelSuitesServiceTest {
           runBlocking { service.getModelSuite(request) }
         }
       }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
@@ -352,7 +352,7 @@ class ModelSuitesServiceTest {
           runBlocking { service.getModelSuite(request) }
         }
       }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
@@ -361,7 +361,7 @@ class ModelSuitesServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> { runBlocking { service.getModelSuite(request) } }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
   @Test
@@ -372,7 +372,7 @@ class ModelSuitesServiceTest {
           runBlocking { service.getModelSuite(getModelSuiteRequest {}) }
         }
       }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
@@ -395,7 +395,7 @@ class ModelSuitesServiceTest {
         verify(internalModelSuitesMock).streamModelSuites(capture())
       }
 
-    ProtoTruth.assertThat(streamModelSuitesRequest)
+    assertThat(streamModelSuitesRequest)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         internalStreamModelSuitesRequest {
@@ -404,7 +404,7 @@ class ModelSuitesServiceTest {
         }
       )
 
-    ProtoTruth.assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
 
   @Test
@@ -427,7 +427,7 @@ class ModelSuitesServiceTest {
         verify(internalModelSuitesMock).streamModelSuites(capture())
       }
 
-    ProtoTruth.assertThat(streamModelSuitesRequest)
+    assertThat(streamModelSuitesRequest)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         internalStreamModelSuitesRequest {
@@ -436,7 +436,7 @@ class ModelSuitesServiceTest {
         }
       )
 
-    ProtoTruth.assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
 
   @Test
@@ -447,7 +447,10 @@ class ModelSuitesServiceTest {
       val listModelSuitesPageToken = listModelSuitesPageToken {
         pageSize = 2
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-        lastModelSuite = previousPageEnd { createdAfter = CREATE_TIME }
+        lastModelSuite = previousPageEnd {
+          createdAfter = CREATE_TIME
+          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+        }
       }
       pageToken = listModelSuitesPageToken.toByteArray().base64UrlEncode()
     }
@@ -463,7 +466,10 @@ class ModelSuitesServiceTest {
       val listModelSuitesPageToken = listModelSuitesPageToken {
         pageSize = request.pageSize
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-        lastModelSuite = previousPageEnd { createdAfter = CREATE_TIME }
+        lastModelSuite = previousPageEnd {
+          createdAfter = CREATE_TIME
+          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID_2
+        }
       }
       nextPageToken = listModelSuitesPageToken.toByteArray().base64UrlEncode()
     }
@@ -473,7 +479,7 @@ class ModelSuitesServiceTest {
         verify(internalModelSuitesMock).streamModelSuites(capture())
       }
 
-    ProtoTruth.assertThat(streamModelSuitesRequest)
+    assertThat(streamModelSuitesRequest)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         internalStreamModelSuitesRequest {
@@ -481,11 +487,12 @@ class ModelSuitesServiceTest {
           filter = filter {
             externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
             createdAfter = CREATE_TIME
+            externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
           }
         }
       )
 
-    ProtoTruth.assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
 
   @Test
@@ -496,7 +503,10 @@ class ModelSuitesServiceTest {
       val listModelSuitesPageToken = listModelSuitesPageToken {
         pageSize = 2
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-        lastModelSuite = previousPageEnd { createdAfter = CREATE_TIME }
+        lastModelSuite = previousPageEnd {
+          createdAfter = CREATE_TIME
+          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+        }
       }
       pageToken = listModelSuitesPageToken.toByteArray().base64UrlEncode()
     }
@@ -510,7 +520,7 @@ class ModelSuitesServiceTest {
         verify(internalModelSuitesMock).streamModelSuites(capture())
       }
 
-    ProtoTruth.assertThat(streamModelSuitesRequest)
+    assertThat(streamModelSuitesRequest)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
         internalStreamModelSuitesRequest {
@@ -518,6 +528,7 @@ class ModelSuitesServiceTest {
           filter = filter {
             externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
             createdAfter = CREATE_TIME
+            externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
           }
         }
       )
@@ -530,7 +541,10 @@ class ModelSuitesServiceTest {
       val listModelSuitesPageToken = listModelSuitesPageToken {
         pageSize = 2
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-        lastModelSuite = previousPageEnd { createdAfter = CREATE_TIME }
+        lastModelSuite = previousPageEnd {
+          createdAfter = CREATE_TIME
+          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+        }
       }
       pageToken = listModelSuitesPageToken.toByteArray().base64UrlEncode()
     }
@@ -544,7 +558,7 @@ class ModelSuitesServiceTest {
         verify(internalModelSuitesMock).streamModelSuites(capture())
       }
 
-    ProtoTruth.assertThat(streamModelSuitesRequest)
+    assertThat(streamModelSuitesRequest)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
         internalStreamModelSuitesRequest {
@@ -552,6 +566,7 @@ class ModelSuitesServiceTest {
           filter = filter {
             externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
             createdAfter = CREATE_TIME
+            externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
           }
         }
       )
@@ -563,7 +578,7 @@ class ModelSuitesServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> { runBlocking { service.listModelSuites(request) } }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
   @Test
@@ -576,7 +591,7 @@ class ModelSuitesServiceTest {
           runBlocking { service.listModelSuites(request) }
         }
       }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
@@ -587,7 +602,7 @@ class ModelSuitesServiceTest {
       assertFailsWith<StatusRuntimeException> {
         withDuchyPrincipal(DUCHY_NAME) { runBlocking { service.listModelSuites(request) } }
       }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
@@ -600,7 +615,7 @@ class ModelSuitesServiceTest {
           runBlocking { service.listModelSuites(request) }
         }
       }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
@@ -611,7 +626,7 @@ class ModelSuitesServiceTest {
           runBlocking { service.listModelSuites(ListModelSuitesRequest.getDefaultInstance()) }
         }
       }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
@@ -629,7 +644,7 @@ class ModelSuitesServiceTest {
           }
         }
       }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
@@ -639,7 +654,10 @@ class ModelSuitesServiceTest {
       val listModelSuitesPageToken = listModelSuitesPageToken {
         pageSize = 2
         externalModelProviderId = 987
-        lastModelSuite = previousPageEnd { createdAfter = CREATE_TIME }
+        lastModelSuite = previousPageEnd {
+          createdAfter = CREATE_TIME
+          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+        }
       }
       pageToken = listModelSuitesPageToken.toByteArray().base64UrlEncode()
     }
@@ -650,6 +668,6 @@ class ModelSuitesServiceTest {
           runBlocking { service.listModelSuites(request) }
         }
       }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 }

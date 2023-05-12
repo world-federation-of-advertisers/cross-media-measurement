@@ -79,7 +79,7 @@ class ModelSuitesService(private val internalClient: ModelSuitesCoroutineStub) :
 
     val createModelSuiteRequest = request.modelSuite.toInternal(parentKey)
     return try {
-      internalClient.createModelSuite(createModelSuiteRequest).toV2Alpha()
+      internalClient.createModelSuite(createModelSuiteRequest).toModelSuite()
     } catch (ex: StatusException) {
       when (ex.status.code) {
         Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "ModelProvider not found." }
@@ -112,7 +112,7 @@ class ModelSuitesService(private val internalClient: ModelSuitesCoroutineStub) :
     }
 
     try {
-      return internalClient.getModelSuite(getModelSuiteRequest).toV2Alpha()
+      return internalClient.getModelSuite(getModelSuiteRequest).toModelSuite()
     } catch (ex: StatusException) {
       when (ex.status.code) {
         Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "ModelSuite not found." }
@@ -155,7 +155,7 @@ class ModelSuitesService(private val internalClient: ModelSuitesCoroutineStub) :
       modelSuite +=
         results.subList(0, min(results.size, listModelSuitesPageToken.pageSize)).map {
           internalModelSuite ->
-          internalModelSuite.toV2Alpha()
+          internalModelSuite.toModelSuite()
         }
       if (results.size > listModelSuitesPageToken.pageSize) {
         val pageToken =
@@ -163,6 +163,7 @@ class ModelSuitesService(private val internalClient: ModelSuitesCoroutineStub) :
             lastModelSuite =
               ListModelSuitesPageTokenKt.previousPageEnd {
                 createdAfter = results[results.lastIndex - 1].createTime
+                externalModelSuiteId = results[results.lastIndex - 1].externalModelSuiteId
               }
           }
         nextPageToken = pageToken.toByteArray().base64UrlEncode()
@@ -216,6 +217,7 @@ class ModelSuitesService(private val internalClient: ModelSuitesCoroutineStub) :
           externalModelProviderId = source.externalModelProviderId
           if (source.hasLastModelSuite()) {
             createdAfter = source.lastModelSuite.createdAfter
+            externalModelSuiteId = source.lastModelSuite.externalModelSuiteId
           }
         }
     }

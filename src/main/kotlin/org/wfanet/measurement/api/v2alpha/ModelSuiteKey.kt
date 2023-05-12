@@ -21,7 +21,7 @@ import org.wfanet.measurement.common.api.ResourceKey
 
 private val parser = ResourceNameParser("modelProviders/{model_provider}/modelSuites/{model_suite}")
 
-/** [ModelSuiteKey] of a Model Suite. */
+/** [ResourceKey] of a Model Suite. */
 data class ModelSuiteKey(val modelProviderId: String, val modelSuiteId: String) : ResourceKey {
   override fun toName(): String {
     return parser.assembleName(

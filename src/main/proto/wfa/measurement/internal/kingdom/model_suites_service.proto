@@ -39,8 +39,9 @@ message GetModelSuiteRequest {
 message StreamModelSuitesRequest {
   // Filter criteria as a conjunction of specified fields.
   message Filter {
-    int64 external_model_provider_id = 1;
+    fixed64 external_model_provider_id = 1;
     google.protobuf.Timestamp created_after = 2;
+    fixed64 external_model_suite_id = 3;
   }
   Filter filter = 1;
 

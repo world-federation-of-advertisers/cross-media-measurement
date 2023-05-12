@@ -228,7 +228,7 @@ fun InternalProtocolConfig.toProtocolConfig(
 }
 
 /** Converts an internal [InternalModelSuite] to a public [ModelSuite]. */
-fun InternalModelSuite.toV2Alpha(): ModelSuite {
+fun InternalModelSuite.toModelSuite(): ModelSuite {
   val source = this
 
   return modelSuite {

@@ -47,8 +47,19 @@ class StreamModelSuites(
     }
 
     if (filter.hasCreatedAfter()) {
-      conjuncts.add("ModelSuites.CreateTime > @${CREATED_AFTER}")
-      bind(CREATED_AFTER to filter.createdAfter.toGcloudTimestamp())
+      if (filter.externalModelSuiteId != 0L) {
+        conjuncts.add(
+          """
+          (ModelSuites.CreateTime  > @${CREATED_AFTER}
+          AND ModelSuites.ExternalModelSuiteId > @${EXTERNAL_MODEL_SUITE_ID})
+        """
+            .trimIndent()
+        )
+        bind(CREATED_AFTER to filter.createdAfter.toGcloudTimestamp())
+        bind(EXTERNAL_MODEL_SUITE_ID to filter.externalModelSuiteId)
+      } else {
+        error("external_model_suite_id required")
+      }
     }
 
     if (conjuncts.isEmpty()) {
@@ -63,5 +74,6 @@ class StreamModelSuites(
     const val LIMIT_PARAM = "limit"
     const val EXTERNAL_MODEL_PROVIDER_ID_PARAM = "externalModelProviderId"
     const val CREATED_AFTER = "createdAfter"
+    const val EXTERNAL_MODEL_SUITE_ID = "externalModelSuiteId"
   }
 }
