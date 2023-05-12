@@ -36,7 +36,7 @@ using ::wfa::measurement::internal::duchy::protocol::liquid_legions_v2::
 
 constexpr int kThreadCount = 3;
 constexpr int kTestCurveId = NID_X9_62_prime256v1;
-constexpr absl::string_view kTestData = "abcdefg";  // 7 characters;
+const std::vector<int> kIntegerData = {1, 2, 3, 4, 5};  // 7 characters;
 
 absl::StatusOr<ElGamalCiphertext> getFakeElGamalPublicKey() {
   std::unique_ptr<CommutativeElGamal> cipher =
@@ -47,7 +47,6 @@ absl::StatusOr<ElGamalCiphertext> getFakeElGamalPublicKey() {
 
 TEST(MultithreadingHelper, TasksAreExecutedInMultipleThreads) {
   auto composite_el_gamal_public_key = getFakeElGamalPublicKey().value();
-  std::string data{kTestData};
 
   ASSERT_OK_AND_ASSIGN(
       auto helper,
@@ -56,21 +55,20 @@ TEST(MultithreadingHelper, TasksAreExecutedInMultipleThreads) {
           kGenerateWithNewElGamalPrivateKey, kGenerateWithNewPohligHellmanKey,
           composite_el_gamal_public_key, kGenerateNewParitialCompositeCipher));
 
-  std::vector<int> results(data.size(), -1);
-  absl::AnyInvocable<absl::Status(ProtocolCryptor &, std::string &, size_t)>
-      func = [&](ProtocolCryptor &cryptor, std::string &data,
-                 size_t index) -> absl::Status {
-    results[index] = index;
+  int iteration_count = kIntegerData.size();
+  std::vector<int> results(iteration_count, -1);
+  absl::AnyInvocable<absl::Status(ProtocolCryptor &, size_t)> func =
+      [&](ProtocolCryptor &cryptor, size_t index) -> absl::Status {
+    results[index] = index + kIntegerData[index];
     return absl::OkStatus();
   };
-  auto status = helper->Execute<std::string>(data, data.size(), func);
+  auto status = helper->Execute(iteration_count, func);
   ASSERT_TRUE(status.ok());
-  EXPECT_EQ(results, std::vector<int>({0, 1, 2, 3, 4, 5, 6}));
+  EXPECT_EQ(results, std::vector<int>({1, 3, 5, 7, 9}));
 }
 
 TEST(MultithreadingHelper, TasksAreExecutedInSingleThread) {
   auto composite_el_gamal_public_key = getFakeElGamalPublicKey().value();
-  std::string data{kTestData};
 
   ASSERT_OK_AND_ASSIGN(
       auto helper,
@@ -79,21 +77,22 @@ TEST(MultithreadingHelper, TasksAreExecutedInSingleThread) {
           kGenerateWithNewElGamalPrivateKey, kGenerateWithNewPohligHellmanKey,
           composite_el_gamal_public_key, kGenerateNewParitialCompositeCipher));
 
-  std::vector<int> results(data.size(), -1);
-  absl::AnyInvocable<absl::Status(ProtocolCryptor &, std::string &, size_t)>
-      func = [&](ProtocolCryptor &cryptor, std::string &data,
-                 size_t index) -> absl::Status {
-    results[index] = index;
+  int iteration_count = kIntegerData.size();
+  std::vector<int> results(iteration_count, -1);
+  absl::AnyInvocable<absl::Status(ProtocolCryptor &, size_t)> func =
+      [&](ProtocolCryptor &cryptor, size_t index) -> absl::Status {
+    results[index] = index + kIntegerData[index];
     return absl::OkStatus();
   };
-  auto status = helper->Execute<std::string>(data, data.size(), func);
+
+  auto status = helper->Execute(iteration_count, func);
+
   ASSERT_TRUE(status.ok());
-  EXPECT_EQ(results, std::vector<int>({0, 1, 2, 3, 4, 5, 6}));
+  EXPECT_EQ(results, std::vector<int>({1, 3, 5, 7, 9}));
 }
 
 TEST(MultithreadingHelper, ErrorReturnedWhenExecutionFails) {
   auto composite_el_gamal_public_key = getFakeElGamalPublicKey().value();
-  std::string data{kTestData};
 
   ASSERT_OK_AND_ASSIGN(
       auto helper,
@@ -102,11 +101,12 @@ TEST(MultithreadingHelper, ErrorReturnedWhenExecutionFails) {
           kGenerateWithNewElGamalPrivateKey, kGenerateWithNewPohligHellmanKey,
           composite_el_gamal_public_key, kGenerateNewParitialCompositeCipher));
 
-  std::vector<int> results(data.size(), -1);
   std::string_view error_message = "Internal error.";
-  absl::AnyInvocable<absl::Status(ProtocolCryptor &, std::string &, size_t)>
-      func = [&](ProtocolCryptor &cryptor, std::string &data,
-                 size_t index) -> absl::Status {
+
+  int iteration_count = kIntegerData.size();
+  std::vector<int> results(kIntegerData.size(), -1);
+  absl::AnyInvocable<absl::Status(ProtocolCryptor &, size_t)> func =
+      [&](ProtocolCryptor &cryptor, size_t index) -> absl::Status {
     if (index == 3) {
       return absl::InternalError(error_message);
     } else {
@@ -114,7 +114,8 @@ TEST(MultithreadingHelper, ErrorReturnedWhenExecutionFails) {
       return absl::OkStatus();
     }
   };
-  auto status = helper->Execute<std::string>(data, data.size(), func);
+
+  auto status = helper->Execute(iteration_count, func);
   ASSERT_FALSE(status.ok());
   EXPECT_THAT(status, StatusIs(absl::StatusCode::kInternal, error_message));
   EXPECT_EQ(results[3], -1);

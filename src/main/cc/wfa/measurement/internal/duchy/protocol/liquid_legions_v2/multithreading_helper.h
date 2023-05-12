@@ -36,8 +36,8 @@ using ::wfa::measurement::common::crypto::ProtocolCryptor;
 class MultithreadingHelper {
  private:
   explicit MultithreadingHelper(
-      int n_threads, std::vector<std::unique_ptr<ProtocolCryptor>> cryptors)
-      : num_threads_(n_threads), cryptors_(std::move(cryptors)) {}
+      int num_threads, std::vector<std::unique_ptr<ProtocolCryptor>> cryptors)
+      : num_threads_(num_threads), cryptors_(std::move(cryptors)) {}
 
   // Create [ProtocolCryptor] for threads.
   //
@@ -53,18 +53,13 @@ class MultithreadingHelper {
 
   const int num_threads_;
   std::vector<std::thread> threads_;
-  const std::vector<std::unique_ptr<ProtocolCryptor>> cryptors_;
-
-  int num_iterations = 0;
-
-  absl::Mutex mutex_;
-  int iteration_index_ ABSL_GUARDED_BY(mutex_) = 0;
-  std::optional<absl::Status> failure_status_ ABSL_GUARDED_BY(mutex_);
+  std::vector<std::unique_ptr<ProtocolCryptor>> cryptors_;
+  std::vector<std::optional<absl::Status>> failures_;
 
  public:
   static absl::StatusOr<std::unique_ptr<MultithreadingHelper>>
   CreateMultithreadingHelper(
-      int n_threads, int curve_id,
+      int num_threads, int curve_id,
       const ElGamalCiphertext& local_el_gamal_public_key,
       absl::string_view local_el_gamal_private_key,
       absl::string_view local_pohlig_hellman_private_key,
@@ -75,77 +70,24 @@ class MultithreadingHelper {
   // Note: The function f must be thread-safe.
   //
   // Example:
-  //  std::string data = "123";
-  //  std::vector<std::string> results(data.size(), "");
-  //  absl::AnyInvocable<absl::Status(ProtocolCryptor &, std::string &, size_t)>
-  //      f = [&](ProtocolCryptor &cryptor, std::string &data,
-  //                 size_t index) -> absl::Status {
+  //  std::string data = "123|456|789|";
+  //  size_t iteration_count = 3;
+  //  std::vector<std::string> results(iteration_count, "");
+  //  absl::AnyInvocable<absl::Status(ProtocolCryptor &, size_t)>
+  //      f = [&](ProtocolCryptor &cryptor, size_t index) -> absl::Status {
   //    string random = cryptor.NextRandomBigNumAsString()
   //    results[index] = random + data[index];
   //    return absl::OkStatus();
   //  };
-  //  multithreading_helper.Execute(data, data.size(), f);
+  //  multithreading_helper.Execute(iteration_count, f);
 
-  template <typename T>
   absl::Status Execute(
-      T& data, int n_iterations,
-      absl::AnyInvocable<absl::Status(ProtocolCryptor&, T&, size_t)>& f) {
-    if (cryptors_.size() != num_threads_) {
-      return absl::FailedPreconditionError(
-          "ProtocolCryptors have not been setup.");
-    }
+      int num_iterations,
+      absl::AnyInvocable<absl::Status(ProtocolCryptor&, size_t)>& f);
 
-    num_iterations = n_iterations;
-    {
-      absl::MutexLock lock(&mutex_);
-      iteration_index_ = 0;
-      failure_status_.reset();
-    }
-
-    for (int thread_index = 0; thread_index < num_threads_; thread_index++) {
-      threads_.emplace_back(std::thread(
-          &MultithreadingHelper::ExecuteCryptorTask<T>, this,
-          std::ref(*cryptors_[thread_index]), std::ref(data), std::ref(f)));
-    }
-    for (auto& thread : threads_) {
-      thread.join();
-    }
-
-    {
-      absl::MutexLock lock(&mutex_);
-      return failure_status_.has_value() ? failure_status_.value()
-                                         : absl::OkStatus();
-    }
-  }
-
-  template <typename T>
   void ExecuteCryptorTask(
-      ProtocolCryptor& cryptor, T& data,
-      absl::AnyInvocable<absl::Status(ProtocolCryptor&, T&, size_t)>& f) {
-    int current_index;
-    while (true) {
-      {
-        absl::MutexLock lock(&mutex_);
-
-        if (iteration_index_ < num_iterations && !failure_status_.has_value()) {
-          current_index = iteration_index_;
-          iteration_index_ += 1;
-        } else {
-          return;
-        }
-      }
-
-      auto status = f(cryptor, data, current_index);
-
-      if (!status.ok()) {
-        absl::MutexLock lock(&mutex_);
-        if (!failure_status_.has_value()) {
-          failure_status_ = status;
-        }
-        return;
-      }
-    }
-  }
+      size_t thread_index, size_t start_index, size_t count,
+      absl::AnyInvocable<absl::Status(ProtocolCryptor&, size_t)>& f);
 };
 
 }  // namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2
