@@ -16,7 +16,7 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
-import com.google.common.truth.Truth
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -75,8 +75,8 @@ abstract class ModelSuitesServiceTest<T : ModelSuitesCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { modelSuitesService.createModelSuite(modelSuite) }
 
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    Truth.assertThat(exception).hasMessageThat().contains("DisplayName field")
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("DisplayName field")
   }
 
   @Test
@@ -90,8 +90,8 @@ abstract class ModelSuitesServiceTest<T : ModelSuitesCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { modelSuitesService.createModelSuite(modelSuite) }
 
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    Truth.assertThat(exception).hasMessageThat().contains("ModelProvider not found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("ModelProvider not found")
   }
 
   @Test
@@ -154,8 +154,8 @@ abstract class ModelSuitesServiceTest<T : ModelSuitesCoroutineImplBase> {
         )
       }
 
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    Truth.assertThat(exception).hasMessageThat().contains("NOT_FOUND: ModelSuite not found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("NOT_FOUND: ModelSuite not found")
   }
 
   @Test
