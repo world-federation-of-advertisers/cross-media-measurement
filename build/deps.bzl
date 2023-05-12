@@ -18,7 +18,7 @@ Step 2 of configuring WORKSPACE: adds transitive deps.
 
 load("@private_membership//build:private_membership_repositories.bzl", "private_membership_repositories")
 load("@rules_pkg//:deps.bzl", "rules_pkg_dependencies")
-load("//build/tink:repositories.bzl", "tink_cc")
+load("@wfa_common_jvm//build/tink:repo.bzl", "tink_cc")
 
 def panel_exchange_client_deps():
     """Installs transitive deps for panel_exchange_client."""

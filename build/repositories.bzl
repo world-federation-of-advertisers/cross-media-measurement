@@ -18,20 +18,22 @@ Adds external repos necessary for wfa_measurement_system.
 
 load("//build/wfa:repositories.bzl", "wfa_repo_archive")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-load("//build/com_google_riegeli:repo.bzl", "com_google_riegeli_repo")
 
 MEASUREMENT_SYSTEM_REPO = "https://github.com/world-federation-of-advertisers/cross-media-measurement"
 
 def wfa_measurement_system_repositories():
     """Imports all direct dependencies for wfa_measurement_system."""
 
-    com_google_riegeli_repo()
-
-    wfa_repo_archive(
+    #wfa_repo_archive(
+    #    name = "wfa_common_jvm",
+    #    repo = "common-jvm",
+    #    sha256 = "06ab7259708f490c052bd6ada0b9f193a99e9d621abd5428649d67378530a977",
+    #    version = "0.55.0",
+    #)
+    
+    native.local_repository(
         name = "wfa_common_jvm",
-        repo = "common-jvm",
-        sha256 = "06ab7259708f490c052bd6ada0b9f193a99e9d621abd5428649d67378530a977",
-        version = "0.55.0",
+        path = "/home/marcopremier/XMM/common-jvm",
     )
 
     wfa_repo_archive(
