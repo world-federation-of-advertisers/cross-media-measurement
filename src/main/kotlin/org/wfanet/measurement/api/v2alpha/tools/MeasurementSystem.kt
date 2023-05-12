@@ -1025,15 +1025,14 @@ private class DataProviders {
   val dataProviderStub: DataProvidersCoroutineStub by lazy {
     DataProvidersCoroutineStub(parentCommand.kingdomChannel)
   }
-
+  @Option(
+    names = ["--name"],
+    description = ["API resource name of the DataProvider"],
+    required = true,
+  )
+  private lateinit var dataProviderName: String
   @Command(name = "replace-required-duchies", description = ["Replaces DataProvider's duchy list"])
   fun replaceRequiredDuchyList(
-    @Option(
-      names = ["--data-provider"],
-      description = ["API resource name of the DataProvider"],
-      required = true,
-    )
-    dataProviderName: String,
     @Option(
       names = ["--required-duchies"],
       description =
