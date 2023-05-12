@@ -29,7 +29,7 @@ class StreamModelLines(private val requestFilter: StreamModelLinesRequest.Filter
   override val reader =
     ModelLineReader().fillStatementBuilder {
       appendWhereClause(requestFilter)
-      appendClause("ORDER BY ModelLines.CreateTime ASC")
+      appendClause("ORDER BY ModelLines.CreateTime ASC, ModelLines.ExternalModelLineId ASC")
       if (limit > 0) {
         appendClause("LIMIT @${LIMIT_PARAM}")
         bind(LIMIT_PARAM to limit.toLong())
@@ -50,8 +50,21 @@ class StreamModelLines(private val requestFilter: StreamModelLinesRequest.Filter
     }
 
     if (filter.hasCreatedAfter()) {
-      conjuncts.add("ModelLines.CreateTime > @${CREATED_AFTER}")
-      bind(CREATED_AFTER to filter.createdAfter.toGcloudTimestamp())
+      if (filter.externalModelLineId != 0L) {
+        println("================================================= filtro presente")
+        conjuncts.add(
+          """
+          ((ModelLines.CreateTime  > @${CREATED_AFTER})
+          OR (ModelLines.CreateTime  > @${CREATED_AFTER}
+          AND ModelLines.ExternalModelLineId > @${EXTERNAL_MODEL_LINE_ID_PARAM}))
+        """
+            .trimIndent()
+        )
+        bind(CREATED_AFTER to filter.createdAfter.toGcloudTimestamp())
+        bind(EXTERNAL_MODEL_LINE_ID_PARAM to filter.externalModelLineId)
+      } else {
+        error("external_model_line_id required")
+      }
     }
 
     if (filter.typeValueList.isNotEmpty()) {
@@ -71,6 +84,7 @@ class StreamModelLines(private val requestFilter: StreamModelLinesRequest.Filter
     const val LIMIT_PARAM = "limit"
     const val EXTERNAL_MODEL_PROVIDER_ID_PARAM = "externalModelProviderId"
     const val EXTERNAL_MODEL_SUITE_ID_PARAM = "externalModelSuiteId"
+    const val EXTERNAL_MODEL_LINE_ID_PARAM = "externalModelLineId"
     const val CREATED_AFTER = "createdAfter"
     const val TYPES_PARAM = "types"
   }

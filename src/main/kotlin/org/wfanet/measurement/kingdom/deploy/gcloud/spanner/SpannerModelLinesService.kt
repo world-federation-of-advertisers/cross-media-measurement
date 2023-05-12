@@ -44,9 +44,7 @@ class SpannerModelLinesService(
 ) : ModelLinesCoroutineImplBase() {
 
   override suspend fun createModelLine(request: ModelLine): ModelLine {
-    grpcRequire(request.hasActiveStartTime()) {
-      "ActiveStartTime field of ModelLine is missing fields."
-    }
+    grpcRequire(request.hasActiveStartTime()) { "ActiveStartTime is missing." }
     grpcRequire(request.type != ModelLine.Type.TYPE_UNSPECIFIED) {
       "Unrecognized ModelLine's type ${request.type}"
     }
@@ -55,9 +53,7 @@ class SpannerModelLinesService(
     } catch (e: ModelSuiteNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelSuite not found." }
     } catch (e: ModelLineTypeIllegalException) {
-      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
-        "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
-      }
+      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT)
     } catch (e: ModelLineInvalidArgsException) {
       e.throwStatusRuntimeException(Status.INVALID_ARGUMENT)
     }

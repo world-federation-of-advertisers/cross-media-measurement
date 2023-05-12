@@ -16,8 +16,8 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
-import com.google.common.truth.Truth
-import com.google.common.truth.extensions.proto.ProtoTruth
+import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
@@ -78,7 +78,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
   }
 
   @Test
-  fun `createModelLine fails for missing fields`() = runBlocking {
+  fun `createModelLine fails for missing activeStartTime`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
 
     val modelLine = modelLine {
@@ -91,14 +91,12 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { modelLinesService.createModelLine(modelLine) }
 
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    Truth.assertThat(exception)
-      .hasMessageThat()
-      .contains("ActiveStartTime field of ModelLine is missing fields.")
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("ActiveStartTime is missing.")
   }
 
   @Test
-  fun `createModelLine fails for wrong activeStartTime fields`() = runBlocking {
+  fun `createModelLine fails when activeStartTime is in the past`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
 
     val modelLine = modelLine {
@@ -113,12 +111,12 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { modelLinesService.createModelLine(modelLine) }
 
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    Truth.assertThat(exception).hasMessageThat().contains("ActiveStartTime must be in the future.")
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("ActiveStartTime must be in the future.")
   }
 
   @Test
-  fun `createModelLine fails for wrong activeEndTime fields`() = runBlocking {
+  fun `createModelLine fails when activeEndTime is before activeStartTime`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
 
     val modelLine = modelLine {
@@ -134,14 +132,12 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { modelLinesService.createModelLine(modelLine) }
 
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    Truth.assertThat(exception)
-      .hasMessageThat()
-      .contains("ActiveEndTime cannot precede ActiveStartTime.")
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("ActiveEndTime cannot precede ActiveStartTime.")
   }
 
   @Test
-  fun `createModelLine fails for wrong type fields`() = runBlocking {
+  fun `createModelLine fails when 'type' is 'TYPE_UNSPECIFIED'`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
 
     val modelLine = modelLine {
@@ -156,8 +152,8 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { modelLinesService.createModelLine(modelLine) }
 
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    Truth.assertThat(exception).hasMessageThat().contains("Unrecognized ModelLine's type")
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("Unrecognized ModelLine's type")
   }
 
   @Test
@@ -191,51 +187,48 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
       val exception =
         assertFailsWith<StatusRuntimeException> { modelLinesService.createModelLine(devModelLine) }
 
-      Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      Truth.assertThat(exception)
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
         .hasMessageThat()
-        .contains(
-          "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
-        )
+        .contains("Only ModelLine with type == PROD can have a Holdback ModelLine.")
     }
 
   @Test
-  fun `createModelLine fails if HoldbackModelLine is set has type != 'HOLDBACK'`() = runBlocking {
-    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+  fun `createModelLine fails if HoldbackModelLine is set but has type != 'HOLDBACK'`() =
+    runBlocking {
+      val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
 
-    val ast = Instant.now().plusSeconds(2000L).toProtoTime()
+      val ast = Instant.now().plusSeconds(2000L).toProtoTime()
 
-    val devModelLine = modelLine {
-      externalModelSuiteId = modelSuite.externalModelSuiteId
-      externalModelProviderId = modelSuite.externalModelProviderId
-      activeStartTime = ast
-      type = ModelLine.Type.DEV
-      displayName = "display name1"
-      description = "description1"
+      val devModelLine = modelLine {
+        externalModelSuiteId = modelSuite.externalModelSuiteId
+        externalModelProviderId = modelSuite.externalModelProviderId
+        activeStartTime = ast
+        type = ModelLine.Type.DEV
+        displayName = "display name1"
+        description = "description1"
+      }
+
+      val createdDevModelLine = modelLinesService.createModelLine(devModelLine)
+
+      val prodModelLine = modelLine {
+        externalModelSuiteId = modelSuite.externalModelSuiteId
+        externalModelProviderId = modelSuite.externalModelProviderId
+        activeStartTime = ast
+        type = ModelLine.Type.PROD
+        externalHoldbackModelLineId = createdDevModelLine.externalModelLineId
+        displayName = "display name2"
+        description = "description2"
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> { modelLinesService.createModelLine(prodModelLine) }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .hasMessageThat()
+        .contains("Only ModelLine with type == HOLDBACK can be set as Holdback ModelLine.")
     }
-
-    val createdDevModelLine = modelLinesService.createModelLine(devModelLine)
-
-    val prodModelLine = modelLine {
-      externalModelSuiteId = modelSuite.externalModelSuiteId
-      externalModelProviderId = modelSuite.externalModelProviderId
-      activeStartTime = ast
-      type = ModelLine.Type.PROD
-      externalHoldbackModelLineId = createdDevModelLine.externalModelLineId
-      displayName = "display name2"
-      description = "description2"
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> { modelLinesService.createModelLine(prodModelLine) }
-
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    Truth.assertThat(exception)
-      .hasMessageThat()
-      .contains(
-        "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
-      )
-  }
 
   @Test
   fun `createModelLine succeeds`() = runBlocking {
@@ -254,7 +247,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
 
     val createdHoldbackModelLine = modelLinesService.createModelLine(holdbackModelLine)
 
-    ProtoTruth.assertThat(createdHoldbackModelLine)
+    assertThat(createdHoldbackModelLine)
       .ignoringFields(
         ModelLine.CREATE_TIME_FIELD_NUMBER,
         ModelLine.UPDATE_TIME_FIELD_NUMBER,
@@ -283,7 +276,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
 
     val createdProdModelLine = modelLinesService.createModelLine(prodModelLine)
 
-    ProtoTruth.assertThat(createdProdModelLine)
+    assertThat(createdProdModelLine)
       .ignoringFields(
         ModelLine.CREATE_TIME_FIELD_NUMBER,
         ModelLine.UPDATE_TIME_FIELD_NUMBER,
@@ -316,12 +309,12 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
         modelLinesService.setActiveEndTime(setActiveEndTimeRequest)
       }
 
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    Truth.assertThat(exception).hasMessageThat().contains("ModelLine not found.")
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("ModelLine not found.")
   }
 
   @Test
-  fun `setActiveEndTime fails if ActiveEndTime is in older than ActiveStartTime`() = runBlocking {
+  fun `setActiveEndTime fails if ActiveEndTime is before ActiveStartTime`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
 
     val modelLine = modelLine {
@@ -347,8 +340,8 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
         modelLinesService.setActiveEndTime(setActiveEndTimeRequest)
       }
 
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    Truth.assertThat(exception)
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
       .hasMessageThat()
       .contains("ActiveEndTime must be later than ActiveStartTime.")
   }
@@ -380,8 +373,8 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
         modelLinesService.setActiveEndTime(setActiveEndTimeRequest)
       }
 
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    Truth.assertThat(exception).hasMessageThat().contains("ActiveEndTime must be in the future.")
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("ActiveEndTime must be in the future.")
   }
 
   @Test
@@ -411,7 +404,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
 
     val updatedModelLine = modelLinesService.setActiveEndTime(setActiveEndTimeRequest)
 
-    ProtoTruth.assertThat(updatedModelLine)
+    assertThat(updatedModelLine)
       .ignoringFields(ModelLine.UPDATE_TIME_FIELD_NUMBER)
       .isEqualTo(
         modelLinesService
@@ -468,7 +461,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
         )
         .toList()
 
-    ProtoTruth.assertThat(modelLines)
+    assertThat(modelLines)
       .comparingExpectedFieldsOnly()
       .containsExactly(modelLine1, modelLine2)
       .inOrder()
@@ -515,8 +508,8 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
         )
         .toList()
 
-    ProtoTruth.assertThat(modelLines).hasSize(1)
-    ProtoTruth.assertThat(modelLines).contains(modelLine1)
+    assertThat(modelLines).hasSize(1)
+    assertThat(modelLines).contains(modelLine1)
 
     val modelLines2: List<ModelLine> =
       modelLinesService
@@ -526,13 +519,14 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
               externalModelProviderId = modelSuite.externalModelProviderId
               externalModelSuiteId = modelSuite.externalModelSuiteId
               createdAfter = modelLines[0].createTime
+              externalModelLineId = modelLines[0].externalModelLineId
             }
           }
         )
         .toList()
 
-    ProtoTruth.assertThat(modelLines2).hasSize(1)
-    ProtoTruth.assertThat(modelLines2).contains(modelLine2)
+    assertThat(modelLines2).hasSize(1)
+    assertThat(modelLines2).contains(modelLine2)
   }
 
   @Test
@@ -575,8 +569,8 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
         )
         .toList()
 
-    ProtoTruth.assertThat(modelLines).hasSize(1)
-    ProtoTruth.assertThat(modelLines).contains(modelLine1)
+    assertThat(modelLines).hasSize(1)
+    assertThat(modelLines).contains(modelLine1)
   }
 
   @Test
@@ -621,8 +615,8 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
         )
       }
 
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    Truth.assertThat(exception)
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
       .hasMessageThat()
       .contains(
         "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
@@ -672,8 +666,8 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
           )
         }
 
-      Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      Truth.assertThat(exception)
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
         .hasMessageThat()
         .contains(
           "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
@@ -732,7 +726,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
         )
         .toList()
 
-    Truth.assertThat(modelLines.get(0).externalHoldbackModelLineId)
+    assertThat(modelLines.get(0).externalHoldbackModelLineId)
       .isEqualTo(modelLine2.externalModelLineId)
   }
 }

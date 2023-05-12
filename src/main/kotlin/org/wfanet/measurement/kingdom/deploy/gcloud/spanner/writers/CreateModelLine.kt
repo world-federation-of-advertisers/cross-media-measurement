@@ -135,6 +135,7 @@ class CreateModelLine(private val modelLine: ModelLine, private val clock: Clock
         set("HoldbackModelLine" to holdbackModelLineResult.modelLineId)
       }
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
+      set("UpdateTime" to Value.COMMIT_TIMESTAMP)
     }
 
     return modelLine.copy { this.externalModelLineId = externalModelLineId.value }
@@ -164,6 +165,9 @@ class CreateModelLine(private val modelLine: ModelLine, private val clock: Clock
   }
 
   override fun ResultScope<ModelLine>.buildResult(): ModelLine {
-    return checkNotNull(this.transactionResult).copy { createTime = commitTimestamp.toProto() }
+    return checkNotNull(this.transactionResult).copy {
+      createTime = commitTimestamp.toProto()
+      updateTime = commitTimestamp.toProto()
+    }
   }
 }
