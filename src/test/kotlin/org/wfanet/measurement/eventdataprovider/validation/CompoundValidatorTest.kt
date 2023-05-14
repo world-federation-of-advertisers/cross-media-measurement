@@ -32,13 +32,13 @@ class CompoundValidatorTest {
     val validator =
       CompoundValidator(
         listOf(
-          RequisitionValidator { _, _ -> null },
-          RequisitionValidator { _, _ -> null },
-          RequisitionValidator { _, _ -> null },
+          RequisitionValidator { _, _ -> listOf() },
+          RequisitionValidator { _, _ -> listOf() },
+          RequisitionValidator { _, _ -> listOf() },
         )
       )
 
-    assertThat(validator.validate(requisition {}, requisitionSpec {})).isNull()
+    assertThat(validator.validate(requisition {}, requisitionSpec {})).isEmpty()
   }
 
   @Test
@@ -47,13 +47,14 @@ class CompoundValidatorTest {
     val validator =
       CompoundValidator(
         listOf(
-          RequisitionValidator { _, _ -> null },
-          RequisitionValidator { _, _ -> result },
-          RequisitionValidator { _, _ -> null },
+          RequisitionValidator { _, _ -> listOf() },
+          RequisitionValidator { _, _ -> listOf(result) },
+          RequisitionValidator { _, _ -> listOf() },
         )
       )
-
-    assertThat(validator.validate(requisition {}, requisitionSpec {})).isEqualTo(result)
+    val refusals = validator.validate(requisition {}, requisitionSpec {})
+    assertThat(refusals.size).isEqualTo(1)
+    assertThat(refusals.get(0)).isEqualTo(result)
   }
 
   @Test
@@ -63,13 +64,15 @@ class CompoundValidatorTest {
     val validator =
       CompoundValidator(
         listOf(
-          RequisitionValidator { _, _ -> null },
-          RequisitionValidator { _, _ -> result1 },
-          RequisitionValidator { _, _ -> result2 },
+          RequisitionValidator { _, _ -> listOf() },
+          RequisitionValidator { _, _ -> listOf(result1) },
+          RequisitionValidator { _, _ -> listOf(result2) },
         )
       )
-
-    assertThat(validator.validate(requisition {}, requisitionSpec {})).isEqualTo(result1)
+    val refusals = validator.validate(requisition {}, requisitionSpec {})
+    assertThat(refusals.size).isEqualTo(2)
+    assertThat(refusals.get(0)).isEqualTo(result1)
+    assertThat(refusals.get(1)).isEqualTo(result2)
   }
 
   companion object {

@@ -27,6 +27,9 @@ class CompoundValidator(private val validators: Iterable<RequisitionValidator>) 
   override fun validate(
     requisition: Requisition,
     requisitionSpec: RequisitionSpec
-  ): Requisition.Refusal? =
-    validators.firstNotNullOfOrNull { it.validate(requisition, requisitionSpec) }
+  ): List<Requisition.Refusal> =
+    validators
+      .map { it.validate(requisition, requisitionSpec) }
+      .filter { it.isNotEmpty() }
+      .flatten()
 }
