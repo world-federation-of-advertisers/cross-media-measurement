@@ -13,3 +13,6 @@
 *.swp
 # VIM undo files
 *.un~
+
+# Terraform directories
+.terraform/
