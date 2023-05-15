@@ -54,7 +54,7 @@ MultithreadingHelper::CreateCryptors(
     const ElGamalCiphertext& composite_el_gamal_public_key,
     const ElGamalCiphertext& partial_composite_el_gamal_public_key) {
   std::vector<std::unique_ptr<ProtocolCryptor>> cryptors;
-  ProtocolCryptorOptions keys{
+  ProtocolCryptorOptions options{
       .curve_id = curve_id,
       .local_el_gamal_public_key = local_el_gamal_public_key,
       .local_el_gamal_private_key = local_el_gamal_private_key,
@@ -63,7 +63,7 @@ MultithreadingHelper::CreateCryptors(
       .partial_composite_el_gamal_public_key =
           partial_composite_el_gamal_public_key};
   for (size_t i = 0; i < num; i++) {
-    ASSIGN_OR_RETURN(auto cryptor, CreateProtocolCryptor(keys));
+    ASSIGN_OR_RETURN(auto cryptor, CreateProtocolCryptor(options));
     cryptors.emplace_back(std::move(cryptor));
   }
   return cryptors;

@@ -51,7 +51,7 @@ class MultithreadingHelper {
       const ElGamalCiphertext& partial_composite_el_gamal_public_key);
 
   const int num_threads_;
-  std::vector<std::unique_ptr<ProtocolCryptor>> cryptors_;
+  const std::vector<std::unique_ptr<ProtocolCryptor>> cryptors_;
 
  public:
   static absl::StatusOr<std::unique_ptr<MultithreadingHelper>>

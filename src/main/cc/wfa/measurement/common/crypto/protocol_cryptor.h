@@ -120,7 +120,7 @@ struct ProtocolCryptorOptions {
 
 // Create a ProtocolCryptor using keys required for internal ciphers.
 absl::StatusOr<std::unique_ptr<ProtocolCryptor>> CreateProtocolCryptor(
-    const ProtocolCryptorOptions& keys);
+    const ProtocolCryptorOptions& options);
 
 }  // namespace wfa::measurement::common::crypto
 

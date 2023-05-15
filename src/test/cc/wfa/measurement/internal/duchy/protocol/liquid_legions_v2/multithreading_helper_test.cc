@@ -56,15 +56,27 @@ TEST(MultithreadingHelper, TasksAreExecutedInMultipleThreads) {
           composite_el_gamal_public_key, kGenerateNewParitialCompositeCipher));
 
   int iteration_count = kIntegerData.size();
-  std::vector<int> results(iteration_count, -1);
-  absl::AnyInvocable<absl::Status(ProtocolCryptor &, size_t)> func =
+  std::vector<int> results_1(iteration_count, -1);
+
+  absl::AnyInvocable<absl::Status(ProtocolCryptor &, size_t)> func_1 =
       [&](ProtocolCryptor &cryptor, size_t index) -> absl::Status {
-    results[index] = index + kIntegerData[index];
+    results_1[index] = index + kIntegerData[index];
     return absl::OkStatus();
   };
-  auto status = helper->Execute(iteration_count, func);
-  ASSERT_TRUE(status.ok());
-  EXPECT_EQ(results, std::vector<int>({1, 3, 5, 7, 9}));
+  auto status_1 = helper->Execute(iteration_count, func_1);
+
+  std::vector<int> results_2(iteration_count, -1);
+  absl::AnyInvocable<absl::Status(ProtocolCryptor &, size_t)> func_2 =
+      [&](ProtocolCryptor &cryptor, size_t index) -> absl::Status {
+    results_2[index] = index + kIntegerData[index] + 1;
+    return absl::OkStatus();
+  };
+  auto status_2 = helper->Execute(iteration_count, func_2);
+
+  ASSERT_TRUE(status_1.ok());
+  ASSERT_TRUE(status_2.ok());
+  EXPECT_EQ(results_1, std::vector<int>({1, 3, 5, 7, 9}));
+  EXPECT_EQ(results_2, std::vector<int>({2, 4, 6, 8, 10}));
 }
 
 TEST(MultithreadingHelper, TasksAreExecutedInSingleThread) {

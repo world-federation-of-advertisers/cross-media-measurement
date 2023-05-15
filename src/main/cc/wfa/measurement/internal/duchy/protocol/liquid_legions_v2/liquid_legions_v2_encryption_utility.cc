@@ -596,7 +596,7 @@ absl::StatusOr<std::string> DestroyKeysAndCounts(
   std::unique_ptr<ProtocolCryptor> protocol_cryptor;
 
   if (request.has_noise_parameters()) {
-    ProtocolCryptorOptions protocol_cryptor_keys{
+    ProtocolCryptorOptions protocol_cryptor_options{
         .curve_id = static_cast<int>(request.noise_parameters().curve_id()),
         .local_el_gamal_public_key = kGenerateWithNewElGamalPublicKey,
         .local_el_gamal_private_key = kGenerateWithNewElGamalPrivateKey,
@@ -611,10 +611,10 @@ absl::StatusOr<std::string> DestroyKeysAndCounts(
         .partial_composite_el_gamal_public_key =
             kGenerateNewParitialCompositeCipher};
     ASSIGN_OR_RETURN_ERROR(
-        protocol_cryptor, CreateProtocolCryptor(protocol_cryptor_keys),
+        protocol_cryptor, CreateProtocolCryptor(protocol_cryptor_options),
         "Failed to create the protocol cipher, invalid curveId or keys.");
   } else {
-    ProtocolCryptorOptions protocol_cryptor_keys{
+    ProtocolCryptorOptions protocol_cryptor_options{
         .curve_id = kDefaultEllipticCurveId,
         .local_el_gamal_public_key = kGenerateWithNewElGamalPublicKey,
         .local_el_gamal_private_key = kGenerateWithNewElGamalPrivateKey,
@@ -623,7 +623,7 @@ absl::StatusOr<std::string> DestroyKeysAndCounts(
         .partial_composite_el_gamal_public_key =
             kGenerateWithNewElGamalPublicKey};
     ASSIGN_OR_RETURN(protocol_cryptor,
-                     CreateProtocolCryptor(protocol_cryptor_keys));
+                     CreateProtocolCryptor(protocol_cryptor_options));
   }
 
   ASSIGN_OR_RETURN(std::string destroyed_register_key_ec,
@@ -719,7 +719,7 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
 
     RETURN_IF_ERROR(ValidateSetupNoiseParameters(noise_parameters));
 
-    ProtocolCryptorOptions protocol_cryptor_keys{
+    ProtocolCryptorOptions protocol_cryptor_options{
         .curve_id = static_cast<int>(noise_parameters.curve_id()),
         .local_el_gamal_public_key = kGenerateWithNewElGamalPublicKey,
         .local_el_gamal_private_key = kGenerateWithNewElGamalPrivateKey,
@@ -730,7 +730,7 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
         .partial_composite_el_gamal_public_key =
             kGenerateNewParitialCompositeCipher};
     ASSIGN_OR_RETURN_ERROR(
-        auto protocol_cryptor, CreateProtocolCryptor(protocol_cryptor_keys),
+        auto protocol_cryptor, CreateProtocolCryptor(protocol_cryptor_options),
         "Failed to create the protocol cipher, invalid curveId or keys.");
 
     // 1. Add blinded histogram noise.
@@ -771,7 +771,7 @@ absl::StatusOr<CompleteExecutionPhaseOneResponse> CompleteExecutionPhaseOne(
                    GetNumberOfBlocks(request.combined_register_vector(),
                                      kBytesPerCipherRegister));
 
-  ProtocolCryptorOptions protocol_cryptor_keys{
+  ProtocolCryptorOptions protocol_cryptor_options{
       .curve_id = static_cast<int>(request.curve_id()),
       .local_el_gamal_public_key = std::make_pair(
           request.local_el_gamal_key_pair().public_key().generator(),
@@ -785,7 +785,7 @@ absl::StatusOr<CompleteExecutionPhaseOneResponse> CompleteExecutionPhaseOne(
       .partial_composite_el_gamal_public_key =
           kGenerateNewParitialCompositeCipher};
   ASSIGN_OR_RETURN_ERROR(
-      auto protocol_cryptor, CreateProtocolCryptor(protocol_cryptor_keys),
+      auto protocol_cryptor, CreateProtocolCryptor(protocol_cryptor_options),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   CompleteExecutionPhaseOneResponse response;
@@ -818,7 +818,7 @@ CompleteExecutionPhaseOneAtAggregator(
                    GetNumberOfBlocks(request.combined_register_vector(),
                                      kBytesPerCipherRegister));
 
-  ProtocolCryptorOptions protocol_cryptor_keys{
+  ProtocolCryptorOptions protocol_cryptor_options{
       .curve_id = static_cast<int>(request.curve_id()),
       .local_el_gamal_public_key = std::make_pair(
           request.local_el_gamal_key_pair().public_key().generator(),
@@ -833,7 +833,7 @@ CompleteExecutionPhaseOneAtAggregator(
           std::make_pair(request.composite_el_gamal_public_key().generator(),
                          request.composite_el_gamal_public_key().element())};
   ASSIGN_OR_RETURN_ERROR(
-      auto protocol_cryptor, CreateProtocolCryptor(protocol_cryptor_keys),
+      auto protocol_cryptor, CreateProtocolCryptor(protocol_cryptor_options),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   ASSIGN_OR_RETURN(std::vector<std::string> blinded_register_indexes,
@@ -877,7 +877,7 @@ absl::StatusOr<CompleteExecutionPhaseTwoResponse> CompleteExecutionPhaseTwo(
       size_t tuple_counts,
       GetNumberOfBlocks(request.flag_count_tuples(), kBytesPerFlagsCountTuple));
 
-  ProtocolCryptorOptions protocol_cryptor_keys{
+  ProtocolCryptorOptions protocol_cryptor_options{
       .curve_id = static_cast<int>(request.curve_id()),
       .local_el_gamal_public_key = std::make_pair(
           request.local_el_gamal_key_pair().public_key().generator(),
@@ -892,7 +892,7 @@ absl::StatusOr<CompleteExecutionPhaseTwoResponse> CompleteExecutionPhaseTwo(
           request.partial_composite_el_gamal_public_key().generator(),
           request.partial_composite_el_gamal_public_key().element())};
   ASSIGN_OR_RETURN_ERROR(
-      auto protocol_cryptor, CreateProtocolCryptor(protocol_cryptor_keys),
+      auto protocol_cryptor, CreateProtocolCryptor(protocol_cryptor_options),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   CompleteExecutionPhaseTwoResponse response;
@@ -934,7 +934,7 @@ CompleteExecutionPhaseTwoAtAggregator(
       size_t tuple_counts,
       GetNumberOfBlocks(request.flag_count_tuples(), kBytesPerFlagsCountTuple));
 
-  ProtocolCryptorOptions protocol_cryptor_keys{
+  ProtocolCryptorOptions protocol_cryptor_options{
       .curve_id = static_cast<int>(request.curve_id()),
       .local_el_gamal_public_key = std::make_pair(
           request.local_el_gamal_key_pair().public_key().generator(),
@@ -948,7 +948,7 @@ CompleteExecutionPhaseTwoAtAggregator(
       .partial_composite_el_gamal_public_key =
           kGenerateNewParitialCompositeCipher};
   ASSIGN_OR_RETURN_ERROR(
-      auto protocol_cryptor, CreateProtocolCryptor(protocol_cryptor_keys),
+      auto protocol_cryptor, CreateProtocolCryptor(protocol_cryptor_options),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   ASSIGN_OR_RETURN(std::vector<ElGamalEcPointPair> ska_bases,
@@ -1046,7 +1046,7 @@ absl::StatusOr<CompleteExecutionPhaseThreeResponse> CompleteExecutionPhaseThree(
   ASSIGN_OR_RETURN(size_t ciphertext_counts,
                    GetNumberOfBlocks(request.same_key_aggregator_matrix(),
                                      kBytesPerCipherText));
-  ProtocolCryptorOptions protocol_cryptor_keys{
+  ProtocolCryptorOptions protocol_cryptor_options{
       .curve_id = static_cast<int>(request.curve_id()),
       .local_el_gamal_public_key = std::make_pair(
           request.local_el_gamal_key_pair().public_key().generator(),
@@ -1059,7 +1059,7 @@ absl::StatusOr<CompleteExecutionPhaseThreeResponse> CompleteExecutionPhaseThree(
           kGenerateNewParitialCompositeCipher};
 
   ASSIGN_OR_RETURN_ERROR(
-      auto protocol_cryptor, CreateProtocolCryptor(protocol_cryptor_keys),
+      auto protocol_cryptor, CreateProtocolCryptor(protocol_cryptor_options),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   CompleteExecutionPhaseThreeResponse response;
@@ -1102,7 +1102,7 @@ CompleteExecutionPhaseThreeAtAggregator(
   }
   int64_t column_size = ciphertext_counts / row_size;
 
-  ProtocolCryptorOptions protocol_cryptor_keys{
+  ProtocolCryptorOptions protocol_cryptor_options{
       .curve_id = static_cast<int>(request.curve_id()),
       .local_el_gamal_public_key = std::make_pair(
           request.local_el_gamal_key_pair().public_key().generator(),
@@ -1114,7 +1114,7 @@ CompleteExecutionPhaseThreeAtAggregator(
       .partial_composite_el_gamal_public_key =
           kGenerateNewParitialCompositeCipher};
   ASSIGN_OR_RETURN_ERROR(
-      auto protocol_cryptor, CreateProtocolCryptor(protocol_cryptor_keys),
+      auto protocol_cryptor, CreateProtocolCryptor(protocol_cryptor_options),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   // histogram[i-1] = the number of times value i (1...maximum_frequency-1)
