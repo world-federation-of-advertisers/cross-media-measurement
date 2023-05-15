@@ -51,7 +51,7 @@ class StreamModelSuites(
         conjuncts.add(
           """
           ((ModelSuites.CreateTime  > @${CREATED_AFTER})
-          OR (ModelSuites.CreateTime  > @${CREATED_AFTER}
+          OR (ModelSuites.CreateTime  = @${CREATED_AFTER}
           AND ModelSuites.ExternalModelSuiteId > @${EXTERNAL_MODEL_SUITE_ID}))
         """
             .trimIndent()
