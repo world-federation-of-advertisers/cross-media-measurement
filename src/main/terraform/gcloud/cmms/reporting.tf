@@ -16,13 +16,13 @@ module "reporting_cluster" {
   source = "../modules/cluster"
 
   name       = local.reporting_cluster_name
-  location   = var.cluster_location
+  location   = local.cluster_location
   secret_key = module.common.cluster_secret_key
 }
 
 data "google_container_cluster" "reporting" {
   name     = local.reporting_cluster_name
-  location = var.cluster_location
+  location = local.cluster_location
 
   # Defer reading of cluster resource until it exists.
   depends_on = [module.reporting_cluster]
