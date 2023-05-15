@@ -338,10 +338,6 @@ CREATE TABLE Reports (
 
   CreateTime TIMESTAMP WITH TIME ZONE NOT NULL,
 
-  -- org.wfanet.measurement.internal.reporting.Report.State
-  -- protobuf enum encoded as an integer.
-  State integer NOT NULL,
-
   PRIMARY KEY(MeasurementConsumerId, ReportId),
   UNIQUE (MeasurementConsumerId, CreateReportRequestId),
   UNIQUE (MeasurementConsumerId, ExternalReportId),
