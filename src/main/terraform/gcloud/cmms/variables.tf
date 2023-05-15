@@ -59,3 +59,24 @@ variable "storage_bucket_location" {
   type        = string
   nullable    = false
 }
+
+variable "postgres_instance_name" {
+  description = "Name of the PostgreSQL Cloud SQL instance."
+  type        = string
+  default     = "halo"
+  nullable    = false
+}
+
+variable "postgres_instance_tier" {
+  description = "Tier (machine type) of the PostgreSQL Cloud SQL instance."
+  type        = string
+  default     = "db-f1-micro"
+  nullable    = false
+}
+
+variable "postgres_password" {
+  description = "Password for postgres user."
+  type        = string
+  sensitive   = true
+  nullable    = false
+}
