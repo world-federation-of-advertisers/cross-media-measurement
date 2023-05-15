@@ -109,20 +109,7 @@ class ProtocolCryptor {
   ProtocolCryptor() = default;
 };
 
-struct ProtocolCryptorKeys {
-  explicit ProtocolCryptorKeys(
-      int curve_id, ElGamalCiphertext local_el_gamal_public_key,
-      absl::string_view local_el_gamal_private_key,
-      absl::string_view local_pohlig_hellman_private_key,
-      ElGamalCiphertext composite_el_gamal_public_key,
-      ElGamalCiphertext partial_composite_el_gamal_public_key)
-      : curve_id(curve_id),
-        local_el_gamal_public_key(local_el_gamal_public_key),
-        local_el_gamal_private_key(local_el_gamal_private_key),
-        local_pohlig_hellman_private_key(local_pohlig_hellman_private_key),
-        composite_el_gamal_public_key(composite_el_gamal_public_key),
-        partial_composite_el_gamal_public_key(
-            partial_composite_el_gamal_public_key) {}
+struct ProtocolCryptorOptions {
   int curve_id;
   ElGamalCiphertext local_el_gamal_public_key;
   absl::string_view local_el_gamal_private_key;
@@ -132,8 +119,8 @@ struct ProtocolCryptorKeys {
 };
 
 // Create a ProtocolCryptor using keys required for internal ciphers.
-absl::StatusOr<std::unique_ptr<ProtocolCryptor>> CreateProtocolCryptorWithKeys(
-    const ProtocolCryptorKeys& keys);
+absl::StatusOr<std::unique_ptr<ProtocolCryptor>> CreateProtocolCryptor(
+    const ProtocolCryptorOptions& keys);
 
 }  // namespace wfa::measurement::common::crypto
 

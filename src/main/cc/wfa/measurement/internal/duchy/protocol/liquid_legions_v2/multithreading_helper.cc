@@ -14,13 +14,15 @@
 
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/multithreading_helper.h"
 
+#include <thread>  // NOLINT(build/c++11)
+
 #include "absl/memory/memory.h"
 
 namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 
-using ::wfa::measurement::common::crypto::CreateProtocolCryptorWithKeys;
+using ::wfa::measurement::common::crypto::CreateProtocolCryptor;
 using ::wfa::measurement::common::crypto::ElGamalCiphertext;
-using ::wfa::measurement::common::crypto::ProtocolCryptorKeys;
+using ::wfa::measurement::common::crypto::ProtocolCryptorOptions;
 
 absl::StatusOr<std::unique_ptr<MultithreadingHelper>>
 MultithreadingHelper::CreateMultithreadingHelper(
@@ -52,12 +54,16 @@ MultithreadingHelper::CreateCryptors(
     const ElGamalCiphertext& composite_el_gamal_public_key,
     const ElGamalCiphertext& partial_composite_el_gamal_public_key) {
   std::vector<std::unique_ptr<ProtocolCryptor>> cryptors;
+  ProtocolCryptorOptions keys{
+      .curve_id = curve_id,
+      .local_el_gamal_public_key = local_el_gamal_public_key,
+      .local_el_gamal_private_key = local_el_gamal_private_key,
+      .local_pohlig_hellman_private_key = local_pohlig_hellman_private_key,
+      .composite_el_gamal_public_key = composite_el_gamal_public_key,
+      .partial_composite_el_gamal_public_key =
+          partial_composite_el_gamal_public_key};
   for (size_t i = 0; i < num; i++) {
-    ProtocolCryptorKeys keys(
-        curve_id, local_el_gamal_public_key, local_el_gamal_private_key,
-        local_pohlig_hellman_private_key, composite_el_gamal_public_key,
-        partial_composite_el_gamal_public_key);
-    ASSIGN_OR_RETURN(auto cryptor, CreateProtocolCryptorWithKeys(keys));
+    ASSIGN_OR_RETURN(auto cryptor, CreateProtocolCryptor(keys));
     cryptors.emplace_back(std::move(cryptor));
   }
   return cryptors;
@@ -66,24 +72,26 @@ MultithreadingHelper::CreateCryptors(
 absl::Status MultithreadingHelper::Execute(
     int num_iterations,
     absl::AnyInvocable<absl::Status(ProtocolCryptor&, size_t)>& f) {
-  failures_ = std::vector<std::optional<absl::Status>>(num_threads_);
+  std::vector<std::thread> threads;
+  std::vector<std::optional<absl::Status>> failures(num_threads_);
 
-  size_t count = num_iterations / num_threads_ + num_iterations % num_threads_;
   size_t start_index = 0;
   for (int thread_index = 0; thread_index < num_threads_; thread_index++) {
-    if (thread_index == 1) {
-      count = num_iterations / num_threads_;
-    }
-    threads_.emplace_back(std::thread(&MultithreadingHelper::ExecuteCryptorTask,
-                                      this, thread_index, start_index, count,
-                                      std::ref(f)));
+    // If num_iterations % num_threads_ != 0, former threads should take 1 more
+    // task than latter threads.
+    size_t count = num_iterations / num_threads_ +
+                   (thread_index < num_iterations % num_threads_ ? 1 : 0);
+
+    threads.emplace_back(std::thread(
+        &MultithreadingHelper::ExecuteCryptorTask, this, thread_index,
+        start_index, count, std::ref(failures[thread_index]), std::ref(f)));
     start_index += count;
   }
-  for (auto& thread : threads_) {
+  for (auto& thread : threads) {
     thread.join();
   }
 
-  for (auto& failure : failures_) {
+  for (auto& failure : failures) {
     if (failure.has_value()) {
       return failure.value();
     }
@@ -93,15 +101,14 @@ absl::Status MultithreadingHelper::Execute(
 
 void MultithreadingHelper::ExecuteCryptorTask(
     size_t thread_index, size_t start_index, size_t count,
+    std::optional<absl::Status>& failure,
     absl::AnyInvocable<absl::Status(ProtocolCryptor&, size_t)>& f) {
   ProtocolCryptor& cryptor = *cryptors_[thread_index];
 
-  for (size_t i = 0; i < count; i++) {
-    size_t current_index = start_index + i;
-
-    auto status = f(cryptor, current_index);
+  for (size_t index = start_index; index < start_index + count; index++) {
+    auto status = f(cryptor, index);
     if (!status.ok()) {
-      failures_[thread_index] = status;
+      failure = status;
       return;
     }
   }
