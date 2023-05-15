@@ -16,15 +16,15 @@ terraform {
   required_providers {
     google = {
       source  = "hashicorp/google"
-      version = "~> 4.63.0"
+      version = ">= 4.63.0"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
-      version = "~> 2.20.0"
+      version = ">= 2.20.0"
     }
     postgresql = {
       source  = "cyrilgdn/postgresql"
-      version = "~> 1.19.0"
+      version = ">= 1.19.0"
     }
   }
 }
