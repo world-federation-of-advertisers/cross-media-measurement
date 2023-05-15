@@ -40,7 +40,7 @@ class CreateModelRelease(private val modelRelease: ModelRelease) :
         ExternalId(modelRelease.externalModelSuiteId)
       )
         ?: throw ModelSuiteNotFoundException(
-          ExternalId(modelRelease.externalModelSuiteId),
+          ExternalId(modelRelease.externalModelProviderId),
           ExternalId(modelRelease.externalModelSuiteId)
         )
 

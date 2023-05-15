@@ -139,7 +139,7 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
   }
 
   @Test
-  fun `streamModelReleases returns all model releasaes`(): Unit = runBlocking {
+  fun `streamModelReleases returns all model releases`(): Unit = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
 
     val modelRelease1 =
