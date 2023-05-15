@@ -24,8 +24,11 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 fun interface RequisitionValidator {
 
   /**
-   * Validates the given [requisitionAndSpec]. If the requisition is not valid, returns a
-   * list of [RefusalResult]s describing the reason. Returns empty list if the requisition is valid.
+   * Validates the given [requisitionAndSpec]. If the requisition is not valid, returns a list of
+   * [RefusalResult]s describing the reason. Returns empty list if the requisition is valid.
    */
-  fun validate(requisition: Requisition, requisitionSpec: RequisitionSpec): List<Requisition.Refusal>
+  fun validate(
+    requisition: Requisition,
+    requisitionSpec: RequisitionSpec
+  ): List<Requisition.Refusal>
 }
