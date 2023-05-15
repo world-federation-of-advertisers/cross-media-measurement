@@ -61,38 +61,6 @@ message MetricSpec {
   VidSamplingInterval vid_sampling_interval = 5;
 }
 
-message MetricResult {
-  message ReachResult {
-    int64 value = 1;
-  }
-
-  message HistogramResult {
-    message BinResult {
-      double value = 1;
-    }
-    message Bin {
-      string label = 1;
-      BinResult bin_result = 2;
-    }
-    repeated Bin bins = 1;
-  }
-
-  message ImpressionCountResult {
-    int64 value = 1;
-  }
-
-  message WatchDurationResult {
-    double value = 1;
-  }
-
-  oneof result {
-    ReachResult reach = 1;
-    HistogramResult frequency_histogram = 2;
-    ImpressionCountResult impression_count = 3;
-    WatchDurationResult watch_duration = 4;
-  }
-}
-
 // Proto representation of the internal Metric entity type.
 message Metric {
   // `MeasurementConsumer` ID from the CMMS public API.
