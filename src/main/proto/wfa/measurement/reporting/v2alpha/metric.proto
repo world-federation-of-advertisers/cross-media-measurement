@@ -212,10 +212,7 @@ message Metric {
   ];
 
   // The specification of what metric to calculate
-  MetricSpec metric_spec = 4 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.field_behavior) = IMMUTABLE
-  ];
+  MetricSpec metric_spec = 4 [(google.api.field_behavior) = REQUIRED];
 
   // Additional filters that will be combined with AND boolean operation and
   // applied to the reporting set. If unspecified, evaluates to `true`
