@@ -55,19 +55,6 @@ message Report {
   // Map of `external_reporting_set_id` to `ReportingMetricCalculationSpec`.
   map<fixed64, ReportingMetricCalculationSpec> reporting_metric_entries = 4;
 
-  enum State {
-    // Default value. This value is unused.
-    STATE_UNSPECIFIED = 0;
-    // Computation is running.
-    RUNNING = 1;
-    // Completed successfully. Terminal state.
-    SUCCEEDED = 2;
-    // Completed with failure. Terminal state.
-    FAILED = 3;
-  }
-  // Depends on `Metric` states. Output-only.
-  State state = 5;
-
   oneof time {
     TimeIntervals time_intervals = 6;
     PeriodicTimeInterval periodic_time_interval = 7;
