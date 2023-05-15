@@ -35,13 +35,17 @@ service ModelLines {
 }
 
 message StreamModelLinesRequest {
+  message AfterFilter {
+    fixed64 external_model_line_id = 1;
+    google.protobuf.Timestamp created_after = 2;
+  }
+
   // Filter criteria as a conjunction of specified fields.
   message Filter {
     fixed64 external_model_provider_id = 1;
     fixed64 external_model_suite_id = 2;
-    fixed64 external_model_line_id = 3;
-    google.protobuf.Timestamp created_after = 4;
-    repeated ModelLine.Type type = 5;
+    repeated ModelLine.Type type = 3;
+    AfterFilter after = 4;
   }
   Filter filter = 1;
 

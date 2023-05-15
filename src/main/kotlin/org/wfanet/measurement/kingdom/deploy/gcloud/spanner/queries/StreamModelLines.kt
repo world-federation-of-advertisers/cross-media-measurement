@@ -49,22 +49,17 @@ class StreamModelLines(private val requestFilter: StreamModelLinesRequest.Filter
       bind(EXTERNAL_MODEL_SUITE_ID_PARAM to filter.externalModelSuiteId)
     }
 
-    if (filter.hasCreatedAfter()) {
-      if (filter.externalModelLineId != 0L) {
-        println("================================================= filtro presente")
-        conjuncts.add(
-          """
+    if (filter.hasAfter()) {
+      conjuncts.add(
+        """
           ((ModelLines.CreateTime  > @${CREATED_AFTER})
-          OR (ModelLines.CreateTime  > @${CREATED_AFTER}
+          OR (ModelLines.CreateTime  = @${CREATED_AFTER}
           AND ModelLines.ExternalModelLineId > @${EXTERNAL_MODEL_LINE_ID_PARAM}))
         """
-            .trimIndent()
-        )
-        bind(CREATED_AFTER to filter.createdAfter.toGcloudTimestamp())
-        bind(EXTERNAL_MODEL_LINE_ID_PARAM to filter.externalModelLineId)
-      } else {
-        error("external_model_line_id required")
-      }
+          .trimIndent()
+      )
+      bind(CREATED_AFTER to filter.after.createdAfter.toGcloudTimestamp())
+      bind(EXTERNAL_MODEL_LINE_ID_PARAM to filter.after.externalModelLineId)
     }
 
     if (filter.typeValueList.isNotEmpty()) {

@@ -37,6 +37,7 @@ import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.modelLine
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest
@@ -518,8 +519,10 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
             filter = filter {
               externalModelProviderId = modelSuite.externalModelProviderId
               externalModelSuiteId = modelSuite.externalModelSuiteId
-              createdAfter = modelLines[0].createTime
-              externalModelLineId = modelLines[0].externalModelLineId
+              after = afterFilter {
+                createdAfter = modelLines[0].createTime
+                externalModelLineId = modelLines[0].externalModelLineId
+              }
             }
           }
         )
