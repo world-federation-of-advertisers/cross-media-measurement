@@ -14,19 +14,29 @@
  * limitations under the License.
  */
 
-
 package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
 import org.wfanet.measurement.common.api.ResourceKey
 
-private val parser = ResourceNameParser("modelProviders/{model_provider}/modelSuites/{model_suite}/modelLines/{model_line}")
+private val parser =
+  ResourceNameParser(
+    "modelProviders/{model_provider}/modelSuites/{model_suite}/modelLines/{model_line}"
+  )
 
 /** [ResourceKey] of a Model Line. */
-data class ModelLineKey(val modelProviderId: String, val modelSuiteId: String, val modelLineId: String) : ResourceKey {
+data class ModelLineKey(
+  val modelProviderId: String,
+  val modelSuiteId: String,
+  val modelLineId: String
+) : ResourceKey {
   override fun toName(): String {
     return parser.assembleName(
-      mapOf(IdVariable.MODEL_PROVIDER to modelProviderId, IdVariable.MODEL_SUITE to modelSuiteId, IdVariable.MODEL_LINE to modelLineId)
+      mapOf(
+        IdVariable.MODEL_PROVIDER to modelProviderId,
+        IdVariable.MODEL_SUITE to modelSuiteId,
+        IdVariable.MODEL_LINE to modelLineId
+      )
     )
   }
 
@@ -35,7 +45,11 @@ data class ModelLineKey(val modelProviderId: String, val modelSuiteId: String, v
 
     override fun fromName(resourceName: String): ModelLineKey? {
       return parser.parseIdVars(resourceName)?.let {
-        ModelLineKey(it.getValue(IdVariable.MODEL_PROVIDER), it.getValue(IdVariable.MODEL_SUITE), it.getValue(IdVariable.MODEL_LINE))
+        ModelLineKey(
+          it.getValue(IdVariable.MODEL_PROVIDER),
+          it.getValue(IdVariable.MODEL_SUITE),
+          it.getValue(IdVariable.MODEL_LINE)
+        )
       }
     }
   }

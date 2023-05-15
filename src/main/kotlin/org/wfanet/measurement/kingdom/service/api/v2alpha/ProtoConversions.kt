@@ -39,6 +39,10 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLine.Type
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.Direct
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
@@ -78,11 +82,6 @@ import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
 import org.wfanet.measurement.internal.kingdom.modelLine as internalModelLine
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
-import org.wfanet.measurement.api.v2alpha.ModelProviderKey
-import org.wfanet.measurement.api.v2alpha.ModelLine
-import org.wfanet.measurement.api.v2alpha.ModelLine.Type
-import org.wfanet.measurement.api.v2alpha.ModelLineKey
-import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 
 /** Converts an internal [InternalMeasurement.State] to a public [State]. */
@@ -252,16 +251,16 @@ fun Type.toInternalType(): InternalModelLine.Type {
 }
 
 /** Converts an internal [InternalModelLine] to a public [ModelLine]. */
-fun InternalModelLine.toModelSuite(): ModelLine {
+fun InternalModelLine.toModelLine(): ModelLine {
   val source = this
 
   return modelLine {
     name =
       ModelLineKey(
-        externalIdToApiId(source.externalModelProviderId),
-        externalIdToApiId(source.externalModelSuiteId),
+          externalIdToApiId(source.externalModelProviderId),
+          externalIdToApiId(source.externalModelSuiteId),
           externalIdToApiId(source.externalModelLineId)
-      )
+        )
         .toName()
     displayName = source.displayName
     description = source.description
@@ -271,12 +270,13 @@ fun InternalModelLine.toModelSuite(): ModelLine {
     }
     type = source.type.toType()
     if (source.externalHoldbackModelLineId != 0L) {
-      holdbackModelLine = ModelLineKey(
-        externalIdToApiId(source.externalModelProviderId),
-        externalIdToApiId(source.externalModelSuiteId),
-        externalIdToApiId(source.externalHoldbackModelLineId)
-      )
-        .toName()
+      holdbackModelLine =
+        ModelLineKey(
+            externalIdToApiId(source.externalModelProviderId),
+            externalIdToApiId(source.externalModelSuiteId),
+            externalIdToApiId(source.externalHoldbackModelLineId)
+          )
+          .toName()
     }
     createTime = source.createTime
     updateTime = source.updateTime
