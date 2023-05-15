@@ -37,7 +37,7 @@ service ModelLines {
 message StreamModelLinesRequest {
   message AfterFilter {
     fixed64 external_model_line_id = 1;
-    google.protobuf.Timestamp created_after = 2;
+    google.protobuf.Timestamp create_time = 2;
   }
 
   // Filter criteria as a conjunction of specified fields.

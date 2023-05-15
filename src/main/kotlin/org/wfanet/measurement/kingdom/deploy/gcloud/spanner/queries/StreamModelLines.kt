@@ -58,7 +58,7 @@ class StreamModelLines(private val requestFilter: StreamModelLinesRequest.Filter
         """
           .trimIndent()
       )
-      bind(CREATED_AFTER to filter.after.createdAfter.toGcloudTimestamp())
+      bind(CREATED_AFTER to filter.after.createTime.toGcloudTimestamp())
       bind(EXTERNAL_MODEL_LINE_ID_PARAM to filter.after.externalModelLineId)
     }
 
