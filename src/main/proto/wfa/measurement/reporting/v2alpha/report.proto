@@ -69,7 +69,7 @@ message Report {
     // The final set of groups is the Cartesian product of `groupings` and will
     // fan out multiple metrics per metric spec and per time interval, i.e.
     // one metric per element of the Cartesian product of the groupings with a
-    // single metric type and a single time interval.
+    // single metric type and a single time interval. Predicates must be unique.
     repeated Grouping groupings = 3 [(google.api.field_behavior) = IMMUTABLE];
     // Whether the results for a given time interval is cumulative with those of
     // previous time intervals.
@@ -96,8 +96,10 @@ message Report {
       }
     ];
     // Value of the map entry.
-    ReportingMetricCalculationSpec value = 2
-        [(google.api.field_behavior) = IMMUTABLE];
+    ReportingMetricCalculationSpec value = 2 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.field_behavior) = IMMUTABLE
+    ];
   }
 
   // The calculations defined for specific reporting sets.

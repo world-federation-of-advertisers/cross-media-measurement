@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.google.protobuf.util.Timestamps
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -30,6 +31,7 @@ import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasu
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.Report as InternalReport
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequestKt
@@ -43,6 +45,8 @@ import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageToken
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
+import org.wfanet.measurement.reporting.v2alpha.PeriodicTimeInterval
+import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.TimeInterval
@@ -104,6 +108,19 @@ fun TimeInterval.toInternal(): InternalTimeInterval {
   return internalTimeInterval {
     startTime = source.startTime
     endTime = source.endTime
+  }
+}
+
+/** Convert an [PeriodicTimeInterval] to a list of [TimeInterval]s. */
+fun PeriodicTimeInterval.toTimeIntervalsList(): List<TimeInterval> {
+  val source = this
+  var startTime = checkNotNull(source.startTime)
+  return (0 until source.intervalCount).map {
+    timeInterval {
+      this.startTime = startTime
+      this.endTime = Timestamps.add(startTime, source.increment)
+      startTime = this.endTime
+    }
   }
 }
 
@@ -406,4 +423,9 @@ fun ListReportingSetsPageToken.toStreamReportingSetsRequest(): StreamReportingSe
         externalReportingSetIdAfter = source.lastReportingSet.externalReportingSetId
       }
   }
+}
+
+/** Converts an internal [InternalReport] to a public [Report]. */
+fun InternalReport.toReport(): Report {
+  TODO("Not yet implemented")
 }
