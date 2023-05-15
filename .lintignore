@@ -4,3 +4,4 @@
 
 third_party/
 node_modules/
+.terraform.lock.hcl
