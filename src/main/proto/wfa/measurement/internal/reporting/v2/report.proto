@@ -31,9 +31,31 @@ message Report {
 
   google.protobuf.Timestamp create_time = 3;
 
+  message CreateMetricRequest {
+    // Will be filled by the internal reports service. For now, generating a new
+    // UUID. In the future when metric reuse is done. Two cases--(1) When there
+    // is no metric can be found based on the metric config from 3-6, generate a
+    // new UUID. (2) When a corresponding metric is found, fill its request ID.
+    string request_id = 1;
+    // Will be filled by the internal reports service. Use the request ID above
+    // to find the metric.
+    fixed64 external_metric_id = 2;
+
+    message Details {
+      fixed64 external_reporting_set_id = 1;
+      TimeInterval time_interval = 2;
+      // The original metric spec provided by the user. It won't be updated with
+      // default values if some values are not set.
+      MetricSpec metric_spec = 3;
+      repeated string filters = 4;
+    }
+
+    Details details = 3;
+  }
+
   message MetricCalculationSpec {
     // Represents all `Metric`s associated with this MetricCalculation.
-    repeated fixed64 external_metric_ids = 1;
+    repeated CreateMetricRequest create_metric_requests = 1;
 
     message Grouping {
       repeated string predicates = 1;
@@ -55,21 +77,8 @@ message Report {
   // Map of `external_reporting_set_id` to `ReportingMetricCalculationSpec`.
   map<fixed64, ReportingMetricCalculationSpec> reporting_metric_entries = 4;
 
-  enum State {
-    // Default value. This value is unused.
-    STATE_UNSPECIFIED = 0;
-    // Computation is running.
-    RUNNING = 1;
-    // Completed successfully. Terminal state.
-    SUCCEEDED = 2;
-    // Completed with failure. Terminal state.
-    FAILED = 3;
-  }
-  // Depends on `Metric` states. Output-only.
-  State state = 5;
-
   oneof time {
-    TimeIntervals time_intervals = 6;
-    PeriodicTimeInterval periodic_time_interval = 7;
+    TimeIntervals time_intervals = 5;
+    PeriodicTimeInterval periodic_time_interval = 6;
   }
 }
