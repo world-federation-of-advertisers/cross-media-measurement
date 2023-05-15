@@ -16,7 +16,7 @@ module "kingdom_cluster" {
   source = "../modules/cluster"
 
   name       = local.kingdom_cluster_name
-  location   = var.cluster_location
+  location   = local.cluster_location
   secret_key = module.common.cluster_secret_key
 }
 

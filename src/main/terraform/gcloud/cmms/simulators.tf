@@ -12,27 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-module "reporting_cluster" {
+module "simulators_cluster" {
   source = "../modules/cluster"
 
-  name       = local.reporting_cluster_name
+  name       = local.simulators_cluster_name
   location   = local.cluster_location
   secret_key = module.common.cluster_secret_key
 }
 
-data "google_container_cluster" "reporting" {
-  name     = local.reporting_cluster_name
+data "google_container_cluster" "simulators" {
+  name     = local.simulators_cluster_name
   location = local.cluster_location
 
   # Defer reading of cluster resource until it exists.
-  depends_on = [module.reporting_cluster]
+  depends_on = [module.simulators_cluster]
 }
 
-module "reporting_default_node_pool" {
+module "simulators_default_node_pool" {
   source = "../modules/node-pool"
 
   name            = "default"
-  cluster         = data.google_container_cluster.reporting
+  cluster         = data.google_container_cluster.simulators
   service_account = module.common.cluster_service_account
   machine_type    = "e2-small"
   max_node_count  = 4
@@ -42,21 +42,27 @@ provider "kubernetes" {
   # Due to the fact that this is using interpolation, the cluster must already exist.
   # See https://registry.terraform.io/providers/hashicorp/kubernetes/2.20.0/docs
 
-  alias = "reporting"
-  host  = "https://${data.google_container_cluster.reporting.endpoint}"
+  alias = "simulators"
+  host  = "https://${data.google_container_cluster.simulators.endpoint}"
   token = data.google_client_config.default.access_token
   cluster_ca_certificate = base64decode(
-    data.google_container_cluster.reporting.master_auth[0].cluster_ca_certificate,
+    data.google_container_cluster.simulators.master_auth[0].cluster_ca_certificate,
   )
 }
 
-module "reporting" {
-  source = "../modules/reporting"
+module "simulators" {
+  source = "../modules/simulators"
 
   providers = {
     google     = google
-    kubernetes = kubernetes.reporting
+    kubernetes = kubernetes.simulators
   }
 
-  postgres_instance = google_sql_database_instance.postgres
+  storage_bucket = module.storage.storage_bucket
+
+  # TODO(hashicorp/terraform-provider-google#5693): Use data source once available.
+  bigquery_table = {
+    dataset_id = var.bigquery_dataset_id
+    id         = var.bigquery_table_id
+  }
 }
