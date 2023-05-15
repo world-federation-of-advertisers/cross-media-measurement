@@ -313,7 +313,7 @@ std::string ProtocolCryptorImpl::NextRandomBigNumAsString() {
 
 }  // namespace
 
-absl::StatusOr<std::unique_ptr<ProtocolCryptor>> CreateProtocolCryptorWithKeys(
+absl::StatusOr<std::unique_ptr<ProtocolCryptor>> CreateProtocolCryptor(
     const ProtocolCryptorKeys& keys) {
   auto ctx = absl::make_unique<Context>();
   ASSIGN_OR_RETURN(ECGroup ec_group, ECGroup::Create(keys.curve_id, ctx.get()));

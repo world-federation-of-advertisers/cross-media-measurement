@@ -16,7 +16,6 @@
 #define SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_MULTITHREADING_HELPER_H_
 
 #include <memory>
-#include <thread>  // NOLINT(build/c++11)
 #include <utility>
 #include <vector>
 
@@ -52,9 +51,7 @@ class MultithreadingHelper {
       const ElGamalCiphertext& partial_composite_el_gamal_public_key);
 
   const int num_threads_;
-  std::vector<std::thread> threads_;
   std::vector<std::unique_ptr<ProtocolCryptor>> cryptors_;
-  std::vector<std::optional<absl::Status>> failures_;
 
  public:
   static absl::StatusOr<std::unique_ptr<MultithreadingHelper>>
@@ -87,6 +84,7 @@ class MultithreadingHelper {
 
   void ExecuteCryptorTask(
       size_t thread_index, size_t start_index, size_t count,
+      std::optional<absl::Status>& failure,
       absl::AnyInvocable<absl::Status(ProtocolCryptor&, size_t)>& f);
 };
 
