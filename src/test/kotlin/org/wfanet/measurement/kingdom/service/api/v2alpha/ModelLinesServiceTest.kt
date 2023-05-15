@@ -53,6 +53,8 @@ import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCorout
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.modelLine as internalModelLine
+import org.wfanet.measurement.api.v2alpha.setActiveEndTimeRequest
+import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalsetActiveEndTimeRequest
 
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val DUCHY_NAME = "duchies/AAAAAAAAAHs"
@@ -77,6 +79,7 @@ private const val DESCRIPTION = "Description"
 private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
 private val ACTIVE_START_TIME: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
+private val ACTIVE_END_TIME: Timestamp = Instant.ofEpochSecond(789).toProtoTime()
 
 private val INTERNAL_MODEL_LINE: InternalModelLine = internalModelLine {
   externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
@@ -106,9 +109,6 @@ class ModelLinesServiceTest {
       onBlocking { createModelLine(any()) }
         .thenAnswer {
           val request = it.getArgument<InternalModelLine>(0)
-          println(request)
-          println("--------------------------------")
-          println(request.externalModelSuiteId)
           if (request.externalModelSuiteId != 123L) {
             failGrpc(Status.NOT_FOUND) { "ModelProvider not found" }
           } else {
@@ -123,6 +123,8 @@ class ModelLinesServiceTest {
             }
           }
         }
+      onBlocking { setActiveEndTime(any()) }
+        .thenReturn(INTERNAL_MODEL_LINE.copy { activeEndTime = ACTIVE_END_TIME })
     }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalModelLinesMock) }
@@ -271,5 +273,103 @@ class ModelLinesServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `setActiveEndTime returns model line with active end time`() {
+    val request = setActiveEndTimeRequest {
+      name = MODEL_LINE_NAME
+      activeEndTime = ACTIVE_END_TIME
+    }
+
+    val result =
+      withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+        runBlocking { service.setActiveEndTime(request) }
+      }
+
+    val expected = MODEL_LINE.copy {
+      activeEndTime = ACTIVE_END_TIME
+    }
+
+    verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::setActiveEndTime)
+      .isEqualTo(
+        internalsetActiveEndTimeRequest {
+          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+          externalModelLineId = EXTERNAL_MODEL_LINE_ID
+          activeEndTime = ACTIVE_END_TIME
+        }
+      )
+
+    assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `setActiveEndTime throws INVALID_ARGUMENT when name is missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking { service.setActiveEndTime(setActiveEndTimeRequest { activeEndTime = ACTIVE_END_TIME }) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `setActiveEndTime throws UNAUTHENTICATED when no principal is found`() {
+    val request = setActiveEndTimeRequest {
+      name = MODEL_LINE_NAME
+      activeEndTime = ACTIVE_END_TIME
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.setActiveEndTime(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `setActiveEndTime throws PERMISSION_DENIED when principal is data provider`() {
+    val request = setActiveEndTimeRequest {
+      name = MODEL_LINE_NAME
+      activeEndTime = ACTIVE_END_TIME
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.setActiveEndTime(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `setActiveEndTime throws PERMISSION_DENIED when principal is duchy`() {
+    val request = setActiveEndTimeRequest {
+      name = MODEL_LINE_NAME
+      activeEndTime = ACTIVE_END_TIME
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDuchyPrincipal(DUCHY_NAME) { runBlocking { service.setActiveEndTime(request) } }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `setActiveEndTime throws PERMISSION_DENIED when principal is measurement consumer`() {
+    val request = setActiveEndTimeRequest {
+      name = MODEL_LINE_NAME
+      activeEndTime = ACTIVE_END_TIME
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.setActiveEndTime(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 }

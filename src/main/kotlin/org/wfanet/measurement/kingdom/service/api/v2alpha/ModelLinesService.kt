@@ -96,7 +96,7 @@ class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
       return internalClient.setActiveEndTime(internalSetActiveEndTimeRequest).toModelLine()
     } catch (ex: StatusException) {
       when (ex.status.code) {
-        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "ModelSuite not found." }
+        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "ModelLine not found." }
         Status.Code.INVALID_ARGUMENT ->
           failGrpc(Status.INVALID_ARGUMENT, ex) { "ActiveEndTime is invalid." }
         else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
