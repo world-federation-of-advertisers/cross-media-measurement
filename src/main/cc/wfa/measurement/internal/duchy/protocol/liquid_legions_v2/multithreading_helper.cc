@@ -26,42 +26,19 @@ using ::wfa::measurement::common::crypto::ProtocolCryptorOptions;
 
 absl::StatusOr<std::unique_ptr<MultithreadingHelper>>
 MultithreadingHelper::CreateMultithreadingHelper(
-    int num_threads, int curve_id,
-    const ElGamalCiphertext& local_el_gamal_public_key,
-    absl::string_view local_el_gamal_private_key,
-    absl::string_view local_pohlig_hellman_private_key,
-    const ElGamalCiphertext& composite_el_gamal_public_key,
-    const ElGamalCiphertext& partial_composite_el_gamal_public_key) {
+    int num_threads, const ProtocolCryptorOptions& options) {
   ABSL_ASSERT(num_threads > 0);
 
-  ASSIGN_OR_RETURN(
-      auto cryptors,
-      MultithreadingHelper::CreateCryptors(
-          num_threads, curve_id, local_el_gamal_public_key,
-          local_el_gamal_private_key, local_pohlig_hellman_private_key,
-          composite_el_gamal_public_key,
-          partial_composite_el_gamal_public_key));
-  std::unique_ptr<MultithreadingHelper> helper = absl::WrapUnique(
+  ASSIGN_OR_RETURN(auto cryptors,
+                   MultithreadingHelper::CreateCryptors(num_threads, options));
+  return absl::WrapUnique(
       new MultithreadingHelper(num_threads, std::move(cryptors)));
-  return {std::move(helper)};
 }
 
 absl::StatusOr<std::vector<std::unique_ptr<ProtocolCryptor>>>
-MultithreadingHelper::CreateCryptors(
-    int num, int curve_id, const ElGamalCiphertext& local_el_gamal_public_key,
-    absl::string_view local_el_gamal_private_key,
-    absl::string_view local_pohlig_hellman_private_key,
-    const ElGamalCiphertext& composite_el_gamal_public_key,
-    const ElGamalCiphertext& partial_composite_el_gamal_public_key) {
+MultithreadingHelper::CreateCryptors(int num,
+                                     const ProtocolCryptorOptions& options) {
   std::vector<std::unique_ptr<ProtocolCryptor>> cryptors;
-  ProtocolCryptorOptions options{
-      .curve_id = curve_id,
-      .local_el_gamal_public_key = local_el_gamal_public_key,
-      .local_el_gamal_private_key = local_el_gamal_private_key,
-      .local_pohlig_hellman_private_key = local_pohlig_hellman_private_key,
-      .composite_el_gamal_public_key = composite_el_gamal_public_key,
-      .partial_composite_el_gamal_public_key =
-          partial_composite_el_gamal_public_key};
   for (size_t i = 0; i < num; i++) {
     ASSIGN_OR_RETURN(auto cryptor, CreateProtocolCryptor(options));
     cryptors.emplace_back(std::move(cryptor));

@@ -30,6 +30,7 @@ namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 
 using ::wfa::measurement::common::crypto::ElGamalCiphertext;
 using ::wfa::measurement::common::crypto::ProtocolCryptor;
+using ::wfa::measurement::common::crypto::ProtocolCryptorOptions;
 
 // A helper class to execute cryptor iterations in multi-threads.
 class MultithreadingHelper {
@@ -43,25 +44,15 @@ class MultithreadingHelper {
   // As [ProtocolCryptor] is not thread-safe, each thread has its own cryptor to
   // execute tasks.
   static absl::StatusOr<std::vector<std::unique_ptr<ProtocolCryptor>>>
-  CreateCryptors(
-      int num, int curve_id, const ElGamalCiphertext& local_el_gamal_public_key,
-      absl::string_view local_el_gamal_private_key,
-      absl::string_view local_pohlig_hellman_private_key,
-      const ElGamalCiphertext& composite_el_gamal_public_key,
-      const ElGamalCiphertext& partial_composite_el_gamal_public_key);
+  CreateCryptors(int num, const ProtocolCryptorOptions& options);
 
   const int num_threads_;
   const std::vector<std::unique_ptr<ProtocolCryptor>> cryptors_;
 
  public:
   static absl::StatusOr<std::unique_ptr<MultithreadingHelper>>
-  CreateMultithreadingHelper(
-      int num_threads, int curve_id,
-      const ElGamalCiphertext& local_el_gamal_public_key,
-      absl::string_view local_el_gamal_private_key,
-      absl::string_view local_pohlig_hellman_private_key,
-      const ElGamalCiphertext& composite_el_gamal_public_key,
-      const ElGamalCiphertext& partial_composite_el_gamal_public_key);
+  CreateMultithreadingHelper(int num_threads,
+                             const ProtocolCryptorOptions& options);
 
   // Execute function f with a batch input [data] and number of iterations.
   // Note: The function f must be thread-safe.

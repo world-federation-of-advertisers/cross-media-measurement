@@ -31,6 +31,7 @@ using ::wfa::measurement::common::crypto::kGenerateNewParitialCompositeCipher;
 using ::wfa::measurement::common::crypto::kGenerateWithNewElGamalPrivateKey;
 using ::wfa::measurement::common::crypto::kGenerateWithNewElGamalPublicKey;
 using ::wfa::measurement::common::crypto::kGenerateWithNewPohligHellmanKey;
+using ::wfa::measurement::common::crypto::ProtocolCryptorOptions;
 using ::wfa::measurement::internal::duchy::protocol::liquid_legions_v2::
     MultithreadingHelper;
 
@@ -38,22 +39,27 @@ constexpr int kThreadCount = 3;
 constexpr int kTestCurveId = NID_X9_62_prime256v1;
 const std::vector<int> kIntegerData = {1, 2, 3, 4, 5};  // 7 characters;
 
-absl::StatusOr<ElGamalCiphertext> getFakeElGamalPublicKey() {
+ProtocolCryptorOptions GetProtocolCryptorOptions() {
   std::unique_ptr<CommutativeElGamal> cipher =
       CommutativeElGamal::CreateWithNewKeyPair(kTestCurveId).value();
   ElGamalCiphertext el_gamal_ciphertext = cipher->GetPublicKeyBytes().value();
-  return el_gamal_ciphertext;
+
+  ProtocolCryptorOptions options{
+      .curve_id = kTestCurveId,
+      .local_el_gamal_public_key = kGenerateWithNewElGamalPublicKey,
+      .local_el_gamal_private_key = kGenerateWithNewElGamalPrivateKey,
+      .local_pohlig_hellman_private_key = kGenerateWithNewPohligHellmanKey,
+      .composite_el_gamal_public_key = el_gamal_ciphertext,
+      .partial_composite_el_gamal_public_key =
+          kGenerateWithNewElGamalPublicKey};
+
+  return options;
 }
 
 TEST(MultithreadingHelper, TasksAreExecutedInMultipleThreads) {
-  auto composite_el_gamal_public_key = getFakeElGamalPublicKey().value();
-
-  ASSERT_OK_AND_ASSIGN(
-      auto helper,
-      MultithreadingHelper::CreateMultithreadingHelper(
-          kThreadCount, kTestCurveId, kGenerateWithNewElGamalPublicKey,
-          kGenerateWithNewElGamalPrivateKey, kGenerateWithNewPohligHellmanKey,
-          composite_el_gamal_public_key, kGenerateNewParitialCompositeCipher));
+  ASSERT_OK_AND_ASSIGN(auto helper,
+                       MultithreadingHelper::CreateMultithreadingHelper(
+                           kThreadCount, GetProtocolCryptorOptions()));
 
   int iteration_count = kIntegerData.size();
   std::vector<int> results_1(iteration_count, -1);
@@ -80,14 +86,9 @@ TEST(MultithreadingHelper, TasksAreExecutedInMultipleThreads) {
 }
 
 TEST(MultithreadingHelper, TasksAreExecutedInSingleThread) {
-  auto composite_el_gamal_public_key = getFakeElGamalPublicKey().value();
-
-  ASSERT_OK_AND_ASSIGN(
-      auto helper,
-      MultithreadingHelper::CreateMultithreadingHelper(
-          1, kTestCurveId, kGenerateWithNewElGamalPublicKey,
-          kGenerateWithNewElGamalPrivateKey, kGenerateWithNewPohligHellmanKey,
-          composite_el_gamal_public_key, kGenerateNewParitialCompositeCipher));
+  ASSERT_OK_AND_ASSIGN(auto helper,
+                       MultithreadingHelper::CreateMultithreadingHelper(
+                           1, GetProtocolCryptorOptions()));
 
   int iteration_count = kIntegerData.size();
   std::vector<int> results(iteration_count, -1);
@@ -104,14 +105,9 @@ TEST(MultithreadingHelper, TasksAreExecutedInSingleThread) {
 }
 
 TEST(MultithreadingHelper, ErrorReturnedWhenExecutionFails) {
-  auto composite_el_gamal_public_key = getFakeElGamalPublicKey().value();
-
-  ASSERT_OK_AND_ASSIGN(
-      auto helper,
-      MultithreadingHelper::CreateMultithreadingHelper(
-          kThreadCount, kTestCurveId, kGenerateWithNewElGamalPublicKey,
-          kGenerateWithNewElGamalPrivateKey, kGenerateWithNewPohligHellmanKey,
-          composite_el_gamal_public_key, kGenerateNewParitialCompositeCipher));
+  ASSERT_OK_AND_ASSIGN(auto helper,
+                       MultithreadingHelper::CreateMultithreadingHelper(
+                           kThreadCount, GetProtocolCryptorOptions()));
 
   std::string_view error_message = "Internal error.";
 
