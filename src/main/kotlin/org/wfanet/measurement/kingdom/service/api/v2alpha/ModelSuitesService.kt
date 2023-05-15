@@ -47,6 +47,7 @@ import org.wfanet.measurement.internal.kingdom.ModelSuite as InternalModelSuite
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequestKt
+import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.getModelSuiteRequest
 import org.wfanet.measurement.internal.kingdom.streamModelSuitesRequest
 
@@ -216,8 +217,10 @@ class ModelSuitesService(private val internalClient: ModelSuitesCoroutineStub) :
         StreamModelSuitesRequestKt.filter {
           externalModelProviderId = source.externalModelProviderId
           if (source.hasLastModelSuite()) {
-            createdAfter = source.lastModelSuite.createdAfter
-            externalModelSuiteId = source.lastModelSuite.externalModelSuiteId
+            after = afterFilter {
+              createTime = source.lastModelSuite.createdAfter
+              externalModelSuiteId = source.lastModelSuite.externalModelSuiteId
+            }
           }
         }
     }

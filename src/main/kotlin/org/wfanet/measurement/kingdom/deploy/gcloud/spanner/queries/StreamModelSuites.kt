@@ -46,21 +46,17 @@ class StreamModelSuites(
       bind(EXTERNAL_MODEL_PROVIDER_ID_PARAM to filter.externalModelProviderId)
     }
 
-    if (filter.hasCreatedAfter()) {
-      if (filter.externalModelSuiteId != 0L) {
-        conjuncts.add(
-          """
+    if (filter.hasAfter()) {
+      conjuncts.add(
+        """
           ((ModelSuites.CreateTime  > @${CREATED_AFTER})
           OR (ModelSuites.CreateTime  = @${CREATED_AFTER}
           AND ModelSuites.ExternalModelSuiteId > @${EXTERNAL_MODEL_SUITE_ID}))
         """
-            .trimIndent()
-        )
-        bind(CREATED_AFTER to filter.createdAfter.toGcloudTimestamp())
-        bind(EXTERNAL_MODEL_SUITE_ID to filter.externalModelSuiteId)
-      } else {
-        error("external_model_suite_id required")
-      }
+          .trimIndent()
+      )
+      bind(CREATED_AFTER to filter.after.createTime.toGcloudTimestamp())
+      bind(EXTERNAL_MODEL_SUITE_ID to filter.after.externalModelSuiteId)
     }
 
     if (conjuncts.isEmpty()) {

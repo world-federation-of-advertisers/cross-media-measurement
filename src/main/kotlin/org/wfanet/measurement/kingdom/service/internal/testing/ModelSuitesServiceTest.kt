@@ -34,6 +34,7 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelSuite
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.getModelSuiteRequest
 import org.wfanet.measurement.internal.kingdom.modelSuite
@@ -245,8 +246,10 @@ abstract class ModelSuitesServiceTest<T : ModelSuitesCoroutineImplBase> {
           streamModelSuitesRequest {
             filter = filter {
               externalModelProviderId = modelProvider.externalModelProviderId
-              createdAfter = modelSuites[0].createTime
-              externalModelSuiteId = modelSuites[0].externalModelSuiteId
+              after = afterFilter {
+                createTime = modelSuites[0].createTime
+                externalModelSuiteId = modelSuites[0].externalModelSuiteId
+              }
             }
           }
         )

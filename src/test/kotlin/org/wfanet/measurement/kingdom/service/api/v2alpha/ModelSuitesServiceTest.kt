@@ -60,6 +60,7 @@ import org.wfanet.measurement.internal.kingdom.ModelSuite as InternalModelSuite
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequest
+import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getModelSuiteRequest as internalGetModelSuiteRequest
@@ -486,8 +487,10 @@ class ModelSuitesServiceTest {
           limit = request.pageSize + 1
           filter = filter {
             externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-            createdAfter = CREATE_TIME
-            externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+            after = afterFilter {
+              createTime = CREATE_TIME
+              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+            }
           }
         }
       )
@@ -527,8 +530,10 @@ class ModelSuitesServiceTest {
           limit = request.pageSize + 1
           filter = filter {
             externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-            createdAfter = CREATE_TIME
-            externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+            after = afterFilter {
+              createTime = CREATE_TIME
+              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+            }
           }
         }
       )
@@ -565,8 +570,10 @@ class ModelSuitesServiceTest {
           limit = 3
           filter = filter {
             externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-            createdAfter = CREATE_TIME
-            externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+            after = afterFilter {
+              createTime = CREATE_TIME
+              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+            }
           }
         }
       )
