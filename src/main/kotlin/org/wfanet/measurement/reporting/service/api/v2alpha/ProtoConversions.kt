@@ -33,10 +33,14 @@ import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetr
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequestKt
+import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequest
+import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.TimeInterval as InternalTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
+import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeInterval as internalTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageToken
+import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageToken
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
@@ -386,6 +390,20 @@ fun InternalReportingSet.Primitive.toPrimitive(): ReportingSet.Primitive {
             eventGroupKey.cmmsEventGroupId
           )
           .toName()
+      }
+  }
+}
+
+/** Converts a [ListReportingSetsPageToken] to an internal [StreamReportingSetsRequest]. */
+fun ListReportingSetsPageToken.toStreamReportingSetsRequest(): StreamReportingSetsRequest {
+  val source = this
+  return streamReportingSetsRequest {
+    // get 1 more than the actual page size for deciding whether to set page token
+    limit = source.pageSize + 1
+    filter =
+      StreamReportingSetsRequestKt.filter {
+        cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId
+        externalReportingSetIdAfter = source.lastReportingSet.externalReportingSetId
       }
   }
 }

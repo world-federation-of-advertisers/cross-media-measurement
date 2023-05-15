@@ -18,7 +18,11 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.math.min
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -29,8 +33,19 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.Reportin
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
 import org.wfanet.measurement.reporting.v2alpha.CreateReportingSetRequest
+import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageToken
+import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageTokenKt.previousPageEnd
+import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsRequest
+import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsResponse
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
+import org.wfanet.measurement.reporting.v2alpha.copy
+import org.wfanet.measurement.reporting.v2alpha.listReportingSetsPageToken
+import org.wfanet.measurement.reporting.v2alpha.listReportingSetsResponse
+
+private const val MIN_PAGE_SIZE = 1
+private const val DEFAULT_PAGE_SIZE = 50
+private const val MAX_PAGE_SIZE = 1000
 
 class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsCoroutineStub) :
   ReportingSetsCoroutineImplBase() {
@@ -307,6 +322,84 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
         }
         .withCause(e)
         .asRuntimeException()
+    }
+  }
+
+  override suspend fun listReportingSets(
+    request: ListReportingSetsRequest
+  ): ListReportingSetsResponse {
+    val listReportingSetsPageToken = request.toListReportingSetsPageToken()
+
+    when (val principal: ReportingPrincipal = principalFromCurrentContext) {
+      is MeasurementConsumerPrincipal -> {
+        if (request.parent != principal.resourceKey.toName()) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot list ReportingSets belonging to other MeasurementConsumers."
+          }
+        }
+      }
+    }
+
+    val results: List<InternalReportingSet> =
+      internalReportingSetsStub
+        .streamReportingSets(listReportingSetsPageToken.toStreamReportingSetsRequest())
+        .toList()
+
+    if (results.isEmpty()) {
+      return ListReportingSetsResponse.getDefaultInstance()
+    }
+
+    return listReportingSetsResponse {
+      reportingSets +=
+        results
+          .subList(0, min(results.size, listReportingSetsPageToken.pageSize))
+          .map(InternalReportingSet::toReportingSet)
+
+      if (results.size > listReportingSetsPageToken.pageSize) {
+        val pageToken =
+          listReportingSetsPageToken.copy {
+            lastReportingSet = previousPageEnd {
+              cmmsMeasurementConsumerId = results[results.lastIndex - 1].cmmsMeasurementConsumerId
+              externalReportingSetId = results[results.lastIndex - 1].externalReportingSetId
+            }
+          }
+        nextPageToken = pageToken.toByteString().base64UrlEncode()
+      }
+    }
+  }
+}
+
+/** Converts a public [ListReportingSetsRequest] to a [ListReportingSetsPageToken]. */
+private fun ListReportingSetsRequest.toListReportingSetsPageToken(): ListReportingSetsPageToken {
+  grpcRequire(pageSize >= 0) { "Page size cannot be less than 0" }
+
+  val source = this
+  val parentKey: MeasurementConsumerKey =
+    grpcRequireNotNull(MeasurementConsumerKey.fromName(parent)) {
+      "Parent is either unspecified or invalid."
+    }
+
+  return if (source.pageToken.isNotBlank()) {
+    ListReportingSetsPageToken.parseFrom(source.pageToken.base64UrlDecode()).copy {
+      grpcRequire(this.cmmsMeasurementConsumerId == parentKey.measurementConsumerId) {
+        "Arguments must be kept the same when using a page token"
+      }
+
+      if (
+        source.pageSize != 0 && source.pageSize >= MIN_PAGE_SIZE && source.pageSize <= MAX_PAGE_SIZE
+      ) {
+        pageSize = source.pageSize
+      }
+    }
+  } else {
+    listReportingSetsPageToken {
+      pageSize =
+        when {
+          source.pageSize < MIN_PAGE_SIZE -> DEFAULT_PAGE_SIZE
+          source.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
+          else -> source.pageSize
+        }
+      this.cmmsMeasurementConsumerId = parentKey.measurementConsumerId
     }
   }
 }
