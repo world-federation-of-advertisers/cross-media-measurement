@@ -13,8 +13,9 @@
 # limitations under the License.
 
 variable "cluster_location" {
-  description = "Location of Kubernetes clusters."
+  description = "Location of Kubernetes clusters. Defaults to provider zone."
   type        = string
+  default     = null
 }
 
 variable "key_ring_name" {
@@ -23,8 +24,9 @@ variable "key_ring_name" {
 }
 
 variable "key_ring_location" {
-  description = "Location of the KMS key ring."
+  description = "Location of the KMS key ring. Defaults to provider region."
   type        = string
+  default     = null
 }
 
 variable "spanner_instance_name" {
@@ -55,7 +57,42 @@ variable "storage_bucket_name" {
 }
 
 variable "storage_bucket_location" {
-  description = "Location of the Google Cloud Storage bucket."
+  description = "Location of the Google Cloud Storage bucket. Defaults to provider region."
+  type        = string
+  default     = null
+}
+
+variable "postgres_instance_name" {
+  description = "Name of the PostgreSQL Cloud SQL instance."
+  type        = string
+  default     = "halo"
+  nullable    = false
+}
+
+variable "postgres_instance_tier" {
+  description = "Tier (machine type) of the PostgreSQL Cloud SQL instance."
+  type        = string
+  default     = "db-f1-micro"
+  nullable    = false
+}
+
+variable "postgres_password" {
+  description = "Password for postgres user."
+  type        = string
+  sensitive   = true
+  nullable    = false
+}
+
+variable "bigquery_dataset_id" {
+  description = "ID of the existing BigQuery dataset."
   type        = string
   nullable    = false
+  default     = "demo"
+}
+
+variable "bigquery_table_id" {
+  description = "ID of the existing BigQuery table."
+  type        = string
+  nullable    = false
+  default     = "labelled_events"
 }

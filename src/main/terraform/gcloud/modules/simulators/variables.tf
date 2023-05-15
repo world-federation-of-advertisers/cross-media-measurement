@@ -12,19 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-terraform {
-  required_providers {
-    google = {
-      source  = "hashicorp/google"
-      version = "~> 4.63.0"
-    }
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = "~> 2.20.0"
-    }
-    postgresql = {
-      source  = "cyrilgdn/postgresql"
-      version = "~> 1.19.0"
-    }
-  }
+variable "storage_bucket" {
+  description = "`google_storage_bucket` for the system."
+  type = object({
+    name = string
+  })
+  nullable = false
+}
+
+variable "bigquery_table" {
+  description = "`google_bigquery_table` containing labeled test events."
+  type = object({
+    dataset_id = string
+    id         = string
+  })
+  nullable = false
 }
