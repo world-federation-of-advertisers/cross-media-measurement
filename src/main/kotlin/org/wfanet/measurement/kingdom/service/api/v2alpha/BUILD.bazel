@@ -368,3 +368,20 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
     ],
 )
+
+kt_jvm_library(
+    name = "model_lines_service",
+    srcs = ["ModelLinesService.kt"],
+    deps = [
+        ":proto_conversions",
+        "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_line_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_lines_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:page_token_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:model_line_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:model_lines_service_kt_jvm_grpc_proto",
+    ],
+)
