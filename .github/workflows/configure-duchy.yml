@@ -90,7 +90,7 @@ jobs:
         IMAGE_TAG: ${{ inputs.image-tag }}
         SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
         KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
-        DUCHY_STORAGE_BUCKET: ${{ vars.DUCHY_STORAGE_BUCKET }}
+        STORAGE_BUCKET: ${{ vars.STORAGE_BUCKET }}
       run: >
         bazelisk build 
         "//src/main/k8s/dev:${DUCHY_NAME}_duchy.tar"
@@ -100,7 +100,7 @@ jobs:
         --define "google_cloud_project=$GCLOUD_PROJECT"
         --define "spanner_instance=$SPANNER_INSTANCE"
         --define "kingdom_system_api_target=$KINGDOM_SYSTEM_API_TARGET"
-        --define "duchy_storage_bucket=$DUCHY_STORAGE_BUCKET"
+        --define "duchy_storage_bucket=$STORAGE_BUCKET"
         --define "duchy_cert_id=$DUCHY_CERT_ID"
 
 
