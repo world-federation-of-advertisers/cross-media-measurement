@@ -338,10 +338,6 @@ CREATE TABLE Reports (
 
   CreateTime TIMESTAMP WITH TIME ZONE NOT NULL,
 
-  -- org.wfanet.measurement.internal.reporting.Report.State
-  -- protobuf enum encoded as an integer.
-  State integer NOT NULL,
-
   PRIMARY KEY(MeasurementConsumerId, ReportId),
   UNIQUE (MeasurementConsumerId, CreateReportRequestId),
   UNIQUE (MeasurementConsumerId, ExternalReportId),
@@ -395,9 +391,21 @@ CREATE TABLE MetricCalculationSpecMetrics (
   MeasurementConsumerId bigint NOT NULL,
   ReportId bigint NOT NULL,
   MetricCalculationSpecId bigint NOT NULL,
-  MetricId bigint NOT NULL,
+  MetricId bigint,
+  CreateMetricRequestId uuid NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, ReportId, MetricCalculationSpecId, MetricId),
+  -- Serialized byte string of a proto3 protobuf with details about the
+  -- Report.CreateMetricRequest which do not need to be indexed by the database.
+  --
+  -- See org.wfanet.measurement.internal.reporting.Report.CreateMetricRequest.Details
+  -- protobuf message.
+  CreateMetricRequestDetails bytea NOT NULL,
+
+  -- Human-readable copy of the CreateMetricRequestDetails column solely for
+  -- debugging purposes.
+  CreateMetricRequestDetailsJson text NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerId, ReportId, MetricCalculationSpecId, CreateMetricRequestId),
   FOREIGN KEY(MeasurementConsumerId, ReportId, MetricCalculationSpecId)
     REFERENCES MetricCalculationSpecs(MeasurementConsumerId, ReportId, MetricCalculationSpecId)
     ON DELETE CASCADE,
