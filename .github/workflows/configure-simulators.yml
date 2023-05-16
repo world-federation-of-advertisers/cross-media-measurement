@@ -68,7 +68,7 @@ jobs:
     - name: Generate archives
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
-        SIMULATOR_STORAGE_BUCKET: ${{ vars.SIMULATOR_STORAGE_BUCKET }}
+        STORAGE_BUCKET: ${{ vars.STORAGE_BUCKET }}
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
         DUCHY_PUBLIC_API_TARGET: ${{ vars.DUCHY_PUBLIC_API_TARGET }}
         MC_NAME: ${{ vars.MC_NAME }}
@@ -85,7 +85,7 @@ jobs:
         --config ghcr
         --define "image_tag=$IMAGE_TAG"
         --define "google_cloud_project=$GCLOUD_PROJECT"
-        --define "simulator_storage_bucket=$SIMULATOR_STORAGE_BUCKET"
+        --define "simulator_storage_bucket=$STORAGE_BUCKET"
         --define "kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
         --define "duchy_public_api_target=$DUCHY_PUBLIC_API_TARGET"
         --define "mc_name=$MC_NAME"
