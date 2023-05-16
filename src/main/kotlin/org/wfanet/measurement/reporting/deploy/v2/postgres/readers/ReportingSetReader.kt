@@ -215,7 +215,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
           if (reportingSetInfo.displayName != null) {
             displayName = reportingSetInfo.displayName
           }
-          if (reportingSetInfo.filter != null) {
+          if (!reportingSetInfo.filter.isNullOrBlank()) {
             filter = reportingSetInfo.filter
           }
 
@@ -238,7 +238,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
                 primitiveReportingSetBases +=
                   ReportingSetKt.primitiveReportingSetBasis {
                     this.externalReportingSetId = reportingSetInfo.externalReportingSetId.value
-                    if (reportingSetInfo.filter != null) {
+                    if (!reportingSetInfo.filter.isNullOrBlank()) {
                       filters += reportingSetInfo.filter
                     }
                   }
@@ -343,8 +343,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
         weightedSubsetUnionId != null &&
           weight != null &&
           primitiveReportingSetBasisId != null &&
-          primitiveExternalReportingSetId != null &&
-          primitiveReportingSetBasisFilter != null
+          primitiveExternalReportingSetId != null
       ) {
         val weightedSubsetUnionInfo =
           reportingSetInfo.weightedSubsetUnionInfoMap.computeIfAbsent(weightedSubsetUnionId) {
@@ -364,7 +363,9 @@ class ReportingSetReader(private val readContext: ReadContext) {
             )
           }
 
-        primitiveReportingSetBasisInfo.filterSet.add(primitiveReportingSetBasisFilter)
+        if (primitiveReportingSetBasisFilter != null) {
+          primitiveReportingSetBasisInfo.filterSet.add(primitiveReportingSetBasisFilter)
+        }
       }
     }
 

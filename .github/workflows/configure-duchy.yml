@@ -28,14 +28,10 @@ on:
         description: "Name (external ID) of Duchy"
         type: string
         required: true
-      duchy-cert-id:
-        description: "ID of the Duchy certificate"
-        type: string
-        required: true
       apply:
         description: "Apply the new configuration"
         type: boolean
-        default: true
+        required: true
   workflow_dispatch:
     inputs:
       environment:
@@ -55,10 +51,6 @@ on:
         - worker2
         - aggregator
         required: true
-      duchy-cert-id:
-        description: "ID of the Duchy certificate"
-        type: string
-        required: true
       apply:
         description: "Apply the new configuration"
         type: boolean
@@ -76,7 +68,7 @@ jobs:
     runs-on: ubuntu-20.04
     environment: ${{ inputs.environment }}
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     # Authenticate to Google Cloud. This will export some environment
     # variables, including GCLOUD_PROJECT.
@@ -86,13 +78,19 @@ jobs:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
 
+    - name: Export DUCHY_CERT_ID
+      env:
+        AGGREGATOR_DUCHY_CERT_ID: ${{ vars.AGGREGATOR_DUCHY_CERT_ID }}
+        WORKER1_DUCHY_CERT_ID: ${{ vars.WORKER1_DUCHY_CERT_ID }}
+        WORKER2_DUCHY_CERT_ID: ${{ vars.WORKER2_DUCHY_CERT_ID }}
+      run: ./.github/workflows/export-duchy-cert-id.sh
+
     - name: Generate archives
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
         SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
         KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
-        DUCHY_STORAGE_BUCKET: ${{ vars.DUCHY_STORAGE_BUCKET }}
-        DUCHY_CERT_ID: ${{ inputs.duchy-cert-id }}
+        STORAGE_BUCKET: ${{ vars.STORAGE_BUCKET }}
       run: >
         bazelisk build 
         "//src/main/k8s/dev:${DUCHY_NAME}_duchy.tar"
@@ -102,8 +100,9 @@ jobs:
         --define "google_cloud_project=$GCLOUD_PROJECT"
         --define "spanner_instance=$SPANNER_INSTANCE"
         --define "kingdom_system_api_target=$KINGDOM_SYSTEM_API_TARGET"
-        --define "duchy_storage_bucket=$DUCHY_STORAGE_BUCKET"
+        --define "duchy_storage_bucket=$STORAGE_BUCKET"
         --define "duchy_cert_id=$DUCHY_CERT_ID"
+
 
     - name: Make Kustomization dir
       run: mkdir -p "$KUSTOMIZATION_PATH"

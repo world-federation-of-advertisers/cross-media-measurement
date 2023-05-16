@@ -24,21 +24,30 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.TimeInterval as CmmsTimeInterval
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.timeInterval as cmmsTimeInterval
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequestKt
+import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequest
+import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.TimeInterval as InternalTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
+import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeInterval as internalTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageToken
+import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageToken
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
+import org.wfanet.measurement.reporting.v2alpha.ReportingSet
+import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.TimeInterval
 import org.wfanet.measurement.reporting.v2alpha.metricSpec
+import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.timeInterval
 
 /**
@@ -258,6 +267,143 @@ fun ListMetricsPageToken.toStreamMetricsRequest(): StreamMetricsRequest {
       StreamMetricsRequestKt.filter {
         cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId
         externalMetricIdAfter = source.lastMetric.externalMetricId
+      }
+  }
+}
+
+/** Converts an [InternalReportingSet] to a public [ReportingSet]. */
+fun InternalReportingSet.toReportingSet(): ReportingSet {
+  val source = this
+  return reportingSet {
+    name =
+      ReportingSetKey(
+          cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId,
+          reportingSetId = externalIdToApiId(source.externalReportingSetId)
+        )
+        .toName()
+
+    displayName = source.displayName
+    filter = source.filter
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+    when (source.valueCase) {
+      InternalReportingSet.ValueCase.PRIMITIVE -> {
+        primitive = source.primitive.toPrimitive()
+      }
+      InternalReportingSet.ValueCase.COMPOSITE -> {
+        composite =
+          ReportingSetKt.composite {
+            expression = source.composite.toExpression(source.cmmsMeasurementConsumerId)
+          }
+      }
+      InternalReportingSet.ValueCase.VALUE_NOT_SET -> {
+        error { "ReportingSet [$name] value should've been set." }
+      }
+    }
+  }
+}
+
+/** Converts an [InternalReportingSet.SetExpression] to a [ReportingSet.SetExpression]. */
+fun InternalReportingSet.SetExpression.toExpression(
+  cmmsMeasurementConsumerId: String
+): ReportingSet.SetExpression {
+  val source = this
+
+  return ReportingSetKt.setExpression {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+    operation =
+      when (source.operation) {
+        InternalReportingSet.SetExpression.Operation.UNION -> {
+          ReportingSet.SetExpression.Operation.UNION
+        }
+        InternalReportingSet.SetExpression.Operation.DIFFERENCE -> {
+          ReportingSet.SetExpression.Operation.DIFFERENCE
+        }
+        InternalReportingSet.SetExpression.Operation.INTERSECTION -> {
+          ReportingSet.SetExpression.Operation.INTERSECTION
+        }
+        InternalReportingSet.SetExpression.Operation.OPERATION_UNSPECIFIED -> {
+          error { "Set expression operation type should've been set." }
+        }
+        InternalReportingSet.SetExpression.Operation.UNRECOGNIZED -> {
+          error { "Unrecognized set expression operation type." }
+        }
+      }
+
+    // Only set the operand when it has a type.
+    if (
+      source.lhs.operandCase !=
+        InternalReportingSet.SetExpression.Operand.OperandCase.OPERAND_NOT_SET
+    ) {
+      lhs = source.lhs.toOperand(cmmsMeasurementConsumerId)
+    } else {
+      error("Operand type in lhs of set expression should've been set.")
+    }
+    if (
+      source.rhs.operandCase !=
+        InternalReportingSet.SetExpression.Operand.OperandCase.OPERAND_NOT_SET
+    ) {
+      rhs = source.rhs.toOperand(cmmsMeasurementConsumerId)
+    }
+  }
+}
+
+/**
+ * Converts an [InternalReportingSet.SetExpression.Operand] to a
+ * [ReportingSet.SetExpression.Operand].
+ */
+fun InternalReportingSet.SetExpression.Operand.toOperand(
+  cmmsMeasurementConsumerId: String
+): ReportingSet.SetExpression.Operand {
+  val source = this
+
+  return ReportingSetKt.SetExpressionKt.operand {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+    when (source.operandCase) {
+      InternalReportingSet.SetExpression.Operand.OperandCase.EXTERNAL_REPORTING_SET_ID -> {
+        val reportingSetKey =
+          ReportingSetKey(
+            cmmsMeasurementConsumerId,
+            externalIdToApiId(source.externalReportingSetId)
+          )
+        reportingSet = reportingSetKey.toName()
+      }
+      InternalReportingSet.SetExpression.Operand.OperandCase.EXPRESSION -> {
+        expression = source.expression.toExpression(cmmsMeasurementConsumerId)
+      }
+      InternalReportingSet.SetExpression.Operand.OperandCase.OPERAND_NOT_SET -> {
+        error("Unset operand type in set expression shouldn't reach this code.")
+      }
+    }
+  }
+}
+
+/** Converts an [InternalReportingSet.Primitive] to a [ReportingSet.Primitive]. */
+fun InternalReportingSet.Primitive.toPrimitive(): ReportingSet.Primitive {
+  val source = this
+  return ReportingSetKt.primitive {
+    eventGroups +=
+      source.eventGroupKeysList.map { eventGroupKey ->
+        EventGroupKey(
+            eventGroupKey.cmmsMeasurementConsumerId,
+            eventGroupKey.cmmsDataProviderId,
+            eventGroupKey.cmmsEventGroupId
+          )
+          .toName()
+      }
+  }
+}
+
+/** Converts a [ListReportingSetsPageToken] to an internal [StreamReportingSetsRequest]. */
+fun ListReportingSetsPageToken.toStreamReportingSetsRequest(): StreamReportingSetsRequest {
+  val source = this
+  return streamReportingSetsRequest {
+    // get 1 more than the actual page size for deciding whether to set page token
+    limit = source.pageSize + 1
+    filter =
+      StreamReportingSetsRequestKt.filter {
+        cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId
+        externalReportingSetIdAfter = source.lastReportingSet.externalReportingSetId
       }
   }
 }
