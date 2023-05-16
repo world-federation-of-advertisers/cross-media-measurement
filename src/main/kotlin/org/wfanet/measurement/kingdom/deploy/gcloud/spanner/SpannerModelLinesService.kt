@@ -53,9 +53,14 @@ class SpannerModelLinesService(
     } catch (e: ModelSuiteNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelSuite not found." }
     } catch (e: ModelLineTypeIllegalException) {
-      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT)
+      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
+        e.message
+          ?: "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
+      }
     } catch (e: ModelLineInvalidArgsException) {
-      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT)
+      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
+        e.message ?: "ActiveStartTime and/or ActiveEndTime is invalid."
+      }
     }
   }
 
@@ -66,7 +71,9 @@ class SpannerModelLinesService(
     } catch (e: ModelLineNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelLine not found." }
     } catch (e: ModelLineInvalidArgsException) {
-      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) { "ModelLine invalid active time arguments" }
+      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
+        "ModelLine invalid active time argument."
+      }
     }
   }
 
@@ -84,8 +91,9 @@ class SpannerModelLinesService(
     } catch (e: ModelLineNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { e.message ?: "ModelLine not found." }
     } catch (e: ModelLineTypeIllegalException) {
-      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) { e.message ?:
-        "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
+      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
+        e.message
+          ?: "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
       }
     }
   }

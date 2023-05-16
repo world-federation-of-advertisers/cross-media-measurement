@@ -520,7 +520,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
               externalModelProviderId = modelSuite.externalModelProviderId
               externalModelSuiteId = modelSuite.externalModelSuiteId
               after = afterFilter {
-                createdAfter = modelLines[0].createTime
+                createTime = modelLines[0].createTime
                 externalModelLineId = modelLines[0].externalModelLineId
               }
             }
@@ -566,7 +566,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
             filter = filter {
               externalModelProviderId = modelSuite.externalModelProviderId
               externalModelSuiteId = modelSuite.externalModelSuiteId
-              type += ModelLine.Type.PROD
+              types += ModelLine.Type.PROD
             }
           }
         )
@@ -723,7 +723,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
             filter = filter {
               externalModelProviderId = modelSuite.externalModelProviderId
               externalModelSuiteId = modelSuite.externalModelSuiteId
-              type += ModelLine.Type.PROD
+              types += ModelLine.Type.PROD
             }
           }
         )

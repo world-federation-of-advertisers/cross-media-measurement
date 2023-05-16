@@ -58,13 +58,13 @@ class StreamModelLines(private val requestFilter: StreamModelLinesRequest.Filter
         """
           .trimIndent()
       )
-      bind(CREATED_AFTER to filter.after.createdAfter.toGcloudTimestamp())
+      bind(CREATED_AFTER to filter.after.createTime.toGcloudTimestamp())
       bind(EXTERNAL_MODEL_LINE_ID_PARAM to filter.after.externalModelLineId)
     }
 
-    if (filter.typeValueList.isNotEmpty()) {
+    if (filter.typesList.isNotEmpty()) {
       conjuncts.add("ModelLines.Type IN UNNEST(@${TYPES_PARAM})")
-      bind(TYPES_PARAM).toInt64Array(filter.typeValueList.map { it.toLong() })
+      bind(TYPES_PARAM).toInt64Array(filter.typesValueList.map { it.toLong() })
     }
 
     if (conjuncts.isEmpty()) {
