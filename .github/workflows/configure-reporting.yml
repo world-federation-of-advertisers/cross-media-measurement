@@ -147,3 +147,10 @@ jobs:
     - name: kubectl apply
       if: ${{ inputs.apply }}
       run: kubectl apply -k "$KUSTOMIZE_PATH"
+
+    - name: Wait for rollout
+      if: ${{ inputs.apply }}
+      run: |
+        for deployment in $(kubectl get deployments -o name); do
+          kubectl rollout status "$deployment" --timeout=5m
+        done
