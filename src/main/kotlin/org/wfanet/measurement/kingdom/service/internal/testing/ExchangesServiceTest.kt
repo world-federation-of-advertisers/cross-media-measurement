@@ -377,7 +377,7 @@ abstract class ExchangesServiceTest {
     }
 
   @Test
-  fun `batchDeleteExchanges deletes throws NOT_FOUND when Exchange is missing`(): Unit =
+  fun `batchDeleteExchanges throws NOT_FOUND when Exchange is missing`(): Unit =
     runBlocking {
       val missingExchangeRequest = deleteExchangeRequest {
         externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID

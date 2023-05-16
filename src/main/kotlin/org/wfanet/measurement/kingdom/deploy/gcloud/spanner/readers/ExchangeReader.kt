@@ -65,16 +65,12 @@ class ExchangeReader : SpannerReader<ExchangeReader.Result>() {
   }
 
   companion object {
-    /**
-     * Returns a [Key] for the specified external recurring Exchange ID and date
-     *
-     * @throws [ExchangeNotFoundException] when the Exchange is not found
-     */
+    /** Returns a [Key] for the specified external recurring Exchange ID and date. */
     suspend fun readKeyByExternalIds(
       readContext: AsyncDatabaseClient.ReadContext,
       externalRecurringExchangeId: ExternalId,
       date: Date,
-    ): Key {
+    ): Key? {
       val sql =
         """
         SELECT
@@ -100,12 +96,7 @@ class ExchangeReader : SpannerReader<ExchangeReader.Result>() {
           appendClause("LIMIT 1")
         }
 
-      val row: Struct =
-        readContext.executeQuery(statement).singleOrNull()
-          ?: throw ExchangeNotFoundException(externalRecurringExchangeId, date.toProtoDate()) {
-            "Exchange with external RecurringExchange ID $externalRecurringExchangeId and " +
-              "date $date not found"
-          }
+      val row: Struct = readContext.executeQuery(statement).singleOrNull() ?: return null
 
       return Key.of(row.getInternalId("recurringExchangeId").value, row.getDate("date"))
     }
