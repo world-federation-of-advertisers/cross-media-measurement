@@ -15,6 +15,8 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -26,8 +28,10 @@ import org.wfanet.measurement.internal.kingdom.CreateExchangeRequest
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetExchangeRequest
+import org.wfanet.measurement.internal.kingdom.StreamExchangesRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.PROVIDER_PARAM
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.providerFilter
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamExchanges
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateExchange
 
@@ -59,5 +63,11 @@ class SpannerExchangesService(
       .singleOrNull()
       ?.exchange
       ?: failGrpc(Status.NOT_FOUND) { "Exchange not found" }
+  }
+
+  override fun streamExchanges(request: StreamExchangesRequest): Flow<Exchange> {
+    return StreamExchanges(request.filter, request.limit).execute(client.singleUse()).map {
+      it.exchange
+    }
   }
 }

@@ -149,7 +149,9 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
             primitiveReportingSetBases +=
               ReportingSetKt.primitiveReportingSetBasis {
                 this.externalReportingSetId = externalReportingSetId.value
-                filters += reportingSet.filter
+                if (reportingSet.filter.isNotBlank()) {
+                  filters += reportingSet.filter
+                }
               }
           }
       }
@@ -444,7 +446,9 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
       executeStatement(weightedSubsetUnionsStatement)
       executeStatement(primitiveReportingSetBasesStatement)
       executeStatement(weightedSubsetUnionPrimitiveReportingSetBasesStatement)
-      executeStatement(primitiveReportingSetBasisFiltersStatement)
+      if (primitiveReportingSetBasisFiltersBinders.size > 0) {
+        executeStatement(primitiveReportingSetBasisFiltersStatement)
+      }
     }
   }
 

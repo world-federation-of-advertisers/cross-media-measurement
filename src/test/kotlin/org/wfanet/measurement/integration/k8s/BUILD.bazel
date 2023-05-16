@@ -147,7 +147,11 @@ java_test(
         ":correctness_test_config.textproto",
         ":forwarded_storage_config.textproto",
     ],
-    tags = ["manual"],
+    tags = [
+        "exclusive",
+        "external",
+        "manual",
+    ],
     test_class = "org.wfanet.measurement.integration.k8s.ForwardedStorageCorrectnessTest",
     runtime_deps = [":forwarded_storage_correctness_test"],
 )
@@ -159,7 +163,11 @@ java_test(
         ":correctness_test_config.textproto",
         ":gcs_config.textproto",
     ],
-    tags = ["manual"],
+    tags = [
+        "exclusive",
+        "external",
+        "manual",
+    ],
     test_class = "org.wfanet.measurement.integration.k8s.GcsCorrectnessTest",
     runtime_deps = [":gcs_correctness_test"],
 )

@@ -220,3 +220,14 @@ spanner_emulator_test(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing",
     ],
 )
+
+spanner_emulator_test(
+    name = "SpannerModelLinesServiceTest",
+    srcs = ["SpannerModelLinesServiceTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerModelLinesServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing",
+    ],
+)
