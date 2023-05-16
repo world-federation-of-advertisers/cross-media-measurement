@@ -163,7 +163,7 @@ class ModelSuitesService(private val internalClient: ModelSuitesCoroutineStub) :
           listModelSuitesPageToken.copy {
             lastModelSuite =
               ListModelSuitesPageTokenKt.previousPageEnd {
-                createdAfter = results[results.lastIndex - 1].createTime
+                createTime = results[results.lastIndex - 1].createTime
                 externalModelSuiteId = results[results.lastIndex - 1].externalModelSuiteId
               }
           }
@@ -218,7 +218,7 @@ class ModelSuitesService(private val internalClient: ModelSuitesCoroutineStub) :
           externalModelProviderId = source.externalModelProviderId
           if (source.hasLastModelSuite()) {
             after = afterFilter {
-              createTime = source.lastModelSuite.createdAfter
+              createTime = source.lastModelSuite.createTime
               externalModelSuiteId = source.lastModelSuite.externalModelSuiteId
             }
           }

@@ -74,7 +74,7 @@ message ListModelSuitesPageToken {
   int32 page_size = 1;
   fixed64 external_model_provider_id = 2;
   message PreviousPageEnd {
-    google.protobuf.Timestamp created_after = 1;
+    google.protobuf.Timestamp create_time = 1;
     fixed64 external_model_suite_id = 2;
   }
   PreviousPageEnd last_model_suite = 4;
