@@ -32,7 +32,7 @@ class StreamModelSuites(
     ModelSuiteReader().fillStatementBuilder {
       appendWhereClause(requestFilter)
       appendClause(
-        "ORDER BY ModelSuites.CreateTime ASC, ModelSuites.ExternalModelProviderId ASC, ModelSuites.ExternalModelSuiteId ASC"
+        "ORDER BY ModelSuites.CreateTime ASC, ModelProviders.ExternalModelProviderId ASC, ModelSuites.ExternalModelSuiteId ASC"
       )
       if (limit > 0) {
         appendClause("LIMIT @${LIMIT_PARAM}")
