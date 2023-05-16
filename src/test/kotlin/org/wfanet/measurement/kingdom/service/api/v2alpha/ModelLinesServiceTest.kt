@@ -55,6 +55,8 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.modelLine as internalModelLine
 import org.wfanet.measurement.api.v2alpha.setActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalsetActiveEndTimeRequest
+import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest as internalSetModelLineHoldbackModelLineRequest
+import org.wfanet.measurement.api.v2alpha.setModelLineHoldbackModelLineRequest
 
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val DUCHY_NAME = "duchies/AAAAAAAAAHs"
@@ -73,6 +75,8 @@ private val EXTERNAL_MODEL_SUITE_ID =
   apiIdToExternalId(ModelSuiteKey.fromName(MODEL_SUITE_NAME)!!.modelSuiteId)
 private val EXTERNAL_MODEL_LINE_ID =
   apiIdToExternalId(ModelLineKey.fromName(MODEL_LINE_NAME)!!.modelLineId)
+private val EXTERNAL_HOLDBACK_MODEL_LINE_ID =
+  apiIdToExternalId(ModelLineKey.fromName(MODEL_LINE_NAME_2)!!.modelLineId)
 
 private const val DISPLAY_NAME = "Display name"
 private const val DESCRIPTION = "Description"
@@ -125,6 +129,8 @@ class ModelLinesServiceTest {
         }
       onBlocking { setActiveEndTime(any()) }
         .thenReturn(INTERNAL_MODEL_LINE.copy { activeEndTime = ACTIVE_END_TIME })
+      onBlocking { setModelLineHoldbackModelLine(any()) }
+        .thenReturn(INTERNAL_MODEL_LINE.copy { externalHoldbackModelLineId = EXTERNAL_HOLDBACK_MODEL_LINE_ID })
     }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalModelLinesMock) }
@@ -372,4 +378,104 @@ class ModelLinesServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
+
+  @Test
+  fun `setHoldbackModelLine returns model line with holdback model line`() {
+    val request = setModelLineHoldbackModelLineRequest {
+      name = MODEL_LINE_NAME
+      holdbackModelLine = MODEL_LINE_NAME_2
+    }
+
+    val result =
+      withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+        runBlocking { service.setModelLineHoldbackModelLine(request) }
+      }
+
+    val expected = MODEL_LINE.copy {
+      holdbackModelLine = MODEL_LINE_NAME_2
+    }
+
+    verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::setModelLineHoldbackModelLine)
+      .isEqualTo(
+        internalSetModelLineHoldbackModelLineRequest {
+          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+          externalModelLineId = EXTERNAL_MODEL_LINE_ID
+          externalHoldbackModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+          externalHoldbackModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+          externalHoldbackModelLineId = EXTERNAL_HOLDBACK_MODEL_LINE_ID
+        }
+      )
+
+    assertThat(result).isEqualTo(expected)
+  }
+/*
+  @Test
+  fun `setHoldbackModelLine throws INVALID_ARGUMENT when name is missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking { service.setActiveEndTime(setActiveEndTimeRequest { activeEndTime = ACTIVE_END_TIME }) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `setHoldbackModelLine throws UNAUTHENTICATED when no principal is found`() {
+    val request = setActiveEndTimeRequest {
+      name = MODEL_LINE_NAME
+      activeEndTime = ACTIVE_END_TIME
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.setActiveEndTime(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `setHoldbackModelLine throws PERMISSION_DENIED when principal is data provider`() {
+    val request = setActiveEndTimeRequest {
+      name = MODEL_LINE_NAME
+      activeEndTime = ACTIVE_END_TIME
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.setActiveEndTime(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `setHoldbackModelLine throws PERMISSION_DENIED when principal is duchy`() {
+    val request = setActiveEndTimeRequest {
+      name = MODEL_LINE_NAME
+      activeEndTime = ACTIVE_END_TIME
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDuchyPrincipal(DUCHY_NAME) { runBlocking { service.setActiveEndTime(request) } }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `setHoldbackModelLine throws PERMISSION_DENIED when principal is measurement consumer`() {
+    val request = setActiveEndTimeRequest {
+      name = MODEL_LINE_NAME
+      activeEndTime = ACTIVE_END_TIME
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.setActiveEndTime(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }*/
 }

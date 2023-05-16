@@ -404,6 +404,7 @@ proto_library(
     deps = [
         "@com_google_protobuf//:timestamp_proto",
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurement_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_line_proto",
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:requisition_proto",
     ],
 )
