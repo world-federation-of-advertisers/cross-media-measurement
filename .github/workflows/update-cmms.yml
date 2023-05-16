@@ -101,4 +101,16 @@ jobs:
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
 
-  # TODO(@SanjayVas): Run correctness test.
+  run-tests:
+    if: ${{ inputs.apply }}
+    needs: [
+      update-kingdom,
+      update-aggregator-duchy,
+      update-worker1-duchy,
+      update-worker2-duchy,
+      update-simulators,
+    ]
+    uses: ./.github/workflows/run-k8s-tests.yml
+    secrets: inherit
+    with:
+      environment: ${{ inputs.environment }}
