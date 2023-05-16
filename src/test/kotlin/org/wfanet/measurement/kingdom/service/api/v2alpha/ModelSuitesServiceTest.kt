@@ -449,7 +449,7 @@ class ModelSuitesServiceTest {
         pageSize = 2
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
         lastModelSuite = previousPageEnd {
-          createdAfter = CREATE_TIME
+          createTime = CREATE_TIME
           externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
         }
       }
@@ -468,7 +468,7 @@ class ModelSuitesServiceTest {
         pageSize = request.pageSize
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
         lastModelSuite = previousPageEnd {
-          createdAfter = CREATE_TIME
+          createTime = CREATE_TIME
           externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID_2
         }
       }
@@ -507,7 +507,7 @@ class ModelSuitesServiceTest {
         pageSize = 2
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
         lastModelSuite = previousPageEnd {
-          createdAfter = CREATE_TIME
+          createTime = CREATE_TIME
           externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
         }
       }
@@ -547,7 +547,7 @@ class ModelSuitesServiceTest {
         pageSize = 2
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
         lastModelSuite = previousPageEnd {
-          createdAfter = CREATE_TIME
+          createTime = CREATE_TIME
           externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
         }
       }
@@ -662,7 +662,7 @@ class ModelSuitesServiceTest {
         pageSize = 2
         externalModelProviderId = 987
         lastModelSuite = previousPageEnd {
-          createdAfter = CREATE_TIME
+          createTime = CREATE_TIME
           externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
         }
       }
