@@ -53,8 +53,7 @@ class BatchDeleteMeasurements(
           externalMeasurementConsumerId,
           externalMeasurementId
         )
-          ?:
-          throw MeasurementNotFoundByMeasurementConsumerException(
+          ?: throw MeasurementNotFoundByMeasurementConsumerException(
             externalMeasurementConsumerId,
             externalMeasurementId
           ) {

@@ -30,7 +30,6 @@ import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeDetails
 import org.wfanet.measurement.internal.kingdom.RecurringExchangeDetails
 import org.wfanet.measurement.internal.kingdom.exchange
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ExchangeNotFoundException
 
 /** Reads [Exchange] protos from Spanner. */
 class ExchangeReader : SpannerReader<ExchangeReader.Result>() {
