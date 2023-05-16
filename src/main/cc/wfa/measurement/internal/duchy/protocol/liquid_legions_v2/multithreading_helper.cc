@@ -31,6 +31,8 @@ MultithreadingHelper::CreateMultithreadingHelper(
 
   ASSIGN_OR_RETURN(auto cryptors,
                    MultithreadingHelper::CreateCryptors(num_threads, options));
+  // As the constructor of MultithreadingHelper is private, absl::WrapUnique
+  // helps to create a std::unique_ptr with `new` to bypass the restriction.
   return absl::WrapUnique(
       new MultithreadingHelper(num_threads, std::move(cryptors)));
 }
