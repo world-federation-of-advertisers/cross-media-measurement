@@ -79,6 +79,7 @@ import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.publicKey
+import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.revokeCertificateRequest
 import org.wfanet.measurement.api.v2alpha.signedData
@@ -131,6 +132,7 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = systemDuration.ofSeconds(30)
       MeasurementConsumers::class,
       Measurements::class,
       ApiKeys::class,
+      DataProviders::class,
     ]
 )
 class MeasurementSystem private constructor() : Runnable {
@@ -1008,6 +1010,51 @@ class GetMeasurement : Runnable {
         printMeasurementResult(result)
       }
     }
+  }
+}
+
+@Command(
+  name = "data-providers",
+  subcommands = [CommandLine.HelpCommand::class],
+)
+private class DataProviders {
+  @ParentCommand
+  lateinit var parentCommand: MeasurementSystem
+    private set
+
+  val dataProviderStub: DataProvidersCoroutineStub by lazy {
+    DataProvidersCoroutineStub(parentCommand.kingdomChannel)
+  }
+  @Option(
+    names = ["--name"],
+    description = ["API resource name of the DataProvider"],
+    required = true,
+  )
+  private lateinit var dataProviderName: String
+  @Command(name = "replace-required-duchies", description = ["Replaces DataProvider's duchy list"])
+  fun replaceRequiredDuchyList(
+    @Option(
+      names = ["--required-duchies"],
+      description =
+        [
+          "The set of new duchies externals IDS that that will replace the old duchy list for this DataProvider"
+        ],
+      required = true,
+    )
+    requiredDuchies: List<String>,
+  ) {
+    val request = replaceDataProviderRequiredDuchiesRequest {
+      name = dataProviderName
+      requiredExternalDuchies += requiredDuchies
+    }
+    val outputDataProvider =
+      runBlocking(parentCommand.rpcDispatcher) {
+        dataProviderStub.replaceDataProviderRequiredDuchies(request)
+      }
+
+    println(
+      "Data Provider ${outputDataProvider.name} duchy list replaced with ${outputDataProvider.requiredExternalDuchyIdsList}"
+    )
   }
 }
 

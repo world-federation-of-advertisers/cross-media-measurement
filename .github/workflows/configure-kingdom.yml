@@ -119,3 +119,10 @@ jobs:
       - name: kubectl apply
         if: ${{ inputs.apply }}
         run: kubectl apply -k "$KUSTOMIZATION_PATH/src/main/k8s/dev/kingdom"
+
+      - name: Wait for rollout
+        if: ${{ inputs.apply }}
+        run: |
+          for deployment in $(kubectl get deployments -o name); do
+            kubectl rollout status "$deployment" --timeout=5m
+          done

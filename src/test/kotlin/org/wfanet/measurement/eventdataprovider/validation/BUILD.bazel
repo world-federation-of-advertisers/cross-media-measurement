@@ -1,0 +1,16 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "CompoundValidatorTest",
+    srcs = ["CompoundValidatorTest.kt"],
+    test_class = "org.wfanet.measurement.eventdataprovider.validation.CompoundValidatorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/validation:compound_validator",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/validation:requisition_validator",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
