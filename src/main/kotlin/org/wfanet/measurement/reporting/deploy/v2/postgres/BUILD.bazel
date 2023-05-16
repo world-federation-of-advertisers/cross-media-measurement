@@ -8,10 +8,10 @@ kt_jvm_library(
         "//src/test/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres:__pkg__",
     ],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/writers",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/readers",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/writers",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:measurement_consumers_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:metrics_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
