@@ -219,7 +219,7 @@ ALTER TABLE ReportingSets
 CREATE TABLE Metrics (
   MeasurementConsumerId bigint NOT NULL,
   MetricId bigint NOT NULL,
-  CreateMetricRequestId text NOT NULL,
+  CreateMetricRequestId text,
   ReportingSetId bigint NOT NULL,
 
   ExternalMetricId bigint NOT NULL,
@@ -228,11 +228,15 @@ CREATE TABLE Metrics (
   TimeIntervalEndExclusive TIMESTAMP WITH TIME ZONE NOT NULL,
 
   -- org.wfanet.measurement.internal.reporting.MetricSpec.MetricType
-  -- protobuf enum encoded as an integer.
+  -- protobuf oneof encoded as an integer.
   MetricType integer NOT NULL,
 
   DifferentialPrivacyEpsilon DOUBLE PRECISION NOT NULL,
   DifferentialPrivacyDelta DOUBLE PRECISION NOT NULL,
+
+  -- Frequency has a second set of differential privacy params.
+  FrequencyDifferentialPrivacyEpsilon DOUBLE PRECISION,
+  FrequencyDifferentialPrivacyDelta DOUBLE PRECISION,
 
   -- Must not be NULL if MetricType is FREQUENCY_HISTOGRAM or IMPRESSION_COUNT
   MaximumFrequencyPerUser bigint,
@@ -240,7 +244,7 @@ CREATE TABLE Metrics (
   MaximumWatchDurationPerUser bigint,
 
   VidSamplingIntervalStart DOUBLE PRECISION NOT NULL,
-  VidSamplingIntervalEnd DOUBLE PRECISION NOT NULL,
+  VidSamplingIntervalWidth DOUBLE PRECISION NOT NULL,
 
   CreateTime TIMESTAMP WITH TIME ZONE NOT NULL,
 

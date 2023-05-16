@@ -50,6 +50,8 @@ import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelSuite
+import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.internal.kingdom.activateAccountRequest
@@ -62,6 +64,7 @@ import org.wfanet.measurement.internal.kingdom.generateOpenIdRequestParamsReques
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementConsumer
 import org.wfanet.measurement.internal.kingdom.modelProvider
+import org.wfanet.measurement.internal.kingdom.modelSuite
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
@@ -162,6 +165,21 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
   ): ModelProvider {
 
     return modelProvidersService.createModelProvider(modelProvider {})
+  }
+
+  suspend fun createModelSuite(
+    modelProvidersService: ModelProvidersCoroutineImplBase,
+    modelSuitesService: ModelSuitesCoroutineImplBase
+  ): ModelSuite {
+
+    val modelProvider = createModelProvider(modelProvidersService)
+
+    val modelSuite = modelSuite {
+      externalModelProviderId = modelProvider.externalModelProviderId
+      displayName = "displayName"
+      description = "description"
+    }
+    return modelSuitesService.createModelSuite(modelSuite)
   }
 
   private suspend fun createMeasurement(

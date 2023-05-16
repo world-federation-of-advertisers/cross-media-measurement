@@ -100,6 +100,7 @@ message ReportingSet {
   }
 
   // Type of reporting set it is.
+  // REQUIRED
   oneof value {
     // The basis building block in the set expression.
     Primitive primitive = 4;

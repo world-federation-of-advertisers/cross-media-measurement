@@ -40,11 +40,16 @@ jobs:
   publish-images:
     uses: ./.github/workflows/create-cmm-images.yml
 
-  # TODO(@SanjayVas): Call Terraforming workflows.
+  terraform:
+    uses: ./.github/workflows/terraform-cmms.yml
+    secrets: inherit
+    with:
+      environment: ${{ inputs.environment }}
+      apply: ${{ inputs.apply }}
 
   update-kingdom:
     uses: ./.github/workflows/configure-kingdom.yml
-    needs: publish-images
+    needs: [publish-images, terraform]
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       environment: ${{ inputs.environment }}
@@ -52,7 +57,7 @@ jobs:
 
   update-aggregator-duchy:
     uses: ./.github/workflows/configure-duchy.yml
-    needs: publish-images
+    needs: [publish-images, terraform]
     with:
       duchy-name: aggregator
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
@@ -61,7 +66,7 @@ jobs:
 
   update-worker1-duchy:
     uses: ./.github/workflows/configure-duchy.yml
-    needs: publish-images
+    needs: [publish-images, terraform]
     with:
       duchy-name: worker1
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
@@ -70,9 +75,17 @@ jobs:
 
   update-worker2-duchy:
     uses: ./.github/workflows/configure-duchy.yml
-    needs: publish-images
+    needs: [publish-images, terraform]
     with:
       duchy-name: worker2
+      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      environment: ${{ inputs.environment }}
+      apply: ${{ inputs.apply }}
+
+  update-simulators:
+    uses: ./.github/workflows/configure-simulators.yml
+    needs: [publish-images, terraform]
+    with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
@@ -82,6 +95,7 @@ jobs:
   # This isn't technically part of the CMMS, but we do it here for simplicity.
   update-reporting:
     uses: ./.github/workflows/configure-reporting.yml
+    needs: [publish-images, terraform]
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       environment: ${{ inputs.environment }}
