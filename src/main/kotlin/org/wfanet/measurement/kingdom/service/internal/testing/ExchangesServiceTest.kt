@@ -377,27 +377,26 @@ abstract class ExchangesServiceTest {
     }
 
   @Test
-  fun `batchDeleteExchanges throws NOT_FOUND when Exchange is missing`(): Unit =
-    runBlocking {
-      val missingExchangeRequest = deleteExchangeRequest {
-        externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-        date = date {
-          year = 2021
-          month = 1
-          day = 1
-        }
+  fun `batchDeleteExchanges throws NOT_FOUND when Exchange is missing`(): Unit = runBlocking {
+    val missingExchangeRequest = deleteExchangeRequest {
+      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+      date = date {
+        year = 2021
+        month = 1
+        day = 1
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        exchanges.batchDeleteExchanges(
+          batchDeleteExchangesRequest { requests += listOf(missingExchangeRequest) }
+        )
       }
 
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          exchanges.batchDeleteExchanges(
-            batchDeleteExchangesRequest { requests += listOf(missingExchangeRequest) }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-      assertThat(exception).hasMessageThat().contains("Exchange not found")
-    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("Exchange not found")
+  }
 
   @Test
   fun `batchDeleteExchanges throws INVALID_ARGUMENT when external recurring Exchange ID is missing`():
