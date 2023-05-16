@@ -69,3 +69,20 @@ cc_library(
         "@any_sketch//src/main/cc/math:noise_parameters_computation",
     ],
 )
+
+cc_library(
+    name = "multithreading_helper",
+    srcs = [
+        "multithreading_helper.cc",
+    ],
+    hdrs = [
+        "multithreading_helper.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "//src/main/cc/wfa/measurement/common/crypto:ec_point_util",
+        "//src/main/cc/wfa/measurement/common/crypto:protocol_cryptor",
+        "@com_google_absl//absl/functional:any_invocable",
+        "@com_google_absl//absl/synchronization",
+    ],
+)
