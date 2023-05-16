@@ -1,6 +1,7 @@
 # File patterns that linters should ignore.
 #
-# This file must have valid syntax for both gitignore and hgignore.
+# This file uses gitignore syntax.
 
 third_party/
 node_modules/
+**/.terraform.lock.hcl
