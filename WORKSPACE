@@ -4,6 +4,14 @@ load("//build:repositories.bzl", "wfa_measurement_system_repositories")
 
 wfa_measurement_system_repositories()
 
+load("@rules_pkg//:deps.bzl", "rules_pkg_dependencies")
+
+rules_pkg_dependencies()
+
+load("@private_membership//build:private_membership_repositories.bzl", "private_membership_repositories")
+
+private_membership_repositories()
+
 load("@wfa_rules_cue//cue:repositories.bzl", "rules_cue_dependencies")
 
 rules_cue_dependencies()

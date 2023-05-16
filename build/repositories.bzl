@@ -24,16 +24,11 @@ MEASUREMENT_SYSTEM_REPO = "https://github.com/world-federation-of-advertisers/cr
 def wfa_measurement_system_repositories():
     """Imports all direct dependencies for wfa_measurement_system."""
 
-    #wfa_repo_archive(
-    #    name = "wfa_common_jvm",
-    #    repo = "common-jvm",
-    #    sha256 = "06ab7259708f490c052bd6ada0b9f193a99e9d621abd5428649d67378530a977",
-    #    version = "0.55.0",
-    #)
-    
-    native.local_repository(
+    wfa_repo_archive(
         name = "wfa_common_jvm",
-        path = "/home/marcopremier/XMM/common-jvm",
+        repo = "common-jvm",
+        sha256 = "06ab7259708f490c052bd6ada0b9f193a99e9d621abd5428649d67378530a977",
+        version = "0.55.0",
     )
 
     wfa_repo_archive(
@@ -107,3 +102,16 @@ def wfa_measurement_system_repositories():
         ],
         sha256 = "62eeb544ff1ef41d786e329e1536c1d541bb9bcad27ae984d57f18f314018e66",
     )
+
+    #maybe(
+    #        http_archive,
+    #        name = "tink_cc",
+    #        sha256 = _TINK_SHA256,
+    #        strip_prefix = "tink-{commit}/cc".format(commit = TINK_COMMIT),
+    #        url = _TINK_URL,
+    #        repo_mapping = {
+                # TODO(bazelbuild/rules_proto#121): Remove this once
+                # protobuf_workspace is fixed.
+    #            "@com_google_protobuf": "@com_github_protocolbuffers_protobuf",
+    #        },
+    #    )
