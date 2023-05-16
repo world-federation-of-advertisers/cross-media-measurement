@@ -32,7 +32,7 @@ using ::wfa::measurement::common::crypto::ElGamalCiphertext;
 using ::wfa::measurement::common::crypto::ProtocolCryptor;
 using ::wfa::measurement::common::crypto::ProtocolCryptorOptions;
 
-// A helper class to execute cryptor iterations in multi-threads.
+// A helper class to execute cryptor iterations in multiple threads.
 class MultithreadingHelper {
  private:
   explicit MultithreadingHelper(
@@ -41,8 +41,13 @@ class MultithreadingHelper {
 
   // Create [ProtocolCryptor] for threads.
   //
-  // As [ProtocolCryptor] is not thread-safe, each thread has its own cryptor to
-  // execute tasks.
+  // [ProtocolCryptor] is not thread-safe as the underlying crypto library
+  // `private_join_and_compute` is not thread-safe. The mutex in
+  // [ProtocolCrytpor] is a precautions and will dramatically impact the
+  // parallelism. Per advise from team `private_join_and_compute`, using a
+  // vector of [ProtocolCryptor] is a suggested way. Note that, the
+  // ProtocolCryptors are only almost identical. Each of them has a different
+  // context that is initialized with a different random generator.
   static absl::StatusOr<std::vector<std::unique_ptr<ProtocolCryptor>>>
   CreateCryptors(int num, const ProtocolCryptorOptions& options);
 

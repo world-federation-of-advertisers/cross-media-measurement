@@ -38,6 +38,8 @@ enum Action {
 enum CompositeType { kFull, kPartial };
 
 // A cryptor dealing with basic operations in various MPC protocols.
+//
+// The implementation of [ProtocolCrytpor] is not thread-safe.
 class ProtocolCryptor {
  public:
   virtual ~ProtocolCryptor() = default;
