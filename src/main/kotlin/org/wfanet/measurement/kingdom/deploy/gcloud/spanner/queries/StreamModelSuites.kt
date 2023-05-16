@@ -31,7 +31,9 @@ class StreamModelSuites(
   override val reader =
     ModelSuiteReader().fillStatementBuilder {
       appendWhereClause(requestFilter)
-      appendClause("ORDER BY ModelSuites.CreateTime ASC, ModelSuites.ExternalModelSuiteId ASC")
+      appendClause(
+        "ORDER BY ModelSuites.CreateTime ASC, ModelSuites.ExternalModelProviderId ASC, ModelSuites.ExternalModelSuiteId ASC"
+      )
       if (limit > 0) {
         appendClause("LIMIT @${LIMIT_PARAM}")
         bind(LIMIT_PARAM to limit.toLong())
