@@ -28,6 +28,8 @@ service Reports {
 
   rpc GetReport(GetReportRequest) returns (Report);
 
+  rpc GetReportByRequestId(GetReportByRequestIdRequest) returns (Report);
+
   rpc StreamReports(StreamReportsRequest) returns (stream Report);
 }
 
@@ -40,6 +42,12 @@ message GetReportRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
   string cmms_measurement_consumer_id = 1;
   fixed64 external_report_id = 2;
+}
+
+message GetReportByRequestIdRequest {
+  // `MeasurementConsumer` ID from the CMMS public API.
+  string cmms_measurement_consumer_id = 1;
+  string request_id = 2;
 }
 
 message StreamReportsRequest {
