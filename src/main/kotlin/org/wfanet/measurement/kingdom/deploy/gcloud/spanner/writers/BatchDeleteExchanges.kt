@@ -41,12 +41,17 @@ class BatchDeleteExchanges(private val requests: BatchDeleteExchangesRequest) :
     val keySet = KeySet.newBuilder()
 
     for (request in requests.requestsList) {
+      val externalRecurringExchangeId = ExternalId(request.externalRecurringExchangeId)
       val result: Key =
         ExchangeReader.readKeyByExternalIds(
           transactionContext,
-          ExternalId(request.externalRecurringExchangeId),
+          externalRecurringExchangeId,
           request.date.toCloudDate()
         )
+          ?: throw ExchangeNotFoundException(externalRecurringExchangeId, request.date) {
+            "Exchange with external RecurringExchange ID $externalRecurringExchangeId and date" +
+              "${request.date} not found"
+          }
 
       keySet.addKey(result)
     }
