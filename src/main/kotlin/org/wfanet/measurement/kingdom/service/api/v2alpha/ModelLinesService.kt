@@ -23,16 +23,23 @@ import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineImplBase as ModelLinesCoroutineService
+import org.wfanet.measurement.api.v2alpha.ListModelLinesRequest
+import org.wfanet.measurement.api.v2alpha.ListModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.SetActiveEndTimeRequest
+import org.wfanet.measurement.api.v2alpha.SetModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.setModelLineHoldbackModelLineMethod
 import org.wfanet.measurement.internal.kingdom.modelLine
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest
+import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest
+
 
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
@@ -104,44 +111,55 @@ class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
     }
   }
 
-  /*override suspend fun createModelSuite(request: CreateModelSuiteRequest): ModelSuite {
-    val parentKey =
-      grpcRequireNotNull(ModelProviderKey.fromName(request.parent)) {
-        "Parent is either unspecified or invalid"
+  override suspend fun setModelLineHoldbackModelLine(request: SetModelLineHoldbackModelLineRequest): ModelLine {
+    val key =
+      grpcRequireNotNull(ModelLineKey.fromName(request.name)) {
+        "Resource name is either unspecified or invalid"
       }
 
     when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
       is ModelProviderPrincipal -> {
-        if (principal.resourceKey.toName() != request.parent) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot create ModelSuite for another ModelProvider"
-          }
+        if (principal.resourceKey.modelProviderId != key.modelProviderId) {
+          failGrpc(Status.PERMISSION_DENIED) { "Cannot update ModelLine for another ModelProvider" }
         }
       }
       else -> {
-        failGrpc(Status.PERMISSION_DENIED) {
-          "Caller does not have permission to create ModelSuite"
-        }
+        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to update ModelLine" }
       }
     }
 
-    val createModelSuiteRequest = request.modelSuite.toInternal(parentKey)
-    return try {
-      internalClient.createModelSuite(createModelSuiteRequest).toModelSuite()
+    val holdbackModelLineKey =
+      grpcRequireNotNull(ModelLineKey.fromName(request.holdbackModelLine)) {
+        "Holdback model line name is either unspecified or invalid"
+      }
+
+    val internalSetHoldbackModelLineRequest = setModelLineHoldbackModelLineRequest {
+      externalModelLineId = apiIdToExternalId(key.modelLineId)
+      externalModelSuiteId = apiIdToExternalId(key.modelSuiteId)
+      externalModelProviderId = apiIdToExternalId(key.modelProviderId)
+      externalHoldbackModelLineId = apiIdToExternalId(holdbackModelLineKey.modelLineId)
+      externalHoldbackModelSuiteId = apiIdToExternalId(holdbackModelLineKey.modelSuiteId)
+      externalHoldbackModelProviderId = apiIdToExternalId(holdbackModelLineKey.modelProviderId)
+    }
+
+    try {
+      return internalClient.setModelLineHoldbackModelLine(internalSetHoldbackModelLineRequest).toModelLine()
     } catch (ex: StatusException) {
       when (ex.status.code) {
-        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "ModelProvider not found." }
+        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "ModelLine not found." }
+        Status.Code.INVALID_ARGUMENT ->
+          failGrpc(Status.INVALID_ARGUMENT, ex) { ex.message ?: "ModelLine has wrong type" }
         else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
       }
     }
   }
 
-  override suspend fun listModelSuites(request: ListModelSuitesRequest): ListModelSuitesResponse {
-    grpcRequireNotNull(ModelProviderKey.fromName(request.parent)) {
+  override suspend fun listModelLines(request: ListModelLinesRequest): ListModelLinesResponse {
+    grpcRequireNotNull(ModelSuiteKey.fromName(request.parent)) {
       "Parent is either unspecified or invalid"
     }
 
-    val listModelSuitesPageToken = request.toListModelSuitesPageToken()
+    val listModelLinessPageToken = request.toListModelSuitesPageToken()
 
     when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
       is ModelProviderPrincipal -> {
@@ -186,8 +204,8 @@ class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
     }
   }
 
-  /** Converts a public [ListModelSuitesRequest] to an internal [ListModelSuitesPageToken]. */
-  private fun ListModelSuitesRequest.toListModelSuitesPageToken(): ListModelSuitesPageToken {
+  /** Converts a public [ListModelLinesRequest] to an internal [ListModelLinesPageToken]. */
+  private fun ListModelLinesRequest.toListModelLinesPageToken(): ListModelLinesPageToken {
     val source = this
 
     val key =
@@ -221,20 +239,6 @@ class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
     }
   }
 
-  /** Converts an internal [ListModelSuitesPageToken] to an internal [StreamModelSuitesRequest]. */
-  private fun ListModelSuitesPageToken.toStreamModelSuitesRequest(): StreamModelSuitesRequest {
-    val source = this
-    return streamModelSuitesRequest {
-      // get 1 more than the actual page size for deciding whether to set page token
-      limit = source.pageSize + 1
-      filter =
-        StreamModelSuitesRequestKt.filter {
-          externalModelProviderId = source.externalModelProviderId
-          if (source.hasLastModelSuite()) {
-            createdAfter = source.lastModelSuite.createdAfter
-            externalModelSuiteId = source.lastModelSuite.externalModelSuiteId
-          }
-        }
-    }
-  }*/
+
+
 }

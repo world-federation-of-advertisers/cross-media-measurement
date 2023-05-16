@@ -52,7 +52,7 @@ class SetModelLineHoldbackModelLine(private val request: SetModelLineHoldbackMod
           ExternalId(request.externalHoldbackModelProviderId),
           ExternalId(request.externalHoldbackModelSuiteId),
           ExternalId(request.externalHoldbackModelLineId)
-        )
+        ) { "HoldbackModelLine not found" }
 
     if (holdbackModelLineResult.modelLine.type != ModelLine.Type.HOLDBACK) {
       throw ModelLineTypeIllegalException(

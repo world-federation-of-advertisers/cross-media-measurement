@@ -66,7 +66,7 @@ class SpannerModelLinesService(
     } catch (e: ModelLineNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelLine not found." }
     } catch (e: ModelLineInvalidArgsException) {
-      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT)
+      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) { "ModelLine invalid active time arguments" }
     }
   }
 
@@ -81,8 +81,10 @@ class SpannerModelLinesService(
   ): ModelLine {
     try {
       return SetModelLineHoldbackModelLine(request).execute(client, idGenerator)
+    } catch (e: ModelLineNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { e.message ?: "ModelLine not found." }
     } catch (e: ModelLineTypeIllegalException) {
-      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
+      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) { e.message ?:
         "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
       }
     }
