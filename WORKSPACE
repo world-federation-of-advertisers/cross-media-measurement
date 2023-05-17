@@ -1,9 +1,5 @@
 workspace(name = "wfa_measurement_system")
 
-load("//build:reporting_ui/reporting_ui_deps.bzl", "reporting_ui_repositories")
-
-reporting_ui_repositories()
-
 load("//build:repositories.bzl", "wfa_measurement_system_repositories")
 
 wfa_measurement_system_repositories()
