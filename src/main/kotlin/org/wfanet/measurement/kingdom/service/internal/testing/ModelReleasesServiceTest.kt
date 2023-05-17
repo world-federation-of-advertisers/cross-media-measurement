@@ -16,8 +16,8 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
-import com.google.common.truth.Truth
-import com.google.common.truth.extensions.proto.ProtoTruth
+import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
@@ -35,10 +35,10 @@ import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvide
 import org.wfanet.measurement.internal.kingdom.ModelRelease
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.getModelReleaseRequest
 import org.wfanet.measurement.internal.kingdom.modelRelease
-import org.wfanet.measurement.internal.kingdom.modelSuite
 import org.wfanet.measurement.internal.kingdom.streamModelReleasesRequest
 
 private const val RANDOM_SEED = 1
@@ -85,17 +85,28 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
     }
     val createdModelRelease = modelReleasesService.createModelRelease(modelRelease)
 
-    ProtoTruth.assertThat(createdModelRelease)
+    assertThat(createdModelRelease)
       .ignoringFields(
         ModelRelease.CREATE_TIME_FIELD_NUMBER,
         ModelRelease.EXTERNAL_MODEL_RELEASE_ID_FIELD_NUMBER
       )
-      .isEqualTo(
-        modelRelease {
-          externalModelProviderId = modelSuite.externalModelProviderId
-          externalModelSuiteId = modelSuite.externalModelSuiteId
-        }
-      )
+      .isEqualTo(modelRelease)
+  }
+
+  @Test
+  fun `createModelRelease fails when Model Suite is not found`() = runBlocking {
+    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+
+    val modelRelease = modelRelease {
+      externalModelProviderId = modelSuite.externalModelProviderId
+      externalModelSuiteId = 123L
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { modelReleasesService.createModelRelease(modelRelease) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("ModelSuite not found")
   }
 
   @Test
@@ -116,8 +127,7 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
         }
       )
 
-    ProtoTruth.assertThat(createdModelRelease)
-      .ignoringFields(ModelRelease.CREATE_TIME_FIELD_NUMBER)
+    assertThat(createdModelRelease)
       .isEqualTo(returnedModelRelease)
   }
 
@@ -134,8 +144,8 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
         )
       }
 
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    Truth.assertThat(exception).hasMessageThat().contains("NOT_FOUND: ModelRelease not found.")
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("NOT_FOUND: ModelRelease not found.")
   }
 
   @Test
@@ -178,7 +188,7 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
         )
         .toList()
 
-    ProtoTruth.assertThat(modelReleases)
+    assertThat(modelReleases)
       .comparingExpectedFieldsOnly()
       .containsExactly(modelRelease1, modelRelease2, modelRelease3)
       .inOrder()
@@ -217,8 +227,8 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
         )
         .toList()
 
-    ProtoTruth.assertThat(modelReleases).hasSize(1)
-    ProtoTruth.assertThat(modelReleases).contains(modelRelease1)
+    assertThat(modelReleases).hasSize(1)
+    assertThat(modelReleases).contains(modelRelease1)
 
     val modelReleases2: List<ModelRelease> =
       modelReleasesService
@@ -227,13 +237,94 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
             filter = filter {
               externalModelProviderId = modelSuite.externalModelProviderId
               externalModelSuiteId = modelSuite.externalModelSuiteId
-              createdAfter = modelReleases[0].createTime
+              after = afterFilter {
+                createTime = modelReleases[0].createTime
+                externalModelReleaseId = modelReleases[0].externalModelReleaseId
+                externalModelSuiteId = modelReleases[0].externalModelSuiteId
+                externalModelProviderId = modelReleases[0].externalModelProviderId
+              }
             }
           }
         )
         .toList()
 
-    ProtoTruth.assertThat(modelReleases2).hasSize(1)
-    ProtoTruth.assertThat(modelReleases2).contains(modelRelease2)
+    assertThat(modelReleases2).hasSize(1)
+    assertThat(modelReleases2).contains(modelRelease2)
+  }
+
+  @Test
+  fun `streamModelReleases fails for missing after filter fields`(): Unit = runBlocking {
+    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+
+    modelReleasesService.createModelRelease(
+      modelRelease {
+        externalModelProviderId = modelSuite.externalModelProviderId
+        externalModelSuiteId = modelSuite.externalModelSuiteId
+      }
+    )
+
+    modelReleasesService.createModelRelease(
+      modelRelease {
+        externalModelProviderId = modelSuite.externalModelProviderId
+        externalModelSuiteId = modelSuite.externalModelSuiteId
+      }
+    )
+
+
+    val modelReleases: List<ModelRelease> =
+      modelReleasesService
+        .streamModelReleases(
+          streamModelReleasesRequest {
+            limit = 1
+            filter = filter {
+              externalModelProviderId = modelSuite.externalModelProviderId
+              externalModelSuiteId = modelSuite.externalModelSuiteId
+            }
+          }
+        )
+        .toList()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        modelReleasesService
+          .streamModelReleases(
+            streamModelReleasesRequest {
+              filter = filter {
+                externalModelProviderId = modelSuite.externalModelProviderId
+                externalModelSuiteId = modelSuite.externalModelSuiteId
+                after = afterFilter {
+                  createTime = modelReleases[0].createTime
+                  externalModelSuiteId = modelReleases[0].externalModelSuiteId
+                  externalModelProviderId = modelReleases[0].externalModelProviderId
+                }
+              }
+            }
+          )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("Missing After filter fields")
+  }
+
+  @Test
+  fun `streamModelReleases fails when limit is less than 0`(): Unit = runBlocking {
+    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        modelReleasesService
+          .streamModelReleases(
+            streamModelReleasesRequest {
+              limit = -1
+              filter = filter {
+                externalModelProviderId = modelSuite.externalModelProviderId
+                externalModelSuiteId = modelSuite.externalModelSuiteId
+              }
+            }
+          )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("Limit cannot be less than 0")
   }
 }

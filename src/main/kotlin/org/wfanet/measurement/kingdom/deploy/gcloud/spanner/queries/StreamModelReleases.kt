@@ -31,7 +31,7 @@ class StreamModelReleases(
   override val reader =
     ModelReleaseReader().fillStatementBuilder {
       appendWhereClause(requestFilter)
-      appendClause("ORDER BY ModelReleases.CreateTime ASC")
+      appendClause("ORDER BY ModelReleases.CreateTime ASC, ModelProviders.ExternalModelProviderId, ModelSuites.ExternalModelSuiteId, ModelReleases.ExternalModelReleaseId")
       if (limit > 0) {
         appendClause("LIMIT @${LIMIT_PARAM}")
         bind(LIMIT_PARAM to limit.toLong())
@@ -42,18 +42,36 @@ class StreamModelReleases(
     val conjuncts = mutableListOf<String>()
 
     if (filter.externalModelProviderId != 0L) {
-      conjuncts.add("ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID_PARAM}")
-      bind(EXTERNAL_MODEL_PROVIDER_ID_PARAM to filter.externalModelProviderId)
+      conjuncts.add("ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID}")
+      bind(EXTERNAL_MODEL_PROVIDER_ID to filter.externalModelProviderId)
     }
 
     if (filter.externalModelSuiteId != 0L) {
-      conjuncts.add("ExternalModelSuiteId = @${EXTERNAL_MODEL_SUITE_ID_PARAM}")
-      bind(EXTERNAL_MODEL_SUITE_ID_PARAM to filter.externalModelSuiteId)
+      conjuncts.add("ExternalModelSuiteId = @${EXTERNAL_MODEL_SUITE_ID}")
+      bind(EXTERNAL_MODEL_SUITE_ID to filter.externalModelSuiteId)
     }
 
-    if (filter.hasCreatedAfter()) {
+    if (filter.hasAfter()) {
+      conjuncts.add(
+        """
+          ((ModelReleases.CreateTime > @${CREATED_AFTER})
+          OR (ModelReleases.CreateTime = @${CREATED_AFTER}
+          AND ModelProviders.ExternalModelProviderId > @${EXTERNAL_MODEL_PROVIDER_ID})
+          OR (ModelReleases.CreateTime = @${CREATED_AFTER}
+          AND ModelProviders.ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID}
+          AND ModelSuites.ExternalModelSuiteId > @${EXTERNAL_MODEL_SUITE_ID})
+          OR (ModelReleases.CreateTime = @${CREATED_AFTER}
+          AND ModelProviders.ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID}
+          AND ModelSuites.ExternalModelSuiteId = @${EXTERNAL_MODEL_SUITE_ID}
+          AND ModelReleases.ExternalModelReleaseId > @${EXTERNAL_MODEL_RELEASE_ID}))
+        """
+          .trimIndent()
+      )
       conjuncts.add("ModelReleases.CreateTime > @${CREATED_AFTER}")
-      bind(CREATED_AFTER to filter.createdAfter.toGcloudTimestamp())
+      bind(CREATED_AFTER to filter.after.createTime.toGcloudTimestamp())
+      bind(EXTERNAL_MODEL_RELEASE_ID to filter.after.externalModelReleaseId)
+      bind(EXTERNAL_MODEL_SUITE_ID to filter.after.externalModelSuiteId)
+      bind(EXTERNAL_MODEL_PROVIDER_ID to filter.after.externalModelProviderId)
     }
 
     if (conjuncts.isEmpty()) {
@@ -66,8 +84,9 @@ class StreamModelReleases(
 
   companion object {
     const val LIMIT_PARAM = "limit"
-    const val EXTERNAL_MODEL_SUITE_ID_PARAM = "externalModelSuiteId"
-    const val EXTERNAL_MODEL_PROVIDER_ID_PARAM = "externalModelProviderId"
+    const val EXTERNAL_MODEL_RELEASE_ID = "externalModelReleaseId"
+    const val EXTERNAL_MODEL_SUITE_ID = "externalModelSuiteId"
+    const val EXTERNAL_MODEL_PROVIDER_ID = "externalModelProviderId"
     const val CREATED_AFTER = "createdAfter"
   }
 }
