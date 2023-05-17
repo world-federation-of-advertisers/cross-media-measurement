@@ -103,7 +103,9 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> { modelReleasesService.createModelRelease(modelRelease) }
+      assertFailsWith<StatusRuntimeException> {
+        modelReleasesService.createModelRelease(modelRelease)
+      }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception).hasMessageThat().contains("ModelSuite not found")
@@ -127,8 +129,7 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
         }
       )
 
-    assertThat(createdModelRelease)
-      .isEqualTo(returnedModelRelease)
+    assertThat(createdModelRelease).isEqualTo(returnedModelRelease)
   }
 
   @Test
@@ -270,7 +271,6 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
       }
     )
 
-
     val modelReleases: List<ModelRelease> =
       modelReleasesService
         .streamModelReleases(
@@ -286,20 +286,19 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        modelReleasesService
-          .streamModelReleases(
-            streamModelReleasesRequest {
-              filter = filter {
-                externalModelProviderId = modelSuite.externalModelProviderId
-                externalModelSuiteId = modelSuite.externalModelSuiteId
-                after = afterFilter {
-                  createTime = modelReleases[0].createTime
-                  externalModelSuiteId = modelReleases[0].externalModelSuiteId
-                  externalModelProviderId = modelReleases[0].externalModelProviderId
-                }
+        modelReleasesService.streamModelReleases(
+          streamModelReleasesRequest {
+            filter = filter {
+              externalModelProviderId = modelSuite.externalModelProviderId
+              externalModelSuiteId = modelSuite.externalModelSuiteId
+              after = afterFilter {
+                createTime = modelReleases[0].createTime
+                externalModelSuiteId = modelReleases[0].externalModelSuiteId
+                externalModelProviderId = modelReleases[0].externalModelProviderId
               }
             }
-          )
+          }
+        )
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -312,16 +311,15 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        modelReleasesService
-          .streamModelReleases(
-            streamModelReleasesRequest {
-              limit = -1
-              filter = filter {
-                externalModelProviderId = modelSuite.externalModelProviderId
-                externalModelSuiteId = modelSuite.externalModelSuiteId
-              }
+        modelReleasesService.streamModelReleases(
+          streamModelReleasesRequest {
+            limit = -1
+            filter = filter {
+              externalModelProviderId = modelSuite.externalModelProviderId
+              externalModelSuiteId = modelSuite.externalModelSuiteId
             }
-          )
+          }
+        )
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)

@@ -62,10 +62,10 @@ class SpannerModelReleasesService(
     grpcRequire(request.limit >= 0) { "Limit cannot be less than 0" }
     if (
       request.filter.hasAfter() &&
-      (!request.filter.after.hasCreateTime() ||
-        request.filter.after.externalModelReleaseId == 0L ||
-        request.filter.after.externalModelSuiteId == 0L ||
-        request.filter.after.externalModelProviderId == 0L)
+        (!request.filter.after.hasCreateTime() ||
+          request.filter.after.externalModelReleaseId == 0L ||
+          request.filter.after.externalModelSuiteId == 0L ||
+          request.filter.after.externalModelProviderId == 0L)
     ) {
       failGrpc(
         Status.INVALID_ARGUMENT,

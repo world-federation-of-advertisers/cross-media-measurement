@@ -31,7 +31,9 @@ class StreamModelReleases(
   override val reader =
     ModelReleaseReader().fillStatementBuilder {
       appendWhereClause(requestFilter)
-      appendClause("ORDER BY ModelReleases.CreateTime ASC, ModelProviders.ExternalModelProviderId, ModelSuites.ExternalModelSuiteId, ModelReleases.ExternalModelReleaseId")
+      appendClause(
+        "ORDER BY ModelReleases.CreateTime ASC, ModelProviders.ExternalModelProviderId, ModelSuites.ExternalModelSuiteId, ModelReleases.ExternalModelReleaseId"
+      )
       if (limit > 0) {
         appendClause("LIMIT @${LIMIT_PARAM}")
         bind(LIMIT_PARAM to limit.toLong())
