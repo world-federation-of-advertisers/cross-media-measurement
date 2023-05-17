@@ -14,14 +14,14 @@
 
 syntax = "proto3";
 
-package wfa.measurement.reporting.bff;
+package wfa.measurement.reporting.bff.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
-import "wfa/measurement/reporting/bff/time_interval.proto";
+import "wfa/measurement/reporting/bff/v1alpha/time_interval.proto";
 
-option go_package = "wfa/measurement/reporting/bff/reportingpb";
+option go_package = "wfa/measurement/reporting/bff/v1alpha/reportingpb";
 
 // The specification of a metric that can be selected to be in a `Report`.
 message MetricSpec {

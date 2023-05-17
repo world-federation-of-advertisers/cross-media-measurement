@@ -1,0 +1,49 @@
+load("@io_bazel_rules_go//proto:compiler.bzl", "go_proto_compiler")
+load("@io_bazel_rules_go//proto/wkt:well_known_types.bzl", "PROTO_RUNTIME_DEPS", "WELL_KNOWN_TYPES_APIV2")
+
+go_proto_compiler(
+    name = "go_apiv2",
+    options = [
+        "paths=source_relative",
+    ],
+    plugin = "@org_golang_google_protobuf//cmd/protoc-gen-go",
+    suffix = ".pb.go",
+    visibility = ["//visibility:public"],
+    deps = PROTO_RUNTIME_DEPS + WELL_KNOWN_TYPES_APIV2,
+)
+
+go_proto_compiler(
+    name = "go_grpc",
+    options = [
+        "paths=source_relative",
+        "require_unimplemented_servers=false",
+    ],
+    plugin = "@org_golang_google_grpc_cmd_protoc_gen_go_grpc//:protoc-gen-go-grpc",
+    suffix = "_grpc.pb.go",
+    visibility = ["//visibility:public"],
+    deps = PROTO_RUNTIME_DEPS + [
+        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//codes:go_default_library",
+        "@org_golang_google_grpc//status:go_default_library",
+    ],
+)
+
+go_proto_compiler(
+    name = "go_grpc_gateway",
+    options = ["logtostderr=true"],
+    plugin = "@protoc_gen_grpc_gateway//file",
+    suffix = ".pb.gw.go",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_golang_protobuf//descriptor:go_default_library_gen",
+        "@com_github_grpc_ecosystem_grpc_gateway//runtime:go_default_library",
+        "@com_github_grpc_ecosystem_grpc_gateway//utilities:go_default_library",
+        "@go_googleapis//google/api:annotations_go_proto",
+        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//codes:go_default_library",
+        "@org_golang_google_grpc//grpclog:go_default_library",
+        "@org_golang_google_grpc//metadata:go_default_library",
+        "@org_golang_google_grpc//status:go_default_library",
+        "@org_golang_google_protobuf//proto:go_default_library",
+    ],
+)
