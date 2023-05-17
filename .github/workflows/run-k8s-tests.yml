@@ -46,18 +46,46 @@ jobs:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.SIMULATOR_SERVICE_ACCOUNT }}
 
-    - name: Run tests
+    - name: Write ~/.bazelrc
       env:
         STORAGE_BUCKET: ${{ vars.STORAGE_BUCKET }}
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
         MC_NAME: ${{ vars.MC_NAME }}
         MC_API_KEY: ${{ secrets.MC_API_KEY }}
+      run: |
+        cat << EOF > ~/.bazelrc
+        build -c opt 
+        build --host_platform //build/platforms:ubuntu_20_04
+        build --define google_cloud_project=$GCLOUD_PROJECT
+        build --define kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET
+        build --define simulator_storage_bucket=$STORAGE_BUCKET
+        build --define mc_name=$MC_NAME
+        build --define mc_api_key=$MC_API_KEY
+        build --test_env=GOOGLE_APPLICATION_CREDENTIALS
+        EOF
+
+    - name: Get Bazel cache params
+      id: get-cache-params
+      uses: world-federation-of-advertisers/actions/bazel-get-cache-params@v2
+      with:
+        cache-version: 1
+
+    - name: Restore Bazel cache
+      uses: actions/cache/restore@v3
+      with:
+        path: ${{ steps.get-cache-params.outputs.cache-path }}
+        key: ${{ steps.get-cache-params.outputs.cache-key }}
+        restore-keys: |-
+          ${{ steps.get-cache-params.outputs.restore-key }}
+
+    - name: Run tests
+      id: run-tests
       run: >
-        bazelisk test -c opt --test_output=streamed
-        --test_env=GOOGLE_APPLICATION_CREDENTIALS
+        bazelisk test
         //src/test/kotlin/org/wfanet/measurement/integration/k8s:GcsCorrectnessTest
-        --define "google_cloud_project=$GCLOUD_PROJECT"
-        --define "kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
-        --define "simulator_storage_bucket=$STORAGE_BUCKET"
-        --define "mc_name=$MC_NAME"
-        --define "mc_api_key=$MC_API_KEY"
+        --test_output=streamed
+
+    - name: Upload Bazel testlogs
+      continue-on-error: true
+      uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@v2
+      if: failure() && steps.run-tests.outcome == 'failure'
