@@ -33,9 +33,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.reporting.v2.CreateMetricRequest
-import org.wfanet.measurement.internal.reporting.v2.Measurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2.Metric
 import org.wfanet.measurement.internal.reporting.v2.MetricKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineImplBase
@@ -612,9 +610,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         }
       )
 
-    assertThat(createdMetric)
-      .ignoringRepeatedFieldOrder()
-      .isEqualTo(sameCreatedMetric)
+    assertThat(createdMetric).ignoringRepeatedFieldOrder().isEqualTo(sameCreatedMetric)
   }
 
   @Test
@@ -861,7 +857,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   fun `createMetric throws INVALID_ARGUMENT when metric spec missing vid sampling interval`() =
     runBlocking {
       createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-      val createdReportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+      val createdReportingSet =
+        createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
 
       val metric = metric {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -917,7 +914,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   fun `createMetric throws INVALID_ARGUMENT when metric missing weighted measurements`() =
     runBlocking {
       createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-      val createdReportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+      val createdReportingSet =
+        createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
 
       val metric = metric {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -1181,7 +1179,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   fun `batchCreateMetrics succeeds for two create metric requests with one already existing`() =
     runBlocking {
       createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-      val createdReportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+      val createdReportingSet =
+        createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
 
       val metric = metric {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -1272,7 +1271,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   fun `batchCreateMetrics throws INVALID_ARGUMENT when metric missing time interval`() =
     runBlocking {
       createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-      val createdReportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+      val createdReportingSet =
+        createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
 
       val metric = metric {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -1419,7 +1419,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   fun `batchCreateMetrics throws INVALID_ARGUMENT when metric spec missing vid sampling`() =
     runBlocking {
       createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-      val createdReportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+      val createdReportingSet =
+        createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
 
       val metric = metric {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -1495,7 +1496,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   fun `batchCreateMetrics throws INVALID_ARGUMENT when metric missing weighted measurements`() =
     runBlocking {
       createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-      val createdReportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+      val createdReportingSet =
+        createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
 
       val metric = metric {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -1570,7 +1572,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   fun `batchCreateMetrics throws INVALID_ARGUMENT when cmms mc id doesn't match create request`() =
     runBlocking {
       createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-      val createdReportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+      val createdReportingSet =
+        createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
 
       val metric = metric {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -1720,9 +1723,9 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
 
     val createMetricRequest =
-      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-        .copy {
-          metric = metric.copy {
+      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService).copy {
+        metric =
+          metric.copy {
             metricSpec = metricSpec {
               reach =
                 MetricSpecKt.reachParams {
@@ -1739,14 +1742,16 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 }
             }
           }
-        }
+      }
     val createdMetric = service.createMetric(createMetricRequest)
 
     val retrievedMetrics =
-      service.batchGetMetrics(batchGetMetricsRequest {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        externalMetricIds += createdMetric.externalMetricId
-      })
+      service.batchGetMetrics(
+        batchGetMetricsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricIds += createdMetric.externalMetricId
+        }
+      )
 
     assertThat(retrievedMetrics.metricsList)
       .ignoringRepeatedFieldOrder()
@@ -1758,9 +1763,9 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
 
     val createMetricRequest =
-      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-        .copy {
-          metric = metric.copy {
+      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService).copy {
+        metric =
+          metric.copy {
             metricSpec = metricSpec {
               frequencyHistogram =
                 MetricSpecKt.frequencyHistogramParams {
@@ -1783,14 +1788,16 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 }
             }
           }
-        }
+      }
     val createdMetric = service.createMetric(createMetricRequest)
 
     val retrievedMetrics =
-      service.batchGetMetrics(batchGetMetricsRequest {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        externalMetricIds += createdMetric.externalMetricId
-      })
+      service.batchGetMetrics(
+        batchGetMetricsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricIds += createdMetric.externalMetricId
+        }
+      )
 
     assertThat(retrievedMetrics.metricsList)
       .ignoringRepeatedFieldOrder()
@@ -1802,9 +1809,9 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
 
     val createMetricRequest =
-      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-        .copy {
-          metric = metric.copy {
+      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService).copy {
+        metric =
+          metric.copy {
             metricSpec = metricSpec {
               impressionCount =
                 MetricSpecKt.impressionCountParams {
@@ -1822,14 +1829,16 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 }
             }
           }
-        }
+      }
     val createdMetric = service.createMetric(createMetricRequest)
 
     val retrievedMetrics =
-      service.batchGetMetrics(batchGetMetricsRequest {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        externalMetricIds += createdMetric.externalMetricId
-      })
+      service.batchGetMetrics(
+        batchGetMetricsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricIds += createdMetric.externalMetricId
+        }
+      )
 
     assertThat(retrievedMetrics.metricsList)
       .ignoringRepeatedFieldOrder()
@@ -1841,9 +1850,9 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
 
     val createMetricRequest =
-      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-        .copy {
-          metric = metric.copy {
+      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService).copy {
+        metric =
+          metric.copy {
             metricSpec = metricSpec {
               watchDuration =
                 MetricSpecKt.watchDurationParams {
@@ -1861,14 +1870,16 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 }
             }
           }
-        }
+      }
     val createdMetric = service.createMetric(createMetricRequest)
 
     val retrievedMetrics =
-      service.batchGetMetrics(batchGetMetricsRequest {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        externalMetricIds += createdMetric.externalMetricId
-      })
+      service.batchGetMetrics(
+        batchGetMetricsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricIds += createdMetric.externalMetricId
+        }
+      )
 
     assertThat(retrievedMetrics.metricsList)
       .ignoringRepeatedFieldOrder()
@@ -1879,17 +1890,21 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   fun `batchGetMetrics succeeds when asking for two metrics`(): Unit = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
 
-    val createMetricRequest = createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-    val createdMetricRequest2 = createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val createMetricRequest =
+      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val createdMetricRequest2 =
+      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
     val createdMetric = service.createMetric(createMetricRequest)
     val createdMetric2 = service.createMetric(createdMetricRequest2)
 
     val retrievedMetrics =
-      service.batchGetMetrics(batchGetMetricsRequest {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        externalMetricIds += createdMetric.externalMetricId
-        externalMetricIds += createdMetric2.externalMetricId
-      })
+      service.batchGetMetrics(
+        batchGetMetricsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricIds += createdMetric.externalMetricId
+          externalMetricIds += createdMetric2.externalMetricId
+        }
+      )
 
     assertThat(retrievedMetrics.metricsList)
       .ignoringRepeatedFieldOrder()
@@ -1900,35 +1915,44 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   fun `batchGetMetrics succeeds when no filters in bases in measurements`(): Unit = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
 
-    val createMetricRequest = createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService).copy {
-      metric = metric.copy {
-        val externalPrimitiveReportingSetId =
-          weightedMeasurements.first().measurement.primitiveReportingSetBasesList.first().externalReportingSetId
-        weightedMeasurements.clear()
-        weightedMeasurements +=
-        MetricKt.weightedMeasurement {
-          weight = 2
-          measurement = measurement {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            timeInterval = timeInterval {
-              startTime = timestamp { seconds = 10 }
-              endTime = timestamp { seconds = 100 }
-            }
-            primitiveReportingSetBases +=
-              ReportingSetKt.primitiveReportingSetBasis {
-                externalReportingSetId = externalPrimitiveReportingSetId
+    val createMetricRequest =
+      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService).copy {
+        metric =
+          metric.copy {
+            val externalPrimitiveReportingSetId =
+              weightedMeasurements
+                .first()
+                .measurement
+                .primitiveReportingSetBasesList
+                .first()
+                .externalReportingSetId
+            weightedMeasurements.clear()
+            weightedMeasurements +=
+              MetricKt.weightedMeasurement {
+                weight = 2
+                measurement = measurement {
+                  cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                  timeInterval = timeInterval {
+                    startTime = timestamp { seconds = 10 }
+                    endTime = timestamp { seconds = 100 }
+                  }
+                  primitiveReportingSetBases +=
+                    ReportingSetKt.primitiveReportingSetBasis {
+                      externalReportingSetId = externalPrimitiveReportingSetId
+                    }
+                }
               }
           }
-        }
       }
-    }
     val createdMetric = service.createMetric(createMetricRequest)
 
     val retrievedMetrics =
-      service.batchGetMetrics(batchGetMetricsRequest {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        externalMetricIds += createdMetric.externalMetricId
-      })
+      service.batchGetMetrics(
+        batchGetMetricsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricIds += createdMetric.externalMetricId
+        }
+      )
 
     assertThat(retrievedMetrics.metricsList)
       .ignoringRepeatedFieldOrder()
@@ -1938,7 +1962,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   @Test
   fun `batchGetMetrics throws NOT_FOUND when not all metrics found`(): Unit = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-    val createMetricRequest = createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val createMetricRequest =
+      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
     val createdMetric = service.createMetric(createMetricRequest)
 
     val exception =
@@ -1960,11 +1985,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   fun `batchGetMetrics throws INVALID_ARGUMENT when missing mc id`(): Unit = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.batchGetMetrics(
-          batchGetMetricsRequest {
-            externalMetricIds += 1L
-          }
-        )
+        service.batchGetMetrics(batchGetMetricsRequest { externalMetricIds += 1L })
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -1995,8 +2016,10 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     val differentCmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID + 2
     createMeasurementConsumer(differentCmmsMeasurementConsumerId, measurementConsumersService)
 
-    val createMetricRequest = createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-    val createMetricRequest2 = createCreateMetricRequest(differentCmmsMeasurementConsumerId, reportingSetsService)
+    val createMetricRequest =
+      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val createMetricRequest2 =
+      createCreateMetricRequest(differentCmmsMeasurementConsumerId, reportingSetsService)
     val createdMetric = service.createMetric(createMetricRequest)
     service.createMetric(createMetricRequest2)
 
@@ -2012,23 +2035,22 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         )
         .toList()
 
-    assertThat(retrievedMetrics)
-      .ignoringRepeatedFieldOrder()
-      .containsExactly(createdMetric)
+    assertThat(retrievedMetrics).ignoringRepeatedFieldOrder().containsExactly(createdMetric)
   }
 
   @Test
   fun `streamReportingSets filters when id after filter is set`(): Unit = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
 
-    val createMetricRequest = createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-    val createMetricRequest2 = createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val createMetricRequest =
+      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val createMetricRequest2 =
+      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
 
     val createdMetric = service.createMetric(createMetricRequest)
     val createdMetric2 = service.createMetric(createMetricRequest2)
 
-    val afterId =
-      minOf(createdMetric.externalMetricId, createdMetric2.externalMetricId)
+    val afterId = minOf(createdMetric.externalMetricId, createdMetric2.externalMetricId)
 
     val retrievedMetrics =
       service
@@ -2044,13 +2066,9 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         .toList()
 
     if (createdMetric.externalMetricId == afterId) {
-      assertThat(retrievedMetrics)
-        .ignoringRepeatedFieldOrder()
-        .containsExactly(createdMetric2)
+      assertThat(retrievedMetrics).ignoringRepeatedFieldOrder().containsExactly(createdMetric2)
     } else {
-      assertThat(retrievedMetrics)
-        .ignoringRepeatedFieldOrder()
-        .containsExactly(createdMetric)
+      assertThat(retrievedMetrics).ignoringRepeatedFieldOrder().containsExactly(createdMetric)
     }
   }
 
@@ -2060,16 +2078,18 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     val differentCmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID + 2
     createMeasurementConsumer(differentCmmsMeasurementConsumerId, measurementConsumersService)
 
-    val createMetricRequest = createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-    val createMetricRequest2 = createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-    val createMetricRequest3 = createCreateMetricRequest(differentCmmsMeasurementConsumerId, reportingSetsService)
+    val createMetricRequest =
+      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val createMetricRequest2 =
+      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val createMetricRequest3 =
+      createCreateMetricRequest(differentCmmsMeasurementConsumerId, reportingSetsService)
 
     val createdMetric = service.createMetric(createMetricRequest)
     val createdMetric2 = service.createMetric(createMetricRequest2)
     service.createMetric(createMetricRequest3)
 
-    val afterId =
-      minOf(createdMetric.externalMetricId, createdMetric2.externalMetricId)
+    val afterId = minOf(createdMetric.externalMetricId, createdMetric2.externalMetricId)
 
     val retrievedMetrics =
       service
@@ -2085,13 +2105,9 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         .toList()
 
     if (createdMetric.externalMetricId == afterId) {
-      assertThat(retrievedMetrics)
-        .ignoringRepeatedFieldOrder()
-        .containsExactly(createdMetric2)
+      assertThat(retrievedMetrics).ignoringRepeatedFieldOrder().containsExactly(createdMetric2)
     } else {
-      assertThat(retrievedMetrics)
-        .ignoringRepeatedFieldOrder()
-        .containsExactly(createdMetric)
+      assertThat(retrievedMetrics).ignoringRepeatedFieldOrder().containsExactly(createdMetric)
     }
   }
 
@@ -2099,8 +2115,10 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   fun `streamMetrics limits the number of results when limit is set`(): Unit = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
 
-    val createMetricRequest = createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-    val createMetricRequest2 = createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val createMetricRequest =
+      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val createMetricRequest2 =
+      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
 
     val createdMetric = service.createMetric(createMetricRequest)
     val createdMetric2 = service.createMetric(createMetricRequest2)
@@ -2119,13 +2137,9 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         .toList()
 
     if (createdMetric.externalMetricId < createdMetric2.externalMetricId) {
-      assertThat(retrievedMetrics)
-        .ignoringRepeatedFieldOrder()
-        .containsExactly(createdMetric)
+      assertThat(retrievedMetrics).ignoringRepeatedFieldOrder().containsExactly(createdMetric)
     } else {
-      assertThat(retrievedMetrics)
-        .ignoringRepeatedFieldOrder()
-        .containsExactly(createdMetric2)
+      assertThat(retrievedMetrics).ignoringRepeatedFieldOrder().containsExactly(createdMetric2)
     }
   }
 
@@ -2151,9 +2165,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   @Test
   fun `streamMetrics throws INVALID_ARGUMENT when MC filter missing`() = runBlocking {
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.streamMetrics(streamMetricsRequest {})
-      }
+      assertFailsWith<StatusRuntimeException> { service.streamMetrics(streamMetricsRequest {}) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }

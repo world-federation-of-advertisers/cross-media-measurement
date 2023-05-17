@@ -167,11 +167,7 @@ class MetricReader(private val readContext: ReadContext) {
     var i = 2
     val bindingMap = mutableMapOf<String, String>()
     val inList =
-      createMetricRequestIds.joinToString(
-        separator = ",",
-        prefix = "(",
-        postfix = ")"
-      ) {
+      createMetricRequestIds.joinToString(separator = ",", prefix = "(", postfix = ")") {
         val index = "$$i"
         bindingMap[it] = index
         i++
@@ -208,11 +204,7 @@ class MetricReader(private val readContext: ReadContext) {
     var i = 2
     val bindingMap = mutableMapOf<Long, String>()
     val inList =
-      request.externalMetricIdsList.joinToString(
-        separator = ",",
-        prefix = "(",
-        postfix = ")"
-      ) {
+      request.externalMetricIdsList.joinToString(separator = ",", prefix = "(", postfix = ")") {
         val index = "$$i"
         bindingMap[it] = index
         i++
@@ -246,8 +238,7 @@ class MetricReader(private val readContext: ReadContext) {
           LIMIT $3
         ) AS Metrics
       """ +
-          baseSqlJoins
-          +
+          baseSqlJoins +
           """
           ORDER BY ExternalMetricId ASC
           """
@@ -280,35 +271,36 @@ class MetricReader(private val readContext: ReadContext) {
           timeInterval = metricInfo.timeInterval
           metricSpec = metricInfo.metricSpec
           metricInfo.weightedMeasurementInfoMap.values.forEach {
-            weightedMeasurements += MetricKt.weightedMeasurement {
-              weight = it.weight
-              measurement = measurement {
-                cmmsMeasurementConsumerId = metricInfo.cmmsMeasurementConsumerId
-                if (it.measurementInfo.cmmsMeasurementId != null) {
-                  cmmsMeasurementId = it.measurementInfo.cmmsMeasurementId
-                }
-                cmmsCreateMeasurementRequestId = it.measurementInfo.cmmsCreateMeasurementRequestId
-                timeInterval = it.measurementInfo.timeInterval
-                it.measurementInfo.primitiveReportingSetBasisInfoMap.values.forEach {
-                  primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-                    externalReportingSetId = it.externalReportingSetId.value
-                    filters += it.filterSet
+            weightedMeasurements +=
+              MetricKt.weightedMeasurement {
+                weight = it.weight
+                measurement = measurement {
+                  cmmsMeasurementConsumerId = metricInfo.cmmsMeasurementConsumerId
+                  if (it.measurementInfo.cmmsMeasurementId != null) {
+                    cmmsMeasurementId = it.measurementInfo.cmmsMeasurementId
+                  }
+                  cmmsCreateMeasurementRequestId = it.measurementInfo.cmmsCreateMeasurementRequestId
+                  timeInterval = it.measurementInfo.timeInterval
+                  it.measurementInfo.primitiveReportingSetBasisInfoMap.values.forEach {
+                    primitiveReportingSetBases +=
+                      ReportingSetKt.primitiveReportingSetBasis {
+                        externalReportingSetId = it.externalReportingSetId.value
+                        filters += it.filterSet
+                      }
+                  }
+                  state = it.measurementInfo.state
+                  if (it.measurementInfo.details != Measurement.Details.getDefaultInstance()) {
+                    details = it.measurementInfo.details
                   }
                 }
-                state = it.measurementInfo.state
-                if (it.measurementInfo.details != Measurement.Details.getDefaultInstance()) {
-                  details = it.measurementInfo.details
-                }
               }
-            }
           }
           if (metricInfo.details != Metric.Details.getDefaultInstance()) {
             details = metricInfo.details
           }
         }
 
-        val createMetricRequestId =
-          metricInfo.createMetricRequestId ?: ""
+        val createMetricRequestId = metricInfo.createMetricRequestId ?: ""
         emit(
           Result(
             measurementConsumerId = metricInfo.measurementConsumerId,
@@ -344,7 +336,8 @@ class MetricReader(private val readContext: ReadContext) {
       val vidSamplingStart: Float = row["VidSamplingIntervalStart"]
       val vidSamplingWidth: Float = row["VidSamplingIntervalWidth"]
       val createTime: Instant = row["CreateTime"]
-      val metricDetails: Metric.Details = row.getProtoMessage("MetricDetails", Metric.Details.parser())
+      val metricDetails: Metric.Details =
+        row.getProtoMessage("MetricDetails", Metric.Details.parser())
       val weight: Int = row["Coefficient"]
       val measurementId: InternalId = row["MeasurementId"]
       val cmmsCreateMeasurementRequestId: UUID = row["CmmsCreateMeasurementRequestId"]
@@ -352,18 +345,18 @@ class MetricReader(private val readContext: ReadContext) {
       val measurementTimeIntervalStart: Instant = row["MeasurementsTimeIntervalStart"]
       val measurementTimeIntervalEnd: Instant = row["MeasurementsTimeIntervalEndExclusive"]
       val measurementState: Measurement.State = Measurement.State.forNumber(row["State"])
-      val measurementDetails: Measurement.Details = row.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
+      val measurementDetails: Measurement.Details =
+        row.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
       val primitiveReportingSetBasisId: InternalId = row["PrimitiveReportingSetBasisId"]
       val primitiveExternalReportingSetId: ExternalId = row["PrimitiveExternalReportingSetId"]
       val primitiveReportingSetBasisFilter: String? = row["PrimitiveReportingSetBasisFilter"]
 
       val metricInfo =
         metricInfoMap.computeIfAbsent(metricId) {
-          val metricTimeInterval =
-            timeInterval {
-              startTime = metricTimeIntervalStart.toProtoTime()
-              endTime = metricTimeIntervalEnd.toProtoTime()
-            }
+          val metricTimeInterval = timeInterval {
+            startTime = metricTimeIntervalStart.toProtoTime()
+            endTime = metricTimeIntervalEnd.toProtoTime()
+          }
 
           val vidSamplingInterval =
             MetricSpecKt.vidSamplingInterval {
@@ -371,65 +364,75 @@ class MetricReader(private val readContext: ReadContext) {
               width = vidSamplingWidth
             }
 
-          val metricSpec =
-            metricSpec {
-              when (metricType) {
-                MetricSpec.TypeCase.REACH ->
-                  reach = MetricSpecKt.reachParams {
-                    privacyParams = MetricSpecKt.differentialPrivacyParams {
-                      epsilon = differentialPrivacyEpsilon
-                      delta = differentialPrivacyDelta
-                    }
+          val metricSpec = metricSpec {
+            when (metricType) {
+              MetricSpec.TypeCase.REACH ->
+                reach =
+                  MetricSpecKt.reachParams {
+                    privacyParams =
+                      MetricSpecKt.differentialPrivacyParams {
+                        epsilon = differentialPrivacyEpsilon
+                        delta = differentialPrivacyDelta
+                      }
                   }
-                MetricSpec.TypeCase.FREQUENCY_HISTOGRAM -> {
-                  if (frequencyDifferentialPrivacyDelta == null || frequencyDifferentialPrivacyEpsilon == null ||
-                    maximumFrequencyPerUser == null) {
-                    throw IllegalStateException()
-                  }
+              MetricSpec.TypeCase.FREQUENCY_HISTOGRAM -> {
+                if (
+                  frequencyDifferentialPrivacyDelta == null ||
+                    frequencyDifferentialPrivacyEpsilon == null ||
+                    maximumFrequencyPerUser == null
+                ) {
+                  throw IllegalStateException()
+                }
 
-                  frequencyHistogram = MetricSpecKt.frequencyHistogramParams {
-                    reachPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-                      epsilon = differentialPrivacyEpsilon
-                      delta = differentialPrivacyDelta
-                    }
-                    frequencyPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-                      epsilon = frequencyDifferentialPrivacyEpsilon
-                      delta = frequencyDifferentialPrivacyDelta
-                    }
+                frequencyHistogram =
+                  MetricSpecKt.frequencyHistogramParams {
+                    reachPrivacyParams =
+                      MetricSpecKt.differentialPrivacyParams {
+                        epsilon = differentialPrivacyEpsilon
+                        delta = differentialPrivacyDelta
+                      }
+                    frequencyPrivacyParams =
+                      MetricSpecKt.differentialPrivacyParams {
+                        epsilon = frequencyDifferentialPrivacyEpsilon
+                        delta = frequencyDifferentialPrivacyDelta
+                      }
                     this.maximumFrequencyPerUser = maximumFrequencyPerUser
                   }
+              }
+              MetricSpec.TypeCase.IMPRESSION_COUNT -> {
+                if (maximumFrequencyPerUser == null) {
+                  throw IllegalStateException()
                 }
-                MetricSpec.TypeCase.IMPRESSION_COUNT -> {
-                  if (maximumFrequencyPerUser == null) {
-                    throw IllegalStateException()
-                  }
 
-                  impressionCount = MetricSpecKt.impressionCountParams {
-                    privacyParams = MetricSpecKt.differentialPrivacyParams {
-                      epsilon = differentialPrivacyEpsilon
-                      delta = differentialPrivacyDelta
-                    }
+                impressionCount =
+                  MetricSpecKt.impressionCountParams {
+                    privacyParams =
+                      MetricSpecKt.differentialPrivacyParams {
+                        epsilon = differentialPrivacyEpsilon
+                        delta = differentialPrivacyDelta
+                      }
                     this.maximumFrequencyPerUser = maximumFrequencyPerUser
                   }
+              }
+              MetricSpec.TypeCase.WATCH_DURATION -> {
+                if (maximumWatchDurationPerUser == null) {
+                  throw IllegalStateException()
                 }
-                MetricSpec.TypeCase.WATCH_DURATION -> {
-                  if (maximumWatchDurationPerUser == null) {
-                    throw IllegalStateException()
-                  }
 
-                  watchDuration = MetricSpecKt.watchDurationParams {
-                    privacyParams = MetricSpecKt.differentialPrivacyParams {
-                      epsilon = differentialPrivacyEpsilon
-                      delta = differentialPrivacyDelta
-                    }
+                watchDuration =
+                  MetricSpecKt.watchDurationParams {
+                    privacyParams =
+                      MetricSpecKt.differentialPrivacyParams {
+                        epsilon = differentialPrivacyEpsilon
+                        delta = differentialPrivacyDelta
+                      }
                     this.maximumWatchDurationPerUser = maximumWatchDurationPerUser
                   }
-                }
-                MetricSpec.TypeCase.TYPE_NOT_SET ->
-                  throw IllegalStateException()
               }
-              this.vidSamplingInterval = vidSamplingInterval
+              MetricSpec.TypeCase.TYPE_NOT_SET -> throw IllegalStateException()
             }
+            this.vidSamplingInterval = vidSamplingInterval
+          }
 
           MetricInfo(
             measurementConsumerId = measurementConsumerId,
@@ -447,11 +450,13 @@ class MetricReader(private val readContext: ReadContext) {
         }
 
       val weightedMeasurementInfo =
-        metricInfo.weightedMeasurementInfoMap.computeIfAbsent(MetricMeasurementKey(
-          measurementConsumerId = measurementConsumerId,
-          measurementId = measurementId,
-          metricId = metricId,
-        )) {
+        metricInfo.weightedMeasurementInfoMap.computeIfAbsent(
+          MetricMeasurementKey(
+            measurementConsumerId = measurementConsumerId,
+            measurementId = measurementId,
+            metricId = metricId,
+          )
+        ) {
           val timeInterval = timeInterval {
             startTime = measurementTimeIntervalStart.toProtoTime()
             endTime = measurementTimeIntervalEnd.toProtoTime()

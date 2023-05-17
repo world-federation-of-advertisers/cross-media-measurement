@@ -187,9 +187,8 @@ class ReportingSetReader(private val readContext: ReadContext) {
           LIMIT $3
         ) AS ReportingSets
       """ +
-          baseSqlJoins
-        +
-        """
+          baseSqlJoins +
+          """
         ORDER BY RootExternalReportingSetId ASC
         """
       ) {
