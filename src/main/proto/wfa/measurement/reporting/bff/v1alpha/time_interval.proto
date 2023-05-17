@@ -14,13 +14,13 @@
 
 syntax = "proto3";
 
-package wfa.measurement.reporting.bff;
+package wfa.measurement.reporting.bff.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
-option go_package = "wfa/measurement/reporting/bff/reportingpb";
+option go_package = "wfa/measurement/reporting/bff/v1alpha/reportingpb";
 
 // A time interval.
 message TimeInterval {

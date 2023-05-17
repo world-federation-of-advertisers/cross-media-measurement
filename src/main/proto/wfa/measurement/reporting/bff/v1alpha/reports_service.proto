@@ -14,15 +14,15 @@
 
 syntax = "proto3";
 
-package wfa.measurement.reporting.bff;
+package wfa.measurement.reporting.bff.v1alpha;
 
 import "google/api/client.proto";
 import "google/api/field_behavior.proto";
 import "google/api/annotations.proto";
 import "google/api/resource.proto";
-import "wfa/measurement/reporting/bff/report.proto";
+import "wfa/measurement/reporting/bff/v1alpha/report.proto";
 
-// option go_package = "bff/reportingpb";
+option go_package = "wfa/measurement/reporting/bff/v1alpha/reportingpb";
 
 // Service for interacting with `Report` resources.
 service Reports {
