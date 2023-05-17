@@ -38,6 +38,8 @@ enum Action {
 enum CompositeType { kFull, kPartial };
 
 // A cryptor dealing with basic operations in various MPC protocols.
+//
+// The implementation of [ProtocolCrytpor] is not thread-safe.
 class ProtocolCryptor {
  public:
   virtual ~ProtocolCryptor() = default;
@@ -109,13 +111,18 @@ class ProtocolCryptor {
   ProtocolCryptor() = default;
 };
 
+struct ProtocolCryptorOptions {
+  int curve_id;
+  ElGamalCiphertext local_el_gamal_public_key;
+  absl::string_view local_el_gamal_private_key;
+  absl::string_view local_pohlig_hellman_private_key;
+  ElGamalCiphertext composite_el_gamal_public_key;
+  ElGamalCiphertext partial_composite_el_gamal_public_key;
+};
+
 // Create a ProtocolCryptor using keys required for internal ciphers.
-absl::StatusOr<std::unique_ptr<ProtocolCryptor>> CreateProtocolCryptorWithKeys(
-    int curve_id, const ElGamalCiphertext& local_el_gamal_public_key,
-    absl::string_view local_el_gamal_private_key,
-    absl::string_view local_pohlig_hellman_private_key,
-    const ElGamalCiphertext& composite_el_gamal_public_key,
-    const ElGamalCiphertext& partial_composite_el_gamal_public_key);
+absl::StatusOr<std::unique_ptr<ProtocolCryptor>> CreateProtocolCryptor(
+    const ProtocolCryptorOptions& options);
 
 }  // namespace wfa::measurement::common::crypto
 
