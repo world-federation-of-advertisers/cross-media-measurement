@@ -41,7 +41,6 @@ class SpannerModelShardsService(
 
   override suspend fun createModelShard(request: ModelShard): ModelShard {
     grpcRequire(request.externalDataProviderId > 0L) { "DataProviderId field of ModelShard is missing." }
-    println("request in create model shard method: $request")
     return CreateModelShard(request).execute(client, idGenerator)
   }
 
