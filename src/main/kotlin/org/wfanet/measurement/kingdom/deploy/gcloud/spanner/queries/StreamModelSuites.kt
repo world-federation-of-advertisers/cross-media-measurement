@@ -56,7 +56,7 @@ class StreamModelSuites(
           AND ModelProviders.ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID}
           AND ModelSuites.ExternalModelSuiteId > @${EXTERNAL_MODEL_SUITE_ID})
           OR (ModelSuites.CreateTime  = @${CREATED_AFTER}
-          AND ModelProviders.ExternalModelProviderId > @${EXTERNAL_MODEL_SUITE_ID}))
+          AND ModelProviders.ExternalModelProviderId > @${EXTERNAL_MODEL_PROVIDER_ID}))
         """
           .trimIndent()
       )
