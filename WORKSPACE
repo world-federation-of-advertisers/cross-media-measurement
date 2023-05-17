@@ -1,16 +1,12 @@
 workspace(name = "wfa_measurement_system")
 
-load("//build:repositories.bzl", "wfa_measurement_system_repositories")
+load("//build:repositories.bzl", "wfa_measurement_system_repositories", "wfa_measurement_system_tink_repository")
 
 wfa_measurement_system_repositories()
 
-load("@rules_pkg//:deps.bzl", "rules_pkg_dependencies")
+load("@wfa_common_jvm//build:versions.bzl", "TINK_COMMIT")
 
-rules_pkg_dependencies()
-
-load("@private_membership//build:private_membership_repositories.bzl", "private_membership_repositories")
-
-private_membership_repositories()
+wfa_measurement_system_tink_repository(TINK_COMMIT)
 
 load("@wfa_rules_cue//cue:repositories.bzl", "rules_cue_dependencies")
 
@@ -32,9 +28,13 @@ load("@wfa_common_cpp//build:common_cpp_deps.bzl", "common_cpp_deps")
 
 common_cpp_deps()
 
-load("//build:deps.bzl", "panel_exchange_client_deps")
+load("@rules_pkg//:deps.bzl", "rules_pkg_dependencies")
 
-panel_exchange_client_deps()
+rules_pkg_dependencies()
+
+load("@private_membership//build:private_membership_repositories.bzl", "private_membership_repositories")
+
+private_membership_repositories()
 
 load(
     "//build:panel_exchange_client_maven_deps.bzl",
