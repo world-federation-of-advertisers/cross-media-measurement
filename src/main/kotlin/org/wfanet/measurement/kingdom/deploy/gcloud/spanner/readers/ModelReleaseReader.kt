@@ -38,10 +38,10 @@ class ModelReleaseReader : SpannerReader<ModelReleaseReader.Result>() {
       ModelSuites.ExternalModelSuiteId,
       ModelSuites.ModelProviderId,
       ModelSuites.ModelSuiteId,
-      ModelProviders.ModelProviderId,
       ModelProviders.ExternalModelProviderId,
       FROM ModelReleases
-      JOIN (ModelSuites JOIN ModelProviders USING (ModelProviderId)) USING (ModelSuiteId)
+      JOIN ModelSuites USING (ModelProviderId, ModelSuiteId)
+      JOIN ModelProviders USING (ModelProviderId)
     """
       .trimIndent()
 
