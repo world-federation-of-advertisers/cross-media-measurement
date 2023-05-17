@@ -1,0 +1,23 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//visibility:public"])
+
+kt_jvm_library(
+    name = "compound_validator",
+    srcs = ["CompoundValidator.kt"],
+    deps = [
+        ":requisition_validator",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "requisition_validator",
+    srcs = ["RequisitionValidator.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
+    ],
+)

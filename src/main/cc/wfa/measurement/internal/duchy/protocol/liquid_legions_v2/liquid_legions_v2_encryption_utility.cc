@@ -45,7 +45,7 @@ using ::private_join_and_compute::CommutativeElGamal;
 using ::wfa::measurement::common::SortStringByBlock;
 using ::wfa::measurement::common::crypto::Action;
 using ::wfa::measurement::common::crypto::CompositeType;
-using ::wfa::measurement::common::crypto::CreateProtocolCryptorWithKeys;
+using ::wfa::measurement::common::crypto::CreateProtocolCryptor;
 using ::wfa::measurement::common::crypto::ElGamalCiphertext;
 using ::wfa::measurement::common::crypto::ElGamalEcPointPair;
 using ::wfa::measurement::common::crypto::ExtractElGamalCiphertextFromString;
@@ -70,6 +70,7 @@ using ::wfa::measurement::common::crypto::kPublisherNoiseRegisterId;
 using ::wfa::measurement::common::crypto::kUnitECPointSeed;
 using ::wfa::measurement::common::crypto::MultiplyEcPointPairByScalar;
 using ::wfa::measurement::common::crypto::ProtocolCryptor;
+using ::wfa::measurement::common::crypto::ProtocolCryptorOptions;
 using ::wfa::measurement::internal::duchy::ElGamalPublicKey;
 using ::wfa::measurement::internal::duchy::protocol::LiquidLegionsV2NoiseConfig;
 
@@ -595,28 +596,34 @@ absl::StatusOr<std::string> DestroyKeysAndCounts(
   std::unique_ptr<ProtocolCryptor> protocol_cryptor;
 
   if (request.has_noise_parameters()) {
-    ASSIGN_OR_RETURN_ERROR(
-        protocol_cryptor,
-        CreateProtocolCryptorWithKeys(
-            request.noise_parameters().curve_id(),
-            kGenerateWithNewElGamalPublicKey, kGenerateWithNewElGamalPrivateKey,
-            kGenerateWithNewPohligHellmanKey,
+    ProtocolCryptorOptions protocol_cryptor_options{
+        .curve_id = static_cast<int>(request.noise_parameters().curve_id()),
+        .local_el_gamal_public_key = kGenerateWithNewElGamalPublicKey,
+        .local_el_gamal_private_key = kGenerateWithNewElGamalPrivateKey,
+        .local_pohlig_hellman_private_key = kGenerateWithNewPohligHellmanKey,
+        .composite_el_gamal_public_key =
             std::make_pair(request.noise_parameters()
                                .composite_el_gamal_public_key()
                                .generator(),
                            request.noise_parameters()
                                .composite_el_gamal_public_key()
                                .element()),
-            kGenerateNewParitialCompositeCipher),
+        .partial_composite_el_gamal_public_key =
+            kGenerateNewParitialCompositeCipher};
+    ASSIGN_OR_RETURN_ERROR(
+        protocol_cryptor, CreateProtocolCryptor(protocol_cryptor_options),
         "Failed to create the protocol cipher, invalid curveId or keys.");
   } else {
-    ASSIGN_OR_RETURN(
-        protocol_cryptor,
-        CreateProtocolCryptorWithKeys(
-            kDefaultEllipticCurveId, kGenerateWithNewElGamalPublicKey,
-            kGenerateWithNewElGamalPrivateKey, kGenerateWithNewPohligHellmanKey,
-            kGenerateWithNewElGamalPublicKey,
-            kGenerateWithNewElGamalPublicKey));
+    ProtocolCryptorOptions protocol_cryptor_options{
+        .curve_id = kDefaultEllipticCurveId,
+        .local_el_gamal_public_key = kGenerateWithNewElGamalPublicKey,
+        .local_el_gamal_private_key = kGenerateWithNewElGamalPrivateKey,
+        .local_pohlig_hellman_private_key = kGenerateWithNewPohligHellmanKey,
+        .composite_el_gamal_public_key = kGenerateWithNewElGamalPublicKey,
+        .partial_composite_el_gamal_public_key =
+            kGenerateWithNewElGamalPublicKey};
+    ASSIGN_OR_RETURN(protocol_cryptor,
+                     CreateProtocolCryptor(protocol_cryptor_options));
   }
 
   ASSIGN_OR_RETURN(std::string destroyed_register_key_ec,
@@ -711,15 +718,19 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
                               kBytesPerCipherRegister);
 
     RETURN_IF_ERROR(ValidateSetupNoiseParameters(noise_parameters));
+
+    ProtocolCryptorOptions protocol_cryptor_options{
+        .curve_id = static_cast<int>(noise_parameters.curve_id()),
+        .local_el_gamal_public_key = kGenerateWithNewElGamalPublicKey,
+        .local_el_gamal_private_key = kGenerateWithNewElGamalPrivateKey,
+        .local_pohlig_hellman_private_key = kGenerateWithNewPohligHellmanKey,
+        .composite_el_gamal_public_key = std::make_pair(
+            noise_parameters.composite_el_gamal_public_key().generator(),
+            noise_parameters.composite_el_gamal_public_key().element()),
+        .partial_composite_el_gamal_public_key =
+            kGenerateNewParitialCompositeCipher};
     ASSIGN_OR_RETURN_ERROR(
-        auto protocol_cryptor,
-        CreateProtocolCryptorWithKeys(
-            noise_parameters.curve_id(), kGenerateWithNewElGamalPublicKey,
-            kGenerateWithNewElGamalPrivateKey, kGenerateWithNewPohligHellmanKey,
-            std::make_pair(
-                noise_parameters.composite_el_gamal_public_key().generator(),
-                noise_parameters.composite_el_gamal_public_key().element()),
-            kGenerateNewParitialCompositeCipher),
+        auto protocol_cryptor, CreateProtocolCryptor(protocol_cryptor_options),
         "Failed to create the protocol cipher, invalid curveId or keys.");
 
     // 1. Add blinded histogram noise.
@@ -759,18 +770,22 @@ absl::StatusOr<CompleteExecutionPhaseOneResponse> CompleteExecutionPhaseOne(
   ASSIGN_OR_RETURN(size_t register_count,
                    GetNumberOfBlocks(request.combined_register_vector(),
                                      kBytesPerCipherRegister));
-  ASSIGN_OR_RETURN_ERROR(
-      auto protocol_cryptor,
-      CreateProtocolCryptorWithKeys(
-          request.curve_id(),
-          std::make_pair(
-              request.local_el_gamal_key_pair().public_key().generator(),
-              request.local_el_gamal_key_pair().public_key().element()),
+
+  ProtocolCryptorOptions protocol_cryptor_options{
+      .curve_id = static_cast<int>(request.curve_id()),
+      .local_el_gamal_public_key = std::make_pair(
+          request.local_el_gamal_key_pair().public_key().generator(),
+          request.local_el_gamal_key_pair().public_key().element()),
+      .local_el_gamal_private_key =
           request.local_el_gamal_key_pair().secret_key(),
-          kGenerateWithNewPohligHellmanKey,
+      .local_pohlig_hellman_private_key = kGenerateWithNewPohligHellmanKey,
+      .composite_el_gamal_public_key =
           std::make_pair(request.composite_el_gamal_public_key().generator(),
                          request.composite_el_gamal_public_key().element()),
-          kGenerateNewParitialCompositeCipher),
+      .partial_composite_el_gamal_public_key =
+          kGenerateNewParitialCompositeCipher};
+  ASSIGN_OR_RETURN_ERROR(
+      auto protocol_cryptor, CreateProtocolCryptor(protocol_cryptor_options),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   CompleteExecutionPhaseOneResponse response;
@@ -802,19 +817,23 @@ CompleteExecutionPhaseOneAtAggregator(
   ASSIGN_OR_RETURN(size_t register_count,
                    GetNumberOfBlocks(request.combined_register_vector(),
                                      kBytesPerCipherRegister));
-  ASSIGN_OR_RETURN_ERROR(
-      auto protocol_cryptor,
-      CreateProtocolCryptorWithKeys(
-          request.curve_id(),
-          std::make_pair(
-              request.local_el_gamal_key_pair().public_key().generator(),
-              request.local_el_gamal_key_pair().public_key().element()),
+
+  ProtocolCryptorOptions protocol_cryptor_options{
+      .curve_id = static_cast<int>(request.curve_id()),
+      .local_el_gamal_public_key = std::make_pair(
+          request.local_el_gamal_key_pair().public_key().generator(),
+          request.local_el_gamal_key_pair().public_key().element()),
+      .local_el_gamal_private_key =
           request.local_el_gamal_key_pair().secret_key(),
-          kGenerateWithNewPohligHellmanKey,
+      .local_pohlig_hellman_private_key = kGenerateWithNewPohligHellmanKey,
+      .composite_el_gamal_public_key =
           std::make_pair(request.composite_el_gamal_public_key().generator(),
                          request.composite_el_gamal_public_key().element()),
+      .partial_composite_el_gamal_public_key =
           std::make_pair(request.composite_el_gamal_public_key().generator(),
-                         request.composite_el_gamal_public_key().element())),
+                         request.composite_el_gamal_public_key().element())};
+  ASSIGN_OR_RETURN_ERROR(
+      auto protocol_cryptor, CreateProtocolCryptor(protocol_cryptor_options),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   ASSIGN_OR_RETURN(std::vector<std::string> blinded_register_indexes,
@@ -857,20 +876,23 @@ absl::StatusOr<CompleteExecutionPhaseTwoResponse> CompleteExecutionPhaseTwo(
   ASSIGN_OR_RETURN(
       size_t tuple_counts,
       GetNumberOfBlocks(request.flag_count_tuples(), kBytesPerFlagsCountTuple));
-  ASSIGN_OR_RETURN_ERROR(
-      auto protocol_cryptor,
-      CreateProtocolCryptorWithKeys(
-          request.curve_id(),
-          std::make_pair(
-              request.local_el_gamal_key_pair().public_key().generator(),
-              request.local_el_gamal_key_pair().public_key().element()),
+
+  ProtocolCryptorOptions protocol_cryptor_options{
+      .curve_id = static_cast<int>(request.curve_id()),
+      .local_el_gamal_public_key = std::make_pair(
+          request.local_el_gamal_key_pair().public_key().generator(),
+          request.local_el_gamal_key_pair().public_key().element()),
+      .local_el_gamal_private_key =
           request.local_el_gamal_key_pair().secret_key(),
-          kGenerateWithNewPohligHellmanKey,
+      .local_pohlig_hellman_private_key = kGenerateWithNewPohligHellmanKey,
+      .composite_el_gamal_public_key =
           std::make_pair(request.composite_el_gamal_public_key().generator(),
                          request.composite_el_gamal_public_key().element()),
-          std::make_pair(
-              request.partial_composite_el_gamal_public_key().generator(),
-              request.partial_composite_el_gamal_public_key().element())),
+      .partial_composite_el_gamal_public_key = std::make_pair(
+          request.partial_composite_el_gamal_public_key().generator(),
+          request.partial_composite_el_gamal_public_key().element())};
+  ASSIGN_OR_RETURN_ERROR(
+      auto protocol_cryptor, CreateProtocolCryptor(protocol_cryptor_options),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   CompleteExecutionPhaseTwoResponse response;
@@ -912,18 +934,21 @@ CompleteExecutionPhaseTwoAtAggregator(
       size_t tuple_counts,
       GetNumberOfBlocks(request.flag_count_tuples(), kBytesPerFlagsCountTuple));
 
-  ASSIGN_OR_RETURN_ERROR(
-      auto protocol_cryptor,
-      CreateProtocolCryptorWithKeys(
-          request.curve_id(),
-          std::make_pair(
-              request.local_el_gamal_key_pair().public_key().generator(),
-              request.local_el_gamal_key_pair().public_key().element()),
+  ProtocolCryptorOptions protocol_cryptor_options{
+      .curve_id = static_cast<int>(request.curve_id()),
+      .local_el_gamal_public_key = std::make_pair(
+          request.local_el_gamal_key_pair().public_key().generator(),
+          request.local_el_gamal_key_pair().public_key().element()),
+      .local_el_gamal_private_key =
           request.local_el_gamal_key_pair().secret_key(),
-          kGenerateWithNewPohligHellmanKey,
+      .local_pohlig_hellman_private_key = kGenerateWithNewPohligHellmanKey,
+      .composite_el_gamal_public_key =
           std::make_pair(request.composite_el_gamal_public_key().generator(),
                          request.composite_el_gamal_public_key().element()),
-          kGenerateNewParitialCompositeCipher),
+      .partial_composite_el_gamal_public_key =
+          kGenerateNewParitialCompositeCipher};
+  ASSIGN_OR_RETURN_ERROR(
+      auto protocol_cryptor, CreateProtocolCryptor(protocol_cryptor_options),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   ASSIGN_OR_RETURN(std::vector<ElGamalEcPointPair> ska_bases,
@@ -1021,16 +1046,20 @@ absl::StatusOr<CompleteExecutionPhaseThreeResponse> CompleteExecutionPhaseThree(
   ASSIGN_OR_RETURN(size_t ciphertext_counts,
                    GetNumberOfBlocks(request.same_key_aggregator_matrix(),
                                      kBytesPerCipherText));
-  ASSIGN_OR_RETURN_ERROR(
-      auto protocol_cryptor,
-      CreateProtocolCryptorWithKeys(
-          request.curve_id(),
-          std::make_pair(
-              request.local_el_gamal_key_pair().public_key().generator(),
-              request.local_el_gamal_key_pair().public_key().element()),
+  ProtocolCryptorOptions protocol_cryptor_options{
+      .curve_id = static_cast<int>(request.curve_id()),
+      .local_el_gamal_public_key = std::make_pair(
+          request.local_el_gamal_key_pair().public_key().generator(),
+          request.local_el_gamal_key_pair().public_key().element()),
+      .local_el_gamal_private_key =
           request.local_el_gamal_key_pair().secret_key(),
-          kGenerateWithNewPohligHellmanKey, kGenerateNewCompositeCipher,
-          kGenerateNewParitialCompositeCipher),
+      .local_pohlig_hellman_private_key = kGenerateWithNewPohligHellmanKey,
+      .composite_el_gamal_public_key = kGenerateNewCompositeCipher,
+      .partial_composite_el_gamal_public_key =
+          kGenerateNewParitialCompositeCipher};
+
+  ASSIGN_OR_RETURN_ERROR(
+      auto protocol_cryptor, CreateProtocolCryptor(protocol_cryptor_options),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   CompleteExecutionPhaseThreeResponse response;
@@ -1073,16 +1102,19 @@ CompleteExecutionPhaseThreeAtAggregator(
   }
   int64_t column_size = ciphertext_counts / row_size;
 
-  ASSIGN_OR_RETURN_ERROR(
-      auto protocol_cryptor,
-      CreateProtocolCryptorWithKeys(
-          request.curve_id(),
-          std::make_pair(
-              request.local_el_gamal_key_pair().public_key().generator(),
-              request.local_el_gamal_key_pair().public_key().element()),
+  ProtocolCryptorOptions protocol_cryptor_options{
+      .curve_id = static_cast<int>(request.curve_id()),
+      .local_el_gamal_public_key = std::make_pair(
+          request.local_el_gamal_key_pair().public_key().generator(),
+          request.local_el_gamal_key_pair().public_key().element()),
+      .local_el_gamal_private_key =
           request.local_el_gamal_key_pair().secret_key(),
-          kGenerateWithNewPohligHellmanKey, kGenerateNewCompositeCipher,
-          kGenerateNewParitialCompositeCipher),
+      .local_pohlig_hellman_private_key = kGenerateWithNewPohligHellmanKey,
+      .composite_el_gamal_public_key = kGenerateNewCompositeCipher,
+      .partial_composite_el_gamal_public_key =
+          kGenerateNewParitialCompositeCipher};
+  ASSIGN_OR_RETURN_ERROR(
+      auto protocol_cryptor, CreateProtocolCryptor(protocol_cryptor_options),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   // histogram[i-1] = the number of times value i (1...maximum_frequency-1)

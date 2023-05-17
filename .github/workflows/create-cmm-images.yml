@@ -22,14 +22,13 @@ on:
         description: "Tag of container images"
         value: ${{ jobs.push-images.outputs.image-tag }}
 
-env:
-  CONTAINER_REGISTRY: ghcr.io
-
 jobs:
   push-images:
     runs-on: ubuntu-20.04
     outputs:
       image-tag: ${{ steps.output-image-tag.outputs.image-tag }}
+    env:
+      CONTAINER_REGISTRY: ghcr.io
     steps:
       - uses: actions/checkout@v3
 
@@ -40,6 +39,30 @@ jobs:
         id: output-image-tag
         run: echo "image-tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
+      - name: Write ~/.bazelrc
+        run: |
+          cat << EOF > ~/.bazelrc
+          build -c opt 
+          build --host_platform //build/platforms:ubuntu_20_04
+          build --define container_registry=$CONTAINER_REGISTRY
+          build --define image_repo_prefix=$GITHUB_REPOSITORY_OWNER
+          build --define image_tag=$IMAGE_TAG
+          EOF
+
+      - name: Get Bazel cache params
+        id: get-cache-params
+        uses: world-federation-of-advertisers/actions/bazel-get-cache-params@v2
+        with:
+          cache-version: 1
+
+      - name: Restore Bazel cache
+        uses: actions/cache/restore@v3
+        with:
+          path: ${{ steps.get-cache-params.outputs.cache-path }}
+          key: ${{ steps.get-cache-params.outputs.cache-key }}
+          restore-keys: |-
+            ${{ steps.get-cache-params.outputs.restore-key }}
+
       - name: Authenticate to GitHub Container Registry
         uses: docker/login-action@v2
         with:
@@ -48,10 +71,4 @@ jobs:
           password: ${{ github.token }}
 
       - name: Push images
-        run: >
-          bazelisk run //src/main/docker:push_all_gke_images
-          --compilation_mode=opt
-          --platforms=//build/platforms:ubuntu_20_04
-          --define "container_registry=$CONTAINER_REGISTRY"
-          --define "image_repo_prefix=$GITHUB_REPOSITORY_OWNER"
-          --define "image_tag=$IMAGE_TAG"
+        run: bazelisk run //src/main/docker:push_all_gke_images

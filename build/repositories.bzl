@@ -33,8 +33,8 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_common_cpp",
         repo = "common-cpp",
-        sha256 = "be7564a574c60176dc63e48daba6135263779deb301baacb77d2328bdaf38d3d",
-        version = "0.9.0",
+        sha256 = "fd4475b587741fa8af65c580b783054d09bf3890197830290a22b3823c778eeb",
+        version = "0.10.0",
     )
 
     wfa_repo_archive(
@@ -54,15 +54,15 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "any_sketch",
         repo = "any-sketch",
-        sha256 = "fa7ff63e181692b9060c50fedd519b7ea7e9a6683bf4d5ba9d19213b6cb6dac4",
-        version = "0.4.2",
+        sha256 = "dfa9eece9965b8c043e7562d0f7c6e06cd649c62d88d9be99c0295f9f5980d7b",
+        version = "0.4.3",
     )
 
     wfa_repo_archive(
         name = "any_sketch_java",
         repo = "any-sketch-java",
-        sha256 = "117642633c1b0a6a539f75b21d396146fcb7c51ae60f8c63859b0e9cce490e77",
-        version = "0.4.0",
+        sha256 = "0d463c7eb9cce9e94a4af2575f8c9e1c79f1d5ebbe6fa8db168be167bd80cf5a",
+        version = "0.4.1",
     )
 
     wfa_repo_archive(
