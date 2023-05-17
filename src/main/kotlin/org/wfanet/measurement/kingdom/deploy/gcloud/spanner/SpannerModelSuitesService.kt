@@ -59,6 +59,19 @@ class SpannerModelSuitesService(
   }
 
   override fun streamModelSuites(request: StreamModelSuitesRequest): Flow<ModelSuite> {
+    grpcRequire(request.limit >= 0) { "Limit cannot be less than 0" }
+    if (
+      request.filter.hasAfter() &&
+        (!request.filter.after.hasCreateTime() ||
+          request.filter.after.externalModelSuiteId == 0L ||
+          request.filter.after.externalModelProviderId == 0L)
+    ) {
+      failGrpc(
+        Status.INVALID_ARGUMENT,
+      ) {
+        "Missing After filter fields"
+      }
+    }
     return StreamModelSuites(request.filter, request.limit).execute(client.singleUse()).map {
       it.modelSuite
     }

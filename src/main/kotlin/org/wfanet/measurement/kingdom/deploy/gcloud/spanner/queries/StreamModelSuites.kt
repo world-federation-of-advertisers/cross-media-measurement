@@ -44,8 +44,8 @@ class StreamModelSuites(
     val conjuncts = mutableListOf<String>()
 
     if (filter.externalModelProviderId != 0L) {
-      conjuncts.add("ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID_PARAM}")
-      bind(EXTERNAL_MODEL_PROVIDER_ID_PARAM to filter.externalModelProviderId)
+      conjuncts.add("ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID}")
+      bind(EXTERNAL_MODEL_PROVIDER_ID to filter.externalModelProviderId)
     }
 
     if (filter.hasAfter()) {
@@ -53,12 +53,16 @@ class StreamModelSuites(
         """
           ((ModelSuites.CreateTime  > @${CREATED_AFTER})
           OR (ModelSuites.CreateTime  = @${CREATED_AFTER}
-          AND ModelSuites.ExternalModelSuiteId > @${EXTERNAL_MODEL_SUITE_ID}))
+          AND ModelProviders.ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID}
+          AND ModelSuites.ExternalModelSuiteId > @${EXTERNAL_MODEL_SUITE_ID})
+          OR (ModelSuites.CreateTime  = @${CREATED_AFTER}
+          AND ModelProviders.ExternalModelProviderId > @${EXTERNAL_MODEL_SUITE_ID}))
         """
           .trimIndent()
       )
       bind(CREATED_AFTER to filter.after.createTime.toGcloudTimestamp())
       bind(EXTERNAL_MODEL_SUITE_ID to filter.after.externalModelSuiteId)
+      bind(EXTERNAL_MODEL_PROVIDER_ID to filter.after.externalModelProviderId)
     }
 
     if (conjuncts.isEmpty()) {
@@ -71,7 +75,7 @@ class StreamModelSuites(
 
   companion object {
     const val LIMIT_PARAM = "limit"
-    const val EXTERNAL_MODEL_PROVIDER_ID_PARAM = "externalModelProviderId"
+    const val EXTERNAL_MODEL_PROVIDER_ID = "externalModelProviderId"
     const val CREATED_AFTER = "createdAfter"
     const val EXTERNAL_MODEL_SUITE_ID = "externalModelSuiteId"
   }

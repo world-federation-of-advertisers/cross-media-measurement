@@ -451,6 +451,7 @@ class ModelSuitesServiceTest {
         lastModelSuite = previousPageEnd {
           createTime = CREATE_TIME
           externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
         }
       }
       pageToken = listModelSuitesPageToken.toByteArray().base64UrlEncode()
@@ -470,6 +471,7 @@ class ModelSuitesServiceTest {
         lastModelSuite = previousPageEnd {
           createTime = CREATE_TIME
           externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID_2
+          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
         }
       }
       nextPageToken = listModelSuitesPageToken.toByteArray().base64UrlEncode()
@@ -490,6 +492,7 @@ class ModelSuitesServiceTest {
             after = afterFilter {
               createTime = CREATE_TIME
               externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
             }
           }
         }

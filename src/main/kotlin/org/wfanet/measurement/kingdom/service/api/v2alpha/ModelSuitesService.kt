@@ -46,8 +46,8 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.internal.kingdom.ModelSuite as InternalModelSuite
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequest
-import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequestKt.afterFilter
+import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.getModelSuiteRequest
 import org.wfanet.measurement.internal.kingdom.streamModelSuitesRequest
 
@@ -116,8 +116,8 @@ class ModelSuitesService(private val internalClient: ModelSuitesCoroutineStub) :
       return internalClient.getModelSuite(getModelSuiteRequest).toModelSuite()
     } catch (ex: StatusException) {
       when (ex.status.code) {
-        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "ModelSuite not found." }
-        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "ModelSuite not found" }
+        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception" }
       }
     }
   }
@@ -144,9 +144,19 @@ class ModelSuitesService(private val internalClient: ModelSuitesCoroutineStub) :
     }
 
     val results: List<InternalModelSuite> =
-      internalClient
-        .streamModelSuites(listModelSuitesPageToken.toStreamModelSuitesRequest())
-        .toList()
+      try {
+        internalClient
+          .streamModelSuites(listModelSuitesPageToken.toStreamModelSuitesRequest())
+          .toList()
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.INVALID_ARGUMENT ->
+            failGrpc(Status.INVALID_ARGUMENT, ex) {
+              ex.message ?: "Required field unspecified or invalid"
+            }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception" }
+        }
+      }
 
     if (results.isEmpty()) {
       return ListModelSuitesResponse.getDefaultInstance()
@@ -165,6 +175,7 @@ class ModelSuitesService(private val internalClient: ModelSuitesCoroutineStub) :
               ListModelSuitesPageTokenKt.previousPageEnd {
                 createTime = results[results.lastIndex - 1].createTime
                 externalModelSuiteId = results[results.lastIndex - 1].externalModelSuiteId
+                externalModelProviderId = results[results.lastIndex - 1].externalModelProviderId
               }
           }
         nextPageToken = pageToken.toByteArray().base64UrlEncode()
@@ -213,16 +224,16 @@ class ModelSuitesService(private val internalClient: ModelSuitesCoroutineStub) :
     return streamModelSuitesRequest {
       // get 1 more than the actual page size for deciding whether to set page token
       limit = source.pageSize + 1
-      filter =
-        StreamModelSuitesRequestKt.filter {
-          externalModelProviderId = source.externalModelProviderId
-          if (source.hasLastModelSuite()) {
-            after = afterFilter {
-              createTime = source.lastModelSuite.createTime
-              externalModelSuiteId = source.lastModelSuite.externalModelSuiteId
-            }
+      filter = filter {
+        externalModelProviderId = source.externalModelProviderId
+        if (source.hasLastModelSuite()) {
+          after = afterFilter {
+            createTime = source.lastModelSuite.createTime
+            externalModelSuiteId = source.lastModelSuite.externalModelSuiteId
+            externalModelProviderId = source.lastModelSuite.externalModelProviderId
           }
         }
+      }
     }
   }
 }

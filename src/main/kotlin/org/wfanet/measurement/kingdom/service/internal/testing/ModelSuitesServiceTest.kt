@@ -249,6 +249,7 @@ abstract class ModelSuitesServiceTest<T : ModelSuitesCoroutineImplBase> {
               after = afterFilter {
                 createTime = modelSuites[0].createTime
                 externalModelSuiteId = modelSuites[0].externalModelSuiteId
+                externalModelProviderId = modelSuites[0].externalModelProviderId
               }
             }
           }
@@ -257,5 +258,54 @@ abstract class ModelSuitesServiceTest<T : ModelSuitesCoroutineImplBase> {
 
     assertThat(modelSuites2).hasSize(1)
     assertThat(modelSuites2).contains(modelSuite2)
+  }
+
+  @Test
+  fun `streamModelSuites fails for missing after filter fields`(): Unit = runBlocking {
+    val modelProvider = population.createModelProvider(modelProvidersService)
+
+    modelSuitesService.createModelSuite(
+      modelSuite {
+        externalModelProviderId = modelProvider.externalModelProviderId
+        displayName = "displayName1"
+        description = "description1"
+      }
+    )
+
+    modelSuitesService.createModelSuite(
+      modelSuite {
+        externalModelProviderId = modelProvider.externalModelProviderId
+        displayName = "displayName2"
+        description = "description2"
+      }
+    )
+
+    val modelSuites: List<ModelSuite> =
+      modelSuitesService
+        .streamModelSuites(
+          streamModelSuitesRequest {
+            limit = 1
+            filter = filter { externalModelProviderId = modelProvider.externalModelProviderId }
+          }
+        )
+        .toList()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        modelSuitesService.streamModelSuites(
+          streamModelSuitesRequest {
+            filter = filter {
+              externalModelProviderId = modelProvider.externalModelProviderId
+              after = afterFilter {
+                createTime = modelSuites[0].createTime
+                externalModelProviderId = modelSuites[0].externalModelProviderId
+              }
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("Missing After filter fields")
   }
 }
