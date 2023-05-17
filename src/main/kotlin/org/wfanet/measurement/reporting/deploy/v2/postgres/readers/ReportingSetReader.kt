@@ -188,6 +188,10 @@ class ReportingSetReader(private val readContext: ReadContext) {
         ) AS ReportingSets
       """ +
           baseSqlJoins
+        +
+        """
+        ORDER BY RootExternalReportingSetId ASC
+        """
       ) {
         bind("$1", request.filter.cmmsMeasurementConsumerId)
         bind("$2", request.filter.externalReportingSetIdAfter)

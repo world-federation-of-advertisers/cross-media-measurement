@@ -43,7 +43,7 @@ message BatchCreateMetricsRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
   string cmms_measurement_consumer_id = 1;
 
-  // Maximum is 200.
+  // Maximum is 1000.
   repeated CreateMetricRequest requests = 2;
 }
 
@@ -55,7 +55,7 @@ message BatchGetMetricsRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
   string cmms_measurement_consumer_id = 1;
 
-  // Maximum is 200.
+  // Maximum is 1000.
   repeated fixed64 external_metric_ids = 2;
 }
 
