@@ -188,7 +188,7 @@ message MetricResult {
 // The metric value once calculated is stored in `MetricResult`.
 message Metric {
   option (google.api.resource) = {
-    type: "reporting.halo-cmm.org/Metric"
+    type: "ui.reporting.halo-cmm.org/Metric"
     pattern: "measurementConsumers/{measurement_consumer}/metrics/{metric}"
   };
   // Resource name
@@ -199,7 +199,7 @@ message Metric {
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE,
     (google.api.resource_reference) = {
-      type: "reporting.halo-cmm.org/ReportingSet"
+      type: "ui.reporting.halo-cmm.org/ReportingSet"
     }
   ];
 

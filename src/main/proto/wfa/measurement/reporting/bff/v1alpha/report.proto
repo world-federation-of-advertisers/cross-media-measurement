@@ -33,7 +33,7 @@ option go_package = "wfa/measurement/reporting/bff/v1alpha/reportingpb";
 // of `Grouping`s defined in `MetricCalculationSpec`.
 message Report {
   option (google.api.resource) = {
-    type: "reporting.halo-cmm.org/Report"
+    type: "ui.reporting.halo-cmm.org/Report"
     pattern: "measurementConsumers/{measurement_consumer}/reports/{report}"
   };
 
@@ -90,7 +90,7 @@ message Report {
     string key = 1 [
       (google.api.field_behavior) = REQUIRED,
       (google.api.resource_reference) = {
-        type: "reporting.halo-cmm.org/ReportingSet"
+        type: "ui.reporting.halo-cmm.org/ReportingSet"
       }
     ];
     // Value of the map entry.
@@ -137,7 +137,7 @@ message Report {
 
     // The reporting set associated with this `MetricCalculationSpec`.
     string reporting_set = 2 [(google.api.resource_reference) = {
-      type: "reporting.halo-cmm.org/ReportingSet"
+      type: "ui.reporting.halo-cmm.org/ReportingSet"
     }];
 
     // Whether the results for a given time interval is cumulative with those of

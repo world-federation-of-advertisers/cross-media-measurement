@@ -107,7 +107,7 @@ def wfa_measurement_system_repositories():
     )
 
     http_archive(
-        name = "com_github_grpc_ecosystem_grpc_gateway",
+        name = "grpc_ecosystem_grpc_gateway",
         sha256 = "0675f7f8300f659a23e7ea4b8be5b38726c173b506a4d25c4309e93b4f1616ae",
         strip_prefix = "grpc-gateway-2.15.2",
         urls = ["https://github.com/grpc-ecosystem/grpc-gateway/archive/refs/tags/v2.15.2.tar.gz"],

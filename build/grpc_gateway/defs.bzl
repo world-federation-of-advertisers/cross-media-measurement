@@ -16,7 +16,7 @@
 
 load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
 
-def go_grpc_gateway_proto_library(name, import_path, protos, embed = []):
+def go_grpc_gateway_proto_library(name, visibility = None, **kwargs):
     go_proto_library(
         name = name,
         compilers = [
@@ -24,7 +24,6 @@ def go_grpc_gateway_proto_library(name, import_path, protos, embed = []):
             "//build/grpc_gateway:go_grpc",
             "//build/grpc_gateway:go_grpc_gateway",
         ],
-        embed = embed,
-        importpath = import_path,
-        protos = protos,
+        visibility = visibility,
+        **kwargs
     )

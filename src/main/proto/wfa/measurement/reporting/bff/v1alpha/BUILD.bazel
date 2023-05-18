@@ -1,5 +1,4 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
 load("//build/grpc_gateway:defs.bzl", "go_grpc_gateway_proto_library")
 
 package(default_visibility = ["//visibility:public"])
@@ -63,41 +62,22 @@ proto_library(
     ],
 )
 
-go_proto_library(
+go_grpc_gateway_proto_library(
     name = "metric_go_proto",
-    compilers = [
-        "//build/grpc_gateway:go_apiv2",
-        "//build/grpc_gateway:go_grpc",
-        "//build/grpc_gateway:go_grpc_gateway",
-    ],
-    embed = [
-        ":time_interval_go_proto",
-    ],
+    embed = [":time_interval_go_proto"],
     importpath = GO_IMPORT_PATH,
     protos = [":metric_proto"],
 )
 
-go_proto_library(
+go_grpc_gateway_proto_library(
     name = "time_interval_go_proto",
-    compilers = [
-        "//build/grpc_gateway:go_apiv2",
-        "//build/grpc_gateway:go_grpc",
-        "//build/grpc_gateway:go_grpc_gateway",
-    ],
     importpath = GO_IMPORT_PATH,
     protos = [":time_interval_proto"],
 )
 
-go_proto_library(
+go_grpc_gateway_proto_library(
     name = "report_go_proto",
-    compilers = [
-        "//build/grpc_gateway:go_apiv2",
-        "//build/grpc_gateway:go_grpc",
-        "//build/grpc_gateway:go_grpc_gateway",
-    ],
-    embed = [
-        ":metric_go_proto",
-    ],
+    embed = [":metric_go_proto"],
     importpath = GO_IMPORT_PATH,
     protos = [":report_proto"],
 )
@@ -105,22 +85,6 @@ go_proto_library(
 go_grpc_gateway_proto_library(
     name = "reports_service_go_proto",
     embed = [":report_go_proto"],
-    import_path = GO_IMPORT_PATH,
+    importpath = GO_IMPORT_PATH,
     protos = [":reports_service_proto"],
 )
-
-# go_proto_library(
-#     name = "reports_service_go_proto",
-#     compilers = [
-#         "//build/grpc_gateway:go_apiv2",
-#         "//build/grpc_gateway:go_grpc",
-#         "//build/grpc_gateway:go_grpc_gateway",
-#     ],
-#     embed = [
-#         ":report_go_proto",
-#     ],
-#     importpath = GO_IMPORT_PATH,
-#     protos = [
-#         ":reports_service_proto",
-#     ],
-# )

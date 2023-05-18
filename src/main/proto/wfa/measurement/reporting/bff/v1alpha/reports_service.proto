@@ -41,15 +41,6 @@ service Reports {
     };
     option (google.api.method_signature) = "parent";
   }
-
-  // // Creates a `Report`.
-  // rpc CreateReport(CreateReportRequest) returns (Report) {
-  //   option (google.api.http) = {
-  //     post: "/v1alpha/{parent=measurementConsumers/*}/reports"
-  //     body: "report"
-  //   };
-  //   option (google.api.method_signature) = "parent,report";
-  // }
 }
 
 // Request message for `GetReport` method.
@@ -58,7 +49,9 @@ message GetReportRequest {
   // Format: measurementConsumers/{measurement_consumer}/reports/{report}
   string name = 1 [
     (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = { type: "reporting.halo-cmm.org/Report" }
+    (google.api.resource_reference) = {
+      type: "ui.reporting.halo-cmm.org/Report"
+    }
   ];
 }
 
@@ -68,7 +61,7 @@ message ListReportsRequest {
   string parent = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
-      child_type: "reporting.halo-cmm.org/Report"
+      child_type: "ui.reporting.halo-cmm.org/Report"
     }
   ];
 
@@ -95,18 +88,3 @@ message ListReportsResponse {
   // If this field is omitted, there are no subsequent pages.
   string next_page_token = 2;
 }
-
-// // Request message for `CreateReport` method.
-// message CreateReportRequest {
-//   // The parent resource where this report will be created.
-//   // Format: measurementConsumers/{measurement_consumer}
-//   string parent = 1 [
-//     (google.api.field_behavior) = REQUIRED,
-//     (google.api.resource_reference) = {
-//       child_type: "reporting.halo-cmm.org/Report"
-//     }
-//   ];
-
-//   // The report to create.
-//   Report report = 2 [(google.api.field_behavior) = REQUIRED];
-// }
