@@ -19,6 +19,8 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 import io.grpc.Status
 import java.time.Clock
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -27,6 +29,7 @@ import org.wfanet.measurement.internal.kingdom.ModelOutage
 import org.wfanet.measurement.internal.kingdom.ModelOutagesGrpcKt.ModelOutagesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamModelOutagesRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelOutages
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelOutage
 
 class SpannerModelOutagesService(
@@ -51,6 +54,23 @@ class SpannerModelOutagesService(
   }
 
   override fun streamModelOutages(request: StreamModelOutagesRequest): Flow<ModelOutage> {
-    return super.streamModelOutages(request)
+    grpcRequire(request.limit >= 0) { "Limit cannot be less than 0" }
+    if (
+      request.filter.hasAfter() &&
+      (!request.filter.after.hasCreateTime() ||
+        request.filter.after.externalModelOutageId == 0L ||
+        request.filter.after.externalModelLineId == 0L ||
+        request.filter.after.externalModelSuiteId == 0L ||
+        request.filter.after.externalModelProviderId == 0L)
+    ) {
+      failGrpc(
+        Status.INVALID_ARGUMENT,
+      ) {
+        "Missing After filter fields"
+      }
+    }
+    return StreamModelOutages(request.filter, request.limit).execute(client.singleUse()).map {
+      it.modelOutage
+    }
   }
 }
