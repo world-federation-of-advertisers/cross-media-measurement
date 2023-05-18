@@ -22,7 +22,7 @@ import "wfa/measurement/internal/kingdom/model_release.proto";
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
-// Internal service for persistence of ModelSuite entities.
+// Internal service for persistence of ModelRelease entities.
 service ModelReleases {
   // Creates a new `ModelRelease`.
   rpc CreateModelRelease(ModelRelease) returns (ModelRelease);
