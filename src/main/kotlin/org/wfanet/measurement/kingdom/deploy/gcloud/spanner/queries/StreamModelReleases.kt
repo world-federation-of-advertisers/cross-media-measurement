@@ -32,7 +32,13 @@ class StreamModelReleases(
     ModelReleaseReader().fillStatementBuilder {
       appendWhereClause(requestFilter)
       appendClause(
-        "ORDER BY ModelReleases.CreateTime ASC, ModelProviders.ExternalModelProviderId, ModelSuites.ExternalModelSuiteId, ModelReleases.ExternalModelReleaseId"
+        """
+          ORDER BY ModelReleases.CreateTime ASC,
+          ModelProviders.ExternalModelProviderId ASC,
+          ModelSuites.ExternalModelSuiteId ASC,
+          ModelReleases.ExternalModelReleaseId ASC
+        """
+          .trimIndent()
       )
       if (limit > 0) {
         appendClause("LIMIT @${LIMIT_PARAM}")
@@ -69,7 +75,6 @@ class StreamModelReleases(
         """
           .trimIndent()
       )
-      conjuncts.add("ModelReleases.CreateTime > @${CREATED_AFTER}")
       bind(CREATED_AFTER to filter.after.createTime.toGcloudTimestamp())
       bind(EXTERNAL_MODEL_RELEASE_ID to filter.after.externalModelReleaseId)
       bind(EXTERNAL_MODEL_SUITE_ID to filter.after.externalModelSuiteId)
