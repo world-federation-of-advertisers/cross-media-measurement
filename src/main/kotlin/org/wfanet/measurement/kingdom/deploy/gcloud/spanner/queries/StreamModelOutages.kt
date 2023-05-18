@@ -18,10 +18,10 @@ class StreamModelOutages(private val requestFilter: Filter, limit: Int = 0) :
       appendClause(
         """
           ORDER BY ModelOutages.CreateTime ASC,
-          ModelProviders.ExternalModelProviderId,
-          ModelSuites.ExternalModelSuiteId,
-          ModelLines.ExternalModelLineId,
-          ModelOutages.ExternalModelOutageId,
+          ModelProviders.ExternalModelProviderId ASC,
+          ModelSuites.ExternalModelSuiteId ASC,
+          ModelLines.ExternalModelLineId ASC,
+          ModelOutages.ExternalModelOutageId ASC
           """
           .trimIndent()
       )
@@ -62,11 +62,9 @@ class StreamModelOutages(private val requestFilter: Filter, limit: Int = 0) :
         """
           .trimIndent()
       )
-      bind(CREATED_AFTER to filter.after.createTime.toGcloudTimestamp())
-      bind(EXTERNAL_MODEL_PROVIDER_ID to filter.after.externalModelProviderId)
-      bind(EXTERNAL_MODEL_SUITE_ID to filter.after.externalModelSuiteId)
-      bind(EXTERNAL_MODEL_LINE_ID to filter.after.externalModelLineId)
-      bind(EXTERNAL_MODEL_OUTAGE_ID to filter.after.externalModelOutageId)
+      bind(OUTAGE_START_TIME to filter.modelOutageStartTime.toGcloudTimestamp())
+      bind(OUTAGE_END_TIME to filter.modelOutageEndTime.toGcloudTimestamp())
+      println(conjuncts)
     }
 
     if (filter.hasAfter()) {

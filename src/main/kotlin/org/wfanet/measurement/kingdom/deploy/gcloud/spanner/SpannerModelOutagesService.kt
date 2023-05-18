@@ -30,6 +30,7 @@ import org.wfanet.measurement.internal.kingdom.StreamModelOutagesRequest
 import org.wfanet.measurement.internal.kingdom.modelOutage
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelOutageInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelOutageNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelOutageStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelOutages
@@ -49,6 +50,10 @@ class SpannerModelOutagesService(
       return CreateModelOutage(request).execute(client, idGenerator)
     } catch (e: ModelLineNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelLine not found." }
+    } catch (e: ModelOutageInvalidArgsException) {
+      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
+        e.message ?: "ModelOutageStartTime cannot precede ModelOutageEndTime."
+      }
     }
   }
 

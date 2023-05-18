@@ -585,3 +585,20 @@ class ModelOutageStateIllegalException(
         "model_outage_state" to state.toString()
       )
 }
+
+class ModelOutageInvalidArgsException(
+  val externalModelProviderId: ExternalId,
+  val externalModelSuiteId: ExternalId,
+  val externalModelLineId: ExternalId,
+  val externalModelOutageId: ExternalId? = null,
+  provideDescription: () -> String = { "ModelOutage invalid outage interval arguments" }
+) : KingdomInternalException(ErrorCode.MODEL_OUTAGE_INVALID_ARGS, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_model_provider_id" to externalModelProviderId.toString(),
+        "external_model_suite_id" to externalModelSuiteId.toString(),
+        "external_model_line_id" to externalModelLineId.toString(),
+        "external_model_outage_id" to externalModelOutageId.toString()
+      )
+}

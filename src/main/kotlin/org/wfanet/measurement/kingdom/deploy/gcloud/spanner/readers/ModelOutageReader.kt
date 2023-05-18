@@ -54,7 +54,7 @@ class ModelOutageReader : SpannerReader<ModelOutageReader.Result>() {
       ModelProviders.ExternalModelProviderId,
       FROM ModelOutages
       JOIN ModelLines USING (ModelLineId)
-      JOIN ModelSuites USING (ModelSuiteId)
+      JOIN ModelSuites ON (ModelSuites.ModelSuiteId = ModelLines.ModelSuiteId)
       JOIN ModelProviders ON (ModelSuites.ModelProviderId = ModelProviders.ModelProviderId)
     """
       .trimIndent()
@@ -77,7 +77,9 @@ class ModelOutageReader : SpannerReader<ModelOutageReader.Result>() {
     modelOutageEndTime = struct.getTimestamp("OutageEndTime").toProto()
     state = struct.getProtoEnum("State", ModelOutage.State::forNumber)
     createTime = struct.getTimestamp("CreateTime").toProto()
-    deleteTime = struct.getTimestamp("DeleteTime").toProto()
+    if (!struct.isNull("DeleteTime")) {
+      deleteTime = struct.getTimestamp("DeleteTime").toProto()
+    }
   }
 
   suspend fun readByExternalIds(

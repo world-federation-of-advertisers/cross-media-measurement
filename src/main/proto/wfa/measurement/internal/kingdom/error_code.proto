@@ -92,4 +92,6 @@ enum ErrorCode {
   MODEL_OUTAGE_NOT_FOUND = 33;
   /** ModelOutage state is in an illegal state for the operation. */
   MODEL_OUTAGE_STATE_ILLEGAL = 34;
+  /** ModelOutage outage interval args are invalid. */
+  MODEL_OUTAGE_INVALID_ARGS = 35;
 }

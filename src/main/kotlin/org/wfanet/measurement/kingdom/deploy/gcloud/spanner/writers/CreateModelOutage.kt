@@ -18,6 +18,8 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
+import com.google.cloud.spanner.Value
+import com.google.protobuf.util.Timestamps
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
@@ -29,6 +31,7 @@ import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ModelOutage
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelOutageInvalidArgsException
 
 class CreateModelOutage(private val modelOutage: ModelOutage) :
   SpannerWriter<ModelOutage, ModelOutage>() {
@@ -47,6 +50,16 @@ class CreateModelOutage(private val modelOutage: ModelOutage) :
           ExternalId(modelOutage.externalModelLineId)
         )
 
+    if (Timestamps.compare(modelOutage.modelOutageStartTime, modelOutage.modelOutageEndTime) >= 0) {
+      throw ModelOutageInvalidArgsException(
+        ExternalId(modelOutage.externalModelProviderId),
+        ExternalId(modelOutage.externalModelSuiteId),
+        ExternalId(modelOutage.externalModelLineId),
+      ) {
+        "ModelOutageStartTime cannot precede ModelOutageEndTime."
+      }
+    }
+
     val internalModelOutageId = idGenerator.generateInternalId()
     val externalModelOutageId = idGenerator.generateExternalId()
 
@@ -59,9 +72,13 @@ class CreateModelOutage(private val modelOutage: ModelOutage) :
       set("OutageStartTime" to modelOutage.modelOutageStartTime.toGcloudTimestamp())
       set("OutageEndTime" to modelOutage.modelOutageEndTime.toGcloudTimestamp())
       set("State" to ModelOutage.State.ACTIVE)
+      set("CreateTime" to Value.COMMIT_TIMESTAMP)
     }
 
-    return modelOutage.copy { this.externalModelOutageId = externalModelOutageId.value }
+    return modelOutage.copy {
+      this.externalModelOutageId = externalModelOutageId.value
+      this.state = ModelOutage.State.ACTIVE
+    }
   }
 
   private suspend fun TransactionScope.readModelLineData(
