@@ -20,6 +20,7 @@ import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.CleartextKeysetHandle
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
+import com.google.protobuf.timestamp
 import io.grpc.ManagedChannel
 import java.io.File
 import java.security.SecureRandom
@@ -56,6 +57,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelSuite
+import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PublicKey
 import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt.PublicKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt as EventGroupEntries
@@ -69,15 +72,19 @@ import org.wfanet.measurement.api.v2alpha.createApiKeyRequest
 import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
+import org.wfanet.measurement.api.v2alpha.listModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.publicKey
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
@@ -133,6 +140,7 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = systemDuration.ofSeconds(30)
       Measurements::class,
       ApiKeys::class,
       DataProviders::class,
+      ModelSuites::class,
     ]
 )
 class MeasurementSystem private constructor() : Runnable {
@@ -1129,5 +1137,116 @@ private class ApiKeys {
         apiKeysClient.withIdToken(idToken).createApiKey(request)
       }
     println(response)
+  }
+}
+
+@Command(
+  name = "model-suites",
+  subcommands = [CommandLine.HelpCommand::class],
+)
+private class ModelSuites {
+  @ParentCommand
+  lateinit var parentCommand: MeasurementSystem
+    private set
+
+  val modelProviderStub: ModelSuitesCoroutineStub by lazy {
+    ModelSuitesCoroutineStub(parentCommand.kingdomChannel)
+  }
+
+  @Option(
+    names = ["--parent"],
+    description = ["API resource name of the parent ModelProvider."],
+    required = true,
+  )
+  private lateinit var modelProviderName: String
+
+  @Command(description = ["Creates model suite."])
+  fun create(
+    @Option(
+      names = ["--name"],
+      description = ["Model suite name."],
+      required = true,
+    )
+    modelSuiteName: String,
+    @Option(
+      names = ["--display-name"],
+      description = ["Model suite display name."],
+      required = true,
+    )
+    modelSuiteDisplayName: String,
+    @Option(
+      names = ["--description"],
+      description = ["Model suite description."],
+      required = true,
+    )
+    modelSuiteDescription: String,
+    @Option(
+      names = ["--create-time"],
+      description = ["Unix time stamp of when model suite was created."],
+      required = true,
+    )
+    modelSuiteCreateTime: Long
+  ) {
+    val request = createModelSuiteRequest {
+      parent = modelProviderName
+      modelSuite = modelSuite {
+        name = modelSuiteName
+        displayName = modelSuiteDisplayName
+        description = modelSuiteDescription
+        createTime = timestamp { seconds = modelSuiteCreateTime }
+      }
+    }
+    val outputModelSuite =
+      runBlocking(parentCommand.rpcDispatcher) { modelProviderStub.createModelSuite(request) }
+
+    println("Model suite ${outputModelSuite.name} has been created.")
+  }
+
+  @Command(description = ["Gets model suite."])
+  fun get(
+    @Option(
+      names = ["--name"],
+      description = ["Model suite name."],
+      required = true,
+    )
+    modelSuiteName: String,
+  ): ModelSuite {
+    val request = getModelSuiteRequest { name = modelSuiteName }
+    val outputModelSuite =
+      runBlocking(parentCommand.rpcDispatcher) { modelProviderStub.getModelSuite(request) }
+    return outputModelSuite
+  }
+
+  @Command(description = ["Lists model suites for a model provider."])
+  fun stream(
+    @Option(
+      names = ["--page-size"],
+      description = ["The maximum number of ModelSuites to return."],
+      required = true,
+    )
+    listPageSize: Int,
+    @Option(
+      names = ["--page-token"],
+      description =
+        [
+          "A page token, received from a previous `ListModelSuitesRequest` call. Provide this to retrieve the subsequent page."
+        ],
+      required = true,
+    )
+    listPageToken: String,
+  ) {
+    val request = listModelSuitesRequest {
+      parent = modelProviderName
+      pageSize = listPageSize
+      pageToken = listPageToken
+    }
+    val response =
+      runBlocking(parentCommand.rpcDispatcher) { modelProviderStub.listModelSuites(request) }
+    response.modelSuiteList
+    response.modelSuiteList.forEach {
+      println(
+        "Name: ${it.name}, Display Name: ${it.displayName}, Description: ${it.description}, Created: ${it.createTime}"
+      )
+    }
   }
 }
