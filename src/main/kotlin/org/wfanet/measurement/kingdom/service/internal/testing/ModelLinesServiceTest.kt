@@ -36,13 +36,17 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelSuite
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequestKt
 import org.wfanet.measurement.internal.kingdom.modelLine
+import org.wfanet.measurement.internal.kingdom.modelSuite
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest
+import org.wfanet.measurement.internal.kingdom.streamModelSuitesRequest
 
 private const val RANDOM_SEED = 1
 
@@ -522,6 +526,8 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
               after = afterFilter {
                 createTime = modelLines[0].createTime
                 externalModelLineId = modelLines[0].externalModelLineId
+                externalModelSuiteId = modelLines[0].externalModelSuiteId
+                externalModelProviderId = modelLines[0].externalModelProviderId
               }
             }
           }
@@ -574,6 +580,63 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
 
     assertThat(modelLines).hasSize(1)
     assertThat(modelLines).contains(modelLine1)
+  }
+
+  @Test
+  fun `streamModelLines fails for missing after filter fields`(): Unit = runBlocking {
+    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+
+    modelLinesService.createModelLine(
+      modelLine {
+        externalModelSuiteId = modelSuite.externalModelSuiteId
+        externalModelProviderId = modelSuite.externalModelProviderId
+        activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+        displayName = "display name1"
+        description = "description1"
+      }
+    )
+
+    modelLinesService.createModelLine(
+      modelLine {
+        externalModelSuiteId = modelSuite.externalModelSuiteId
+        externalModelProviderId = modelSuite.externalModelProviderId
+        activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+        displayName = "display name2"
+        description = "description2"
+      }
+    )
+
+    val modelLines: List<ModelLine> =
+      modelLinesService
+        .streamModelLines(
+          streamModelLinesRequest {
+            filter = filter {
+              externalModelProviderId = modelSuite.externalModelProviderId
+              externalModelSuiteId = modelSuite.externalModelSuiteId
+            }
+          }
+        )
+        .toList()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        modelLinesService.streamModelLines(
+          streamModelLinesRequest {
+            filter = filter {
+              externalModelProviderId = modelSuite.externalModelProviderId
+              externalModelSuiteId = modelSuite.externalModelSuiteId
+              after = afterFilter {
+                createTime = modelLines[0].createTime
+                externalModelSuiteId = modelLines[0].externalModelSuiteId
+                externalModelProviderId = modelLines[0].externalModelProviderId
+              }
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("Missing After filter fields")
   }
 
   @Test
