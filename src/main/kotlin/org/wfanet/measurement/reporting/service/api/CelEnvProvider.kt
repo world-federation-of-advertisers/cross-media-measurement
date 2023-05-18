@@ -28,7 +28,6 @@ import java.time.temporal.ChronoUnit
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.retry
 import kotlinx.coroutines.launch
@@ -64,7 +63,7 @@ class CelEnvCacheProvider(
   private val cacheRefreshInterval: Duration,
   coroutineContext: CoroutineContext,
   private val clock: Clock,
-  private val numRefreshAttempts: Long = 3L,
+  private val numRetries: Long = 3L,
 ) : CelEnvProvider {
   private val mutex = Mutex()
 
@@ -75,16 +74,16 @@ class CelEnvCacheProvider(
   init {
     CoroutineScope(coroutineContext + SupervisorJob()).launch {
       MinimumIntervalThrottler(clock, cacheRefreshInterval).loopOnReady {
-        val updateFlow = flow<Unit> { setTypeRegistryAndEnv() }
-        launch {
-          updateFlow.retry(numRefreshAttempts) { e ->
-            e is StatusException &&
-              (
-                e.status.code == Status.Code.UNAVAILABLE ||
-                  e.status.code == Status.Code.DEADLINE_EXCEEDED
-                )
-          }.collect()
+        val updateFlow = flow<Unit> {
+          setTypeRegistryAndEnv()
         }
+        updateFlow
+          .retry(numRetries) { e ->
+            e is StatusException &&
+              (e.status.code == Status.Code.UNAVAILABLE ||
+                e.status.code == Status.Code.DEADLINE_EXCEEDED)
+          }
+          .collect {}
       }
     }
   }

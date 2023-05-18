@@ -20,23 +20,25 @@ import io.grpc.Status
 import java.time.Clock
 import java.time.Duration
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.invocation.InvocationOnMock
 import org.mockito.kotlin.KArgumentCaptor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.timeout
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
-import org.mockito.stubbing.Answer
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ListEventGroupMetadataDescriptorsRequest
-import org.wfanet.measurement.api.v2alpha.ListEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessageKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage
@@ -76,11 +78,8 @@ class CelEnvProviderTest {
     addService(cmmsEventGroupMetadataDescriptorsServiceMock)
   }
 
-  private lateinit var cacheProvider: CelEnvCacheProvider
-
-  private fun initCacheProvider() {
-    cacheProvider =
-      CelEnvCacheProvider(
+  private fun createCacheProvider(): CelEnvCacheProvider {
+    return CelEnvCacheProvider(
         EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
           grpcTestServerRule.channel
         ),
@@ -94,86 +93,79 @@ class CelEnvProviderTest {
   @Test
   fun `cache provider updates its cache only once if 2 update attempts around same time`() =
     runBlocking {
-      initCacheProvider()
+      val cacheProvider = createCacheProvider()
       cacheProvider.getTypeRegistryAndEnv()
 
       val eventGroupMetadataDescriptorsCaptor:
         KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> =
         argumentCaptor()
+
       verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, times(1)) {
         listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
       }
     }
 
   @Test
-  fun `cache provider retries cache update if exception occurs`() = runBlocking {
-    whenever(cmmsEventGroupMetadataDescriptorsServiceMock)
-      .thenAnswer(
-        object : Answer<ListEventGroupMetadataDescriptorsResponse> {
-          private var count = 0
+  @kotlinx.coroutines.ExperimentalCoroutinesApi
+  fun `cache provider retries cache update if exception occurs`() = runTest(UnconfinedTestDispatcher()) {
+    whenever(cmmsEventGroupMetadataDescriptorsServiceMock.listEventGroupMetadataDescriptors(any()))
+      .thenThrow(Status.DEADLINE_EXCEEDED.asRuntimeException())
+      .thenReturn(listEventGroupMetadataDescriptorsResponse {
+        eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
+      })
 
-          override fun answer(p0: InvocationOnMock?): ListEventGroupMetadataDescriptorsResponse {
-            if (count <= 0) {
-              count++
-              throw Status.DEADLINE_EXCEEDED.asRuntimeException()
-            } else {
-              return listEventGroupMetadataDescriptorsResponse {
-                eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
-              }
-            }
-          }
-        }
-      )
+    CelEnvCacheProvider(
+      EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
+        grpcTestServerRule.channel
+      ),
+      Duration.ofMillis(500),
+      coroutineContext,
+      Clock.systemUTC(),
+      1
+    )
 
-    initCacheProvider()
-
-    cacheProvider.getTypeRegistryAndEnv()
+    runCurrent()
 
     val eventGroupMetadataDescriptorsCaptor:
       KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> =
       argumentCaptor()
-    verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, times(1)) {
+
+    verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, timeout(10).times(1)) {
       listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
     }
   }
 
   @Test
-  fun `cache provider is not stopped by exceptions`() = runBlocking {
-    whenever(cmmsEventGroupMetadataDescriptorsServiceMock)
-      .thenAnswer(
-        object : Answer<ListEventGroupMetadataDescriptorsResponse> {
-          private var count = 0
+  @kotlinx.coroutines.ExperimentalCoroutinesApi
+  fun `cache provider is not stopped by exceptions`() = runTest(UnconfinedTestDispatcher()) {
+    whenever(cmmsEventGroupMetadataDescriptorsServiceMock.listEventGroupMetadataDescriptors(any()))
+      .thenThrow(Status.DEADLINE_EXCEEDED.asRuntimeException())
+      .thenReturn(listEventGroupMetadataDescriptorsResponse {
+        eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
+      })
 
-          override fun answer(p0: InvocationOnMock?): ListEventGroupMetadataDescriptorsResponse {
-            if (count <= 0) {
-              count++
-              throw Status.DEADLINE_EXCEEDED.asRuntimeException()
-            } else {
-              return listEventGroupMetadataDescriptorsResponse {
-                eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
-              }
-            }
-          }
-        }
-      )
+    val clock = Clock.systemUTC()
+    val fakeClock: Clock = mock()
+    whenever(fakeClock.instant()).thenReturn(clock.instant())
 
-    cacheProvider =
-      CelEnvCacheProvider(
-        EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
-          grpcTestServerRule.channel
-        ),
-        Duration.ofMillis(500),
-        Dispatchers.Default,
-        Clock.systemUTC(),
-        1
-      )
+    CelEnvCacheProvider(
+      EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
+        grpcTestServerRule.channel
+      ),
+      Duration.ofMillis(100),
+      coroutineContext,
+      fakeClock,
+      1
+    )
 
-    delay(800)
+    advanceTimeBy(150)
+    whenever(fakeClock.instant()).thenReturn(clock.instant().plusMillis(150))
 
     val eventGroupMetadataDescriptorsCaptor:
       KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> =
       argumentCaptor()
-    verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, times(2)) {
+
+    verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, timeout(50).times(2)) {
       listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
     }
   }
