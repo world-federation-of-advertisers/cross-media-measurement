@@ -55,7 +55,7 @@ class ModelReleaseReader : SpannerReader<ModelReleaseReader.Result>() {
     createTime = struct.getTimestamp("CreateTime").toProto()
   }
 
-  suspend fun readByExternalModelReleaseId(
+  suspend fun readByExternalIds(
     readContext: AsyncDatabaseClient.ReadContext,
     externalModelReleaseId: ExternalId,
     externalModelSuiteId: ExternalId,
@@ -63,9 +63,12 @@ class ModelReleaseReader : SpannerReader<ModelReleaseReader.Result>() {
   ): Result? {
     return fillStatementBuilder {
         appendClause(
-          "WHERE ExternalModelReleaseId = @externalModelReleaseId " +
-            "AND ExternalModelSuiteId = @externalModelSuiteId " +
-            "AND ExternalModelProviderId = @externalModelProviderId"
+          """
+          WHERE ExternalModelReleaseId = @externalModelReleaseId
+          AND ExternalModelSuiteId = @externalModelSuiteId
+          AND ExternalModelProviderId = @externalModelProviderId
+          """
+            .trimIndent()
         )
         bind("externalModelReleaseId").to(externalModelReleaseId.value)
         bind("externalModelSuiteId").to(externalModelSuiteId.value)

@@ -48,7 +48,7 @@ class SpannerModelReleasesService(
 
   override suspend fun getModelRelease(request: GetModelReleaseRequest): ModelRelease {
     return ModelReleaseReader()
-      .readByExternalModelReleaseId(
+      .readByExternalIds(
         client.singleUse(),
         ExternalId(request.externalModelReleaseId),
         ExternalId(request.externalModelSuiteId),
