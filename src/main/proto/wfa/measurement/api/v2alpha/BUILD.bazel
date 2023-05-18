@@ -537,3 +537,28 @@ kt_jvm_proto_library(
     ],
     deps = [":requisition_spec_java_proto"],
 )
+
+java_proto_library(
+    name = "model_suite_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_suite_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "model_suite_kt_jvm_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_suite_proto",
+    ],
+    deps = [":model_suite_java_proto"],
+)
+
+alias(
+    name = "model_suites_service_proto",
+    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_suites_service_proto",
+)
+
+kt_jvm_grpc_proto_library(
+    name = "model_suites_service_kt_jvm_grpc_proto",
+    srcs = [":model_suites_service_proto"],
+)
