@@ -59,6 +59,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCo
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
+import org.wfanet.measurement.internal.kingdom.createMeasurementRequest as internalCreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 
@@ -104,11 +105,11 @@ class MeasurementsService(
   override suspend fun createMeasurement(request: CreateMeasurementRequest): Measurement {
     val authenticatedMeasurementConsumerKey = getAuthenticatedMeasurementConsumerKey()
 
-    val measurement = request.measurement
-
     val measurementConsumerCertificateKey =
       grpcRequireNotNull(
-        MeasurementConsumerCertificateKey.fromName(measurement.measurementConsumerCertificate)
+        MeasurementConsumerCertificateKey.fromName(
+          request.measurement.measurementConsumerCertificate
+        )
       ) {
         "Measurement Consumer Certificate resource name is either unspecified or invalid"
       }
@@ -122,7 +123,7 @@ class MeasurementsService(
       }
     }
 
-    val measurementSpec = measurement.measurementSpec
+    val measurementSpec = request.measurement.measurementSpec
     grpcRequire(!measurementSpec.data.isEmpty && !measurementSpec.signature.isEmpty) {
       "Measurement spec is unspecified"
     }
@@ -135,9 +136,11 @@ class MeasurementsService(
       }
     parsedMeasurementSpec.validate()
 
-    grpcRequire(measurement.dataProvidersList.isNotEmpty()) { "Data Providers list is empty" }
+    grpcRequire(request.measurement.dataProvidersList.isNotEmpty()) {
+      "Data Providers list is empty"
+    }
     val dataProvidersMap = mutableMapOf<Long, DataProviderValue>()
-    measurement.dataProvidersList.forEach {
+    request.measurement.dataProvidersList.forEach {
       with(it.validateAndMap()) {
         grpcRequire(!dataProvidersMap.containsKey(key)) {
           "Duplicated keys found in the data_providers."
@@ -146,19 +149,22 @@ class MeasurementsService(
       }
     }
 
-    grpcRequire(parsedMeasurementSpec.nonceHashesCount == measurement.dataProvidersCount) {
+    grpcRequire(parsedMeasurementSpec.nonceHashesCount == request.measurement.dataProvidersCount) {
       "nonce_hash list size is not equal to the data_providers list size."
     }
 
-    val createRequest =
-      request.measurement.toInternal(
-        measurementConsumerCertificateKey,
-        dataProvidersMap,
-        parsedMeasurementSpec
-      )
+    val internalRequest = internalCreateMeasurementRequest {
+      measurement =
+        request.measurement.toInternal(
+          measurementConsumerCertificateKey,
+          dataProvidersMap,
+          parsedMeasurementSpec
+        )
+      requestId = request.requestId
+    }
     val internalMeasurement =
       try {
-        internalMeasurementsStub.createMeasurement(createRequest)
+        internalMeasurementsStub.createMeasurement(internalRequest)
       } catch (ex: StatusException) {
         when (ex.status.code) {
           Status.Code.INVALID_ARGUMENT ->

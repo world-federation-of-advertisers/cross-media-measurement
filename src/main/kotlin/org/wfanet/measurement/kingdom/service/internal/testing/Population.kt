@@ -58,6 +58,7 @@ import org.wfanet.measurement.internal.kingdom.activateAccountRequest
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest
+import org.wfanet.measurement.internal.kingdom.createMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.generateOpenIdRequestParamsRequest
@@ -190,13 +191,15 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     details: Measurement.Details
   ): Measurement {
     return measurementsService.createMeasurement(
-      measurement {
-        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-        this.providedMeasurementId = providedMeasurementId
-        externalMeasurementConsumerCertificateId =
-          measurementConsumer.certificate.externalCertificateId
-        this.details = details
-        this.dataProviders.putAll(dataProviders)
+      createMeasurementRequest {
+        measurement = measurement {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          this.providedMeasurementId = providedMeasurementId
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+          this.details = details
+          this.dataProviders.putAll(dataProviders)
+        }
       }
     )
   }

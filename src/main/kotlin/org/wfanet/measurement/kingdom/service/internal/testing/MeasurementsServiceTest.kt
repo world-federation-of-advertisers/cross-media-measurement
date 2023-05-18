@@ -49,7 +49,6 @@ import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
-import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.details
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
@@ -61,6 +60,7 @@ import org.wfanet.measurement.internal.kingdom.batchDeleteMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.createMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.deleteMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
@@ -74,7 +74,6 @@ import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
-import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig.requiredExternalDuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
 
@@ -174,11 +173,14 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         measurementsService.createMeasurement(
-          MEASUREMENT.copy {
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            externalMeasurementConsumerCertificateId =
-              measurementConsumer.certificate.externalCertificateId
-            dataProviders[404L] = dataProvider.toDataProviderValue()
+          createMeasurementRequest {
+            measurement =
+              MEASUREMENT.copy {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                externalMeasurementConsumerCertificateId =
+                  measurementConsumer.certificate.externalCertificateId
+                dataProviders[404L] = dataProvider.toDataProviderValue()
+              }
           }
         )
       }
@@ -196,11 +198,15 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         measurementsService.createMeasurement(
-          MEASUREMENT.copy {
-            externalMeasurementConsumerId = 404L
-            externalMeasurementConsumerCertificateId =
-              measurementConsumer.certificate.externalCertificateId
-            dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
+          createMeasurementRequest {
+            measurement =
+              MEASUREMENT.copy {
+                externalMeasurementConsumerId = 404L
+                externalMeasurementConsumerCertificateId =
+                  measurementConsumer.certificate.externalCertificateId
+                dataProviders[dataProvider.externalDataProviderId] =
+                  dataProvider.toDataProviderValue()
+              }
           }
         )
       }
@@ -225,10 +231,13 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         measurementsService.createMeasurement(
-          MEASUREMENT.copy {
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            externalMeasurementConsumerCertificateId =
-              measurementConsumer.certificate.externalCertificateId
+          createMeasurementRequest {
+            measurement =
+              MEASUREMENT.copy {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                externalMeasurementConsumerCertificateId =
+                  measurementConsumer.certificate.externalCertificateId
+              }
           }
         )
       }
@@ -251,10 +260,13 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       val exception =
         assertFailsWith<StatusRuntimeException> {
           measurementsService.createMeasurement(
-            MEASUREMENT.copy {
-              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-              externalMeasurementConsumerCertificateId =
-                measurementConsumer.certificate.externalCertificateId
+            createMeasurementRequest {
+              measurement =
+                MEASUREMENT.copy {
+                  externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                  externalMeasurementConsumerCertificateId =
+                    measurementConsumer.certificate.externalCertificateId
+                }
             }
           )
         }
@@ -276,10 +288,13 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         measurementsService.createMeasurement(
-          MEASUREMENT.copy {
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            externalMeasurementConsumerCertificateId =
-              measurementConsumer.certificate.externalCertificateId
+          createMeasurementRequest {
+            measurement =
+              MEASUREMENT.copy {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                externalMeasurementConsumerCertificateId =
+                  measurementConsumer.certificate.externalCertificateId
+              }
           }
         )
       }
@@ -305,11 +320,15 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         measurementsService.createMeasurement(
-          MEASUREMENT.copy {
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            externalMeasurementConsumerCertificateId =
-              measurementConsumer.certificate.externalCertificateId
-            dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
+          createMeasurementRequest {
+            measurement =
+              MEASUREMENT.copy {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                externalMeasurementConsumerCertificateId =
+                  measurementConsumer.certificate.externalCertificateId
+                dataProviders[dataProvider.externalDataProviderId] =
+                  dataProvider.toDataProviderValue()
+              }
           }
         )
       }
@@ -333,12 +352,15 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       val exception =
         assertFailsWith<StatusRuntimeException> {
           measurementsService.createMeasurement(
-            MEASUREMENT.copy {
-              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-              externalMeasurementConsumerCertificateId =
-                measurementConsumer.certificate.externalCertificateId
-              dataProviders[dataProvider.externalDataProviderId] =
-                dataProvider.toDataProviderValue()
+            createMeasurementRequest {
+              measurement =
+                MEASUREMENT.copy {
+                  externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                  externalMeasurementConsumerCertificateId =
+                    measurementConsumer.certificate.externalCertificateId
+                  dataProviders[dataProvider.externalDataProviderId] =
+                    dataProvider.toDataProviderValue()
+                }
             }
           )
         }
@@ -362,12 +384,15 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       val exception =
         assertFailsWith<StatusRuntimeException> {
           measurementsService.createMeasurement(
-            MEASUREMENT.copy {
-              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-              externalMeasurementConsumerCertificateId =
-                measurementConsumer.certificate.externalCertificateId
-              dataProviders[dataProvider.externalDataProviderId] =
-                dataProvider.toDataProviderValue()
+            createMeasurementRequest {
+              measurement =
+                MEASUREMENT.copy {
+                  externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                  externalMeasurementConsumerCertificateId =
+                    measurementConsumer.certificate.externalCertificateId
+                  dataProviders[dataProvider.externalDataProviderId] =
+                    dataProvider.toDataProviderValue()
+                }
             }
           )
         }
@@ -390,7 +415,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
       }
 
-    val createdMeasurement = measurementsService.createMeasurement(measurement)
+    val createdMeasurement =
+      measurementsService.createMeasurement(
+        createMeasurementRequest { this.measurement = measurement }
+      )
     assertThat(createdMeasurement.externalMeasurementId).isNotEqualTo(0L)
     assertThat(createdMeasurement.externalComputationId).isNotEqualTo(0L)
     assertThat(createdMeasurement.createTime.seconds).isGreaterThan(0L)
@@ -420,7 +448,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             measurementConsumer.certificate.externalCertificateId
           dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
         }
-      val createdMeasurement = measurementsService.createMeasurement(measurement)
+      val createdMeasurement =
+        measurementsService.createMeasurement(
+          createMeasurementRequest { this.measurement = measurement }
+        )
 
       val retrievedMeasurement =
         measurementsService.getMeasurementByComputationId(
@@ -451,11 +482,15 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         measurementsService.createMeasurement(
-          MEASUREMENT.copy {
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            externalMeasurementConsumerCertificateId =
-              measurementConsumer.certificate.externalCertificateId
-            dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
+          createMeasurementRequest {
+            measurement =
+              MEASUREMENT.copy {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                externalMeasurementConsumerCertificateId =
+                  measurementConsumer.certificate.externalCertificateId
+                dataProviders[dataProvider.externalDataProviderId] =
+                  dataProvider.toDataProviderValue()
+              }
           }
         )
       }
@@ -478,7 +513,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
       }
 
-    val createdMeasurement = measurementsService.createMeasurement(measurement)
+    val createdMeasurement =
+      measurementsService.createMeasurement(
+        createMeasurementRequest { this.measurement = measurement }
+      )
     val measurements =
       measurementsService
         .streamMeasurements(
@@ -510,7 +548,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
         }
 
-      val createdMeasurement = measurementsService.createMeasurement(measurement)
+      val createdMeasurement =
+        measurementsService.createMeasurement(
+          createMeasurementRequest { this.measurement = measurement }
+        )
       val requisitions: List<Requisition> =
         requisitionsService
           .streamRequisitions(
@@ -545,7 +586,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           }
       }
 
-    val createdMeasurement = measurementsService.createMeasurement(measurement)
+    val createdMeasurement =
+      measurementsService.createMeasurement(
+        createMeasurementRequest { this.measurement = measurement }
+      )
 
     assertThat(createdMeasurement.externalMeasurementId).isNotEqualTo(0L)
     assertThat(createdMeasurement.externalComputationId).isEqualTo(0L)
@@ -581,7 +625,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           }
       }
 
-    val createdMeasurement = measurementsService.createMeasurement(measurement)
+    val createdMeasurement =
+      measurementsService.createMeasurement(
+        createMeasurementRequest { this.measurement = measurement }
+      )
     val retrievedMeasurement =
       measurementsService.getMeasurement(
         getMeasurementRequest {
@@ -613,7 +660,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             }
         }
 
-      val createdMeasurement = measurementsService.createMeasurement(measurement)
+      val createdMeasurement =
+        measurementsService.createMeasurement(
+          createMeasurementRequest { this.measurement = measurement }
+        )
       val requisitions: List<Requisition> =
         requisitionsService
           .streamRequisitions(
@@ -630,62 +680,46 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     }
 
   @Test
-  fun `createMeasurement returns already created measurement for the same ProvidedMeasurementId`() =
-    runBlocking {
-      val measurementConsumer =
-        population.createMeasurementConsumer(measurementConsumersService, accountsService)
-
-      val createdMeasurement =
-        measurementsService.createMeasurement(
-          MEASUREMENT.copy {
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            providedMeasurementId = PROVIDED_MEASUREMENT_ID
-            externalMeasurementConsumerCertificateId =
-              measurementConsumer.certificate.externalCertificateId
-          }
-        )
-
-      val secondCreateMeasurementAttempt =
-        measurementsService.createMeasurement(
-          MEASUREMENT.copy {
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            providedMeasurementId = PROVIDED_MEASUREMENT_ID
-            externalMeasurementConsumerCertificateId =
-              measurementConsumer.certificate.externalCertificateId
-          }
-        )
-      assertThat(secondCreateMeasurementAttempt).isEqualTo(createdMeasurement)
+  fun `createMeasurement returns existing measurement for the same request ID`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val request = createMeasurementRequest {
+      measurement =
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      requestId = "request-id"
     }
+    val existingMeasurement = measurementsService.createMeasurement(request)
+
+    val measurement = measurementsService.createMeasurement(request)
+
+    assertThat(measurement).isEqualTo(existingMeasurement)
+  }
 
   @Test
-  fun `createMeasurement returns new measurement when called without providedMeasurementId`() =
-    runBlocking {
-      val measurementConsumer =
-        population.createMeasurementConsumer(measurementConsumersService, accountsService)
-
-      val measurement =
-        measurementsService.createMeasurement(
-          MEASUREMENT.copy {
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            providedMeasurementId = PROVIDED_MEASUREMENT_ID
-            externalMeasurementConsumerCertificateId =
-              measurementConsumer.certificate.externalCertificateId
-          }
-        )
-
-      val otherMeasurement =
-        measurementsService.createMeasurement(
-          MEASUREMENT.copy {
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            providedMeasurementId = ""
-            externalMeasurementConsumerCertificateId =
-              measurementConsumer.certificate.externalCertificateId
-          }
-        )
-
-      assertThat(measurement.externalMeasurementId)
-        .isNotEqualTo(otherMeasurement.externalMeasurementId)
+  fun `createMeasurement returns new measurement for different request ID`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val request = createMeasurementRequest {
+      measurement =
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      requestId = "request-id"
     }
+    val existingMeasurement = measurementsService.createMeasurement(request)
+
+    val measurement =
+      measurementsService.createMeasurement(request.copy { requestId = request.requestId + 2 })
+
+    assertThat(measurement.externalMeasurementId)
+      .isNotEqualTo(existingMeasurement.externalMeasurementId)
+  }
 
   @Test
   fun `getMeasurementByComputationId returns created measurement`() = runBlocking {
@@ -693,10 +727,13 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val createdMeasurement =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
 
@@ -721,10 +758,13 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val createdMeasurement =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
 
@@ -748,11 +788,14 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       val dataProviderValue = dataProvider.toDataProviderValue()
       val createdMeasurement =
         measurementsService.createMeasurement(
-          MEASUREMENT.copy {
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            externalMeasurementConsumerCertificateId =
-              measurementConsumer.certificate.externalCertificateId
-            dataProviders[dataProvider.externalDataProviderId] = dataProviderValue
+          createMeasurementRequest {
+            measurement =
+              MEASUREMENT.copy {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                externalMeasurementConsumerCertificateId =
+                  measurementConsumer.certificate.externalCertificateId
+                dataProviders[dataProvider.externalDataProviderId] = dataProviderValue
+              }
           }
         )
       val measurement =
@@ -854,10 +897,13 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val createdMeasurement =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
     val aggregatorDuchyId = Population.AGGREGATOR_DUCHY.externalDuchyId
@@ -882,10 +928,13 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val createdMeasurement =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
     val aggregatorDuchyId = Population.AGGREGATOR_DUCHY.externalDuchyId
@@ -934,10 +983,13 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val measurement =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
 
@@ -969,10 +1021,13 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         population.createMeasurementConsumer(measurementConsumersService, accountsService)
       val measurement =
         measurementsService.createMeasurement(
-          MEASUREMENT.copy {
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            externalMeasurementConsumerCertificateId =
-              measurementConsumer.certificate.externalCertificateId
+          createMeasurementRequest {
+            measurement =
+              MEASUREMENT.copy {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                externalMeasurementConsumerCertificateId =
+                  measurementConsumer.certificate.externalCertificateId
+              }
           }
         )
 
@@ -1004,21 +1059,25 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
     val measurement1 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
 
     val measurement2 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
 
@@ -1054,21 +1113,25 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
     val measurement1 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
 
     val measurement2 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
 
@@ -1096,21 +1159,25 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
     val measurement1 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
 
     val measurement2 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
 
@@ -1152,25 +1219,29 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
     val measurement1 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
 
     val measurement2 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
-          details =
-            details.copy {
-              clearProtocolConfig()
-              clearDuchyProtocolConfig()
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+              details =
+                details.copy {
+                  clearProtocolConfig()
+                  clearDuchyProtocolConfig()
+                }
             }
         }
       )
@@ -1200,20 +1271,24 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
     val measurement1 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
 
     measurementsService.createMeasurement(
-      MEASUREMENT.copy {
-        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-        providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
-        externalMeasurementConsumerCertificateId =
-          measurementConsumer.certificate.externalCertificateId
+      createMeasurementRequest {
+        measurement =
+          MEASUREMENT.copy {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            externalMeasurementConsumerCertificateId =
+              measurementConsumer.certificate.externalCertificateId
+          }
       }
     )
 
@@ -1231,21 +1306,25 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
     measurementsService.createMeasurement(
-      MEASUREMENT.copy {
-        externalMeasurementConsumerId = measurementConsumer1.externalMeasurementConsumerId
-        providedMeasurementId = PROVIDED_MEASUREMENT_ID
-        externalMeasurementConsumerCertificateId =
-          measurementConsumer1.certificate.externalCertificateId
+      createMeasurementRequest {
+        measurement =
+          MEASUREMENT.copy {
+            externalMeasurementConsumerId = measurementConsumer1.externalMeasurementConsumerId
+            externalMeasurementConsumerCertificateId =
+              measurementConsumer1.certificate.externalCertificateId
+          }
       }
     )
 
     val measurement2 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer2.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer2.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer2.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer2.certificate.externalCertificateId
+            }
         }
       )
 
@@ -1271,21 +1350,25 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
     measurementsService.createMeasurement(
-      MEASUREMENT.copy {
-        externalMeasurementConsumerId = measurementConsumer1.externalMeasurementConsumerId
-        providedMeasurementId = PROVIDED_MEASUREMENT_ID
-        externalMeasurementConsumerCertificateId =
-          measurementConsumer1.certificate.externalCertificateId
+      createMeasurementRequest {
+        measurement =
+          MEASUREMENT.copy {
+            externalMeasurementConsumerId = measurementConsumer1.externalMeasurementConsumerId
+            externalMeasurementConsumerCertificateId =
+              measurementConsumer1.certificate.externalCertificateId
+          }
       }
     )
 
     val measurement2 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer2.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer2.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer2.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer2.certificate.externalCertificateId
+            }
         }
       )
 
@@ -1320,29 +1403,35 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val measurement1 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
     val measurement2 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
     val measurement3 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 4
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
 
@@ -1383,11 +1472,13 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         population.createMeasurementConsumer(measurementConsumersService, accountsService)
       val measurement =
         measurementsService.createMeasurement(
-          MEASUREMENT.copy {
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            providedMeasurementId = PROVIDED_MEASUREMENT_ID
-            externalMeasurementConsumerCertificateId =
-              measurementConsumer.certificate.externalCertificateId
+          createMeasurementRequest {
+            measurement =
+              MEASUREMENT.copy {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                externalMeasurementConsumerCertificateId =
+                  measurementConsumer.certificate.externalCertificateId
+              }
           }
         )
       val validMeasurementRequest = deleteMeasurementRequest {
@@ -1484,20 +1575,24 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val measurement1 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
     val measurement2 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
 
@@ -1554,11 +1649,13 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         population.createMeasurementConsumer(measurementConsumersService, accountsService)
       val measurement =
         measurementsService.createMeasurement(
-          MEASUREMENT.copy {
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            providedMeasurementId = PROVIDED_MEASUREMENT_ID
-            externalMeasurementConsumerCertificateId =
-              measurementConsumer.certificate.externalCertificateId
+          createMeasurementRequest {
+            measurement =
+              MEASUREMENT.copy {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                externalMeasurementConsumerCertificateId =
+                  measurementConsumer.certificate.externalCertificateId
+              }
           }
         )
       val validMeasurementRequest = cancelMeasurementRequest {
@@ -1654,20 +1751,24 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val measurement1 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
     val measurement2 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
     val deleteMeasurementRequest1 = deleteMeasurementRequest {
@@ -1708,11 +1809,13 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val measurement1 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
 
@@ -1740,20 +1843,24 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val measurement1 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
     val measurement2 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
 
@@ -1797,20 +1904,24 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val measurement1 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
     val measurement2 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
     val cancelMeasurementRequest1 = cancelMeasurementRequest {
@@ -1867,11 +1978,13 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val measurement1 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
 
@@ -1899,20 +2012,24 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val measurement1 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
     val measurement2 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
 
@@ -1957,21 +2074,25 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
     val measurement1 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
 
     val measurement2 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
 
@@ -1992,21 +2113,25 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
     val measurement1 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
 
     val measurement2 =
       measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
       )
 
