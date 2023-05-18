@@ -204,7 +204,7 @@ class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
     return listModelLinesResponse {
       modelLine +=
         results.subList(0, min(results.size, listModelLinesPageToken.pageSize)).map {
-            internalModelLine ->
+          internalModelLine ->
           internalModelLine.toModelLine()
         }
       if (results.size > listModelLinesPageToken.pageSize) {

@@ -453,9 +453,9 @@ class ModelLinesServiceTest {
     val expected = MODEL_LINE.copy { holdbackModelLine = MODEL_LINE_NAME_2 }
 
     verifyProtoArgument(
-      internalModelLinesMock,
-      ModelLinesCoroutineImplBase::setModelLineHoldbackModelLine
-    )
+        internalModelLinesMock,
+        ModelLinesCoroutineImplBase::setModelLineHoldbackModelLine
+      )
       .isEqualTo(
         internalSetModelLineHoldbackModelLineRequest {
           externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID

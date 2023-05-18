@@ -34,7 +34,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotF
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineTypeIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelLines
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelSuites
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelLine
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetActiveEndTime
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetModelLineHoldbackModelLine
@@ -74,7 +73,7 @@ class SpannerModelLinesService(
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelLine not found." }
     } catch (e: ModelLineInvalidArgsException) {
       e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
-        "ModelLine invalid active time argument."
+        e.message ?: "ModelLine invalid active time argument."
       }
     }
   }
@@ -83,10 +82,10 @@ class SpannerModelLinesService(
     grpcRequire(request.limit >= 0) { "Limit cannot be less than 0" }
     if (
       request.filter.hasAfter() &&
-      (!request.filter.after.hasCreateTime() ||
-        request.filter.after.externalModelLineId == 0L ||
-        request.filter.after.externalModelSuiteId == 0L ||
-        request.filter.after.externalModelProviderId == 0L)
+        (!request.filter.after.hasCreateTime() ||
+          request.filter.after.externalModelLineId == 0L ||
+          request.filter.after.externalModelSuiteId == 0L ||
+          request.filter.after.externalModelProviderId == 0L)
     ) {
       failGrpc(
         Status.INVALID_ARGUMENT,

@@ -68,7 +68,7 @@ class StreamModelLines(private val requestFilter: StreamModelLinesRequest.Filter
           AND ModelSuites.ExternalModelSuiteId > @${EXTERNAL_MODEL_SUITE_ID})
           OR (ModelLines.CreateTime = @${CREATED_AFTER}
           AND ModelProviders.ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID}
-          AND ModelSuites.ExternalModelSuiteId = @${EXTERNAL_MODEL_SUITE_ID})
+          AND ModelSuites.ExternalModelSuiteId = @${EXTERNAL_MODEL_SUITE_ID}
           AND ModelLines.ExternalModelLineId > @${EXTERNAL_MODEL_LINE_ID}))
         """
           .trimIndent()

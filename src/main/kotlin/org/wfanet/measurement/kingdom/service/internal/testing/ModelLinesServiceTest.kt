@@ -36,17 +36,14 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.ModelSuite
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.filter
-import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequestKt
 import org.wfanet.measurement.internal.kingdom.modelLine
 import org.wfanet.measurement.internal.kingdom.modelSuite
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest
-import org.wfanet.measurement.internal.kingdom.streamModelSuitesRequest
 
 private const val RANDOM_SEED = 1
 
@@ -89,6 +86,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     val modelLine = modelLine {
       externalModelSuiteId = modelSuite.externalModelSuiteId
       externalModelProviderId = modelSuite.externalModelProviderId
+      type = ModelLine.Type.PROD
       displayName = "display name"
       description = "description"
     }
@@ -234,6 +232,26 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
         .hasMessageThat()
         .contains("Only ModelLine with type == HOLDBACK can be set as Holdback ModelLine.")
     }
+
+  @Test
+  fun `createModelLine fails when Model Suite is not found`() = runBlocking {
+    val ast = Instant.now().plusSeconds(2000L).toProtoTime()
+
+    val modelLine = modelLine {
+      externalModelSuiteId = 123L
+      externalModelProviderId = 123L
+      activeStartTime = ast
+      type = ModelLine.Type.PROD
+      displayName = "display name1"
+      description = "description1"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { modelLinesService.createModelLine(modelLine) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("ModelSuite not found")
+  }
 
   @Test
   fun `createModelLine succeeds`() = runBlocking {
@@ -591,6 +609,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
         externalModelSuiteId = modelSuite.externalModelSuiteId
         externalModelProviderId = modelSuite.externalModelProviderId
         activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+        type = ModelLine.Type.PROD
         displayName = "display name1"
         description = "description1"
       }
@@ -601,6 +620,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
         externalModelSuiteId = modelSuite.externalModelSuiteId
         externalModelProviderId = modelSuite.externalModelProviderId
         activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+        type = ModelLine.Type.PROD
         displayName = "display name2"
         description = "description2"
       }
@@ -684,9 +704,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception)
       .hasMessageThat()
-      .contains(
-        "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
-      )
+      .contains("Only ModelLine with type == PROD can have a Holdback ModelLine.")
   }
 
   @Test
@@ -735,9 +753,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception)
         .hasMessageThat()
-        .contains(
-          "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
-        )
+        .contains("Only ModelLine with type == HOLDBACK can be set as Holdback ModelLine.")
     }
 
   @Test
