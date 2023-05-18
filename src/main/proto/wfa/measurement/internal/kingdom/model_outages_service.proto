@@ -58,7 +58,7 @@ message StreamModelOutagesRequest {
     fixed64 external_model_line_id = 3;
     // Inclusive time.
     google.protobuf.Timestamp model_outage_start_time = 4;
-    //Exclusive time.
+    // Exclusive time.
     google.protobuf.Timestamp model_outage_end_time = 5;
     bool show_deleted = 6;
     AfterFilter after = 7;

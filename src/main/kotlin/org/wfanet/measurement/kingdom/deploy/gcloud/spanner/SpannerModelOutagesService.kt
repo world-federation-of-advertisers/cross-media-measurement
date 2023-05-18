@@ -16,14 +16,18 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import io.grpc.Status
 import java.time.Clock
 import kotlinx.coroutines.flow.Flow
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.DeleteModelOutageRequest
 import org.wfanet.measurement.internal.kingdom.ModelOutage
 import org.wfanet.measurement.internal.kingdom.ModelOutagesGrpcKt.ModelOutagesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamModelOutagesRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelOutage
 
 class SpannerModelOutagesService(
   private val clock: Clock,
@@ -32,7 +36,14 @@ class SpannerModelOutagesService(
 ) : ModelOutagesCoroutineImplBase() {
 
   override suspend fun createModelOutage(request: ModelOutage): ModelOutage {
-    return super.createModelOutage(request)
+    grpcRequire(request.hasModelOutageStartTime() && request.hasModelOutageEndTime()) {
+      "Outage interval is missing."
+    }
+    try {
+      return CreateModelOutage(request).execute(client, idGenerator)
+    } catch (e: ModelLineNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelLine not found." }
+    }
   }
 
   override suspend fun deleteModelOutage(request: DeleteModelOutageRequest): ModelOutage {
@@ -42,5 +53,4 @@ class SpannerModelOutagesService(
   override fun streamModelOutages(request: StreamModelOutagesRequest): Flow<ModelOutage> {
     return super.streamModelOutages(request)
   }
-
 }
