@@ -4,10 +4,9 @@ import com.google.cloud.spanner.Statement
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
-import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequest
-import org.wfanet.measurement.internal.kingdom.StreamModelOutagesRequest
+import org.wfanet.measurement.gcloud.spanner.toProtoEnum
+import org.wfanet.measurement.internal.kingdom.ModelOutage
 import org.wfanet.measurement.internal.kingdom.StreamModelOutagesRequest.Filter
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelLineReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelOutageReader
 
 class StreamModelOutages(private val requestFilter: Filter, limit: Int = 0) :
@@ -27,8 +26,8 @@ class StreamModelOutages(private val requestFilter: Filter, limit: Int = 0) :
           .trimIndent()
       )
       if (limit > 0) {
-        appendClause("LIMIT @${StreamModelLines.LIMIT_PARAM}")
-        bind(StreamModelLines.LIMIT_PARAM to limit.toLong())
+        appendClause("LIMIT @${LIMIT}")
+        bind(LIMIT to limit.toLong())
       }
     }
 
@@ -48,6 +47,26 @@ class StreamModelOutages(private val requestFilter: Filter, limit: Int = 0) :
     if (filter.externalModelLineId != 0L) {
       conjuncts.add("ExternalModelLineId = @${EXTERNAL_MODEL_LINE_ID}")
       bind(EXTERNAL_MODEL_LINE_ID to filter.externalModelLineId)
+    }
+
+    if (!filter.showDeleted) {
+      conjuncts.add("State != @${DELETED_STATE}")
+      bind(DELETED_STATE).toProtoEnum(ModelOutage.State.DELETED)
+    }
+
+    if (filter.hasModelOutageStartTime() && filter.hasModelOutageEndTime()) {
+      conjuncts.add(
+        """
+          ModelOutages.OutageStartTime >= @${OUTAGE_START_TIME}
+          AND ModelOutages.OutageEndTime < @${OUTAGE_END_TIME}
+        """
+          .trimIndent()
+      )
+      bind(CREATED_AFTER to filter.after.createTime.toGcloudTimestamp())
+      bind(EXTERNAL_MODEL_PROVIDER_ID to filter.after.externalModelProviderId)
+      bind(EXTERNAL_MODEL_SUITE_ID to filter.after.externalModelSuiteId)
+      bind(EXTERNAL_MODEL_LINE_ID to filter.after.externalModelLineId)
+      bind(EXTERNAL_MODEL_OUTAGE_ID to filter.after.externalModelOutageId)
     }
 
     if (filter.hasAfter()) {
@@ -87,13 +106,14 @@ class StreamModelOutages(private val requestFilter: Filter, limit: Int = 0) :
   }
 
   companion object {
-    const val LIMIT_PARAM = "limit"
+    const val LIMIT = "limit"
     const val EXTERNAL_MODEL_PROVIDER_ID = "externalModelProviderId"
     const val EXTERNAL_MODEL_SUITE_ID = "externalModelSuiteId"
     const val EXTERNAL_MODEL_LINE_ID = "externalModelLineId"
     const val EXTERNAL_MODEL_OUTAGE_ID = "externalModelOutageId"
+    const val OUTAGE_START_TIME = "outageStartTime"
+    const val OUTAGE_END_TIME = "outageEndTime"
     const val CREATED_AFTER = "createdAfter"
-    const val TYPES_PARAM = "types"
+    const val DELETED_STATE = "deletedState"
   }
-
 }

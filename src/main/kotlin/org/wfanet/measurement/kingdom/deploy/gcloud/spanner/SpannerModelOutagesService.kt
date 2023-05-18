@@ -17,7 +17,6 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
-import java.time.Clock
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -28,12 +27,16 @@ import org.wfanet.measurement.internal.kingdom.DeleteModelOutageRequest
 import org.wfanet.measurement.internal.kingdom.ModelOutage
 import org.wfanet.measurement.internal.kingdom.ModelOutagesGrpcKt.ModelOutagesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamModelOutagesRequest
+import org.wfanet.measurement.internal.kingdom.modelOutage
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelOutageNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelOutageStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelOutages
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelOutage
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.DeleteModelOutage
 
 class SpannerModelOutagesService(
-  private val clock: Clock,
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient
 ) : ModelOutagesCoroutineImplBase() {
@@ -50,18 +53,45 @@ class SpannerModelOutagesService(
   }
 
   override suspend fun deleteModelOutage(request: DeleteModelOutageRequest): ModelOutage {
-    return super.deleteModelOutage(request)
+    grpcRequire(request.externalModelProviderId != 0L) { "ExternalModelProviderId unspecified" }
+    grpcRequire(request.externalModelSuiteId != 0L) { "ExternalModelSuiteId unspecified" }
+    grpcRequire(request.externalModelLineId != 0L) { "ExternalModelLineId unspecified" }
+    grpcRequire(request.externalModelOutageId != 0L) { "ExternalModelOutageId unspecified" }
+
+    val modelOutage = modelOutage {
+      externalModelProviderId = request.externalModelProviderId
+      externalModelSuiteId = request.externalModelSuiteId
+      externalModelLineId = request.externalModelLineId
+      externalModelOutageId = request.externalModelOutageId
+    }
+
+    try {
+      return DeleteModelOutage(modelOutage).execute(client, idGenerator)
+    } catch (e: ModelOutageNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelOutage not found." }
+    } catch (e: ModelOutageStateIllegalException) {
+      when (e.state) {
+        ModelOutage.State.DELETED ->
+          e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelOutage state is DELETED." }
+        ModelOutage.State.ACTIVE,
+        ModelOutage.State.STATE_UNSPECIFIED,
+        ModelOutage.State.UNRECOGNIZED ->
+          e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+      }
+    } catch (e: KingdomInternalException) {
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+    }
   }
 
   override fun streamModelOutages(request: StreamModelOutagesRequest): Flow<ModelOutage> {
     grpcRequire(request.limit >= 0) { "Limit cannot be less than 0" }
     if (
       request.filter.hasAfter() &&
-      (!request.filter.after.hasCreateTime() ||
-        request.filter.after.externalModelOutageId == 0L ||
-        request.filter.after.externalModelLineId == 0L ||
-        request.filter.after.externalModelSuiteId == 0L ||
-        request.filter.after.externalModelProviderId == 0L)
+        (!request.filter.after.hasCreateTime() ||
+          request.filter.after.externalModelOutageId == 0L ||
+          request.filter.after.externalModelLineId == 0L ||
+          request.filter.after.externalModelSuiteId == 0L ||
+          request.filter.after.externalModelProviderId == 0L)
     ) {
       failGrpc(
         Status.INVALID_ARGUMENT,

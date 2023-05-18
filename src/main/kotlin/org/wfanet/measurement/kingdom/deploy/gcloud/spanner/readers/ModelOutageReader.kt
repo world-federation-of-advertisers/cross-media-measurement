@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
@@ -81,7 +80,7 @@ class ModelOutageReader : SpannerReader<ModelOutageReader.Result>() {
     deleteTime = struct.getTimestamp("DeleteTime").toProto()
   }
 
-  suspend fun readByExternalModelOutageId(
+  suspend fun readByExternalIds(
     readContext: AsyncDatabaseClient.ReadContext,
     externalModelProviderId: ExternalId,
     externalModelSuiteId: ExternalId,
@@ -89,23 +88,22 @@ class ModelOutageReader : SpannerReader<ModelOutageReader.Result>() {
     externalModelOutageId: ExternalId,
   ): ModelOutageReader.Result? {
     return fillStatementBuilder {
-      appendClause(
-        """
+        appendClause(
+          """
           WHERE ExternalModelProviderId = @externalModelProviderId AND
           ExternalModelSuiteId = @externalModelSuiteId AND
           ExternalModelLineId = @externalModelLineId AND
           ExternalModelOutageId = @externalModelOutageId
           """
-          .trimIndent()
-      )
-      bind("externalModelProviderId").to(externalModelProviderId.value)
-      bind("externalModelSuiteId").to(externalModelSuiteId.value)
-      bind("externalModelLineId").to(externalModelLineId.value)
-      bind("externalModelOutageId").to(externalModelOutageId.value)
-      appendClause("LIMIT 1")
-    }
+            .trimIndent()
+        )
+        bind("externalModelProviderId").to(externalModelProviderId.value)
+        bind("externalModelSuiteId").to(externalModelSuiteId.value)
+        bind("externalModelLineId").to(externalModelLineId.value)
+        bind("externalModelOutageId").to(externalModelOutageId.value)
+        appendClause("LIMIT 1")
+      }
       .execute(readContext)
       .singleOrNull()
   }
-
 }

@@ -46,7 +46,7 @@ class SpannerDataServices(
       SpannerExchangeStepAttemptsService(clock, idGenerator, client),
       SpannerModelSuitesService(idGenerator, client),
       SpannerModelLinesService(clock, idGenerator, client),
-      SpannerModelOutagesService(clock, idGenerator, client)
+      SpannerModelOutagesService(idGenerator, client)
     )
   }
 }
