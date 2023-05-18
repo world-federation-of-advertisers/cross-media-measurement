@@ -31,7 +31,9 @@ class StreamModelSuites(
   override val reader =
     ModelSuiteReader().fillStatementBuilder {
       appendWhereClause(requestFilter)
-      appendClause("ORDER BY ModelSuites.CreateTime ASC")
+      appendClause(
+        "ORDER BY ModelSuites.CreateTime ASC, ModelProviders.ExternalModelProviderId ASC, ModelSuites.ExternalModelSuiteId ASC"
+      )
       if (limit > 0) {
         appendClause("LIMIT @${LIMIT_PARAM}")
         bind(LIMIT_PARAM to limit.toLong())
@@ -42,13 +44,25 @@ class StreamModelSuites(
     val conjuncts = mutableListOf<String>()
 
     if (filter.externalModelProviderId != 0L) {
-      conjuncts.add("ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID_PARAM}")
-      bind(EXTERNAL_MODEL_PROVIDER_ID_PARAM to filter.externalModelProviderId)
+      conjuncts.add("ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID}")
+      bind(EXTERNAL_MODEL_PROVIDER_ID to filter.externalModelProviderId)
     }
 
-    if (filter.hasCreatedAfter()) {
-      conjuncts.add("ModelSuites.CreateTime > @${CREATED_AFTER}")
-      bind(CREATED_AFTER to filter.createdAfter.toGcloudTimestamp())
+    if (filter.hasAfter()) {
+      conjuncts.add(
+        """
+          ((ModelSuites.CreateTime  > @${CREATED_AFTER})
+          OR (ModelSuites.CreateTime  = @${CREATED_AFTER}
+          AND ModelProviders.ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID}
+          AND ModelSuites.ExternalModelSuiteId > @${EXTERNAL_MODEL_SUITE_ID})
+          OR (ModelSuites.CreateTime  = @${CREATED_AFTER}
+          AND ModelProviders.ExternalModelProviderId > @${EXTERNAL_MODEL_PROVIDER_ID}))
+        """
+          .trimIndent()
+      )
+      bind(CREATED_AFTER to filter.after.createTime.toGcloudTimestamp())
+      bind(EXTERNAL_MODEL_SUITE_ID to filter.after.externalModelSuiteId)
+      bind(EXTERNAL_MODEL_PROVIDER_ID to filter.after.externalModelProviderId)
     }
 
     if (conjuncts.isEmpty()) {
@@ -61,7 +75,8 @@ class StreamModelSuites(
 
   companion object {
     const val LIMIT_PARAM = "limit"
-    const val EXTERNAL_MODEL_PROVIDER_ID_PARAM = "externalModelProviderId"
+    const val EXTERNAL_MODEL_PROVIDER_ID = "externalModelProviderId"
     const val CREATED_AFTER = "createdAfter"
+    const val EXTERNAL_MODEL_SUITE_ID = "externalModelSuiteId"
   }
 }

@@ -16,7 +16,7 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
-import com.google.common.truth.Truth
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -34,6 +34,7 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelSuite
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.getModelSuiteRequest
 import org.wfanet.measurement.internal.kingdom.modelSuite
@@ -75,8 +76,23 @@ abstract class ModelSuitesServiceTest<T : ModelSuitesCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { modelSuitesService.createModelSuite(modelSuite) }
 
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    Truth.assertThat(exception).hasMessageThat().contains("DisplayName field")
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("DisplayName field")
+  }
+
+  @Test
+  fun `createModelSuite fails when Model Provider is not found`() = runBlocking {
+    val modelSuite = modelSuite {
+      externalModelProviderId = 123L
+      displayName = "displayName"
+      description = "description"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { modelSuitesService.createModelSuite(modelSuite) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("ModelProvider not found")
   }
 
   @Test
@@ -139,8 +155,8 @@ abstract class ModelSuitesServiceTest<T : ModelSuitesCoroutineImplBase> {
         )
       }
 
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    Truth.assertThat(exception).hasMessageThat().contains("NOT_FOUND: ModelSuite not found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("NOT_FOUND: ModelSuite not found")
   }
 
   @Test
@@ -230,7 +246,11 @@ abstract class ModelSuitesServiceTest<T : ModelSuitesCoroutineImplBase> {
           streamModelSuitesRequest {
             filter = filter {
               externalModelProviderId = modelProvider.externalModelProviderId
-              createdAfter = modelSuites[0].createTime
+              after = afterFilter {
+                createTime = modelSuites[0].createTime
+                externalModelSuiteId = modelSuites[0].externalModelSuiteId
+                externalModelProviderId = modelSuites[0].externalModelProviderId
+              }
             }
           }
         )
@@ -238,5 +258,54 @@ abstract class ModelSuitesServiceTest<T : ModelSuitesCoroutineImplBase> {
 
     assertThat(modelSuites2).hasSize(1)
     assertThat(modelSuites2).contains(modelSuite2)
+  }
+
+  @Test
+  fun `streamModelSuites fails for missing after filter fields`(): Unit = runBlocking {
+    val modelProvider = population.createModelProvider(modelProvidersService)
+
+    modelSuitesService.createModelSuite(
+      modelSuite {
+        externalModelProviderId = modelProvider.externalModelProviderId
+        displayName = "displayName1"
+        description = "description1"
+      }
+    )
+
+    modelSuitesService.createModelSuite(
+      modelSuite {
+        externalModelProviderId = modelProvider.externalModelProviderId
+        displayName = "displayName2"
+        description = "description2"
+      }
+    )
+
+    val modelSuites: List<ModelSuite> =
+      modelSuitesService
+        .streamModelSuites(
+          streamModelSuitesRequest {
+            limit = 1
+            filter = filter { externalModelProviderId = modelProvider.externalModelProviderId }
+          }
+        )
+        .toList()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        modelSuitesService.streamModelSuites(
+          streamModelSuitesRequest {
+            filter = filter {
+              externalModelProviderId = modelProvider.externalModelProviderId
+              after = afterFilter {
+                createTime = modelSuites[0].createTime
+                externalModelProviderId = modelSuites[0].externalModelProviderId
+              }
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("Missing After filter fields")
   }
 }

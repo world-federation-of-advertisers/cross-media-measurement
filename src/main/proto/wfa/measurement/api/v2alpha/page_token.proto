@@ -69,3 +69,14 @@ message ListRequisitionsPageToken {
   PreviousPageEnd last_requisition = 6;
   repeated Measurement.State measurement_states = 7;
 }
+
+message ListModelSuitesPageToken {
+  int32 page_size = 1;
+  fixed64 external_model_provider_id = 2;
+  message PreviousPageEnd {
+    fixed64 external_model_provider_id = 1;
+    fixed64 external_model_suite_id = 2;
+    google.protobuf.Timestamp create_time = 3;
+  }
+  PreviousPageEnd last_model_suite = 4;
+}
