@@ -50,18 +50,21 @@ message StreamModelOutagesRequest {
     fixed64 external_model_outage_id = 4;
     google.protobuf.Timestamp create_time = 5;
   }
+  message OutageInterval {
+    // Inclusive time.
+    google.protobuf.Timestamp model_outage_start_time = 4;
+    // Exclusive time.
+    google.protobuf.Timestamp model_outage_end_time = 5;
+  }
 
   // Filter criteria as a conjunction of specified fields.
   message Filter {
     fixed64 external_model_provider_id = 1;
     fixed64 external_model_suite_id = 2;
     fixed64 external_model_line_id = 3;
-    // Inclusive time.
-    google.protobuf.Timestamp model_outage_start_time = 4;
-    // Exclusive time.
-    google.protobuf.Timestamp model_outage_end_time = 5;
-    bool show_deleted = 6;
-    AfterFilter after = 7;
+    bool show_deleted = 4;
+    OutageInterval outage_interval = 5;
+    AfterFilter after = 6;
   }
   Filter filter = 1;
 

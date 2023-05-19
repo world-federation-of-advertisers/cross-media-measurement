@@ -54,7 +54,7 @@ class StreamModelOutages(private val requestFilter: Filter, limit: Int = 0) :
       bind(DELETED_STATE).toProtoEnum(ModelOutage.State.DELETED)
     }
 
-    if (filter.hasModelOutageStartTime() && filter.hasModelOutageEndTime()) {
+    if (filter.hasOutageInterval()) {
       conjuncts.add(
         """
           ModelOutages.OutageStartTime >= @${OUTAGE_START_TIME}
@@ -62,8 +62,8 @@ class StreamModelOutages(private val requestFilter: Filter, limit: Int = 0) :
         """
           .trimIndent()
       )
-      bind(OUTAGE_START_TIME to filter.modelOutageStartTime.toGcloudTimestamp())
-      bind(OUTAGE_END_TIME to filter.modelOutageEndTime.toGcloudTimestamp())
+      bind(OUTAGE_START_TIME to filter.outageInterval.modelOutageStartTime.toGcloudTimestamp())
+      bind(OUTAGE_END_TIME to filter.outageInterval.modelOutageEndTime.toGcloudTimestamp())
       println(conjuncts)
     }
 

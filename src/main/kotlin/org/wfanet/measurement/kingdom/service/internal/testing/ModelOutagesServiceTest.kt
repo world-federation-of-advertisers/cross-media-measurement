@@ -40,6 +40,7 @@ import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvide
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamModelOutagesRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelOutagesRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.StreamModelOutagesRequestKt.outageInterval
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.deleteModelOutageRequest
 import org.wfanet.measurement.internal.kingdom.modelOutage
@@ -360,7 +361,7 @@ abstract class ModelOutagesServiceTest<T : ModelOutagesGrpcKt.ModelOutagesCorout
   }
 
   @Test
-  fun `streamModelOutages returns all all ACTIVE and DELETED model outages`(): Unit = runBlocking {
+  fun `streamModelOutages returns all ACTIVE and DELETED model outages`(): Unit = runBlocking {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
 
@@ -588,13 +589,34 @@ abstract class ModelOutagesServiceTest<T : ModelOutagesGrpcKt.ModelOutagesCorout
               externalModelProviderId = modelLine.externalModelProviderId
               externalModelSuiteId = modelLine.externalModelSuiteId
               externalModelLineId = modelLine.externalModelLineId
-              modelOutageStartTime = START_OUTAGE_LIMIT_2
-              modelOutageEndTime = END_OUTAGE_QUERY_LIMIT
+              outageInterval = outageInterval {
+                modelOutageStartTime = START_OUTAGE_LIMIT_2
+                modelOutageEndTime = END_OUTAGE_QUERY_LIMIT
+              }
             }
           }
         )
         .toList()
 
     assertThat(modelOutages).comparingExpectedFieldsOnly().containsExactly(modelOutage3).inOrder()
+  }
+
+  @Test
+  fun `streamModelOutages fails for missing outage interval filter fields`(): Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        modelOutagesService.streamModelOutages(
+          streamModelOutagesRequest {
+            filter = filter {
+              outageInterval = outageInterval {
+                modelOutageStartTime = Instant.now().minusSeconds(100L).toProtoTime()
+              }
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("Missing OutageInterval fields")
   }
 }

@@ -104,6 +104,17 @@ class SpannerModelOutagesService(
         "Missing After filter fields"
       }
     }
+    if (
+      request.filter.hasOutageInterval() &&
+        (!request.filter.outageInterval.hasModelOutageStartTime() ||
+          !request.filter.outageInterval.hasModelOutageEndTime())
+    ) {
+      failGrpc(
+        Status.INVALID_ARGUMENT,
+      ) {
+        "Missing OutageInterval fields"
+      }
+    }
     return StreamModelOutages(request.filter, request.limit).execute(client.singleUse()).map {
       it.modelOutage
     }
