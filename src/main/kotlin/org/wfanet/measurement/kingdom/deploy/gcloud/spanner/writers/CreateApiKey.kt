@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
@@ -42,11 +43,10 @@ class CreateApiKey(
     val authenticationKey = idGenerator.generateExternalId()
     val authenticationKeyHash = hashSha256(authenticationKey.value)
 
+    val measurementConsumerId: InternalId =
+      readInternalMeasurementConsumerId(ExternalId(apiKey.externalMeasurementConsumerId))
     transactionContext.bufferInsertMutation("MeasurementConsumerApiKeys") {
-      set(
-        "MeasurementConsumerId" to
-          readInternalMeasurementConsumerId(ExternalId(apiKey.externalMeasurementConsumerId))
-      )
+      set("MeasurementConsumerId" to measurementConsumerId)
       set("ApiKeyId" to internalApiKeyId)
       set("ExternalMeasurementConsumerApiKeyId" to externalApiKeyId)
       set("Nickname" to apiKey.nickname)
@@ -62,9 +62,10 @@ class CreateApiKey(
 
   private suspend fun TransactionScope.readInternalMeasurementConsumerId(
     externalMeasurementConsumerId: ExternalId
-  ): Long =
-    MeasurementConsumerReader()
-      .readByExternalMeasurementConsumerId(transactionContext, externalMeasurementConsumerId)
-      ?.measurementConsumerId
+  ): InternalId =
+    MeasurementConsumerReader.readMeasurementConsumerId(
+      transactionContext,
+      externalMeasurementConsumerId
+    )
       ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
 }

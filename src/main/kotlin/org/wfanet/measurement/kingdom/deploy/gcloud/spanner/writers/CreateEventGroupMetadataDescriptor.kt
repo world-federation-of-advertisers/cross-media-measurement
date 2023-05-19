@@ -22,8 +22,8 @@ import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupMetadataDescriptorReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.readDataProviderId
 
 /**
  * Creates a EventGroupMetadataDescriptor in the database.
@@ -40,10 +40,10 @@ class CreateEventGroupMetadataDescriptor(
   }
 
   override suspend fun TransactionScope.runTransaction(): EventGroupMetadataDescriptor {
-    val dataProviderId: InternalId =
-      transactionContext.readDataProviderId(
-        ExternalId(eventGroupMetadataDescriptor.externalDataProviderId)
-      )
+    val externalDataProviderId = ExternalId(eventGroupMetadataDescriptor.externalDataProviderId)
+    val dataProviderId =
+      DataProviderReader.readDataProviderId(transactionContext, externalDataProviderId)
+        ?: throw DataProviderNotFoundException(externalDataProviderId)
 
     val idempotencyKey: String = eventGroupMetadataDescriptor.idempotencyKey
     if (idempotencyKey.isNotEmpty()) {
