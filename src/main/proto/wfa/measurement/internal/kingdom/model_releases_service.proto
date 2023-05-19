@@ -43,17 +43,17 @@ message GetModelReleaseRequest {
 
 message StreamModelReleasesRequest {
   message AfterFilter {
-    fixed64 external_model_release_id = 1;
-    fixed64 external_model_suite_id = 2;
-    fixed64 external_model_provider_id = 3;
-    google.protobuf.Timestamp create_time = 4;
+    google.protobuf.Timestamp create_time = 1;
+    fixed64 external_model_provider_id = 2;
+    fixed64 external_model_suite_id = 3;
+    fixed64 external_model_release_id = 4;
   }
 
   // Filter criteria as a conjunction of specified fields.
   message Filter {
     int64 external_model_suite_id = 1;
     int64 external_model_provider_id = 2;
-    AfterFilter after = 4;
+    AfterFilter after = 3;
   }
   Filter filter = 1;
 
