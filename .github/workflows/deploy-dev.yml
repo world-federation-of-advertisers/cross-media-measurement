@@ -21,6 +21,7 @@ on:
 jobs:
   update-cmms:
     uses: ./.github/workflows/update-cmms.yml
+    secrets: inherit
     with:
       environment: dev
       apply: true
