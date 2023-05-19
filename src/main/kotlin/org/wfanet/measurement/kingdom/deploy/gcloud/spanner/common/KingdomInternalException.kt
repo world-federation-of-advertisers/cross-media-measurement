@@ -27,6 +27,7 @@ import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.Requisition
 
 sealed class KingdomInternalException : Exception {
@@ -70,6 +71,66 @@ class MeasurementConsumerNotFoundException(
     get() = mapOf("external_measurement_consumer_id" to externalMeasurementConsumerId.toString())
 }
 
+class ModelSuiteNotFoundException(
+  val externalModelProviderId: ExternalId,
+  val externalModelSuiteId: ExternalId,
+  provideDescription: () -> String = { "ModelSuite not found" }
+) : KingdomInternalException(ErrorCode.MODEL_SUITE_NOT_FOUND, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_model_provider_id" to externalModelProviderId.toString(),
+        "external_model_suite_id" to externalModelSuiteId.toString()
+      )
+}
+
+class ModelLineNotFoundException(
+  val externalModelProviderId: ExternalId,
+  val externalModelSuiteId: ExternalId,
+  val externalModelLineId: ExternalId,
+  provideDescription: () -> String = { "ModelLine not found" }
+) : KingdomInternalException(ErrorCode.MODEL_LINE_NOT_FOUND, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_model_provider_id" to externalModelProviderId.toString(),
+        "external_model_suite_id" to externalModelSuiteId.toString(),
+        "external_model_line_id" to externalModelLineId.toString()
+      )
+}
+
+class ModelLineTypeIllegalException(
+  val externalModelProviderId: ExternalId,
+  val externalModelSuiteId: ExternalId,
+  val externalModelLineId: ExternalId,
+  val type: ModelLine.Type,
+  provideDescription: () -> String = { "ModelLine type illegal" }
+) : KingdomInternalException(ErrorCode.MODEL_LINE_TYPE_ILLEGAL, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_model_provider_id" to externalModelProviderId.toString(),
+        "external_model_suite_id" to externalModelSuiteId.toString(),
+        "external_model_line_id" to externalModelLineId.toString(),
+        "model_line_type" to type.toString()
+      )
+}
+
+class ModelLineInvalidArgsException(
+  val externalModelProviderId: ExternalId,
+  val externalModelSuiteId: ExternalId,
+  val externalModelLineId: ExternalId? = null,
+  provideDescription: () -> String = { "ModelLine invalid active time arguments" }
+) : KingdomInternalException(ErrorCode.MODEL_LINE_INVALID_ARGS, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_model_provider_id" to externalModelProviderId.toString(),
+        "external_model_suite_id" to externalModelSuiteId.toString(),
+        "external_model_line_id" to externalModelLineId.toString()
+      )
+}
+
 class DataProviderNotFoundException(
   val externalDataProviderId: ExternalId,
   provideDescription: () -> String = { "DataProvider not found" }
@@ -84,19 +145,6 @@ class ModelProviderNotFoundException(
 ) : KingdomInternalException(ErrorCode.MODEL_PROVIDER_NOT_FOUND, provideDescription) {
   override val context
     get() = mapOf("external_model_provider_id" to externalModelProviderId.toString())
-}
-
-class ModelSuiteNotFoundException(
-  val externalModelProviderId: ExternalId,
-  val externalModelSuiteId: ExternalId,
-  provideDescription: () -> String = { "ModelSuite not found" }
-) : KingdomInternalException(ErrorCode.MODEL_SUITE_NOT_FOUND, provideDescription) {
-  override val context
-    get() =
-      mapOf(
-        "external_model_provider_id" to externalModelProviderId.toString(),
-        "external_model_suite_id" to externalModelSuiteId.toString()
-      )
 }
 
 class DuchyNotFoundException(

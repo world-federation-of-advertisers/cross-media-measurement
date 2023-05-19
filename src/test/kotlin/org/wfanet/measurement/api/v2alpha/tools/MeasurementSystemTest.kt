@@ -48,7 +48,9 @@ import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
+import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
@@ -68,6 +70,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.PublicKey
 import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt
+import org.wfanet.measurement.api.v2alpha.ReplaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.account
@@ -89,6 +92,7 @@ import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.publicKey
+import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.revokeCertificateRequest
 import org.wfanet.measurement.api.v2alpha.signedData
@@ -161,6 +165,8 @@ private val DATA_PROVIDER_PUBLIC_KEY =
   loadPublicKey(SECRETS_DIR.resolve("edp1_enc_public.tink")).toEncryptionPublicKey()
 private val DATA_PROVIDER_PRIVATE_KEY_HANDLE =
   loadPrivateKey(SECRETS_DIR.resolve("edp1_enc_private.tink"))
+private val DUCHY = DuchyKey("worker1")
+private val DUCHIES = listOf(DUCHY).map { it.toName() }
 
 private val DATA_PROVIDER = dataProvider {
   name = DATA_PROVIDER_NAME
@@ -926,6 +932,35 @@ class MeasurementSystemTest {
       .isEqualTo(getMeasurementRequest { name = MEASUREMENT_NAME })
   }
 
+  @Test
+  fun `replace data providers duchy list with valid request`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "data-providers",
+          "--name=$DATA_PROVIDER_NAME",
+          "replace-required-duchies",
+          "--required-duchies=duchies/worker1",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<ReplaceDataProviderRequiredDuchiesRequest> {
+        runBlocking {
+          verify(dataProvidersServiceMock).replaceDataProviderRequiredDuchies(capture())
+        }
+      }
+
+    assertThat(request)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        replaceDataProviderRequiredDuchiesRequest {
+          name = DATA_PROVIDER_NAME
+          requiredExternalDuchies += DUCHIES
+        }
+      )
+  }
+
   companion object {
     private val MEASUREMENT_CONSUMER: MeasurementConsumer by lazy {
       measurementConsumer {
@@ -990,6 +1025,14 @@ class MeasurementSystemTest {
           encryptedResult = getEncryptedResult(result, measurementPublicKey)
           certificate = DATA_PROVIDER_CERTIFICATE_NAME
         }
+      }
+    }
+    private val SUCCEEDED_DATA_PROVIDER: DataProvider by lazy {
+      dataProvider {
+        name = DATA_PROVIDER_NAME
+        certificate = DATA_PROVIDER_CERTIFICATE_NAME
+        publicKey = signedData { data = DATA_PROVIDER_PUBLIC_KEY.toByteString() }
+        requiredExternalDuchyIds += DUCHIES
       }
     }
   }

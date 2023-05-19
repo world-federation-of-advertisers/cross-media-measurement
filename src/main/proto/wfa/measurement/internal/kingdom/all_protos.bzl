@@ -29,11 +29,13 @@ KINGDOM_INTERNAL_SERVICE_PROTOS = [
     "//src/main/proto/wfa/measurement/internal/kingdom:measurement_log_entries_service_kt_jvm_grpc_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:measurements_service_kt_jvm_grpc_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:model_providers_service_kt_jvm_grpc_proto",
+    "//src/main/proto/wfa/measurement/internal/kingdom:model_shards_service_kt_jvm_grpc_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:public_keys_service_kt_jvm_grpc_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:recurring_exchanges_service_kt_jvm_grpc_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:requisitions_service_kt_jvm_grpc_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:model_suites_service_kt_jvm_grpc_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:model_releases_service_kt_jvm_grpc_proto",
+    "//src/main/proto/wfa/measurement/internal/kingdom:model_lines_service_kt_jvm_grpc_proto",
 ]
 
 KINGDOM_INTERNAL_ENTITY_PROTOS = [
@@ -60,6 +62,7 @@ KINGDOM_INTERNAL_ENTITY_PROTOS = [
     "//src/main/proto/wfa/measurement/internal/kingdom:duchy_measurement_log_entry_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:state_transition_measurement_log_entry_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:model_provider_kt_jvm_proto",
+    "//src/main/proto/wfa/measurement/internal/kingdom:model_shard_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/common:provider_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:recurring_exchange_details_kt_jvm_proto",
@@ -67,6 +70,7 @@ KINGDOM_INTERNAL_ENTITY_PROTOS = [
     "//src/main/proto/wfa/measurement/internal/kingdom:error_code_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:model_suite_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:model_release_kt_jvm_proto",
+    "//src/main/proto/wfa/measurement/internal/kingdom:model_line_kt_jvm_proto",
 ]
 
 KINGDOM_INTERNAL_PROTOS = KINGDOM_INTERNAL_ENTITY_PROTOS + KINGDOM_INTERNAL_SERVICE_PROTOS

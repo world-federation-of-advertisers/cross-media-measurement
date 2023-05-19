@@ -313,41 +313,42 @@ std::string ProtocolCryptorImpl::NextRandomBigNumAsString() {
 
 }  // namespace
 
-absl::StatusOr<std::unique_ptr<ProtocolCryptor>> CreateProtocolCryptorWithKeys(
-    int curve_id, const ElGamalCiphertext& local_el_gamal_public_key,
-    absl::string_view local_el_gamal_private_key,
-    absl::string_view local_pohlig_hellman_private_key,
-    const ElGamalCiphertext& composite_el_gamal_public_key,
-    const ElGamalCiphertext& partial_composite_el_gamal_public_key) {
+absl::StatusOr<std::unique_ptr<ProtocolCryptor>> CreateProtocolCryptor(
+    const ProtocolCryptorOptions& options) {
   auto ctx = absl::make_unique<Context>();
-  ASSIGN_OR_RETURN(ECGroup ec_group, ECGroup::Create(curve_id, ctx.get()));
+  ASSIGN_OR_RETURN(ECGroup ec_group,
+                   ECGroup::Create(options.curve_id, ctx.get()));
   ASSIGN_OR_RETURN(
       auto local_el_gamal_cipher,
-      local_el_gamal_public_key.first.empty()
-          ? CommutativeElGamal::CreateWithNewKeyPair(curve_id)
-          : (local_el_gamal_private_key.empty()
+      options.local_el_gamal_public_key.first.empty()
+          ? CommutativeElGamal::CreateWithNewKeyPair(options.curve_id)
+          : (options.local_el_gamal_private_key.empty()
                  ? CommutativeElGamal::CreateFromPublicKey(
-                       curve_id, local_el_gamal_public_key)
+                       options.curve_id, options.local_el_gamal_public_key)
                  : CommutativeElGamal::CreateFromPublicAndPrivateKeys(
-                       curve_id, local_el_gamal_public_key,
-                       local_el_gamal_private_key)));
-  ASSIGN_OR_RETURN(auto client_el_gamal_cipher,
-                   composite_el_gamal_public_key.first.empty()
-                       ? CommutativeElGamal::CreateWithNewKeyPair(curve_id)
-                       : CommutativeElGamal::CreateFromPublicKey(
-                             curve_id, composite_el_gamal_public_key));
-  ASSIGN_OR_RETURN(auto partial_composite_el_gamal_cipher,
-                   partial_composite_el_gamal_public_key.first.empty()
-                       ? CommutativeElGamal::CreateWithNewKeyPair(curve_id)
-                       : CommutativeElGamal::CreateFromPublicKey(
-                             curve_id, partial_composite_el_gamal_public_key));
-  ASSIGN_OR_RETURN(auto local_pohlig_hellman_cipher,
-                   local_pohlig_hellman_private_key.empty()
-                       ? ECCommutativeCipher::CreateWithNewKey(
-                             curve_id, ECCommutativeCipher::HashType::SHA256)
-                       : ECCommutativeCipher::CreateFromKey(
-                             curve_id, local_pohlig_hellman_private_key,
-                             ECCommutativeCipher::HashType::SHA256));
+                       options.curve_id, options.local_el_gamal_public_key,
+                       options.local_el_gamal_private_key)));
+  ASSIGN_OR_RETURN(
+      auto client_el_gamal_cipher,
+      options.composite_el_gamal_public_key.first.empty()
+          ? CommutativeElGamal::CreateWithNewKeyPair(options.curve_id)
+          : CommutativeElGamal::CreateFromPublicKey(
+                options.curve_id, options.composite_el_gamal_public_key));
+  ASSIGN_OR_RETURN(
+      auto partial_composite_el_gamal_cipher,
+      options.partial_composite_el_gamal_public_key.first.empty()
+          ? CommutativeElGamal::CreateWithNewKeyPair(options.curve_id)
+          : CommutativeElGamal::CreateFromPublicKey(
+                options.curve_id,
+                options.partial_composite_el_gamal_public_key));
+  ASSIGN_OR_RETURN(
+      auto local_pohlig_hellman_cipher,
+      options.local_pohlig_hellman_private_key.empty()
+          ? ECCommutativeCipher::CreateWithNewKey(
+                options.curve_id, ECCommutativeCipher::HashType::SHA256)
+          : ECCommutativeCipher::CreateFromKey(
+                options.curve_id, options.local_pohlig_hellman_private_key,
+                ECCommutativeCipher::HashType::SHA256));
 
   std::unique_ptr<ProtocolCryptor> result =
       absl::make_unique<ProtocolCryptorImpl>(
