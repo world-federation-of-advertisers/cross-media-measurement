@@ -53,12 +53,14 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest as InternalCreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupKt
 import org.wfanet.measurement.internal.kingdom.EventGroupKt.details
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.createEventGroupRequest as internalCreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest
@@ -160,9 +162,12 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
         "specified"
     }
 
-    val createRequest = request.eventGroup.toInternal(parentKey.dataProviderId)
+    val internalRequest: InternalCreateEventGroupRequest = internalCreateEventGroupRequest {
+      eventGroup = request.eventGroup.toInternal(parentKey.dataProviderId)
+      requestId = request.requestId
+    }
     return try {
-      internalEventGroupsStub.createEventGroup(createRequest).toEventGroup()
+      internalEventGroupsStub.createEventGroup(internalRequest).toEventGroup()
     } catch (ex: StatusException) {
       when (ex.status.code) {
         Status.Code.DEADLINE_EXCEEDED -> throw Status.DEADLINE_EXCEEDED.asRuntimeException()

@@ -25,7 +25,7 @@ option java_multiple_files = true;
 
 // Internal service for persistence of Measurement entities.
 service Measurements {
-  rpc CreateMeasurement(Measurement) returns (Measurement);
+  rpc CreateMeasurement(CreateMeasurementRequest) returns (Measurement);
 
   // Returns the Measurement for the specified external ID and parent.
   rpc GetMeasurement(GetMeasurementRequest) returns (Measurement);
@@ -51,6 +51,11 @@ service Measurements {
   // Permanently deletes Measurements.
   rpc BatchDeleteMeasurements(BatchDeleteMeasurementsRequest)
       returns (google.protobuf.Empty);
+}
+
+message CreateMeasurementRequest {
+  Measurement measurement = 1;
+  string request_id = 2;
 }
 
 message GetMeasurementRequest {

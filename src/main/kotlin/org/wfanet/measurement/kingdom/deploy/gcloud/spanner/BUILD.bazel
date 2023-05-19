@@ -1,16 +1,23 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 load("//src/main/proto/wfa/measurement/internal/kingdom:all_protos.bzl", "KINGDOM_INTERNAL_PROTOS")  # buildifier: disable=bzl-visibility
 
-kt_jvm_library(
-    name = "services",
-    srcs = glob(["*Service*.kt"]),
-    visibility = [
+package(
+    default_visibility = [
         "//src/main/kotlin/org/wfanet/measurement/gcloud:deployment",
         "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/e2e:__subpackages__",
     ],
-    deps = KINGDOM_INTERNAL_PROTOS + [
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+)
+
+kt_jvm_library(
+    name = "services",
+    srcs = glob(
+        ["*Service*.kt"],
+        exclude = ["SpannerMeasurementsService.kt"],
+    ),
+    exports = [":measurements_service"],
+    deps = [
+        ":measurements_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:duchy_ids",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/readers",
@@ -20,7 +27,23 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+    ] + KINGDOM_INTERNAL_PROTOS,
+)
+
+kt_jvm_library(
+    name = "measurements_service",
+    srcs = ["SpannerMeasurementsService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/common",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/readers",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/writers",
+        "//src/main/proto/wfa/measurement/internal/kingdom:measurements_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
     ],
 )

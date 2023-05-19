@@ -26,29 +26,6 @@ import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.eventGroup
 
-private val BASE_SQL =
-  """
-    SELECT
-      EventGroups.EventGroupId,
-      EventGroups.ExternalEventGroupId,
-      EventGroups.MeasurementConsumerId,
-      EventGroups.DataProviderId,
-      EventGroups.ProvidedEventGroupId,
-      EventGroups.CreateTime,
-      EventGroups.UpdateTime,
-      EventGroups.EventGroupDetails,
-      MeasurementConsumers.ExternalMeasurementConsumerId,
-      DataProviders.ExternalDataProviderId,
-      MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId,
-      EventGroups.State
-    FROM EventGroups
-    JOIN MeasurementConsumers USING (MeasurementConsumerId)
-    JOIN DataProviders USING (DataProviderId)
-    LEFT JOIN MeasurementConsumerCertificates ON MeasurementConsumerCertificateId = CertificateId
-      AND EventGroups.MeasurementConsumerId = MeasurementConsumerCertificates.MeasurementConsumerId
-    """
-    .trimIndent()
-
 class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
   data class Result(
     val eventGroup: EventGroup,
@@ -64,18 +41,25 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
     return this
   }
 
-  fun bindWhereClause(dataProviderId: Long, providedEventGroupId: String): EventGroupReader {
+  suspend fun readByCreateRequestId(
+    readContext: AsyncDatabaseClient.ReadContext,
+    dataProviderId: InternalId,
+    createRequestId: String
+  ): Result? {
     return fillStatementBuilder {
-      appendClause(
-        """
-        WHERE EventGroups.DataProviderId = @data_provider_id
-        AND EventGroups.ProvidedEventGroupId = @provided_event_group_id
-        """
-          .trimIndent()
-      )
-      bind("data_provider_id" to dataProviderId)
-      bind("provided_event_group_id" to providedEventGroupId)
-    }
+        appendClause(
+          """
+          WHERE
+            DataProviderId = @${Params.DATA_PROVIDER_ID}
+            AND CreateRequestId = @${Params.CREATE_REQUEST_ID}
+          """
+            .trimIndent()
+        )
+        bind(Params.DATA_PROVIDER_ID to dataProviderId)
+        bind(Params.CREATE_REQUEST_ID to createRequestId)
+      }
+      .execute(readContext)
+      .singleOrNull()
   }
 
   suspend fun readByExternalIds(
@@ -83,20 +67,17 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
     externalDataProviderId: Long,
     externalEventGroupId: Long,
   ): Result? {
-    val externalEventGroupIdParam = "externalEventGroupId"
-    val externalDataProviderIdParam = "externalDataProviderId"
-
     return fillStatementBuilder {
         appendClause(
           """
           WHERE
-            ExternalEventGroupId = @$externalEventGroupIdParam
-            AND ExternalDataProviderId = @$externalDataProviderIdParam
+            ExternalEventGroupId = @${Params.EXTERNAL_EVENT_GROUP_ID}
+            AND ExternalDataProviderId = @${Params.EXTERNAL_DATA_PROVIDER_ID}
           """
             .trimIndent()
         )
-        bind(externalEventGroupIdParam to externalEventGroupId)
-        bind(externalDataProviderIdParam to externalDataProviderId)
+        bind(Params.EXTERNAL_EVENT_GROUP_ID to externalEventGroupId)
+        bind(Params.EXTERNAL_DATA_PROVIDER_ID to externalDataProviderId)
         appendClause("LIMIT 1")
       }
       .execute(readContext)
@@ -127,5 +108,37 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
       details = struct.getProtoMessage("EventGroupDetails", EventGroup.Details.parser())
     }
     state = struct.getProtoEnum("State", EventGroup.State::forNumber)
+  }
+
+  companion object {
+    private val BASE_SQL =
+      """
+      SELECT
+        EventGroups.EventGroupId,
+        EventGroups.ExternalEventGroupId,
+        EventGroups.MeasurementConsumerId,
+        EventGroups.DataProviderId,
+        EventGroups.ProvidedEventGroupId,
+        EventGroups.CreateTime,
+        EventGroups.UpdateTime,
+        EventGroups.EventGroupDetails,
+        MeasurementConsumers.ExternalMeasurementConsumerId,
+        DataProviders.ExternalDataProviderId,
+        MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId,
+        EventGroups.State
+      FROM EventGroups
+      JOIN MeasurementConsumers USING (MeasurementConsumerId)
+      JOIN DataProviders USING (DataProviderId)
+      LEFT JOIN MeasurementConsumerCertificates ON MeasurementConsumerCertificateId = CertificateId
+        AND EventGroups.MeasurementConsumerId = MeasurementConsumerCertificates.MeasurementConsumerId
+      """
+        .trimIndent()
+
+    private object Params {
+      const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
+      const val EXTERNAL_EVENT_GROUP_ID = "externalEventGroupId"
+      const val DATA_PROVIDER_ID = "dataProviderId"
+      const val CREATE_REQUEST_ID = "createRequestId"
+    }
   }
 }
