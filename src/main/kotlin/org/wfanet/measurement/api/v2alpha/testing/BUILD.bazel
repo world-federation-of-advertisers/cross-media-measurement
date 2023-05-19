@@ -2,11 +2,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 
 package(
     default_testonly = True,
-    default_visibility = [
-        "//src/main/kotlin/org/wfanet/measurement/integration/common:__pkg__",
-        "//src/test/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:__pkg__",
-        "//src/test/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:__pkg__",
-    ],
+    default_visibility = ["//visibility:public"],
 )
 
 kt_jvm_library(
@@ -16,6 +12,9 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/common/identity:principal_identity",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",

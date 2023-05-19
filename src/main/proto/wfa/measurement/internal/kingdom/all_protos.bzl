@@ -34,6 +34,7 @@ KINGDOM_INTERNAL_SERVICE_PROTOS = [
     "//src/main/proto/wfa/measurement/internal/kingdom:recurring_exchanges_service_kt_jvm_grpc_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:requisitions_service_kt_jvm_grpc_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:model_suites_service_kt_jvm_grpc_proto",
+    "//src/main/proto/wfa/measurement/internal/kingdom:model_releases_service_kt_jvm_grpc_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:model_lines_service_kt_jvm_grpc_proto",
 ]
 
@@ -68,6 +69,7 @@ KINGDOM_INTERNAL_ENTITY_PROTOS = [
     "//src/main/proto/wfa/measurement/internal/kingdom:recurring_exchange_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:error_code_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:model_suite_kt_jvm_proto",
+    "//src/main/proto/wfa/measurement/internal/kingdom:model_release_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:model_line_kt_jvm_proto",
 ]
 
