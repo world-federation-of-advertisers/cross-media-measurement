@@ -64,7 +64,6 @@ class StreamModelOutages(private val requestFilter: Filter, limit: Int = 0) :
       )
       bind(OUTAGE_START_TIME to filter.outageInterval.modelOutageStartTime.toGcloudTimestamp())
       bind(OUTAGE_END_TIME to filter.outageInterval.modelOutageEndTime.toGcloudTimestamp())
-      println(conjuncts)
     }
 
     if (filter.hasAfter()) {
