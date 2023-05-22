@@ -57,10 +57,10 @@ class DeleteModelRollout(private val request: DeleteModelRolloutRequest, private
         "ModelRollouts",
         KeySet.singleKey(
           Key.of(
-            modelRolloutResult.modelProviderId,
-            modelRolloutResult.modelSuiteId,
-            modelRolloutResult.modelLineId,
-            modelRolloutResult.modelRolloutId,
+            modelRolloutResult.modelProviderId.value,
+            modelRolloutResult.modelSuiteId.value,
+            modelRolloutResult.modelLineId.value,
+            modelRolloutResult.modelRolloutId.value,
           )
         )
       )

@@ -53,7 +53,7 @@ class ModelRolloutReader : SpannerReader<ModelRolloutReader.Result>() {
       ModelLines.ExternalModelLineId,
       ModelSuites.ExternalModelSuiteId,
       ModelProviders.ExternalModelProviderId,
-      PreviousModelRollout.ExternalModelRolloutId,
+      PreviousModelRollout.ExternalModelRolloutId AS PreviousExternalModelRolloutId,
       ModelReleases.ExternalModelReleaseId
       FROM ModelRollouts
       JOIN ModelLines
@@ -92,8 +92,8 @@ class ModelRolloutReader : SpannerReader<ModelRolloutReader.Result>() {
     if (!struct.isNull("RolloutFreezeTime")) {
       rolloutFreezeTime = struct.getTimestamp("RolloutFreezeTime").toProto()
     }
-    if (!struct.isNull("ExternalModelRolloutId")) {
-      externalPreviousModelRolloutId = struct.getLong("ExternalModelRolloutId")
+    if (!struct.isNull("PreviousExternalModelRolloutId")) {
+      externalPreviousModelRolloutId = struct.getLong("PreviousExternalModelRolloutId")
     }
     externalModelReleaseId = struct.getLong("ExternalModelReleaseId")
     createTime = struct.getTimestamp("CreateTime").toProto()
@@ -111,7 +111,7 @@ class ModelRolloutReader : SpannerReader<ModelRolloutReader.Result>() {
   ): Result? {
     return fillStatementBuilder {
         appendClause(
-          "WHERE ExternalModelSuiteId = @externalModelSuiteId AND ExternalModelProviderId = @externalModelProviderId AND ExternalModelLineId = @externalModelLineId AND ModelRolloutss.ExternalModelRolloutId = @externalModelRolloutId"
+          "WHERE ExternalModelSuiteId = @externalModelSuiteId AND ExternalModelProviderId = @externalModelProviderId AND ExternalModelLineId = @externalModelLineId AND ModelRollouts.ExternalModelRolloutId = @externalModelRolloutId"
         )
         bind("externalModelSuiteId").to(externalModelSuiteId.value)
         bind("externalModelProviderId").to(externalModelProviderId.value)

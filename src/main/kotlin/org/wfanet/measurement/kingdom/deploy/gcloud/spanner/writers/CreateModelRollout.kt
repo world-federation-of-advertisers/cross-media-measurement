@@ -120,7 +120,13 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
     }
 
-    return modelRollout.copy { this.externalModelRolloutId = externalModelRolloutId.value }
+    return modelRollout.copy {
+      this.externalModelRolloutId = externalModelRolloutId.value
+      if (previousModelRolloutData != null) {
+        this.externalPreviousModelRolloutId =
+          previousModelRolloutData.getLong("ExternalModelRolloutId")
+      }
+    }
   }
 
   private suspend fun TransactionScope.readModelLineData(
@@ -165,7 +171,8 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
     val sql =
       """
     SELECT
-    ModelRollout.ModelRolloutId
+    ModelRollouts.ModelRolloutId,
+    ModelRollouts.ExternalModelRolloutId
     FROM ModelRollouts JOIN ModelLines
       ON (
         ModelLines.ModelProviderId = ModelRollouts.ModelProviderId
@@ -177,12 +184,12 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
         ModelLines.ModelProviderId = ModelSuites.ModelProviderId
         AND ModelLines.ModelSuiteId = ModelSuites.ModelSuiteId
       )
-    JOiN ModelProviders ON ModelProviders.ModelProviderId = ModelSuites.ModelProviderIt
-    WHERE ModelRollout.ExternalModelProviderId = @externalModelProviderId AND
-    ModelRollout.ExternalModelSuiteId = @externalModelSuiteId AND
-    ModelRollout.ExternalModelLineId = @externalModelLineId
-    AND ModelRollout.RolloutPeriodStartTime < @rolloutPeriodStartTime
-    ORDER BY ModelRollout.RolloutPeriodStartTime DESC
+    JOiN ModelProviders ON ModelProviders.ModelProviderId = ModelSuites.ModelProviderId
+    WHERE ModelProviders.ExternalModelProviderId = @externalModelProviderId AND
+    ModelSuites.ExternalModelSuiteId = @externalModelSuiteId AND
+    ModelLines.ExternalModelLineId = @externalModelLineId
+    AND ModelRollouts.RolloutPeriodStartTime < @rolloutPeriodStartTime
+    ORDER BY ModelRollouts.RolloutPeriodStartTime DESC
     """
         .trimIndent()
 

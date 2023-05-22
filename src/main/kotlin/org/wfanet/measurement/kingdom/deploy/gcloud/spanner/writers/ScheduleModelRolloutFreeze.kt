@@ -37,7 +37,6 @@ class ScheduleModelRolloutFreeze(
 ) : SpannerWriter<ModelRollout, ModelRollout>() {
 
   override suspend fun TransactionScope.runTransaction(): ModelRollout {
-
     val modelRolloutResult =
       readModelRollout(
         ExternalId(request.externalModelProviderId),
@@ -83,11 +82,11 @@ class ScheduleModelRolloutFreeze(
         ExternalId(request.externalModelSuiteId),
         ExternalId(request.externalModelLineId)
       ) {
-        "RolloutFreezeTime cannot be equal or greater than RolloutPeriodEndTime."
+        "RolloutFreezeTime cannot be equal or later than RolloutPeriodEndTime."
       }
     }
 
-    transactionContext.bufferUpdateMutation("ModelLines") {
+    transactionContext.bufferUpdateMutation("ModelRollouts") {
       set("ModelRolloutId" to modelRolloutResult.modelRolloutId)
       set("ModelLineId" to modelRolloutResult.modelLineId)
       set("ModelSuiteId" to modelRolloutResult.modelSuiteId)
@@ -95,7 +94,6 @@ class ScheduleModelRolloutFreeze(
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("RolloutFreezeTime" to request.rolloutFreezeTime.toGcloudTimestamp())
     }
-
     return modelRolloutResult.modelRollout.copy { rolloutFreezeTime = request.rolloutFreezeTime }
   }
 

@@ -51,7 +51,7 @@ class SpannerModelRolloutsService(
     grpcRequire(request.hasRolloutPeriodEndTime()) {
       "RolloutPeriodEndTime field of ModelRollout is missing."
     }
-    grpcRequire(request.externalModelReleaseId > 0L) {
+    grpcRequire(request.externalModelReleaseId != 0L) {
       "ExternalModelReleaseId field of ModelRollout is missing."
     }
     try {
