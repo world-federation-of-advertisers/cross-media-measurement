@@ -69,8 +69,8 @@ class CreateCertificate(private val certificate: Certificate) :
     certificate.toInsertMutation(certificateId).bufferTo(transactionContext)
     createCertificateMapTableMutation(
         getOwnerInternalId(transactionContext),
-        certificateId.value,
-        externalMapId.value
+        certificateId,
+        externalMapId
       )
       .bufferTo(transactionContext)
     return certificate.toBuilder().setExternalCertificateId(externalMapId.value).build()
@@ -82,32 +82,31 @@ class CreateCertificate(private val certificate: Certificate) :
 
   private suspend fun getOwnerInternalId(
     transactionContext: AsyncDatabaseClient.TransactionContext
-  ): Long {
-    // TODO: change all of the reads below to use index lookups or simple queries.
+  ): InternalId {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (certificate.parentCase) {
       Certificate.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> {
         val externalDataProviderId = ExternalId(certificate.externalDataProviderId)
-        DataProviderReader()
-          .readByExternalDataProviderId(transactionContext, externalDataProviderId)
-          ?.dataProviderId
+        DataProviderReader.readDataProviderId(transactionContext, externalDataProviderId)
           ?: throw DataProviderNotFoundException(externalDataProviderId)
       }
       Certificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> {
         val externalMeasurementConsumerId = ExternalId(certificate.externalMeasurementConsumerId)
-        MeasurementConsumerReader()
-          .readByExternalMeasurementConsumerId(transactionContext, externalMeasurementConsumerId)
-          ?.measurementConsumerId
+        MeasurementConsumerReader.readMeasurementConsumerId(
+          transactionContext,
+          externalMeasurementConsumerId
+        )
           ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
       }
       Certificate.ParentCase.EXTERNAL_DUCHY_ID ->
-        DuchyIds.getInternalId(certificate.externalDuchyId)
+        DuchyIds.getInternalId(certificate.externalDuchyId)?.let { InternalId(it) }
           ?: throw DuchyNotFoundException(certificate.externalDuchyId)
       Certificate.ParentCase.EXTERNAL_MODEL_PROVIDER_ID -> {
         val externalModelProviderId = ExternalId(certificate.externalModelProviderId)
+        // TODO(@SanjayVas): Use an index lookup instead.
         ModelProviderReader()
           .readByExternalModelProviderId(transactionContext, externalModelProviderId)
-          ?.modelProviderId
+          ?.let { InternalId(it.modelProviderId) }
           ?: throw ModelProviderNotFoundException(externalModelProviderId)
       }
       Certificate.ParentCase.PARENT_NOT_SET ->
@@ -116,9 +115,9 @@ class CreateCertificate(private val certificate: Certificate) :
   }
 
   private fun createCertificateMapTableMutation(
-    internalOwnerId: Long,
-    internalCertificateId: Long,
-    externalMapId: Long
+    internalOwnerId: InternalId,
+    internalCertificateId: InternalId,
+    externalMapId: ExternalId
   ): Mutation {
     val tableName = "${ownerTableName}Certificates"
     val internalIdField = "${ownerTableName}Id"

@@ -14,12 +14,15 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
+import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
+import org.wfanet.measurement.gcloud.spanner.getInternalId
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Certificate
@@ -88,4 +91,23 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
         details = struct.getProtoMessage("CertificateDetails", Certificate.Details.parser())
       }
       .build()
+
+  companion object {
+    /** Reads the [InternalId] for a MeasurementConsumer given its [ExternalId]. */
+    suspend fun readMeasurementConsumerId(
+      readContext: AsyncDatabaseClient.ReadContext,
+      externalMeasurementConsumerId: ExternalId
+    ): InternalId? {
+      val column = "MeasurementConsumerId"
+      val row: Struct =
+        readContext.readRowUsingIndex(
+          "MeasurementConsumers",
+          "MeasurementConsumersByExternalId",
+          Key.of(externalMeasurementConsumerId.value),
+          column
+        )
+          ?: return null
+      return row.getInternalId(column)
+    }
+  }
 }

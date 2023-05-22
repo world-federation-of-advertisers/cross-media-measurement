@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Value
 import java.time.Clock
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flattenConcat
 import kotlinx.coroutines.flow.map
@@ -30,6 +31,7 @@ import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
+import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
@@ -47,9 +49,9 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementCo
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamDataProviders
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader.Companion.getEtag
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.readDataProviderId
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriter.TransactionScope
 
 /**
@@ -65,15 +67,14 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWrite
  * @throws [DuchyNotActiveException] One or more required duchies were inactive at measurement
  *   creation time
  */
-class CreateMeasurement(private val measurement: Measurement) :
+class CreateMeasurement(private val request: CreateMeasurementRequest) :
   SpannerWriter<Measurement, Measurement>() {
 
   override suspend fun TransactionScope.runTransaction(): Measurement {
-
     val measurementConsumerId: InternalId =
-      readMeasurementConsumerId(ExternalId(measurement.externalMeasurementConsumerId))
+      readMeasurementConsumerId(ExternalId(request.measurement.externalMeasurementConsumerId))
 
-    if (measurement.providedMeasurementId.isNotBlank()) {
+    if (request.requestId.isNotEmpty()) {
       val existingMeasurement = findExistingMeasurement(measurementConsumerId)
       if (existingMeasurement != null) {
         return existingMeasurement
@@ -81,11 +82,11 @@ class CreateMeasurement(private val measurement: Measurement) :
     }
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields are never null.
-    return when (measurement.details.protocolConfig.protocolCase) {
+    return when (request.measurement.details.protocolConfig.protocolCase) {
       ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2 ->
-        createComputedMeasurement(measurement, measurementConsumerId)
+        createComputedMeasurement(request.measurement, measurementConsumerId)
       ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET ->
-        createDirectMeasurement(measurement, measurementConsumerId)
+        createDirectMeasurement(request.measurement, measurementConsumerId)
     }
   }
 
@@ -197,7 +198,7 @@ class CreateMeasurement(private val measurement: Measurement) :
     initialMeasurementState: Measurement.State
   ) {
     val externalMeasurementConsumerId =
-      ExternalId(measurement.externalMeasurementConsumerCertificateId)
+      ExternalId(request.measurement.externalMeasurementConsumerCertificateId)
     val reader =
       CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
         .bindWhereClause(measurementConsumerId, externalMeasurementConsumerId)
@@ -215,13 +216,16 @@ class CreateMeasurement(private val measurement: Measurement) :
       if (externalComputationId != null) {
         set("ExternalComputationId" to externalComputationId)
       }
-      if (measurement.providedMeasurementId.isNotBlank()) {
-        set("ProvidedMeasurementId" to measurement.providedMeasurementId)
+      if (request.requestId.isNotEmpty()) {
+        set("CreateRequestId" to request.requestId)
+      }
+      if (request.measurement.providedMeasurementId.isNotEmpty()) {
+        set("ProvidedMeasurementId" to request.measurement.providedMeasurementId)
       }
       set("CertificateId" to measurementConsumerCertificateId)
       set("State" to initialMeasurementState)
-      set("MeasurementDetails" to measurement.details)
-      setJson("MeasurementDetailsJson" to measurement.details)
+      set("MeasurementDetails" to request.measurement.details)
+      setJson("MeasurementDetailsJson" to request.measurement.details)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
     }
@@ -268,7 +272,9 @@ class CreateMeasurement(private val measurement: Measurement) :
     dataProviderValue: Measurement.DataProviderValue,
     initialRequisitionState: Requisition.State
   ) {
-    val dataProviderId = transactionContext.readDataProviderId(externalDataProviderId)
+    val dataProviderId =
+      DataProviderReader.readDataProviderId(transactionContext, externalDataProviderId)
+        ?: throw DataProviderNotFoundException(externalDataProviderId)
     val reader =
       CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
         .bindWhereClause(
@@ -313,12 +319,12 @@ class CreateMeasurement(private val measurement: Measurement) :
     val params =
       object {
         val MEASUREMENT_CONSUMER_ID = "measurementConsumerId"
-        val PROVIDED_MEASUREMENT_ID = "providedMeasurementId"
+        val CREATE_REQUEST_ID = "createRequestId"
       }
     val whereClause =
       """
       WHERE MeasurementConsumerId = @${params.MEASUREMENT_CONSUMER_ID}
-        AND ProvidedMeasurementId = @${params.PROVIDED_MEASUREMENT_ID}
+        AND CreateRequestId = @${params.CREATE_REQUEST_ID}
       """
         .trimIndent()
 
@@ -326,7 +332,7 @@ class CreateMeasurement(private val measurement: Measurement) :
       .fillStatementBuilder {
         appendClause(whereClause)
         bind(params.MEASUREMENT_CONSUMER_ID to measurementConsumerId)
-        bind(params.PROVIDED_MEASUREMENT_ID to measurement.providedMeasurementId)
+        bind(params.CREATE_REQUEST_ID to request.requestId)
       }
       .execute(transactionContext)
       .map { it.measurement }
@@ -364,6 +370,7 @@ private suspend fun TransactionScope.readMeasurementConsumerId(
     }
 }
 
+@OptIn(FlowPreview::class) // For `flattenConcat`.
 private suspend fun TransactionScope.readDataProviderRequiredDuchies(
   externalDataProviderIds: Set<ExternalId>
 ): Set<String> {

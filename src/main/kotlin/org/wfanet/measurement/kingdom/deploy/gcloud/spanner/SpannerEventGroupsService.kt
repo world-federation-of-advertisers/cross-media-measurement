@@ -21,6 +21,7 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.DeleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
@@ -47,7 +48,7 @@ class SpannerEventGroupsService(
   private val client: AsyncDatabaseClient
 ) : EventGroupsCoroutineImplBase() {
 
-  override suspend fun createEventGroup(request: EventGroup): EventGroup {
+  override suspend fun createEventGroup(request: CreateEventGroupRequest): EventGroup {
     try {
       return CreateEventGroup(request).execute(client, idGenerator)
     } catch (e: MeasurementConsumerNotFoundException) {
