@@ -16,19 +16,14 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.Statement
-import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import com.google.protobuf.util.Timestamps
 import java.time.Clock
-import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
-import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ModelRollout
 import org.wfanet.measurement.internal.kingdom.ScheduleModelRolloutFreezeRequest
 import org.wfanet.measurement.internal.kingdom.copy
@@ -88,7 +83,7 @@ class ScheduleModelRolloutFreeze(
         ExternalId(request.externalModelSuiteId),
         ExternalId(request.externalModelLineId)
       ) {
-        "RolloutFreezeTime cannot be greater than RolloutPeriodEndTime."
+        "RolloutFreezeTime cannot be equal or greater than RolloutPeriodEndTime."
       }
     }
 

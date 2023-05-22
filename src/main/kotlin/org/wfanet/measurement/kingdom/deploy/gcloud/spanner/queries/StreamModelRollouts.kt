@@ -31,7 +31,16 @@ class StreamModelRollouts(
   override val reader =
     ModelRolloutReader().fillStatementBuilder {
       appendWhereClause(requestFilter)
-      appendClause("ORDER BY ModelRollouts.RolloutPeriodStartTime ASC")
+      appendClause(
+        """
+          ORDER BY ModelRollouts.RolloutPeriodStartTime ASC,
+          ModelProviders.ExternalModelProviderId ASC,
+          ModelSuites.ExternalModelSuiteId ASC,
+          ModelLines.ExternalModelLineId ASC,
+          ModelRollouts.ExternalModelRolloutId ASC
+          """
+          .trimIndent()
+      )
       if (limit > 0) {
         appendClause("LIMIT @${LIMIT_PARAM}")
         bind(LIMIT_PARAM to limit.toLong())
@@ -42,29 +51,60 @@ class StreamModelRollouts(
     val conjuncts = mutableListOf<String>()
 
     if (filter.externalModelProviderId != 0L) {
-      conjuncts.add("ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID_PARAM}")
-      bind(EXTERNAL_MODEL_PROVIDER_ID_PARAM to filter.externalModelProviderId)
+      conjuncts.add("ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID}")
+      bind(EXTERNAL_MODEL_PROVIDER_ID to filter.externalModelProviderId)
     }
 
     if (filter.externalModelSuiteId != 0L) {
-      conjuncts.add("ExternalModelSuiteId = @${EXTERNAL_MODEL_SUITE_ID_PARAM}")
-      bind(EXTERNAL_MODEL_SUITE_ID_PARAM to filter.externalModelSuiteId)
+      conjuncts.add("ExternalModelSuiteId = @${EXTERNAL_MODEL_SUITE_ID}")
+      bind(EXTERNAL_MODEL_SUITE_ID to filter.externalModelSuiteId)
     }
 
     if (filter.externalModelLineId != 0L) {
-      conjuncts.add("ExternalModelLineId = @${EXTERNAL_MODEL_LINE_ID_PARAM}")
-      bind(EXTERNAL_MODEL_LINE_ID_PARAM to filter.externalModelLineId)
+      conjuncts.add("ExternalModelLineId = @${EXTERNAL_MODEL_LINE_ID}")
+      bind(EXTERNAL_MODEL_LINE_ID to filter.externalModelLineId)
     }
 
-    if (filter.hasCreatedAfter()) {
-      conjuncts.add("ModelRollouts.CreateTime > @${CREATED_AFTER}")
-      bind(CREATED_AFTER to filter.createdAfter.toGcloudTimestamp())
-    }
-
-    if (filter.hasRolloutPeriodStartOverlapping() && filter.hasRolloutPeriodEndOverlapping()) {
+    if (filter.hasRolloutPeriod()) {
       conjuncts.add(
-        "ModelRollouts.RolloutPeriodStartTime >= @${ROLLOUT_PERIOD_START_TIME} AND ModelRollouts.RolloutPeriodEndTime < @${ROLLOUT_PERIOD_END_TIME}"
+        """
+          ModelRollouts.RolloutPeriodStartTime >= @${ROLLOUT_PERIOD_START_TIME}
+          AND ModelRollouts.RolloutPeriodEndTime < @${ROLLOUT_PERIOD_END_TIME}
+        """
+          .trimIndent()
       )
+      bind(
+        ROLLOUT_PERIOD_START_TIME to filter.rolloutPeriod.rolloutPeriodStartTime.toGcloudTimestamp()
+      )
+      bind(ROLLOUT_PERIOD_END_TIME to filter.rolloutPeriod.rolloutPeriodEndTime.toGcloudTimestamp())
+    }
+
+    if (filter.hasAfter()) {
+      conjuncts.add(
+        """
+          ((ModelRollouts.CreateTime > @${CREATED_AFTER})
+          OR (ModelRollouts.CreateTime = @${CREATED_AFTER}
+          AND ModelProviders.ExternalModelProviderId > @${EXTERNAL_MODEL_PROVIDER_ID})
+          OR (ModelRollouts.CreateTime = @${CREATED_AFTER}
+          AND ModelProviders.ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID}
+          AND ModelSuites.ExternalModelSuiteId > @${EXTERNAL_MODEL_SUITE_ID})
+          OR (ModelRollouts.CreateTime = @${CREATED_AFTER}
+          AND ModelProviders.ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID}
+          AND ModelSuites.ExternalModelSuiteId = @${EXTERNAL_MODEL_SUITE_ID}
+          AND ModelLines.ExternalModelLineId > @${EXTERNAL_MODEL_LINE_ID})
+          OR (ModelRollouts.CreateTime = @${CREATED_AFTER}
+          AND ModelProviders.ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID}
+          AND ModelSuites.ExternalModelSuiteId = @${EXTERNAL_MODEL_SUITE_ID}
+          AND ModelLines.ExternalModelLineId = @${EXTERNAL_MODEL_LINE_ID}
+          AND ModelRollouts.ExternalModelRolloutId > @${EXTERNAL_MODEL_ROLLOUT_ID}))
+        """
+          .trimIndent()
+      )
+      bind(CREATED_AFTER to filter.after.createTime.toGcloudTimestamp())
+      bind(EXTERNAL_MODEL_PROVIDER_ID to filter.after.externalModelProviderId)
+      bind(EXTERNAL_MODEL_SUITE_ID to filter.after.externalModelSuiteId)
+      bind(EXTERNAL_MODEL_LINE_ID to filter.after.externalModelLineId)
+      bind(EXTERNAL_MODEL_ROLLOUT_ID to filter.after.externalModelRolloutId)
     }
 
     if (conjuncts.isEmpty()) {
@@ -77,9 +117,10 @@ class StreamModelRollouts(
 
   companion object {
     const val LIMIT_PARAM = "limit"
-    const val EXTERNAL_MODEL_PROVIDER_ID_PARAM = "externalModelProviderId"
-    const val EXTERNAL_MODEL_SUITE_ID_PARAM = "externalModelSuiteId"
-    const val EXTERNAL_MODEL_LINE_ID_PARAM = "externalModelLineId"
+    const val EXTERNAL_MODEL_PROVIDER_ID = "externalModelProviderId"
+    const val EXTERNAL_MODEL_SUITE_ID = "externalModelSuiteId"
+    const val EXTERNAL_MODEL_LINE_ID = "externalModelLineId"
+    const val EXTERNAL_MODEL_ROLLOUT_ID = "externalModelRolloutId"
     const val CREATED_AFTER = "createdAfter"
     const val ROLLOUT_PERIOD_START_TIME = "rolloutPeriodStartTime"
     const val ROLLOUT_PERIOD_END_TIME = "rolloutPeriodEndTime"

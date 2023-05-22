@@ -19,13 +19,17 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
+import com.google.protobuf.util.Timestamps
+import java.time.Clock
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.DeleteModelRolloutRequest
 import org.wfanet.measurement.internal.kingdom.ModelRollout
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelRolloutReader
 
-class DeleteModelRollout(private val request: DeleteModelRolloutRequest) :
+class DeleteModelRollout(private val request: DeleteModelRolloutRequest, private val clock: Clock) :
   SimpleSpannerWriter<ModelRollout>() {
 
   override suspend fun TransactionScope.runTransaction(): ModelRollout {
@@ -36,6 +40,17 @@ class DeleteModelRollout(private val request: DeleteModelRolloutRequest) :
         ExternalId(request.externalModelLineId),
         ExternalId(request.externalModelRolloutId)
       )
+
+    val now = clock.instant().toProtoTime()
+    if (Timestamps.compare(now, modelRolloutResult.modelRollout.rolloutPeriodStartTime) >= 0) {
+      throw ModelRolloutInvalidArgsException(
+        ExternalId(request.externalModelProviderId),
+        ExternalId(request.externalModelSuiteId),
+        ExternalId(request.externalModelLineId)
+      ) {
+        "It is no longer possible to delete this ModelRollout."
+      }
+    }
 
     transactionContext.buffer(
       Mutation.delete(

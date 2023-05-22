@@ -20,6 +20,7 @@ import io.grpc.Status
 import java.time.Clock
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -29,6 +30,7 @@ import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRollouts
 import org.wfanet.measurement.internal.kingdom.ScheduleModelRolloutFreezeRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelReleaseNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelRollouts
@@ -58,6 +60,8 @@ class SpannerModelRolloutsService(
       e.throwStatusRuntimeException(Status.INVALID_ARGUMENT)
     } catch (e: ModelLineNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelLine not found." }
+    } catch (e: ModelReleaseNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelRelease not found." }
     }
   }
 
@@ -77,20 +81,50 @@ class SpannerModelRolloutsService(
   }
 
   override fun streamModelRollouts(request: StreamModelRolloutsRequest): Flow<ModelRollout> {
+    grpcRequire(request.limit >= 0) { "Limit cannot be less than 0" }
+    if (
+      request.filter.hasAfter() &&
+        (!request.filter.after.hasCreateTime() ||
+          request.filter.after.externalModelRolloutId == 0L ||
+          request.filter.after.externalModelLineId == 0L ||
+          request.filter.after.externalModelSuiteId == 0L ||
+          request.filter.after.externalModelProviderId == 0L)
+    ) {
+      failGrpc(
+        Status.INVALID_ARGUMENT,
+      ) {
+        "Missing After filter fields"
+      }
+    }
+    if (
+      request.filter.hasRolloutPeriod() &&
+        (!request.filter.rolloutPeriod.hasRolloutPeriodStartTime() ||
+          !request.filter.rolloutPeriod.hasRolloutPeriodEndTime())
+    ) {
+      failGrpc(
+        Status.INVALID_ARGUMENT,
+      ) {
+        "Missing RolloutPeriod fields"
+      }
+    }
     return StreamModelRollouts(request.filter, request.limit).execute(client.singleUse()).map {
       it.modelRollout
     }
   }
 
   override suspend fun deleteModelRollout(request: DeleteModelRolloutRequest): ModelRollout {
-    grpcRequire(request.externalModelRolloutId != 0L) { "ExternalModelRolloutId unspecified" }
+    grpcRequire(request.externalModelProviderId != 0L) { "ExternalModelProviderId unspecified" }
     grpcRequire(request.externalModelSuiteId != 0L) { "ExternalModelSuiteId unspecified" }
     grpcRequire(request.externalModelLineId != 0L) { "ExternalModelLineId unspecified" }
-    grpcRequire(request.externalModelProviderId != 0L) { "ExternalModelProviderId unspecified" }
+    grpcRequire(request.externalModelRolloutId != 0L) { "ExternalModelRolloutId unspecified" }
     try {
-      return DeleteModelRollout(request).execute(client, idGenerator)
+      return DeleteModelRollout(request, clock).execute(client, idGenerator)
     } catch (e: ModelRolloutNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelRollout not found." }
+    } catch (e: ModelRolloutInvalidArgsException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+        "RolloutStartTime already passed"
+      }
     }
   }
 }

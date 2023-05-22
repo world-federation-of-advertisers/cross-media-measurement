@@ -23,7 +23,6 @@ import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Timestamps
 import java.time.Clock
 import kotlinx.coroutines.flow.singleOrNull
-import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.toProtoTime
@@ -33,13 +32,10 @@ import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ModelRollout
-import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelReleaseNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutInvalidArgsException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelRollouts
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelReleaseReader
 
 class CreateModelRollout(private val modelRollout: ModelRollout, private val clock: Clock) :
@@ -74,7 +70,8 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
         ExternalId(modelRollout.externalModelProviderId),
         ExternalId(modelRollout.externalModelSuiteId),
         ExternalId(modelRollout.externalModelLineId),
-        modelRollout.rolloutPeriodStartTime)
+        modelRollout.rolloutPeriodStartTime
+      )
 
     val modelLineData =
       readModelLineData(
@@ -89,16 +86,18 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
         )
 
     val modelReleaseResult =
-      ModelReleaseReader().readByExternalIds(
-        transactionContext,
-        ExternalId(modelRollout.externalModelReleaseId),
-        ExternalId(modelRollout.externalModelSuiteId),
-        ExternalId(modelRollout.externalModelProviderId)
-      ) ?: throw ModelReleaseNotFoundException(
-        ExternalId(modelRollout.externalModelProviderId),
-        ExternalId(modelRollout.externalModelSuiteId),
-        ExternalId(modelRollout.externalModelReleaseId)
-      )
+      ModelReleaseReader()
+        .readByExternalIds(
+          transactionContext,
+          ExternalId(modelRollout.externalModelReleaseId),
+          ExternalId(modelRollout.externalModelSuiteId),
+          ExternalId(modelRollout.externalModelProviderId)
+        )
+        ?: throw ModelReleaseNotFoundException(
+          ExternalId(modelRollout.externalModelProviderId),
+          ExternalId(modelRollout.externalModelSuiteId),
+          ExternalId(modelRollout.externalModelReleaseId)
+        )
 
     val internalModelRolloutId = idGenerator.generateInternalId()
     val externalModelRolloutId = idGenerator.generateExternalId()
@@ -112,7 +111,9 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
       set("RolloutPeriodStartTime" to modelRollout.rolloutPeriodStartTime.toGcloudTimestamp())
       set("RolloutPeriodEndTime" to modelRollout.rolloutPeriodEndTime.toGcloudTimestamp())
       if (previousModelRolloutData != null) {
-        set("PreviousModelRollout" to InternalId(previousModelRolloutData.getLong("ModelRolloutId")))
+        set(
+          "PreviousModelRollout" to InternalId(previousModelRolloutData.getLong("ModelRolloutId"))
+        )
       }
       set("ModelRelease" to modelReleaseResult.modelReleaseId)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
