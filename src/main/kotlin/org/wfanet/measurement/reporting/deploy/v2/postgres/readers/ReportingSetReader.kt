@@ -280,9 +280,13 @@ class ReportingSetReader(private val readContext: ReadContext) {
     }
   }
 
+
+  /**
+   * Returns a map that maintains the order of the query result.
+   */
   private suspend fun buildResultMap(statement: BoundStatement): Map<InternalId, ReportingSetInfo> {
     // Key is reportingSetId.
-    val reportingSetInfoMap: MutableMap<InternalId, ReportingSetInfo> = mutableMapOf()
+    val reportingSetInfoMap: MutableMap<InternalId, ReportingSetInfo> = linkedMapOf()
 
     val translate: Translate = { row: ResultRow ->
       val measurementConsumerId: InternalId = row["ReportingSetsMeasurementConsumerId"]

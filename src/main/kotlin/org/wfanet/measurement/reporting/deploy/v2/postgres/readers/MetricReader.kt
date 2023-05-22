@@ -313,9 +313,12 @@ class MetricReader(private val readContext: ReadContext) {
     }
   }
 
+  /**
+   * Returns a map that maintains the order of the query result.
+   */
   private suspend fun buildResultMap(statement: BoundStatement): Map<InternalId, MetricInfo> {
     // Key is metricId.
-    val metricInfoMap: MutableMap<InternalId, MetricInfo> = mutableMapOf()
+    val metricInfoMap: MutableMap<InternalId, MetricInfo> = linkedMapOf()
 
     val translate: (row: ResultRow) -> Unit = { row: ResultRow ->
       val measurementConsumerId: InternalId = row["MeasurementConsumerId"]
