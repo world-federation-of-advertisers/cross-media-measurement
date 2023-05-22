@@ -748,7 +748,7 @@ class FrontendSimulator(
      * TODO(@SanjayVas): Make this configurable.
      */
     private val EVENT_RANGE =
-      OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 15))
+      OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
