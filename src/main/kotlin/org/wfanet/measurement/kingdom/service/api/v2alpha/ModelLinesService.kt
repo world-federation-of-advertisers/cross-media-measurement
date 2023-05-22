@@ -212,6 +212,8 @@ class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
           listModelLinesPageToken.copy {
             lastModelLine = previousPageEnd {
               createTime = results[results.lastIndex - 1].createTime
+              externalModelProviderId = results[results.lastIndex - 1].externalModelProviderId
+              externalModelSuiteId = results[results.lastIndex - 1].externalModelSuiteId
               externalModelLineId = results[results.lastIndex - 1].externalModelLineId
             }
           }

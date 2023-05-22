@@ -152,8 +152,7 @@ private fun run(
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
       ModelLinesService(InternalModelLinesCoroutineStub(channel))
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
-        .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ModelSuitesService(InternalModelSuitesCoroutineStub(channel))
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),

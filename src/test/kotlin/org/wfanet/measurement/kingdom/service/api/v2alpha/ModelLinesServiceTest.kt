@@ -140,7 +140,7 @@ class ModelLinesServiceTest {
       onBlocking { createModelLine(any()) }
         .thenAnswer {
           val request = it.getArgument<InternalModelLine>(0)
-          if (request.externalModelSuiteId != 123L) {
+          if (request.externalModelSuiteId != EXTERNAL_MODEL_SUITE_ID) {
             failGrpc(Status.NOT_FOUND) { "ModelProvider not found" }
           } else {
             when (request.type) {
@@ -737,9 +737,11 @@ class ModelLinesServiceTest {
       parent = MODEL_SUITE_NAME
       val listModelLinesPageToken = listModelLinesPageToken {
         pageSize = 2
-        externalModelProviderId = 987
+        externalModelProviderId = 987L
         lastModelLine = previousPageEnd {
           createTime = CREATE_TIME
+          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
           externalModelLineId = EXTERNAL_MODEL_LINE_ID
         }
       }
@@ -798,6 +800,8 @@ class ModelLinesServiceTest {
         types += Type.HOLDBACK
         lastModelLine = previousPageEnd {
           createTime = CREATE_TIME
+          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
           externalModelLineId = EXTERNAL_MODEL_LINE_ID
         }
       }
@@ -825,6 +829,8 @@ class ModelLinesServiceTest {
         types += Type.HOLDBACK
         lastModelLine = previousPageEnd {
           createTime = CREATE_TIME
+          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
           externalModelLineId = EXTERNAL_MODEL_LINE_ID_2
         }
       }
@@ -847,6 +853,8 @@ class ModelLinesServiceTest {
             type += TYPES
             after = afterFilter {
               createTime = CREATE_TIME
+              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
               externalModelLineId = EXTERNAL_MODEL_LINE_ID
             }
           }
@@ -875,6 +883,8 @@ class ModelLinesServiceTest {
         types += Type.HOLDBACK
         lastModelLine = previousPageEnd {
           createTime = CREATE_TIME
+          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
           externalModelLineId = EXTERNAL_MODEL_LINE_ID
         }
       }
@@ -901,6 +911,8 @@ class ModelLinesServiceTest {
             type += TYPES
             after = afterFilter {
               createTime = CREATE_TIME
+              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
               externalModelLineId = EXTERNAL_MODEL_LINE_ID
             }
           }
@@ -926,6 +938,8 @@ class ModelLinesServiceTest {
         types += Type.HOLDBACK
         lastModelLine = previousPageEnd {
           createTime = CREATE_TIME
+          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
           externalModelLineId = EXTERNAL_MODEL_LINE_ID
         }
       }
@@ -952,6 +966,8 @@ class ModelLinesServiceTest {
             type += TYPES
             after = afterFilter {
               createTime = CREATE_TIME
+              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
               externalModelLineId = EXTERNAL_MODEL_LINE_ID
             }
           }
