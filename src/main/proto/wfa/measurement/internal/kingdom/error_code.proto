@@ -92,4 +92,6 @@ enum ErrorCode {
   MODEL_ROLLOUT_INVALID_ARGS = 33;
   /** ModelRollout resource queried could not be found. */
   MODEL_ROLLOUT_NOT_FOUND = 34;
+  /** ModelRelease resource queried could not be found. */
+  MODEL_RELEASE_NOT_FOUND = 35;
 }

@@ -131,11 +131,26 @@ class ModelLineInvalidArgsException(
       )
 }
 
+class ModelReleaseNotFoundException(
+  val externalModelProviderId: ExternalId,
+  val externalModelSuiteId: ExternalId,
+  val externalModelReleaseId: ExternalId,
+  provideDescription: () -> String = { "ModelRelease not found" }
+) : KingdomInternalException(ErrorCode.MODEL_RELEASE_NOT_FOUND, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_model_provider_id" to externalModelProviderId.toString(),
+        "external_model_suite_id" to externalModelSuiteId.toString(),
+        "external_model_release_id" to externalModelReleaseId.toString(),
+      )
+}
+
 class ModelRolloutNotFoundException(
   val externalModelProviderId: ExternalId,
   val externalModelSuiteId: ExternalId,
   val externalModelLineId: ExternalId,
-  val externalModelRolloutId: ExternalId,
+  val externalModelRolloutId: ExternalId? = null,
   provideDescription: () -> String = { "ModelRollout not found" }
 ) : KingdomInternalException(ErrorCode.MODEL_ROLLOUT_NOT_FOUND, provideDescription) {
   override val context
