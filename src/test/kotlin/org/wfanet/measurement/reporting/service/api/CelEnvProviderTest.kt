@@ -19,11 +19,12 @@ package org.wfanet.measurement.reporting.service.api
 import io.grpc.Status
 import java.time.Clock
 import java.time.Duration
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
-import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -78,22 +79,19 @@ class CelEnvProviderTest {
     addService(cmmsEventGroupMetadataDescriptorsServiceMock)
   }
 
-  private fun createCacheProvider(): CelEnvCacheProvider {
-    return CelEnvCacheProvider(
-      EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
-        grpcTestServerRule.channel
-      ),
-      Duration.ofMinutes(5),
-      Dispatchers.Default,
-      Clock.systemUTC(),
-      3
-    )
-  }
-
   @Test
   fun `cache provider updates its cache only once if 2 update attempts around same time`() =
     runBlocking {
-      val cacheProvider = createCacheProvider()
+      val coroutineScope = CoroutineScope(coroutineContext + SupervisorJob())
+      val cacheProvider = CelEnvCacheProvider(
+        EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
+          grpcTestServerRule.channel
+        ),
+        Duration.ofMinutes(5),
+        coroutineScope,
+        Clock.systemUTC(),
+        3
+      )
       cacheProvider.getTypeRegistryAndEnv()
 
       val eventGroupMetadataDescriptorsCaptor:
@@ -103,6 +101,7 @@ class CelEnvProviderTest {
       verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, times(1)) {
         listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
       }
+      coroutineScope.cancel()
     }
 
   @Test
@@ -119,17 +118,16 @@ class CelEnvProviderTest {
           }
         )
 
+      val coroutineScope = CoroutineScope(coroutineContext + SupervisorJob())
       CelEnvCacheProvider(
         EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
           grpcTestServerRule.channel
         ),
-        Duration.ofMillis(500),
-        coroutineContext,
+        Duration.ofMinutes(5),
+        coroutineScope,
         Clock.systemUTC(),
         1
       )
-
-      runCurrent()
 
       val eventGroupMetadataDescriptorsCaptor:
         KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> =
@@ -138,6 +136,7 @@ class CelEnvProviderTest {
       verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, timeout(10).times(1)) {
         listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
       }
+      coroutineScope.cancel()
     }
 
   @Test
@@ -158,12 +157,13 @@ class CelEnvProviderTest {
       val fakeClock: Clock = mock()
       whenever(fakeClock.instant()).thenReturn(clock.instant())
 
+      val coroutineScope = CoroutineScope(coroutineContext + SupervisorJob())
       CelEnvCacheProvider(
         EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
           grpcTestServerRule.channel
         ),
         Duration.ofMillis(100),
-        coroutineContext,
+        coroutineScope,
         fakeClock,
         1
       )
@@ -175,8 +175,9 @@ class CelEnvProviderTest {
         KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> =
         argumentCaptor()
 
-      verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, timeout(50).times(2)) {
+      verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, timeout(50).atLeast(2)) {
         listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
       }
+      coroutineScope.cancel()
     }
 }

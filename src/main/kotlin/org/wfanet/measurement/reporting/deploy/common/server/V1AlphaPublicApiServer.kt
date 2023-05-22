@@ -40,6 +40,8 @@ import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import org.wfanet.measurement.reporting.deploy.common.EncryptionKeyPairMap
 import org.wfanet.measurement.reporting.deploy.common.KingdomApiFlags
 import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
@@ -104,7 +106,7 @@ private fun run(
       KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel)
         .withAuthenticationKey(apiKey),
       reportingApiServerFlags.eventGroupMetadataDescriptorCacheDuration,
-      Dispatchers.Default,
+      CoroutineScope(Dispatchers.Default + SupervisorJob()),
       Clock.systemUTC(),
     )
 

@@ -25,9 +25,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
-import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.retry
 import kotlinx.coroutines.launch
@@ -61,7 +59,7 @@ class CelEnvCacheProvider(
   private val eventGroupsMetadataDescriptorsStub:
     EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub,
   private val cacheRefreshInterval: Duration,
-  coroutineContext: CoroutineContext,
+  coroutineScope: CoroutineScope,
   private val clock: Clock,
   private val numRetries: Long = 3L,
 ) : CelEnvProvider {
@@ -69,10 +67,10 @@ class CelEnvCacheProvider(
 
   private lateinit var typeRegistryAndEnv: CelEnvProvider.TypeRegistryAndEnv
   private var lastUpdated = Instant.EPOCH
-  private val cacheRefreshIntervalPortion = cacheRefreshInterval.toMillis() * 0.90
+  private val cacheRefreshIntervalMillis = cacheRefreshInterval.toMillis()
 
   init {
-    CoroutineScope(coroutineContext + SupervisorJob()).launch {
+    coroutineScope.launch {
       MinimumIntervalThrottler(clock, cacheRefreshInterval).loopOnReady {
         val updateFlow = flow<Unit> { setTypeRegistryAndEnv() }
         updateFlow
@@ -96,7 +94,7 @@ class CelEnvCacheProvider(
   private suspend fun setTypeRegistryAndEnv() {
     mutex.withLock {
       val difference = ChronoUnit.MILLIS.between(lastUpdated, clock.instant())
-      if (difference >= cacheRefreshIntervalPortion) {
+      if (difference >= cacheRefreshIntervalMillis) {
         typeRegistryAndEnv = buildTypeRegistryAndEnv()
         lastUpdated = clock.instant()
       }

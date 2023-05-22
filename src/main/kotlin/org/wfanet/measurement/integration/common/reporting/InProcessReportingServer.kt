@@ -44,6 +44,8 @@ import org.wfanet.measurement.integration.common.reporting.identity.withMetadata
 import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import org.wfanet.measurement.reporting.deploy.common.server.ReportingDataServer
 import org.wfanet.measurement.reporting.deploy.common.server.ReportingDataServer.Companion.toList
 import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
@@ -123,7 +125,7 @@ class InProcessReportingServer(
             measurementConsumerConfig.apiKey
           ),
           Duration.ofSeconds(5),
-          Dispatchers.Default,
+          CoroutineScope(Dispatchers.Default + SupervisorJob()),
           Clock.systemUTC(),
         )
 
