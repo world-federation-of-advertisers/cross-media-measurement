@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
@@ -83,11 +84,17 @@ class ActivateAccount(
     }
 
     if (readAccountResult.account.externalOwnedMeasurementConsumerId != 0L) {
-      val ownedMeasurementConsumerId =
-        readMeasurementConsumerId(readAccountResult.account.externalOwnedMeasurementConsumerId)
+      val externalMeasurementConsumerId =
+        ExternalId(readAccountResult.account.externalOwnedMeasurementConsumerId)
+      val measurementConsumerId: InternalId =
+        MeasurementConsumerReader.readMeasurementConsumerId(
+          transactionContext,
+          externalMeasurementConsumerId
+        )
+          ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
 
       transactionContext.bufferInsertMutation("MeasurementConsumerOwners") {
-        set("MeasurementConsumerId" to ownedMeasurementConsumerId)
+        set("MeasurementConsumerId" to measurementConsumerId)
         set("AccountId" to readAccountResult.accountId)
       }
     }
@@ -119,15 +126,4 @@ class ActivateAccount(
   ): AccountReader.Result =
     AccountReader().readByExternalAccountId(transactionContext, externalAccountId)
       ?: throw AccountNotFoundException(externalAccountId)
-
-  private suspend fun TransactionScope.readMeasurementConsumerId(
-    externalMeasurementConsumerId: Long
-  ): Long =
-    MeasurementConsumerReader()
-      .readByExternalMeasurementConsumerId(
-        transactionContext,
-        ExternalId(externalMeasurementConsumerId)
-      )
-      ?.measurementConsumerId
-      ?: throw MeasurementConsumerNotFoundException(ExternalId(externalMeasurementConsumerId))
 }

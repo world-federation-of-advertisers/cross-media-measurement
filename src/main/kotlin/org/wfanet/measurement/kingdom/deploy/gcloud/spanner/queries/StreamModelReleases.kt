@@ -20,19 +20,25 @@ import com.google.cloud.spanner.Statement
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
-import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequest
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelSuiteReader
+import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelReleaseReader
 
-class StreamModelSuites(
-  private val requestFilter: StreamModelSuitesRequest.Filter,
+class StreamModelReleases(
+  private val requestFilter: StreamModelReleasesRequest.Filter,
   limit: Int = 0
-) : SimpleSpannerQuery<ModelSuiteReader.Result>() {
+) : SimpleSpannerQuery<ModelReleaseReader.Result>() {
 
   override val reader =
-    ModelSuiteReader().fillStatementBuilder {
+    ModelReleaseReader().fillStatementBuilder {
       appendWhereClause(requestFilter)
       appendClause(
-        "ORDER BY ModelSuites.CreateTime ASC, ModelProviders.ExternalModelProviderId ASC, ModelSuites.ExternalModelSuiteId ASC"
+        """
+          ORDER BY ModelReleases.CreateTime ASC,
+          ModelProviders.ExternalModelProviderId ASC,
+          ModelSuites.ExternalModelSuiteId ASC,
+          ModelReleases.ExternalModelReleaseId ASC
+        """
+          .trimIndent()
       )
       if (limit > 0) {
         appendClause("LIMIT @${LIMIT_PARAM}")
@@ -40,7 +46,7 @@ class StreamModelSuites(
       }
     }
 
-  private fun Statement.Builder.appendWhereClause(filter: StreamModelSuitesRequest.Filter) {
+  private fun Statement.Builder.appendWhereClause(filter: StreamModelReleasesRequest.Filter) {
     val conjuncts = mutableListOf<String>()
 
     if (filter.externalModelProviderId != 0L) {
@@ -48,19 +54,29 @@ class StreamModelSuites(
       bind(EXTERNAL_MODEL_PROVIDER_ID to filter.externalModelProviderId)
     }
 
+    if (filter.externalModelSuiteId != 0L) {
+      conjuncts.add("ExternalModelSuiteId = @${EXTERNAL_MODEL_SUITE_ID}")
+      bind(EXTERNAL_MODEL_SUITE_ID to filter.externalModelSuiteId)
+    }
+
     if (filter.hasAfter()) {
       conjuncts.add(
         """
-          ((ModelSuites.CreateTime  > @${CREATED_AFTER})
-          OR (ModelSuites.CreateTime  = @${CREATED_AFTER}
+          ((ModelReleases.CreateTime > @${CREATED_AFTER})
+          OR (ModelReleases.CreateTime = @${CREATED_AFTER}
+          AND ModelProviders.ExternalModelProviderId > @${EXTERNAL_MODEL_PROVIDER_ID})
+          OR (ModelReleases.CreateTime = @${CREATED_AFTER}
           AND ModelProviders.ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID}
           AND ModelSuites.ExternalModelSuiteId > @${EXTERNAL_MODEL_SUITE_ID})
-          OR (ModelSuites.CreateTime  = @${CREATED_AFTER}
-          AND ModelProviders.ExternalModelProviderId > @${EXTERNAL_MODEL_PROVIDER_ID}))
+          OR (ModelReleases.CreateTime = @${CREATED_AFTER}
+          AND ModelProviders.ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID}
+          AND ModelSuites.ExternalModelSuiteId = @${EXTERNAL_MODEL_SUITE_ID}
+          AND ModelReleases.ExternalModelReleaseId > @${EXTERNAL_MODEL_RELEASE_ID}))
         """
           .trimIndent()
       )
       bind(CREATED_AFTER to filter.after.createTime.toGcloudTimestamp())
+      bind(EXTERNAL_MODEL_RELEASE_ID to filter.after.externalModelReleaseId)
       bind(EXTERNAL_MODEL_SUITE_ID to filter.after.externalModelSuiteId)
       bind(EXTERNAL_MODEL_PROVIDER_ID to filter.after.externalModelProviderId)
     }
@@ -75,8 +91,9 @@ class StreamModelSuites(
 
   companion object {
     const val LIMIT_PARAM = "limit"
+    const val EXTERNAL_MODEL_RELEASE_ID = "externalModelReleaseId"
+    const val EXTERNAL_MODEL_SUITE_ID = "externalModelSuiteId"
     const val EXTERNAL_MODEL_PROVIDER_ID = "externalModelProviderId"
     const val CREATED_AFTER = "createdAfter"
-    const val EXTERNAL_MODEL_SUITE_ID = "externalModelSuiteId"
   }
 }

@@ -15,12 +15,12 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Value
-import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
+import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
@@ -38,48 +38,43 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.checkValidCe
  * * [MeasurementConsumerNotFoundException] MeasurementConsumer not found
  * * [DataProviderNotFoundException] DataProvider not found
  */
-class CreateEventGroup(private val eventGroup: EventGroup) :
+class CreateEventGroup(private val request: CreateEventGroupRequest) :
   SpannerWriter<EventGroup, EventGroup>() {
+
   override suspend fun TransactionScope.runTransaction(): EventGroup {
-    val measurementConsumerId =
-      MeasurementConsumerReader()
-        .readByExternalMeasurementConsumerId(
-          transactionContext,
-          ExternalId(eventGroup.externalMeasurementConsumerId)
-        )
-        ?.measurementConsumerId
-        ?: throw MeasurementConsumerNotFoundException(
-          ExternalId(eventGroup.externalMeasurementConsumerId)
-        )
+    val externalMeasurementConsumerId = ExternalId(request.eventGroup.externalMeasurementConsumerId)
+    val measurementConsumerId: InternalId =
+      MeasurementConsumerReader.readMeasurementConsumerId(
+        transactionContext,
+        externalMeasurementConsumerId
+      )
+        ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
 
-    val dataProviderId =
-      DataProviderReader()
-        .readByExternalDataProviderId(
-          transactionContext,
-          ExternalId(eventGroup.externalDataProviderId)
-        )
-        ?.dataProviderId
-        ?: throw DataProviderNotFoundException(ExternalId(eventGroup.externalDataProviderId))
+    val externalDataProviderId = ExternalId(request.eventGroup.externalDataProviderId)
+    val dataProviderId: InternalId =
+      DataProviderReader.readDataProviderId(transactionContext, externalDataProviderId)
+        ?: throw DataProviderNotFoundException(externalDataProviderId)
 
-    return if (eventGroup.providedEventGroupId.isBlank()) {
-      createNewEventGroup(dataProviderId, measurementConsumerId)
-    } else {
-      findExistingEventGroup(dataProviderId)
-        ?: createNewEventGroup(dataProviderId, measurementConsumerId)
+    if (request.requestId.isNotEmpty()) {
+      val existingEventGroup: EventGroup? = findExistingEventGroup(dataProviderId)
+      if (existingEventGroup != null) {
+        return existingEventGroup
+      }
     }
+    return createNewEventGroup(dataProviderId, measurementConsumerId)
   }
 
   private suspend fun TransactionScope.createNewEventGroup(
-    dataProviderId: Long,
-    measurementConsumerId: Long
+    dataProviderId: InternalId,
+    measurementConsumerId: InternalId
   ): EventGroup {
     val internalEventGroupId: InternalId = idGenerator.generateInternalId()
     val externalEventGroupId: ExternalId = idGenerator.generateExternalId()
     val measurementConsumerCertificateId =
-      if (eventGroup.externalMeasurementConsumerCertificateId > 0L)
+      if (request.eventGroup.externalMeasurementConsumerCertificateId > 0L)
         checkValidCertificate(
-          eventGroup.externalMeasurementConsumerCertificateId,
-          eventGroup.externalMeasurementConsumerId,
+          request.eventGroup.externalMeasurementConsumerCertificateId,
+          request.eventGroup.externalMeasurementConsumerId,
           transactionContext
         )
       else null
@@ -91,29 +86,32 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
         set("MeasurementConsumerCertificateId" to measurementConsumerCertificateId)
       }
       set("DataProviderId" to dataProviderId)
-      if (eventGroup.providedEventGroupId.isNotBlank()) {
-        set("ProvidedEventGroupId" to eventGroup.providedEventGroupId)
+      if (request.requestId.isNotEmpty()) {
+        set("CreateRequestId" to request.requestId)
+      }
+      if (request.eventGroup.providedEventGroupId.isNotEmpty()) {
+        set("ProvidedEventGroupId" to request.eventGroup.providedEventGroupId)
       }
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      if (eventGroup.hasDetails()) {
-        set("EventGroupDetails" to eventGroup.details)
-        setJson("EventGroupDetailsJson" to eventGroup.details)
+      if (request.eventGroup.hasDetails()) {
+        set("EventGroupDetails" to request.eventGroup.details)
+        setJson("EventGroupDetailsJson" to request.eventGroup.details)
       }
       set("State" to EventGroup.State.ACTIVE)
     }
 
-    return eventGroup.copy {
+    return request.eventGroup.copy {
       this.externalEventGroupId = externalEventGroupId.value
       this.state = EventGroup.State.ACTIVE
     }
   }
 
-  private suspend fun TransactionScope.findExistingEventGroup(dataProviderId: Long): EventGroup? {
+  private suspend fun TransactionScope.findExistingEventGroup(
+    dataProviderId: InternalId
+  ): EventGroup? {
     return EventGroupReader()
-      .bindWhereClause(dataProviderId, eventGroup.providedEventGroupId)
-      .execute(transactionContext)
-      .singleOrNull()
+      .readByCreateRequestId(transactionContext, dataProviderId, request.requestId)
       ?.eventGroup
   }
 

@@ -17,36 +17,43 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "google/protobuf/timestamp.proto";
-import "wfa/measurement/internal/kingdom/model_suite.proto";
+import "wfa/measurement/internal/kingdom/model_release.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
-// Internal service for persistence of ModelSuite entities.
-service ModelSuites {
-  rpc CreateModelSuite(ModelSuite) returns (ModelSuite);
+// Internal service for persistence of ModelRelease entities.
+service ModelReleases {
+  // Creates a new `ModelRelease`.
+  rpc CreateModelRelease(ModelRelease) returns (ModelRelease);
 
-  rpc GetModelSuite(GetModelSuiteRequest) returns (ModelSuite);
-  // Streams `ModelSuite`s.
-  rpc StreamModelSuites(StreamModelSuitesRequest) returns (stream ModelSuite);
+  // Returns a single `ModelRelease`.
+  rpc GetModelRelease(GetModelReleaseRequest) returns (ModelRelease);
+
+  // Lists `ModelRelease`s.
+  rpc StreamModelReleases(StreamModelReleasesRequest)
+      returns (stream ModelRelease);
 }
 
-message GetModelSuiteRequest {
-  fixed64 external_model_provider_id = 1;
+message GetModelReleaseRequest {
+  fixed64 external_model_release_id = 1;
   fixed64 external_model_suite_id = 2;
+  fixed64 external_model_provider_id = 3;
 }
 
-message StreamModelSuitesRequest {
+message StreamModelReleasesRequest {
   message AfterFilter {
-    fixed64 external_model_provider_id = 1;
-    fixed64 external_model_suite_id = 2;
-    google.protobuf.Timestamp create_time = 3;
+    google.protobuf.Timestamp create_time = 1;
+    fixed64 external_model_provider_id = 2;
+    fixed64 external_model_suite_id = 3;
+    fixed64 external_model_release_id = 4;
   }
 
   // Filter criteria as a conjunction of specified fields.
   message Filter {
-    fixed64 external_model_provider_id = 1;
-    AfterFilter after = 2;
+    int64 external_model_suite_id = 1;
+    int64 external_model_provider_id = 2;
+    AfterFilter after = 3;
   }
   Filter filter = 1;
 
