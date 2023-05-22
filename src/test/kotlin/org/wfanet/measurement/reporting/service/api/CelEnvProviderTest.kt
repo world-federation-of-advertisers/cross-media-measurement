@@ -83,15 +83,16 @@ class CelEnvProviderTest {
   fun `cache provider updates its cache only once if 2 update attempts around same time`() =
     runBlocking {
       val coroutineScope = CoroutineScope(coroutineContext + SupervisorJob())
-      val cacheProvider = CelEnvCacheProvider(
-        EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
-          grpcTestServerRule.channel
-        ),
-        Duration.ofMinutes(5),
-        coroutineScope,
-        Clock.systemUTC(),
-        3
-      )
+      val cacheProvider =
+        CelEnvCacheProvider(
+          EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
+            grpcTestServerRule.channel
+          ),
+          Duration.ofMinutes(5),
+          coroutineScope,
+          Clock.systemUTC(),
+          3
+        )
       cacheProvider.getTypeRegistryAndEnv()
 
       val eventGroupMetadataDescriptorsCaptor:
