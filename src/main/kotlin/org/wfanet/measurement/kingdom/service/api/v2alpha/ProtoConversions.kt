@@ -318,20 +318,20 @@ fun InternalModelLine.toModelLine(): ModelLine {
 
 /** Converts a public [ModelLine] to an internal [InternalModelLine] */
 fun ModelLine.toInternal(modelSuiteKey: ModelSuiteKey): InternalModelLine {
-  val publicModelSuite = this
+  val publicModelLine = this
 
   return internalModelLine {
     externalModelProviderId = apiIdToExternalId(modelSuiteKey.modelProviderId)
     externalModelSuiteId = apiIdToExternalId(modelSuiteKey.modelSuiteId)
-    displayName = publicModelSuite.displayName
-    description = publicModelSuite.description
-    activeStartTime = publicModelSuite.activeStartTime
-    if (publicModelSuite.hasActiveEndTime()) {
-      activeEndTime = publicModelSuite.activeEndTime
+    displayName = publicModelLine.displayName
+    description = publicModelLine.description
+    activeStartTime = publicModelLine.activeStartTime
+    if (publicModelLine.hasActiveEndTime()) {
+      activeEndTime = publicModelLine.activeEndTime
     }
-    type = publicModelSuite.type.toInternalType()
-    if (publicModelSuite.holdbackModelLine.isNotBlank()) {
-      externalHoldbackModelLineId = apiIdToExternalId(publicModelSuite.holdbackModelLine)
+    type = publicModelLine.type.toInternalType()
+    if (publicModelLine.holdbackModelLine.isNotBlank()) {
+      externalHoldbackModelLineId = apiIdToExternalId(publicModelLine.holdbackModelLine)
     }
   }
 }
