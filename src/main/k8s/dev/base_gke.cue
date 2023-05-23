@@ -66,7 +66,20 @@ package k8s
 	}
 }
 
+#ServerDeployment: {
+	_container: {
+		resources: Resources={
+			requests: {
+				memory: _ | *"320Mi"
+			}
+			limits: {
+				memory: _ | *Resources.requests.memory
+			}
+		}
+	}
+}
+
 #JavaOptions: {
-	initialHeapSize: _ | *"32M"
-	maxHeapSize:     _ | *"96M"
+	initialHeapSize: _ | *"64M"
+	maxHeapSize:     _ | *"64M"
 }

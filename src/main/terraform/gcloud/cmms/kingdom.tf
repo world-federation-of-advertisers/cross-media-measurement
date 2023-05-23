@@ -34,8 +34,8 @@ module "kingdom_default_node_pool" {
   name            = "default"
   cluster         = data.google_container_cluster.kingdom
   service_account = module.common.cluster_service_account
-  machine_type    = "e2-custom-2-3072"
-  max_node_count  = 4
+  machine_type    = "e2-custom-2-4096"
+  max_node_count  = 3
 }
 
 provider "kubernetes" {
@@ -58,5 +58,6 @@ module "kingdom" {
     kubernetes = kubernetes.kingdom
   }
 
-  spanner_instance = google_spanner_instance.spanner_instance
+  monitoring_service_account = module.common.monitoring_service_account
+  spanner_instance           = google_spanner_instance.spanner_instance
 }
