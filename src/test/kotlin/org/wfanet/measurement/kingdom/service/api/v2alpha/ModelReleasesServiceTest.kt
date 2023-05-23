@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
@@ -27,17 +29,39 @@ import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleases
 import org.wfanet.measurement.internal.kingdom.ModelRelease as InternalModelRelease
 import org.wfanet.measurement.internal.kingdom.modelRelease as internalModelRelease
 import com.google.protobuf.Timestamp
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import java.time.Instant
+import kotlin.test.assertFailsWith
+import kotlinx.coroutines.runBlocking
 import org.junit.Rule
+import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.api.v2alpha.ModelReleaseKey
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
+import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
+import org.wfanet.measurement.api.v2alpha.getModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.modelRelease
+import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.withDuchyPrincipal
+import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
+import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.getModelReleaseRequest as internalGetModelReleaseRequest
+import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequestKt.filter as internalFilter
+import org.mockito.kotlin.verify
+import org.wfanet.measurement.api.v2alpha.listModelReleasesRequest
+import org.wfanet.measurement.api.v2alpha.listModelReleasesResponse
+import org.wfanet.measurement.common.testing.captureFirst
+import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequest
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.streamModelReleasesRequest as internalStreamModelReleasesRequest
 
 private const val DEFAULT_LIMIT = 50
 
@@ -83,7 +107,13 @@ class ModelReleasesServiceTest {
 
   private val internalModelLinesMock: ModelReleasesCoroutineImplBase =
     mockService() {
-      onBlocking { createModelRelease(any()) }.thenReturn(INTERNAL_MODEL_RELEASE)
+      onBlocking { createModelRelease(any()) }
+        .thenAnswer {
+          val request = it.getArgument<InternalModelRelease>(0)
+          if (request.externalModelSuiteId != EXTERNAL_MODEL_SUITE_ID) {
+            failGrpc(Status.NOT_FOUND) { "ModelProvider not found" }
+          } else { INTERNAL_MODEL_RELEASE }
+        }
       onBlocking { getModelRelease(any()) }
         .thenReturn(INTERNAL_MODEL_RELEASE)
       onBlocking { streamModelReleases(any()) }
@@ -111,6 +141,292 @@ class ModelReleasesServiceTest {
       ModelReleasesService(
         ModelReleasesCoroutineStub(grpcTestServerRule.channel),
       )
+  }
+
+  @Test
+  fun `createModelRelease returns model release`() {
+    val request = createModelReleaseRequest {
+      parent = MODEL_SUITE_NAME
+      modelRelease = MODEL_RELEASE
+    }
+
+    val result =
+      withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+        runBlocking { service.createModelRelease(request) }
+      }
+
+    val expected = MODEL_RELEASE
+
+    verifyProtoArgument(internalModelLinesMock, ModelReleasesCoroutineImplBase::createModelRelease)
+      .isEqualTo(
+        INTERNAL_MODEL_RELEASE.copy {
+          clearCreateTime()
+          clearExternalModelReleaseId()
+        }
+      )
+
+    assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `createModelRelease throws UNAUTHENTICATED when no principal is found`() {
+    val request = createModelReleaseRequest {
+      parent = MODEL_SUITE_NAME
+      modelRelease = MODEL_RELEASE
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.createModelRelease(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `createModelRelease throws PERMISSION_DENIED when principal is data provider`() {
+    val request = createModelReleaseRequest {
+      parent = MODEL_SUITE_NAME
+      modelRelease = MODEL_RELEASE
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.createModelRelease(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `createModelRelease throws PERMISSION_DENIED when principal is duchy`() {
+    val request = createModelReleaseRequest {
+      parent = MODEL_SUITE_NAME
+      modelRelease = MODEL_RELEASE
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDuchyPrincipal(DUCHY_NAME) { runBlocking { service.createModelRelease(request) } }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `createModelRelease throws PERMISSION_DENIED when principal is measurement consumer`() {
+    val request = createModelReleaseRequest {
+      parent = MODEL_SUITE_NAME
+      modelRelease = MODEL_RELEASE
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.createModelRelease(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `createModelRelease throws PERMISSION_DENIED when model provider caller doesn't match`() {
+    val request = createModelReleaseRequest {
+      parent = MODEL_SUITE_NAME
+      modelRelease = MODEL_RELEASE
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME_2) {
+          runBlocking { service.createModelRelease(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `createModelRelease throws INVALID_ARGUMENT when parent is missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking { service.createModelRelease(createModelReleaseRequest { modelRelease = MODEL_RELEASE }) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createModelRelease throws NOT_FOUND if model suite is not found`() {
+    val request = createModelReleaseRequest {
+      parent = MODEL_SUITE_NAME_2
+      modelRelease = MODEL_RELEASE.copy {
+        name = MODEL_RELEASE_NAME_4
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME_2) {
+          runBlocking { service.createModelRelease(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `getModelRelease returns model release when model provider caller is found`() {
+    val request = getModelReleaseRequest {
+      name = MODEL_RELEASE_NAME
+    }
+
+    val result =
+      withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+        runBlocking { service.getModelRelease(request) }
+      }
+
+    val expected = MODEL_RELEASE
+
+    verifyProtoArgument(internalModelLinesMock, ModelReleasesCoroutineImplBase::getModelRelease)
+      .isEqualTo(
+        internalGetModelReleaseRequest {
+          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+          externalModelReleaseId = EXTERNAL_MODEL_RELEASE_ID
+        }
+      )
+
+    assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `getModelRelease returns model release when data provider caller is found`() {
+    val request = getModelReleaseRequest {
+      name = MODEL_RELEASE_NAME
+    }
+
+    val result =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.getModelRelease(request) }
+      }
+
+    val expected = MODEL_RELEASE
+
+    verifyProtoArgument(internalModelLinesMock, ModelReleasesCoroutineImplBase::getModelRelease)
+      .isEqualTo(
+        internalGetModelReleaseRequest {
+          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+          externalModelReleaseId = EXTERNAL_MODEL_RELEASE_ID
+        }
+      )
+
+    assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `getModelRelease throws PERMISSION_DENIED when principal is duchy`() {
+    val request = getModelReleaseRequest {
+      name = MODEL_RELEASE_NAME
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDuchyPrincipal(DUCHY_NAME) { runBlocking { service.getModelRelease(request) } }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `getModelRelease throws PERMISSION_DENIED when principal is measurement consumer`() {
+    val request = getModelReleaseRequest {
+      name = MODEL_RELEASE_NAME
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.getModelRelease(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `getModelRelease throws PERMISSION_DENIED when model provider caller doesn't match`() {
+    val request = getModelReleaseRequest {
+      name = MODEL_RELEASE_NAME
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME_2) {
+          runBlocking { service.getModelRelease(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `getModelRelease throws UNAUTHENTICATED when no principal is found`() {
+    val request = getModelReleaseRequest {
+      name = MODEL_RELEASE_NAME
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.getModelRelease(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `getModelRelease throws INVALID_ARGUMENT when name is missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking { service.getModelRelease(getModelReleaseRequest {}) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `listModelReleases succeeds for model provider caller`() {
+    val request = listModelReleasesRequest {
+      parent = MODEL_SUITE_NAME
+    }
+
+    val result =
+      withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+        runBlocking { service.listModelReleases(request) }
+      }
+
+    val expected = listModelReleasesResponse {
+      modelRelease += MODEL_RELEASE
+      modelRelease +=
+        MODEL_RELEASE.copy {
+          name = MODEL_RELEASE_NAME_2
+        }
+      modelRelease +=
+        MODEL_RELEASE.copy {
+          name = MODEL_RELEASE_NAME_3
+          MODEL_RELEASE        }
+    }
+
+    val streamModelLinesRequest =
+      captureFirst<StreamModelReleasesRequest> {
+        verify(internalModelLinesMock).streamModelReleases(capture())
+      }
+
+    assertThat(streamModelLinesRequest)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        internalStreamModelReleasesRequest {
+          limit = DEFAULT_LIMIT + 1
+          filter = internalFilter {
+            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+            externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+          }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
 
 }
