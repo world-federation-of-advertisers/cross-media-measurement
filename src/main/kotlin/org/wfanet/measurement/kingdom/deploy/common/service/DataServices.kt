@@ -31,18 +31,9 @@ import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.Measu
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
-<<<<<<< HEAD
-<<<<<<< HEAD
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
-=======
-import org.wfanet.measurement.internal.kingdom.ModelShard
-import org.wfanet.measurement.internal.kingdom.ModelShardsGrpcKt
-import org.wfanet.measurement.internal.kingdom.ModelShardsService
->>>>>>> f26d0d19 (Create services to create, delete, and stream ModelShards)
-=======
 import org.wfanet.measurement.internal.kingdom.ModelShardsGrpcKt.ModelShardsCoroutineImplBase
->>>>>>> 9ed34d4c (Initiate duchylist in ModelShardsServiceTest)
+import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.PublicKeysGrpcKt.PublicKeysCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase

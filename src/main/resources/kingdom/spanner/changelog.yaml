@@ -42,3 +42,6 @@ databaseChangeLog:
 - include:
     file: add-create-request-ids.sql
     relativeToChangeLogFile: true
+- include:
+    file: add-model-release-unique-index.sql
+    relativeToChangeLogFile: true

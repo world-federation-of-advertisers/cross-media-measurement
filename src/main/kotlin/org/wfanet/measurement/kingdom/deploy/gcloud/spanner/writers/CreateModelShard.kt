@@ -17,36 +17,37 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Key
+import com.google.cloud.spanner.Statement
+import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
+import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ModelShard
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelReleaseNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 
 class CreateModelShard(private val modelShard: ModelShard) :
   SpannerWriter<ModelShard, ModelShard>() {
 
   override suspend fun TransactionScope.runTransaction(): ModelShard {
-    val externalDataProviderId = ExternalId(modelShard.externalDataProviderId)
-    val dataProviderResult =
-      DataProviderReader().readByExternalDataProviderId(transactionContext, externalDataProviderId)
-        ?: throw DataProviderNotFoundException(externalDataProviderId)
-
-    val dataProviderId = dataProviderResult.dataProviderId
-
-    val internalModelShardId = idGenerator.generateInternalId()
-    val externalModelShardId = idGenerator.generateExternalId()
+    val dataProviderData =
+      readDataProviderData(ExternalId(modelShard.externalDataProviderId))
+        ?: throw DataProviderNotFoundException(ExternalId(modelShard.externalDataProviderId))
 
     val modelReleaseId: InternalId =
       readModelReleaseId(ExternalId(modelShard.externalModelReleaseId))
 
+    val internalModelShardId = idGenerator.generateInternalId()
+    val externalModelShardId = idGenerator.generateExternalId()
+
     transactionContext.bufferInsertMutation("ModelShards") {
-      set("DataProviderId" to dataProviderId)
+      set("DataProviderId" to dataProviderData.getLong("DataProviderId"))
       set("ModelShardId" to internalModelShardId)
       set("ExternalModelShardId" to externalModelShardId)
       set("ModelRelease" to modelReleaseId)
@@ -72,6 +73,24 @@ class CreateModelShard(private val modelShard: ModelShard) :
       ?: throw ModelReleaseNotFoundException(externalModelReleaseId) {
         "ModelRelease with external ID $externalModelReleaseId not found"
       }
+  }
+
+  private suspend fun TransactionScope.readDataProviderData(
+    externalDataProviderId: ExternalId
+  ): Struct? {
+    val sql =
+      """
+    SELECT
+    DataProviders.DataProviderId
+    FROM DataProviders
+    WHERE ExternalDataProviderId = @externalDataProviderId
+    """
+        .trimIndent()
+
+    val statement: Statement =
+      statement(sql) { bind("externalDataProviderId" to externalDataProviderId.value) }
+
+    return transactionContext.executeQuery(statement).singleOrNull()
   }
 
   override fun ResultScope<ModelShard>.buildResult(): ModelShard {

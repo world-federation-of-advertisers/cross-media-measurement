@@ -39,7 +39,10 @@ class SpannerModelShardsServiceTest : ModelShardsServiceTest<SpannerModelShardsS
 
     return Services(
       spannerServices.modelShardsService as SpannerModelShardsService,
-      spannerServices.dataProvidersService
+      spannerServices.dataProvidersService,
+      spannerServices.modelProvidersService,
+      spannerServices.modelSuitesService,
+      spannerServices.modelReleasesService
     )
   }
 }

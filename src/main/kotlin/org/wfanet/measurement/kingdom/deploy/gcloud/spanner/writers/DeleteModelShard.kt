@@ -39,34 +39,27 @@ class DeleteModelShard(
 ) : SimpleSpannerWriter<ModelShard>() {
 
   override suspend fun TransactionScope.runTransaction(): ModelShard {
-    val modelShardResult = readModelShard(externalModelShardId)
+    val dataProviderId = readInternalDataProviderId()
+    val modelShardResult = readModelShard()
 
     transactionContext.buffer(
       Mutation.delete(
         "ModelShards",
-        KeySet.singleKey(
-          Key.of(
-            readInternalDataProviderId(externalDataProviderId),
-            modelShardResult.modelShardId
-          )
-        )
+        KeySet.singleKey(Key.of(dataProviderId, modelShardResult.modelShardId.value))
       )
     )
 
     return modelShardResult.modelShard
   }
 
-  private suspend fun TransactionScope.readInternalDataProviderId(
-    externalDataProviderId: ExternalId
-  ): Long =
+  private suspend fun TransactionScope.readInternalDataProviderId(): Long =
     DataProviderReader()
       .readByExternalDataProviderId(transactionContext, externalDataProviderId)
       ?.dataProviderId
       ?: throw DataProviderNotFoundException(externalDataProviderId)
 
-  private suspend fun TransactionScope.readModelShard(
-    externalModelShardId: ExternalId
-  ): ModelShardReader.Result =
-    ModelShardReader().readByExternalModelShardId(transactionContext, externalDataProviderId, externalModelShardId)
-      ?: throw ModelShardNotFoundException(externalModelShardId)
+  private suspend fun TransactionScope.readModelShard(): ModelShardReader.Result =
+    ModelShardReader()
+      .readByExternalModelShardId(transactionContext, externalDataProviderId, externalModelShardId)
+      ?: throw ModelShardNotFoundException(externalDataProviderId, externalModelShardId)
 }

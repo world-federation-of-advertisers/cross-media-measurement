@@ -50,6 +50,8 @@ import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelRelease
+import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelSuite
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
@@ -65,6 +67,7 @@ import org.wfanet.measurement.internal.kingdom.generateOpenIdRequestParamsReques
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementConsumer
 import org.wfanet.measurement.internal.kingdom.modelProvider
+import org.wfanet.measurement.internal.kingdom.modelRelease
 import org.wfanet.measurement.internal.kingdom.modelSuite
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
@@ -202,6 +205,17 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
         description = "description"
       }
     )
+  }
+
+  suspend fun createModelRelease(
+    modelSuite: ModelSuite,
+    modelReleasesService: ModelReleasesCoroutineImplBase
+  ): ModelRelease {
+    val modelRelease = modelRelease {
+      externalModelProviderId = modelSuite.externalModelProviderId
+      externalModelSuiteId = modelSuite.externalModelSuiteId
+    }
+    return modelReleasesService.createModelRelease(modelRelease)
   }
 
   suspend fun createComputedMeasurement(

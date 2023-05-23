@@ -19,6 +19,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -29,6 +30,7 @@ import org.wfanet.measurement.internal.kingdom.ModelShardsGrpcKt.ModelShardsCoro
 import org.wfanet.measurement.internal.kingdom.StreamModelShardsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelReleaseNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelShardNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelShards
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelShard
@@ -40,16 +42,26 @@ class SpannerModelShardsService(
 ) : ModelShardsCoroutineImplBase() {
 
   override suspend fun createModelShard(request: ModelShard): ModelShard {
-    grpcRequire(request.externalDataProviderId > 0L) { "DataProviderId field of ModelShard is missing." }
-    return CreateModelShard(request).execute(client, idGenerator)
+    grpcRequire(request.externalDataProviderId != 0L) {
+      "DataProviderId field of ModelShard is missing."
+    }
+    try {
+      return CreateModelShard(request).execute(client, idGenerator)
+    } catch (e: DataProviderNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "DataProvider not found." }
+    } catch (e: ModelReleaseNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelRelease not found." }
+    }
   }
 
   override suspend fun deleteModelShard(request: DeleteModelShardRequest): ModelShard {
+    grpcRequire(request.externalDataProviderId != 0L) { "ExternalDataProviderId unspecified" }
+    grpcRequire(request.externalModelShardId != 0L) { "ExternalModelShardId unspecified" }
     try {
       return DeleteModelShard(
-        ExternalId(request.externalDataProviderId),
-        ExternalId(request.externalModelShardId)
-      )
+          ExternalId(request.externalDataProviderId),
+          ExternalId(request.externalModelShardId)
+        )
         .execute(client, idGenerator)
     } catch (e: DataProviderNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "DataProvider not found." }
@@ -61,6 +73,19 @@ class SpannerModelShardsService(
   }
 
   override fun streamModelShards(request: StreamModelShardsRequest): Flow<ModelShard> {
+    grpcRequire(request.limit >= 0) { "Limit cannot be less than 0" }
+    if (
+      request.filter.hasAfter() &&
+        (!request.filter.after.hasCreateTime() ||
+          request.filter.after.externalDataProviderId == 0L ||
+          request.filter.after.externalModelShardId == 0L)
+    ) {
+      failGrpc(
+        Status.INVALID_ARGUMENT,
+      ) {
+        "Missing After filter fields"
+      }
+    }
     return StreamModelShards(request.filter, request.limit).execute(client.singleUse()).map {
       it.modelShard
     }

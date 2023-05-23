@@ -31,7 +31,9 @@ class StreamModelShards(
   override val reader =
     ModelShardReader().fillStatementBuilder {
       appendWhereClause(requestFilter)
-      appendClause("ORDER BY ModelShards.CreateTime ASC")
+      appendClause(
+        "ORDER BY ModelShards.CreateTime ASC, DataProviders.ExternalDataProviderId ASC, ModelShards.ExternalModelShardId"
+      )
       if (limit > 0) {
         appendClause("LIMIT @${LIMIT_PARAM}")
         bind(LIMIT_PARAM to limit.toLong())
@@ -42,13 +44,25 @@ class StreamModelShards(
     val conjuncts = mutableListOf<String>()
 
     if (filter.externalDataProviderId != 0L) {
-      conjuncts.add("ExternalDataProviderId = @${EXTERNAL_DATA_PROVIDER_ID_PARAM}")
-      bind(EXTERNAL_DATA_PROVIDER_ID_PARAM to filter.externalDataProviderId)
+      conjuncts.add("ExternalDataProviderId = @${EXTERNAL_DATA_PROVIDER_ID}")
+      bind(EXTERNAL_DATA_PROVIDER_ID to filter.externalDataProviderId)
     }
 
-    if (filter.hasCreatedAfter()) {
-      conjuncts.add("ModelShards.CreateTime > @${CREATED_AFTER}")
-      bind(CREATED_AFTER to filter.createdAfter.toGcloudTimestamp())
+    if (filter.hasAfter()) {
+      conjuncts.add(
+        """
+          (ModelShards.CreateTime > @${CREATED_AFTER}
+          OR (ModelShards.CreateTime = @${CREATED_AFTER}
+          AND DataProviders.ExternalDataProviderId > @${EXTERNAL_DATA_PROVIDER_ID})
+          OR (ModelShards.CreateTime = @${CREATED_AFTER}
+          AND DataProviders.ExternalDataProviderId = @${EXTERNAL_DATA_PROVIDER_ID}
+          AND ModelShards.ExternalModelShardId > @${EXTERNAL_MODEL_SHARD_ID}))
+        """
+          .trimIndent()
+      )
+      bind(CREATED_AFTER to filter.after.createTime.toGcloudTimestamp())
+      bind(EXTERNAL_DATA_PROVIDER_ID to filter.externalDataProviderId)
+      bind(EXTERNAL_MODEL_SHARD_ID to filter.after.externalModelShardId)
     }
 
     if (conjuncts.isEmpty()) {
@@ -61,7 +75,8 @@ class StreamModelShards(
 
   companion object {
     const val LIMIT_PARAM = "limit"
-    const val EXTERNAL_DATA_PROVIDER_ID_PARAM = "externalDataProviderId"
+    const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
+    const val EXTERNAL_MODEL_SHARD_ID = "externalModelShardId"
     const val CREATED_AFTER = "createdAfter"
   }
 }

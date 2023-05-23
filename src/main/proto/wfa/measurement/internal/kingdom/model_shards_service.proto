@@ -35,11 +35,15 @@ service ModelShards {
 }
 
 message StreamModelShardsRequest {
+  message AfterFilter {
+    fixed64 external_data_provider_id = 1;
+    fixed64 external_model_shard_id = 2;
+    google.protobuf.Timestamp create_time = 3;
+  }
   // Filter criteria as a conjunction of specified fields.
   message Filter {
     fixed64 external_data_provider_id = 1;
-    // for next page token, both after fields need to be set
-    google.protobuf.Timestamp created_after = 2;
+    AfterFilter after = 2;
   }
   Filter filter = 1;
 
