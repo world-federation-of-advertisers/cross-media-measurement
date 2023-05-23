@@ -38,7 +38,6 @@ private_membership_repositories()
 
 load(
     "//build:panel_exchange_client_maven_deps.bzl",
-    "panel_exchange_client_maven_artifacts",
     "panel_exchange_client_maven_excluded_artifacts",
 )
 

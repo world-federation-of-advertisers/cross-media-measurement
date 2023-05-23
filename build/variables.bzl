@@ -100,7 +100,7 @@ EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG = struct(
 )
 
 # Settings for deploying tests to Google Cloud.
-PANEL_EXCHANGE_CLINET_TEST_GOOGLE_CLOUD_SETTINGS = struct(
+PANEL_EXCHANGE_CLIENT_TEST_GOOGLE_CLOUD_SETTINGS = struct(
     secret_name = "$(k8s_secret_name)",
     cloud_storage_project = "$(cloud_storage_project)",
     cloud_storage_bucket = "$(cloud_storage_bucket)",
