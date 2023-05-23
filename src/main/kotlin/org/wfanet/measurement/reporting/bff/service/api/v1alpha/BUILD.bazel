@@ -3,30 +3,20 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 load("//src/main/docker:macros.bzl", "java_image")
 
 kt_jvm_library(
-    name = "reporting_data_server",
-    srcs = ["ReportingDataServer.kt"],
-    visibility = [
-        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting:__subpackages__",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy:__subpackages__",
-    ],
-    deps = [
-        "//src/main/proto/wfa/measurement/internal/reporting:measurements_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/internal/reporting:reporting_sets_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/internal/reporting:reports_service_kt_jvm_grpc_proto",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
-    ],
-)
-
-kt_jvm_library(
-    name = "reporting_api_server_flags",
-    srcs = ["ReportingApiServerFlags.kt"],
+    name = "reports_service",
+    srcs = ["ReportsService.kt"],
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/reporting/bff/deploy:__subpackages__",
     ],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common:flags",
-        "@wfa_common_jvm//imports/java/picocli",
+        "//src/main/proto/wfa/measurement/reporting/bff/v1alpha:reports_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
     ],
 )
 
@@ -44,15 +34,8 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:event_groups_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:reporting_sets_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:reports_service",
-        "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptors_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumers_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/internal/reporting:measurements_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/internal/reporting:reporting_sets_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/internal/reporting:reports_service_kt_jvm_grpc_proto",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/bff/service/api/v1alpha:reports_service",
+        "//src/main/proto/wfa/measurement/reporting/bff/v1alpha:reports_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
