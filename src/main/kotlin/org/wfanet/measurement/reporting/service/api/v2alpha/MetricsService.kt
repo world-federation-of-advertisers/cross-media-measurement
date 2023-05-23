@@ -345,13 +345,14 @@ class MetricsService(
             metricSpec
           )
 
-        this.measurementSpec =
+        measurementSpec =
           signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
-
-        this.measurementReferenceId = internalMeasurement.cmmsCreateMeasurementRequestId
       }
 
-      return createMeasurementRequest { this.measurement = measurement }
+      return createMeasurementRequest {
+        this.measurement = measurement
+        requestId = internalMeasurement.cmmsCreateMeasurementRequestId
+      }
     }
 
     /** Gets a [SigningKeyHandle] for a [MeasurementConsumerPrincipal]. */
