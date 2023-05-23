@@ -23,6 +23,7 @@ private val parser =
   ResourceNameParser(
     "modelProviders/{model_provider}/modelSuites/{model_suite}/modelReleases/{model_release}"
   )
+
 data class ModelReleaseKey(
   val modelProviderId: String,
   val modelSuiteId: String,

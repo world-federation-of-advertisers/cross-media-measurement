@@ -16,34 +16,34 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
-import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase as ModelReleasesCoroutineService
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.math.min
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.CreateModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.GetModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.ListModelReleasesPageToken
+import org.wfanet.measurement.api.v2alpha.ListModelReleasesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelReleasesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelReleasesResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.api.v2alpha.ModelReleaseKey
+import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase as ModelReleasesCoroutineService
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.listModelReleasesPageToken
+import org.wfanet.measurement.api.v2alpha.listModelReleasesResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.internal.kingdom.ModelRelease as InternalModelRelease
-import kotlinx.coroutines.flow.toList
-import kotlin.math.min
-import org.wfanet.measurement.api.v2alpha.ListModelReleasesPageTokenKt.previousPageEnd
-import org.wfanet.measurement.api.v2alpha.listModelReleasesResponse
-import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequestKt.afterFilter
@@ -53,6 +53,7 @@ import org.wfanet.measurement.internal.kingdom.streamModelReleasesRequest
 
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
+
 class ModelReleasesService(private val internalClient: ModelReleasesCoroutineStub) :
   ModelReleasesCoroutineService() {
 
@@ -65,11 +66,15 @@ class ModelReleasesService(private val internalClient: ModelReleasesCoroutineStu
     when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
       is ModelProviderPrincipal -> {
         if (principal.resourceKey.modelProviderId != parentKey.modelProviderId) {
-          failGrpc(Status.PERMISSION_DENIED) { "Cannot create ModelRelease for another ModelProvider" }
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot create ModelRelease for another ModelProvider"
+          }
         }
       }
       else -> {
-        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to create ModelRelease" }
+        failGrpc(Status.PERMISSION_DENIED) {
+          "Caller does not have permission to create ModelRelease"
+        }
       }
     }
 
@@ -109,9 +114,7 @@ class ModelReleasesService(private val internalClient: ModelReleasesCoroutineStu
     }
 
     try {
-      return internalClient
-        .getModelRelease(internalGetModelReleaseRequest)
-        .toModelRelease()
+      return internalClient.getModelRelease(internalGetModelReleaseRequest).toModelRelease()
     } catch (ex: StatusException) {
       when (ex.status.code) {
         Status.Code.NOT_FOUND ->
@@ -121,7 +124,9 @@ class ModelReleasesService(private val internalClient: ModelReleasesCoroutineStu
     }
   }
 
-  override suspend fun listModelReleases(request: ListModelReleasesRequest): ListModelReleasesResponse {
+  override suspend fun listModelReleases(
+    request: ListModelReleasesRequest
+  ): ListModelReleasesResponse {
     val parent =
       grpcRequireNotNull(ModelSuiteKey.fromName(request.parent)) {
         "Parent is either unspecified or invalid"
@@ -132,17 +137,23 @@ class ModelReleasesService(private val internalClient: ModelReleasesCoroutineStu
     when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
       is ModelProviderPrincipal -> {
         if (principal.resourceKey.modelProviderId != parent.modelProviderId) {
-          failGrpc(Status.PERMISSION_DENIED) { "Cannot list ModelReleases for another ModelProvider" }
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot list ModelReleases for another ModelProvider"
+          }
         }
       }
       is DataProviderPrincipal -> {}
       else -> {
-        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to list ModelReleases" }
+        failGrpc(Status.PERMISSION_DENIED) {
+          "Caller does not have permission to list ModelReleases"
+        }
       }
     }
 
     val results: List<InternalModelRelease> =
-      internalClient.streamModelReleases(listModelReleasesPageToken.toStreamModelReleasesRequest()).toList()
+      internalClient
+        .streamModelReleases(listModelReleasesPageToken.toStreamModelReleasesRequest())
+        .toList()
 
     if (results.isEmpty()) {
       return ListModelReleasesResponse.getDefaultInstance()
@@ -151,7 +162,7 @@ class ModelReleasesService(private val internalClient: ModelReleasesCoroutineStu
     return listModelReleasesResponse {
       modelRelease +=
         results.subList(0, min(results.size, listModelReleasesPageToken.pageSize)).map {
-            internalModelRelease ->
+          internalModelRelease ->
           internalModelRelease.toModelRelease()
         }
       if (results.size > listModelReleasesPageToken.pageSize) {
@@ -209,8 +220,11 @@ class ModelReleasesService(private val internalClient: ModelReleasesCoroutineStu
     }
   }
 
-  /** Converts an internal [ListModelReleasesPageToken] to an internal [StreamModelReleasesRequest]. */
-  private fun ListModelReleasesPageToken.toStreamModelReleasesRequest(): StreamModelReleasesRequest {
+  /**
+   * Converts an internal [ListModelReleasesPageToken] to an internal [StreamModelReleasesRequest].
+   */
+  private fun ListModelReleasesPageToken.toStreamModelReleasesRequest():
+    StreamModelReleasesRequest {
     val source = this
     return streamModelReleasesRequest {
       // get 1 more than the actual page size for deciding whether to set page token
@@ -229,5 +243,4 @@ class ModelReleasesService(private val internalClient: ModelReleasesCoroutineStu
       }
     }
   }
-
 }
