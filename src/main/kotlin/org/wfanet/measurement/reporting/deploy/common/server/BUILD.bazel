@@ -21,6 +21,9 @@ kt_jvm_library(
 kt_jvm_library(
     name = "reporting_api_server_flags",
     srcs = ["ReportingApiServerFlags.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/bff/deploy:__subpackages__",
+    ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common:flags",
         "@wfa_common_jvm//imports/java/picocli",

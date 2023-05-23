@@ -1,0 +1,37 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("//src/main/docker:macros.bzl", "java_image")
+
+kt_jvm_library(
+    name = "v1alpha_public_api_server",
+    srcs = ["V1AlphaPublicApiServer.kt"],
+    runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:reporting_principal",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common/server:reporting_api_server_flags",
+
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:akid_principal_lookup",
+        "//src/main/kotlin/org/wfanet/measurement/common/api:memoizing_principal_lookup",
+        
+        "//src/main/kotlin/org/wfanet/measurement/reporting/bff/service/api/v1alpha:reports_service",
+        "//src/main/proto/wfa/measurement/reporting/bff/v1alpha:reports_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+java_binary(
+    name = "V1AlphaPublicApiServer",
+    main_class = "org.wfanet.measurement.reporting.deploy.common.server.V1AlphaPublicApiServerKt",
+    runtime_deps = [":v1alpha_public_api_server"],
+)
+
+java_image(
+    name = "v1alpha_public_api_server_image",
+    binary = ":V1AlphaPublicApiServer",
+    main_class = "org.wfanet.measurement.reporting.deploy.common.server.V1AlphaPublicApiServerKt",
+    visibility = ["//src:docker_image_deployment"],
+)
