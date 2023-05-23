@@ -22,14 +22,23 @@ _edp4_name: string @tag("edp4_name")
 _edp5_name: string @tag("edp5_name")
 _edp6_name: string @tag("edp6_name")
 _edpResourceNames: [_edp1_name, _edp2_name, _edp3_name, _edp4_name, _edp5_name, _edp6_name]
-_secret_name:        string @tag("secret_name")
-_cloudStorageBucket: string @tag("cloud_storage_bucket")
+_secret_name:            string @tag("secret_name")
+_cloudStorageBucket:     string @tag("cloud_storage_bucket")
+_kingdomPublicApiTarget: string @tag("kingdom_public_api_target")
+_duchyPublicApiTarget:   string @tag("duchy_public_api_target")
 
-#KingdomPublicApiTarget: string @tag("kingdom_public_api_target")
-#DuchyPublicApiTarget:   string @tag("duchy_public_api_target")
-#BigQueryDataSet:        "demo"
-#BigQueryTable:          "labelled_events"
-#ServiceAccount:         "simulator"
+#BigQueryDataSet:               "demo"
+#BigQueryTable:                 "labelled_events"
+#ServiceAccount:                "simulator"
+#SimulatorResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu: "300m"
+		memory: "288Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
 
 objectSets: [ for edp in edp_simulators {edp}]
 
@@ -58,13 +67,18 @@ edp_simulators: {
 		"\(edp.displayName)": #EdpSimulator & {
 			_edpConfig:                 edp
 			_edp_secret_name:           _secret_name
-			_duchy_public_api_target:   #DuchyPublicApiTarget
-			_kingdom_public_api_target: #KingdomPublicApiTarget
+			_duchy_public_api_target:   _duchyPublicApiTarget
+			_kingdom_public_api_target: _kingdomPublicApiTarget
 			_blob_storage_flags:        _cloudStorageConfig.flags
 			_mc_resource_name:          _mc_name
 			_additional_args:           ["--publisher-id=\(edp.publisherId)"] + _bigQueryConfig.flags
-			deployment: spec: template: spec: #ServiceAccountPodSpec & {
-				serviceAccountName: #ServiceAccount
+			deployment: {
+				_container: {
+					resources: #SimulatorResourceRequirements
+				}
+				spec: template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
+					serviceAccountName: #ServiceAccount
+				}
 			}
 		}
 	}
