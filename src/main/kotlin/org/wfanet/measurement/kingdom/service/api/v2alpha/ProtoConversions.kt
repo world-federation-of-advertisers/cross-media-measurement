@@ -56,6 +56,7 @@ import org.wfanet.measurement.api.v2alpha.exchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.modelSuite
+import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -74,13 +75,16 @@ import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasuremen
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.details
 import org.wfanet.measurement.internal.kingdom.ModelSuite as InternalModelSuite
+import org.wfanet.measurement.internal.kingdom.ModelRelease as InternalModelRelease
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
 import org.wfanet.measurement.internal.kingdom.modelSuite as internalModelSuite
+import org.wfanet.measurement.internal.kingdom.modelRelease as internalModelRelease
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
+import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 
 /** Converts an internal [InternalMeasurement.State] to a public [State]. */
@@ -252,6 +256,26 @@ fun ModelSuite.toInternal(modelProviderKey: ModelProviderKey): InternalModelSuit
     externalModelProviderId = apiIdToExternalId(modelProviderKey.modelProviderId)
     displayName = publicModelSuite.displayName
     description = publicModelSuite.description
+  }
+}
+
+/** Converts a public [ModelRelease] to an internal [InternalModelRelease] */
+fun ModelRelease.toInternal(modelSuiteKey: ModelSuiteKey): InternalModelRelease {
+  val publicModelSuite = this
+
+  return internalModelLine {
+    externalModelProviderId = apiIdToExternalId(modelSuiteKey.modelProviderId)
+    externalModelSuiteId = apiIdToExternalId(modelSuiteKey.modelSuiteId)
+    displayName = publicModelSuite.displayName
+    description = publicModelSuite.description
+    activeStartTime = publicModelSuite.activeStartTime
+    if (publicModelSuite.hasActiveEndTime()) {
+      activeEndTime = publicModelSuite.activeEndTime
+    }
+    type = publicModelSuite.type.toInternalType()
+    if (publicModelSuite.holdbackModelLine.isNotBlank()) {
+      externalHoldbackModelLineId = apiIdToExternalId(publicModelSuite.holdbackModelLine)
+    }
   }
 }
 
