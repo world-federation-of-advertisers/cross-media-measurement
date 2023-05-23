@@ -12,6 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+module "gmp_monitoring" {
+  source = "../workload-identity-user"
+
+  k8s_service_account_name = "gmp-monitoring"
+  iam_service_account      = var.monitoring_service_account
+}
+
 module "kingdom_internal" {
   source = "../workload-identity-user"
 
