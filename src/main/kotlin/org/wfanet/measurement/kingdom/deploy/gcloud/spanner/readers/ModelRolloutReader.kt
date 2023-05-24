@@ -22,14 +22,14 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
-import org.wfanet.measurement.gcloud.spanner.getProtoEnum
-import org.wfanet.measurement.internal.kingdom.ModelLine
-import org.wfanet.measurement.internal.kingdom.modelLine
+import org.wfanet.measurement.internal.kingdom.ModelRollout
+import org.wfanet.measurement.internal.kingdom.modelRollout
 
-class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
+class ModelRolloutReader : SpannerReader<ModelRolloutReader.Result>() {
 
   data class Result(
-    val modelLine: ModelLine,
+    val modelRollout: ModelRollout,
+    val modelRolloutId: InternalId,
     val modelLineId: InternalId,
     val modelSuiteId: InternalId,
     val modelProviderId: InternalId
@@ -38,79 +38,76 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
   override val baseSql: String =
     """
     SELECT
-      ModelLines.ModelProviderId,
-      ModelLines.ModelSuiteId,
-      ModelLines.ModelLineId,
+      ModelRollouts.ModelProviderId,
+      ModelRollouts.ModelSuiteId,
+      ModelRollouts.ModelLineId,
+      ModelRollouts.ModelRolloutId,
+      ModelRollouts.ExternalModelRolloutId,
+      ModelRollouts.RolloutPeriodStartTime,
+      ModelRollouts.RolloutPeriodEndTime,
+      ModelRollouts.RolloutFreezeTime,
+      ModelRollouts.PreviousModelRollout,
+      ModelRollouts.ModelRelease,
+      ModelRollouts.CreateTime,
+      ModelRollouts.UpdateTime,
       ModelLines.ExternalModelLineId,
-      ModelLines.DisplayName,
-      ModelLines.Description,
-      ModelLines.ActiveStartTime,
-      ModelLines.ActiveEndTime,
-      ModelLines.Type,
-      ModelLines.HoldbackModelLine,
-      ModelLines.CreateTime,
-      ModelLines.UpdateTime,
       ModelSuites.ExternalModelSuiteId,
       ModelProviders.ExternalModelProviderId,
-      HoldbackModelLine.ExternalModelLineId as ExternalHoldbackModelLineId,
-      FROM ModelLines
-      JOIN ModelSuites USING (ModelSuiteId)
-      JOIN ModelProviders ON (ModelSuites.ModelProviderId = ModelProviders.ModelProviderId)
-      LEFT JOIN ModelLines as HoldbackModelLine
-      ON (ModelLines.HoldbackModelLine = HoldbackModelLine.ModelLineId)
+      PreviousModelRollout.ExternalModelRolloutId AS PreviousExternalModelRolloutId,
+      ModelReleases.ExternalModelReleaseId
+      FROM ModelRollouts
+      JOIN ModelLines USING (ModelProviderId, ModelSuiteId, ModelLineId)
+      JOIN ModelSuites USING (ModelProviderId, ModelSuiteId)
+      JOIN ModelProviders USING (ModelProviderId)
+      LEFT JOIN ModelRollouts as PreviousModelRollout ON (ModelRollouts.PreviousModelRollout = PreviousModelRollout.ModelRolloutId)
+      JOIN ModelReleases ON (ModelRollouts.ModelRelease = ModelReleases.ModelReleaseId)
     """
       .trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
     Result(
-      buildModelLine(struct),
+      buildModelRollout(struct),
+      InternalId(struct.getLong("ModelRolloutId")),
       InternalId(struct.getLong("ModelLineId")),
       InternalId(struct.getLong("ModelSuiteId")),
       InternalId(struct.getLong("ModelProviderId"))
     )
 
-  private fun buildModelLine(struct: Struct): ModelLine = modelLine {
+  private fun buildModelRollout(struct: Struct): ModelRollout = modelRollout {
     externalModelProviderId = struct.getLong("ExternalModelProviderId")
     externalModelSuiteId = struct.getLong("ExternalModelSuiteId")
     externalModelLineId = struct.getLong("ExternalModelLineId")
-    if (!struct.isNull("DisplayName")) {
-      displayName = struct.getString("DisplayName")
+    externalModelRolloutId = struct.getLong("ExternalModelRolloutId")
+    rolloutPeriodStartTime = struct.getTimestamp("RolloutPeriodStartTime").toProto()
+    rolloutPeriodEndTime = struct.getTimestamp("RolloutPeriodEndTime").toProto()
+    if (!struct.isNull("RolloutFreezeTime")) {
+      rolloutFreezeTime = struct.getTimestamp("RolloutFreezeTime").toProto()
     }
-    if (!struct.isNull("Description")) {
-      description = struct.getString("Description")
+    if (!struct.isNull("PreviousExternalModelRolloutId")) {
+      externalPreviousModelRolloutId = struct.getLong("PreviousExternalModelRolloutId")
     }
-    activeStartTime = struct.getTimestamp("ActiveStartTime").toProto()
-    if (!struct.isNull("ActiveEndTime")) {
-      activeEndTime = struct.getTimestamp("ActiveEndTime").toProto()
-    }
-    type = struct.getProtoEnum("Type", ModelLine.Type::forNumber)
-    if (!struct.isNull("ExternalHoldbackModelLineId")) {
-      externalHoldbackModelLineId = struct.getLong("ExternalHoldbackModelLineId")
-    }
+    externalModelReleaseId = struct.getLong("ExternalModelReleaseId")
     createTime = struct.getTimestamp("CreateTime").toProto()
     if (!struct.isNull("UpdateTime")) {
       updateTime = struct.getTimestamp("UpdateTime").toProto()
     }
   }
 
-  suspend fun readByExternalModelLineId(
+  suspend fun readByExternalModelRolloutId(
     readContext: AsyncDatabaseClient.ReadContext,
     externalModelProviderId: ExternalId,
     externalModelSuiteId: ExternalId,
     externalModelLineId: ExternalId,
+    externalModelRolloutId: ExternalId,
   ): Result? {
     return fillStatementBuilder {
         appendClause(
-          """
-            WHERE ExternalModelSuiteId = @externalModelSuiteId
-            AND ExternalModelProviderId = @externalModelProviderId
-            AND ModelLines.ExternalModelLineId = @externalModelLineId
-          """
-            .trimIndent()
+          "WHERE ExternalModelSuiteId = @externalModelSuiteId AND ExternalModelProviderId = @externalModelProviderId AND ExternalModelLineId = @externalModelLineId AND ModelRollouts.ExternalModelRolloutId = @externalModelRolloutId"
         )
         bind("externalModelSuiteId").to(externalModelSuiteId.value)
         bind("externalModelProviderId").to(externalModelProviderId.value)
         bind("externalModelLineId").to(externalModelLineId.value)
+        bind("externalModelRolloutId").to(externalModelRolloutId.value)
         appendClause("LIMIT 1")
       }
       .execute(readContext)

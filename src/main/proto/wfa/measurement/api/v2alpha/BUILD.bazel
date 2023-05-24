@@ -404,6 +404,7 @@ proto_library(
     deps = [
         "@com_google_protobuf//:timestamp_proto",
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurement_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_line_proto",
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:requisition_proto",
     ],
 )
@@ -564,6 +565,32 @@ kt_jvm_grpc_proto_library(
 )
 
 java_proto_library(
+    name = "model_line_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_line_proto",
+    ],
+) 
+
+kt_jvm_proto_library(
+
+    name = "model_line_kt_jvm_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_line_proto",
+    ],
+    deps = [":model_line_java_proto"],
+)
+
+alias(
+    name = "model_lines_service_proto",
+    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_lines_service_proto",
+)
+
+kt_jvm_grpc_proto_library(
+    name = "model_lines_service_kt_jvm_grpc_proto",
+    srcs = [":model_lines_service_proto"],
+)
+      
+java_proto_library(
     name = "model_release_java_proto",
     deps = [
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_release_proto",
@@ -571,13 +598,13 @@ java_proto_library(
 )
 
 kt_jvm_proto_library(
-    name = "model_release_kt_jvm_proto",
+  name = "model_release_kt_jvm_proto",
     srcs = [
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_release_proto",
     ],
     deps = [":model_release_java_proto"],
 )
-
+  
 alias(
     name = "model_releases_service_proto",
     actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_releases_service_proto",

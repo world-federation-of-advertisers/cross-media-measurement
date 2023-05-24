@@ -13,13 +13,16 @@
 # limitations under the License.
 
 locals {
-  workload_pool = "${data.google_project.project.name}.svc.id.goog"
-  member        = "serviceAccount:${local.workload_pool}[${var.cluster_namespace}/${var.k8s_service_account_name}]"
+  workload_pool       = "${data.google_project.project.name}.svc.id.goog"
+  member              = "serviceAccount:${local.workload_pool}[${var.cluster_namespace}/${var.k8s_service_account_name}]"
+  iam_service_account = try(google_service_account.iam[0], var.iam_service_account)
 }
 
 data "google_project" "project" {}
 
 resource "google_service_account" "iam" {
+  count = var.iam_service_account == null ? 1 : 0
+
   account_id  = var.iam_service_account_name
   description = var.iam_service_account_description
 }
@@ -28,14 +31,14 @@ resource "kubernetes_service_account" "k8s" {
   metadata {
     name = var.k8s_service_account_name
     annotations = {
-      "iam.gke.io/gcp-service-account" : google_service_account.iam.email
+      "iam.gke.io/gcp-service-account" : local.iam_service_account.email
     }
     namespace = var.cluster_namespace
   }
 }
 
 resource "google_service_account_iam_member" "workload_identity_user" {
-  service_account_id = google_service_account.iam.name
+  service_account_id = local.iam_service_account.name
   role               = "roles/iam.workloadIdentityUser"
   member             = local.member
 }

@@ -20,6 +20,7 @@ import io.grpc.Status
 import java.time.Clock
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -53,9 +54,14 @@ class SpannerModelLinesService(
     } catch (e: ModelSuiteNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelSuite not found." }
     } catch (e: ModelLineTypeIllegalException) {
-      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT)
+      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
+        e.message
+          ?: "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
+      }
     } catch (e: ModelLineInvalidArgsException) {
-      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT)
+      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
+        e.message ?: "ActiveStartTime and/or ActiveEndTime is invalid."
+      }
     }
   }
 
@@ -66,11 +72,27 @@ class SpannerModelLinesService(
     } catch (e: ModelLineNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelLine not found." }
     } catch (e: ModelLineInvalidArgsException) {
-      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT)
+      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
+        e.message ?: "ModelLine invalid active time argument."
+      }
     }
   }
 
   override fun streamModelLines(request: StreamModelLinesRequest): Flow<ModelLine> {
+    grpcRequire(request.limit >= 0) { "Limit cannot be less than 0" }
+    if (
+      request.filter.hasAfter() &&
+        (!request.filter.after.hasCreateTime() ||
+          request.filter.after.externalModelLineId == 0L ||
+          request.filter.after.externalModelSuiteId == 0L ||
+          request.filter.after.externalModelProviderId == 0L)
+    ) {
+      failGrpc(
+        Status.INVALID_ARGUMENT,
+      ) {
+        "Missing After filter fields"
+      }
+    }
     return StreamModelLines(request.filter, request.limit).execute(client.singleUse()).map {
       it.modelLine
     }
@@ -81,9 +103,12 @@ class SpannerModelLinesService(
   ): ModelLine {
     try {
       return SetModelLineHoldbackModelLine(request).execute(client, idGenerator)
+    } catch (e: ModelLineNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { e.message ?: "ModelLine not found." }
     } catch (e: ModelLineTypeIllegalException) {
       e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
-        "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
+        e.message
+          ?: "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
       }
     }
   }

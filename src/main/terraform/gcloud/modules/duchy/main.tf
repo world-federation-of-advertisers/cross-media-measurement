@@ -16,6 +16,13 @@ locals {
   database_name = var.database_name == null ? "${var.name}-duchy" : var.database_name
 }
 
+module "gmp_monitoring" {
+  source = "../workload-identity-user"
+
+  k8s_service_account_name = "gmp-monitoring"
+  iam_service_account      = var.monitoring_service_account
+}
+
 module "storage_user" {
   source = "../workload-identity-user"
 

@@ -17,6 +17,11 @@ output "cluster_service_account" {
   value       = google_service_account.gke_cluster
 }
 
+output "monitoring_service_account" {
+  description = "`google_service_account` for GMP monitoring."
+  value       = google_service_account.gmp_monitoring
+}
+
 output "cluster_secret_key" {
   description = "`google_kms_crypto_key` for Kubernetes cluster secrets."
   value       = google_kms_crypto_key.k8s
