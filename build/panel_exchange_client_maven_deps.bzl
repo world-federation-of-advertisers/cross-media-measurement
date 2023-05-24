@@ -75,17 +75,8 @@ _ARTIFACTS = {
     "software.amazon.awssdk:aws-core": "2.17.100",
 }
 
-_EXCLUDED_ARTIFACTS = [
-    "org.apache.beam:beam-sdks-java-io-kafka",
-]
-
 def panel_exchange_client_maven_artifacts():
     return _ARTIFACTS
-
-def panel_exchange_client_maven_excluded_artifacts():
-    # TODO(@efoxepstein): why does org.slf4j:slf4j-log4j12 cause build failures?
-    common_jvm_exclusions = [x for x in COMMON_JVM_EXCLUDED_ARTIFACTS if x != "org.slf4j:slf4j-log4j12"]
-    return _EXCLUDED_ARTIFACTS + common_jvm_exclusions
 
 def panel_exchange_client_maven_deploy_env():
     return _DEPLOY_ENV
