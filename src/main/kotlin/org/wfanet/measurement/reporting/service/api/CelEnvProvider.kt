@@ -77,11 +77,7 @@ class CelEnvCacheProvider(
     coroutineScope.launch {
       MinimumIntervalThrottler(clock, cacheRefreshInterval).loopOnReady {
         val updateFlow = flow<Unit> { setTypeRegistryAndEnv() }
-        updateFlow
-          .retry(numRetries) { e ->
-            e is RetriableException
-          }
-          .collect {}
+        updateFlow.retry(numRetries) { e -> e is RetriableException }.collect {}
       }
     }
   }
@@ -184,7 +180,9 @@ class CelEnvCacheProvider(
         Status.Code.DEADLINE_EXCEEDED -> {
           throw RetriableException()
         }
-        else -> { throw e }
+        else -> {
+          throw e
+        }
       }
     }
   }
