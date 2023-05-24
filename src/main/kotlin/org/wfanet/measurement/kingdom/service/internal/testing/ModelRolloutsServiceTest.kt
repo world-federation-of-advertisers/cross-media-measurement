@@ -871,7 +871,6 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
                 externalModelLineId = modelLine.externalModelLineId
                 after = afterFilter {
                   rolloutPeriodStartTime = modelRollouts[0].rolloutPeriodStartTime
-                  rolloutPeriodStartTime = modelRollouts[0].rolloutPeriodStartTime
                   externalModelLineId = modelRollouts[0].externalModelLineId
                   externalModelRolloutId = modelRollouts[0].externalModelRolloutId
                 }

@@ -58,7 +58,7 @@ class ModelRolloutReader : SpannerReader<ModelRolloutReader.Result>() {
       FROM ModelRollouts
       JOIN ModelLines USING (ModelProviderId, ModelSuiteId, ModelLineId)
       JOIN ModelSuites USING (ModelProviderId, ModelSuiteId)
-      JOIN ModelProviders ON (ModelSuites.ModelProviderId = ModelProviders.ModelProviderId)
+      JOIN ModelProviders USING (ModelProviderId)
       LEFT JOIN ModelRollouts as PreviousModelRollout ON (ModelRollouts.PreviousModelRollout = PreviousModelRollout.ModelRolloutId)
       JOIN ModelReleases ON (ModelRollouts.ModelRelease = ModelReleases.ModelReleaseId)
     """
