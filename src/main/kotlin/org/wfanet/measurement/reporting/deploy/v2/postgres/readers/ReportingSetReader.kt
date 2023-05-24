@@ -187,7 +187,10 @@ class ReportingSetReader(private val readContext: ReadContext) {
           LIMIT $3
         ) AS ReportingSets
       """ +
-          baseSqlJoins
+          baseSqlJoins +
+          """
+        ORDER BY RootExternalReportingSetId ASC
+        """
       ) {
         bind("$1", request.filter.cmmsMeasurementConsumerId)
         bind("$2", request.filter.externalReportingSetIdAfter)
@@ -277,9 +280,10 @@ class ReportingSetReader(private val readContext: ReadContext) {
     }
   }
 
+  /** Returns a map that maintains the order of the query result. */
   private suspend fun buildResultMap(statement: BoundStatement): Map<InternalId, ReportingSetInfo> {
     // Key is reportingSetId.
-    val reportingSetInfoMap: MutableMap<InternalId, ReportingSetInfo> = mutableMapOf()
+    val reportingSetInfoMap: MutableMap<InternalId, ReportingSetInfo> = linkedMapOf()
 
     val translate: Translate = { row: ResultRow ->
       val measurementConsumerId: InternalId = row["ReportingSetsMeasurementConsumerId"]

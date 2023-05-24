@@ -326,15 +326,17 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         measurementPrimitiveReportingSetBasesBinders.forEach { addBinding(it) }
       }
 
-    transactionContext.run {
-      executeStatement(statement)
-      executeStatement(measurementsStatement)
-      executeStatement(metricMeasurementsStatement)
-      executeStatement(primitiveReportingSetBasesStatement)
-      if (primitiveReportingSetBasisFiltersBinders.size > 0) {
-        executeStatement(primitiveReportingSetBasisFiltersStatement)
+    if (existingMetricsMap.size < requests.size) {
+      transactionContext.run {
+        executeStatement(statement)
+        executeStatement(measurementsStatement)
+        executeStatement(metricMeasurementsStatement)
+        executeStatement(primitiveReportingSetBasesStatement)
+        if (primitiveReportingSetBasisFiltersBinders.size > 0) {
+          executeStatement(primitiveReportingSetBasisFiltersStatement)
+        }
+        executeStatement(measurementPrimitiveReportingSetBasesStatement)
       }
-      executeStatement(measurementPrimitiveReportingSetBasesStatement)
     }
 
     return metrics
