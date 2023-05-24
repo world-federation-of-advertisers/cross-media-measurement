@@ -19,6 +19,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.Descriptors
 import com.google.protobuf.Timestamp
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -35,7 +36,6 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.verify
-import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -45,6 +45,7 @@ import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequestKt.filter
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.Failure
 import org.wfanet.measurement.api.v2alpha.Measurement.State
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
@@ -62,7 +63,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
-import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.protocol
 import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
@@ -101,6 +101,7 @@ import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest as internalCancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.createMeasurementRequest as internalCreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.differentialPrivacyParams as internalDifferentialPrivacyParams
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest as internalGetMeasurementRequest
@@ -241,20 +242,71 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `createMeasurement with RF type and single EDP returns Measurement with direct protocol`() {
+  fun `createMeasurement returns created measurement`() {
+    val request = createMeasurementRequest {
+      measurement =
+        MEASUREMENT.copy {
+          // This should be ignored.
+          protocolConfig = protocolConfig {
+            measurementType = ProtocolConfig.MeasurementType.IMPRESSION
+          }
+        }
+      requestId = "foo"
+    }
+    val internalMeasurement =
+      INTERNAL_MEASUREMENT.copy {
+        details = details.copy { clearFailure() }
+        results.clear()
+      }
+    internalMeasurementsMock.stub {
+      onBlocking { createMeasurement(any()) }.thenReturn(internalMeasurement)
+    }
+
+    val response: Measurement =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.createMeasurement(request) }
+      }
+
+    assertThat(response)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        MEASUREMENT.copy {
+          clearFailure()
+          results.clear()
+        }
+      )
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
+      )
+      .isEqualTo(
+        internalCreateMeasurementRequest {
+          measurement =
+            internalMeasurement.copy {
+              clearExternalMeasurementId()
+              clearUpdateTime()
+            }
+          requestId = request.requestId
+        }
+      )
+  }
+
+  @Test
+  fun `createMeasurement with REACH_AND_FREQUENCY type and single EDP specifies direct protocol`() {
     val measurement =
       MEASUREMENT.copy {
-        val firstDataProvider = dataProviders.first()
+        clearFailure()
+        results.clear()
+
         dataProviders.clear()
-        dataProviders += firstDataProvider
+        dataProviders += MEASUREMENT.dataProvidersList.first()
 
         measurementSpec =
           measurementSpec.copy {
             data =
               MEASUREMENT_SPEC.copy {
-                  val firstNonceHash = nonceHashes.first()
                   nonceHashes.clear()
-                  nonceHashes += firstNonceHash
+                  nonceHashes += MEASUREMENT_SPEC.nonceHashesList.first()
                 }
                 .toByteString()
           }
@@ -262,166 +314,73 @@ class MeasurementsServiceTest {
         protocolConfig =
           protocolConfig.copy {
             protocols.clear()
-            protocols += protocol { direct = ProtocolConfig.Direct.getDefaultInstance() }
+            protocols +=
+              ProtocolConfigKt.protocol { direct = ProtocolConfig.Direct.getDefaultInstance() }
           }
       }
+    val request = createMeasurementRequest {
+      this.measurement =
+        measurement.copy {
+          // This should be ignored.
+          protocolConfig = protocolConfig {
+            measurementType = ProtocolConfig.MeasurementType.IMPRESSION
+          }
+        }
+    }
+    val firstDataProviderExternalId = EXTERNAL_DATA_PROVIDER_IDS.first()
     val internalMeasurement =
       INTERNAL_MEASUREMENT.copy {
-        dataProviders.remove(EXTERNAL_DATA_PROVIDER_IDS.last().value)
+        results.clear()
         details =
           details.copy {
-            measurementSpec = measurement.measurementSpec.data
-            clearProtocolConfig()
+            clearFailure()
+
             clearDuchyProtocolConfig()
+            clearProtocolConfig()
+            measurementSpec = measurement.measurementSpec.data
           }
+
+        dataProviders.clear()
+        dataProviders[firstDataProviderExternalId.value] =
+          INTERNAL_MEASUREMENT.dataProvidersMap.getValue(firstDataProviderExternalId.value)
       }
     internalMeasurementsMock.stub {
       onBlocking { createMeasurement(any()) }.thenReturn(internalMeasurement)
     }
 
-    val request = createMeasurementRequest {
-      this.measurement =
-        measurement.copy {
-          clearName()
-          clearProtocolConfig()
-        }
-    }
-    val result =
+    val response: Measurement =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
         runBlocking { service.createMeasurement(request) }
       }
 
+    assertThat(response)
+      .ignoringRepeatedFieldOrder()
+      .ignoringFieldDescriptors(PROTOCOL_CONFIG_NAME_FIELD_DESCRIPTOR)
+      .isEqualTo(measurement)
     verifyProtoArgument(
         internalMeasurementsMock,
         MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
       )
       .isEqualTo(
-        internalMeasurement.copy {
-          clearUpdateTime()
-          clearExternalMeasurementId()
-          details = details.copy { clearFailure() }
-          results.clear()
+        internalCreateMeasurementRequest {
+          this.measurement =
+            internalMeasurement.copy {
+              clearExternalMeasurementId()
+              clearUpdateTime()
+            }
         }
       )
-
-    assertThat(result)
-      .ignoringRepeatedFieldOrder()
-      .ignoringFieldDescriptors(
-        ProtocolConfig.getDescriptor().findFieldByNumber(ProtocolConfig.NAME_FIELD_NUMBER)
-      )
-      .isEqualTo(measurement)
   }
 
   @Test
-  fun `createMeasurement with reach-only and single EDP returns result with direct protocol`() {
+  fun `createMeasurement with IMPRESSION type specifies direct protocol`() {
     val measurement =
       MEASUREMENT.copy {
-        val firstDataProvider = dataProviders.first()
-        dataProviders.clear()
-        dataProviders += firstDataProvider
+        clearFailure()
+        results.clear()
 
-        this.measurementSpec =
+        measurementSpec =
           measurementSpec.copy {
-            data =
-              MEASUREMENT_SPEC.copy {
-                  clearReachAndFrequency()
-                  reach = reach {
-                    privacyParams = differentialPrivacyParams {
-                      epsilon = 1.0
-                      delta = 1.0
-                    }
-                  }
-                  val firstNonceHash = nonceHashes.first()
-                  nonceHashes.clear()
-                  nonceHashes += firstNonceHash
-                }
-                .toByteString()
-          }
-
-        this.protocolConfig =
-          protocolConfig.copy {
-            measurementType = ProtocolConfig.MeasurementType.REACH
-            protocols.clear()
-            protocols += protocol { direct = ProtocolConfig.Direct.getDefaultInstance() }
-          }
-      }
-    val internalMeasurement =
-      INTERNAL_MEASUREMENT.copy {
-        dataProviders.remove(EXTERNAL_DATA_PROVIDER_IDS.last().value)
-        details =
-          details.copy {
-            measurementSpec = measurement.measurementSpec.data
-            clearProtocolConfig()
-            clearDuchyProtocolConfig()
-          }
-      }
-    internalMeasurementsMock.stub {
-      onBlocking { createMeasurement(any()) }.thenReturn(internalMeasurement)
-    }
-
-    val request = createMeasurementRequest {
-      this.measurement =
-        measurement.copy {
-          clearName()
-          clearProtocolConfig()
-        }
-    }
-    val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-        runBlocking { service.createMeasurement(request) }
-      }
-
-    verifyProtoArgument(
-        internalMeasurementsMock,
-        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
-      )
-      .isEqualTo(
-        internalMeasurement.copy {
-          clearUpdateTime()
-          clearExternalMeasurementId()
-          this.details = details.copy { clearFailure() }
-          results.clear()
-        }
-      )
-
-    assertThat(result)
-      .ignoringRepeatedFieldOrder()
-      .ignoringFieldDescriptors(
-        ProtocolConfig.getDescriptor().findFieldByNumber(ProtocolConfig.NAME_FIELD_NUMBER)
-      )
-      .isEqualTo(measurement)
-  }
-
-  @Test
-  fun `createMeasurement with impression type returns measurement with resource name set`() {
-    runBlocking {
-      whenever(internalMeasurementsMock.createMeasurement(any()))
-        .thenReturn(
-          INTERNAL_MEASUREMENT.copy {
-            details =
-              details.copy {
-                clearProtocolConfig()
-                measurementSpec =
-                  MEASUREMENT_SPEC.copy {
-                      clearReachAndFrequency()
-                      impression = impression {
-                        privacyParams = differentialPrivacyParams {
-                          epsilon = 1.0
-                          delta = 0.0
-                        }
-                        maximumFrequencyPerUser = 1
-                      }
-                    }
-                    .toByteString()
-              }
-          }
-        )
-    }
-
-    val request = createMeasurementRequest {
-      measurement =
-        MEASUREMENT.copy {
-          measurementSpec = signedData {
             data =
               MEASUREMENT_SPEC.copy {
                   clearReachAndFrequency()
@@ -434,92 +393,73 @@ class MeasurementsServiceTest {
                   }
                 }
                 .toByteString()
-            signature = UPDATE_TIME.toByteString()
           }
+
+        protocolConfig =
+          protocolConfig.copy {
+            measurementType = ProtocolConfig.MeasurementType.IMPRESSION
+
+            protocols.clear()
+            protocols +=
+              ProtocolConfigKt.protocol { direct = ProtocolConfig.Direct.getDefaultInstance() }
+          }
+      }
+    val request = createMeasurementRequest {
+      this.measurement =
+        measurement.copy {
+          clearName()
+          clearProtocolConfig()
         }
     }
+    val internalMeasurement =
+      INTERNAL_MEASUREMENT.copy {
+        results.clear()
+        details =
+          details.copy {
+            clearFailure()
 
-    val result =
+            clearDuchyProtocolConfig()
+            clearProtocolConfig()
+            measurementSpec = measurement.measurementSpec.data
+          }
+      }
+    internalMeasurementsMock.stub {
+      onBlocking { createMeasurement(any()) }.thenReturn(internalMeasurement)
+    }
+
+    val response: Measurement =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
         runBlocking { service.createMeasurement(request) }
       }
 
-    val expected =
-      MEASUREMENT.copy {
-        measurementSpec = signedData {
-          data =
-            MEASUREMENT_SPEC.copy {
-                clearReachAndFrequency()
-                impression = impression {
-                  privacyParams = differentialPrivacyParams {
-                    epsilon = 1.0
-                    delta = 0.0
-                  }
-                  maximumFrequencyPerUser = 1
-                }
-              }
-              .toByteString()
-          signature = UPDATE_TIME.toByteString()
-        }
-        protocolConfig = protocolConfig {
-          name = "protocolConfigs/Direct"
-          measurementType = ProtocolConfig.MeasurementType.IMPRESSION
-          protocols += ProtocolConfigKt.protocol { direct = ProtocolConfigKt.direct {} }
-        }
-      }
-
+    assertThat(response)
+      .ignoringRepeatedFieldOrder()
+      .ignoringFieldDescriptors(PROTOCOL_CONFIG_NAME_FIELD_DESCRIPTOR)
+      .isEqualTo(measurement)
     verifyProtoArgument(
         internalMeasurementsMock,
         MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
       )
       .isEqualTo(
-        INTERNAL_MEASUREMENT.copy {
-          clearUpdateTime()
-          clearExternalMeasurementId()
-          details =
-            details.copy {
-              clearFailure()
-              clearProtocolConfig()
-              clearDuchyProtocolConfig()
-              measurementSpec = request.measurement.measurementSpec.data
+        internalCreateMeasurementRequest {
+          this.measurement =
+            internalMeasurement.copy {
+              clearExternalMeasurementId()
+              clearUpdateTime()
             }
-          results.clear()
         }
       )
-
-    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
 
   @Test
-  fun `createMeasurement with duration type returns measurement with resource name set`() {
-    runBlocking {
-      whenever(internalMeasurementsMock.createMeasurement(any()))
-        .thenReturn(
-          INTERNAL_MEASUREMENT.copy {
-            details =
-              details.copy {
-                clearProtocolConfig()
-                measurementSpec =
-                  MEASUREMENT_SPEC.copy {
-                      clearReachAndFrequency()
-                      duration = duration {
-                        privacyParams = differentialPrivacyParams {
-                          epsilon = 1.0
-                          delta = 0.0
-                        }
-                        maximumWatchDurationPerUser = 1
-                      }
-                    }
-                    .toByteString()
-              }
-          }
-        )
-    }
+  fun `createMeasurement with DURATION type specifies direct protocol`() {
+    val measurement =
+      MEASUREMENT.copy {
+        clearFailure()
+        results.clear()
 
-    val request = createMeasurementRequest {
-      measurement =
-        MEASUREMENT.copy {
-          measurementSpec = signedData {
+        measurementSpec =
+          measurementSpec.copy {
             data =
               MEASUREMENT_SPEC.copy {
                   clearReachAndFrequency()
@@ -532,60 +472,62 @@ class MeasurementsServiceTest {
                   }
                 }
                 .toByteString()
-            signature = UPDATE_TIME.toByteString()
           }
+
+        protocolConfig =
+          protocolConfig.copy {
+            measurementType = ProtocolConfig.MeasurementType.DURATION
+
+            protocols.clear()
+            protocols +=
+              ProtocolConfigKt.protocol { direct = ProtocolConfig.Direct.getDefaultInstance() }
+          }
+      }
+    val request = createMeasurementRequest {
+      this.measurement =
+        measurement.copy {
+          clearName()
+          clearProtocolConfig()
         }
     }
+    val internalMeasurement =
+      INTERNAL_MEASUREMENT.copy {
+        results.clear()
+        details =
+          details.copy {
+            clearFailure()
 
-    val result =
+            clearDuchyProtocolConfig()
+            clearProtocolConfig()
+            measurementSpec = measurement.measurementSpec.data
+          }
+      }
+    internalMeasurementsMock.stub {
+      onBlocking { createMeasurement(any()) }.thenReturn(internalMeasurement)
+    }
+
+    val response: Measurement =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
         runBlocking { service.createMeasurement(request) }
       }
 
-    val expected =
-      MEASUREMENT.copy {
-        measurementSpec = signedData {
-          data =
-            MEASUREMENT_SPEC.copy {
-                clearReachAndFrequency()
-                duration = duration {
-                  privacyParams = differentialPrivacyParams {
-                    epsilon = 1.0
-                    delta = 0.0
-                  }
-                  maximumWatchDurationPerUser = 1
-                }
-              }
-              .toByteString()
-          signature = UPDATE_TIME.toByteString()
-        }
-        protocolConfig = protocolConfig {
-          name = "protocolConfigs/Direct"
-          measurementType = ProtocolConfig.MeasurementType.DURATION
-          protocols += ProtocolConfigKt.protocol { direct = ProtocolConfigKt.direct {} }
-        }
-      }
-
+    assertThat(response)
+      .ignoringRepeatedFieldOrder()
+      .ignoringFieldDescriptors(PROTOCOL_CONFIG_NAME_FIELD_DESCRIPTOR)
+      .isEqualTo(measurement)
     verifyProtoArgument(
         internalMeasurementsMock,
         MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
       )
       .isEqualTo(
-        INTERNAL_MEASUREMENT.copy {
-          clearUpdateTime()
-          clearExternalMeasurementId()
-          details =
-            details.copy {
-              clearFailure()
-              clearProtocolConfig()
-              clearDuchyProtocolConfig()
-              measurementSpec = request.measurement.measurementSpec.data
+        internalCreateMeasurementRequest {
+          this.measurement =
+            internalMeasurement.copy {
+              clearExternalMeasurementId()
+              clearUpdateTime()
             }
-          results.clear()
         }
       )
-
-    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
 
   @Test
@@ -1596,6 +1538,9 @@ class MeasurementsServiceTest {
         2
       )
     }
+
+    private val PROTOCOL_CONFIG_NAME_FIELD_DESCRIPTOR: Descriptors.FieldDescriptor =
+      ProtocolConfig.getDescriptor().findFieldByNumber(ProtocolConfig.NAME_FIELD_NUMBER)
 
     private val INTERNAL_PROTOCOL_CONFIG = internalProtocolConfig {
       externalProtocolConfigId = "llv2"

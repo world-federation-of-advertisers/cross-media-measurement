@@ -391,9 +391,11 @@ fun InternalMeasurement.toMeasurement(): Measurement {
         }
       }
     measurementReferenceId = source.providedMeasurementId
-    failure = failure {
-      reason = source.details.failure.reason.toReason()
-      message = source.details.failure.message
+    if (source.details.hasFailure()) {
+      failure = failure {
+        reason = source.details.failure.reason.toReason()
+        message = source.details.failure.message
+      }
     }
   }
 }

@@ -12,15 +12,40 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+variable "iam_service_account" {
+  description = <<-EOT
+    `google_service_account` for an existing IAM service account.
+
+    If specified, an IAM service account will not be created by this module.
+  EOT
+
+  type = object({
+    name  = string
+    email = string
+  })
+  default = null
+}
+
 variable "iam_service_account_name" {
-  description = "Name of the IAM service account."
-  type        = string
-  nullable    = false
+  description = <<-EOT
+    Name of the IAM service account to create.
+
+    Cannot be used with `iam_service_account`.
+  EOT
+
+  type    = string
+  default = null
 }
 
 variable "iam_service_account_description" {
-  description = "Description of the IAM service account."
-  type        = string
+  description = <<-EOT
+    Description of the IAM service account to create.
+
+    May only be used with `iam_service_account_name`.
+  EOT
+
+  type    = string
+  default = null
 }
 
 variable "k8s_service_account_name" {
