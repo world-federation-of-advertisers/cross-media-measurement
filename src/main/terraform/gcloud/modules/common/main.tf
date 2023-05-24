@@ -48,3 +48,14 @@ resource "google_project_iam_member" "node_service_account" {
   role    = "roles/container.nodeServiceAccount"
   member  = google_service_account.gke_cluster.member
 }
+
+resource "google_service_account" "gmp_monitoring" {
+  account_id  = "gmp-monitoring"
+  description = "Google Managed Prometheus monitoring"
+}
+
+resource "google_project_iam_member" "monitoring_viewer" {
+  project = data.google_project.project.name
+  role    = "roles/monitoring.viewer"
+  member  = google_service_account.gmp_monitoring.member
+}
