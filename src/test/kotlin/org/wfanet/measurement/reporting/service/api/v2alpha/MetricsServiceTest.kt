@@ -39,8 +39,10 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.ArgumentMatcher
 import org.mockito.kotlin.KArgumentCaptor
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argThat
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.eq
@@ -164,6 +166,7 @@ import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalRepo
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeInterval as internalTimeInterval
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
+import org.wfanet.measurement.reporting.service.api.v2alpha.RequestIdMatcher.Companion.requestIdEq
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.Metric
@@ -742,9 +745,6 @@ private val REQUESTING_UNION_ALL_REACH_MEASUREMENT =
         },
         MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
       )
-
-    measurementReferenceId =
-      INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsCreateMeasurementRequestId
   }
 private val REQUESTING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
   BASE_MEASUREMENT.copy {
@@ -755,9 +755,6 @@ private val REQUESTING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
         UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC,
         MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
       )
-
-    measurementReferenceId =
-      INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.cmmsCreateMeasurementRequestId
   }
 
 private val PENDING_UNION_ALL_REACH_MEASUREMENT =
@@ -840,9 +837,6 @@ private val REQUESTING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
         SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC,
         MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
       )
-
-    measurementReferenceId =
-      INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsCreateMeasurementRequestId
   }
 
 private val PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
@@ -897,9 +891,6 @@ private val REQUESTING_UNION_ALL_WATCH_DURATION_MEASUREMENT =
         },
         MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
       )
-
-    measurementReferenceId =
-      INTERNAL_PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.cmmsCreateMeasurementRequestId
   }
 
 private val PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT =
@@ -1367,19 +1358,29 @@ class MetricsServiceTest {
         .thenReturn(pendingMeasurement)
     }
 
-    onBlocking { createMeasurement(any()) }
-      .thenAnswer {
-        val request = it.arguments[0] as CreateMeasurementRequest
-        mapOf(
-            PENDING_UNION_ALL_REACH_MEASUREMENT.measurementReferenceId to
-              PENDING_UNION_ALL_REACH_MEASUREMENT,
-            PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.measurementReferenceId to
-              PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT,
-            PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.measurementReferenceId to
-              PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT,
-          )
-          .getValue(request.measurement.measurementReferenceId)
+    onBlocking {
+        createMeasurement(
+          requestIdEq(INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsCreateMeasurementRequestId)
+        )
       }
+      .thenReturn(PENDING_UNION_ALL_REACH_MEASUREMENT)
+    onBlocking {
+        createMeasurement(
+          requestIdEq(
+            INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+              .cmmsCreateMeasurementRequestId
+          )
+        )
+      }
+      .thenReturn(PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT)
+    onBlocking {
+        createMeasurement(
+          requestIdEq(
+            INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsCreateMeasurementRequestId
+          )
+        )
+      }
+      .thenReturn(PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT)
   }
 
   private val measurementConsumersMock:
@@ -1501,9 +1502,15 @@ class MetricsServiceTest {
           ),
       )
       .containsExactly(
-        createMeasurementRequest { measurement = REQUESTING_UNION_ALL_REACH_MEASUREMENT },
+        createMeasurementRequest {
+          measurement = REQUESTING_UNION_ALL_REACH_MEASUREMENT
+          requestId = INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsCreateMeasurementRequestId
+        },
         createMeasurementRequest {
           measurement = REQUESTING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+          requestId =
+            INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+              .cmmsCreateMeasurementRequestId
         },
       )
 
@@ -1615,6 +1622,8 @@ class MetricsServiceTest {
       .containsExactly(
         createMeasurementRequest {
           measurement = REQUESTING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+          requestId =
+            INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsCreateMeasurementRequestId
         },
       )
 
@@ -1805,7 +1814,11 @@ class MetricsServiceTest {
           ),
       )
       .containsExactly(
-        createMeasurementRequest { measurement = requestingSinglePublisherImpressionMeasurement },
+        createMeasurementRequest {
+          measurement = requestingSinglePublisherImpressionMeasurement
+          requestId =
+            INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsCreateMeasurementRequestId
+        },
       )
 
     capturedMeasurementRequests.forEach { capturedMeasurementRequest ->
@@ -1900,9 +1913,15 @@ class MetricsServiceTest {
           ),
       )
       .containsExactly(
-        createMeasurementRequest { measurement = REQUESTING_UNION_ALL_REACH_MEASUREMENT },
+        createMeasurementRequest {
+          measurement = REQUESTING_UNION_ALL_REACH_MEASUREMENT
+          requestId = INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsCreateMeasurementRequestId
+        },
         createMeasurementRequest {
           measurement = REQUESTING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+          requestId =
+            INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+              .cmmsCreateMeasurementRequestId
         },
       )
 
@@ -2709,12 +2728,20 @@ class MetricsServiceTest {
           ),
       )
       .containsExactly(
-        createMeasurementRequest { measurement = REQUESTING_UNION_ALL_REACH_MEASUREMENT },
+        createMeasurementRequest {
+          measurement = REQUESTING_UNION_ALL_REACH_MEASUREMENT
+          requestId = INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsCreateMeasurementRequestId
+        },
         createMeasurementRequest {
           measurement = REQUESTING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+          requestId =
+            INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+              .cmmsCreateMeasurementRequestId
         },
         createMeasurementRequest {
           measurement = REQUESTING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+          requestId =
+            INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsCreateMeasurementRequestId
         },
       )
 
@@ -4323,6 +4350,20 @@ class MetricsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)
       .isEqualTo("At most $MAX_BATCH_SIZE metrics can be supported in a batch.")
+  }
+}
+
+private class RequestIdMatcher(private val expected: String) :
+  ArgumentMatcher<CreateMeasurementRequest> {
+
+  override fun matches(actual: CreateMeasurementRequest?): Boolean {
+    return actual?.requestId == expected
+  }
+
+  companion object {
+    fun requestIdEq(expected: String): CreateMeasurementRequest {
+      return argThat(RequestIdMatcher(expected))
+    }
   }
 }
 
