@@ -19,6 +19,7 @@ package org.wfanet.measurement.reporting.service.api
 import io.grpc.Status
 import java.time.Clock
 import java.time.Duration
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
@@ -74,7 +75,7 @@ class CelEnvProviderTest {
   }
 
   @Test
-  @kotlinx.coroutines.ExperimentalCoroutinesApi
+  @OptIn(ExperimentalCoroutinesApi::class) // For `runTest`
   fun `cache provider updates its cache only once if 2 update attempts around same time`() =
     runTest(UnconfinedTestDispatcher()) {
       val cacheProvider =
@@ -99,7 +100,7 @@ class CelEnvProviderTest {
     }
 
   @Test
-  @kotlinx.coroutines.ExperimentalCoroutinesApi
+  @OptIn(ExperimentalCoroutinesApi::class) // For `runTest`
   fun `cache provider retries cache update if exception occurs`() =
     runTest(UnconfinedTestDispatcher()) {
       whenever(
@@ -132,7 +133,7 @@ class CelEnvProviderTest {
     }
 
   @Test
-  @kotlinx.coroutines.ExperimentalCoroutinesApi
+  @OptIn(ExperimentalCoroutinesApi::class) // For `runTest`
   fun `cache provider is not stopped by exceptions`() =
     runTest(UnconfinedTestDispatcher()) {
       whenever(
