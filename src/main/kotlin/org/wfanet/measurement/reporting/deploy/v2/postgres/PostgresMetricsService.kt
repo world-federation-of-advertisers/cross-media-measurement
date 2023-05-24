@@ -130,7 +130,7 @@ class PostgresMetricsService(
           .withSerializableErrorRetries()
           .toList()
       } catch (e: IllegalStateException) {
-        failGrpc(Status.DATA_LOSS) { "Metric is missing required fields" }
+        failGrpc(Status.NOT_FOUND) { "Metric is not found" }
       } finally {
         readContext.close()
       }
@@ -157,7 +157,7 @@ class PostgresMetricsService(
             .withSerializableErrorRetries()
         )
       } catch (e: IllegalStateException) {
-        failGrpc(Status.DATA_LOSS) { "Metric is missing required fields" }
+        failGrpc(Status.NOT_FOUND) { "Metric is not found" }
       } finally {
         readContext.close()
       }
