@@ -22,9 +22,7 @@ import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
@@ -125,7 +123,7 @@ class InProcessReportingServer(
             measurementConsumerConfig.apiKey
           ),
           Duration.ofSeconds(5),
-          CoroutineScope(Dispatchers.Default + SupervisorJob()),
+          Dispatchers.Default,
           Clock.systemUTC(),
         )
 

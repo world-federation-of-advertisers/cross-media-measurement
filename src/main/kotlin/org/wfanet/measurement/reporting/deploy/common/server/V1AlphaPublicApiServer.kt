@@ -20,9 +20,7 @@ import io.grpc.ServerServiceDefinition
 import java.io.File
 import java.security.SecureRandom
 import java.time.Clock
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as KingdomCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as KingdomDataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub as KingdomEventGroupMetadataDescriptorsCoroutineStub
@@ -106,7 +104,7 @@ private fun run(
       KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel)
         .withAuthenticationKey(apiKey),
       reportingApiServerFlags.eventGroupMetadataDescriptorCacheDuration,
-      CoroutineScope(Dispatchers.Default + SupervisorJob()),
+      Dispatchers.Default,
       Clock.systemUTC(),
     )
 

@@ -25,7 +25,10 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.retry
 import kotlinx.coroutines.launch
@@ -59,15 +62,16 @@ class CelEnvCacheProvider(
   private val eventGroupsMetadataDescriptorsStub:
     EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub,
   private val cacheRefreshInterval: Duration,
-  coroutineScope: CoroutineScope,
+  coroutineContext: CoroutineContext,
   private val clock: Clock,
   private val numRetries: Long = 3L,
-) : CelEnvProvider {
+) : CelEnvProvider, AutoCloseable {
   private val mutex = Mutex()
 
   private lateinit var typeRegistryAndEnv: CelEnvProvider.TypeRegistryAndEnv
   private var lastUpdated = Instant.EPOCH
   private val cacheRefreshIntervalMillis = cacheRefreshInterval.toMillis()
+  private val coroutineScope = CoroutineScope(coroutineContext + SupervisorJob())
 
   init {
     coroutineScope.launch {
@@ -75,13 +79,15 @@ class CelEnvCacheProvider(
         val updateFlow = flow<Unit> { setTypeRegistryAndEnv() }
         updateFlow
           .retry(numRetries) { e ->
-            e is StatusException &&
-              (e.status.code == Status.Code.UNAVAILABLE ||
-                e.status.code == Status.Code.DEADLINE_EXCEEDED)
+            e is RetriableException
           }
           .collect {}
       }
     }
+  }
+
+  override fun close() {
+    coroutineScope.cancel()
   }
 
   override suspend fun getTypeRegistryAndEnv(): CelEnvProvider.TypeRegistryAndEnv {
@@ -148,29 +154,39 @@ class CelEnvCacheProvider(
   }
 
   private suspend fun getEventGroupMetadataDescriptors(): List<EventGroupMetadataDescriptor> {
-    val eventGroupMetadataDescriptors = mutableListOf<EventGroupMetadataDescriptor>()
-    var response =
-      eventGroupsMetadataDescriptorsStub.listEventGroupMetadataDescriptors(
-        listEventGroupMetadataDescriptorsRequest {
-          parent = "dataProviders/-"
-          pageSize = MAX_PAGE_SIZE
-        }
-      )
-    eventGroupMetadataDescriptors.addAll(response.eventGroupMetadataDescriptorsList)
-
-    while (response.nextPageToken.isNotBlank()) {
-      response =
+    try {
+      val eventGroupMetadataDescriptors = mutableListOf<EventGroupMetadataDescriptor>()
+      var response =
         eventGroupsMetadataDescriptorsStub.listEventGroupMetadataDescriptors(
           listEventGroupMetadataDescriptorsRequest {
             parent = "dataProviders/-"
             pageSize = MAX_PAGE_SIZE
-            pageToken = response.nextPageToken
           }
         )
       eventGroupMetadataDescriptors.addAll(response.eventGroupMetadataDescriptorsList)
-    }
 
-    return eventGroupMetadataDescriptors
+      while (response.nextPageToken.isNotBlank()) {
+        response =
+          eventGroupsMetadataDescriptorsStub.listEventGroupMetadataDescriptors(
+            listEventGroupMetadataDescriptorsRequest {
+              parent = "dataProviders/-"
+              pageSize = MAX_PAGE_SIZE
+              pageToken = response.nextPageToken
+            }
+          )
+        eventGroupMetadataDescriptors.addAll(response.eventGroupMetadataDescriptorsList)
+      }
+
+      return eventGroupMetadataDescriptors
+    } catch (e: StatusException) {
+      when (e.status.code) {
+        Status.Code.UNAVAILABLE,
+        Status.Code.DEADLINE_EXCEEDED -> {
+          throw RetriableException()
+        }
+        else -> { throw e }
+      }
+    }
   }
 
   private fun buildTypeRegistry(
@@ -184,4 +200,6 @@ class CelEnvCacheProvider(
       }
       .build()
   }
+
+  private class RetriableException : Exception()
 }

@@ -25,9 +25,7 @@ import java.nio.file.Paths
 import java.time.Clock
 import java.time.Duration
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -205,7 +203,7 @@ class EventGroupsServiceTest {
       CelEnvCacheProvider(
         EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
         Duration.ofSeconds(5),
-        CoroutineScope(Dispatchers.Default + SupervisorJob()),
+        Dispatchers.Default,
         Clock.systemUTC(),
       )
 

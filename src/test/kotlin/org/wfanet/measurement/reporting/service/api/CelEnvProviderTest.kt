@@ -19,10 +19,6 @@ package org.wfanet.measurement.reporting.service.api
 import io.grpc.Status
 import java.time.Clock
 import java.time.Duration
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
@@ -33,9 +29,7 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.KArgumentCaptor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.mock
 import org.mockito.kotlin.timeout
-import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt
@@ -80,16 +74,16 @@ class CelEnvProviderTest {
   }
 
   @Test
+  @kotlinx.coroutines.ExperimentalCoroutinesApi
   fun `cache provider updates its cache only once if 2 update attempts around same time`() =
-    runBlocking {
-      val coroutineScope = CoroutineScope(coroutineContext + SupervisorJob())
+    runTest(UnconfinedTestDispatcher()) {
       val cacheProvider =
         CelEnvCacheProvider(
           EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
             grpcTestServerRule.channel
           ),
           Duration.ofMinutes(5),
-          coroutineScope,
+          coroutineContext,
           Clock.systemUTC(),
           3
         )
@@ -99,10 +93,9 @@ class CelEnvProviderTest {
         KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> =
         argumentCaptor()
 
-      verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, times(1)) {
+      verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, timeout(500).times(1)) {
         listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
       }
-      coroutineScope.cancel()
     }
 
   @Test
@@ -119,13 +112,12 @@ class CelEnvProviderTest {
           }
         )
 
-      val coroutineScope = CoroutineScope(coroutineContext + SupervisorJob())
       CelEnvCacheProvider(
         EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
           grpcTestServerRule.channel
         ),
         Duration.ofMinutes(5),
-        coroutineScope,
+        coroutineContext,
         Clock.systemUTC(),
         1
       )
@@ -134,10 +126,9 @@ class CelEnvProviderTest {
         KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> =
         argumentCaptor()
 
-      verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, timeout(10).times(1)) {
+      verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, timeout(500).times(1)) {
         listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
       }
-      coroutineScope.cancel()
     }
 
   @Test
@@ -154,31 +145,24 @@ class CelEnvProviderTest {
           }
         )
 
-      val clock = Clock.systemUTC()
-      val fakeClock: Clock = mock()
-      whenever(fakeClock.instant()).thenReturn(clock.instant())
-
-      val coroutineScope = CoroutineScope(coroutineContext + SupervisorJob())
       CelEnvCacheProvider(
         EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
           grpcTestServerRule.channel
         ),
         Duration.ofMillis(100),
-        coroutineScope,
-        fakeClock,
+        coroutineContext,
+        Clock.systemUTC(),
         1
       )
 
       advanceTimeBy(150)
-      whenever(fakeClock.instant()).thenReturn(clock.instant().plusMillis(150))
 
       val eventGroupMetadataDescriptorsCaptor:
         KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> =
         argumentCaptor()
 
-      verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, timeout(50).atLeast(2)) {
+      verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, timeout(500).times(2)) {
         listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
       }
-      coroutineScope.cancel()
     }
 }
