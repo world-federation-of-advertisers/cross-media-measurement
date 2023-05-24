@@ -97,6 +97,8 @@ class CelEnvProviderTest {
       verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, timeout(500).times(1)) {
         listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
       }
+
+      cacheProvider.close()
     }
 
   @Test
@@ -113,7 +115,7 @@ class CelEnvProviderTest {
           }
         )
 
-      CelEnvCacheProvider(
+      val cacheProvider = CelEnvCacheProvider(
         EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
           grpcTestServerRule.channel
         ),
@@ -130,6 +132,8 @@ class CelEnvProviderTest {
       verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, timeout(500).times(1)) {
         listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
       }
+
+      cacheProvider.close()
     }
 
   @Test
@@ -146,7 +150,7 @@ class CelEnvProviderTest {
           }
         )
 
-      CelEnvCacheProvider(
+      val cacheProvider = CelEnvCacheProvider(
         EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
           grpcTestServerRule.channel
         ),
@@ -156,7 +160,6 @@ class CelEnvProviderTest {
         1
       )
 
-      advanceTimeBy(150)
 
       val eventGroupMetadataDescriptorsCaptor:
         KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> =
@@ -165,5 +168,7 @@ class CelEnvProviderTest {
       verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, timeout(500).times(2)) {
         listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
       }
+
+      cacheProvider.close()
     }
 }
