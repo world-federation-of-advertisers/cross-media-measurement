@@ -14,6 +14,13 @@
 
 data "google_project" "project" {}
 
+module "gmp_monitoring" {
+  source = "../workload-identity-user"
+
+  k8s_service_account_name = "gmp-monitoring"
+  iam_service_account      = var.monitoring_service_account
+}
+
 module "simulator_user" {
   source = "../workload-identity-user"
 

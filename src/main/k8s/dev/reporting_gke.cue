@@ -26,7 +26,16 @@ _reportingMcConfigSecretName: string @tag("mc_config_secret_name")
 
 #InternalServerResourceRequirements: #ResourceRequirements & {
 	requests: {
+		cpu: "100m"
+	}
+}
+#PublicServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "25m"
 		memory: "256Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
 	}
 }
 
@@ -56,6 +65,9 @@ reporting: #Reporting & {
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalServerServiceAccount
 			}
+		}
+		"reporting-public-api-v1alpha-server": {
+			_container: resources: #PublicServerResourceRequirements
 		}
 	}
 }

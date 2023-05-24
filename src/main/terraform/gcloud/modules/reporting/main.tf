@@ -21,6 +21,13 @@ locals {
   all_db_privileges = ["CREATE", "TEMPORARY", "CONNECT"]
 }
 
+module "gmp_monitoring" {
+  source = "../workload-identity-user"
+
+  k8s_service_account_name = "gmp-monitoring"
+  iam_service_account      = var.monitoring_service_account
+}
+
 module "reporting_internal" {
   source = "../workload-identity-user"
 
