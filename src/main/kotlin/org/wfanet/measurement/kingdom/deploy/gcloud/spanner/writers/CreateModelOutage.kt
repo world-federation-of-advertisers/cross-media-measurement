@@ -93,11 +93,7 @@ class CreateModelOutage(private val modelOutage: ModelOutage) :
     ModelLines.ModelSuiteId,
     ModelLines.ModelLineId
     FROM ModelSuites JOIN ModelProviders USING(ModelProviderId)
-    JOIN ModelLines
-      ON(
-        ModelSuites.ModelSuiteId = ModelLines.ModelSuiteId
-        AND ModelSuites.ModelProviderId = ModelLines.ModelProviderId
-      )
+    JOIN ModelLines USING (ModelSuiteId, ModelProviderId)
     WHERE ExternalModelProviderId = @externalModelProviderId
     AND ExternalModelSuiteId = @externalModelSuiteId
     AND ExternalModelLineId = @externalModelLineId

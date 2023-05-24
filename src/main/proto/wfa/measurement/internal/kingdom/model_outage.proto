@@ -37,14 +37,14 @@ message ModelOutage {
     STATE_UNSPECIFIED = 0;
     // The ModelOutage has been created.
     ACTIVE = 1;
-    // The ModelOutage has been deleted.
+    // The ModelOutage has been deleted. This state is terminal.
     DELETED = 2;
   }
   // ModelOutage state. Output-only.
   State state = 7;
 
-  // When the ModelOutage was created.
+  // When the ModelOutage was created. Output-only.
   google.protobuf.Timestamp create_time = 8;
-  // When the ModelOutage was deleted.
+  // When the ModelOutage was deleted. Output-only.
   google.protobuf.Timestamp delete_time = 9;
 }

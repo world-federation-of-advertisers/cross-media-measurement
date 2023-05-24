@@ -53,18 +53,9 @@ class ModelOutageReader : SpannerReader<ModelOutageReader.Result>() {
       ModelSuites.ExternalModelSuiteId,
       ModelProviders.ExternalModelProviderId,
       FROM ModelOutages
-      JOIN ModelLines
-        ON (
-          ModelOutages.ModelLineId = ModelLines.ModelLineId
-          AND ModelOutages.ModelSuiteId = ModelLines.ModelSuiteId
-          AND ModelOutages.ModelProviderId = ModelLines.ModelProviderId
-        )
-      JOIN ModelSuites
-        ON (
-          ModelSuites.ModelSuiteId = ModelLines.ModelSuiteId
-          AND ModelSuites.ModelProviderId = ModelLines.ModelProviderId
-        )
-      JOIN ModelProviders ON (ModelSuites.ModelProviderId = ModelProviders.ModelProviderId)
+      JOIN ModelLines USING (ModelLineId, ModelSuiteId, ModelProviderId)
+      JOIN ModelSuites USING (ModelSuiteId, ModelProviderId)
+      JOIN ModelProviders USING (ModelProviderId)
     """
       .trimIndent()
 
