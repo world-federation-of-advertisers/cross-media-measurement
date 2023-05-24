@@ -42,10 +42,14 @@ class ModelShardReader : SpannerReader<ModelShardReader.Result>() {
      ModelShards.ModelBlobPath,
      ModelShards.CreateTime,
      ModelReleases.ExternalModelReleaseId,
-     DataProviders.ExternalDataProviderId
+     DataProviders.ExternalDataProviderId,
+     ModelSuites.ExternalModelSuiteId,
+     ModelProviders.ExternalModelProviderId
      FROM ModelShards
      JOIN DataProviders USING (DataProviderId)
-     LEFT JOIN ModelReleases ON (ModelShards.ModelRelease = ModelReleases.ModelReleaseId)
+     JOIN ModelReleases USING (ModelProviderId, ModelSuiteId, ModelReleaseId)
+     JOIN ModelSuites USING (ModelProviderId, ModelSuiteId)
+     JOIN ModelProviders USING (ModelProviderId)
    """
       .trimIndent()
 
@@ -59,6 +63,8 @@ class ModelShardReader : SpannerReader<ModelShardReader.Result>() {
   private fun buildModelShard(struct: Struct): ModelShard = modelShard {
     externalDataProviderId = struct.getLong("ExternalDataProviderId")
     externalModelShardId = struct.getLong("ExternalModelShardId")
+    externalModelProviderId = struct.getLong("ExternalModelProviderId")
+    externalModelSuiteId = struct.getLong("ExternalModelSuiteId")
     externalModelReleaseId = struct.getLong("ExternalModelReleaseId")
     modelBlobPath = struct.getString("ModelBlobPath")
     createTime = struct.getTimestamp("CreateTime").toProto()

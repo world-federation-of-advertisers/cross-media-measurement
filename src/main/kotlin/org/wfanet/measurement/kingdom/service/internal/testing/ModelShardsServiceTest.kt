@@ -107,6 +107,8 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
 
     val modelShard = modelShard {
       externalDataProviderId = dataProvider.externalDataProviderId
+      externalModelProviderId = modelRelease.externalModelProviderId
+      externalModelSuiteId = modelRelease.externalModelSuiteId
       externalModelReleaseId = modelRelease.externalModelReleaseId
       modelBlobPath = "modelBlobPath"
     }
@@ -121,6 +123,8 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
         modelShard {
           externalDataProviderId = createdModelShard.externalDataProviderId
           externalModelShardId = createdModelShard.externalModelShardId
+          externalModelProviderId = createdModelShard.externalModelProviderId
+          externalModelSuiteId = createdModelShard.externalModelSuiteId
           externalModelReleaseId = modelRelease.externalModelReleaseId
           modelBlobPath = "modelBlobPath"
         }
@@ -131,6 +135,8 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
   fun `createModelShard fails when Data Provider is not found`() = runBlocking {
     val modelShard = modelShard {
       externalDataProviderId = 123L
+      externalModelProviderId = 123L
+      externalModelSuiteId = 123L
       externalModelReleaseId = 123L
       modelBlobPath = "modelBlobPath"
     }
@@ -143,10 +149,41 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
   }
 
   @Test
-  fun `createModelShard fails when Model Release is not found`() = runBlocking {
+  fun `createModelShard fails when Model Suite is not found`() = runBlocking {
     val dataProvider = population.createDataProvider(dataProvidersService)
+    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+    val modelRelease =
+      population.createModelRelease(
+        modelSuite {
+          externalModelProviderId = modelSuite.externalModelProviderId
+          externalModelSuiteId = modelSuite.externalModelSuiteId
+        },
+        modelReleasesService
+      )
+
     val modelShard = modelShard {
       externalDataProviderId = dataProvider.externalDataProviderId
+      externalModelProviderId = 123L
+      externalModelSuiteId = 456L
+      externalModelReleaseId = modelRelease.externalModelReleaseId
+      modelBlobPath = "modelBlobPath"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { modelShardsService.createModelShard(modelShard) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("ModelSuite not found")
+  }
+
+  @Test
+  fun `createModelShard fails when Model Release is not found`() = runBlocking {
+    val dataProvider = population.createDataProvider(dataProvidersService)
+    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+    val modelShard = modelShard {
+      externalDataProviderId = dataProvider.externalDataProviderId
+      externalModelProviderId = modelSuite.externalModelProviderId
+      externalModelSuiteId = modelSuite.externalModelSuiteId
       externalModelReleaseId = 123L
       modelBlobPath = "modelBlobPath"
     }
@@ -173,6 +210,8 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
 
     val modelShard = modelShard {
       externalDataProviderId = dataProvider.externalDataProviderId
+      externalModelProviderId = modelSuite.externalModelProviderId
+      externalModelSuiteId = modelSuite.externalModelSuiteId
       externalModelReleaseId = modelRelease.externalModelReleaseId
       modelBlobPath = "modelBlobPath"
     }
@@ -270,6 +309,8 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
 
     val modelShard = modelShard {
       externalDataProviderId = dataProvider.externalDataProviderId
+      externalModelProviderId = modelSuite.externalModelProviderId
+      externalModelSuiteId = modelSuite.externalModelSuiteId
       externalModelReleaseId = modelRelease.externalModelReleaseId
       modelBlobPath = "modelBlobPath"
     }
@@ -307,6 +348,8 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
 
     val modelShard = modelShard {
       externalDataProviderId = dataProvider.externalDataProviderId
+      externalModelProviderId = modelSuite.externalModelProviderId
+      externalModelSuiteId = modelSuite.externalModelSuiteId
       externalModelReleaseId = modelRelease.externalModelReleaseId
       modelBlobPath = "modelBlobPath"
     }
@@ -363,6 +406,8 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
 
     val modelShard = modelShard {
       externalDataProviderId = dataProvider.externalDataProviderId
+      externalModelProviderId = modelSuite.externalModelProviderId
+      externalModelSuiteId = modelSuite.externalModelSuiteId
       externalModelReleaseId = modelRelease.externalModelReleaseId
       modelBlobPath = "modelBlobPath"
     }

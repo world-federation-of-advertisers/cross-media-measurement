@@ -31,6 +31,8 @@ import org.wfanet.measurement.internal.kingdom.ModelShard
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelReleaseNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelSuiteReader
 
 class CreateModelShard(private val modelShard: ModelShard) :
   SpannerWriter<ModelShard, ModelShard>() {
@@ -40,8 +42,24 @@ class CreateModelShard(private val modelShard: ModelShard) :
       readDataProviderData(ExternalId(modelShard.externalDataProviderId))
         ?: throw DataProviderNotFoundException(ExternalId(modelShard.externalDataProviderId))
 
-    val modelReleaseId: InternalId =
-      readModelReleaseId(ExternalId(modelShard.externalModelReleaseId))
+    val modelSuiteResult =
+      ModelSuiteReader()
+        .readByExternalModelSuiteId(
+          transactionContext,
+          ExternalId(modelShard.externalModelProviderId),
+          ExternalId(modelShard.externalModelSuiteId)
+        )
+        ?: throw ModelSuiteNotFoundException(
+          ExternalId(modelShard.externalDataProviderId),
+          ExternalId(modelShard.externalModelSuiteId)
+        )
+
+    val modelReleaseIds: Struct =
+      readModelReleaseIds(
+        modelSuiteResult.modelProviderId,
+        modelSuiteResult.modelSuiteId,
+        ExternalId(modelShard.externalModelReleaseId)
+      )
 
     val internalModelShardId = idGenerator.generateInternalId()
     val externalModelShardId = idGenerator.generateExternalId()
@@ -50,7 +68,9 @@ class CreateModelShard(private val modelShard: ModelShard) :
       set("DataProviderId" to dataProviderData.getLong("DataProviderId"))
       set("ModelShardId" to internalModelShardId)
       set("ExternalModelShardId" to externalModelShardId)
-      set("ModelRelease" to modelReleaseId)
+      set("ModelProviderId" to modelReleaseIds.getLong("ModelProviderId"))
+      set("ModelSuiteId" to modelReleaseIds.getLong("ModelSuiteId"))
+      set("ModelReleaseId" to modelReleaseIds.getLong("ModelReleaseId"))
       set("ModelBlobPath" to modelShard.modelBlobPath)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
     }
@@ -58,18 +78,19 @@ class CreateModelShard(private val modelShard: ModelShard) :
     return modelShard.copy { this.externalModelShardId = externalModelShardId.value }
   }
 
-  private suspend fun TransactionScope.readModelReleaseId(
+  private suspend fun TransactionScope.readModelReleaseIds(
+    modelProviderId: InternalId,
+    modelSuiteId: InternalId,
     externalModelReleaseId: ExternalId
-  ): InternalId {
-    val column = "ModelReleaseId"
-    return transactionContext
-      .readRowUsingIndex(
-        "ModelReleases",
-        "ModelReleasesByExternalId",
-        Key.of(externalModelReleaseId.value),
-        column
-      )
-      ?.let { struct -> InternalId(struct.getLong(column)) }
+  ): Struct {
+    return transactionContext.readRowUsingIndex(
+      "ModelReleases",
+      "ModelReleasesByExternalId",
+      Key.of(modelProviderId.value, modelSuiteId.value, externalModelReleaseId.value),
+      "ModelProviderId",
+      "ModelSuiteId",
+      "ModelReleaseId"
+    )
       ?: throw ModelReleaseNotFoundException(externalModelReleaseId) {
         "ModelRelease with external ID $externalModelReleaseId not found"
       }

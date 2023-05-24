@@ -18,4 +18,4 @@
 
 -- For model shards APIs.
 CREATE UNIQUE INDEX ModelReleasesByExternalId
-    ON ModelReleases(ExternalModelReleaseId);
+    ON ModelReleases(ModelProviderId, ModelSuiteId, ExternalModelReleaseId);

@@ -32,6 +32,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderN
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelReleaseNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelShardNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelShards
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelShard
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.DeleteModelShard
@@ -49,6 +50,8 @@ class SpannerModelShardsService(
       return CreateModelShard(request).execute(client, idGenerator)
     } catch (e: DataProviderNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "DataProvider not found." }
+    } catch (e: ModelSuiteNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelSuite not found." }
     } catch (e: ModelReleaseNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelRelease not found." }
     }

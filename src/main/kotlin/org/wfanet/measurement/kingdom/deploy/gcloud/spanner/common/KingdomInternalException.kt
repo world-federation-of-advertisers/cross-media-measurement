@@ -550,14 +550,14 @@ class ExchangeStepNotFoundException(
 }
 
 class ModelShardNotFoundException(
-  val externalModelProviderId: ExternalId,
+  val externalDataProviderId: ExternalId,
   val externalModelShardId: ExternalId,
   provideDescription: () -> String = { "ModelShard not found" }
 ) : KingdomInternalException(ErrorCode.MODEL_SHARD_NOT_FOUND, provideDescription) {
   override val context
     get() =
       mapOf(
-        "external_model_provider_id" to externalModelProviderId.toString(),
+        "external_data_provider_id" to externalDataProviderId.toString(),
         "external_model_shard_id" to externalModelShardId.toString()
       )
 }
