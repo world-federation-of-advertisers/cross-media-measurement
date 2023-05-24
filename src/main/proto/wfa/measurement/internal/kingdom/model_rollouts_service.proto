@@ -31,7 +31,7 @@ service ModelRollouts {
 
   rpc ScheduleModelRolloutFreeze(ScheduleModelRolloutFreezeRequest)
       returns (ModelRollout);
-  // Sets the active_end_time for a `ModelLine`.
+  // Deletes a `ModelRollout`.
   rpc DeleteModelRollout(DeleteModelRolloutRequest) returns (ModelRollout);
 }
 
@@ -41,7 +41,7 @@ message StreamModelRolloutsRequest {
     fixed64 external_model_suite_id = 2;
     fixed64 external_model_line_id = 3;
     fixed64 external_model_rollout_id = 4;
-    google.protobuf.Timestamp create_time = 5;
+    google.protobuf.Timestamp rollout_period_start_time = 5;
   }
   message RolloutPeriod {
     // Inclusive time.

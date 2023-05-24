@@ -176,7 +176,7 @@ class ModelRolloutInvalidArgsException(
         "external_model_provider_id" to externalModelProviderId.toString(),
         "external_model_suite_id" to externalModelSuiteId.toString(),
         "external_model_line_id" to externalModelLineId.toString(),
-        "externalModelRolloutId" to externalModelRolloutId.toString()
+        "external_model_rollout_i     d" to externalModelRolloutId.toString()
       )
 }
 

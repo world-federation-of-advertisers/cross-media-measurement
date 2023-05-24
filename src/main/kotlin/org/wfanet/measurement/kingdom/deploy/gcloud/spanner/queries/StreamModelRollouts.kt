@@ -82,17 +82,17 @@ class StreamModelRollouts(
     if (filter.hasAfter()) {
       conjuncts.add(
         """
-          ((ModelRollouts.CreateTime > @${CREATED_AFTER})
-          OR (ModelRollouts.CreateTime = @${CREATED_AFTER}
+          ((ModelRollouts.RolloutPeriodStartTime > @${ROLLOUT_PERIOD_START_TIME_AFTER})
+          OR (ModelRollouts.RolloutPeriodStartTime = @${ROLLOUT_PERIOD_START_TIME_AFTER}
           AND ModelProviders.ExternalModelProviderId > @${EXTERNAL_MODEL_PROVIDER_ID})
-          OR (ModelRollouts.CreateTime = @${CREATED_AFTER}
+          OR (ModelRollouts.RolloutPeriodStartTime = @${ROLLOUT_PERIOD_START_TIME_AFTER}
           AND ModelProviders.ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID}
           AND ModelSuites.ExternalModelSuiteId > @${EXTERNAL_MODEL_SUITE_ID})
-          OR (ModelRollouts.CreateTime = @${CREATED_AFTER}
+          OR (ModelRollouts.RolloutPeriodStartTime = @${ROLLOUT_PERIOD_START_TIME_AFTER}
           AND ModelProviders.ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID}
           AND ModelSuites.ExternalModelSuiteId = @${EXTERNAL_MODEL_SUITE_ID}
           AND ModelLines.ExternalModelLineId > @${EXTERNAL_MODEL_LINE_ID})
-          OR (ModelRollouts.CreateTime = @${CREATED_AFTER}
+          OR (ModelRollouts.RolloutPeriodStartTime = @${ROLLOUT_PERIOD_START_TIME_AFTER}
           AND ModelProviders.ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID}
           AND ModelSuites.ExternalModelSuiteId = @${EXTERNAL_MODEL_SUITE_ID}
           AND ModelLines.ExternalModelLineId = @${EXTERNAL_MODEL_LINE_ID}
@@ -100,7 +100,9 @@ class StreamModelRollouts(
         """
           .trimIndent()
       )
-      bind(CREATED_AFTER to filter.after.createTime.toGcloudTimestamp())
+      bind(
+        ROLLOUT_PERIOD_START_TIME_AFTER to filter.after.rolloutPeriodStartTime.toGcloudTimestamp()
+      )
       bind(EXTERNAL_MODEL_PROVIDER_ID to filter.after.externalModelProviderId)
       bind(EXTERNAL_MODEL_SUITE_ID to filter.after.externalModelSuiteId)
       bind(EXTERNAL_MODEL_LINE_ID to filter.after.externalModelLineId)
@@ -121,7 +123,7 @@ class StreamModelRollouts(
     const val EXTERNAL_MODEL_SUITE_ID = "externalModelSuiteId"
     const val EXTERNAL_MODEL_LINE_ID = "externalModelLineId"
     const val EXTERNAL_MODEL_ROLLOUT_ID = "externalModelRolloutId"
-    const val CREATED_AFTER = "createdAfter"
+    const val ROLLOUT_PERIOD_START_TIME_AFTER = "rolloutPeriodStartTimeAfter"
     const val ROLLOUT_PERIOD_START_TIME = "rolloutPeriodStartTime"
     const val ROLLOUT_PERIOD_END_TIME = "rolloutPeriodEndTime"
   }

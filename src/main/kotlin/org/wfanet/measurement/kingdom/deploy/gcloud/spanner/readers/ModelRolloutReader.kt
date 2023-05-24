@@ -56,20 +56,11 @@ class ModelRolloutReader : SpannerReader<ModelRolloutReader.Result>() {
       PreviousModelRollout.ExternalModelRolloutId AS PreviousExternalModelRolloutId,
       ModelReleases.ExternalModelReleaseId
       FROM ModelRollouts
-      JOIN ModelLines
-        ON (
-          ModelRollouts.ModelLineId = ModelLines.ModelLineId
-          AND ModelRollouts.ModelSuiteId = ModelLines.ModelSuiteId
-          AND ModelRollouts.ModelProviderId = ModelLines.ModelProviderId
-        )
-      JOIN ModelSuites
-        ON (
-          ModelSuites.ModelSuiteId = ModelLines.ModelSuiteId
-          AND ModelSuites.ModelProviderId = ModelLines.ModelProviderId
-        )
+      JOIN ModelLines USING (ModelProviderId, ModelSuiteId, ModelLineId)
+      JOIN ModelSuites USING (ModelProviderId, ModelSuiteId)
       JOIN ModelProviders ON (ModelSuites.ModelProviderId = ModelProviders.ModelProviderId)
       LEFT JOIN ModelRollouts as PreviousModelRollout ON (ModelRollouts.PreviousModelRollout = PreviousModelRollout.ModelRolloutId)
-      LEFT JOIN ModelReleases ON (ModelRollouts.ModelRelease = ModelReleases.ModelReleaseId)
+      JOIN ModelReleases ON (ModelRollouts.ModelRelease = ModelReleases.ModelReleaseId)
     """
       .trimIndent()
 

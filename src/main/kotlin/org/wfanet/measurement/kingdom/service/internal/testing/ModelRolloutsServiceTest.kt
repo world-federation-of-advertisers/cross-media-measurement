@@ -321,7 +321,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
   }
 
   @Test
-  fun `createModelRollout fails when rollout period end time precedes rollout period end time`() =
+  fun `createModelRollout fails when rollout period end time precedes rollout period start time`() =
     runBlocking {
       val modelLine =
         population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
@@ -771,11 +771,11 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
     }
     val modelRollout1 =
       modelRolloutsService.createModelRollout(
-        modelRollout.copy { rolloutPeriodStartTime = Instant.now().plusSeconds(50L).toProtoTime() }
+        modelRollout.copy { rolloutPeriodStartTime = Instant.now().plusSeconds(150L).toProtoTime() }
       )
     val modelRollout2 =
       modelRolloutsService.createModelRollout(
-        modelRollout.copy { rolloutPeriodStartTime = Instant.now().plusSeconds(150L).toProtoTime() }
+        modelRollout.copy { rolloutPeriodStartTime = Instant.now().plusSeconds(50L).toProtoTime() }
       )
 
     val modelRollouts: List<ModelRollout> =
@@ -793,7 +793,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
         .toList()
 
     assertThat(modelRollouts).hasSize(1)
-    assertThat(modelRollouts).contains(modelRollout1)
+    assertThat(modelRollouts).contains(modelRollout2)
 
     val modelRollouts2: List<ModelRollout> =
       modelRolloutsService
@@ -804,7 +804,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
               externalModelSuiteId = modelLine.externalModelSuiteId
               externalModelLineId = modelLine.externalModelLineId
               after = afterFilter {
-                createTime = modelRollouts[0].createTime
+                rolloutPeriodStartTime = modelRollouts[0].rolloutPeriodStartTime
                 externalModelProviderId = modelRollouts[0].externalModelProviderId
                 externalModelSuiteId = modelRollouts[0].externalModelSuiteId
                 externalModelLineId = modelRollouts[0].externalModelLineId
@@ -816,7 +816,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
         .toList()
 
     assertThat(modelRollouts2).hasSize(1)
-    assertThat(modelRollouts2).contains(modelRollout2)
+    assertThat(modelRollouts2).contains(modelRollout1)
   }
 
   @Test
@@ -870,7 +870,8 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
                 externalModelSuiteId = modelLine.externalModelSuiteId
                 externalModelLineId = modelLine.externalModelLineId
                 after = afterFilter {
-                  createTime = modelRollouts[0].createTime
+                  rolloutPeriodStartTime = modelRollouts[0].rolloutPeriodStartTime
+                  rolloutPeriodStartTime = modelRollouts[0].rolloutPeriodStartTime
                   externalModelLineId = modelRollouts[0].externalModelLineId
                   externalModelRolloutId = modelRollouts[0].externalModelRolloutId
                 }

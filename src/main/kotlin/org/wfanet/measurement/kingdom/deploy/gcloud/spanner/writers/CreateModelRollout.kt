@@ -174,17 +174,10 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
     ModelRollouts.ModelRolloutId,
     ModelRollouts.ExternalModelRolloutId
     FROM ModelRollouts JOIN ModelLines
-      ON (
-        ModelLines.ModelProviderId = ModelRollouts.ModelProviderId
-        AND ModelLines.ModelSuiteId = ModelRollouts.ModelSuiteId
-        AND ModelLines.ModelLineId = ModelRollouts.ModelLineId
-      )
+    USING (ModelProviderId, ModelSuiteId, ModelLineId)
     JOIN ModelSuites
-      ON (
-        ModelLines.ModelProviderId = ModelSuites.ModelProviderId
-        AND ModelLines.ModelSuiteId = ModelSuites.ModelSuiteId
-      )
-    JOiN ModelProviders ON ModelProviders.ModelProviderId = ModelSuites.ModelProviderId
+    USING (ModelProviderId, ModelSuiteId)
+    JOIN ModelProviders USING (ModelProviderId)
     WHERE ModelProviders.ExternalModelProviderId = @externalModelProviderId AND
     ModelSuites.ExternalModelSuiteId = @externalModelSuiteId AND
     ModelLines.ExternalModelLineId = @externalModelLineId
