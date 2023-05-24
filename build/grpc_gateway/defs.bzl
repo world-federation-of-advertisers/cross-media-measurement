@@ -1,4 +1,4 @@
-# Copyright 2022 The Cross-Media Measurement Authors
+# Copyright 2020 The Cross-Media Measurement Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,15 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-apiVersion: v1
-kind: LimitRange
-metadata:
-  name: resource-requirements
-spec:
-  limits:
-  - type: Container
-    defaultRequest:
-      cpu: 10m
-      memory: 192Mi
-    default:
-      memory: 192Mi
+"""Build defs for gRPC Gateway."""
+
+load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
+
+def go_grpc_gateway_proto_library(name, visibility = None, **kwargs):
+    go_proto_library(
+        name = name,
+        compilers = [
+            "//build/grpc_gateway:go_apiv2",
+            "//build/grpc_gateway:go_grpc",
+            "//build/grpc_gateway:go_grpc_gateway",
+        ],
+        visibility = visibility,
+        **kwargs
+    )

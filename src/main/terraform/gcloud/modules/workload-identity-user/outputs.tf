@@ -14,7 +14,7 @@
 
 output "iam_service_account" {
   description = "`google_service_account`"
-  value       = google_service_account.iam
+  value       = local.iam_service_account
 }
 
 output "k8s_service_account" {

@@ -101,7 +101,12 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
   ): Result? {
     return fillStatementBuilder {
         appendClause(
-          "WHERE ExternalModelSuiteId = @externalModelSuiteId AND ExternalModelProviderId = @externalModelProviderId  AND ModelLines.ExternalModelLineId = @externalModelLineId"
+          """
+            WHERE ExternalModelSuiteId = @externalModelSuiteId
+            AND ExternalModelProviderId = @externalModelProviderId
+            AND ModelLines.ExternalModelLineId = @externalModelLineId
+          """
+            .trimIndent()
         )
         bind("externalModelSuiteId").to(externalModelSuiteId.value)
         bind("externalModelProviderId").to(externalModelProviderId.value)

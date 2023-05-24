@@ -36,8 +36,10 @@ service ModelLines {
 
 message StreamModelLinesRequest {
   message AfterFilter {
-    fixed64 external_model_line_id = 1;
-    google.protobuf.Timestamp create_time = 2;
+    fixed64 external_model_provider_id = 1;
+    fixed64 external_model_suite_id = 2;
+    fixed64 external_model_line_id = 3;
+    google.protobuf.Timestamp create_time = 4;
   }
 
   // Filter criteria as a conjunction of specified fields.

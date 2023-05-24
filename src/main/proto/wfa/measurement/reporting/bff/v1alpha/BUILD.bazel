@@ -1,0 +1,90 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("//build/grpc_gateway:defs.bzl", "go_grpc_gateway_proto_library")
+
+package(default_visibility = ["//visibility:public"])
+
+IMPORT_PREFIX = "/src/main/proto"
+
+GO_IMPORT_PATH = "wfa/measurement/reporting/bff/v1alpha/reportingpb"
+
+proto_library(
+    name = "metric_proto",
+    srcs = [
+        "metric.proto",
+    ],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":time_interval_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "time_interval_proto",
+    srcs = [
+        "time_interval.proto",
+    ],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_protobuf//:duration_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "report_proto",
+    srcs = [
+        "report.proto",
+    ],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":metric_proto",
+        ":time_interval_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "reports_service_proto",
+    srcs = ["reports_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":report_proto",
+        "@com_google_googleapis//google/api:annotations_proto",
+        "@com_google_googleapis//google/api:client_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+go_grpc_gateway_proto_library(
+    name = "metric_go_proto",
+    embed = [":time_interval_go_proto"],
+    importpath = GO_IMPORT_PATH,
+    protos = [":metric_proto"],
+)
+
+go_grpc_gateway_proto_library(
+    name = "time_interval_go_proto",
+    importpath = GO_IMPORT_PATH,
+    protos = [":time_interval_proto"],
+)
+
+go_grpc_gateway_proto_library(
+    name = "report_go_proto",
+    embed = [":metric_go_proto"],
+    importpath = GO_IMPORT_PATH,
+    protos = [":report_proto"],
+)
+
+go_grpc_gateway_proto_library(
+    name = "reports_service_go_proto",
+    embed = [":report_go_proto"],
+    importpath = GO_IMPORT_PATH,
+    protos = [":reports_service_proto"],
+)
