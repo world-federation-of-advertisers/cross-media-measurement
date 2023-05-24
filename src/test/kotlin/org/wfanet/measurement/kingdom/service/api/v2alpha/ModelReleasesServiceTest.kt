@@ -62,7 +62,7 @@ import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleases
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequestKt.afterFilter
-import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequestKt.filter as internalFilter
+import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getModelReleaseRequest as internalGetModelReleaseRequest
 import org.wfanet.measurement.internal.kingdom.modelRelease as internalModelRelease
@@ -391,7 +391,6 @@ class ModelReleasesServiceTest {
       modelRelease +=
         MODEL_RELEASE.copy {
           name = MODEL_RELEASE_NAME_3
-          MODEL_RELEASE
         }
     }
 
@@ -405,7 +404,7 @@ class ModelReleasesServiceTest {
       .isEqualTo(
         internalStreamModelReleasesRequest {
           limit = DEFAULT_LIMIT + 1
-          filter = internalFilter {
+          filter = filter {
             externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
             externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
           }
@@ -430,7 +429,6 @@ class ModelReleasesServiceTest {
       modelRelease +=
         MODEL_RELEASE.copy {
           name = MODEL_RELEASE_NAME_3
-          MODEL_RELEASE
         }
     }
 
@@ -444,7 +442,7 @@ class ModelReleasesServiceTest {
       .isEqualTo(
         internalStreamModelReleasesRequest {
           limit = DEFAULT_LIMIT + 1
-          filter = internalFilter {
+          filter = filter {
             externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
             externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
           }
@@ -607,7 +605,7 @@ class ModelReleasesServiceTest {
       .isEqualTo(
         internalStreamModelReleasesRequest {
           limit = request.pageSize + 1
-          filter = internalFilter {
+          filter = filter {
             externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
             externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
             after = afterFilter {
@@ -656,7 +654,7 @@ class ModelReleasesServiceTest {
       .isEqualTo(
         internalStreamModelReleasesRequest {
           limit = request.pageSize + 1
-          filter = internalFilter {
+          filter = filter {
             externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
             externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
             after = afterFilter {
@@ -702,7 +700,7 @@ class ModelReleasesServiceTest {
       .isEqualTo(
         internalStreamModelReleasesRequest {
           limit = 3
-          filter = internalFilter {
+          filter = filter {
             externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
             externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
             after = afterFilter {
