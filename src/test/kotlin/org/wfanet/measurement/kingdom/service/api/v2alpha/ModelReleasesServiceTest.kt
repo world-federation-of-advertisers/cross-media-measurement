@@ -388,10 +388,7 @@ class ModelReleasesServiceTest {
     val expected = listModelReleasesResponse {
       modelRelease += MODEL_RELEASE
       modelRelease += MODEL_RELEASE.copy { name = MODEL_RELEASE_NAME_2 }
-      modelRelease +=
-        MODEL_RELEASE.copy {
-          name = MODEL_RELEASE_NAME_3
-        }
+      modelRelease += MODEL_RELEASE.copy { name = MODEL_RELEASE_NAME_3 }
     }
 
     val streamModelLinesRequest =
@@ -426,10 +423,7 @@ class ModelReleasesServiceTest {
     val expected = listModelReleasesResponse {
       modelRelease += MODEL_RELEASE
       modelRelease += MODEL_RELEASE.copy { name = MODEL_RELEASE_NAME_2 }
-      modelRelease +=
-        MODEL_RELEASE.copy {
-          name = MODEL_RELEASE_NAME_3
-        }
+      modelRelease += MODEL_RELEASE.copy { name = MODEL_RELEASE_NAME_3 }
     }
 
     val streamModelLinesRequest =
