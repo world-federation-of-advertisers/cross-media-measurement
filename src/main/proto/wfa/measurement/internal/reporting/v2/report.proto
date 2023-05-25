@@ -31,7 +31,7 @@ message Report {
 
   google.protobuf.Timestamp create_time = 3;
 
-  message CreateMetricRequest {
+  message ReportingMetric {
     // Will be filled by the internal reports service. For now, generating a new
     // UUID. In the future when metric reuse is done. Two cases--(1) When there
     // is no metric can be found based on the metric config from 3-6, generate a
@@ -43,10 +43,8 @@ message Report {
 
     message Details {
       fixed64 external_reporting_set_id = 1;
-      TimeInterval time_interval = 2;
-      // The original metric spec provided by the user. It won't be updated with
-      // default values if some values are not set.
-      MetricSpec metric_spec = 3;
+      MetricSpec metric_spec = 2;
+      TimeInterval time_interval = 3;
       repeated string filters = 4;
     }
 
@@ -55,7 +53,7 @@ message Report {
 
   message MetricCalculationSpec {
     // Represents all `Metric`s associated with this MetricCalculation.
-    repeated CreateMetricRequest create_metric_requests = 1;
+    repeated ReportingMetric reporting_metrics = 1;
 
     message Grouping {
       repeated string predicates = 1;
