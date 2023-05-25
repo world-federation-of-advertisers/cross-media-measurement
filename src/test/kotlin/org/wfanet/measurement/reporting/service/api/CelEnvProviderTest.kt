@@ -84,14 +84,14 @@ class CelEnvProviderTest {
     try {
       runTest(UnconfinedTestDispatcher()) {
         CelEnvCacheProvider(
-          EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
-            grpcTestServerRule.channel
-          ),
-          Duration.ofMinutes(5),
-          coroutineContext,
-          Clock.systemUTC(),
-          1
-        )
+            EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
+              grpcTestServerRule.channel
+            ),
+            Duration.ofMinutes(5),
+            coroutineContext,
+            Clock.systemUTC(),
+            1
+          )
           .use {
             it.getTypeRegistryAndEnv()
 
@@ -118,18 +118,20 @@ class CelEnvProviderTest {
     var verified = false
     try {
       runTest(UnconfinedTestDispatcher()) {
-        whenever(cmmsEventGroupMetadataDescriptorsServiceMock.listEventGroupMetadataDescriptors(any()))
+        whenever(
+            cmmsEventGroupMetadataDescriptorsServiceMock.listEventGroupMetadataDescriptors(any())
+          )
           .thenThrow(Status.DEADLINE_EXCEEDED.asRuntimeException())
 
         CelEnvCacheProvider(
-          EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
-            grpcTestServerRule.channel
-          ),
-          Duration.ofMinutes(5),
-          coroutineContext,
-          Clock.systemUTC(),
-          0
-        )
+            EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
+              grpcTestServerRule.channel
+            ),
+            Duration.ofMinutes(5),
+            coroutineContext,
+            Clock.systemUTC(),
+            0
+          )
           .use {
             assertFailsWith<CancellationException> { it.getTypeRegistryAndEnv() }
 
