@@ -38,8 +38,8 @@ module "default_node_pools" {
   cluster         = each.value
   name            = "default"
   service_account = module.common.cluster_service_account
-  machine_type    = "e2-small"
-  max_node_count  = 5
+  machine_type    = "e2-medium"
+  max_node_count  = 3
 }
 
 module "highmem_node_pools" {
@@ -106,10 +106,11 @@ module "aggregator_duchy" {
     kubernetes = kubernetes.aggregator
   }
 
-  name             = "aggregator"
-  database_name    = "aggregator_duchy_computations"
-  spanner_instance = google_spanner_instance.spanner_instance
-  storage_bucket   = module.storage.storage_bucket
+  name                       = "aggregator"
+  database_name              = "aggregator_duchy_computations"
+  spanner_instance           = google_spanner_instance.spanner_instance
+  storage_bucket             = module.storage.storage_bucket
+  monitoring_service_account = module.common.monitoring_service_account
 }
 
 module "worker1_duchy" {
@@ -118,10 +119,11 @@ module "worker1_duchy" {
     kubernetes = kubernetes.worker1
   }
 
-  name             = "worker1"
-  database_name    = "worker1_duchy_computations"
-  spanner_instance = google_spanner_instance.spanner_instance
-  storage_bucket   = module.storage.storage_bucket
+  name                       = "worker1"
+  database_name              = "worker1_duchy_computations"
+  spanner_instance           = google_spanner_instance.spanner_instance
+  storage_bucket             = module.storage.storage_bucket
+  monitoring_service_account = module.common.monitoring_service_account
 }
 
 module "worker2_duchy" {
@@ -130,8 +132,9 @@ module "worker2_duchy" {
     kubernetes = kubernetes.worker2
   }
 
-  name             = "worker2"
-  database_name    = "worker2_duchy_computations"
-  spanner_instance = google_spanner_instance.spanner_instance
-  storage_bucket   = module.storage.storage_bucket
+  name                       = "worker2"
+  database_name              = "worker2_duchy_computations"
+  spanner_instance           = google_spanner_instance.spanner_instance
+  storage_bucket             = module.storage.storage_bucket
+  monitoring_service_account = module.common.monitoring_service_account
 }

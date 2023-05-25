@@ -92,4 +92,8 @@ enum ErrorCode {
   MODEL_SHARD_NOT_FOUND = 33;
   /** ModelRelease resource queried could not be found. */
   MODEL_RELEASE_NOT_FOUND = 34;
+  /** ModelRollout rollout time args are invalid. */
+  MODEL_ROLLOUT_INVALID_ARGS = 35;
+  /** ModelRollout resource queried could not be found. */
+  MODEL_ROLLOUT_NOT_FOUND = 36;
 }

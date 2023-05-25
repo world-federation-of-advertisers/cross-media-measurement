@@ -33,6 +33,7 @@ import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCorout
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelShardsGrpcKt.ModelShardsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.PublicKeysGrpcKt.PublicKeysCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
@@ -66,6 +67,7 @@ data class KingdomDataServices(
   val modelReleasesService: ModelReleasesCoroutineImplBase,
   val modelLinesService: ModelLinesCoroutineImplBase,
   val modelShardsService: ModelShardsCoroutineImplBase
+  val modelRolloutsService: ModelRolloutsCoroutineImplBase
 )
 
 fun KingdomDataServices.toList(): List<BindableService> {
