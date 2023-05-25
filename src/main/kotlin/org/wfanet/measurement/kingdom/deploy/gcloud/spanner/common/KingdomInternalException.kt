@@ -649,7 +649,7 @@ class ModelOutageInvalidArgsException(
         "external_model_suite_id" to externalModelSuiteId.toString(),
         "external_model_line_id" to externalModelLineId.toString(),
         "external_model_outage_id" to externalModelOutageId.toString()
-        )
+      )
 }
 
 class ModelShardNotFoundException(
