@@ -16,9 +16,12 @@
 
 package org.wfanet.measurement.reporting.service.api
 
+import com.google.common.truth.Truth.assertThat
 import io.grpc.Status
 import java.time.Clock
 import java.time.Duration
+import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -29,7 +32,6 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.KArgumentCaptor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
@@ -78,17 +80,18 @@ class CelEnvProviderTest {
   @Test
   @OptIn(ExperimentalCoroutinesApi::class) // For `runTest`
   fun `cache provider retries cache update if exception occurs`(): Unit {
+    var verified = false
     try {
       runTest(UnconfinedTestDispatcher()) {
         CelEnvCacheProvider(
-            EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
-              grpcTestServerRule.channel
-            ),
-            Duration.ofMinutes(5),
-            coroutineContext,
-            Clock.systemUTC(),
-            1
-          )
+          EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
+            grpcTestServerRule.channel
+          ),
+          Duration.ofMinutes(5),
+          coroutineContext,
+          Clock.systemUTC(),
+          1
+        )
           .use {
             it.getTypeRegistryAndEnv()
 
@@ -98,49 +101,52 @@ class CelEnvProviderTest {
 
             verify(cmmsEventGroupMetadataDescriptorsServiceMock, times(2))
               .listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
+
+            verified = true
           }
       }
-    } catch (_: Exception) {}
+    } catch (e: Throwable) {
+      println(e.stackTraceToString())
+    } finally {
+      assertThat(verified).isTrue()
+    }
   }
 
   @Test
   @OptIn(ExperimentalCoroutinesApi::class) // For `runTest`
-  fun `cache provider is not stopped by exceptions`(): Unit {
+  fun `cache provider is destroyed if initial sync fails`(): Unit {
+    var verified = false
     try {
       runTest(UnconfinedTestDispatcher()) {
-        val clock = Clock.systemUTC()
-        val fakeClock: Clock = mock()
-        val intervalDur = Duration.ofMinutes(5)
-        whenever(fakeClock.instant())
-          .thenReturn(clock.instant(), clock.instant(), clock.instant(), clock.instant())
-          .thenReturn(clock.instant().plusMillis(intervalDur.toMillis()))
+        whenever(cmmsEventGroupMetadataDescriptorsServiceMock.listEventGroupMetadataDescriptors(any()))
+          .thenThrow(Status.DEADLINE_EXCEEDED.asRuntimeException())
 
         CelEnvCacheProvider(
-            EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
-              grpcTestServerRule.channel
-            ),
-            intervalDur,
-            coroutineContext,
-            fakeClock,
-            0
-          )
+          EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
+            grpcTestServerRule.channel
+          ),
+          Duration.ofMinutes(5),
+          coroutineContext,
+          Clock.systemUTC(),
+          0
+        )
           .use {
-            loop@ while (true) {
-              try {
-                it.getTypeRegistryAndEnv()
-                val eventGroupMetadataDescriptorsCaptor:
-                  KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> =
-                  argumentCaptor()
+            assertFailsWith<CancellationException> { it.getTypeRegistryAndEnv() }
 
-                verify(cmmsEventGroupMetadataDescriptorsServiceMock, times(2))
-                  .listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
-                break@loop
-              } catch (_: Exception) {
-                continue@loop
-              }
-            }
+            val eventGroupMetadataDescriptorsCaptor:
+              KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> =
+              argumentCaptor()
+
+            verify(cmmsEventGroupMetadataDescriptorsServiceMock, times(1))
+              .listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
+
+            verified = true
           }
       }
-    } catch (_: Exception) {}
+    } catch (e: Throwable) {
+      println(e.stackTraceToString())
+    } finally {
+      assertThat(verified).isTrue()
+    }
   }
 }

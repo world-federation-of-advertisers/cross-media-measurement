@@ -27,10 +27,10 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.logging.Logger
 import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CompletableJob
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.async
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.retry
 import kotlinx.coroutines.launch
@@ -66,7 +66,7 @@ class CelEnvCacheProvider(
   private val cacheRefreshInterval: Duration,
   coroutineContext: CoroutineContext,
   private val clock: Clock,
-  private val numRetries: Long = 3L,
+  private val numRetriesInitialSync: Long = 3L,
 ) : CelEnvProvider, AutoCloseable {
   private val mutex = Mutex(false)
 
@@ -74,26 +74,30 @@ class CelEnvCacheProvider(
   private var lastUpdated = Instant.EPOCH
   private val cacheRefreshIntervalMillis = cacheRefreshInterval.toMillis()
   private val coroutineScope = CoroutineScope(coroutineContext)
+  private val initialSyncJob: CompletableJob = Job()
 
   init {
     coroutineScope.launch {
       MinimumIntervalThrottler(clock, cacheRefreshInterval).loopOnReady {
-        val job = async {
+        if (initialSyncJob.isActive) {
           var updateFlow = flow<Unit> { setTypeRegistryAndEnv() }
-          if (numRetries > 0) {
-            updateFlow = updateFlow.retry(numRetries) { e -> e is RetriableException }
+          if (numRetriesInitialSync > 0) {
+            updateFlow = updateFlow.retry(numRetriesInitialSync) { e -> e is RetriableException }
           }
+          try {
+            updateFlow.collect {}
+            initialSyncJob.complete()
+          } catch (e: Exception) {
+            initialSyncJob.completeExceptionally(e)
+            throw (e)
+          }
+        } else {
+          val updateFlow = flow<Unit> { setTypeRegistryAndEnv() }
           try {
             updateFlow.collect {}
           } catch (e: Exception) {
             logger.warning(e.stackTraceToString())
           }
-        }
-
-        try {
-          job.await()
-        } catch (e: Exception) {
-          logger.warning(e.stackTraceToString())
         }
       }
     }
@@ -104,20 +108,12 @@ class CelEnvCacheProvider(
   }
 
   override suspend fun getTypeRegistryAndEnv(): CelEnvProvider.TypeRegistryAndEnv {
-    if (this::typeRegistryAndEnv.isInitialized) {
-      return typeRegistryAndEnv
+    return if (this::typeRegistryAndEnv.isInitialized) {
+      typeRegistryAndEnv
+    } else {
+      initialSyncJob.join()
+      typeRegistryAndEnv
     }
-
-    for (i in 1..3) {
-      mutex.withLock {
-        if (this::typeRegistryAndEnv.isInitialized) {
-          return typeRegistryAndEnv
-        }
-      }
-      delay(1000)
-    }
-
-    throw UninitializedPropertyAccessException()
   }
 
   private suspend fun setTypeRegistryAndEnv() {
