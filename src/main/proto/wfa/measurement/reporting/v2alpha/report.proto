@@ -153,17 +153,20 @@ message Report {
       // Cartesian product of groupings.
       repeated string grouping_predicates = 1;
 
+      // The metric spec that is associated with the metric calculation.
+      MetricSpec metric_spec = 2;
+
       // The time interval associated with the metric calculation.
       //
       // If `cumulative` in `MetricCalculationSpec` is true, the metric result
       // is calculated cumulatively from the first start time defined in the
       // report to the end of this time interval. Otherwise, the result is
       // calculated cumulatively over this time interval.
-      TimeInterval time_interval = 2;
+      TimeInterval time_interval = 3;
 
       // The metric result calculated on the reporting set with the setup in the
       // attribute.
-      MetricResult metric_result = 3;
+      MetricResult metric_result = 4;
     }
     // The number of results is equal to the size of the Cartesian product of
     // groupings, time intervals, and metric types.
