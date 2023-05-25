@@ -169,7 +169,9 @@ fun InternalMetricSpec.toMetricSpec(): MetricSpec {
       InternalMetricSpec.TypeCase.TYPE_NOT_SET ->
         throw IllegalArgumentException("The metric type in Metric is not specified.")
     }
-    vidSamplingInterval = source.vidSamplingInterval.toVidSamplingInterval()
+    if (source.hasVidSamplingInterval()) {
+      vidSamplingInterval = source.vidSamplingInterval.toVidSamplingInterval()
+    }
   }
 }
 
