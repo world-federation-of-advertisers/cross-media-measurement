@@ -41,6 +41,7 @@ import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.CreateReportRequest
+import org.wfanet.measurement.reporting.v2alpha.GetReportRequest
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
@@ -71,6 +72,60 @@ class ReportsService(
     val requestId: String,
     val internalTimeRange: InternalTimeRange,
   )
+
+  override suspend fun getReport(request: GetReportRequest): Report {
+    val reportKey =
+      grpcRequireNotNull(ReportKey.fromName(request.name)) {
+        "Report name is either unspecified or invalid"
+      }
+
+    val principal: ReportingPrincipal = principalFromCurrentContext
+    when (principal) {
+      is MeasurementConsumerPrincipal -> {
+        if (reportKey.cmmsMeasurementConsumerId != principal.resourceKey.measurementConsumerId) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot get Report belonging to other MeasurementConsumers."
+          }
+        }
+      }
+    }
+
+    val internalReport =
+      try {
+        internalReportsStub.getReport(
+          internalGetReportRequest {
+            cmmsMeasurementConsumerId = reportKey.cmmsMeasurementConsumerId
+            externalReportId = apiIdToExternalId(reportKey.reportId)
+          }
+        )
+      } catch (e: StatusException) {
+        throw Exception("Unable to get the report from the reporting database.", e)
+      }
+
+    // Create metrics.
+    val createMetricRequests: List<CreateMetricRequest> =
+      internalReport.reportingMetricEntriesMap
+        .flatMap { (_, reportingMetricCalculationSpec) ->
+          reportingMetricCalculationSpec.metricCalculationSpecsList.flatMap { metricCalculationSpec
+            ->
+            metricCalculationSpec.createMetricRequestsList
+          }
+        }
+        .map { it.toCreateMetricRequest(principal.resourceKey) }
+    val metrics: List<Metric> =
+      batchCreateMetrics(
+        principal.resourceKey.toName(),
+        principal.config.apiKey,
+        createMetricRequests
+      )
+
+    // Convert the internal report to public and return.
+    val requestIdToMetricMap: Map<String, Metric> =
+      createMetricRequests
+        .zip(metrics) { createMetricRequest, metric -> createMetricRequest.requestId to metric }
+        .toMap()
+    return convertInternalReportToPublic(internalReport, requestIdToMetricMap)
+  }
 
   override suspend fun createReport(request: CreateReportRequest): Report {
     grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
