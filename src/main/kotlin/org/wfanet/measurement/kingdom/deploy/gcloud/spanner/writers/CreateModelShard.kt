@@ -60,6 +60,13 @@ class CreateModelShard(private val modelShard: ModelShard) :
         modelSuiteResult.modelSuiteId,
         ExternalId(modelShard.externalModelReleaseId)
       )
+        ?: throw ModelReleaseNotFoundException(
+          ExternalId(modelShard.externalDataProviderId),
+          ExternalId(modelShard.externalModelSuiteId),
+          ExternalId(modelShard.externalModelReleaseId)
+        ) {
+          "ModelRelease with external ID $modelShard.externalModelReleaseId not found"
+        }
 
     val internalModelShardId = idGenerator.generateInternalId()
     val externalModelShardId = idGenerator.generateExternalId()
@@ -82,7 +89,7 @@ class CreateModelShard(private val modelShard: ModelShard) :
     modelProviderId: InternalId,
     modelSuiteId: InternalId,
     externalModelReleaseId: ExternalId
-  ): Struct {
+  ): Struct? {
     return transactionContext.readRowUsingIndex(
       "ModelReleases",
       "ModelReleasesByExternalId",
@@ -91,9 +98,6 @@ class CreateModelShard(private val modelShard: ModelShard) :
       "ModelSuiteId",
       "ModelReleaseId"
     )
-      ?: throw ModelReleaseNotFoundException(externalModelReleaseId) {
-        "ModelRelease with external ID $externalModelReleaseId not found"
-      }
   }
 
   private suspend fun TransactionScope.readDataProviderData(

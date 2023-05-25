@@ -32,8 +32,8 @@ import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCo
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.ModelShardsGrpcKt.ModelShardsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelShardsGrpcKt.ModelShardsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.PublicKeysGrpcKt.PublicKeysCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
@@ -66,7 +66,7 @@ data class KingdomDataServices(
   val modelSuitesService: ModelSuitesCoroutineImplBase,
   val modelReleasesService: ModelReleasesCoroutineImplBase,
   val modelLinesService: ModelLinesCoroutineImplBase,
-  val modelShardsService: ModelShardsCoroutineImplBase
+  val modelShardsService: ModelShardsCoroutineImplBase,
   val modelRolloutsService: ModelRolloutsCoroutineImplBase
 )
 

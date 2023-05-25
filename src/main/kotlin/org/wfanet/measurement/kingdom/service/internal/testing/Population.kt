@@ -240,17 +240,6 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     )
   }
 
-  suspend fun createModelRelease(
-    modelSuite: ModelSuite,
-    modelReleasesService: ModelReleasesCoroutineImplBase
-  ): ModelRelease {
-    val modelRelease = modelRelease {
-      externalModelProviderId = modelSuite.externalModelProviderId
-      externalModelSuiteId = modelSuite.externalModelSuiteId
-    }
-    return modelReleasesService.createModelRelease(modelRelease)
-  }
-
   suspend fun createComputedMeasurement(
     measurementsService: MeasurementsCoroutineImplBase,
     measurementConsumer: MeasurementConsumer,
