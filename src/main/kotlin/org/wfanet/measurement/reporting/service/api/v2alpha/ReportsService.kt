@@ -38,17 +38,21 @@ import org.wfanet.measurement.internal.reporting.v2.createReportRequest as inter
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
+import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.CreateReportRequest
+import org.wfanet.measurement.reporting.v2alpha.GetReportRequest
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.batchCreateMetricsRequest
+import org.wfanet.measurement.reporting.v2alpha.batchGetMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.report
 
 private const val MAX_BATCH_SIZE_FOR_BATCH_CREATE_METRICS = 1000
+private const val MAX_BATCH_SIZE_FOR_BATCH_GET_METRICS = 100
 
 private typealias InternalReportingMetricEntries =
   Map<Long, InternalReport.ReportingMetricCalculationSpec>
@@ -72,6 +76,90 @@ class ReportsService(
   )
 
   private val metricSpecBuilder = MetricSpecBuilder(metricSpecConfig)
+
+  override suspend fun getReport(request: GetReportRequest): Report {
+    val reportKey =
+      grpcRequireNotNull(ReportKey.fromName(request.name)) {
+        "Report name is either unspecified or invalid"
+      }
+
+    val principal: ReportingPrincipal = principalFromCurrentContext
+    when (principal) {
+      is MeasurementConsumerPrincipal -> {
+        if (reportKey.cmmsMeasurementConsumerId != principal.resourceKey.measurementConsumerId) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot get Report belonging to other MeasurementConsumers."
+          }
+        }
+      }
+    }
+
+    val internalReport =
+      try {
+        internalReportsStub.getReport(
+          internalGetReportRequest {
+            cmmsMeasurementConsumerId = reportKey.cmmsMeasurementConsumerId
+            externalReportId = apiIdToExternalId(reportKey.reportId)
+          }
+        )
+      } catch (e: StatusException) {
+        throw Exception("Unable to get the report from the reporting database.", e)
+      }
+
+    // Create metrics.
+    val metricNames: List<String> =
+      internalReport.reportingMetricEntriesMap.flatMap { (_, reportingMetricCalculationSpec) ->
+        reportingMetricCalculationSpec.metricCalculationSpecsList.flatMap { metricCalculationSpec ->
+          metricCalculationSpec.reportingMetricsList.map { reportingMetric ->
+            MetricKey(
+                principal.resourceKey.measurementConsumerId,
+                externalIdToApiId(reportingMetric.externalMetricId)
+              )
+              .toName()
+          }
+        }
+      }
+    val metrics: List<Metric> =
+      batchGetMetrics(principal.resourceKey.toName(), principal.config.apiKey, metricNames)
+
+    // Convert the internal report to public and return.
+    return convertInternalReportToPublic(internalReport, metrics)
+  }
+
+  private suspend fun batchGetMetrics(
+    parent: String,
+    apiAuthenticationKey: String,
+    metricNames: List<String>,
+  ): List<Metric> {
+    val batchGetMetricsRequests = mutableListOf<BatchGetMetricsRequest>()
+
+    while (batchGetMetricsRequests.size * MAX_BATCH_SIZE_FOR_BATCH_GET_METRICS < metricNames.size) {
+      val fromIndex = batchGetMetricsRequests.size * MAX_BATCH_SIZE_FOR_BATCH_GET_METRICS
+      val toIndex = min(fromIndex + MAX_BATCH_SIZE_FOR_BATCH_GET_METRICS, metricNames.size)
+
+      batchGetMetricsRequests += batchGetMetricsRequest {
+        this.parent = parent
+        names += metricNames.slice(fromIndex until toIndex)
+      }
+    }
+
+    return batchGetMetricsRequests.flatMap { batchGetMetricsRequest ->
+      try {
+        metricsStub
+          .withAuthenticationKey(apiAuthenticationKey)
+          .batchGetMetrics(batchGetMetricsRequest)
+          .metricsList
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+            Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT.withDescription(e.message)
+            Status.Code.PERMISSION_DENIED -> Status.PERMISSION_DENIED.withDescription(e.message)
+            else -> Status.UNKNOWN.withDescription("Unable to create metrics.")
+          }
+          .withCause(e)
+          .asRuntimeException()
+      }
+    }
+  }
 
   override suspend fun createReport(request: CreateReportRequest): Report {
     grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
@@ -254,10 +342,10 @@ class ReportsService(
           .metricsList
       } catch (e: StatusException) {
         throw when (e.status.code) {
-            Status.Code.NOT_FOUND ->
-              Status.NOT_FOUND.withDescription("Reporting set used in the metric not found.")
-            Status.Code.FAILED_PRECONDITION ->
-              Status.FAILED_PRECONDITION.withDescription("Measurement Consumer not found.")
+            Status.Code.PERMISSION_DENIED -> Status.PERMISSION_DENIED.withDescription(e.message)
+            Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT.withDescription(e.message)
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription(e.message)
+            Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION.withDescription(e.message)
             else -> Status.UNKNOWN.withDescription("Unable to create metrics.")
           }
           .withCause(e)
