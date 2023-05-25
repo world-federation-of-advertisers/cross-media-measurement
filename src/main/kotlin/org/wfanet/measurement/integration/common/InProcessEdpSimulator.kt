@@ -42,9 +42,9 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemory
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
+import org.wfanet.measurement.loadtest.dataprovider.DirectNoiseMechanism
 import org.wfanet.measurement.loadtest.dataprovider.EdpData
 import org.wfanet.measurement.loadtest.dataprovider.EdpSimulator
-import org.wfanet.measurement.loadtest.dataprovider.NoiseMechanism
 import org.wfanet.measurement.loadtest.dataprovider.RandomEventQuery
 import org.wfanet.measurement.loadtest.dataprovider.SketchGenerationParams
 import org.wfanet.measurement.loadtest.storage.SketchStore
@@ -102,7 +102,7 @@ class InProcessEdpSimulator(
         ),
       trustedCertificates = trustedCertificates,
       random,
-      NOISE_MECHANISM
+      DIRECT_NOISE_MECHANISM
     )
 
   private lateinit var edpJob: Job
@@ -130,6 +130,6 @@ class InProcessEdpSimulator(
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val RANDOM_SEED: Long = 1
     private val random = Random(RANDOM_SEED)
-    private val NOISE_MECHANISM = NoiseMechanism.LAPLACE
+    private val DIRECT_NOISE_MECHANISM = DirectNoiseMechanism.LAPLACE
   }
 }
