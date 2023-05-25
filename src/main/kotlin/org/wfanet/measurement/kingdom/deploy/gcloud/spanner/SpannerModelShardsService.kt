@@ -46,6 +46,9 @@ class SpannerModelShardsService(
     grpcRequire(request.externalDataProviderId != 0L) {
       "DataProviderId field of ModelShard is missing."
     }
+    grpcRequire(request.modelBlobPath.isNotBlank()) {
+      "ModelBlobPath field of ModelShard is missing."
+    }
     try {
       return CreateModelShard(request).execute(client, idGenerator)
     } catch (e: DataProviderNotFoundException) {

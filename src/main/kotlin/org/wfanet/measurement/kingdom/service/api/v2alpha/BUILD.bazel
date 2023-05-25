@@ -391,6 +391,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:model_line_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:model_release_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_shard_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:model_suite_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:duchy_protocol_config_kt_jvm_proto",
@@ -403,6 +404,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/kingdom:measurement_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:model_line_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:model_release_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:model_shard_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:model_suite_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
@@ -423,5 +425,22 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:page_token_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:model_release_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:model_releases_service_kt_jvm_grpc_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "model_shards_service",
+    srcs = ["ModelShardsService.kt"],
+    deps = [
+        ":proto_conversions",
+        "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_shard_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_shards_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:page_token_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:model_shard_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:model_shards_service_kt_jvm_grpc_proto",
     ],
 )

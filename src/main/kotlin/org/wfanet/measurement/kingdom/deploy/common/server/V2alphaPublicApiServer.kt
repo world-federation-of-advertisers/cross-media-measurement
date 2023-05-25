@@ -38,6 +38,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.Measur
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineStub as InternalModelLinesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineStub as InternalModelReleasesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ModelShardsGrpcKt.ModelShardsCoroutineStub as InternalModelShardsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineStub as InternalModelSuitesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.PublicKeysGrpcKt.PublicKeysCoroutineStub as InternalPublicKeysCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
@@ -55,6 +56,7 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementConsumersSe
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelLinesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelReleasesService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelShardsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelSuitesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.PublicKeysService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsService
@@ -154,6 +156,8 @@ private fun run(
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
       ModelLinesService(InternalModelLinesCoroutineStub(channel))
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+      ModelShardsService(InternalModelShardsCoroutineStub(channel))
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ModelSuitesService(InternalModelSuitesCoroutineStub(channel))
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)

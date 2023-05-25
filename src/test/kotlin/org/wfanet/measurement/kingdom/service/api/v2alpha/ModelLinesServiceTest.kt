@@ -782,7 +782,7 @@ class ModelLinesServiceTest {
   }
 
   @Test
-  fun `listModelSuites with page token gets the next page`() {
+  fun `listModelLines with page token gets the next page`() {
     val request = listModelLinesRequest {
       parent = MODEL_SUITE_NAME
       pageSize = 2

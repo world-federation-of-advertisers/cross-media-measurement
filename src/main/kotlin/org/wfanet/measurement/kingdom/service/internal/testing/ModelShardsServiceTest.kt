@@ -149,6 +149,30 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
   }
 
   @Test
+  fun `createModelShard fails when externalDataProviderId is missing`() = runBlocking {
+    val modelShard = modelShard {}
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { modelShardsService.createModelShard(modelShard) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("DataProviderId field of ModelShard is missing.")
+  }
+
+  @Test
+  fun `createModelShard fails when modelBlobPath is missing`() = runBlocking {
+    val modelShard = modelShard { externalDataProviderId = 123L }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { modelShardsService.createModelShard(modelShard) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("ModelBlobPath field of ModelShard is missing.")
+  }
+
+  @Test
   fun `createModelShard fails when Model Suite is not found`() = runBlocking {
     val dataProvider = population.createDataProvider(dataProvidersService)
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
