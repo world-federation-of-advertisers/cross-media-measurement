@@ -94,4 +94,12 @@ enum ErrorCode {
   MODEL_OUTAGE_STATE_ILLEGAL = 34;
   /** ModelOutage outage interval args are invalid. */
   MODEL_OUTAGE_INVALID_ARGS = 35;
+  /** ModelShard resource queried could not be found. */
+  MODEL_SHARD_NOT_FOUND = 36;
+  /** ModelRelease resource queried could not be found. */
+  MODEL_RELEASE_NOT_FOUND = 37;
+  /** ModelRollout rollout time args are invalid. */
+  MODEL_ROLLOUT_INVALID_ARGS = 38;
+  /** ModelRollout resource queried could not be found. */
+  MODEL_ROLLOUT_NOT_FOUND = 39;
 }

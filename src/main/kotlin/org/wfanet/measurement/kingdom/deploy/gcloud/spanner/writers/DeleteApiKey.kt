@@ -18,6 +18,7 @@ import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.kingdom.ApiKey
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ApiKeyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
@@ -40,16 +41,13 @@ class DeleteApiKey(
 
   override suspend fun TransactionScope.runTransaction(): ApiKey {
     val apiKeyResult = readApiKey(externalApiKeyId)
+    val measurementConsumerId: InternalId =
+      readInternalMeasurementConsumerId(externalMeasurementConsumerId)
 
     transactionContext.buffer(
       Mutation.delete(
         "MeasurementConsumerApiKeys",
-        KeySet.singleKey(
-          Key.of(
-            readInternalMeasurementConsumerId(externalMeasurementConsumerId),
-            apiKeyResult.apiKeyId
-          )
-        )
+        KeySet.singleKey(Key.of(measurementConsumerId.value, apiKeyResult.apiKeyId))
       )
     )
 
@@ -58,10 +56,11 @@ class DeleteApiKey(
 
   private suspend fun TransactionScope.readInternalMeasurementConsumerId(
     externalMeasurementConsumerId: ExternalId
-  ): Long =
-    MeasurementConsumerReader()
-      .readByExternalMeasurementConsumerId(transactionContext, externalMeasurementConsumerId)
-      ?.measurementConsumerId
+  ): InternalId =
+    MeasurementConsumerReader.readMeasurementConsumerId(
+      transactionContext,
+      externalMeasurementConsumerId
+    )
       ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
 
   private suspend fun TransactionScope.readApiKey(

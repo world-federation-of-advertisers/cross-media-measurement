@@ -39,7 +39,7 @@ spanner_emulator_test(
     srcs = ["SpannerMeasurementsServiceTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerMeasurementsServiceTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:measurements_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing:kingdom_data_services",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing",
@@ -236,6 +236,39 @@ spanner_emulator_test(
     name = "SpannerModelOutagesServiceTest",
     srcs = ["SpannerModelOutagesServiceTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerModelOutagesServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing",
+    ],
+)
+
+spanner_emulator_test(
+    name = "SpannerModelReleasesServiceTest",
+    srcs = ["SpannerModelReleasesServiceTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerModelReleasesServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing",
+    ],
+)
+
+spanner_emulator_test(
+    name = "SpannerModelShardsServiceTest",
+    srcs = ["SpannerModelShardsServiceTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerModelShardsServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing",
+    ],
+)
+
+spanner_emulator_test(
+    name = "SpannerModelRolloutsServiceTest",
+    srcs = ["SpannerModelRolloutsServiceTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerModelRolloutsServiceTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",

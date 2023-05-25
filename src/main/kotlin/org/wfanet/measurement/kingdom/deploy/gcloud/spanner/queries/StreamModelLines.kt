@@ -29,10 +29,18 @@ class StreamModelLines(private val requestFilter: StreamModelLinesRequest.Filter
   override val reader =
     ModelLineReader().fillStatementBuilder {
       appendWhereClause(requestFilter)
-      appendClause("ORDER BY ModelLines.CreateTime ASC, ModelLines.ExternalModelLineId ASC")
+      appendClause(
+        """
+        ORDER BY ModelLines.CreateTime ASC,
+        ModelProviders.ExternalModelProviderId ASC,
+        ModelSuites.ExternalModelSuiteId ASC,
+        ModelLines.ExternalModelLineId ASC
+        """
+          .trimIndent()
+      )
       if (limit > 0) {
-        appendClause("LIMIT @${LIMIT_PARAM}")
-        bind(LIMIT_PARAM to limit.toLong())
+        appendClause("LIMIT @${LIMIT}")
+        bind(LIMIT to limit.toLong())
       }
     }
 
@@ -40,31 +48,38 @@ class StreamModelLines(private val requestFilter: StreamModelLinesRequest.Filter
     val conjuncts = mutableListOf<String>()
 
     if (filter.externalModelProviderId != 0L) {
-      conjuncts.add("ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID_PARAM}")
-      bind(EXTERNAL_MODEL_PROVIDER_ID_PARAM to filter.externalModelProviderId)
+      conjuncts.add("ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID}")
+      bind(EXTERNAL_MODEL_PROVIDER_ID to filter.externalModelProviderId)
     }
 
     if (filter.externalModelSuiteId != 0L) {
-      conjuncts.add("ExternalModelSuiteId = @${EXTERNAL_MODEL_SUITE_ID_PARAM}")
-      bind(EXTERNAL_MODEL_SUITE_ID_PARAM to filter.externalModelSuiteId)
+      conjuncts.add("ExternalModelSuiteId = @${EXTERNAL_MODEL_SUITE_ID}")
+      bind(EXTERNAL_MODEL_SUITE_ID to filter.externalModelSuiteId)
     }
 
     if (filter.hasAfter()) {
       conjuncts.add(
         """
           ((ModelLines.CreateTime  > @${CREATED_AFTER})
-          OR (ModelLines.CreateTime  = @${CREATED_AFTER}
-          AND ModelLines.ExternalModelLineId > @${EXTERNAL_MODEL_LINE_ID_PARAM}))
+          OR (ModelLines.CreateTime = @${CREATED_AFTER}
+          AND ModelProviders.ExternalModelProviderId > @${EXTERNAL_MODEL_PROVIDER_ID})
+          OR (ModelLines.CreateTime = @${CREATED_AFTER}
+          AND ModelProviders.ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID}
+          AND ModelSuites.ExternalModelSuiteId > @${EXTERNAL_MODEL_SUITE_ID})
+          OR (ModelLines.CreateTime = @${CREATED_AFTER}
+          AND ModelProviders.ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID}
+          AND ModelSuites.ExternalModelSuiteId = @${EXTERNAL_MODEL_SUITE_ID}
+          AND ModelLines.ExternalModelLineId > @${EXTERNAL_MODEL_LINE_ID}))
         """
           .trimIndent()
       )
       bind(CREATED_AFTER to filter.after.createTime.toGcloudTimestamp())
-      bind(EXTERNAL_MODEL_LINE_ID_PARAM to filter.after.externalModelLineId)
+      bind(EXTERNAL_MODEL_LINE_ID to filter.after.externalModelLineId)
     }
 
     if (filter.typeValueList.isNotEmpty()) {
-      conjuncts.add("ModelLines.Type IN UNNEST(@${TYPES_PARAM})")
-      bind(TYPES_PARAM).toInt64Array(filter.typeValueList.map { it.toLong() })
+      conjuncts.add("ModelLines.Type IN UNNEST(@${TYPES})")
+      bind(TYPES).toInt64Array(filter.typeValueList.map { it.toLong() })
     }
 
     if (conjuncts.isEmpty()) {
@@ -76,11 +91,11 @@ class StreamModelLines(private val requestFilter: StreamModelLinesRequest.Filter
   }
 
   companion object {
-    const val LIMIT_PARAM = "limit"
-    const val EXTERNAL_MODEL_PROVIDER_ID_PARAM = "externalModelProviderId"
-    const val EXTERNAL_MODEL_SUITE_ID_PARAM = "externalModelSuiteId"
-    const val EXTERNAL_MODEL_LINE_ID_PARAM = "externalModelLineId"
+    const val LIMIT = "limit"
+    const val EXTERNAL_MODEL_PROVIDER_ID = "externalModelProviderId"
+    const val EXTERNAL_MODEL_SUITE_ID = "externalModelSuiteId"
+    const val EXTERNAL_MODEL_LINE_ID = "externalModelLineId"
     const val CREATED_AFTER = "createdAfter"
-    const val TYPES_PARAM = "types"
+    const val TYPES = "types"
   }
 }

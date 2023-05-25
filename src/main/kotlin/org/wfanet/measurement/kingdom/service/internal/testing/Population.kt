@@ -52,6 +52,8 @@ import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelRelease
+import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelSuite
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
@@ -60,6 +62,7 @@ import org.wfanet.measurement.internal.kingdom.activateAccountRequest
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest
+import org.wfanet.measurement.internal.kingdom.createMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.generateOpenIdRequestParamsRequest
@@ -67,6 +70,7 @@ import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementConsumer
 import org.wfanet.measurement.internal.kingdom.modelLine
 import org.wfanet.measurement.internal.kingdom.modelProvider
+import org.wfanet.measurement.internal.kingdom.modelRelease
 import org.wfanet.measurement.internal.kingdom.modelSuite
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
@@ -170,19 +174,36 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     return modelProvidersService.createModelProvider(modelProvider {})
   }
 
-  suspend fun createModelSuite(
-    modelProvidersService: ModelProvidersCoroutineImplBase,
-    modelSuitesService: ModelSuitesCoroutineImplBase
-  ): ModelSuite {
+  private suspend fun createMeasurement(
+    measurementsService: MeasurementsCoroutineImplBase,
+    measurementConsumer: MeasurementConsumer,
+    providedMeasurementId: String,
+    dataProviders: Map<Long, Measurement.DataProviderValue> = mapOf(),
+    details: Measurement.Details
+  ): Measurement {
+    return measurementsService.createMeasurement(
+      createMeasurementRequest {
+        measurement = measurement {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          this.providedMeasurementId = providedMeasurementId
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+          this.details = details
+          this.dataProviders.putAll(dataProviders)
+        }
+      }
+    )
+  }
 
-    val modelProvider = createModelProvider(modelProvidersService)
-
-    val modelSuite = modelSuite {
-      externalModelProviderId = modelProvider.externalModelProviderId
-      displayName = "displayName"
-      description = "description"
+  suspend fun createModelRelease(
+    modelSuite: ModelSuite,
+    modelReleasesService: ModelReleasesCoroutineImplBase
+  ): ModelRelease {
+    val modelRelease = modelRelease {
+      externalModelProviderId = modelSuite.externalModelProviderId
+      externalModelSuiteId = modelSuite.externalModelSuiteId
     }
-    return modelSuitesService.createModelSuite(modelSuite)
+    return modelReleasesService.createModelRelease(modelRelease)
   }
 
   suspend fun createModelLine(
@@ -204,21 +225,17 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     return modelLinesService.createModelLine(modelLine)
   }
 
-  private suspend fun createMeasurement(
-    measurementsService: MeasurementsCoroutineImplBase,
-    measurementConsumer: MeasurementConsumer,
-    providedMeasurementId: String,
-    dataProviders: Map<Long, Measurement.DataProviderValue> = mapOf(),
-    details: Measurement.Details
-  ): Measurement {
-    return measurementsService.createMeasurement(
-      measurement {
-        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-        this.providedMeasurementId = providedMeasurementId
-        externalMeasurementConsumerCertificateId =
-          measurementConsumer.certificate.externalCertificateId
-        this.details = details
-        this.dataProviders.putAll(dataProviders)
+  suspend fun createModelSuite(
+    modelProvidersService: ModelProvidersCoroutineImplBase,
+    modelSuitesService: ModelSuitesCoroutineImplBase
+  ): ModelSuite {
+
+    val modelProvider = modelProvidersService.createModelProvider(modelProvider {})
+    return modelSuitesService.createModelSuite(
+      modelSuite {
+        externalModelProviderId = modelProvider.externalModelProviderId
+        displayName = "displayName"
+        description = "description"
       }
     )
   }

@@ -27,9 +27,11 @@ message ModelShard {
 
   fixed64 external_model_shard_id = 2;
 
-  fixed64 external_model_release_id = 3;
+  fixed64 external_model_provider_id = 3;
+  fixed64 external_model_suite_id = 4;
+  fixed64 external_model_release_id = 5;
 
-  string model_blob_path = 4;
+  string model_blob_path = 6;
 
-  google.protobuf.Timestamp create_time = 5;
+  google.protobuf.Timestamp create_time = 7;
 }

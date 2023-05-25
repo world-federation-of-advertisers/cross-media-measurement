@@ -132,6 +132,55 @@ class ModelLineInvalidArgsException(
       )
 }
 
+class ModelReleaseNotFoundException(
+  val externalModelProviderId: ExternalId,
+  val externalModelSuiteId: ExternalId,
+  val externalModelReleaseId: ExternalId,
+  provideDescription: () -> String = { "ModelRelease not found" }
+) : KingdomInternalException(ErrorCode.MODEL_RELEASE_NOT_FOUND, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_model_provider_id" to externalModelProviderId.toString(),
+        "external_model_suite_id" to externalModelSuiteId.toString(),
+        "external_model_release_id" to externalModelReleaseId.toString(),
+      )
+}
+
+class ModelRolloutNotFoundException(
+  val externalModelProviderId: ExternalId,
+  val externalModelSuiteId: ExternalId,
+  val externalModelLineId: ExternalId,
+  val externalModelRolloutId: ExternalId? = null,
+  provideDescription: () -> String = { "ModelRollout not found" }
+) : KingdomInternalException(ErrorCode.MODEL_ROLLOUT_NOT_FOUND, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_model_provider_id" to externalModelProviderId.toString(),
+        "external_model_suite_id" to externalModelSuiteId.toString(),
+        "external_model_line_id" to externalModelLineId.toString(),
+        "external_model_rollout_id" to externalModelRolloutId.toString()
+      )
+}
+
+class ModelRolloutInvalidArgsException(
+  val externalModelProviderId: ExternalId,
+  val externalModelSuiteId: ExternalId,
+  val externalModelLineId: ExternalId,
+  val externalModelRolloutId: ExternalId? = null,
+  provideDescription: () -> String = { "ModelRollout invalid rollout period time arguments" }
+) : KingdomInternalException(ErrorCode.MODEL_ROLLOUT_INVALID_ARGS, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_model_provider_id" to externalModelProviderId.toString(),
+        "external_model_suite_id" to externalModelSuiteId.toString(),
+        "external_model_line_id" to externalModelLineId.toString(),
+        "external_model_rollout_i     d" to externalModelRolloutId.toString()
+      )
+}
+
 class DataProviderNotFoundException(
   val externalDataProviderId: ExternalId,
   provideDescription: () -> String = { "DataProvider not found" }
@@ -600,5 +649,18 @@ class ModelOutageInvalidArgsException(
         "external_model_suite_id" to externalModelSuiteId.toString(),
         "external_model_line_id" to externalModelLineId.toString(),
         "external_model_outage_id" to externalModelOutageId.toString()
+        )
+}
+
+class ModelShardNotFoundException(
+  val externalDataProviderId: ExternalId,
+  val externalModelShardId: ExternalId,
+  provideDescription: () -> String = { "ModelShard not found" }
+) : KingdomInternalException(ErrorCode.MODEL_SHARD_NOT_FOUND, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_data_provider_id" to externalDataProviderId.toString(),
+        "external_model_shard_id" to externalModelShardId.toString()
       )
 }
