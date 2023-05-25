@@ -29,8 +29,6 @@ def tink_cc(tink_commit):
             strip_prefix = "tink-{commit}/cc".format(commit = tink_commit),
             url = _tink_url,
             repo_mapping = {
-                # TODO(bazelbuild/rules_proto#121): Remove this once
-                # protobuf_workspace is fixed.
                 "@com_google_protobuf": "@com_github_protocolbuffers_protobuf",
             },
         )

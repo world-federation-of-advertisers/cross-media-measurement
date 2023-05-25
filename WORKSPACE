@@ -66,11 +66,11 @@ MAVEN_ARTIFACTS_DICT = dict(common_jvm_maven_artifacts_dict().items() + {
     "io.kubernetes:client-java-extended": "16.0.0",
 }.items())
 
-COMMON_JVM_EXCLUSION = [x for x in COMMON_JVM_EXCLUDED_ARTIFACTS if x != "org.slf4j:slf4j-log4j12"] + ["org.apache.beam:beam-sdks-java-io-kafka"]
+`EXCLUDED_MAVEN_ARTIFACTS` = [x for x in COMMON_JVM_EXCLUDED_ARTIFACTS if x != "org.slf4j:slf4j-log4j12"] + ["org.apache.beam:beam-sdks-java-io-kafka"]
 
 maven_install(
     artifacts = artifacts.dict_to_list(MAVEN_ARTIFACTS_DICT),
-    excluded_artifacts = COMMON_JVM_EXCLUSION,
+    excluded_artifacts = `EXCLUDED_MAVEN_ARTIFACTS`,
     fetch_sources = True,
     generate_compat_repositories = True,
     override_targets = COMMON_JVM_MAVEN_OVERRIDE_TARGETS,
@@ -89,7 +89,7 @@ maven_install(
         "org.jetbrains.kotlin:kotlin-stdlib-jdk7:" + KOTLIN_RELEASE_VERSION,
         "org.jetbrains.kotlin:kotlin-test:" + KOTLIN_RELEASE_VERSION,
     ],
-    excluded_artifacts = COMMON_JVM_EXCLUSION,
+    excluded_artifacts = `EXCLUDED_MAVEN_ARTIFACTS`,
     generate_compat_repositories = True,
     repositories = [
         "https://repo.maven.apache.org/maven2/",
