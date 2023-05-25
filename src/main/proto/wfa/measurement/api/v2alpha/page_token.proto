@@ -93,17 +93,18 @@ message ListModelReleasesPageToken {
     google.protobuf.Timestamp create_time = 4;
   }
   PreviousPageEnd last_model_release = 4;
+}
 
-  message ListModelLinesPageToken {
-    int32 page_size = 1;
-    fixed64 external_model_provider_id = 2;
-    fixed64 external_model_suite_id = 3;
-    repeated ModelLine.Type types = 4;
-    message PreviousPageEnd {
-      fixed64 external_model_provider_id = 1;
-      fixed64 external_model_suite_id = 2;
-      fixed64 external_model_line_id = 3;
-      google.protobuf.Timestamp create_time = 4;
-    }
-    PreviousPageEnd last_model_line = 5;
+message ListModelLinesPageToken {
+  int32 page_size = 1;
+  fixed64 external_model_provider_id = 2;
+  fixed64 external_model_suite_id = 3;
+  repeated ModelLine.Type types = 4;
+  message PreviousPageEnd {
+    fixed64 external_model_provider_id = 1;
+    fixed64 external_model_suite_id = 2;
+    fixed64 external_model_line_id = 3;
+    google.protobuf.Timestamp create_time = 4;
   }
+  PreviousPageEnd last_model_line = 5;
+}
