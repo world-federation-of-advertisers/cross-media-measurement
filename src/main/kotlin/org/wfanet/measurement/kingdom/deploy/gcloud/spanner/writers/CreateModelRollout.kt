@@ -112,10 +112,10 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
       set("RolloutPeriodEndTime" to modelRollout.rolloutPeriodEndTime.toGcloudTimestamp())
       if (previousModelRolloutData != null) {
         set(
-          "PreviousModelRollout" to InternalId(previousModelRolloutData.getLong("ModelRolloutId"))
+          "PreviousModelRolloutId" to InternalId(previousModelRolloutData.getLong("ModelRolloutId"))
         )
       }
-      set("ModelRelease" to modelReleaseResult.modelReleaseId)
+      set("ModelReleaseId" to modelReleaseResult.modelReleaseId)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
     }

@@ -86,7 +86,7 @@ class SetModelLineHoldbackModelLine(private val request: SetModelLineHoldbackMod
       set("ModelSuiteId" to modelLineResult.modelSuiteId.value)
       set("ModelProviderId" to modelLineResult.modelProviderId.value)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      set("HoldbackModelLine" to holdbackModelLineResult.modelLineId.value)
+      set("HoldbackModelLineId" to holdbackModelLineResult.modelLineId.value)
     }
 
     return modelLineResult.modelLine.copy {

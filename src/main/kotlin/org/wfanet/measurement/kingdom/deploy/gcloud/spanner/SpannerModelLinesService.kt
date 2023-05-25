@@ -101,6 +101,26 @@ class SpannerModelLinesService(
   override suspend fun setModelLineHoldbackModelLine(
     request: SetModelLineHoldbackModelLineRequest
   ): ModelLine {
+    grpcRequire(request.externalModelProviderId != 0L) {
+      "external_model_provider_id not specified"
+    }
+    grpcRequire(request.externalModelSuiteId != 0L) { "external_model_suite_id not specified" }
+    grpcRequire(request.externalModelLineId != 0L) { "external_model_line_id not specified" }
+    grpcRequire(request.externalHoldbackModelProviderId != 0L) {
+      "external_holdback_model_provider_id not specified"
+    }
+    grpcRequire(request.externalHoldbackModelSuiteId != 0L) {
+      "external_holdback_model_suite_id not specified"
+    }
+    grpcRequire(request.externalHoldbackModelLineId != 0L) {
+      "external_holdback_model_line_id not specified"
+    }
+    grpcRequire(
+      request.externalModelProviderId == request.externalHoldbackModelProviderId &&
+        request.externalModelSuiteId == request.externalHoldbackModelSuiteId
+    ) {
+      "HoldbackModelLine and ModelLine must be part of the same ModelSuite."
+    }
     try {
       return SetModelLineHoldbackModelLine(request).execute(client, idGenerator)
     } catch (e: ModelLineNotFoundException) {
