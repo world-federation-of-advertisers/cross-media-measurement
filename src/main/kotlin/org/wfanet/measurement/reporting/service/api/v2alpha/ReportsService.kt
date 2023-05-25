@@ -35,6 +35,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCorouti
 import org.wfanet.measurement.internal.reporting.v2.TimeInterval as InternalTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest as internalCreateReportRequest
+import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
 import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
@@ -124,18 +125,28 @@ class ReportsService(
     val metrics: List<Metric> =
       batchCreateMetrics(request.parent, principal.config.apiKey, createMetricRequests)
 
+    // Once all metrics are created, get the updated internal report with the metric IDs and the
+    // updated metric specs filled.
+    val updatedInternalReport =
+      try {
+        internalReportsStub.getReport(
+          internalGetReportRequest {
+            cmmsMeasurementConsumerId = internalReport.cmmsMeasurementConsumerId
+            externalReportId = internalReport.externalReportId
+          }
+        )
+      } catch (e: StatusException) {
+        throw Exception("Unable to create a report in the reporting database.", e)
+      }
+
     // Convert the internal report to public and return.
-    val requestIdToMetricMap: Map<String, Metric> =
-      createMetricRequests
-        .zip(metrics) { createMetricRequest, metric -> createMetricRequest.requestId to metric }
-        .toMap()
-    return convertInternalReportToPublic(internalReport, requestIdToMetricMap)
+    return convertInternalReportToPublic(updatedInternalReport, metrics)
   }
 
   /** Converts an internal [InternalReport] to a public [Report]. */
   private fun convertInternalReportToPublic(
     internalReport: InternalReport,
-    requestIdToMetricMap: Map<String, Metric>,
+    metrics: List<Metric>,
   ): Report {
     return report {
       name =
@@ -146,24 +157,10 @@ class ReportsService(
           .toName()
 
       reportingMetricEntries +=
-        internalReport.reportingMetricEntriesMap.map {
-          (externalReportingSetId, internalReportingMetricCalculationSpec) ->
-          ReportKt.reportingMetricEntry {
-            key =
-              ReportingSetKey(
-                  internalReport.cmmsMeasurementConsumerId,
-                  externalIdToApiId(externalReportingSetId)
-                )
-                .toName()
-
-            value =
-              ReportKt.reportingMetricCalculationSpec {
-                metricCalculationSpecs +=
-                  internalReportingMetricCalculationSpec.metricCalculationSpecsList.map {
-                    it.toMetricCalculationSpec(requestIdToMetricMap)
-                  }
-              }
-          }
+        internalReport.reportingMetricEntriesMap.map { internalReportingMetricEntry ->
+          internalReportingMetricEntry.toReportingMetricEntry(
+            internalReport.cmmsMeasurementConsumerId
+          )
         }
 
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -176,7 +173,7 @@ class ReportsService(
           error("The time in the internal report should've been set.")
       }
 
-      state = inferReportState(requestIdToMetricMap.values)
+      state = inferReportState(metrics)
       createTime = internalReport.createTime
 
       if (state == Report.State.SUCCEEDED) {
@@ -184,7 +181,7 @@ class ReportsService(
           buildMetricCalculationResults(
             internalReport.cmmsMeasurementConsumerId,
             internalReport.reportingMetricEntriesMap,
-            requestIdToMetricMap
+            metrics
           )
       }
     }
@@ -194,8 +191,11 @@ class ReportsService(
   private fun buildMetricCalculationResults(
     cmmsMeasurementConsumerId: String,
     internalReportingMetricEntries: InternalReportingMetricEntries,
-    requestIdToMetricMap: Map<String, Metric>,
+    metrics: List<Metric>,
   ): List<Report.MetricCalculationResult> {
+    val externalIdToMetricMap: Map<Long, Metric> =
+      metrics.associateBy { apiIdToExternalId(checkNotNull(MetricKey.fromName(it.name)).metricId) }
+
     return internalReportingMetricEntries.flatMap {
       (externalReportingSetId, reportingMetricCalculationSpec) ->
       val reportingSetName =
@@ -210,7 +210,7 @@ class ReportsService(
           resultAttributes +=
             metricCalculationSpec.createMetricRequestsList.map { createMetricRequest ->
               val metric =
-                requestIdToMetricMap[createMetricRequest.requestId]
+                externalIdToMetricMap[createMetricRequest.externalMetricId]
                   ?: error("Got a metric not associated with the report.")
               ReportKt.MetricCalculationResultKt.resultAttribute {
                 groupingPredicates += metric.filtersList
@@ -428,7 +428,7 @@ class ReportsService(
         it.predicatesList
       }
     val allGroupingPredicates = groupings.flatten()
-    grpcRequire(allGroupingPredicates.size == allGroupingPredicates.toSet().size) {
+    grpcRequire(allGroupingPredicates.size == allGroupingPredicates.distinct().size) {
       "Cannot have duplicate predicates in different groupings."
     }
     val groupingsCartesianProduct: List<List<String>> = cartesianProduct(groupings)
@@ -441,12 +441,12 @@ class ReportsService(
           metricCalculationSpec.metricSpecsList.flatMap { metricSpec ->
             groupingsCartesianProduct.map { predicateGroup ->
               InternalReportKt.createMetricRequest {
+                this.metricSpec = metricSpec.toInternal()
                 details =
                   InternalReportKt.CreateMetricRequestKt.details {
                     this.externalReportingSetId = externalReportingSetId
                     this.timeInterval = timeInterval
-                    this.metricSpec = metricSpec.toInternal()
-                    this.filters += predicateGroup
+                    filters += predicateGroup
                   }
               }
             }
@@ -456,7 +456,6 @@ class ReportsService(
       details =
         InternalReportKt.MetricCalculationSpecKt.details {
           displayName = metricCalculationSpec.displayName
-          metricSpecs += metricCalculationSpec.metricSpecsList.map { it.toInternal() }
           this.groupings +=
             metricCalculationSpec.groupingsList.map { grouping ->
               InternalReportKt.MetricCalculationSpecKt.grouping {

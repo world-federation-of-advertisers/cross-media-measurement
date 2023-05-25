@@ -40,17 +40,17 @@ message Report {
     // Will be filled by the internal reports service. Use the request ID above
     // to find the metric.
     fixed64 external_metric_id = 2;
+    // Will be filled by the internal reports service. Use the request ID or the
+    // external metric ID above to find the metric spec in the metric.
+    MetricSpec metric_spec = 3;
 
     message Details {
       fixed64 external_reporting_set_id = 1;
       TimeInterval time_interval = 2;
-      // The original metric spec provided by the user. It won't be updated with
-      // default values if some values are not set.
-      MetricSpec metric_spec = 3;
-      repeated string filters = 4;
+      repeated string filters = 3;
     }
 
-    Details details = 3;
+    Details details = 4;
   }
 
   message MetricCalculationSpec {
@@ -63,7 +63,6 @@ message Report {
 
     message Details {
       string display_name = 1;
-      repeated MetricSpec metric_specs = 2;
       repeated Grouping groupings = 3;
       bool cumulative = 4;
     }

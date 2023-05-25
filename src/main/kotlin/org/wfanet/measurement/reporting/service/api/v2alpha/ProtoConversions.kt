@@ -49,7 +49,6 @@ import org.wfanet.measurement.internal.reporting.v2.timeIntervals as internalTim
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageToken
-import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.PeriodicTimeInterval
@@ -443,18 +442,13 @@ fun ListReportingSetsPageToken.toStreamReportingSetsRequest(): StreamReportingSe
 }
 
 /** Converts an [InternalReport.MetricCalculationSpec] to a [Report.MetricCalculationSpec]. */
-fun InternalReport.MetricCalculationSpec.toMetricCalculationSpec(
-  requestIdToMetricMap: Map<String, Metric>,
-): Report.MetricCalculationSpec {
+fun InternalReport.MetricCalculationSpec.toMetricCalculationSpec(): Report.MetricCalculationSpec {
   val source = this
-  val metricSpecs: List<MetricSpec> =
-    source.createMetricRequestsList
-      .map { request -> requestIdToMetricMap.getValue(request.requestId).metricSpec }
-      .distinct()
 
   return ReportKt.metricCalculationSpec {
     displayName = source.details.displayName
-    this.metricSpecs += metricSpecs
+    this.metricSpecs +=
+      source.createMetricRequestsList.map { it.metricSpec.toMetricSpec() }.distinct()
     groupings +=
       source.details.groupingsList.map { grouping ->
         ReportKt.grouping { predicates += grouping.predicatesList }
@@ -530,10 +524,30 @@ fun InternalReport.CreateMetricRequest.toCreateMetricRequest(
             externalIdToApiId(source.details.externalReportingSetId)
           )
           .toName()
-      this.timeInterval = source.details.timeInterval.toTimeInterval()
-      this.metricSpec = source.details.metricSpec.toMetricSpec()
-      this.filters += source.details.filtersList
+      timeInterval = source.details.timeInterval.toTimeInterval()
+      metricSpec = source.metricSpec.toMetricSpec()
+      filters += source.details.filtersList
     }
     requestId = source.requestId
+  }
+}
+
+/**
+ * Converts an internal ReportingMetricEntry Map.Entry<Long,
+ * [InternalReport.ReportingMetricCalculationSpec]> to an [Report.ReportingMetricEntry].
+ */
+fun Map.Entry<Long, InternalReport.ReportingMetricCalculationSpec>.toReportingMetricEntry(
+  cmmsMeasurementConsumerId: String
+): Report.ReportingMetricEntry {
+  val source = this
+
+  return ReportKt.reportingMetricEntry {
+    key = ReportingSetKey(cmmsMeasurementConsumerId, externalIdToApiId(source.key)).toName()
+
+    value =
+      ReportKt.reportingMetricCalculationSpec {
+        metricCalculationSpecs +=
+          source.value.metricCalculationSpecsList.map { it.toMetricCalculationSpec() }
+      }
   }
 }
