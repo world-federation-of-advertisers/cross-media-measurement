@@ -559,6 +559,7 @@ class MeasurementSystemTest {
 
   @Test
   fun `measurements create calls CreateMeasurement with valid request`() {
+    val requestId = "foo"
     val args =
       commonArgs +
         arrayOf(
@@ -574,6 +575,7 @@ class MeasurementSystemTest {
           "--measurement-consumer=measurementConsumers/777",
           "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
           "--measurement-ref-id=9999",
+          "--request-id=$requestId",
           "--data-provider=dataProviders/1",
           "--event-group=dataProviders/1/eventGroups/1",
           "--event-filter=abcd",
@@ -606,6 +608,7 @@ class MeasurementSystemTest {
       captureFirst<CreateMeasurementRequest> {
         runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
       }
+    assertThat(request.requestId).isEqualTo(requestId)
     val measurement = request.measurement
     // measurementSpec matches
     verifyMeasurementSpec(
