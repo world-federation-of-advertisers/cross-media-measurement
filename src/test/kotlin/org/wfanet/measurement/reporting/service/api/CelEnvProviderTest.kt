@@ -81,25 +81,24 @@ class CelEnvProviderTest {
     try {
       runTest(UnconfinedTestDispatcher()) {
         CelEnvCacheProvider(
-          EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
-            grpcTestServerRule.channel
-          ),
-          Duration.ofMinutes(5),
-          coroutineContext,
-          Clock.systemUTC(),
-          1
-        ).use {
-          it.getTypeRegistryAndEnv()
+            EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
+              grpcTestServerRule.channel
+            ),
+            Duration.ofMinutes(5),
+            coroutineContext,
+            Clock.systemUTC(),
+            1
+          )
+          .use {
+            it.getTypeRegistryAndEnv()
 
-          val eventGroupMetadataDescriptorsCaptor:
-            KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> =
-            argumentCaptor()
+            val eventGroupMetadataDescriptorsCaptor:
+              KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> =
+              argumentCaptor()
 
-          verify(
-            cmmsEventGroupMetadataDescriptorsServiceMock,
-            times(2)
-          ).listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
-        }
+            verify(cmmsEventGroupMetadataDescriptorsServiceMock, times(2))
+              .listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
+          }
       }
     } catch (_: Exception) {}
   }
@@ -117,31 +116,30 @@ class CelEnvProviderTest {
           .thenReturn(clock.instant().plusMillis(intervalDur.toMillis()))
 
         CelEnvCacheProvider(
-          EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
-            grpcTestServerRule.channel
-          ),
-          intervalDur,
-          coroutineContext,
-          fakeClock,
-          0
-        ).use {
-          loop@ while (true) {
-            try {
-              it.getTypeRegistryAndEnv()
-              val eventGroupMetadataDescriptorsCaptor:
-                KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> =
-                argumentCaptor()
+            EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
+              grpcTestServerRule.channel
+            ),
+            intervalDur,
+            coroutineContext,
+            fakeClock,
+            0
+          )
+          .use {
+            loop@ while (true) {
+              try {
+                it.getTypeRegistryAndEnv()
+                val eventGroupMetadataDescriptorsCaptor:
+                  KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> =
+                  argumentCaptor()
 
-              verify(
-                cmmsEventGroupMetadataDescriptorsServiceMock,
-                times(2)
-              ).listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
-              break@loop
-            } catch (_: Exception) {
-              continue@loop
+                verify(cmmsEventGroupMetadataDescriptorsServiceMock, times(2))
+                  .listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
+                break@loop
+              } catch (_: Exception) {
+                continue@loop
+              }
             }
           }
-        }
       }
     } catch (_: Exception) {}
   }
