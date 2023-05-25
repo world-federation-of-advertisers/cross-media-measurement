@@ -88,10 +88,12 @@ enum ErrorCode {
   MODEL_LINE_TYPE_ILLEGAL = 31;
   /** ModelLine active time args are invalid. */
   MODEL_LINE_INVALID_ARGS = 32;
-  /** ModelRollout rollout time args are invalid. */
-  MODEL_ROLLOUT_INVALID_ARGS = 33;
-  /** ModelRollout resource queried could not be found. */
-  MODEL_ROLLOUT_NOT_FOUND = 34;
+  /** ModelShard resource queried could not be found. */
+  MODEL_SHARD_NOT_FOUND = 33;
   /** ModelRelease resource queried could not be found. */
-  MODEL_RELEASE_NOT_FOUND = 35;
+  MODEL_RELEASE_NOT_FOUND = 34;
+  /** ModelRollout rollout time args are invalid. */
+  MODEL_ROLLOUT_INVALID_ARGS = 35;
+  /** ModelRollout resource queried could not be found. */
+  MODEL_ROLLOUT_NOT_FOUND = 36;
 }

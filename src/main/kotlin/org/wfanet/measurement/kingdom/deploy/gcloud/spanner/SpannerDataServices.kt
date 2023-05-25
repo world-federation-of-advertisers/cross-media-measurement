@@ -47,6 +47,7 @@ class SpannerDataServices(
       SpannerModelSuitesService(idGenerator, client),
       SpannerModelReleasesService(idGenerator, client),
       SpannerModelLinesService(clock, idGenerator, client),
+      SpannerModelShardsService(idGenerator, client),
       SpannerModelRolloutsService(clock, idGenerator, client)
     )
   }
