@@ -161,9 +161,12 @@ message Report {
       // calculated cumulatively over this time interval.
       TimeInterval time_interval = 2;
 
+      // The metric spec that associated with the metric calculation.
+      // MetricSpec metric_spec = 3;
+
       // The metric result calculated on the reporting set with the setup in the
       // attribute.
-      MetricResult metric_result = 3;
+      MetricResult metric_result = 4;
     }
     // The number of results is equal to the size of the Cartesian product of
     // groupings, time intervals, and metric types.
