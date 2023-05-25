@@ -25,10 +25,12 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import java.util.logging.Logger
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.retry
 import kotlinx.coroutines.launch
@@ -66,18 +68,33 @@ class CelEnvCacheProvider(
   private val clock: Clock,
   private val numRetries: Long = 3L,
 ) : CelEnvProvider, AutoCloseable {
-  private val mutex = Mutex()
+  private val mutex = Mutex(false)
 
   private lateinit var typeRegistryAndEnv: CelEnvProvider.TypeRegistryAndEnv
   private var lastUpdated = Instant.EPOCH
   private val cacheRefreshIntervalMillis = cacheRefreshInterval.toMillis()
-  private val coroutineScope = CoroutineScope(coroutineContext + SupervisorJob())
+  private val coroutineScope = CoroutineScope(coroutineContext)
 
   init {
     coroutineScope.launch {
       MinimumIntervalThrottler(clock, cacheRefreshInterval).loopOnReady {
-        val updateFlow = flow<Unit> { setTypeRegistryAndEnv() }
-        updateFlow.retry(numRetries) { e -> e is RetriableException }.collect {}
+        val job = async {
+          var updateFlow = flow<Unit> { setTypeRegistryAndEnv() }
+          if (numRetries > 0) {
+            updateFlow = updateFlow.retry(numRetries) { e -> e is RetriableException }
+          }
+          try {
+            updateFlow.collect {}
+          } catch (e: Exception) {
+            logger.warning(e.stackTraceToString())
+          }
+        }
+
+        try {
+          job.await()
+        } catch (e: Exception) {
+          logger.warning(e.stackTraceToString())
+        }
       }
     }
   }
@@ -87,10 +104,20 @@ class CelEnvCacheProvider(
   }
 
   override suspend fun getTypeRegistryAndEnv(): CelEnvProvider.TypeRegistryAndEnv {
-    if (!this::typeRegistryAndEnv.isInitialized) {
-      setTypeRegistryAndEnv()
+    if (this::typeRegistryAndEnv.isInitialized) {
+      return typeRegistryAndEnv
     }
-    return typeRegistryAndEnv
+
+    for (i in 1..3) {
+      mutex.withLock {
+        if (this::typeRegistryAndEnv.isInitialized) {
+          return typeRegistryAndEnv
+        }
+      }
+      delay(1000)
+    }
+
+    throw UninitializedPropertyAccessException()
   }
 
   private suspend fun setTypeRegistryAndEnv() {
@@ -200,4 +227,8 @@ class CelEnvCacheProvider(
   }
 
   private class RetriableException : Exception()
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
+  }
 }
