@@ -23,19 +23,17 @@ import io.grpc.Status
 import io.grpc.StatusException
 import java.time.Clock
 import java.time.Duration
-import java.time.Instant
-import java.time.temporal.ChronoUnit
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CompletableJob
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.retry
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import org.projectnessie.cel.Env
 import org.projectnessie.cel.EnvOption
 import org.projectnessie.cel.checker.Decls
@@ -68,12 +66,8 @@ class CelEnvCacheProvider(
   private val clock: Clock,
   private val numRetriesInitialSync: Long = 3L,
 ) : CelEnvProvider, AutoCloseable {
-  private val mutex = Mutex(false)
-
   private lateinit var typeRegistryAndEnv: CelEnvProvider.TypeRegistryAndEnv
-  private var lastUpdated = Instant.EPOCH
-  private val cacheRefreshIntervalMillis = cacheRefreshInterval.toMillis()
-  private val coroutineScope = CoroutineScope(coroutineContext)
+  private val coroutineScope = CoroutineScope(coroutineContext + SupervisorJob())
   private val initialSyncJob: CompletableJob = Job()
 
   init {
@@ -92,11 +86,10 @@ class CelEnvCacheProvider(
             throw (e)
           }
         } else {
-          val updateFlow = flow<Unit> { setTypeRegistryAndEnv() }
           try {
-            updateFlow.collect {}
+            setTypeRegistryAndEnv()
           } catch (e: Exception) {
-            logger.warning(e.stackTraceToString())
+            logger.log(Level.WARNING, e) { "Error updating CEL env cache" }
           }
         }
       }
@@ -108,22 +101,12 @@ class CelEnvCacheProvider(
   }
 
   override suspend fun getTypeRegistryAndEnv(): CelEnvProvider.TypeRegistryAndEnv {
-    return if (this::typeRegistryAndEnv.isInitialized) {
-      typeRegistryAndEnv
-    } else {
-      initialSyncJob.join()
-      typeRegistryAndEnv
-    }
+    initialSyncJob.join()
+    return typeRegistryAndEnv
   }
 
   private suspend fun setTypeRegistryAndEnv() {
-    mutex.withLock {
-      val difference = ChronoUnit.MILLIS.between(lastUpdated, clock.instant())
-      if (difference >= cacheRefreshIntervalMillis) {
-        typeRegistryAndEnv = buildTypeRegistryAndEnv()
-        lastUpdated = clock.instant()
-      }
-    }
+    typeRegistryAndEnv = buildTypeRegistryAndEnv()
   }
 
   private suspend fun buildTypeRegistryAndEnv(): CelEnvProvider.TypeRegistryAndEnv {
