@@ -29,6 +29,7 @@ import org.wfanet.measurement.api.v2alpha.ListModelShardsPageToken
 import org.wfanet.measurement.api.v2alpha.ListModelShardsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelShardsRequest
 import org.wfanet.measurement.api.v2alpha.ListModelShardsResponse
+import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.ModelReleaseKey
 import org.wfanet.measurement.api.v2alpha.ModelShard
@@ -69,8 +70,14 @@ class ModelShardsService(private val internalClient: ModelShardsCoroutineStub) :
         "ModelRelease is either unspecified or invalid"
       }
 
-    when (principalFromCurrentContext) {
-      is ModelProviderPrincipal -> {}
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is ModelProviderPrincipal -> {
+        if (modelReleaseKey.modelProviderId != principal.resourceKey.modelProviderId) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot create ModelShard having a ModelRelease owned by another ModelProvider"
+          }
+        }
+      }
       else -> {
         failGrpc(Status.PERMISSION_DENIED) {
           "Caller does not have permission to create ModelShard"
@@ -130,15 +137,20 @@ class ModelShardsService(private val internalClient: ModelShardsCoroutineStub) :
   }
 
   override suspend fun listModelShards(request: ListModelShardsRequest): ListModelShardsResponse {
-    grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
-      "Parent is either unspecified or invalid"
-    }
+    val parentKey =
+      grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
+        "Parent is either unspecified or invalid"
+      }
 
     val listModelShardsPageToken = request.toListModelShardsPageToken()
 
-    when (principalFromCurrentContext) {
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
       is ModelProviderPrincipal -> {}
-      is DataProviderPrincipal -> {}
+      is DataProviderPrincipal -> {
+        if (principal.resourceKey.dataProviderId != parentKey.dataProviderId) {
+          failGrpc(Status.PERMISSION_DENIED) { "Cannot list ModelShards for another DataProvider" }
+        }
+      }
       else -> {
         failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to list ModelShards" }
       }

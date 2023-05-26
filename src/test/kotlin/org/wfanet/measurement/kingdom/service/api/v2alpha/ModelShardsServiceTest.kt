@@ -78,12 +78,16 @@ private const val DEFAULT_LIMIT = 50
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val DUCHY_NAME = "duchies/AAAAAAAAAHs"
 private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
+private const val DATA_PROVIDER_NAME_2 = "dataProviders/AAAAAAAAAJs"
 private const val MODEL_SHARD_NAME = "$DATA_PROVIDER_NAME/modelShards/AAAAAAAAAHs"
 private const val MODEL_SHARD_NAME_2 = "$DATA_PROVIDER_NAME/modelShards/AAAAAAAAAJs"
 private const val MODEL_SHARD_NAME_3 = "$DATA_PROVIDER_NAME/modelShards/AAAAAAAAAKs"
 private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
+private const val MODEL_PROVIDER_NAME_2 = "modelProviders/AAAAAAAAAJs"
 private const val MODEL_SUITE_NAME = "$MODEL_PROVIDER_NAME/modelSuites/AAAAAAAAAHs"
+private const val MODEL_SUITE_NAME_2 = "$MODEL_PROVIDER_NAME_2/modelSuites/AAAAAAAAAJs"
 private const val MODEL_RELEASE_NAME = "$MODEL_SUITE_NAME/modelReleases/AAAAAAAAAHs"
+private const val MODEL_RELEASE_NAME_2 = "$MODEL_SUITE_NAME_2/modelReleases/AAAAAAAAAJs"
 private val EXTERNAL_DATA_PROVIDER_ID =
   apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
 private val EXTERNAL_MODEL_SHARD_ID =
@@ -114,6 +118,13 @@ private val INTERNAL_MODEL_SHARD: InternalModelShard = internalModelShard {
 private val MODEL_SHARD: ModelShard = modelShard {
   name = MODEL_SHARD_NAME
   modelRelease = MODEL_RELEASE_NAME
+  modelBlob = modelBlob { modelBlobPath = "ModelBlobPath" }
+  createTime = CREATE_TIME
+}
+
+private val MODEL_SHARD_2: ModelShard = modelShard {
+  name = MODEL_SHARD_NAME
+  modelRelease = MODEL_RELEASE_NAME_2
   modelBlob = modelBlob { modelBlobPath = "ModelBlobPath" }
   createTime = CREATE_TIME
 }
@@ -190,6 +201,22 @@ class ModelShardsServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> { runBlocking { service.createModelShard(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `createModelShard throws PERMISSION_DENIED when ModelRelease is owned by a different ModelProvider`() {
+    val request = createModelShardRequest {
+      parent = DATA_PROVIDER_NAME
+      modelShard = MODEL_SHARD_2
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking { service.createModelShard(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
@@ -453,6 +480,19 @@ class ModelShardsServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withDuchyPrincipal(DUCHY_NAME) { runBlocking { service.listModelShards(request) } }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `listModelShards throws PERMISSION_DENIED when DataProvider parent doesn't match`() {
+    val request = listModelShardsRequest { parent = DATA_PROVIDER_NAME_2 }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.listModelShards(request) }
+        }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
