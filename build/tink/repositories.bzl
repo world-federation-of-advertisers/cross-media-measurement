@@ -23,12 +23,9 @@ def tink_cc(tink_commit):
     )
 
     maybe(
-            http_archive,
-            name = "tink_cc",
-            sha256 = _tink_sha256,
-            strip_prefix = "tink-{commit}/cc".format(commit = tink_commit),
-            url = _tink_url,
-            repo_mapping = {
-                "@com_google_protobuf": "@com_github_protocolbuffers_protobuf",
-            },
-        )
+        http_archive,
+        name = "tink_cc",
+        sha256 = _tink_sha256,
+        strip_prefix = "tink-{commit}/cc".format(commit = tink_commit),
+        url = _tink_url,
+    )
