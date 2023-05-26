@@ -48,6 +48,11 @@ class StreamModelShards(
       bind(EXTERNAL_DATA_PROVIDER_ID to filter.externalDataProviderId)
     }
 
+    if (filter.externalModelProviderId != 0L) {
+      conjuncts.add("ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID}")
+      bind(EXTERNAL_MODEL_PROVIDER_ID to filter.externalModelProviderId)
+    }
+
     if (filter.hasAfter()) {
       conjuncts.add(
         """
@@ -75,6 +80,7 @@ class StreamModelShards(
 
   companion object {
     const val LIMIT_PARAM = "limit"
+    const val EXTERNAL_MODEL_PROVIDER_ID = "externalModelProviderId"
     const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
     const val EXTERNAL_MODEL_SHARD_ID = "externalModelShardId"
     const val CREATED_AFTER = "createdAfter"

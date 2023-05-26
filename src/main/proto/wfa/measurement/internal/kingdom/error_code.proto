@@ -102,4 +102,6 @@ enum ErrorCode {
   MODEL_ROLLOUT_INVALID_ARGS = 38;
   /** ModelRollout resource queried could not be found. */
   MODEL_ROLLOUT_NOT_FOUND = 39;
+  /** ModelShard args are invalid. */
+  MODEL_SHARD_INVALID_ARGS = 40;
 }

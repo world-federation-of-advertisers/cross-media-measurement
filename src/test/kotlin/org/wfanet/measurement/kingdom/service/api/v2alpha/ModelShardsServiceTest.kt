@@ -294,6 +294,7 @@ class ModelShardsServiceTest {
         internalDeleteModelShardRequest {
           externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
           externalModelShardId = EXTERNAL_MODEL_SHARD_ID
+          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
         }
       )
 
@@ -371,7 +372,10 @@ class ModelShardsServiceTest {
       .isEqualTo(
         internalStreamModelShardsRequest {
           limit = DEFAULT_LIMIT + 1
-          filter = filter { externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID }
+          filter = filter {
+            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+          }
         }
       )
 
@@ -588,7 +592,7 @@ class ModelShardsServiceTest {
       pageToken = listModelShardsPageToken.toByteArray().base64UrlEncode()
     }
 
-    withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+    withDataProviderPrincipal(DATA_PROVIDER_NAME) {
       runBlocking { service.listModelShards(request) }
     }
 
@@ -630,7 +634,7 @@ class ModelShardsServiceTest {
       pageToken = listModelShardsPageToken.toByteArray().base64UrlEncode()
     }
 
-    withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+    withDataProviderPrincipal(DATA_PROVIDER_NAME) {
       runBlocking { service.listModelShards(request) }
     }
 

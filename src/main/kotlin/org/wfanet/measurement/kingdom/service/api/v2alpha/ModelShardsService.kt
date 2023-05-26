@@ -107,8 +107,11 @@ class ModelShardsService(private val internalClient: ModelShardsCoroutineStub) :
         "Resource name is either unspecified or invalid"
       }
 
-    when (principalFromCurrentContext) {
-      is ModelProviderPrincipal -> {}
+    var externalModelProviderId = 0L
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is ModelProviderPrincipal -> {
+        externalModelProviderId = apiIdToExternalId(principal.resourceKey.modelProviderId)
+      }
       else -> {
         failGrpc(Status.PERMISSION_DENIED) {
           "Caller does not have permission to delete ModelShard"
@@ -119,6 +122,7 @@ class ModelShardsService(private val internalClient: ModelShardsCoroutineStub) :
     val deleteModelShardRequest = deleteModelShardRequest {
       externalDataProviderId = apiIdToExternalId(key.dataProviderId)
       externalModelShardId = apiIdToExternalId(key.modelShardId)
+      this.externalModelProviderId = externalModelProviderId
     }
     try {
       internalClient.deleteModelShard(deleteModelShardRequest)
@@ -142,10 +146,11 @@ class ModelShardsService(private val internalClient: ModelShardsCoroutineStub) :
         "Parent is either unspecified or invalid"
       }
 
-    val listModelShardsPageToken = request.toListModelShardsPageToken()
-
+    var externalModelProviderId: Long? = null
     when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
-      is ModelProviderPrincipal -> {}
+      is ModelProviderPrincipal -> {
+        externalModelProviderId = apiIdToExternalId(principal.resourceKey.modelProviderId)
+      }
       is DataProviderPrincipal -> {
         if (principal.resourceKey.dataProviderId != parentKey.dataProviderId) {
           failGrpc(Status.PERMISSION_DENIED) { "Cannot list ModelShards for another DataProvider" }
@@ -155,6 +160,8 @@ class ModelShardsService(private val internalClient: ModelShardsCoroutineStub) :
         failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to list ModelShards" }
       }
     }
+
+    val listModelShardsPageToken = request.toListModelShardsPageToken(externalModelProviderId)
 
     val results: List<InternalModelShard> =
       internalClient
@@ -186,7 +193,9 @@ class ModelShardsService(private val internalClient: ModelShardsCoroutineStub) :
   }
 
   /** Converts a public [ListModelShardsRequest] to an internal [ListModelShardsPageToken]. */
-  private fun ListModelShardsRequest.toListModelShardsPageToken(): ListModelShardsPageToken {
+  private fun ListModelShardsRequest.toListModelShardsPageToken(
+    externalModelProviderId: Long?
+  ): ListModelShardsPageToken {
     val source = this
 
     val key =
@@ -203,6 +212,12 @@ class ModelShardsService(private val internalClient: ModelShardsCoroutineStub) :
           "Arguments must be kept the same when using a page token"
         }
 
+        if (externalModelProviderId != null) {
+          grpcRequire(this.externalModelProviderId == externalModelProviderId) {
+            "Arguments must be kept the same when using a page token"
+          }
+        }
+
         if (source.pageSize in 1..MAX_PAGE_SIZE) {
           pageSize = source.pageSize
         }
@@ -216,6 +231,9 @@ class ModelShardsService(private val internalClient: ModelShardsCoroutineStub) :
             else -> source.pageSize
           }
         this.externalDataProviderId = externalDataProviderId
+        if (externalModelProviderId != null) {
+          this.externalModelProviderId = externalModelProviderId
+        }
       }
     }
   }
@@ -228,6 +246,9 @@ class ModelShardsService(private val internalClient: ModelShardsCoroutineStub) :
       limit = source.pageSize + 1
       filter = filter {
         externalDataProviderId = source.externalDataProviderId
+        if (source.externalModelProviderId != 0L) {
+          externalModelProviderId = source.externalModelProviderId
+        }
         if (source.hasLastModelShard()) {
           after = afterFilter {
             createTime = source.lastModelShard.createTime

@@ -664,3 +664,18 @@ class ModelShardNotFoundException(
         "external_model_shard_id" to externalModelShardId.toString()
       )
 }
+
+class ModelShardInvalidArgsException(
+  val externalDataProviderId: ExternalId,
+  val externalModelShardId: ExternalId,
+  val externalModelProviderId: ExternalId,
+  provideDescription: () -> String = { "ModelShard invalid arguments" }
+) : KingdomInternalException(ErrorCode.MODEL_SHARD_INVALID_ARGS, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_data_provider_id" to externalDataProviderId.toString(),
+        "external_model_shard_id" to externalModelShardId.toString(),
+        "external_model_provider_id" to externalModelProviderId.toString()
+      )
+}

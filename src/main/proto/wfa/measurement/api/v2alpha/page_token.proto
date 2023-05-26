@@ -112,10 +112,11 @@ message ListModelLinesPageToken {
 message ListModelShardsPageToken {
   int32 page_size = 1;
   fixed64 external_data_provider_id = 2;
+  fixed64 external_model_provider_id = 3;
   message PreviousPageEnd {
     fixed64 external_data_provider_id = 1;
     fixed64 external_model_shard_id = 2;
-    google.protobuf.Timestamp create_time = 4;
+    google.protobuf.Timestamp create_time = 3;
   }
-  PreviousPageEnd last_model_shard = 3;
+  PreviousPageEnd last_model_shard = 4;
 }
