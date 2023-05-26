@@ -16,8 +16,8 @@
 
 package org.wfanet.measurement.reporting.service.api
 
-import com.google.protobuf.Any.pack
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.Any.pack
 import com.google.protobuf.DynamicMessage
 import io.grpc.Status
 import java.time.Clock
@@ -72,7 +72,7 @@ private val EVENT_GROUP_METADATA_DESCRIPTOR = eventGroupMetadataDescriptor {
 class CelEnvProviderTest {
   private val cmmsEventGroupMetadataDescriptorsServiceMock:
     EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase =
-      mockService {}
+    mockService {}
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -83,7 +83,9 @@ class CelEnvProviderTest {
   @OptIn(ExperimentalCoroutinesApi::class) // For `runTest`
   fun `cache provider retries initial cache sync if exception occurs`() =
     runTest(UnconfinedTestDispatcher()) {
-      whenever(cmmsEventGroupMetadataDescriptorsServiceMock.listEventGroupMetadataDescriptors(any()))
+      whenever(
+          cmmsEventGroupMetadataDescriptorsServiceMock.listEventGroupMetadataDescriptors(any())
+        )
         .thenThrow(Status.DEADLINE_EXCEEDED.asRuntimeException())
         .thenReturn(
           listEventGroupMetadataDescriptorsResponse {
@@ -103,24 +105,19 @@ class CelEnvProviderTest {
         .use {
           val typeRegistryAndEnv = it.getTypeRegistryAndEnv()
           val eventGroup = eventGroup {
-            metadata = EventGroupKt.metadata {
-              eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-              metadata = pack(TEST_MESSAGE.copy {
-                age = TestMetadataMessageKt.age {
-                  value = 15
-                }
-              })
-            }
+            metadata =
+              EventGroupKt.metadata {
+                eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+                metadata =
+                  pack(TEST_MESSAGE.copy { age = TestMetadataMessageKt.age { value = 15 } })
+              }
           }
           val eventGroup2 = eventGroup {
-            metadata = EventGroupKt.metadata {
-              eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-              metadata = pack(TEST_MESSAGE.copy {
-                age = TestMetadataMessageKt.age {
-                  value = 9
-                }
-              })
-            }
+            metadata =
+              EventGroupKt.metadata {
+                eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+                metadata = pack(TEST_MESSAGE.copy { age = TestMetadataMessageKt.age { value = 9 } })
+              }
           }
           val filter = "metadata.metadata.age.value > 10"
 
@@ -137,10 +134,12 @@ class CelEnvProviderTest {
 
       eventGroupMetadataDescriptorsCaptor.allValues.forEach {
         assertThat(it)
-          .isEqualTo(listEventGroupMetadataDescriptorsRequest {
-            parent = "dataProviders/-"
-            pageSize = MAX_PAGE_SIZE
-          })
+          .isEqualTo(
+            listEventGroupMetadataDescriptorsRequest {
+              parent = "dataProviders/-"
+              pageSize = MAX_PAGE_SIZE
+            }
+          )
       }
     }
 
@@ -150,19 +149,20 @@ class CelEnvProviderTest {
     assertFailsWith<Exception> {
       runTest(UnconfinedTestDispatcher()) {
         whenever(
-          cmmsEventGroupMetadataDescriptorsServiceMock.listEventGroupMetadataDescriptors(any())
-        )
+            cmmsEventGroupMetadataDescriptorsServiceMock.listEventGroupMetadataDescriptors(any())
+          )
           .thenThrow(Status.DEADLINE_EXCEEDED.asRuntimeException())
 
-        val celEnvCacheProvider = CelEnvCacheProvider(
-          EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
-            grpcTestServerRule.channel
-          ),
-          Duration.ofMinutes(5),
-          coroutineContext,
-          Clock.systemUTC(),
-          0
-        )
+        val celEnvCacheProvider =
+          CelEnvCacheProvider(
+            EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
+              grpcTestServerRule.channel
+            ),
+            Duration.ofMinutes(5),
+            coroutineContext,
+            Clock.systemUTC(),
+            0
+          )
 
         celEnvCacheProvider.getTypeRegistryAndEnv()
       }
