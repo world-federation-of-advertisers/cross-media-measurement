@@ -478,6 +478,32 @@ class ModelShardsServiceTest {
   }
 
   @Test
+  fun `listModelShards throws invalid argument when ModelProvider doesn't match in page token`() {
+    val request = listModelShardsRequest {
+      parent = DATA_PROVIDER_NAME
+      val listModelShardsPageToken = listModelShardsPageToken {
+        pageSize = 2
+        externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+        externalModelProviderId = 456L
+        lastModelShard = previousPageEnd {
+          createTime = CREATE_TIME
+          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          externalModelShardId = EXTERNAL_MODEL_SHARD_ID
+        }
+      }
+      pageToken = listModelShardsPageToken.toByteArray().base64UrlEncode()
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking { service.listModelShards(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
   fun `listModelShards throws PERMISSION_DENIED when principal is duchy`() {
     val request = listModelShardsRequest { parent = DATA_PROVIDER_NAME }
 
@@ -489,7 +515,7 @@ class ModelShardsServiceTest {
   }
 
   @Test
-  fun `listModelShards throws PERMISSION_DENIED when DataProvider parent doesn't match`() {
+  fun `listModelShards throws PERMISSION_DENIED when doesn't match principal`() {
     val request = listModelShardsRequest { parent = DATA_PROVIDER_NAME_2 }
 
     val exception =

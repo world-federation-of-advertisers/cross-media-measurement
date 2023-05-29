@@ -91,7 +91,9 @@ class ModelShardsService(private val internalClient: ModelShardsCoroutineStub) :
     } catch (ex: StatusException) {
       when (ex.status.code) {
         Status.Code.NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "ModelShard not found" }
+          failGrpc(Status.NOT_FOUND, ex) {
+            ex.message ?: "Either DataProvider or ModelRelease were not found"
+          }
         Status.Code.INVALID_ARGUMENT ->
           failGrpc(Status.INVALID_ARGUMENT, ex) {
             ex.message ?: "Required field unspecified or invalid"
@@ -107,7 +109,7 @@ class ModelShardsService(private val internalClient: ModelShardsCoroutineStub) :
         "Resource name is either unspecified or invalid"
       }
 
-    var externalModelProviderId = 0L
+    val externalModelProviderId: Long
     when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
       is ModelProviderPrincipal -> {
         externalModelProviderId = apiIdToExternalId(principal.resourceKey.modelProviderId)
@@ -146,7 +148,7 @@ class ModelShardsService(private val internalClient: ModelShardsCoroutineStub) :
         "Parent is either unspecified or invalid"
       }
 
-    var externalModelProviderId: Long? = null
+    var externalModelProviderId = 0L
     when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
       is ModelProviderPrincipal -> {
         externalModelProviderId = apiIdToExternalId(principal.resourceKey.modelProviderId)
@@ -194,7 +196,7 @@ class ModelShardsService(private val internalClient: ModelShardsCoroutineStub) :
 
   /** Converts a public [ListModelShardsRequest] to an internal [ListModelShardsPageToken]. */
   private fun ListModelShardsRequest.toListModelShardsPageToken(
-    externalModelProviderId: Long?
+    externalModelProviderId: Long
   ): ListModelShardsPageToken {
     val source = this
 
@@ -212,7 +214,7 @@ class ModelShardsService(private val internalClient: ModelShardsCoroutineStub) :
           "Arguments must be kept the same when using a page token"
         }
 
-        if (externalModelProviderId != null) {
+        if (externalModelProviderId != 0L) {
           grpcRequire(this.externalModelProviderId == externalModelProviderId) {
             "Arguments must be kept the same when using a page token"
           }
@@ -231,9 +233,7 @@ class ModelShardsService(private val internalClient: ModelShardsCoroutineStub) :
             else -> source.pageSize
           }
         this.externalDataProviderId = externalDataProviderId
-        if (externalModelProviderId != null) {
-          this.externalModelProviderId = externalModelProviderId
-        }
+        this.externalModelProviderId = externalModelProviderId
       }
     }
   }

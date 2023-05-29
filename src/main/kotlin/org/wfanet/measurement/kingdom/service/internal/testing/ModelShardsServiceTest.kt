@@ -453,7 +453,7 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
         )
         .toList()
 
-    assertThat(modelShards).comparingExpectedFieldsOnly().containsExactly(modelShard1).inOrder()
+    assertThat(modelShards).comparingExpectedFieldsOnly().containsExactly(modelShard1)
   }
 
   @Test
