@@ -1,0 +1,93 @@
+# Copyright 2023 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Terraform CMMS
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      apply:
+        description: "Apply the new configuration"
+        type: boolean
+        required: true
+  workflow_dispatch:
+    inputs:
+      environment:
+        required: true
+        type: choice
+        options:
+        - dev
+      apply:
+        description: "Apply the new configuration"
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+
+jobs:
+  terraform:
+    runs-on: ubuntu-20.04
+    environment: ${{ inputs.environment }}
+    env:
+      MODULE_PATH: src/main/terraform/gcloud/cmms
+      GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
+      GCLOUD_ZONE: ${{ vars.GCLOUD_ZONE }}
+
+    steps:
+    - uses: actions/checkout@v3
+
+    # Authenticate to Google Cloud. This will export some environment
+    # variables, including GCLOUD_PROJECT.
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+
+    - name: terraform init
+      env:
+        TF_STORAGE_BUCKET: ${{ vars.TF_STORAGE_BUCKET }}
+      working-directory: ${{ env.MODULE_PATH }}
+      run: >
+        terraform init
+        -input=false
+        -lockfile=readonly
+        -backend-config="bucket=$TF_STORAGE_BUCKET"
+
+    - name: terraform plan
+      env:
+        KEY_RING: ${{ vars.KEY_RING }}
+        SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
+        STORAGE_BUCKET: ${{ vars.STORAGE_BUCKET }}
+        POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
+        POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      working-directory: ${{ env.MODULE_PATH }}
+      run: >
+        terraform plan
+        -input=false
+        -var="key_ring_name=$KEY_RING"
+        -var="spanner_instance_name=$SPANNER_INSTANCE"
+        -var="storage_bucket_name=$STORAGE_BUCKET"
+        -var="postgres_instance_name=$POSTGRES_INSTANCE"
+        -var="postgres_password=$POSTGRES_PASSWORD"
+        -out=tfplan
+
+    - name: terraform apply
+      if: ${{ inputs.apply }}
+      working-directory: ${{ env.MODULE_PATH }}
+      run: terraform apply -input=false tfplan

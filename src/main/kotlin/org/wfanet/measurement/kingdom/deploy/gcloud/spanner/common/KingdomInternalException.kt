@@ -27,6 +27,8 @@ import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.ModelLine
+import org.wfanet.measurement.internal.kingdom.ModelOutage
 import org.wfanet.measurement.internal.kingdom.Requisition
 
 sealed class KingdomInternalException : Exception {
@@ -68,6 +70,115 @@ class MeasurementConsumerNotFoundException(
 ) : KingdomInternalException(ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND, provideDescription) {
   override val context
     get() = mapOf("external_measurement_consumer_id" to externalMeasurementConsumerId.toString())
+}
+
+class ModelSuiteNotFoundException(
+  val externalModelProviderId: ExternalId,
+  val externalModelSuiteId: ExternalId,
+  provideDescription: () -> String = { "ModelSuite not found" }
+) : KingdomInternalException(ErrorCode.MODEL_SUITE_NOT_FOUND, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_model_provider_id" to externalModelProviderId.toString(),
+        "external_model_suite_id" to externalModelSuiteId.toString()
+      )
+}
+
+class ModelLineNotFoundException(
+  val externalModelProviderId: ExternalId,
+  val externalModelSuiteId: ExternalId,
+  val externalModelLineId: ExternalId,
+  provideDescription: () -> String = { "ModelLine not found" }
+) : KingdomInternalException(ErrorCode.MODEL_LINE_NOT_FOUND, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_model_provider_id" to externalModelProviderId.toString(),
+        "external_model_suite_id" to externalModelSuiteId.toString(),
+        "external_model_line_id" to externalModelLineId.toString()
+      )
+}
+
+class ModelLineTypeIllegalException(
+  val externalModelProviderId: ExternalId,
+  val externalModelSuiteId: ExternalId,
+  val externalModelLineId: ExternalId,
+  val type: ModelLine.Type,
+  provideDescription: () -> String = { "ModelLine type illegal" }
+) : KingdomInternalException(ErrorCode.MODEL_LINE_TYPE_ILLEGAL, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_model_provider_id" to externalModelProviderId.toString(),
+        "external_model_suite_id" to externalModelSuiteId.toString(),
+        "external_model_line_id" to externalModelLineId.toString(),
+        "model_line_type" to type.toString()
+      )
+}
+
+class ModelLineInvalidArgsException(
+  val externalModelProviderId: ExternalId,
+  val externalModelSuiteId: ExternalId,
+  val externalModelLineId: ExternalId? = null,
+  provideDescription: () -> String = { "ModelLine invalid active time arguments" }
+) : KingdomInternalException(ErrorCode.MODEL_LINE_INVALID_ARGS, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_model_provider_id" to externalModelProviderId.toString(),
+        "external_model_suite_id" to externalModelSuiteId.toString(),
+        "external_model_line_id" to externalModelLineId.toString()
+      )
+}
+
+class ModelReleaseNotFoundException(
+  val externalModelProviderId: ExternalId,
+  val externalModelSuiteId: ExternalId,
+  val externalModelReleaseId: ExternalId,
+  provideDescription: () -> String = { "ModelRelease not found" }
+) : KingdomInternalException(ErrorCode.MODEL_RELEASE_NOT_FOUND, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_model_provider_id" to externalModelProviderId.toString(),
+        "external_model_suite_id" to externalModelSuiteId.toString(),
+        "external_model_release_id" to externalModelReleaseId.toString(),
+      )
+}
+
+class ModelRolloutNotFoundException(
+  val externalModelProviderId: ExternalId,
+  val externalModelSuiteId: ExternalId,
+  val externalModelLineId: ExternalId,
+  val externalModelRolloutId: ExternalId? = null,
+  provideDescription: () -> String = { "ModelRollout not found" }
+) : KingdomInternalException(ErrorCode.MODEL_ROLLOUT_NOT_FOUND, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_model_provider_id" to externalModelProviderId.toString(),
+        "external_model_suite_id" to externalModelSuiteId.toString(),
+        "external_model_line_id" to externalModelLineId.toString(),
+        "external_model_rollout_id" to externalModelRolloutId.toString()
+      )
+}
+
+class ModelRolloutInvalidArgsException(
+  val externalModelProviderId: ExternalId,
+  val externalModelSuiteId: ExternalId,
+  val externalModelLineId: ExternalId,
+  val externalModelRolloutId: ExternalId? = null,
+  provideDescription: () -> String = { "ModelRollout invalid rollout period time arguments" }
+) : KingdomInternalException(ErrorCode.MODEL_ROLLOUT_INVALID_ARGS, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_model_provider_id" to externalModelProviderId.toString(),
+        "external_model_suite_id" to externalModelSuiteId.toString(),
+        "external_model_line_id" to externalModelLineId.toString(),
+        "external_model_rollout_i     d" to externalModelRolloutId.toString()
+      )
 }
 
 class DataProviderNotFoundException(
@@ -485,5 +596,84 @@ class ExchangeStepNotFoundException(
         "external_recurring_exchange_id" to externalRecurringExchangeId.value.toString(),
         "date" to date.toString(),
         "step_index" to stepIndex.toString(),
+      )
+}
+
+class ModelOutageNotFoundException(
+  val externalModelProviderId: ExternalId,
+  val externalModelSuiteId: ExternalId,
+  val externalModelLineId: ExternalId,
+  val externalModelOutageId: ExternalId,
+  provideDescription: () -> String = { "ModelOutage not found" }
+) : KingdomInternalException(ErrorCode.MODEL_OUTAGE_NOT_FOUND, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_model_provider_id" to externalModelProviderId.toString(),
+        "external_model_suite_id" to externalModelSuiteId.toString(),
+        "external_model_line_id" to externalModelLineId.toString(),
+        "external_model_outage_id" to externalModelOutageId.toString()
+      )
+}
+
+class ModelOutageStateIllegalException(
+  val externalModelProviderId: ExternalId,
+  val externalModelSuiteId: ExternalId,
+  val externalModelLineId: ExternalId,
+  val externalModelOutageId: ExternalId,
+  val state: ModelOutage.State,
+  provideDescription: () -> String = { "ModelOutage state illegal" }
+) : KingdomInternalException(ErrorCode.MODEL_OUTAGE_STATE_ILLEGAL, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_model_provider_id" to externalModelProviderId.toString(),
+        "external_model_suite_id" to externalModelSuiteId.toString(),
+        "external_model_line_id" to externalModelLineId.toString(),
+        "external_model_outage_id" to externalModelOutageId.toString(),
+        "model_outage_state" to state.toString()
+      )
+}
+
+class ModelOutageInvalidArgsException(
+  val externalModelProviderId: ExternalId,
+  val externalModelSuiteId: ExternalId,
+  val externalModelLineId: ExternalId,
+  val externalModelOutageId: ExternalId? = null,
+  provideDescription: () -> String = { "ModelOutage invalid outage interval arguments" }
+) : KingdomInternalException(ErrorCode.MODEL_OUTAGE_INVALID_ARGS, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_model_provider_id" to externalModelProviderId.toString(),
+        "external_model_suite_id" to externalModelSuiteId.toString(),
+        "external_model_line_id" to externalModelLineId.toString(),
+        "external_model_outage_id" to externalModelOutageId.toString()
+      )
+}
+
+class ModelShardNotFoundException(
+  val externalDataProviderId: ExternalId,
+  val externalModelShardId: ExternalId,
+  provideDescription: () -> String = { "ModelShard not found" }
+) : KingdomInternalException(ErrorCode.MODEL_SHARD_NOT_FOUND, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_data_provider_id" to externalDataProviderId.toString(),
+        "external_model_shard_id" to externalModelShardId.toString()
+      )
+}
+
+class ExchangeNotFoundException(
+  val externalRecurringExchangeId: ExternalId,
+  val date: Date,
+  provideDescription: () -> String = { "Exchange not found" }
+) : KingdomInternalException(ErrorCode.EXCHANGE_NOT_FOUND, provideDescription) {
+  override val context: Map<String, String>
+    get() =
+      mapOf(
+        "external_recurring_exchange_id" to externalRecurringExchangeId.value.toString(),
+        "date" to date.toString(),
       )
 }

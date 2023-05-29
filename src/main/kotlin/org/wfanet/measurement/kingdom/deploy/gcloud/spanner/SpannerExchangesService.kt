@@ -14,22 +14,34 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import com.google.protobuf.Empty
 import io.grpc.Status
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
+import org.wfanet.measurement.internal.kingdom.BatchDeleteExchangesRequest
 import org.wfanet.measurement.internal.kingdom.CreateExchangeRequest
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetExchangeRequest
+import org.wfanet.measurement.internal.kingdom.StreamExchangesRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ExchangeNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.PROVIDER_PARAM
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.providerFilter
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamExchanges
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchDeleteExchanges
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateExchange
+
+private const val MAX_BATCH_DELETE = 1000
 
 class SpannerExchangesService(
   private val idGenerator: IdGenerator,
@@ -59,5 +71,29 @@ class SpannerExchangesService(
       .singleOrNull()
       ?.exchange
       ?: failGrpc(Status.NOT_FOUND) { "Exchange not found" }
+  }
+
+  override fun streamExchanges(request: StreamExchangesRequest): Flow<Exchange> {
+    return StreamExchanges(request.filter, request.limit).execute(client.singleUse()).map {
+      it.exchange
+    }
+  }
+
+  override suspend fun batchDeleteExchanges(request: BatchDeleteExchangesRequest): Empty {
+    grpcRequire(request.requestsList.size <= MAX_BATCH_DELETE) {
+      "number of requested Exchanges exceeds limit: $MAX_BATCH_DELETE"
+    }
+    for (exchangeDeletionRequest in request.requestsList) {
+      grpcRequire(exchangeDeletionRequest.externalRecurringExchangeId != 0L) {
+        "external_recurring_exchange_id not specified"
+      }
+    }
+    try {
+      return BatchDeleteExchanges(request).execute(client, idGenerator)
+    } catch (e: ExchangeNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Exchange not found" }
+    } catch (e: KingdomInternalException) {
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
+    }
   }
 }

@@ -345,13 +345,14 @@ class MetricsService(
             metricSpec
           )
 
-        this.measurementSpec =
+        measurementSpec =
           signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
-
-        this.measurementReferenceId = internalMeasurement.cmmsCreateMeasurementRequestId
       }
 
-      return createMeasurementRequest { this.measurement = measurement }
+      return createMeasurementRequest {
+        this.measurement = measurement
+        requestId = internalMeasurement.cmmsCreateMeasurementRequestId
+      }
     }
 
     /** Gets a [SigningKeyHandle] for a [MeasurementConsumerPrincipal]. */
@@ -1172,7 +1173,20 @@ class MetricsService(
       try {
         internalMetricsStub.createMetric(internalCreateMetricRequest)
       } catch (e: StatusException) {
-        throw Exception("Unable to create the metric in the reporting database.", e)
+        throw when (e.status.code) {
+            Status.Code.NOT_FOUND ->
+              Status.NOT_FOUND.withDescription("Reporting set used in the metric not found.")
+            Status.Code.FAILED_PRECONDITION ->
+              Status.FAILED_PRECONDITION.withDescription(
+                "Unable to create the metric. The measurement consumer not found."
+              )
+            else ->
+              Status.UNKNOWN.withDescription(
+                "Unable to create the metric in the reporting database."
+              )
+          }
+          .withCause(e)
+          .asRuntimeException()
       }
 
     if (internalMetric.state == Metric.State.RUNNING) {
@@ -1227,7 +1241,18 @@ class MetricsService(
           .metricsList
           .filter { internalMetric -> internalMetric.state == Metric.State.RUNNING }
       } catch (e: StatusException) {
-        throw Exception("Unable to create the metric in the reporting database.", e)
+        throw when (e.status.code) {
+            Status.Code.NOT_FOUND ->
+              Status.NOT_FOUND.withDescription("Reporting set used in metrics not found.")
+            Status.Code.FAILED_PRECONDITION ->
+              Status.FAILED_PRECONDITION.withDescription(
+                "Unable to create the metrics. The measurement consumer not found."
+              )
+            else ->
+              Status.UNKNOWN.withDescription("Unable to create metrics in the reporting database.")
+          }
+          .withCause(e)
+          .asRuntimeException()
       }
 
     measurementSupplier.createCmmsMeasurements(internalMetrics, principal)

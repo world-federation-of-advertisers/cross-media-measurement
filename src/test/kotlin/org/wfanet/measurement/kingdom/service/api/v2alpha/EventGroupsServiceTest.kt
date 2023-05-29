@@ -72,6 +72,7 @@ import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoro
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.createEventGroupRequest as internalCreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest as internalDeleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest as internalGetEventGroupRequest
@@ -308,29 +309,31 @@ class EventGroupsServiceTest {
   }
 
   @Test
-  fun `createEventGroup returns event group`() {
+  fun `createEventGroup returns created event group`() {
     val request = createEventGroupRequest {
       parent = DATA_PROVIDER_NAME
       eventGroup = EVENT_GROUP
+      requestId = "foo"
     }
 
-    val result =
+    val response: EventGroup =
       withDataProviderPrincipal(DATA_PROVIDER_NAME) {
         runBlocking { service.createEventGroup(request) }
       }
 
-    val expected = EVENT_GROUP
-
     verifyProtoArgument(internalEventGroupsMock, EventGroupsCoroutineImplBase::createEventGroup)
       .isEqualTo(
-        INTERNAL_EVENT_GROUP.copy {
-          clearCreateTime()
-          clearExternalEventGroupId()
-          clearState()
+        internalCreateEventGroupRequest {
+          eventGroup =
+            INTERNAL_EVENT_GROUP.copy {
+              clearCreateTime()
+              clearExternalEventGroupId()
+              clearState()
+            }
+          requestId = request.requestId
         }
       )
-
-    assertThat(result).isEqualTo(expected)
+    assertThat(response).isEqualTo(EVENT_GROUP)
   }
 
   @Test

@@ -17,7 +17,7 @@ Adds external repos necessary for wfa_measurement_system.
 """
 
 load("//build/wfa:repositories.bzl", "wfa_repo_archive")
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
 
 MEASUREMENT_SYSTEM_REPO = "https://github.com/world-federation-of-advertisers/cross-media-measurement"
 
@@ -34,15 +34,15 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_common_cpp",
         repo = "common-cpp",
-        sha256 = "be7564a574c60176dc63e48daba6135263779deb301baacb77d2328bdaf38d3d",
-        version = "0.9.0",
+        sha256 = "fd4475b587741fa8af65c580b783054d09bf3890197830290a22b3823c778eeb",
+        version = "0.10.0",
     )
 
     wfa_repo_archive(
         name = "wfa_measurement_proto",
         repo = "cross-media-measurement-api",
-        sha256 = "4ae6664c57496632dd75d9731b82aaaa7a6e3134ab81b2d70def3f6a07028683",
-        version = "0.30.0",
+        sha256 = "644fa51594fa183b65dbc0a5a064ddfaa16c807b573ec66e171a9de63b0f2b03",
+        version = "0.31.0",
     )
 
     wfa_repo_archive(
@@ -55,15 +55,15 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "any_sketch",
         repo = "any-sketch",
-        sha256 = "fa7ff63e181692b9060c50fedd519b7ea7e9a6683bf4d5ba9d19213b6cb6dac4",
-        version = "0.4.2",
+        sha256 = "dfa9eece9965b8c043e7562d0f7c6e06cd649c62d88d9be99c0295f9f5980d7b",
+        version = "0.4.3",
     )
 
     wfa_repo_archive(
         name = "any_sketch_java",
         repo = "any-sketch-java",
-        sha256 = "117642633c1b0a6a539f75b21d396146fcb7c51ae60f8c63859b0e9cce490e77",
-        version = "0.4.0",
+        sha256 = "0d463c7eb9cce9e94a4af2575f8c9e1c79f1d5ebbe6fa8db168be167bd80cf5a",
+        version = "0.4.1",
     )
 
     wfa_repo_archive(
@@ -92,4 +92,37 @@ def wfa_measurement_system_repositories():
         sha256 = "b1e0e7f74f4da09a6011c6fa91d7b968cdff6bb571712490dae427704b2af14c",
         strip_prefix = "private-membership-84e45669f7357bffcdafbc1b0cc26e72512808ce",
         url = "https://github.com/google/private-membership/archive/84e45669f7357bffcdafbc1b0cc26e72512808ce.zip",
+    )
+
+    http_archive(
+        name = "io_bazel_rules_go",
+        sha256 = "6b65cb7917b4d1709f9410ffe00ecf3e160edf674b78c54a894471320862184f",
+        urls = [
+            "https://mirror.bazel.build/github.com/bazelbuild/rules_go/releases/download/v0.39.0/rules_go-v0.39.0.zip",
+            "https://github.com/bazelbuild/rules_go/releases/download/v0.39.0/rules_go-v0.39.0.zip",
+        ],
+    )
+
+    http_archive(
+        name = "bazel_gazelle",
+        sha256 = "ecba0f04f96b4960a5b250c8e8eeec42281035970aa8852dda73098274d14a1d",
+        urls = [
+            "https://mirror.bazel.build/github.com/bazelbuild/bazel-gazelle/releases/download/v0.29.0/bazel-gazelle-v0.29.0.tar.gz",
+            "https://github.com/bazelbuild/bazel-gazelle/releases/download/v0.29.0/bazel-gazelle-v0.29.0.tar.gz",
+        ],
+    )
+
+    http_file(
+        name = "protoc_gen_grpc_gateway",
+        sha256 = "d60028423c44b85c0bfbcf6393c35be7c53d439bc74b2e6f6caca863ad6df812",
+        urls = ["https://github.com/grpc-ecosystem/grpc-gateway/releases/download/v2.15.2/protoc-gen-grpc-gateway-v2.15.2-linux-x86_64"],
+        executable = True,
+        downloaded_file_path = "protoc-gen-grpc-gateway",
+    )
+
+    http_archive(
+        name = "grpc_ecosystem_grpc_gateway",
+        sha256 = "0675f7f8300f659a23e7ea4b8be5b38726c173b506a4d25c4309e93b4f1616ae",
+        strip_prefix = "grpc-gateway-2.15.2",
+        urls = ["https://github.com/grpc-ecosystem/grpc-gateway/archive/refs/tags/v2.15.2.tar.gz"],
     )
