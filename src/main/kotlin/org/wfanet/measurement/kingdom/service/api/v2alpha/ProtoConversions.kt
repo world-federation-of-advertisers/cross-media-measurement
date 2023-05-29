@@ -430,8 +430,6 @@ fun ModelRollout.toInternal(
       externalPreviousModelRolloutId = apiIdToExternalId(modelRolloutKey.modelRolloutId)
     }
     externalModelReleaseId = apiIdToExternalId(modelReleaseKey.modelReleaseId)
-    createTime = publicModelRollout.createTime
-    updateTime = publicModelRollout.updateTime
   }
 }
 

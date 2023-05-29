@@ -36,6 +36,7 @@ import org.wfanet.measurement.api.v2alpha.ModelRollout
 import org.wfanet.measurement.api.v2alpha.ModelRolloutKey
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase as ModelRolloutsCoroutineService
 import org.wfanet.measurement.api.v2alpha.ScheduleModelRolloutFreezeRequest
+import org.wfanet.measurement.api.v2alpha.TimeInterval
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsPageToken
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsResponse
@@ -47,7 +48,6 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.internal.kingdom.ModelRollout as InternalModelRollout
-import org.wfanet.measurement.api.v2alpha.TimeInterval
 import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequestKt.afterFilter
@@ -237,7 +237,8 @@ class ModelRolloutsService(private val internalClient: ModelRolloutsCoroutineStu
       }
     }
 
-    val listModelRolloutsPageToken = request.toListModelRolloutsPageToken(request.filter.rolloutPeriodOverlapping)
+    val listModelRolloutsPageToken =
+      request.toListModelRolloutsPageToken(request.filter.rolloutPeriodOverlapping)
 
     val results: List<InternalModelRollout> =
       internalClient
@@ -271,7 +272,9 @@ class ModelRolloutsService(private val internalClient: ModelRolloutsCoroutineStu
   }
 
   /** Converts a public [ListModelRolloutsRequest] to an internal [ListModelRolloutsPageToken]. */
-  private fun ListModelRolloutsRequest.toListModelRolloutsPageToken(rolloutPeriodOverlapping: TimeInterval?): ListModelRolloutsPageToken {
+  private fun ListModelRolloutsRequest.toListModelRolloutsPageToken(
+    rolloutPeriodOverlapping: TimeInterval?
+  ): ListModelRolloutsPageToken {
     val source = this
 
     val key =
