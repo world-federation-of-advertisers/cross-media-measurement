@@ -17,12 +17,6 @@ Step 4 of configuring WORKSPACE: Maven.
 """
 
 load("@rules_jvm_external//:defs.bzl", "artifact")
-load(
-    "@wfa_common_jvm//build:common_jvm_maven.bzl",
-    "COMMON_JVM_EXCLUDED_ARTIFACTS",
-    "COMMON_JVM_MAVEN_OVERRIDE_TARGETS",
-    "common_jvm_maven_artifacts_dict",
-)
 
 _DEPLOY_ENV = [
     "@com_github_grpc_grpc_kotlin//stub/src/main/java/io/grpc/kotlin:stub",
