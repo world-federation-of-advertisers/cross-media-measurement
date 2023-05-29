@@ -414,8 +414,7 @@ fun InternalModelRollout.toModelRollout(): ModelRollout {
 /** Converts a public [ModelRollout] to an internal [InternalModelRollout] */
 fun ModelRollout.toInternal(
   modelLineKey: ModelLineKey,
-  modelReleaseKey: ModelReleaseKey,
-  modelRolloutKey: ModelRolloutKey?
+  modelReleaseKey: ModelReleaseKey
 ): InternalModelRollout {
   val publicModelRollout = this
 
@@ -426,9 +425,6 @@ fun ModelRollout.toInternal(
     rolloutPeriodStartTime = publicModelRollout.rolloutPeriod.startTime
     rolloutPeriodEndTime = publicModelRollout.rolloutPeriod.endTime
     rolloutFreezeTime = publicModelRollout.rolloutFreezeTime
-    if (modelRolloutKey != null) {
-      externalPreviousModelRolloutId = apiIdToExternalId(modelRolloutKey.modelRolloutId)
-    }
     externalModelReleaseId = apiIdToExternalId(modelReleaseKey.modelReleaseId)
   }
 }

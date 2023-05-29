@@ -94,15 +94,7 @@ class ModelRolloutsService(private val internalClient: ModelRolloutsCoroutineStu
       }
     }
 
-    val modelRolloutKey =
-      if (request.modelRollout.previousModelRollout.isNotBlank()) {
-        ModelRolloutKey.fromName(request.modelRollout.previousModelRollout)
-      } else {
-        null
-      }
-
-    val createModelRolloutRequest =
-      request.modelRollout.toInternal(parentKey, modelReleaseKey, modelRolloutKey)
+    val createModelRolloutRequest = request.modelRollout.toInternal(parentKey, modelReleaseKey)
     return try {
       internalClient.createModelRollout(createModelRolloutRequest).toModelRollout()
     } catch (ex: StatusException) {

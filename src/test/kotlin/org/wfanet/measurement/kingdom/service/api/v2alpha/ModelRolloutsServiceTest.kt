@@ -216,6 +216,7 @@ class ModelRolloutsServiceTest {
           clearCreateTime()
           clearUpdateTime()
           clearExternalModelRolloutId()
+          clearExternalPreviousModelRolloutId()
         }
       )
 
