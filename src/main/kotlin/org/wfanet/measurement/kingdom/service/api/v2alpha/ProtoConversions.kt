@@ -45,6 +45,8 @@ import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.api.v2alpha.ModelReleaseKey
+import org.wfanet.measurement.api.v2alpha.ModelRollout
+import org.wfanet.measurement.api.v2alpha.ModelRolloutKey
 import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
@@ -62,9 +64,11 @@ import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.modelRelease
+import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toLocalDate
@@ -82,6 +86,7 @@ import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.details
 import org.wfanet.measurement.internal.kingdom.ModelLine as InternalModelLine
 import org.wfanet.measurement.internal.kingdom.ModelRelease as InternalModelRelease
+import org.wfanet.measurement.internal.kingdom.ModelRollout as InternalModelRollout
 import org.wfanet.measurement.internal.kingdom.ModelSuite as InternalModelSuite
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
@@ -90,6 +95,7 @@ import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
 import org.wfanet.measurement.internal.kingdom.modelLine as internalModelLine
 import org.wfanet.measurement.internal.kingdom.modelRelease as internalModelRelease
+import org.wfanet.measurement.internal.kingdom.modelRollout as internalModelRollout
 import org.wfanet.measurement.internal.kingdom.modelSuite as internalModelSuite
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
@@ -362,6 +368,70 @@ fun ModelLine.toInternal(modelSuiteKey: ModelSuiteKey): InternalModelLine {
     if (publicModelLine.holdbackModelLine.isNotBlank()) {
       externalHoldbackModelLineId = apiIdToExternalId(publicModelLine.holdbackModelLine)
     }
+  }
+}
+
+/** Converts an internal [InternalModelRollout] to a public [ModelRollout]. */
+fun InternalModelRollout.toModelRollout(): ModelRollout {
+  val source = this
+
+  return modelRollout {
+    name =
+      ModelRolloutKey(
+          externalIdToApiId(source.externalModelProviderId),
+          externalIdToApiId(source.externalModelSuiteId),
+          externalIdToApiId(source.externalModelLineId),
+          externalIdToApiId(source.externalModelRolloutId)
+        )
+        .toName()
+    rolloutPeriod = timeInterval {
+      startTime = source.rolloutPeriodStartTime
+      endTime = source.rolloutPeriodEndTime
+    }
+    rolloutFreezeTime = source.rolloutFreezeTime
+    if (source.externalPreviousModelRolloutId != 0L) {
+      previousModelRollout =
+        ModelRolloutKey(
+            externalIdToApiId(source.externalModelProviderId),
+            externalIdToApiId(source.externalModelSuiteId),
+            externalIdToApiId(source.externalModelLineId),
+            externalIdToApiId(source.externalPreviousModelRolloutId)
+          )
+          .toName()
+    }
+    modelRelease =
+      ModelReleaseKey(
+          externalIdToApiId(source.externalModelProviderId),
+          externalIdToApiId(source.externalModelSuiteId),
+          externalIdToApiId(source.externalModelReleaseId)
+        )
+        .toName()
+    createTime = source.createTime
+    updateTime = source.updateTime
+  }
+}
+
+/** Converts a public [ModelRollout] to an internal [InternalModelRollout] */
+fun ModelRollout.toInternal(
+  modelLineKey: ModelLineKey,
+  modelReleaseKey: ModelReleaseKey,
+  modelRolloutKey: ModelRolloutKey?
+): InternalModelRollout {
+  val publicModelRollout = this
+
+  return internalModelRollout {
+    externalModelProviderId = apiIdToExternalId(modelLineKey.modelProviderId)
+    externalModelSuiteId = apiIdToExternalId(modelLineKey.modelSuiteId)
+    externalModelLineId = apiIdToExternalId(modelLineKey.modelLineId)
+    rolloutPeriodStartTime = publicModelRollout.rolloutPeriod.startTime
+    rolloutPeriodEndTime = publicModelRollout.rolloutPeriod.endTime
+    rolloutFreezeTime = publicModelRollout.rolloutFreezeTime
+    if (modelRolloutKey != null) {
+      externalPreviousModelRolloutId = apiIdToExternalId(modelRolloutKey.modelRolloutId)
+    }
+    externalModelReleaseId = apiIdToExternalId(modelReleaseKey.modelReleaseId)
+    createTime = publicModelRollout.createTime
+    updateTime = publicModelRollout.updateTime
   }
 }
 
