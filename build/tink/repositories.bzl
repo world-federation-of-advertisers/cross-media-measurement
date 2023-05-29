@@ -20,7 +20,6 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 
 def tink_cc(tink_commit):
-
     _tink_sha256 = "0b8bbaffee4903faea66dbad76f8eb6d0eea3f94367807bebc49180f9f417031"
     _tink_url = "https://github.com/google/tink/archive/{commit}.tar.gz".format(
         commit = tink_commit,
