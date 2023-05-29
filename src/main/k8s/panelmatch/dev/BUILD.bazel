@@ -1,0 +1,103 @@
+load("//build:variables.bzl", "EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG")
+load("//src/main/docker/panel_exchange_client:images.bzl", "ALL_GKE_IMAGES")
+load("@wfa_rules_cue//cue:defs.bzl", "cue_export", "cue_library")
+
+cue_library(
+    name = "base_gke",
+    srcs = ["base_gke.cue"],
+    deps = ["//src/main/k8s/panelmatch:base"],
+)
+
+cue_library(
+    name = "base_aws",
+    srcs = ["base_aws.cue"],
+    deps = ["//src/main/k8s/panelmatch:base"],
+)
+
+cue_library(
+    name = "example_daemon_gke",
+    srcs = ["example_daemon_gke.cue"],
+    deps = [":base_gke"],
+)
+
+cue_library(
+    name = "example_daemon_aws",
+    srcs = ["example_daemon_aws.cue"],
+    deps = [":base_aws"],
+)
+
+cue_export(
+    name = "example_edp_daemon_gke",
+    srcs = ["example_edp_daemon_gke.cue"],
+    cue_tags = {
+        "party_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_name,
+        "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_secret_name,
+    },
+    expression = "listObject",
+    filetype = "yaml",
+    tags = ["manual"],
+    deps = [":example_daemon_gke"],
+)
+
+cue_export(
+    name = "example_mp_daemon_gke",
+    srcs = ["example_mp_daemon_gke.cue"],
+    cue_tags = {
+        "party_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_name,
+        "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_secret_name,
+    },
+    expression = "listObject",
+    filetype = "yaml",
+    tags = ["manual"],
+    deps = [":example_daemon_gke"],
+)
+
+cue_export(
+    name = "example_edp_daemon_aws",
+    srcs = ["example_edp_daemon_aws.cue"],
+    cue_tags = {
+        "party_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_name,
+        "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_secret_name,
+    },
+    expression = "listObject",
+    filetype = "yaml",
+    tags = ["manual"],
+    deps = [":example_daemon_aws"],
+)
+
+cue_export(
+    name = "example_mp_daemon_aws",
+    srcs = ["example_mp_daemon_aws.cue"],
+    cue_tags = {
+        "party_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_name,
+        "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_secret_name,
+    },
+    expression = "listObject",
+    filetype = "yaml",
+    tags = ["manual"],
+    deps = [":example_daemon_aws"],
+)
+
+ALL_IMAGE_ARCHIVES = [
+    image_spec.image + ".tar"
+    for image_spec in ALL_GKE_IMAGES
+]
+
+filegroup(
+    name = "all_archives",
+    srcs = ALL_IMAGE_ARCHIVES,
+    tags = ["manual"],
+)
+
+filegroup(
+    name = "k8s_deployment_config",
+    srcs = [":example_daemon_from_cue_gke.yaml"],
+    data = [":all_archives"],
+    tags = ["manual"],
+    visibility = [":k8s_deployer"],
+)
+
+package_group(
+    name = "k8s_deployer",
+    packages = ["//src/main/kotlin/org/wfanet/panelmatch/tools/..."],
+)

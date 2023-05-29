@@ -6,7 +6,7 @@ jar of all the testing dependencies.
 
 load("@rules_jvm_external//:defs.bzl", "java_export")
 load(
-    "//build:maven_deps.bzl",
+    "//build:panel_exchange_client_maven_deps.bzl",
     "panel_exchange_client_maven_deploy_env",
     "panel_exchange_client_maven_runtime_deps",
     "panel_exchange_client_maven_test_deploy_env",
