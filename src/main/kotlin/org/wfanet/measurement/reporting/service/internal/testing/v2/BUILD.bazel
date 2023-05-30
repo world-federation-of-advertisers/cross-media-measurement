@@ -8,6 +8,7 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     deps = [
         "//src/main/proto/wfa/measurement/internal/reporting/v2:measurement_consumers_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:measurements_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:metrics_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
