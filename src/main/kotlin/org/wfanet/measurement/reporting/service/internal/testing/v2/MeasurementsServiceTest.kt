@@ -53,7 +53,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
     val measurementsService: T,
     val metricsService: MetricsGrpcKt.MetricsCoroutineImplBase,
     val reportingSetsService: ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase,
-    val measurementConsumersService: MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase,
+    val measurementConsumersService:
+      MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase,
   )
 
   /** Instance of the service under test. */
@@ -61,7 +62,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
 
   private lateinit var metricsService: MetricsGrpcKt.MetricsCoroutineImplBase
   private lateinit var reportingSetsService: ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
-  private lateinit var measurementConsumersService: MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+  private lateinit var measurementConsumersService:
+    MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 
   /** Constructs the services being tested. */
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
@@ -77,153 +79,240 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
 
   @Test
   fun `batchSetCmmsMeasurementIds succeeds when updating one measurement`(): Unit = runBlocking {
-    val metric = createMetric(CMMS_MEASUREMENT_CONSUMER_ID, metricsService, reportingSetsService, measurementConsumersService, 1)
+    val metric =
+      createMetric(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        metricsService,
+        reportingSetsService,
+        measurementConsumersService,
+        1
+      )
 
-    service.batchSetCmmsMeasurementIds(batchSetCmmsMeasurementIdsRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-        cmmsCreateMeasurementRequestId = metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
-        cmmsMeasurementId = "1234"
+    service.batchSetCmmsMeasurementIds(
+      batchSetCmmsMeasurementIdsRequest {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        measurementIds +=
+          BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+            cmmsCreateMeasurementRequestId =
+              metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
+            cmmsMeasurementId = "1234"
+          }
       }
-    })
+    )
 
-    val readMetrics = metricsService.batchGetMetrics(batchGetMetricsRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalMetricIds += metric.externalMetricId
-    })
+    val readMetrics =
+      metricsService.batchGetMetrics(
+        batchGetMetricsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricIds += metric.externalMetricId
+        }
+      )
 
     assertThat(readMetrics.metricsList[0].weightedMeasurementsList[0])
       .ignoringRepeatedFieldOrder()
-      .isEqualTo(metric.weightedMeasurementsList[0].copy {
-        measurement = measurement.copy {
-          cmmsMeasurementId = "1234"
-          state = Measurement.State.PENDING
+      .isEqualTo(
+        metric.weightedMeasurementsList[0].copy {
+          measurement =
+            measurement.copy {
+              cmmsMeasurementId = "1234"
+              state = Measurement.State.PENDING
+            }
         }
-      })
+      )
   }
 
   @Test
   fun `batchSetCmmsMeasurementIds succeeds when updating two measurements`(): Unit = runBlocking {
-    val metric = createMetric(CMMS_MEASUREMENT_CONSUMER_ID, metricsService, reportingSetsService, measurementConsumersService, 2)
+    val metric =
+      createMetric(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        metricsService,
+        reportingSetsService,
+        measurementConsumersService,
+        2
+      )
 
-    service.batchSetCmmsMeasurementIds(batchSetCmmsMeasurementIdsRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-        cmmsCreateMeasurementRequestId = metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
-        cmmsMeasurementId = "1234"
+    service.batchSetCmmsMeasurementIds(
+      batchSetCmmsMeasurementIdsRequest {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        measurementIds +=
+          BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+            cmmsCreateMeasurementRequestId =
+              metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
+            cmmsMeasurementId = "1234"
+          }
+        measurementIds +=
+          BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+            cmmsCreateMeasurementRequestId =
+              metric.weightedMeasurementsList[1].measurement.cmmsCreateMeasurementRequestId
+            cmmsMeasurementId = "1235"
+          }
       }
-      measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-        cmmsCreateMeasurementRequestId = metric.weightedMeasurementsList[1].measurement.cmmsCreateMeasurementRequestId
-        cmmsMeasurementId = "1235"
-      }
-    })
+    )
 
-    val readMetrics = metricsService.batchGetMetrics(batchGetMetricsRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalMetricIds += metric.externalMetricId
-    })
+    val readMetrics =
+      metricsService.batchGetMetrics(
+        batchGetMetricsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricIds += metric.externalMetricId
+        }
+      )
 
     assertThat(readMetrics.metricsList[0].weightedMeasurementsList)
       .ignoringRepeatedFieldOrder()
-      .containsExactly(metric.weightedMeasurementsList[0].copy {
-        measurement = measurement.copy {
-          cmmsMeasurementId = "1234"
-          state = Measurement.State.PENDING
+      .containsExactly(
+        metric.weightedMeasurementsList[0].copy {
+          measurement =
+            measurement.copy {
+              cmmsMeasurementId = "1234"
+              state = Measurement.State.PENDING
+            }
+        },
+        metric.weightedMeasurementsList[1].copy {
+          measurement =
+            measurement.copy {
+              cmmsMeasurementId = "1235"
+              state = Measurement.State.PENDING
+            }
         }
-      }, metric.weightedMeasurementsList[1].copy {
-         measurement = measurement.copy {
-           cmmsMeasurementId = "1235"
-           state = Measurement.State.PENDING
-         }
-       })
+      )
   }
 
   @Test
   fun `batchSetCmmsMeasurementIds succeeds when no filters in bases in measurements`(): Unit =
     runBlocking {
-      val metric = createMetric(CMMS_MEASUREMENT_CONSUMER_ID, metricsService, reportingSetsService, measurementConsumersService, 2, true)
+      val metric =
+        createMetric(
+          CMMS_MEASUREMENT_CONSUMER_ID,
+          metricsService,
+          reportingSetsService,
+          measurementConsumersService,
+          2,
+          true
+        )
 
-      service.batchSetCmmsMeasurementIds(batchSetCmmsMeasurementIdsRequest {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-          cmmsCreateMeasurementRequestId = metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
-          cmmsMeasurementId = "1234"
+      service.batchSetCmmsMeasurementIds(
+        batchSetCmmsMeasurementIdsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          measurementIds +=
+            BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+              cmmsCreateMeasurementRequestId =
+                metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
+              cmmsMeasurementId = "1234"
+            }
+          measurementIds +=
+            BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+              cmmsCreateMeasurementRequestId =
+                metric.weightedMeasurementsList[1].measurement.cmmsCreateMeasurementRequestId
+              cmmsMeasurementId = "1235"
+            }
         }
-        measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-          cmmsCreateMeasurementRequestId = metric.weightedMeasurementsList[1].measurement.cmmsCreateMeasurementRequestId
-          cmmsMeasurementId = "1235"
-        }
-      })
+      )
 
-      val readMetrics = metricsService.batchGetMetrics(batchGetMetricsRequest {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        externalMetricIds += metric.externalMetricId
-      })
+      val readMetrics =
+        metricsService.batchGetMetrics(
+          batchGetMetricsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalMetricIds += metric.externalMetricId
+          }
+        )
 
       assertThat(readMetrics.metricsList[0].weightedMeasurementsList)
         .ignoringRepeatedFieldOrder()
-        .containsExactly(metric.weightedMeasurementsList[0].copy {
-          measurement = measurement.copy {
-            cmmsMeasurementId = "1234"
-            state = Measurement.State.PENDING
+        .containsExactly(
+          metric.weightedMeasurementsList[0].copy {
+            measurement =
+              measurement.copy {
+                cmmsMeasurementId = "1234"
+                state = Measurement.State.PENDING
+              }
+          },
+          metric.weightedMeasurementsList[1].copy {
+            measurement =
+              measurement.copy {
+                cmmsMeasurementId = "1235"
+                state = Measurement.State.PENDING
+              }
           }
-        }, metric.weightedMeasurementsList[1].copy {
-          measurement = measurement.copy {
-            cmmsMeasurementId = "1235"
-            state = Measurement.State.PENDING
-          }
-        })
+        )
     }
 
   @Test
   fun `batchSetCmmsMeasurementIds succeeds when updating the same measurement twice`(): Unit =
     runBlocking {
-      val metric = createMetric(CMMS_MEASUREMENT_CONSUMER_ID, metricsService, reportingSetsService, measurementConsumersService, 1)
+      val metric =
+        createMetric(
+          CMMS_MEASUREMENT_CONSUMER_ID,
+          metricsService,
+          reportingSetsService,
+          measurementConsumersService,
+          1
+        )
 
       val request = batchSetCmmsMeasurementIdsRequest {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-          cmmsCreateMeasurementRequestId = metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
-          cmmsMeasurementId = "1234"
-        }
+        measurementIds +=
+          BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+            cmmsCreateMeasurementRequestId =
+              metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
+            cmmsMeasurementId = "1234"
+          }
       }
 
       service.batchSetCmmsMeasurementIds(request)
       service.batchSetCmmsMeasurementIds(request)
 
-      val readMetrics = metricsService.batchGetMetrics(batchGetMetricsRequest {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        externalMetricIds += metric.externalMetricId
-      })
+      val readMetrics =
+        metricsService.batchGetMetrics(
+          batchGetMetricsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalMetricIds += metric.externalMetricId
+          }
+        )
 
       assertThat(readMetrics.metricsList[0].weightedMeasurementsList[0])
         .ignoringRepeatedFieldOrder()
-        .isEqualTo(metric.weightedMeasurementsList[0].copy {
-          measurement = measurement.copy {
-            cmmsMeasurementId = "1234"
-            state = Measurement.State.PENDING
+        .isEqualTo(
+          metric.weightedMeasurementsList[0].copy {
+            measurement =
+              measurement.copy {
+                cmmsMeasurementId = "1234"
+                state = Measurement.State.PENDING
+              }
           }
-        })
+        )
     }
 
   @Test
   fun `batchSetCmmsMeasurementIds throws NOT_FOUND when not all measurements found`(): Unit =
     runBlocking {
-      val metric = createMetric(CMMS_MEASUREMENT_CONSUMER_ID, metricsService, reportingSetsService, measurementConsumersService, 1)
+      val metric =
+        createMetric(
+          CMMS_MEASUREMENT_CONSUMER_ID,
+          metricsService,
+          reportingSetsService,
+          measurementConsumersService,
+          1
+        )
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.batchSetCmmsMeasurementIds(batchSetCmmsMeasurementIdsRequest {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-              cmmsCreateMeasurementRequestId = metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
-              cmmsMeasurementId = "1234"
+          service.batchSetCmmsMeasurementIds(
+            batchSetCmmsMeasurementIdsRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              measurementIds +=
+                BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+                  cmmsCreateMeasurementRequestId =
+                    metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
+                  cmmsMeasurementId = "1234"
+                }
+              measurementIds +=
+                BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+                  cmmsCreateMeasurementRequestId = "1"
+                  cmmsMeasurementId = "1235"
+                }
             }
-            measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-              cmmsCreateMeasurementRequestId = "1"
-              cmmsMeasurementId = "1235"
-            }
-          })
+          )
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
@@ -237,13 +326,16 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.batchSetCmmsMeasurementIds(batchSetCmmsMeasurementIdsRequest {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-              cmmsCreateMeasurementRequestId = "1"
-              cmmsMeasurementId = "1235"
+          service.batchSetCmmsMeasurementIds(
+            batchSetCmmsMeasurementIdsRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              measurementIds +=
+                BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+                  cmmsCreateMeasurementRequestId = "1"
+                  cmmsMeasurementId = "1235"
+                }
             }
-          })
+          )
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
@@ -255,13 +347,16 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.batchSetCmmsMeasurementIds(batchSetCmmsMeasurementIdsRequest {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-              cmmsCreateMeasurementRequestId = "1"
-              cmmsMeasurementId = "1235"
+          service.batchSetCmmsMeasurementIds(
+            batchSetCmmsMeasurementIdsRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              measurementIds +=
+                BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+                  cmmsCreateMeasurementRequestId = "1"
+                  cmmsMeasurementId = "1235"
+                }
             }
-          })
+          )
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
@@ -273,12 +368,15 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.batchSetCmmsMeasurementIds(batchSetCmmsMeasurementIdsRequest {
-            measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-              cmmsCreateMeasurementRequestId = "1234"
-              cmmsMeasurementId = "1234"
+          service.batchSetCmmsMeasurementIds(
+            batchSetCmmsMeasurementIdsRequest {
+              measurementIds +=
+                BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+                  cmmsCreateMeasurementRequestId = "1234"
+                  cmmsMeasurementId = "1234"
+                }
             }
-          })
+          )
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -290,14 +388,17 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.batchSetCmmsMeasurementIds(batchSetCmmsMeasurementIdsRequest {
-            for (i in 1L..(MAX_BATCH_SIZE + 1)) {
-              measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-                cmmsCreateMeasurementRequestId = "123"
-                cmmsMeasurementId = "1234"
+          service.batchSetCmmsMeasurementIds(
+            batchSetCmmsMeasurementIdsRequest {
+              for (i in 1L..(MAX_BATCH_SIZE + 1)) {
+                measurementIds +=
+                  BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+                    cmmsCreateMeasurementRequestId = "123"
+                    cmmsMeasurementId = "1234"
+                  }
               }
             }
-          })
+          )
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -306,262 +407,330 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
 
   @Test
   fun `batchSetMeasurementResults succeeds when updating one measurement`(): Unit = runBlocking {
-    val metric = createMetric(CMMS_MEASUREMENT_CONSUMER_ID, metricsService, reportingSetsService, measurementConsumersService, 1)
-    service.batchSetCmmsMeasurementIds(batchSetCmmsMeasurementIdsRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-        cmmsCreateMeasurementRequestId = metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
-        cmmsMeasurementId = "1234"
-      }
-    })
-
-    service.batchSetMeasurementResults(batchSetMeasurementResultsRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      measurementResults += BatchSetMeasurementResultsRequestKt.measurementResult {
-        cmmsMeasurementId = "1234"
-        result = MeasurementKt.result {
-          reach = MeasurementKt.ResultKt.reach {
-            value = 1
+    val metric =
+      createMetric(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        metricsService,
+        reportingSetsService,
+        measurementConsumersService,
+        1
+      )
+    service.batchSetCmmsMeasurementIds(
+      batchSetCmmsMeasurementIdsRequest {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        measurementIds +=
+          BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+            cmmsCreateMeasurementRequestId =
+              metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
+            cmmsMeasurementId = "1234"
           }
-        }
       }
-    })
+    )
 
-    val readMetrics = metricsService.batchGetMetrics(batchGetMetricsRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalMetricIds += metric.externalMetricId
-    })
+    service.batchSetMeasurementResults(
+      batchSetMeasurementResultsRequest {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        measurementResults +=
+          BatchSetMeasurementResultsRequestKt.measurementResult {
+            cmmsMeasurementId = "1234"
+            result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 1 } }
+          }
+      }
+    )
+
+    val readMetrics =
+      metricsService.batchGetMetrics(
+        batchGetMetricsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricIds += metric.externalMetricId
+        }
+      )
 
     assertThat(readMetrics.metricsList[0].weightedMeasurementsList[0])
       .ignoringRepeatedFieldOrder()
-      .isEqualTo(metric.weightedMeasurementsList[0].copy {
-        measurement = measurement.copy {
-          cmmsMeasurementId = "1234"
-          details = MeasurementKt.details {
-            result = MeasurementKt.result {
-              reach = MeasurementKt.ResultKt.reach {
-                value = 1
-              }
+      .isEqualTo(
+        metric.weightedMeasurementsList[0].copy {
+          measurement =
+            measurement.copy {
+              cmmsMeasurementId = "1234"
+              details =
+                MeasurementKt.details {
+                  result =
+                    MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 1 } }
+                }
+              state = Measurement.State.SUCCEEDED
             }
-          }
-          state = Measurement.State.SUCCEEDED
         }
-      })
+      )
   }
 
   @Test
   fun `batchSetMeasurementResults succeeds when updating two measurements`(): Unit = runBlocking {
-    val metric = createMetric(CMMS_MEASUREMENT_CONSUMER_ID, metricsService, reportingSetsService, measurementConsumersService, 2)
-    service.batchSetCmmsMeasurementIds(batchSetCmmsMeasurementIdsRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-        cmmsCreateMeasurementRequestId = metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
-        cmmsMeasurementId = "1234"
-      }
-      measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-        cmmsCreateMeasurementRequestId = metric.weightedMeasurementsList[1].measurement.cmmsCreateMeasurementRequestId
-        cmmsMeasurementId = "1235"
-      }
-    })
-
-    service.batchSetMeasurementResults(batchSetMeasurementResultsRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      measurementResults += BatchSetMeasurementResultsRequestKt.measurementResult {
-        cmmsMeasurementId = "1234"
-        result = MeasurementKt.result {
-          reach = MeasurementKt.ResultKt.reach {
-            value = 1
+    val metric =
+      createMetric(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        metricsService,
+        reportingSetsService,
+        measurementConsumersService,
+        2
+      )
+    service.batchSetCmmsMeasurementIds(
+      batchSetCmmsMeasurementIdsRequest {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        measurementIds +=
+          BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+            cmmsCreateMeasurementRequestId =
+              metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
+            cmmsMeasurementId = "1234"
           }
-        }
-      }
-      measurementResults += BatchSetMeasurementResultsRequestKt.measurementResult {
-        cmmsMeasurementId = "1235"
-        result = MeasurementKt.result {
-          reach = MeasurementKt.ResultKt.reach {
-            value = 2
+        measurementIds +=
+          BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+            cmmsCreateMeasurementRequestId =
+              metric.weightedMeasurementsList[1].measurement.cmmsCreateMeasurementRequestId
+            cmmsMeasurementId = "1235"
           }
-        }
       }
-    })
+    )
 
-    val readMetrics = metricsService.batchGetMetrics(batchGetMetricsRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalMetricIds += metric.externalMetricId
-    })
+    service.batchSetMeasurementResults(
+      batchSetMeasurementResultsRequest {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        measurementResults +=
+          BatchSetMeasurementResultsRequestKt.measurementResult {
+            cmmsMeasurementId = "1234"
+            result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 1 } }
+          }
+        measurementResults +=
+          BatchSetMeasurementResultsRequestKt.measurementResult {
+            cmmsMeasurementId = "1235"
+            result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 2 } }
+          }
+      }
+    )
+
+    val readMetrics =
+      metricsService.batchGetMetrics(
+        batchGetMetricsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricIds += metric.externalMetricId
+        }
+      )
 
     assertThat(readMetrics.metricsList[0].weightedMeasurementsList)
       .ignoringRepeatedFieldOrder()
-      .containsExactly(metric.weightedMeasurementsList[0].copy {
-        measurement = measurement.copy {
-          cmmsMeasurementId = "1234"
-          details = MeasurementKt.details {
-            result = MeasurementKt.result {
-              reach = MeasurementKt.ResultKt.reach {
-                value = 1
-              }
+      .containsExactly(
+        metric.weightedMeasurementsList[0].copy {
+          measurement =
+            measurement.copy {
+              cmmsMeasurementId = "1234"
+              details =
+                MeasurementKt.details {
+                  result =
+                    MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 1 } }
+                }
+              state = Measurement.State.SUCCEEDED
             }
-          }
-          state = Measurement.State.SUCCEEDED
-        }
-      }, metric.weightedMeasurementsList[1].copy {
-        measurement = measurement.copy {
-          cmmsMeasurementId = "1235"
-          details = MeasurementKt.details {
-            result = MeasurementKt.result {
-              reach = MeasurementKt.ResultKt.reach {
-                value = 2
-              }
+        },
+        metric.weightedMeasurementsList[1].copy {
+          measurement =
+            measurement.copy {
+              cmmsMeasurementId = "1235"
+              details =
+                MeasurementKt.details {
+                  result =
+                    MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 2 } }
+                }
+              state = Measurement.State.SUCCEEDED
             }
-          }
-          state = Measurement.State.SUCCEEDED
         }
-      })
+      )
   }
 
   @Test
   fun `batchSetMeasurementResults succeeds when no filters in bases in measurements`(): Unit =
     runBlocking {
-      val metric = createMetric(CMMS_MEASUREMENT_CONSUMER_ID, metricsService, reportingSetsService, measurementConsumersService, 2, noFiltersInMeasurementBases = true)
-      service.batchSetCmmsMeasurementIds(batchSetCmmsMeasurementIdsRequest {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-          cmmsCreateMeasurementRequestId = metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
-          cmmsMeasurementId = "1234"
-        }
-        measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-          cmmsCreateMeasurementRequestId = metric.weightedMeasurementsList[1].measurement.cmmsCreateMeasurementRequestId
-          cmmsMeasurementId = "1235"
-        }
-      })
-
-      service.batchSetMeasurementResults(batchSetMeasurementResultsRequest {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        measurementResults += BatchSetMeasurementResultsRequestKt.measurementResult {
-          cmmsMeasurementId = "1234"
-          result = MeasurementKt.result {
-            reach = MeasurementKt.ResultKt.reach {
-              value = 1
+      val metric =
+        createMetric(
+          CMMS_MEASUREMENT_CONSUMER_ID,
+          metricsService,
+          reportingSetsService,
+          measurementConsumersService,
+          2,
+          noFiltersInMeasurementBases = true
+        )
+      service.batchSetCmmsMeasurementIds(
+        batchSetCmmsMeasurementIdsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          measurementIds +=
+            BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+              cmmsCreateMeasurementRequestId =
+                metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
+              cmmsMeasurementId = "1234"
             }
-          }
-        }
-        measurementResults += BatchSetMeasurementResultsRequestKt.measurementResult {
-          cmmsMeasurementId = "1235"
-          result = MeasurementKt.result {
-            reach = MeasurementKt.ResultKt.reach {
-              value = 2
+          measurementIds +=
+            BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+              cmmsCreateMeasurementRequestId =
+                metric.weightedMeasurementsList[1].measurement.cmmsCreateMeasurementRequestId
+              cmmsMeasurementId = "1235"
             }
-          }
         }
-      })
+      )
 
-      val readMetrics = metricsService.batchGetMetrics(batchGetMetricsRequest {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        externalMetricIds += metric.externalMetricId
-      })
+      service.batchSetMeasurementResults(
+        batchSetMeasurementResultsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          measurementResults +=
+            BatchSetMeasurementResultsRequestKt.measurementResult {
+              cmmsMeasurementId = "1234"
+              result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 1 } }
+            }
+          measurementResults +=
+            BatchSetMeasurementResultsRequestKt.measurementResult {
+              cmmsMeasurementId = "1235"
+              result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 2 } }
+            }
+        }
+      )
+
+      val readMetrics =
+        metricsService.batchGetMetrics(
+          batchGetMetricsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalMetricIds += metric.externalMetricId
+          }
+        )
 
       assertThat(readMetrics.metricsList[0].weightedMeasurementsList)
         .ignoringRepeatedFieldOrder()
-        .containsExactly(metric.weightedMeasurementsList[0].copy {
-          measurement = measurement.copy {
-            cmmsMeasurementId = "1234"
-            details = MeasurementKt.details {
-              result = MeasurementKt.result {
-                reach = MeasurementKt.ResultKt.reach {
-                  value = 1
-                }
+        .containsExactly(
+          metric.weightedMeasurementsList[0].copy {
+            measurement =
+              measurement.copy {
+                cmmsMeasurementId = "1234"
+                details =
+                  MeasurementKt.details {
+                    result =
+                      MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 1 } }
+                  }
+                state = Measurement.State.SUCCEEDED
               }
-            }
-            state = Measurement.State.SUCCEEDED
-          }
-        }, metric.weightedMeasurementsList[1].copy {
-          measurement = measurement.copy {
-            cmmsMeasurementId = "1235"
-            details = MeasurementKt.details {
-              result = MeasurementKt.result {
-                reach = MeasurementKt.ResultKt.reach {
-                  value = 2
-                }
+          },
+          metric.weightedMeasurementsList[1].copy {
+            measurement =
+              measurement.copy {
+                cmmsMeasurementId = "1235"
+                details =
+                  MeasurementKt.details {
+                    result =
+                      MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 2 } }
+                  }
+                state = Measurement.State.SUCCEEDED
               }
-            }
-            state = Measurement.State.SUCCEEDED
           }
-        })
+        )
     }
 
   @Test
   fun `batchSetMeasurementResults succeeds when updating same measurement twice`(): Unit =
     runBlocking {
-      val metric = createMetric(CMMS_MEASUREMENT_CONSUMER_ID, metricsService, reportingSetsService, measurementConsumersService, 1)
-      service.batchSetCmmsMeasurementIds(batchSetCmmsMeasurementIdsRequest {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-          cmmsCreateMeasurementRequestId = metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
-          cmmsMeasurementId = "1234"
+      val metric =
+        createMetric(
+          CMMS_MEASUREMENT_CONSUMER_ID,
+          metricsService,
+          reportingSetsService,
+          measurementConsumersService,
+          1
+        )
+      service.batchSetCmmsMeasurementIds(
+        batchSetCmmsMeasurementIdsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          measurementIds +=
+            BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+              cmmsCreateMeasurementRequestId =
+                metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
+              cmmsMeasurementId = "1234"
+            }
         }
-      })
+      )
 
       val request = batchSetMeasurementResultsRequest {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        measurementResults += BatchSetMeasurementResultsRequestKt.measurementResult {
-          cmmsMeasurementId = "1234"
-          result = MeasurementKt.result {
-            reach = MeasurementKt.ResultKt.reach {
-              value = 1
-            }
+        measurementResults +=
+          BatchSetMeasurementResultsRequestKt.measurementResult {
+            cmmsMeasurementId = "1234"
+            result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 1 } }
           }
-        }
       }
 
       service.batchSetMeasurementResults(request)
       service.batchSetMeasurementResults(request)
 
-      val readMetrics = metricsService.batchGetMetrics(batchGetMetricsRequest {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        externalMetricIds += metric.externalMetricId
-      })
+      val readMetrics =
+        metricsService.batchGetMetrics(
+          batchGetMetricsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalMetricIds += metric.externalMetricId
+          }
+        )
 
       assertThat(readMetrics.metricsList[0].weightedMeasurementsList[0])
         .ignoringRepeatedFieldOrder()
-        .isEqualTo(metric.weightedMeasurementsList[0].copy {
-          measurement = measurement.copy {
-            cmmsMeasurementId = "1234"
-            details = MeasurementKt.details {
-              result = MeasurementKt.result {
-                reach = MeasurementKt.ResultKt.reach {
-                  value = 1
-                }
+        .isEqualTo(
+          metric.weightedMeasurementsList[0].copy {
+            measurement =
+              measurement.copy {
+                cmmsMeasurementId = "1234"
+                details =
+                  MeasurementKt.details {
+                    result =
+                      MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 1 } }
+                  }
+                state = Measurement.State.SUCCEEDED
               }
-            }
-            state = Measurement.State.SUCCEEDED
           }
-        })
+        )
     }
 
   @Test
   fun `batchSetMeasurementResults throws NOT_FOUND when not all measurements found`(): Unit =
     runBlocking {
-      val metric = createMetric(CMMS_MEASUREMENT_CONSUMER_ID, metricsService, reportingSetsService, measurementConsumersService, 1)
-      service.batchSetCmmsMeasurementIds(batchSetCmmsMeasurementIdsRequest {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-          cmmsCreateMeasurementRequestId = metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
-          cmmsMeasurementId = "1234"
+      val metric =
+        createMetric(
+          CMMS_MEASUREMENT_CONSUMER_ID,
+          metricsService,
+          reportingSetsService,
+          measurementConsumersService,
+          1
+        )
+      service.batchSetCmmsMeasurementIds(
+        batchSetCmmsMeasurementIdsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          measurementIds +=
+            BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+              cmmsCreateMeasurementRequestId =
+                metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
+              cmmsMeasurementId = "1234"
+            }
         }
-      })
+      )
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.batchSetMeasurementResults(batchSetMeasurementResultsRequest {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            measurementResults += BatchSetMeasurementResultsRequestKt.measurementResult {
-              cmmsMeasurementId = "1234"
-              result = Measurement.Result.getDefaultInstance()
+          service.batchSetMeasurementResults(
+            batchSetMeasurementResultsRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              measurementResults +=
+                BatchSetMeasurementResultsRequestKt.measurementResult {
+                  cmmsMeasurementId = "1234"
+                  result = Measurement.Result.getDefaultInstance()
+                }
+              measurementResults +=
+                BatchSetMeasurementResultsRequestKt.measurementResult {
+                  cmmsMeasurementId = "1235"
+                  result = Measurement.Result.getDefaultInstance()
+                }
             }
-            measurementResults += BatchSetMeasurementResultsRequestKt.measurementResult {
-              cmmsMeasurementId = "1235"
-              result = Measurement.Result.getDefaultInstance()
-            }
-          })
+          )
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
@@ -575,12 +744,16 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.batchSetMeasurementResults(batchSetMeasurementResultsRequest {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            measurementResults += BatchSetMeasurementResultsRequestKt.measurementResult {
-              cmmsMeasurementId = "1234"
-              result = Measurement.Result.getDefaultInstance()
-            }})
+          service.batchSetMeasurementResults(
+            batchSetMeasurementResultsRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              measurementResults +=
+                BatchSetMeasurementResultsRequestKt.measurementResult {
+                  cmmsMeasurementId = "1234"
+                  result = Measurement.Result.getDefaultInstance()
+                }
+            }
+          )
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
@@ -592,12 +765,16 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.batchSetMeasurementResults(batchSetMeasurementResultsRequest {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            measurementResults += BatchSetMeasurementResultsRequestKt.measurementResult {
-              cmmsMeasurementId = "1234"
-              result = Measurement.Result.getDefaultInstance()
-            }})
+          service.batchSetMeasurementResults(
+            batchSetMeasurementResultsRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              measurementResults +=
+                BatchSetMeasurementResultsRequestKt.measurementResult {
+                  cmmsMeasurementId = "1234"
+                  result = Measurement.Result.getDefaultInstance()
+                }
+            }
+          )
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
@@ -609,11 +786,15 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.batchSetMeasurementResults(batchSetMeasurementResultsRequest {
-            measurementResults += BatchSetMeasurementResultsRequestKt.measurementResult {
-              cmmsMeasurementId = "1234"
-              result = Measurement.Result.getDefaultInstance()
-            }})
+          service.batchSetMeasurementResults(
+            batchSetMeasurementResultsRequest {
+              measurementResults +=
+                BatchSetMeasurementResultsRequestKt.measurementResult {
+                  cmmsMeasurementId = "1234"
+                  result = Measurement.Result.getDefaultInstance()
+                }
+            }
+          )
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -625,14 +806,17 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.batchSetMeasurementResults(batchSetMeasurementResultsRequest {
-            for (i in 1L..(MAX_BATCH_SIZE + 1)) {
-              measurementResults += BatchSetMeasurementResultsRequestKt.measurementResult {
-                cmmsMeasurementId = "1234"
-                result = Measurement.Result.getDefaultInstance()
+          service.batchSetMeasurementResults(
+            batchSetMeasurementResultsRequest {
+              for (i in 1L..(MAX_BATCH_SIZE + 1)) {
+                measurementResults +=
+                  BatchSetMeasurementResultsRequestKt.measurementResult {
+                    cmmsMeasurementId = "1234"
+                    result = Measurement.Result.getDefaultInstance()
+                  }
               }
             }
-          })
+          )
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -641,238 +825,312 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
 
   @Test
   fun `batchSetMeasurementFailures succeeds when updating one measurement`(): Unit = runBlocking {
-    val metric = createMetric(CMMS_MEASUREMENT_CONSUMER_ID, metricsService, reportingSetsService, measurementConsumersService, 1)
-    service.batchSetCmmsMeasurementIds(batchSetCmmsMeasurementIdsRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-        cmmsCreateMeasurementRequestId = metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
-        cmmsMeasurementId = "1234"
+    val metric =
+      createMetric(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        metricsService,
+        reportingSetsService,
+        measurementConsumersService,
+        1
+      )
+    service.batchSetCmmsMeasurementIds(
+      batchSetCmmsMeasurementIdsRequest {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        measurementIds +=
+          BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+            cmmsCreateMeasurementRequestId =
+              metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
+            cmmsMeasurementId = "1234"
+          }
       }
-    })
+    )
 
-    service.batchSetMeasurementFailures(batchSetMeasurementFailuresRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      measurementFailures += BatchSetMeasurementFailuresRequestKt.measurementFailure {
-        cmmsMeasurementId = "1234"
-        failure = MeasurementKt.failure {
-          message = "failure1"
+    service.batchSetMeasurementFailures(
+      batchSetMeasurementFailuresRequest {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        measurementFailures +=
+          BatchSetMeasurementFailuresRequestKt.measurementFailure {
+            cmmsMeasurementId = "1234"
+            failure = MeasurementKt.failure { message = "failure1" }
+          }
+      }
+    )
+
+    val readMetrics =
+      metricsService.batchGetMetrics(
+        batchGetMetricsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricIds += metric.externalMetricId
         }
-      }
-    })
-
-    val readMetrics = metricsService.batchGetMetrics(batchGetMetricsRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalMetricIds += metric.externalMetricId
-    })
+      )
 
     assertThat(readMetrics.metricsList[0].weightedMeasurementsList[0])
       .ignoringRepeatedFieldOrder()
-      .isEqualTo(metric.weightedMeasurementsList[0].copy {
-        measurement = measurement.copy {
-          cmmsMeasurementId = "1234"
-          details = MeasurementKt.details {
-            failure = MeasurementKt.failure {
-              message = "failure1"
+      .isEqualTo(
+        metric.weightedMeasurementsList[0].copy {
+          measurement =
+            measurement.copy {
+              cmmsMeasurementId = "1234"
+              details =
+                MeasurementKt.details { failure = MeasurementKt.failure { message = "failure1" } }
+              state = Measurement.State.FAILED
             }
-          }
-          state = Measurement.State.FAILED
         }
-      })
+      )
   }
 
   @Test
   fun `batchSetMeasurementFailures succeeds when updating two measurements`(): Unit = runBlocking {
-    val metric = createMetric(CMMS_MEASUREMENT_CONSUMER_ID, metricsService, reportingSetsService, measurementConsumersService, 2)
-    service.batchSetCmmsMeasurementIds(batchSetCmmsMeasurementIdsRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-        cmmsCreateMeasurementRequestId = metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
-        cmmsMeasurementId = "1234"
+    val metric =
+      createMetric(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        metricsService,
+        reportingSetsService,
+        measurementConsumersService,
+        2
+      )
+    service.batchSetCmmsMeasurementIds(
+      batchSetCmmsMeasurementIdsRequest {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        measurementIds +=
+          BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+            cmmsCreateMeasurementRequestId =
+              metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
+            cmmsMeasurementId = "1234"
+          }
+        measurementIds +=
+          BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+            cmmsCreateMeasurementRequestId =
+              metric.weightedMeasurementsList[1].measurement.cmmsCreateMeasurementRequestId
+            cmmsMeasurementId = "1235"
+          }
       }
-      measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-        cmmsCreateMeasurementRequestId = metric.weightedMeasurementsList[1].measurement.cmmsCreateMeasurementRequestId
-        cmmsMeasurementId = "1235"
-      }
-    })
+    )
 
-    service.batchSetMeasurementFailures(batchSetMeasurementFailuresRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      measurementFailures += BatchSetMeasurementFailuresRequestKt.measurementFailure {
-        cmmsMeasurementId = "1234"
-        failure = MeasurementKt.failure {
-          message = "failure1"
-        }
+    service.batchSetMeasurementFailures(
+      batchSetMeasurementFailuresRequest {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        measurementFailures +=
+          BatchSetMeasurementFailuresRequestKt.measurementFailure {
+            cmmsMeasurementId = "1234"
+            failure = MeasurementKt.failure { message = "failure1" }
+          }
+        measurementFailures +=
+          BatchSetMeasurementFailuresRequestKt.measurementFailure {
+            cmmsMeasurementId = "1235"
+            failure = MeasurementKt.failure { message = "failure2" }
+          }
       }
-      measurementFailures += BatchSetMeasurementFailuresRequestKt.measurementFailure {
-        cmmsMeasurementId = "1235"
-        failure = MeasurementKt.failure {
-          message = "failure2"
-        }
-      }
-    })
+    )
 
-    val readMetrics = metricsService.batchGetMetrics(batchGetMetricsRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalMetricIds += metric.externalMetricId
-    })
+    val readMetrics =
+      metricsService.batchGetMetrics(
+        batchGetMetricsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricIds += metric.externalMetricId
+        }
+      )
 
     assertThat(readMetrics.metricsList[0].weightedMeasurementsList)
       .ignoringRepeatedFieldOrder()
-      .containsExactly(metric.weightedMeasurementsList[0].copy {
-        measurement = measurement.copy {
-          cmmsMeasurementId = "1234"
-          details = MeasurementKt.details {
-            failure = MeasurementKt.failure {
-              message = "failure1"
+      .containsExactly(
+        metric.weightedMeasurementsList[0].copy {
+          measurement =
+            measurement.copy {
+              cmmsMeasurementId = "1234"
+              details =
+                MeasurementKt.details { failure = MeasurementKt.failure { message = "failure1" } }
+              state = Measurement.State.FAILED
             }
-          }
-          state = Measurement.State.FAILED
-        }
-      }, metric.weightedMeasurementsList[1].copy {
-        measurement = measurement.copy {
-          cmmsMeasurementId = "1235"
-          details = MeasurementKt.details {
-            failure = MeasurementKt.failure {
-              message = "failure2"
+        },
+        metric.weightedMeasurementsList[1].copy {
+          measurement =
+            measurement.copy {
+              cmmsMeasurementId = "1235"
+              details =
+                MeasurementKt.details { failure = MeasurementKt.failure { message = "failure2" } }
+              state = Measurement.State.FAILED
             }
-          }
-          state = Measurement.State.FAILED
         }
-      })
+      )
   }
 
   @Test
   fun `batchSetMeasurementFailures succeeds when no filters in bases in measurements`(): Unit =
     runBlocking {
-      val metric = createMetric(CMMS_MEASUREMENT_CONSUMER_ID, metricsService, reportingSetsService, measurementConsumersService, 2, noFiltersInMeasurementBases = true)
-      service.batchSetCmmsMeasurementIds(batchSetCmmsMeasurementIdsRequest {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-          cmmsCreateMeasurementRequestId = metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
-          cmmsMeasurementId = "1234"
+      val metric =
+        createMetric(
+          CMMS_MEASUREMENT_CONSUMER_ID,
+          metricsService,
+          reportingSetsService,
+          measurementConsumersService,
+          2,
+          noFiltersInMeasurementBases = true
+        )
+      service.batchSetCmmsMeasurementIds(
+        batchSetCmmsMeasurementIdsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          measurementIds +=
+            BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+              cmmsCreateMeasurementRequestId =
+                metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
+              cmmsMeasurementId = "1234"
+            }
+          measurementIds +=
+            BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+              cmmsCreateMeasurementRequestId =
+                metric.weightedMeasurementsList[1].measurement.cmmsCreateMeasurementRequestId
+              cmmsMeasurementId = "1235"
+            }
         }
-        measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-          cmmsCreateMeasurementRequestId = metric.weightedMeasurementsList[1].measurement.cmmsCreateMeasurementRequestId
-          cmmsMeasurementId = "1235"
-        }
-      })
+      )
 
-      service.batchSetMeasurementFailures(batchSetMeasurementFailuresRequest {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        measurementFailures += BatchSetMeasurementFailuresRequestKt.measurementFailure {
-          cmmsMeasurementId = "1234"
-          failure = MeasurementKt.failure {
-            message = "failure1"
-          }
+      service.batchSetMeasurementFailures(
+        batchSetMeasurementFailuresRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          measurementFailures +=
+            BatchSetMeasurementFailuresRequestKt.measurementFailure {
+              cmmsMeasurementId = "1234"
+              failure = MeasurementKt.failure { message = "failure1" }
+            }
+          measurementFailures +=
+            BatchSetMeasurementFailuresRequestKt.measurementFailure {
+              cmmsMeasurementId = "1235"
+              failure = MeasurementKt.failure { message = "failure2" }
+            }
         }
-        measurementFailures += BatchSetMeasurementFailuresRequestKt.measurementFailure {
-          cmmsMeasurementId = "1235"
-          failure = MeasurementKt.failure {
-            message = "failure2"
-          }
-        }
-      })
+      )
 
-      val readMetrics = metricsService.batchGetMetrics(batchGetMetricsRequest {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        externalMetricIds += metric.externalMetricId
-      })
+      val readMetrics =
+        metricsService.batchGetMetrics(
+          batchGetMetricsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalMetricIds += metric.externalMetricId
+          }
+        )
 
       assertThat(readMetrics.metricsList[0].weightedMeasurementsList)
         .ignoringRepeatedFieldOrder()
-        .containsExactly(metric.weightedMeasurementsList[0].copy {
-          measurement = measurement.copy {
-            cmmsMeasurementId = "1234"
-            details = MeasurementKt.details {
-              failure = MeasurementKt.failure {
-                message = "failure1"
+        .containsExactly(
+          metric.weightedMeasurementsList[0].copy {
+            measurement =
+              measurement.copy {
+                cmmsMeasurementId = "1234"
+                details =
+                  MeasurementKt.details { failure = MeasurementKt.failure { message = "failure1" } }
+                state = Measurement.State.FAILED
               }
-            }
-            state = Measurement.State.FAILED
-          }
-        }, metric.weightedMeasurementsList[1].copy {
-          measurement = measurement.copy {
-            cmmsMeasurementId = "1235"
-            details = MeasurementKt.details {
-              failure = MeasurementKt.failure {
-                message = "failure2"
+          },
+          metric.weightedMeasurementsList[1].copy {
+            measurement =
+              measurement.copy {
+                cmmsMeasurementId = "1235"
+                details =
+                  MeasurementKt.details { failure = MeasurementKt.failure { message = "failure2" } }
+                state = Measurement.State.FAILED
               }
-            }
-            state = Measurement.State.FAILED
           }
-        })
+        )
     }
 
   @Test
   fun `batchSetMeasurementFailures succeeds when updating same measurement twice`(): Unit =
     runBlocking {
-      val metric = createMetric(CMMS_MEASUREMENT_CONSUMER_ID, metricsService, reportingSetsService, measurementConsumersService, 1)
-      service.batchSetCmmsMeasurementIds(batchSetCmmsMeasurementIdsRequest {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-          cmmsCreateMeasurementRequestId = metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
-          cmmsMeasurementId = "1234"
+      val metric =
+        createMetric(
+          CMMS_MEASUREMENT_CONSUMER_ID,
+          metricsService,
+          reportingSetsService,
+          measurementConsumersService,
+          1
+        )
+      service.batchSetCmmsMeasurementIds(
+        batchSetCmmsMeasurementIdsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          measurementIds +=
+            BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+              cmmsCreateMeasurementRequestId =
+                metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
+              cmmsMeasurementId = "1234"
+            }
         }
-      })
+      )
 
       val request = batchSetMeasurementFailuresRequest {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        measurementFailures += BatchSetMeasurementFailuresRequestKt.measurementFailure {
-          cmmsMeasurementId = "1234"
-          failure = MeasurementKt.failure {
-            message = "failure1"
+        measurementFailures +=
+          BatchSetMeasurementFailuresRequestKt.measurementFailure {
+            cmmsMeasurementId = "1234"
+            failure = MeasurementKt.failure { message = "failure1" }
           }
-        }
       }
 
       service.batchSetMeasurementFailures(request)
       service.batchSetMeasurementFailures(request)
 
-      val readMetrics = metricsService.batchGetMetrics(batchGetMetricsRequest {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        externalMetricIds += metric.externalMetricId
-      })
+      val readMetrics =
+        metricsService.batchGetMetrics(
+          batchGetMetricsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalMetricIds += metric.externalMetricId
+          }
+        )
 
       assertThat(readMetrics.metricsList[0].weightedMeasurementsList[0])
         .ignoringRepeatedFieldOrder()
-        .isEqualTo(metric.weightedMeasurementsList[0].copy {
-          measurement = measurement.copy {
-            cmmsMeasurementId = "1234"
-            details = MeasurementKt.details {
-              failure = MeasurementKt.failure {
-                message = "failure1"
+        .isEqualTo(
+          metric.weightedMeasurementsList[0].copy {
+            measurement =
+              measurement.copy {
+                cmmsMeasurementId = "1234"
+                details =
+                  MeasurementKt.details { failure = MeasurementKt.failure { message = "failure1" } }
+                state = Measurement.State.FAILED
               }
-            }
-            state = Measurement.State.FAILED
           }
-        })
+        )
     }
 
   @Test
   fun `batchSetMeasurementFailures throws NOT_FOUND when not all measurements found`(): Unit =
     runBlocking {
-      val metric = createMetric(CMMS_MEASUREMENT_CONSUMER_ID, metricsService, reportingSetsService, measurementConsumersService, 1)
-      service.batchSetCmmsMeasurementIds(batchSetCmmsMeasurementIdsRequest {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        measurementIds += BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
-          cmmsCreateMeasurementRequestId = metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
-          cmmsMeasurementId = "1234"
+      val metric =
+        createMetric(
+          CMMS_MEASUREMENT_CONSUMER_ID,
+          metricsService,
+          reportingSetsService,
+          measurementConsumersService,
+          1
+        )
+      service.batchSetCmmsMeasurementIds(
+        batchSetCmmsMeasurementIdsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          measurementIds +=
+            BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+              cmmsCreateMeasurementRequestId =
+                metric.weightedMeasurementsList[0].measurement.cmmsCreateMeasurementRequestId
+              cmmsMeasurementId = "1234"
+            }
         }
-      })
+      )
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.batchSetMeasurementFailures(batchSetMeasurementFailuresRequest {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            measurementFailures += BatchSetMeasurementFailuresRequestKt.measurementFailure {
-              cmmsMeasurementId = "1234"
-              failure = Measurement.Failure.getDefaultInstance()
+          service.batchSetMeasurementFailures(
+            batchSetMeasurementFailuresRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              measurementFailures +=
+                BatchSetMeasurementFailuresRequestKt.measurementFailure {
+                  cmmsMeasurementId = "1234"
+                  failure = Measurement.Failure.getDefaultInstance()
+                }
+              measurementFailures +=
+                BatchSetMeasurementFailuresRequestKt.measurementFailure {
+                  cmmsMeasurementId = "1235"
+                  failure = Measurement.Failure.getDefaultInstance()
+                }
             }
-            measurementFailures += BatchSetMeasurementFailuresRequestKt.measurementFailure {
-              cmmsMeasurementId = "1235"
-              failure = Measurement.Failure.getDefaultInstance()
-            }
-          })
+          )
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
@@ -886,13 +1144,16 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.batchSetMeasurementFailures(batchSetMeasurementFailuresRequest {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            measurementFailures += BatchSetMeasurementFailuresRequestKt.measurementFailure {
-              cmmsMeasurementId = "1234"
-              failure = Measurement.Failure.getDefaultInstance()
+          service.batchSetMeasurementFailures(
+            batchSetMeasurementFailuresRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              measurementFailures +=
+                BatchSetMeasurementFailuresRequestKt.measurementFailure {
+                  cmmsMeasurementId = "1234"
+                  failure = Measurement.Failure.getDefaultInstance()
+                }
             }
-          })
+          )
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
@@ -904,13 +1165,16 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.batchSetMeasurementFailures(batchSetMeasurementFailuresRequest {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            measurementFailures += BatchSetMeasurementFailuresRequestKt.measurementFailure {
-              cmmsMeasurementId = "1234"
-              failure = Measurement.Failure.getDefaultInstance()
+          service.batchSetMeasurementFailures(
+            batchSetMeasurementFailuresRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              measurementFailures +=
+                BatchSetMeasurementFailuresRequestKt.measurementFailure {
+                  cmmsMeasurementId = "1234"
+                  failure = Measurement.Failure.getDefaultInstance()
+                }
             }
-          })
+          )
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
@@ -922,12 +1186,15 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.batchSetMeasurementFailures(batchSetMeasurementFailuresRequest {
-            measurementFailures += BatchSetMeasurementFailuresRequestKt.measurementFailure {
-              cmmsMeasurementId = "1234"
-              failure = Measurement.Failure.getDefaultInstance()
+          service.batchSetMeasurementFailures(
+            batchSetMeasurementFailuresRequest {
+              measurementFailures +=
+                BatchSetMeasurementFailuresRequestKt.measurementFailure {
+                  cmmsMeasurementId = "1234"
+                  failure = Measurement.Failure.getDefaultInstance()
+                }
             }
-          })
+          )
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -939,14 +1206,17 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.batchSetMeasurementFailures(batchSetMeasurementFailuresRequest {
-            for (i in 1L..(MAX_BATCH_SIZE + 1)) {
-              measurementFailures += BatchSetMeasurementFailuresRequestKt.measurementFailure {
-                cmmsMeasurementId = "1234"
-                failure = Measurement.Failure.getDefaultInstance()
+          service.batchSetMeasurementFailures(
+            batchSetMeasurementFailuresRequest {
+              for (i in 1L..(MAX_BATCH_SIZE + 1)) {
+                measurementFailures +=
+                  BatchSetMeasurementFailuresRequestKt.measurementFailure {
+                    cmmsMeasurementId = "1234"
+                    failure = Measurement.Failure.getDefaultInstance()
+                  }
               }
             }
-          })
+          )
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)

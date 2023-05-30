@@ -36,9 +36,8 @@ class SetCmmsMeasurementIds(private val request: BatchSetCmmsMeasurementIdsReque
   PostgresWriter<List<Measurement>>() {
   override suspend fun TransactionScope.runTransaction(): List<Measurement> {
     val measurementConsumerId =
-      (MeasurementConsumerReader(transactionContext)
-        .getByCmmsId(request.cmmsMeasurementConsumerId)
-        ?: throw MeasurementConsumerNotFoundException())
+      (MeasurementConsumerReader(transactionContext).getByCmmsId(request.cmmsMeasurementConsumerId)
+          ?: throw MeasurementConsumerNotFoundException())
         .measurementConsumerId
 
     val statement =
@@ -65,10 +64,16 @@ class SetCmmsMeasurementIds(private val request: BatchSetCmmsMeasurementIdsReque
     }
 
     val createRequestIdMap = mutableMapOf<String, Measurement>()
-    MeasurementReader(transactionContext).readMeasurementsByCmmsCreateRequestId(measurementConsumerId, request.measurementIdsList.map { it.cmmsCreateMeasurementRequestId })
+    MeasurementReader(transactionContext)
+      .readMeasurementsByCmmsCreateRequestId(
+        measurementConsumerId,
+        request.measurementIdsList.map { it.cmmsCreateMeasurementRequestId }
+      )
       .collect {
         val measurement = it.measurement
-        createRequestIdMap.computeIfAbsent(measurement.cmmsCreateMeasurementRequestId) { measurement }
+        createRequestIdMap.computeIfAbsent(measurement.cmmsCreateMeasurementRequestId) {
+          measurement
+        }
       }
 
     val measurements = mutableListOf<Measurement>()

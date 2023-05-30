@@ -42,10 +42,10 @@ class PostgresMeasurementsService(
   private val idGenerator: IdGenerator,
   private val client: DatabaseClient,
 ) : MeasurementsGrpcKt.MeasurementsCoroutineImplBase() {
-  override suspend fun batchSetCmmsMeasurementIds(request: BatchSetCmmsMeasurementIdsRequest): BatchSetCmmsMeasurementIdsResponse {
-    grpcRequire (request.measurementIdsList.size <= BATCH_SIZE) {
-      "Too many request"
-    }
+  override suspend fun batchSetCmmsMeasurementIds(
+    request: BatchSetCmmsMeasurementIdsRequest
+  ): BatchSetCmmsMeasurementIdsResponse {
+    grpcRequire(request.measurementIdsList.size <= BATCH_SIZE) { "Too many request" }
 
     grpcRequire(request.cmmsMeasurementConsumerId.isNotBlank()) {
       "CmmsMeasurementConsumerId is missing"
@@ -62,10 +62,10 @@ class PostgresMeasurementsService(
     }
   }
 
-  override suspend fun batchSetMeasurementResults(request: BatchSetMeasurementResultsRequest): BatchSetCmmsMeasurementResultsResponse {
-    grpcRequire (request.measurementResultsList.size <= BATCH_SIZE) {
-      "Too many request"
-    }
+  override suspend fun batchSetMeasurementResults(
+    request: BatchSetMeasurementResultsRequest
+  ): BatchSetCmmsMeasurementResultsResponse {
+    grpcRequire(request.measurementResultsList.size <= BATCH_SIZE) { "Too many request" }
 
     grpcRequire(request.cmmsMeasurementConsumerId.isNotBlank()) {
       "CmmsMeasurementConsumerId is missing"
@@ -82,10 +82,10 @@ class PostgresMeasurementsService(
     }
   }
 
-  override suspend fun batchSetMeasurementFailures(request: BatchSetMeasurementFailuresRequest): BatchSetCmmsMeasurementFailuresResponse {
-    grpcRequire (request.measurementFailuresList.size <= BATCH_SIZE) {
-      "Too many request"
-    }
+  override suspend fun batchSetMeasurementFailures(
+    request: BatchSetMeasurementFailuresRequest
+  ): BatchSetCmmsMeasurementFailuresResponse {
+    grpcRequire(request.measurementFailuresList.size <= BATCH_SIZE) { "Too many request" }
 
     grpcRequire(request.cmmsMeasurementConsumerId.isNotBlank()) {
       "CmmsMeasurementConsumerId is missing"

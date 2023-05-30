@@ -38,9 +38,8 @@ class SetMeasurementFailures(private val request: BatchSetMeasurementFailuresReq
   PostgresWriter<List<Measurement>>() {
   override suspend fun TransactionScope.runTransaction(): List<Measurement> {
     val measurementConsumerId =
-      (MeasurementConsumerReader(transactionContext)
-        .getByCmmsId(request.cmmsMeasurementConsumerId)
-        ?: throw MeasurementConsumerNotFoundException())
+      (MeasurementConsumerReader(transactionContext).getByCmmsId(request.cmmsMeasurementConsumerId)
+          ?: throw MeasurementConsumerNotFoundException())
         .measurementConsumerId
 
     val statement =
@@ -53,9 +52,7 @@ class SetMeasurementFailures(private val request: BatchSetMeasurementFailuresReq
       ) {
         val state = Measurement.State.FAILED
         request.measurementFailuresList.forEach {
-          val details = MeasurementKt.details {
-            failure = it.failure
-          }
+          val details = MeasurementKt.details { failure = it.failure }
           addBinding {
             bind("$1", details)
             bind("$2", details.toJson())
@@ -72,16 +69,18 @@ class SetMeasurementFailures(private val request: BatchSetMeasurementFailuresReq
     }
 
     val idMap = mutableMapOf<String, Measurement>()
-    MeasurementReader(transactionContext).readMeasurementsByCmmsId(measurementConsumerId, request.measurementFailuresList.map { it.cmmsMeasurementId })
+    MeasurementReader(transactionContext)
+      .readMeasurementsByCmmsId(
+        measurementConsumerId,
+        request.measurementFailuresList.map { it.cmmsMeasurementId }
+      )
       .collect {
         val measurement = it.measurement
         idMap.computeIfAbsent(measurement.cmmsMeasurementId) { measurement }
       }
 
     val measurements = mutableListOf<Measurement>()
-    request.measurementFailuresList.forEach {
-      measurements.add(idMap[it.cmmsMeasurementId]!!)
-    }
+    request.measurementFailuresList.forEach { measurements.add(idMap[it.cmmsMeasurementId]!!) }
 
     return measurements
   }

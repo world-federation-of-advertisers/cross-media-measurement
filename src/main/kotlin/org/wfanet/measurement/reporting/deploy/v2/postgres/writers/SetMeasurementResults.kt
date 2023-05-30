@@ -38,9 +38,8 @@ class SetMeasurementResults(private val request: BatchSetMeasurementResultsReque
   PostgresWriter<List<Measurement>>() {
   override suspend fun TransactionScope.runTransaction(): List<Measurement> {
     val measurementConsumerId =
-      (MeasurementConsumerReader(transactionContext)
-        .getByCmmsId(request.cmmsMeasurementConsumerId)
-        ?: throw MeasurementConsumerNotFoundException())
+      (MeasurementConsumerReader(transactionContext).getByCmmsId(request.cmmsMeasurementConsumerId)
+          ?: throw MeasurementConsumerNotFoundException())
         .measurementConsumerId
 
     val statement =
@@ -53,9 +52,7 @@ class SetMeasurementResults(private val request: BatchSetMeasurementResultsReque
       ) {
         val state = Measurement.State.SUCCEEDED
         request.measurementResultsList.forEach {
-          val details = MeasurementKt.details {
-            result = it.result
-          }
+          val details = MeasurementKt.details { result = it.result }
           addBinding {
             bind("$1", details)
             bind("$2", details.toJson())
@@ -72,16 +69,18 @@ class SetMeasurementResults(private val request: BatchSetMeasurementResultsReque
     }
 
     val idMap = mutableMapOf<String, Measurement>()
-    MeasurementReader(transactionContext).readMeasurementsByCmmsId(measurementConsumerId, request.measurementResultsList.map { it.cmmsMeasurementId })
+    MeasurementReader(transactionContext)
+      .readMeasurementsByCmmsId(
+        measurementConsumerId,
+        request.measurementResultsList.map { it.cmmsMeasurementId }
+      )
       .collect {
         val measurement = it.measurement
         idMap.computeIfAbsent(measurement.cmmsMeasurementId) { measurement }
       }
 
     val measurements = mutableListOf<Measurement>()
-    request.measurementResultsList.forEach {
-      measurements.add(idMap[it.cmmsMeasurementId]!!)
-    }
+    request.measurementResultsList.forEach { measurements.add(idMap[it.cmmsMeasurementId]!!) }
 
     return measurements
   }
