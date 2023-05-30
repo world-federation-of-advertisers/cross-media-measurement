@@ -4,6 +4,22 @@ load("//build:repositories.bzl", "wfa_measurement_system_repositories")
 
 wfa_measurement_system_repositories()
 
+load("@build_bazel_rules_nodejs//:repositories.bzl", "build_bazel_rules_nodejs_dependencies")
+build_bazel_rules_nodejs_dependencies()
+
+load("@build_bazel_rules_nodejs//:index.bzl", "node_repositories")
+node_repositories()
+
+load("@build_bazel_rules_nodejs//:index.bzl", "yarn_install")
+
+yarn_install(
+    name = "npm",
+    data = ["//src/main/kotlin/org/wfanet/measurement/reporting/reporting-ui:patches/jest-haste-map+26.6.2.patch"],
+    exports_directories_only = True,
+    package_json = "//src/main/kotlin/org/wfanet/measurement/reporting/reporting-ui:package.json",
+    yarn_lock = "//src/main/kotlin/org/wfanet/measurement/reporting/reporting-ui:yarn.lock",
+)
+
 load("@wfa_common_cpp//build:common_cpp_repositories.bzl", "common_cpp_repositories")
 
 common_cpp_repositories()

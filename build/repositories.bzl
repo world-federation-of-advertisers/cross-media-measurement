@@ -112,3 +112,9 @@ def wfa_measurement_system_repositories():
         strip_prefix = "grpc-gateway-2.15.2",
         urls = ["https://github.com/grpc-ecosystem/grpc-gateway/archive/refs/tags/v2.15.2.tar.gz"],
     )
+
+    http_archive(
+        name = "build_bazel_rules_nodejs",
+        sha256 = "94070eff79305be05b7699207fbac5d2608054dd53e6109f7d00d923919ff45a",
+        urls = ["https://github.com/bazelbuild/rules_nodejs/releases/download/5.8.2/rules_nodejs-5.8.2.tar.gz"],
+    )
