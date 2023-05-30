@@ -102,7 +102,7 @@ import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtoco
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 
 /** Converts an internal [InternalMeasurement.State] to a public [State]. */
-fun InternalMeasurement.State.toModelOutageState(): State =
+fun InternalMeasurement.State.toState(): State =
   when (this) {
     InternalMeasurement.State.PENDING_REQUISITION_PARAMS,
     InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT ->
@@ -117,7 +117,7 @@ fun InternalMeasurement.State.toModelOutageState(): State =
   }
 
 /** Convert a public [State] to an internal [InternalMeasurement.State]. */
-fun State.toInternalModelOutageState(): List<InternalMeasurement.State> {
+fun State.toInternalState(): List<InternalMeasurement.State> {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   return when (this) {
     State.AWAITING_REQUISITION_FULFILLMENT -> {
@@ -381,17 +381,6 @@ fun InternalModelOutage.State.toModelOutageState(): ModelOutageState =
     InternalModelOutage.State.STATE_UNSPECIFIED -> ModelOutageState.STATE_UNSPECIFIED
   }
 
-/** Convert a public [ModelOutageState] to an internal [InternalModelOutage.Type]. */
-fun ModelOutageState.toInternalModelOutageState(): InternalModelOutage.State {
-  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-  return when (this) {
-    ModelOutageState.ACTIVE -> InternalModelOutage.State.ACTIVE
-    ModelOutageState.DELETED -> InternalModelOutage.State.DELETED
-    ModelOutageState.UNRECOGNIZED,
-    ModelOutageState.STATE_UNSPECIFIED -> InternalModelOutage.State.STATE_UNSPECIFIED
-  }
-}
-
 /** Converts an internal [InternalModelOutage] to a public [ModelOutage]. */
 fun InternalModelOutage.toModelOutage(): ModelOutage {
   val source = this
@@ -463,7 +452,7 @@ fun InternalMeasurement.toMeasurement(): Measurement {
         dataProvidersCount,
       )
 
-    state = source.state.toModelOutageState()
+    state = source.state.toState()
     results +=
       source.resultsList.map {
         val certificateApiId = externalIdToApiId(it.externalCertificateId)
