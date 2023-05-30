@@ -11,7 +11,10 @@ IMPORT_PREFIX = "/src/main/proto"
 
 proto_library(
     name = "test_metadata_messages_proto",
-    srcs = glob(["*.proto"]),
+    srcs = [
+        "test_metadata_message.proto",
+        "test_metadata_message_2.proto",
+    ],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         "@com_google_protobuf//:descriptor_proto",
@@ -29,4 +32,25 @@ kt_jvm_proto_library(
     name = "test_metadata_messages_kt_jvm_proto",
     srcs = [":test_metadata_messages_proto"],
     deps = [":test_metadata_messages_java_proto"],
+)
+
+proto_library(
+    name = "simulator_synthetic_data_spec_proto",
+    srcs = ["simulator_synthetic_data_spec.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/type:date_proto",
+        "@com_google_protobuf//:descriptor_proto",
+    ],
+)
+
+java_proto_library(
+    name = "simulator_synthetic_data_spec_java_proto",
+    deps = [":simulator_synthetic_data_spec_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "simulator_synthetic_data_spec_kt_jvm_proto",
+    srcs = [":simulator_synthetic_data_spec_proto"],
+    deps = [":simulator_synthetic_data_spec_java_proto"],
 )
