@@ -347,7 +347,7 @@ private fun InternalRequisition.toRequisition(): Requisition {
         message = details.refusal.message
       }
     }
-    measurementState = this@toRequisition.parentMeasurement.state.toModelOutageState()
+    measurementState = this@toRequisition.parentMeasurement.state.toState()
   }
 }
 
@@ -528,7 +528,7 @@ private fun ListRequisitionsPageToken.toStreamRequisitionsRequest(): StreamRequi
           externalRequisitionIdAfter = source.lastRequisition.externalRequisitionId
         }
         source.measurementStatesList.forEach {
-          measurementStates += it.toInternalModelOutageState()
+          measurementStates += it.toInternalState()
         }
       }
   }
