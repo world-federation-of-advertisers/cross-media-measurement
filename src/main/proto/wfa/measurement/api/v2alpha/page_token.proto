@@ -20,6 +20,7 @@ import "google/protobuf/timestamp.proto";
 import "wfa/measurement/api/v2alpha/measurement.proto";
 import "wfa/measurement/api/v2alpha/model_line.proto";
 import "wfa/measurement/api/v2alpha/requisition.proto";
+import "wfa/measurement/api/v2alpha/time_interval.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
@@ -107,4 +108,21 @@ message ListModelLinesPageToken {
     google.protobuf.Timestamp create_time = 4;
   }
   PreviousPageEnd last_model_line = 5;
+}
+
+message ListModelOutagesPageToken {
+  int32 page_size = 1;
+  fixed64 external_model_provider_id = 2;
+  fixed64 external_model_suite_id = 3;
+  fixed64 external_model_line_id = 4;
+  TimeInterval outage_interval = 5;
+  message PreviousPageEnd {
+    fixed64 external_model_provider_id = 1;
+    fixed64 external_model_suite_id = 2;
+    fixed64 external_model_line_id = 3;
+    fixed64 external_model_outage_id = 4;
+    google.protobuf.Timestamp create_time = 5;
+  }
+  PreviousPageEnd last_model_outage = 6;
+  bool show_deleted = 7;
 }
