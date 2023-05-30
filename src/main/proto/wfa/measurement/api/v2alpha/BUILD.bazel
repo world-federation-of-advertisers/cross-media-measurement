@@ -406,6 +406,7 @@ proto_library(
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurement_proto",
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_line_proto",
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:requisition_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:time_interval_proto",
     ],
 )
 
@@ -612,4 +613,29 @@ alias(
 kt_jvm_grpc_proto_library(
     name = "model_releases_service_kt_jvm_grpc_proto",
     srcs = [":model_releases_service_proto"],
+)
+
+java_proto_library(
+    name = "model_outage_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_outage_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "model_outage_kt_jvm_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_outage_proto",
+    ],
+    deps = [":model_outage_java_proto"],
+)
+
+alias(
+    name = "model_outages_service_proto",
+    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_outages_service_proto",
+)
+
+kt_jvm_grpc_proto_library(
+    name = "model_outages_service_kt_jvm_grpc_proto",
+    srcs = [":model_outages_service_proto"],
 )

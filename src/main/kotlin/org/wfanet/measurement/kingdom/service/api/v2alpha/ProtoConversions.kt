@@ -42,6 +42,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLine.Type
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.api.v2alpha.ModelOutage.State as ModelOutageState
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.api.v2alpha.ModelReleaseKey
@@ -83,6 +84,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementKt.details
 import org.wfanet.measurement.internal.kingdom.ModelLine as InternalModelLine
 import org.wfanet.measurement.internal.kingdom.ModelRelease as InternalModelRelease
 import org.wfanet.measurement.internal.kingdom.ModelSuite as InternalModelSuite
+import org.wfanet.measurement.internal.kingdom.ModelOutage as InternalModelOutage
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
@@ -91,11 +93,16 @@ import org.wfanet.measurement.internal.kingdom.measurement as internalMeasuremen
 import org.wfanet.measurement.internal.kingdom.modelLine as internalModelLine
 import org.wfanet.measurement.internal.kingdom.modelRelease as internalModelRelease
 import org.wfanet.measurement.internal.kingdom.modelSuite as internalModelSuite
+import org.wfanet.measurement.internal.kingdom.modelOutage as internalModelOutage
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
+import org.wfanet.measurement.api.v2alpha.ModelOutage
+import org.wfanet.measurement.api.v2alpha.ModelOutageKey
+import org.wfanet.measurement.api.v2alpha.modelOutage
+import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 
 /** Converts an internal [InternalMeasurement.State] to a public [State]. */
-fun InternalMeasurement.State.toState(): State =
+fun InternalMeasurement.State.toModelOutageState(): State =
   when (this) {
     InternalMeasurement.State.PENDING_REQUISITION_PARAMS,
     InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT ->
@@ -110,7 +117,7 @@ fun InternalMeasurement.State.toState(): State =
   }
 
 /** Convert a public [State] to an internal [InternalMeasurement.State]. */
-fun State.toInternalState(): List<InternalMeasurement.State> {
+fun State.toInternalModelOutageState(): List<InternalMeasurement.State> {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   return when (this) {
     State.AWAITING_REQUISITION_FULFILLMENT -> {
@@ -365,6 +372,62 @@ fun ModelLine.toInternal(modelSuiteKey: ModelSuiteKey): InternalModelLine {
   }
 }
 
+/** Converts an internal [InternalModelOutage.State] to a public [ModelOutageState]. */
+fun InternalModelOutage.State.toModelOutageState(): ModelOutageState =
+  when (this) {
+    InternalModelOutage.State.ACTIVE -> ModelOutageState.ACTIVE
+    InternalModelOutage.State.DELETED -> ModelOutageState.DELETED
+    InternalModelOutage.State.UNRECOGNIZED,
+    InternalModelOutage.State.STATE_UNSPECIFIED -> ModelOutageState.STATE_UNSPECIFIED
+  }
+
+/** Convert a public [ModelOutageState] to an internal [InternalModelOutage.Type]. */
+fun ModelOutageState.toInternalModelOutageState(): InternalModelOutage.State {
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+  return when (this) {
+    ModelOutageState.ACTIVE -> InternalModelOutage.State.ACTIVE
+    ModelOutageState.DELETED -> InternalModelOutage.State.DELETED
+    ModelOutageState.UNRECOGNIZED,
+    ModelOutageState.STATE_UNSPECIFIED -> InternalModelOutage.State.STATE_UNSPECIFIED
+  }
+}
+
+/** Converts an internal [InternalModelOutage] to a public [ModelOutage]. */
+fun InternalModelOutage.toModelOutage(): ModelOutage {
+  val source = this
+
+  return modelOutage {
+    name =
+      ModelOutageKey(
+        externalIdToApiId(source.externalModelProviderId),
+        externalIdToApiId(source.externalModelSuiteId),
+        externalIdToApiId(source.externalModelLineId),
+        externalIdToApiId(source.externalModelOutageId)
+      )
+        .toName()
+    outageInterval = timeInterval {
+      startTime = source.modelOutageStartTime
+      endTime = source.modelOutageEndTime
+    }
+    state = source.state.toModelOutageState()
+    createTime = source.createTime
+    deleteTime = source.deleteTime
+  }
+}
+
+/** Converts a public [ModelOutage] to an internal [InternalModelOutage] */
+fun ModelOutage.toInternal(modelLineKey: ModelLineKey): InternalModelOutage {
+  val publicModelOutage = this
+
+  return internalModelOutage {
+    externalModelProviderId = apiIdToExternalId(modelLineKey.modelProviderId)
+    externalModelSuiteId = apiIdToExternalId(modelLineKey.modelSuiteId)
+    externalModelLineId = apiIdToExternalId(modelLineKey.modelLineId)
+    modelOutageStartTime = publicModelOutage.outageInterval.startTime
+    modelOutageEndTime = publicModelOutage.outageInterval.endTime
+  }
+}
+
 /** Converts an internal [InternalMeasurement] to a public [Measurement]. */
 fun InternalMeasurement.toMeasurement(): Measurement {
   val source = this
@@ -400,7 +463,7 @@ fun InternalMeasurement.toMeasurement(): Measurement {
         dataProvidersCount,
       )
 
-    state = source.state.toState()
+    state = source.state.toModelOutageState()
     results +=
       source.resultsList.map {
         val certificateApiId = externalIdToApiId(it.externalCertificateId)
