@@ -836,7 +836,6 @@ class ModelRolloutsServiceTest {
       modelRollout += MODEL_ROLLOUT.copy { name = MODEL_ROLLOUT_NAME_2 }
       val listModelRolloutsPageToken = listModelRolloutsPageToken {
         pageSize = request.pageSize
-        rolloutPeriodOverlapping
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
         externalModelLineId = EXTERNAL_MODEL_LINE_ID
