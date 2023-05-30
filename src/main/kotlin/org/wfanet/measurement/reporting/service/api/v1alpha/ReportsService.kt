@@ -1611,9 +1611,9 @@ private fun buildMeasurementReferenceId(
 
 /** Combines two event group filters. */
 private fun combineEventGroupFilters(filter1: String?, filter2: String?): String? {
-  if (filter1 == null) return filter2
+  if (filter1.isNullOrBlank()) return filter2
 
-  return if (filter2 == null) filter1
+  return if (filter2.isNullOrBlank()) filter1
   else {
     "($filter1) AND ($filter2)"
   }
