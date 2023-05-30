@@ -27,12 +27,41 @@ jobs:
     name: Build and test
     runs-on: ubuntu-20.04
     env:
-      CONTAINER_REGISTRY: "localhost:5001"
-      IMAGE_REPO_PREFIX: halo
       CLUSTER_LOGS_PATH: cluster-logs
     steps:
       - name: Check out revision
         uses: actions/checkout@v3
+
+      - name: Write ~/.bazelrc
+        run: |
+          cat << EOF > ~/.bazelrc
+          build -c opt 
+          build --host_platform //build/platforms:ubuntu_20_04
+          build --define container_registry=localhost:5001
+          build --define image_repo_prefix=halo
+          build --define image_tag=latest
+          EOF
+
+      - name: Get Bazel cache params
+        id: get-cache-params
+        uses: world-federation-of-advertisers/actions/bazel-get-cache-params@v2
+        with:
+          cache-version: 1
+
+      - name: Restore Bazel cache
+        uses: actions/cache/restore@v3
+        with:
+          path: ${{ steps.get-cache-params.outputs.cache-path }}
+          key: ${{ steps.get-cache-params.outputs.cache-key }}
+          restore-keys: |-
+            ${{ steps.get-cache-params.outputs.restore-key }}
+
+      - name: Build
+        run: bazelisk build //... --worker_quit_after_build
+
+      - name: Run tests
+        id: run-tests
+        run: bazelisk test //...
 
       - name: Create cluster
         id: create-cluster
@@ -42,24 +71,17 @@ jobs:
           chmod +x kind-with-registry.sh
           ./kind-with-registry.sh
 
-      - name: Bazel build and test
-        uses: world-federation-of-advertisers/actions/bazel-build-test@v1
-        with:
-          cache-version: 1
-          workspace-path: .
-          target-patterns: |
-            //...
-            //src/test/kotlin/org/wfanet/measurement/integration/k8s:EmptyClusterCorrectnessTest
-          build-options: |
-            --compilation_mode=opt
-            --host_platform=//build/platforms:ubuntu_20_04
-            --define=container_registry=${{ env.CONTAINER_REGISTRY }}
-            --define=image_repo_prefix=${{ env.IMAGE_REPO_PREFIX }}
-            --define=image_tag=latest
+      - name: Run correctness test
+        id: run-correctness-test
+        run: >
+          bazelisk test
+          //src/test/kotlin/org/wfanet/measurement/integration/k8s:EmptyClusterCorrectnessTest
+          --test_output=streamed
 
       - name: Export cluster logs
         id: export-cluster-logs
-        if: failure() && steps.create-cluster.outcome == 'success'
+        if: failure() && steps.run-correctness-test.outcome == 'failure'
+        continue-on-error: true
         run: |
           mkdir -p "$CLUSTER_LOGS_PATH"
           kind export logs "$CLUSTER_LOGS_PATH"
@@ -67,6 +89,26 @@ jobs:
       - name: Upload cluster logs artifact
         if: failure() && steps.export-cluster-logs.outcome == 'success'
         uses: actions/upload-artifact@v3
+        continue-on-error: true
         with:
           name: cluster-logs
           path: ${{ env.CLUSTER_LOGS_PATH }}
+
+      # Delete large files that are cheap to re-create.
+      - name: Trim Bazel cache
+        run: |
+          bazel_out="$(bazelisk info output_path)"
+          find "${bazel_out}" -type f \( -iname '*.tar' -o -iname '*.tar.gz' \) -delete
+
+      - name: Save Bazel cache
+        if: github.event_name == 'push'
+        uses: actions/cache/save@v3
+        continue-on-error: true
+        with:
+          path: ${{ steps.get-cache-params.outputs.cache-path }}
+          key: ${{ steps.get-cache-params.outputs.cache-key }}
+
+      - name: Upload Bazel testlogs
+        continue-on-error: true
+        uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@v2
+        if: failure() && (steps.run-tests.outcome == 'failure' || steps.run-correctness-test.outcome == 'failure')

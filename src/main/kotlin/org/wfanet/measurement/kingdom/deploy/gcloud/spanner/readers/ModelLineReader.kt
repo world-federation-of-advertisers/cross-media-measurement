@@ -47,7 +47,6 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
       ModelLines.ActiveStartTime,
       ModelLines.ActiveEndTime,
       ModelLines.Type,
-      ModelLines.HoldbackModelLine,
       ModelLines.CreateTime,
       ModelLines.UpdateTime,
       ModelSuites.ExternalModelSuiteId,
@@ -57,7 +56,11 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
       JOIN ModelSuites USING (ModelSuiteId)
       JOIN ModelProviders ON (ModelSuites.ModelProviderId = ModelProviders.ModelProviderId)
       LEFT JOIN ModelLines as HoldbackModelLine
-      ON (ModelLines.HoldbackModelLine = HoldbackModelLine.ModelLineId)
+      ON (
+        ModelLines.ModelProviderId = HoldbackModelLine.ModelProviderId
+        AND ModelLines.ModelSuiteId = HoldbackModelLine.ModelSuiteId
+        AND ModelLines.HoldbackModelLineId = HoldbackModelLine.ModelLineId
+      )
     """
       .trimIndent()
 
@@ -101,7 +104,12 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
   ): Result? {
     return fillStatementBuilder {
         appendClause(
-          "WHERE ExternalModelSuiteId = @externalModelSuiteId AND ExternalModelProviderId = @externalModelProviderId  AND ModelLines.ExternalModelLineId = @externalModelLineId"
+          """
+            WHERE ExternalModelSuiteId = @externalModelSuiteId
+            AND ExternalModelProviderId = @externalModelProviderId
+            AND ModelLines.ExternalModelLineId = @externalModelLineId
+          """
+            .trimIndent()
         )
         bind("externalModelSuiteId").to(externalModelSuiteId.value)
         bind("externalModelProviderId").to(externalModelProviderId.value)

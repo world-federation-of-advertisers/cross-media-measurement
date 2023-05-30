@@ -27,6 +27,7 @@ import org.wfanet.measurement.internal.kingdom.BatchCancelMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.BatchCancelMeasurementsResponse
 import org.wfanet.measurement.internal.kingdom.BatchDeleteMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.CancelMeasurementRequest
+import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.GetMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
@@ -60,7 +61,7 @@ class SpannerMeasurementsService(
   private val client: AsyncDatabaseClient
 ) : MeasurementsCoroutineImplBase() {
 
-  override suspend fun createMeasurement(request: Measurement): Measurement {
+  override suspend fun createMeasurement(request: CreateMeasurementRequest): Measurement {
     validateCreateMeasurementRequest(request)
     try {
       return CreateMeasurement(request).execute(client, idGenerator)
@@ -81,16 +82,18 @@ class SpannerMeasurementsService(
     }
   }
 
-  private fun validateCreateMeasurementRequest(request: Measurement) {
-    grpcRequire(request.externalMeasurementConsumerCertificateId != 0L) {
+  private fun validateCreateMeasurementRequest(request: CreateMeasurementRequest) {
+    grpcRequire(request.measurement.externalMeasurementConsumerCertificateId != 0L) {
       "external_measurement_consumer_certificate_id unspecified"
     }
-    grpcRequire(request.details.apiVersion.isNotEmpty()) { "api_version unspecified" }
-    grpcRequire(!request.details.measurementSpec.isEmpty) { "measurement_spec unspecified" }
-    grpcRequire(!request.details.measurementSpecSignature.isEmpty) {
+    grpcRequire(request.measurement.details.apiVersion.isNotEmpty()) { "api_version unspecified" }
+    grpcRequire(!request.measurement.details.measurementSpec.isEmpty) {
+      "measurement_spec unspecified"
+    }
+    grpcRequire(!request.measurement.details.measurementSpecSignature.isEmpty) {
       "measurement_spec_signature unspecified"
     }
-    for ((externalDataProviderId, dataProvider) in request.dataProvidersMap) {
+    for ((externalDataProviderId, dataProvider) in request.measurement.dataProvidersMap) {
       grpcRequire(!dataProvider.dataProviderPublicKey.isEmpty) {
         "data_provider_public_key unspecified for ${ExternalId(externalDataProviderId)}"
       }

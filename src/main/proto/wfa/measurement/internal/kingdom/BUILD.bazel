@@ -62,27 +62,6 @@ proto_and_java_proto_library(
     deps = [":certificate_proto"],
 )
 
-proto_and_java_proto_library(
-    name = "model_shard",
-    deps = ["@com_google_protobuf//:timestamp_proto"],
-)
-
-proto_library(
-    name = "model_shards_service_proto",
-    srcs = ["model_shards_service.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-        ":model_shard_proto",
-        "@com_google_protobuf//:empty_proto",
-        "@com_google_protobuf//:timestamp_proto",
-    ],
-)
-
-kt_jvm_grpc_proto_library(
-    name = "model_shards_service_kt_jvm_grpc_proto",
-    srcs = [":model_shards_service_proto"],
-)
-
 proto_library(
     name = "computation_participants_service_proto",
     srcs = ["computation_participants_service.proto"],
@@ -539,4 +518,88 @@ proto_library(
 kt_jvm_grpc_proto_library(
     name = "model_lines_service_kt_jvm_grpc_proto",
     srcs = [":model_lines_service_proto"],
+)
+
+proto_and_java_proto_library(
+    name = "model_release",
+    deps = [
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "model_releases_service_proto",
+    srcs = ["model_releases_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":model_release_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "model_releases_service_kt_jvm_grpc_proto",
+    srcs = [":model_releases_service_proto"],
+)
+
+proto_and_java_proto_library(
+    name = "model_outage",
+    deps = [
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "model_outages_service_proto",
+    srcs = ["model_outages_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":model_outage_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "model_outages_service_kt_jvm_grpc_proto",
+    srcs = [":model_outages_service_proto"],
+)
+
+proto_and_java_proto_library(
+    name = "model_shard",
+    deps = ["@com_google_protobuf//:timestamp_proto"],
+)
+
+proto_library(
+    name = "model_shards_service_proto",
+    srcs = ["model_shards_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":model_shard_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "model_shards_service_kt_jvm_grpc_proto",
+    srcs = [":model_shards_service_proto"],
+)
+
+proto_and_java_proto_library(
+    name = "model_rollout",
+    deps = ["@com_google_protobuf//:timestamp_proto"],
+)
+
+proto_library(
+    name = "model_rollouts_service_proto",
+    srcs = ["model_rollouts_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":model_rollout_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "model_rollouts_service_kt_jvm_grpc_proto",
+    srcs = [":model_rollouts_service_proto"],
 )

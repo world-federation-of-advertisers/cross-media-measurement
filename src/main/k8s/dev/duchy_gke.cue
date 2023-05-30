@@ -27,13 +27,21 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #StorageServiceAccount:              "storage"
 #InternalServerResourceRequirements: #ResourceRequirements & {
 	requests: {
-		memory: "256Mi"
+		cpu: "75m"
 	}
 }
-#MillResourceRequirements: #ResourceRequirements & {
+#HeraldResourceRequirements: #ResourceRequirements & {
+	requests: {
+		cpu: "25m"
+	}
+}
+#MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "800m"
 		memory: "2Gi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
 	}
 }
 #MillMaxHeapSize: "1G"
@@ -77,6 +85,9 @@ duchy: #Duchy & {
 			}
 		}
 		"herald-daemon-deployment": {
+			_container: {
+				resources: #HeraldResourceRequirements
+			}
 			spec: template: spec: #SpotVmPodSpec
 		}
 		"liquid-legions-v2-mill-daemon-deployment": {

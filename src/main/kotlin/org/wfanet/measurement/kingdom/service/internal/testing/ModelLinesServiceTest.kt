@@ -40,6 +40,7 @@ import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoro
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.modelLine
+import org.wfanet.measurement.internal.kingdom.modelSuite
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest
@@ -85,6 +86,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     val modelLine = modelLine {
       externalModelSuiteId = modelSuite.externalModelSuiteId
       externalModelProviderId = modelSuite.externalModelProviderId
+      type = ModelLine.Type.PROD
       displayName = "display name"
       description = "description"
     }
@@ -230,6 +232,26 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
         .hasMessageThat()
         .contains("Only ModelLine with type == HOLDBACK can be set as Holdback ModelLine.")
     }
+
+  @Test
+  fun `createModelLine fails when Model Suite is not found`() = runBlocking {
+    val ast = Instant.now().plusSeconds(2000L).toProtoTime()
+
+    val modelLine = modelLine {
+      externalModelSuiteId = 123L
+      externalModelProviderId = 123L
+      activeStartTime = ast
+      type = ModelLine.Type.PROD
+      displayName = "display name1"
+      description = "description1"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { modelLinesService.createModelLine(modelLine) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("ModelSuite not found")
+  }
 
   @Test
   fun `createModelLine succeeds`() = runBlocking {
@@ -522,6 +544,8 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
               after = afterFilter {
                 createTime = modelLines[0].createTime
                 externalModelLineId = modelLines[0].externalModelLineId
+                externalModelSuiteId = modelLines[0].externalModelSuiteId
+                externalModelProviderId = modelLines[0].externalModelProviderId
               }
             }
           }
@@ -577,6 +601,65 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
   }
 
   @Test
+  fun `streamModelLines fails for missing after filter fields`(): Unit = runBlocking {
+    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+
+    modelLinesService.createModelLine(
+      modelLine {
+        externalModelSuiteId = modelSuite.externalModelSuiteId
+        externalModelProviderId = modelSuite.externalModelProviderId
+        activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+        type = ModelLine.Type.PROD
+        displayName = "display name1"
+        description = "description1"
+      }
+    )
+
+    modelLinesService.createModelLine(
+      modelLine {
+        externalModelSuiteId = modelSuite.externalModelSuiteId
+        externalModelProviderId = modelSuite.externalModelProviderId
+        activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+        type = ModelLine.Type.PROD
+        displayName = "display name2"
+        description = "description2"
+      }
+    )
+
+    val modelLines: List<ModelLine> =
+      modelLinesService
+        .streamModelLines(
+          streamModelLinesRequest {
+            filter = filter {
+              externalModelProviderId = modelSuite.externalModelProviderId
+              externalModelSuiteId = modelSuite.externalModelSuiteId
+            }
+          }
+        )
+        .toList()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        modelLinesService.streamModelLines(
+          streamModelLinesRequest {
+            filter = filter {
+              externalModelProviderId = modelSuite.externalModelProviderId
+              externalModelSuiteId = modelSuite.externalModelSuiteId
+              after = afterFilter {
+                createTime = modelLines[0].createTime
+                externalModelSuiteId = modelLines[0].externalModelSuiteId
+                externalModelProviderId = modelLines[0].externalModelProviderId
+              }
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("Missing After filter fields")
+  }
+
+  @Test
   fun `setModelLineHoldbackModelLine fails if ModelLine has type != 'PROD'`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
 
@@ -621,9 +704,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception)
       .hasMessageThat()
-      .contains(
-        "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
-      )
+      .contains("Only ModelLine with type == PROD can have a Holdback ModelLine.")
   }
 
   @Test
@@ -672,9 +753,56 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception)
         .hasMessageThat()
-        .contains(
-          "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
+        .contains("Only ModelLine with type == HOLDBACK can be set as Holdback ModelLine.")
+    }
+
+  @Test
+  fun `setModelLineHoldbackModelLine fails if HoldbackModelLine and ModelLine are not part of the same ModelSuite`() =
+    runBlocking {
+      val modelSuite1 = population.createModelSuite(modelProvidersService, modelSuitesService)
+      val modelLine1 =
+        modelLinesService.createModelLine(
+          modelLine {
+            externalModelSuiteId = modelSuite1.externalModelSuiteId
+            externalModelProviderId = modelSuite1.externalModelProviderId
+            activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+            type = ModelLine.Type.PROD
+            displayName = "display name1"
+            description = "description1"
+          }
         )
+
+      val modelSuite2 = population.createModelSuite(modelProvidersService, modelSuitesService)
+      val modelLine2 =
+        modelLinesService.createModelLine(
+          modelLine {
+            externalModelSuiteId = modelSuite2.externalModelSuiteId
+            externalModelProviderId = modelSuite2.externalModelProviderId
+            activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+            type = ModelLine.Type.HOLDBACK
+            displayName = "display name2"
+            description = "description2"
+          }
+        )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          modelLinesService.setModelLineHoldbackModelLine(
+            setModelLineHoldbackModelLineRequest {
+              externalModelLineId = modelLine1.externalModelLineId
+              externalModelSuiteId = modelSuite1.externalModelSuiteId
+              externalModelProviderId = modelSuite1.externalModelProviderId
+              externalHoldbackModelLineId = modelLine2.externalModelLineId
+              externalHoldbackModelSuiteId = modelSuite2.externalModelSuiteId
+              externalHoldbackModelProviderId = modelSuite2.externalModelProviderId
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .hasMessageThat()
+        .contains("HoldbackModelLine and ModelLine must be part of the same ModelSuite.")
     }
 
   @Test

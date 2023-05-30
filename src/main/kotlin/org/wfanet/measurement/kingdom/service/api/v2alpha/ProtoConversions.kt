@@ -39,6 +39,14 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLine.Type
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.api.v2alpha.ModelProviderKey
+import org.wfanet.measurement.api.v2alpha.ModelRelease
+import org.wfanet.measurement.api.v2alpha.ModelReleaseKey
+import org.wfanet.measurement.api.v2alpha.ModelSuite
+import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.Direct
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
@@ -52,6 +60,9 @@ import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.api.v2alpha.exchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.measurement
+import org.wfanet.measurement.api.v2alpha.modelLine
+import org.wfanet.measurement.api.v2alpha.modelRelease
+import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -69,11 +80,17 @@ import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.details
+import org.wfanet.measurement.internal.kingdom.ModelLine as InternalModelLine
+import org.wfanet.measurement.internal.kingdom.ModelRelease as InternalModelRelease
+import org.wfanet.measurement.internal.kingdom.ModelSuite as InternalModelSuite
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
+import org.wfanet.measurement.internal.kingdom.modelLine as internalModelLine
+import org.wfanet.measurement.internal.kingdom.modelRelease as internalModelRelease
+import org.wfanet.measurement.internal.kingdom.modelSuite as internalModelSuite
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 
@@ -221,6 +238,133 @@ fun InternalProtocolConfig.toProtocolConfig(
   }
 }
 
+/** Converts an internal [InternalModelSuite] to a public [ModelSuite]. */
+fun InternalModelSuite.toModelSuite(): ModelSuite {
+  val source = this
+
+  return modelSuite {
+    name =
+      ModelSuiteKey(
+          externalIdToApiId(source.externalModelProviderId),
+          externalIdToApiId(source.externalModelSuiteId)
+        )
+        .toName()
+    displayName = source.displayName
+    description = source.description
+    createTime = source.createTime
+  }
+}
+
+/** Converts a public [ModelSuite] to an internal [InternalModelSuite] */
+fun ModelSuite.toInternal(modelProviderKey: ModelProviderKey): InternalModelSuite {
+  val publicModelSuite = this
+
+  return internalModelSuite {
+    externalModelProviderId = apiIdToExternalId(modelProviderKey.modelProviderId)
+    displayName = publicModelSuite.displayName
+    description = publicModelSuite.description
+  }
+}
+
+/** Converts a public [ModelRelease] to an internal [InternalModelRelease] */
+fun ModelRelease.toInternal(modelSuiteKey: ModelSuiteKey): InternalModelRelease {
+  return internalModelRelease {
+    externalModelProviderId = apiIdToExternalId(modelSuiteKey.modelProviderId)
+    externalModelSuiteId = apiIdToExternalId(modelSuiteKey.modelSuiteId)
+  }
+}
+
+/** Converts an internal [InternalModelRelease] to a public [ModelRelease]. */
+fun InternalModelRelease.toModelRelease(): ModelRelease {
+  val source = this
+
+  return modelRelease {
+    name =
+      ModelReleaseKey(
+          externalIdToApiId(source.externalModelProviderId),
+          externalIdToApiId(source.externalModelSuiteId),
+          externalIdToApiId(source.externalModelReleaseId)
+        )
+        .toName()
+    createTime = source.createTime
+  }
+}
+
+/** Converts an internal [InternalModelLine.Type] to a public [Type]. */
+fun InternalModelLine.Type.toType(): Type =
+  when (this) {
+    InternalModelLine.Type.DEV -> Type.DEV
+    InternalModelLine.Type.PROD -> Type.PROD
+    InternalModelLine.Type.HOLDBACK -> Type.HOLDBACK
+    InternalModelLine.Type.UNRECOGNIZED,
+    InternalModelLine.Type.TYPE_UNSPECIFIED -> Type.TYPE_UNSPECIFIED
+  }
+
+/** Convert a public [Type] to an internal [InternalModelLine.Type]. */
+fun Type.toInternalType(): InternalModelLine.Type {
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+  return when (this) {
+    Type.DEV -> InternalModelLine.Type.DEV
+    Type.PROD -> InternalModelLine.Type.PROD
+    Type.HOLDBACK -> InternalModelLine.Type.HOLDBACK
+    Type.UNRECOGNIZED,
+    Type.TYPE_UNSPECIFIED -> InternalModelLine.Type.TYPE_UNSPECIFIED
+  }
+}
+
+/** Converts an internal [InternalModelLine] to a public [ModelLine]. */
+fun InternalModelLine.toModelLine(): ModelLine {
+  val source = this
+
+  return modelLine {
+    name =
+      ModelLineKey(
+          externalIdToApiId(source.externalModelProviderId),
+          externalIdToApiId(source.externalModelSuiteId),
+          externalIdToApiId(source.externalModelLineId)
+        )
+        .toName()
+    displayName = source.displayName
+    description = source.description
+    activeStartTime = source.activeStartTime
+    if (source.hasActiveEndTime()) {
+      activeEndTime = source.activeEndTime
+    }
+    type = source.type.toType()
+    if (source.externalHoldbackModelLineId != 0L) {
+      holdbackModelLine =
+        ModelLineKey(
+            externalIdToApiId(source.externalModelProviderId),
+            externalIdToApiId(source.externalModelSuiteId),
+            externalIdToApiId(source.externalHoldbackModelLineId)
+          )
+          .toName()
+    }
+    createTime = source.createTime
+    updateTime = source.updateTime
+  }
+}
+
+/** Converts a public [ModelLine] to an internal [InternalModelLine] */
+fun ModelLine.toInternal(modelSuiteKey: ModelSuiteKey): InternalModelLine {
+  val publicModelLine = this
+
+  return internalModelLine {
+    externalModelProviderId = apiIdToExternalId(modelSuiteKey.modelProviderId)
+    externalModelSuiteId = apiIdToExternalId(modelSuiteKey.modelSuiteId)
+    displayName = publicModelLine.displayName
+    description = publicModelLine.description
+    activeStartTime = publicModelLine.activeStartTime
+    if (publicModelLine.hasActiveEndTime()) {
+      activeEndTime = publicModelLine.activeEndTime
+    }
+    type = publicModelLine.type.toInternalType()
+    if (publicModelLine.holdbackModelLine.isNotBlank()) {
+      externalHoldbackModelLineId = apiIdToExternalId(publicModelLine.holdbackModelLine)
+    }
+  }
+}
+
 /** Converts an internal [InternalMeasurement] to a public [Measurement]. */
 fun InternalMeasurement.toMeasurement(): Measurement {
   val source = this
@@ -276,9 +420,11 @@ fun InternalMeasurement.toMeasurement(): Measurement {
         }
       }
     measurementReferenceId = source.providedMeasurementId
-    failure = failure {
-      reason = source.details.failure.reason.toReason()
-      message = source.details.failure.message
+    if (source.details.hasFailure()) {
+      failure = failure {
+        reason = source.details.failure.reason.toReason()
+        message = source.details.failure.message
+      }
     }
   }
 }

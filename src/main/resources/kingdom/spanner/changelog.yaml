@@ -39,3 +39,15 @@ databaseChangeLog:
 - include:
     file: create-vid-model-distribution-schema.sql
     relativeToChangeLogFile: true
+- include:
+    file: add-create-request-ids.sql
+    relativeToChangeLogFile: true
+- include:
+    file: add-model-release-unique-index.sql
+    relativeToChangeLogFile: true
+- include:
+    file: update-model-shards-foreign-key.sql
+    relativeToChangeLogFile: true
+- include:
+    file: update-vid-model-foreign-keys-and-indexes.sql
+    relativeToChangeLogFile: true

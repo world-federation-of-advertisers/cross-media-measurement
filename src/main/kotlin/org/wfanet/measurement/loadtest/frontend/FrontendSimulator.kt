@@ -81,6 +81,7 @@ import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
+import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
 import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.OpenEndTimeRange
@@ -216,11 +217,10 @@ class FrontendSimulator(
         4L to 0.003942332254929154
       )
 
-    assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedReachValue)
-    reachAndFrequencyResult.frequency.relativeFrequencyDistributionMap.forEach {
-      (frequency, percentage) ->
-      assertThat(percentage).isEqualTo(expectedFrequencyMap[frequency])
-    }
+    assertThat(reachAndFrequencyResult).reachValue().isEqualTo(expectedReachValue)
+    assertThat(reachAndFrequencyResult)
+      .frequencyDistribution()
+      .containsExactlyEntriesIn(expectedFrequencyMap)
 
     logger.info("Direct reach and frequency result is equal to the expected result")
   }
@@ -313,13 +313,12 @@ class FrontendSimulator(
     actualResult: Result,
     maximumFrequency: Long
   ) {
-    val reachRatio = expectedResult.reach.value.toDouble() / actualResult.reach.value.toDouble()
-    assertThat(reachRatio).isWithin(0.10).of(1.0)
-    (1L..maximumFrequency).forEach {
-      val expected = expectedResult.frequency.relativeFrequencyDistributionMap.getOrDefault(it, 0.0)
-      val actual = actualResult.frequency.relativeFrequencyDistributionMap.getOrDefault(it, 0.0)
-      assertThat(actual).isWithin(0.05).of(expected)
-    }
+    // TODO(@riemanli): Use margin of error rather than fixed tolerance values.
+    assertThat(actualResult).reachValue().isWithinPercent(10.0).of(expectedResult.reach.value)
+    assertThat(actualResult)
+      .frequencyDistribution()
+      .isWithin(0.05)
+      .of(expectedResult.frequency.relativeFrequencyDistributionMap, maximumFrequency)
   }
 
   /** Creates a Measurement on behalf of the [MeasurementConsumer]. */
@@ -749,7 +748,7 @@ class FrontendSimulator(
      * TODO(@SanjayVas): Make this configurable.
      */
     private val EVENT_RANGE =
-      OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 15))
+      OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 

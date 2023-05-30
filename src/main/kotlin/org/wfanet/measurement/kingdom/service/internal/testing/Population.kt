@@ -48,8 +48,12 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.Measur
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelLine
+import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelRelease
+import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelSuite
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
@@ -58,12 +62,15 @@ import org.wfanet.measurement.internal.kingdom.activateAccountRequest
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest
+import org.wfanet.measurement.internal.kingdom.createMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.generateOpenIdRequestParamsRequest
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementConsumer
+import org.wfanet.measurement.internal.kingdom.modelLine
 import org.wfanet.measurement.internal.kingdom.modelProvider
+import org.wfanet.measurement.internal.kingdom.modelRelease
 import org.wfanet.measurement.internal.kingdom.modelSuite
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
@@ -167,21 +174,6 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     return modelProvidersService.createModelProvider(modelProvider {})
   }
 
-  suspend fun createModelSuite(
-    modelProvidersService: ModelProvidersCoroutineImplBase,
-    modelSuitesService: ModelSuitesCoroutineImplBase
-  ): ModelSuite {
-
-    val modelProvider = createModelProvider(modelProvidersService)
-
-    val modelSuite = modelSuite {
-      externalModelProviderId = modelProvider.externalModelProviderId
-      displayName = "displayName"
-      description = "description"
-    }
-    return modelSuitesService.createModelSuite(modelSuite)
-  }
-
   private suspend fun createMeasurement(
     measurementsService: MeasurementsCoroutineImplBase,
     measurementConsumer: MeasurementConsumer,
@@ -190,13 +182,60 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     details: Measurement.Details
   ): Measurement {
     return measurementsService.createMeasurement(
-      measurement {
-        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-        this.providedMeasurementId = providedMeasurementId
-        externalMeasurementConsumerCertificateId =
-          measurementConsumer.certificate.externalCertificateId
-        this.details = details
-        this.dataProviders.putAll(dataProviders)
+      createMeasurementRequest {
+        measurement = measurement {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          this.providedMeasurementId = providedMeasurementId
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+          this.details = details
+          this.dataProviders.putAll(dataProviders)
+        }
+      }
+    )
+  }
+
+  suspend fun createModelRelease(
+    modelSuite: ModelSuite,
+    modelReleasesService: ModelReleasesCoroutineImplBase
+  ): ModelRelease {
+    val modelRelease = modelRelease {
+      externalModelProviderId = modelSuite.externalModelProviderId
+      externalModelSuiteId = modelSuite.externalModelSuiteId
+    }
+    return modelReleasesService.createModelRelease(modelRelease)
+  }
+
+  suspend fun createModelLine(
+    modelProvidersService: ModelProvidersCoroutineImplBase,
+    modelSuitesService: ModelSuitesCoroutineImplBase,
+    modelLinesService: ModelLinesCoroutineImplBase
+  ): ModelLine {
+
+    val modelSuite = createModelSuite(modelProvidersService, modelSuitesService)
+
+    val modelLine = modelLine {
+      externalModelProviderId = modelSuite.externalModelProviderId
+      externalModelSuiteId = modelSuite.externalModelSuiteId
+      displayName = "displayName"
+      description = "description"
+      activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+      type = ModelLine.Type.PROD
+    }
+    return modelLinesService.createModelLine(modelLine)
+  }
+
+  suspend fun createModelSuite(
+    modelProvidersService: ModelProvidersCoroutineImplBase,
+    modelSuitesService: ModelSuitesCoroutineImplBase
+  ): ModelSuite {
+
+    val modelProvider = modelProvidersService.createModelProvider(modelProvider {})
+    return modelSuitesService.createModelSuite(
+      modelSuite {
+        externalModelProviderId = modelProvider.externalModelProviderId
+        displayName = "displayName"
+        description = "description"
       }
     )
   }

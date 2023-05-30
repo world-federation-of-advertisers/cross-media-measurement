@@ -534,6 +534,14 @@ class CreateMeasurement : Runnable {
   private lateinit var measurementConsumer: String
 
   @Option(
+    names = ["--request-id"],
+    description = ["ID of API request for idempotency"],
+    required = false,
+    defaultValue = "",
+  )
+  private lateinit var requestId: String
+
+  @Option(
     names = ["--private-key-der-file"],
     description = ["Private key for MeasurementConsumer"],
     required = true
@@ -546,7 +554,7 @@ class CreateMeasurement : Runnable {
     required = false,
     defaultValue = ""
   )
-  private lateinit var measurementIdempotencyKey: String
+  private lateinit var measurementReferenceId: String
 
   @set:Option(
     names = ["--vid-sampling-start"],
@@ -879,14 +887,19 @@ class CreateMeasurement : Runnable {
 
       this.measurementSpec =
         signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
-      measurementReferenceId = measurementIdempotencyKey
+      measurementReferenceId = this@CreateMeasurement.measurementReferenceId
     }
 
     val response =
       runBlocking(parentCommand.parentCommand.rpcDispatcher) {
         parentCommand.measurementStub
           .withAuthenticationKey(parentCommand.apiAuthenticationKey)
-          .createMeasurement(createMeasurementRequest { this.measurement = measurement })
+          .createMeasurement(
+            createMeasurementRequest {
+              this.measurement = measurement
+              requestId = this@CreateMeasurement.requestId
+            }
+          )
       }
     println("Measurement Name: ${response.name}")
   }

@@ -1,0 +1,74 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.kingdom;
+
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/kingdom/model_outage.proto";
+
+option java_package = "org.wfanet.measurement.internal.kingdom";
+option java_multiple_files = true;
+
+// Internal service for persistence of ModelOutage entities.
+service ModelOutages {
+  // Creates a new `ModelOutage`.
+  rpc CreateModelOutage(ModelOutage) returns (ModelOutage);
+
+  // Delete a `ModelOutage`.
+  rpc DeleteModelOutage(DeleteModelOutageRequest) returns (ModelOutage);
+
+  // Lists `ModelOutage`s.
+  rpc StreamModelOutages(StreamModelOutagesRequest)
+      returns (stream ModelOutage);
+}
+
+message DeleteModelOutageRequest {
+  fixed64 external_model_provider_id = 1;
+  fixed64 external_model_suite_id = 2;
+  fixed64 external_model_line_id = 3;
+  fixed64 external_model_outage_id = 4;
+}
+
+message StreamModelOutagesRequest {
+  message AfterFilter {
+    fixed64 external_model_provider_id = 1;
+    fixed64 external_model_suite_id = 2;
+    fixed64 external_model_line_id = 3;
+    fixed64 external_model_outage_id = 4;
+    google.protobuf.Timestamp create_time = 5;
+  }
+  message OutageInterval {
+    // Inclusive time.
+    google.protobuf.Timestamp model_outage_start_time = 4;
+    // Exclusive time.
+    google.protobuf.Timestamp model_outage_end_time = 5;
+  }
+
+  // Filter criteria as a conjunction of specified fields.
+  message Filter {
+    fixed64 external_model_provider_id = 1;
+    fixed64 external_model_suite_id = 2;
+    fixed64 external_model_line_id = 3;
+    bool show_deleted = 4;
+    OutageInterval outage_interval = 5;
+    AfterFilter after = 6;
+  }
+  Filter filter = 1;
+
+  // The maximum number of results to return. If not specified or 0, it implies
+  // unlimited.
+  int32 limit = 2;
+}

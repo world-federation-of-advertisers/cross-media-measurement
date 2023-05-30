@@ -23,7 +23,7 @@ option java_multiple_files = true;
 
 // Internal service for persistence of EventGroup entities.
 service EventGroups {
-  rpc CreateEventGroup(EventGroup) returns (EventGroup);
+  rpc CreateEventGroup(CreateEventGroupRequest) returns (EventGroup);
 
   rpc UpdateEventGroup(UpdateEventGroupRequest) returns (EventGroup);
 
@@ -33,6 +33,11 @@ service EventGroups {
 
   // Streams EventGroups ordered by create time, ascending.
   rpc StreamEventGroups(StreamEventGroupsRequest) returns (stream EventGroup);
+}
+
+message CreateEventGroupRequest {
+  EventGroup event_group = 1;
+  string request_id = 2;
 }
 
 message UpdateEventGroupRequest {

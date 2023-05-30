@@ -28,20 +28,13 @@ _secret_name: string @tag("secret_name")
 // a thread, so this should be greater than the number of Heralds.
 #SystemServerGrpcThreads: 5
 
-#InternalServerResourceRequirements: #ResourceRequirements & {
+#InternalServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "500m"
 		memory: "352Mi"
 	}
-}
-#PublicServerResourceRequirements: #ResourceRequirements & {
-	requests: {
-		memory: "256Mi"
-	}
-}
-#SystemServerResourceRequirements: #ResourceRequirements & {
-	requests: {
-		memory: "256Mi"
+	limits: {
+		memory: ResourceRequirements.requests.memory
 	}
 }
 
@@ -73,12 +66,6 @@ kingdom: #Kingdom & {
 		"system-api-server": {
 			_container: {
 				_grpcThreadPoolSize: #SystemServerGrpcThreads
-				resources:           #SystemServerResourceRequirements
-			}
-		}
-		"v2alpha-public-api-server": {
-			_container: {
-				resources: #PublicServerResourceRequirements
 			}
 		}
 	}
