@@ -39,7 +39,6 @@ import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader.Companion.getEtag
 
@@ -136,14 +135,12 @@ class MeasurementReader(private val view: Measurement.View) :
     /**
      * Returns a [Key] for the specified external Measurement ID and external Measurement consumer
      * ID pair.
-     *
-     * @throws [MeasurementNotFoundByMeasurementConsumerException] when the Measurement is not found
      */
     suspend fun readKeyByExternalIds(
       readContext: AsyncDatabaseClient.ReadContext,
       externalMeasurementConsumerId: ExternalId,
       externalMeasurementId: ExternalId,
-    ): Key {
+    ): Key? {
       val sql =
         """
         SELECT
@@ -169,15 +166,7 @@ class MeasurementReader(private val view: Measurement.View) :
           appendClause("LIMIT 1")
         }
 
-      val row: Struct =
-        readContext.executeQuery(statement).singleOrNull()
-          ?: throw MeasurementNotFoundByMeasurementConsumerException(
-            externalMeasurementConsumerId,
-            externalMeasurementId
-          ) {
-            "Measurement with external MeasurementConsumer ID $externalMeasurementConsumerId and " +
-              "external Measurement ID $externalMeasurementId not found"
-          }
+      val row: Struct = readContext.executeQuery(statement).singleOrNull() ?: return null
 
       return Key.of(
         row.getInternalId("measurementConsumerId").value,
