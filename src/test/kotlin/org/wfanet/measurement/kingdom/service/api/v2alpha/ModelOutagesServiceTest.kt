@@ -268,7 +268,7 @@ class ModelOutagesServiceTest {
   }
 
   @Test
-  fun `createModelOutage throws PERMISSION_DENIED when model provider caller doesn't match`() {
+  fun `createModelOutage throws PERMISSION_DENIED when principal doesn't match`() {
     val request = createModelOutageRequest {
       parent = MODEL_LINE_NAME
       modelOutage = MODEL_OUTAGE
@@ -409,7 +409,7 @@ class ModelOutagesServiceTest {
   }
 
   @Test
-  fun `listModelOutages throws PERMISSION_DENIED when model provider caller doesn't match`() {
+  fun `listModelOutages throws PERMISSION_DENIED when principal doesn't match`() {
     val request = listModelOutagesRequest { parent = MODEL_LINE_NAME }
 
     val exception =
@@ -815,7 +815,7 @@ class ModelOutagesServiceTest {
   }
 
   @Test
-  fun `deleteModelOutage throws PERMISSION_DENIED when model provider caller doesn't match`() {
+  fun `deleteModelOutage throws PERMISSION_DENIED when principal doesn't match`() {
     val request = deleteModelOutageRequest { name = MODEL_OUTAGE_NAME }
 
     val exception =
