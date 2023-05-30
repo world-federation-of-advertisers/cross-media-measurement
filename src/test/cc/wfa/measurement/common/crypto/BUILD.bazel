@@ -1,0 +1,18 @@
+load("@rules_cc//cc:defs.bzl", "cc_test")
+
+cc_test(
+    name = "protocol_cryptor_test",
+    size = "small",
+    srcs = [
+        "protocol_cryptor_test.cc",
+    ],
+    deps = [
+        "//src/main/cc/wfa/measurement/common/crypto:protocol_cryptor",
+        "//src/main/proto/wfa/measurement/internal/duchy:crypto_cc_proto",
+        "@any_sketch//src/main/cc/any_sketch/crypto:sketch_encrypter",
+        "@com_google_googletest//:gtest_main",
+        "@com_google_private_join_and_compute//private_join_and_compute/crypto:commutative_elgamal",
+        "@com_google_private_join_and_compute//private_join_and_compute/crypto:ec_commutative_cipher",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+    ],
+)

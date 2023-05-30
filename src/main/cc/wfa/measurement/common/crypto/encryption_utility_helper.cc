@@ -103,6 +103,24 @@ absl::Status AppendEcPointPairToString(const ElGamalEcPointPair& ec_point_pair,
   return absl::OkStatus();
 }
 
+absl::Status WriteEcPointPairToString(const ElGamalEcPointPair& ec_point_pair,
+                                      std::string& result, size_t& pos) {
+  if (pos + kBytesPerCipherText > result.size()) {
+    return absl::InternalError("result is not long enough to write.");
+  }
+
+  std::string temp;
+  ASSIGN_OR_RETURN(temp, ec_point_pair.u.ToBytesCompressed());
+  result.replace(pos, kBytesPerEcPoint, temp);
+  pos += kBytesPerEcPoint;
+
+  ASSIGN_OR_RETURN(temp, ec_point_pair.e.ToBytesCompressed());
+  result.replace(pos, kBytesPerEcPoint, temp);
+  pos += kBytesPerEcPoint;
+
+  return absl::OkStatus();
+}
+
 absl::StatusOr<std::vector<std::string>> GetCountValuesPlaintext(
     int maximum_value, int curve_id) {
   if (maximum_value < 1) {

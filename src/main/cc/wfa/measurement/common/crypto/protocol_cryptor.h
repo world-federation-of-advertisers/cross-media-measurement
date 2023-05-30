@@ -93,11 +93,11 @@ class ProtocolCryptor {
       const ElGamalCiphertext& cipher_text) = 0;
   // Returns the key of the local PohligHellman cipher.
   virtual std::string GetLocalPohligHellmanKey() = 0;
-  // Batch processes the ciphertexts in the data, and attaches the results to
-  // the result.
+  // Batch processes the ciphertexts in the data, and write the output into
+  // the certain position of the result string.
   virtual absl::Status BatchProcess(absl::string_view data,
                                     absl::Span<const Action> actions,
-                                    std::string& result) = 0;
+                                    std::string& result, size_t& pos) = 0;
   // Returns true if the result of DecryptLocalElGamal() is zero, i.e., Point at
   // infinity.
   virtual absl::StatusOr<bool> IsDecryptLocalElGamalResultZero(
@@ -114,8 +114,8 @@ class ProtocolCryptor {
 struct ProtocolCryptorOptions {
   int curve_id;
   ElGamalCiphertext local_el_gamal_public_key;
-  absl::string_view local_el_gamal_private_key;
-  absl::string_view local_pohlig_hellman_private_key;
+  std::string local_el_gamal_private_key;
+  std::string local_pohlig_hellman_private_key;
   ElGamalCiphertext composite_el_gamal_public_key;
   ElGamalCiphertext partial_composite_el_gamal_public_key;
 };
@@ -123,6 +123,20 @@ struct ProtocolCryptorOptions {
 // Create a ProtocolCryptor using keys required for internal ciphers.
 absl::StatusOr<std::unique_ptr<ProtocolCryptor>> CreateProtocolCryptor(
     const ProtocolCryptorOptions& options);
+
+// Create a vector of identical [ProtocolCryptor]s.
+//
+// [ProtocolCryptor] is not thread-safe due to the underlying crypto library
+// thus requires multiple identical [ProtocolCryptor]s to execute in parallel.
+// The mutex in [ProtocolCrytpor] is a precaution and will dramatically impact
+// the parallelism.
+// Per advise from team `private_join_and_compute`, using a vector of
+// [ProtocolCryptor] is a suggested way. Note that, ProtocolCryptors are not
+// exactly identical. Each of them has a different context that is initialized
+// with a different random generator. But they should generate work consistently
+// regardless the minor differences.
+absl::StatusOr<std::vector<std::unique_ptr<ProtocolCryptor>>>
+CreateIdenticalProtocolCrypors(int num, const ProtocolCryptorOptions& options);
 
 }  // namespace wfa::measurement::common::crypto
 

@@ -17,9 +17,11 @@
 #include <thread>  // NOLINT(build/c++11)
 
 #include "absl/memory/memory.h"
+#include "common_cpp/macros/macros.h"
 
 namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 
+using ::wfa::measurement::common::crypto::CreateIdenticalProtocolCrypors;
 using ::wfa::measurement::common::crypto::CreateProtocolCryptor;
 using ::wfa::measurement::common::crypto::ElGamalCiphertext;
 using ::wfa::measurement::common::crypto::ProtocolCryptorOptions;
@@ -29,23 +31,17 @@ MultithreadingHelper::CreateMultithreadingHelper(
     int num_threads, const ProtocolCryptorOptions& options) {
   ABSL_ASSERT(num_threads > 0);
 
-  ASSIGN_OR_RETURN(auto cryptors,
-                   MultithreadingHelper::CreateCryptors(num_threads, options));
+  ASSIGN_OR_RETURN_ERROR(
+      auto cryptors, CreateIdenticalProtocolCrypors(num_threads, options),
+      "Failed to create the protocol cipher, invalid curveId or keys.");
   // As the constructor of MultithreadingHelper is private, absl::WrapUnique
   // helps to create a std::unique_ptr with `new` to bypass the restriction.
   return absl::WrapUnique(
       new MultithreadingHelper(num_threads, std::move(cryptors)));
 }
 
-absl::StatusOr<std::vector<std::unique_ptr<ProtocolCryptor>>>
-MultithreadingHelper::CreateCryptors(int num,
-                                     const ProtocolCryptorOptions& options) {
-  std::vector<std::unique_ptr<ProtocolCryptor>> cryptors;
-  for (size_t i = 0; i < num; i++) {
-    ASSIGN_OR_RETURN(auto cryptor, CreateProtocolCryptor(options));
-    cryptors.emplace_back(std::move(cryptor));
-  }
-  return cryptors;
+ProtocolCryptor& MultithreadingHelper::GetProtocolCryptor() {
+  return *(cryptors_.front());
 }
 
 absl::Status MultithreadingHelper::Execute(
