@@ -527,9 +527,7 @@ private fun ListRequisitionsPageToken.toStreamRequisitionsRequest(): StreamRequi
           externalDataProviderIdAfter = source.lastRequisition.externalDataProviderId
           externalRequisitionIdAfter = source.lastRequisition.externalRequisitionId
         }
-        source.measurementStatesList.forEach {
-          measurementStates += it.toInternalState()
-        }
+        source.measurementStatesList.forEach { measurementStates += it.toInternalState() }
       }
   }
 }
