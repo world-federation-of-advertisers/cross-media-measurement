@@ -403,7 +403,7 @@ private fun ListMeasurementsPageToken.toStreamMeasurementsRequest(): StreamMeasu
     measurementView = InternalMeasurementView.DEFAULT
     filter = filter {
       externalMeasurementConsumerId = source.externalMeasurementConsumerId
-      states += source.statesList.map { it.toInternalModelOutageState() }.flatten()
+      states += source.statesList.map { it.toInternalState() }.flatten()
       if (source.hasLastMeasurement()) {
         externalMeasurementIdAfter = source.lastMeasurement.externalMeasurementId
         updatedAfter = source.lastMeasurement.updateTime
