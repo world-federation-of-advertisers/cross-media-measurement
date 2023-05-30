@@ -37,9 +37,9 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeSteps
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineStub as InternalModelLinesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ModelOutagesGrpcKt.ModelOutagesCoroutineStub as InternalModelOutagesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineStub as InternalModelReleasesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineStub as InternalModelSuitesCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ModelOutagesGrpcKt.ModelOutagesCoroutineStub as InternalModelOutagesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.PublicKeysGrpcKt.PublicKeysCoroutineStub as InternalPublicKeysCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
@@ -55,9 +55,9 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementConsumersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelLinesService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelOutagesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelReleasesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelSuitesService
-import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelOutagesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.PublicKeysService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withAccountAuthenticationServerInterceptor
