@@ -15,47 +15,50 @@
  */
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
-import org.wfanet.measurement.api.v2alpha.ModelOutagesGrpcKt.ModelOutagesCoroutineImplBase as ModelOutagesCoroutineService
+
 import io.grpc.Status
 import io.grpc.StatusException
-import kotlinx.coroutines.flow.toList
 import kotlin.math.min
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.CreateModelOutageRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.DeleteModelOutageRequest
 import org.wfanet.measurement.api.v2alpha.ListModelOutagesPageToken
+import org.wfanet.measurement.api.v2alpha.ListModelOutagesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelOutagesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelOutagesResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ModelOutage
+import org.wfanet.measurement.api.v2alpha.ModelOutageKey
+import org.wfanet.measurement.api.v2alpha.ModelOutagesGrpcKt.ModelOutagesCoroutineImplBase as ModelOutagesCoroutineService
 import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.TimeInterval
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.listModelOutagesPageToken
-import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
-import org.wfanet.measurement.internal.kingdom.ModelOutage as InternalModelOutage
-import org.wfanet.measurement.api.v2alpha.ListModelOutagesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.listModelOutagesResponse
+import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.internal.kingdom.ModelOutage as InternalModelOutage
 import org.wfanet.measurement.internal.kingdom.ModelOutagesGrpcKt
 import org.wfanet.measurement.internal.kingdom.StreamModelOutagesRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelOutagesRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelOutagesRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.StreamModelOutagesRequestKt.outageInterval
+import org.wfanet.measurement.internal.kingdom.deleteModelOutageRequest
 import org.wfanet.measurement.internal.kingdom.streamModelOutagesRequest
-
 
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
-class ModelOutagesService(private val internalClient: ModelOutagesGrpcKt.ModelOutagesCoroutineStub) :
-  ModelOutagesCoroutineService() {
+class ModelOutagesService(
+  private val internalClient: ModelOutagesGrpcKt.ModelOutagesCoroutineStub
+) : ModelOutagesCoroutineService() {
 
   override suspend fun createModelOutage(request: CreateModelOutageRequest): ModelOutage {
     val parentKey =
@@ -83,8 +86,7 @@ class ModelOutagesService(private val internalClient: ModelOutagesGrpcKt.ModelOu
       internalClient.createModelOutage(createModelOutageRequest).toModelOutage()
     } catch (ex: StatusException) {
       when (ex.status.code) {
-        Status.Code.NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND, ex) { "ModelLine not found" }
+        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "ModelLine not found" }
         Status.Code.INVALID_ARGUMENT ->
           failGrpc(Status.INVALID_ARGUMENT, ex) {
             ex.message ?: "ModelOutageStartTime cannot precede ModelOutageEndTime"
@@ -95,10 +97,48 @@ class ModelOutagesService(private val internalClient: ModelOutagesGrpcKt.ModelOu
   }
 
   override suspend fun deleteModelOutage(request: DeleteModelOutageRequest): ModelOutage {
-    return super.deleteModelOutage(request)
+    val key =
+      grpcRequireNotNull(ModelOutageKey.fromName(request.name)) {
+        "Resource name is either unspecified or invalid"
+      }
+
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is ModelProviderPrincipal -> {
+        if (principal.resourceKey.modelProviderId != key.modelProviderId) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot delete ModelOutage for another ModelProvider"
+          }
+        }
+      }
+      else -> {
+        failGrpc(Status.PERMISSION_DENIED) {
+          "Caller does not have permission to delete ModelOutage"
+        }
+      }
+    }
+
+    val deleteRequest = deleteModelOutageRequest {
+      externalModelProviderId = apiIdToExternalId(key.modelProviderId)
+      externalModelSuiteId = apiIdToExternalId(key.modelSuiteId)
+      externalModelLineId = apiIdToExternalId(key.modelLineId)
+      externalModelOutageId = apiIdToExternalId(key.modelOutageId)
+    }
+
+    return try {
+      internalClient.deleteModelOutage(deleteRequest).toModelOutage()
+    } catch (ex: StatusException) {
+      when (ex.status.code) {
+        Status.Code.INVALID_ARGUMENT ->
+          failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
+        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "ModelOutage not found." }
+        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+      }
+    }
   }
 
-  override suspend fun listModelOutages(request: ListModelOutagesRequest): ListModelOutagesResponse {
+  override suspend fun listModelOutages(
+    request: ListModelOutagesRequest
+  ): ListModelOutagesResponse {
     val parent =
       grpcRequireNotNull(ModelLineKey.fromName(request.parent)) {
         "Parent is either unspecified or invalid"
@@ -121,7 +161,7 @@ class ModelOutagesService(private val internalClient: ModelOutagesGrpcKt.ModelOu
     }
 
     val listModelOutagesPageToken =
-      request.toListModelOutagesPageToken(request.filter.timeInterval)
+      request.toListModelOutagesPageToken(request.showDeleted, request.filter.timeInterval)
 
     val results: List<InternalModelOutage> =
       internalClient
@@ -135,7 +175,7 @@ class ModelOutagesService(private val internalClient: ModelOutagesGrpcKt.ModelOu
     return listModelOutagesResponse {
       modelOutage +=
         results.subList(0, min(results.size, listModelOutagesPageToken.pageSize)).map {
-            internalModelOutage ->
+          internalModelOutage ->
           internalModelOutage.toModelOutage()
         }
       if (results.size > listModelOutagesPageToken.pageSize) {
@@ -156,6 +196,7 @@ class ModelOutagesService(private val internalClient: ModelOutagesGrpcKt.ModelOu
 
   /** Converts a public [ListModelOutagesRequest] to an internal [ListModelOutagesPageToken]. */
   private fun ListModelOutagesRequest.toListModelOutagesPageToken(
+    showDeleted: Boolean,
     outageInterval: TimeInterval?
   ): ListModelOutagesPageToken {
     val source = this
@@ -186,6 +227,9 @@ class ModelOutagesService(private val internalClient: ModelOutagesGrpcKt.ModelOu
             "Arguments must be kept the same when using a page token"
           }
         }
+        grpcRequire(this.showDeleted == showDeleted) {
+          "Arguments must be kept the same when using a page token"
+        }
 
         if (source.pageSize in 1..MAX_PAGE_SIZE) {
           pageSize = source.pageSize
@@ -203,6 +247,7 @@ class ModelOutagesService(private val internalClient: ModelOutagesGrpcKt.ModelOu
         this.externalModelSuiteId = externalModelSuiteId
         this.externalModelLineId = externalModelLineId
         this.outageInterval = source.filter.timeInterval
+        this.showDeleted = source.showDeleted
       }
     }
   }
@@ -210,8 +255,7 @@ class ModelOutagesService(private val internalClient: ModelOutagesGrpcKt.ModelOu
   /**
    * Converts an internal [ListModelOutagesPageToken] to an internal [StreamModelOutagesRequest].
    */
-  private fun ListModelOutagesPageToken.toStreamModelOutagesRequest():
-    StreamModelOutagesRequest {
+  private fun ListModelOutagesPageToken.toStreamModelOutagesRequest(): StreamModelOutagesRequest {
     val source = this
     return streamModelOutagesRequest {
       // get 1 more than the actual page size for deciding whether to set page token
@@ -239,5 +283,4 @@ class ModelOutagesService(private val internalClient: ModelOutagesGrpcKt.ModelOu
       }
     }
   }
-
 }
