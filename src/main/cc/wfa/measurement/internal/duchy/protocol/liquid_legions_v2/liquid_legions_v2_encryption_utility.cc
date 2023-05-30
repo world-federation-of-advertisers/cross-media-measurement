@@ -76,7 +76,7 @@ using ::wfa::measurement::common::crypto::ProtocolCryptorOptions;
 using ::wfa::measurement::internal::duchy::ElGamalPublicKey;
 using ::wfa::measurement::internal::duchy::protocol::LiquidLegionsV2NoiseConfig;
 
-const int kNumThreads = 3;
+const int kNumThreads = 2;
 
 // Merge all the counts in each group using the SameKeyAggregation algorithm.
 // The calculated (flag_1, flag_2, flag_3, count) tuple is appended to the
@@ -189,8 +189,6 @@ absl::Status JoinRegistersByIndexAndMergeCounts(
     } else {
       // This register belongs to a new group. Process the previous group and
       // append the result to the response.
-      std::cout << "merge count. start = " << start << " end = " << i - 1
-                << std::endl;
       RETURN_IF_ERROR(MergeCountsUsingSameKeyAggregation(
           permutation.subspan(start, i - start), registers, protocol_cryptor,
           destroyed_key_constant_ec_pair,
@@ -200,8 +198,6 @@ absl::Status JoinRegistersByIndexAndMergeCounts(
       start = i;
     }
   }
-  std::cout << "merge count. start = " << start
-            << " end = " << register_count - 1 << std::endl;
   // Process the last group and append the result to the response.
   return MergeCountsUsingSameKeyAggregation(
       permutation.subspan(start, register_count - start), registers,
@@ -626,25 +622,17 @@ absl::Status AddAllFrequencyNoise(
   size_t pos = data.size();
   data.resize(data.size() +
               total_noise_tuples_count * kBytesPerFlagsCountTuple);
-  std::cout << "start frequency dp noise... pos = " << pos
-            << " size = " << data.size() << std::endl;
   ASSIGN_OR_RETURN(
       int frequency_dp_noise_tuples_count,
       AddFrequencyDpNoise(helper, noise_parameters.maximum_frequency(),
                           curve_id, *noiser, data, pos));
-  std::cout << "start frequency destroy noise... pos = " << pos
-            << " size = " << data.size() << std::endl;
   ASSIGN_OR_RETURN(int destroyed_noise_tuples_count,
                    AddDestroyedFrequencyNoise(helper, *noiser, data, pos));
-  std::cout << "start frequency padding noise... pos = " << pos
-            << " size = " << data.size() << std::endl;
   int64_t padding_noise_tuples_count = total_noise_tuples_count -
                                        frequency_dp_noise_tuples_count -
                                        destroyed_noise_tuples_count;
   RETURN_IF_ERROR(
       AddPaddingFrequencyNoise(helper, padding_noise_tuples_count, data, pos));
-  std::cout << "finish frequency noise. pos = " << pos
-            << " size = " << data.size() << std::endl;
 
   return absl::OkStatus();
 }
@@ -801,7 +789,6 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
     size_t pos = response_crv->size();
     response_crv->resize(request.combined_register_vector().size() +
                          total_noise_registers_count * kBytesPerCipherRegister);
-    std::cout << "response_crv size = " << response_crv->size() << std::endl;
 
     RETURN_IF_ERROR(ValidateSetupNoiseParameters(noise_parameters));
 
@@ -821,43 +808,32 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
                      MultithreadingHelper::CreateMultithreadingHelper(
                          kNumThreads, protocol_cryptor_options));
 
-    std::cout << "start blinded histogram noise... pos = " << pos
-              << " size = " << response_crv->size() << std::endl;
     // 1. Add blinded histogram noise.
     ASSIGN_OR_RETURN(
         int64_t blinded_histogram_noise_count,
         AddBlindedHistogramNoise(multithreading_helper->GetProtocolCryptor(),
                                  noise_parameters.total_sketches_count(),
                                  *blind_histogram_noiser, *response_crv, pos));
-    std::cout << "start publisher noise... pos = " << pos << std::endl;
     // 2. Add noise for publisher noise.
     ASSIGN_OR_RETURN(
         int64_t publisher_noise_count,
         AddNoiseForPublisherNoise(*multithreading_helper, *publisher_noiser,
                                   *response_crv, pos));
-    std::cout << "start reach dp noise... pos = " << pos
-              << " size = " << response_crv->size() << std::endl;
     // 3. Add reach DP noise.
     ASSIGN_OR_RETURN(
         int64_t reach_dp_noise_count,
         AddGlobalReachDpNoise(*multithreading_helper, *global_reach_dp_noiser,
                               *response_crv, pos));
-    std::cout << "start padding noise... pos = " << pos
-              << " size = " << response_crv->size() << std::endl;
     // 4. Add padding noise.
     int64_t padding_noise_count = total_noise_registers_count -
                                   blinded_histogram_noise_count -
                                   publisher_noise_count - reach_dp_noise_count;
     RETURN_IF_ERROR(AddPaddingReachNoise(
         *multithreading_helper, padding_noise_count, *response_crv, pos));
-    std::cout << "finish adding all noise! pos = " << pos
-              << " size = " << response_crv->size() << std::endl;
   }
 
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerCipherRegister>(
       *response.mutable_combined_register_vector()));
-
-  std::cout << "Setup phase done!" << std::endl;
 
   response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
   return response;
@@ -901,9 +877,7 @@ absl::StatusOr<CompleteExecutionPhaseOneResponse> CompleteExecutionPhaseOne(
         absl::string_view(request.combined_register_vector())
             .substr(index * kBytesPerCipherRegister, kBytesPerCipherRegister);
     size_t pos = start_pos + kBytesPerCipherRegister * index;
-    //    std::cout << "phase one process. index = " << index << " block_pos = "
-    //    << index * kBytesPerCipherRegister << " result_pos = " << pos <<
-    //    std::endl;
+
     RETURN_IF_ERROR(cryptor.BatchProcess(
         current_block,
         {Action::kBlind, Action::kReRandomize, Action::kReRandomize},
@@ -911,11 +885,8 @@ absl::StatusOr<CompleteExecutionPhaseOneResponse> CompleteExecutionPhaseOne(
 
     return absl::OkStatus();
   };
-  std::cout << "start phase one batch... size = " << response_crv->size()
-            << std::endl;
+
   RETURN_IF_ERROR(multithreading_helper->Execute(register_count, f));
-  std::cout << "finish phase one batch! size = " << response_crv->size()
-            << std::endl;
 
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerCipherRegister>(*response_crv));
 
@@ -967,14 +938,10 @@ CompleteExecutionPhaseOneAtAggregator(
 
   CompleteExecutionPhaseOneAtAggregatorResponse response;
   std::string* response_data = response.mutable_flag_count_tuples();
-  std::cout << "start phase one join... size = " << response_data->size()
-            << std::endl;
   RETURN_IF_ERROR(JoinRegistersByIndexAndMergeCounts(
       multithreading_helper->GetProtocolCryptor(),
       request.combined_register_vector(), blinded_register_indexes, permutation,
       request.total_sketches_count(), *response_data));
-  std::cout << "finish phase one join! size = " << response_data->size()
-            << std::endl;
 
   // Add noise (flag_a, flag_b, flag_c, count) tuples if configured to.
   if (request.has_noise_parameters()) {
@@ -1039,11 +1006,7 @@ absl::StatusOr<CompleteExecutionPhaseTwoResponse> CompleteExecutionPhaseTwo(
 
     return absl::OkStatus();
   };
-  std::cout << "start phase two at worker batch... size = "
-            << response_data->size() << std::endl;
   RETURN_IF_ERROR(multithreading_helper->Execute(tuple_counts, f));
-  std::cout << "finish phase two at worker batch! size = "
-            << response_data->size() << std::endl;
 
   // Add noise (flag_a, flag_b, flag_c, count) tuples if configured to.
   if (request.has_noise_parameters()) {
@@ -1216,13 +1179,7 @@ absl::StatusOr<CompleteExecutionPhaseThreeResponse> CompleteExecutionPhaseThree(
 
     return absl::OkStatus();
   };
-  std::cout << "start phase three at worker batch... size = "
-            << response.mutable_same_key_aggregator_matrix()->size()
-            << std::endl;
   RETURN_IF_ERROR(multithreading_helper->Execute(ciphertext_counts, f));
-  std::cout << "finish phase three at worker batch! size = "
-            << response.mutable_same_key_aggregator_matrix()->size()
-            << std::endl;
 
   response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
   return response;

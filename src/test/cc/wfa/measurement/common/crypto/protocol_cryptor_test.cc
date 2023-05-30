@@ -44,22 +44,6 @@ using ::wfa::measurement::internal::duchy::ElGamalPublicKey;
 
 constexpr int kTestCurveId = NID_X9_62_prime256v1;
 
-::wfa::any_sketch::crypto::ElGamalPublicKey ToAnysketchElGamalKey(
-    ElGamalPublicKey key) {
-  ::wfa::any_sketch::crypto::ElGamalPublicKey result;
-  result.set_generator(key.generator());
-  result.set_element(key.element());
-  return result;
-}
-
-ElGamalPublicKey ToCmmsElGamalKey(
-    ::wfa::any_sketch::crypto::ElGamalPublicKey key) {
-  ElGamalPublicKey result;
-  result.set_generator(key.generator());
-  result.set_element(key.element());
-  return result;
-}
-
 absl::StatusOr<ElGamalKeyPair> CreateElGamalKeyPair(int curve_id) {
   ASSIGN_OR_RETURN(std::unique_ptr<CommutativeElGamal> cipher,
                    CommutativeElGamal::CreateWithNewKeyPair(curve_id));

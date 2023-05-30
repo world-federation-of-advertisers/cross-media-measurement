@@ -638,11 +638,9 @@ TEST(CompleteSetupPhase, GeometricNoiseSumAndMeanShouldBeCorrect) {
       MakeDifferentialPrivacyParams(40, std::exp(-80));
   request.set_noise_mechanism(LiquidLegionsV2NoiseConfig::GEOMETRIC);
 
-  std::cout << "start test..." << std::endl;
-
   ASSERT_OK_AND_ASSIGN(CompleteSetupPhaseResponse response,
                        CompleteSetupPhase(request));
-  std::cout << "finish test!" << std::endl;
+
   // There was no data in the request, so all registers in the response are
   // noise.
   std::string noises = response.combined_register_vector();

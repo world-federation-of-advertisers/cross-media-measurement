@@ -16,14 +16,12 @@
 #define SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_MULTITHREADING_HELPER_H_
 
 #include <memory>
-#include <mutex>
 #include <utility>
 #include <vector>
 
 #include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/synchronization/mutex.h"
 #include "wfa/measurement/common/crypto/ec_point_util.h"
 #include "wfa/measurement/common/crypto/protocol_cryptor.h"
 
@@ -45,7 +43,6 @@ class MultithreadingHelper {
 
   const int num_threads_;
   const std::vector<std::unique_ptr<ProtocolCryptor>> cryptors_;
-  std::mutex mutex_;
 
  public:
   static absl::StatusOr<std::unique_ptr<MultithreadingHelper>>

@@ -376,15 +376,10 @@ absl::StatusOr<std::unique_ptr<ProtocolCryptor>> CreateProtocolCryptor(
 
 absl::StatusOr<ProtocolCryptorOptions> CompleteProtocolCryptorOptions(
     const ProtocolCryptorOptions& options) {
-  auto context = absl::make_unique<Context>();
-  auto context_2 = absl::make_unique<Context>();
-  std::string origin_private_key = options.local_el_gamal_private_key;
-
   ProtocolCryptorOptions complete_options;
   complete_options.curve_id = options.curve_id;
 
   if (options.local_el_gamal_public_key.first.empty()) {
-    std::cout << "00000000000000000000000000000" << std::endl;
     // have neither local_el_gamal_public_key or local_el_gamal_private_key.
     ASSIGN_OR_RETURN(auto cipher, CommutativeElGamal::CreateWithNewKeyPair(
                                       options.curve_id));
@@ -392,32 +387,8 @@ absl::StatusOr<ProtocolCryptorOptions> CompleteProtocolCryptorOptions(
                      cipher->GetPublicKeyBytes());
     ASSIGN_OR_RETURN(complete_options.local_el_gamal_private_key,
                      cipher->GetPrivateKeyBytes());
-    origin_private_key = complete_options.local_el_gamal_private_key;
-    std::cout << "private_key_1="
-              << context
-                     ->CreateBigNum(complete_options.local_el_gamal_private_key)
-                     .ToDecimalString()
-              << std::endl;
-    std::cout << "private_key_1="
-              << context
-                     ->CreateBigNum(complete_options.local_el_gamal_private_key)
-                     .ToDecimalString()
-              << std::endl;
-    ASSIGN_OR_RETURN(auto verified_cypher,
-                     CommutativeElGamal::CreateFromPublicAndPrivateKeys(
-                         complete_options.curve_id,
-                         complete_options.local_el_gamal_public_key,
-                         complete_options.local_el_gamal_private_key));
-    std::cout << "private_key_2="
-              << context_2
-                     ->CreateBigNum(complete_options.local_el_gamal_private_key)
-                     .ToDecimalString()
-              << std::endl;
-    ABSL_ASSERT(origin_private_key ==
-                complete_options.local_el_gamal_private_key);
   } else {
     if (options.local_el_gamal_private_key.empty()) {
-      std::cout << "111111111111111111111111" << std::endl;
       // have local_el_gamal_public_key but no local_el_gamal_private_key.
       ASSIGN_OR_RETURN(
           std::unique_ptr<CommutativeElGamal> cipher,
@@ -425,12 +396,10 @@ absl::StatusOr<ProtocolCryptorOptions> CompleteProtocolCryptorOptions(
               options.curve_id, options.local_el_gamal_public_key));
       ASSIGN_OR_RETURN(ElGamalCiphertext public_key,
                        cipher->GetPublicKeyBytes());
-      ABSL_ASSERT(public_key == options.local_el_gamal_public_key);
       ASSIGN_OR_RETURN(std::string private_key, cipher->GetPrivateKeyBytes());
       complete_options.local_el_gamal_public_key = public_key;
       complete_options.local_el_gamal_private_key = private_key;
     } else {
-      std::cout << "22222222222222222222222222" << std::endl;
       // have both local_el_gamal_public_key and local_el_gamal_private_key.
       complete_options.local_el_gamal_public_key =
           options.local_el_gamal_public_key;
@@ -438,15 +407,7 @@ absl::StatusOr<ProtocolCryptorOptions> CompleteProtocolCryptorOptions(
           options.local_el_gamal_private_key;
     }
   }
-  std::cout << "local_el_gamal_keys complete." << std::endl;
-  auto context_3 = absl::make_unique<Context>();
-  std::cout << "private_key_3="
-            << context_3
-                   ->CreateBigNum(complete_options.local_el_gamal_private_key)
-                   .ToDecimalString()
-            << std::endl;
-  ABSL_ASSERT(origin_private_key ==
-              complete_options.local_el_gamal_private_key);
+
   if (options.local_pohlig_hellman_private_key.empty()) {
     ASSIGN_OR_RETURN(auto cipher, ECCommutativeCipher::CreateWithNewKey(
                                       options.curve_id,
@@ -458,14 +419,6 @@ absl::StatusOr<ProtocolCryptorOptions> CompleteProtocolCryptorOptions(
         options.local_pohlig_hellman_private_key;
   }
 
-  std::cout << "local_pohlig_hellman_private_key complete." << std::endl;
-  std::cout << "private_key_4="
-            << context
-                   ->CreateBigNum(complete_options.local_el_gamal_private_key)
-                   .ToDecimalString()
-            << std::endl;
-  ABSL_ASSERT(origin_private_key ==
-              complete_options.local_el_gamal_private_key);
   if (options.composite_el_gamal_public_key.first.empty()) {
     ASSIGN_OR_RETURN(auto cipher, CommutativeElGamal::CreateWithNewKeyPair(
                                       options.curve_id));
@@ -475,14 +428,7 @@ absl::StatusOr<ProtocolCryptorOptions> CompleteProtocolCryptorOptions(
     complete_options.composite_el_gamal_public_key =
         options.composite_el_gamal_public_key;
   }
-  std::cout << "composite_el_gamal_public_key complete." << std::endl;
-  std::cout << "private_key_5="
-            << context
-                   ->CreateBigNum(complete_options.local_el_gamal_private_key)
-                   .ToDecimalString()
-            << std::endl;
-  ABSL_ASSERT(origin_private_key ==
-              complete_options.local_el_gamal_private_key);
+
   if (options.partial_composite_el_gamal_public_key.first.empty()) {
     ASSIGN_OR_RETURN(auto cipher, CommutativeElGamal::CreateWithNewKeyPair(
                                       options.curve_id));
@@ -492,13 +438,7 @@ absl::StatusOr<ProtocolCryptorOptions> CompleteProtocolCryptorOptions(
     complete_options.partial_composite_el_gamal_public_key =
         options.partial_composite_el_gamal_public_key;
   }
-  std::cout << "private_key_6="
-            << context
-                   ->CreateBigNum(complete_options.local_el_gamal_private_key)
-                   .ToDecimalString()
-            << std::endl;
-  ABSL_ASSERT(origin_private_key ==
-              complete_options.local_el_gamal_private_key);
+
   return complete_options;
 }
 
@@ -513,40 +453,31 @@ CreateIdenticalProtocolCrypors(int num, const ProtocolCryptorOptions& options) {
 
     ASSIGN_OR_RETURN(ECGroup ec_group,
                      ECGroup::Create(complete_options.curve_id, context.get()));
-    std::cout << "creating ciphers..." << std::endl;
     ASSIGN_OR_RETURN(auto local_el_gamal_cipher,
                      CommutativeElGamal::CreateFromPublicAndPrivateKeys(
                          complete_options.curve_id,
                          complete_options.local_el_gamal_public_key,
                          complete_options.local_el_gamal_private_key));
-    std::cout << "local_el_gamal_cipher created." << std::endl;
     ASSIGN_OR_RETURN(auto client_el_gamal_cipher,
                      CommutativeElGamal::CreateFromPublicKey(
                          complete_options.curve_id,
                          complete_options.composite_el_gamal_public_key));
-    std::cout
-        << "client_el_gamal_cipher created. "
-        << complete_options.partial_composite_el_gamal_public_key.first.size()
-        << std::endl;
     ASSIGN_OR_RETURN(
         auto partial_composite_el_gamal_cipher,
         CommutativeElGamal::CreateFromPublicKey(
             complete_options.curve_id,
             complete_options.partial_composite_el_gamal_public_key));
-    std::cout << "partial_composite_el_gamal_cipher created." << std::endl;
     ASSIGN_OR_RETURN(auto local_pohlig_hellman_cipher,
                      ECCommutativeCipher::CreateFromKey(
                          complete_options.curve_id,
                          complete_options.local_pohlig_hellman_private_key,
                          ECCommutativeCipher::HashType::SHA256));
-    std::cout << "local_pohlig_hellman_cipher created." << std::endl;
 
     auto cryptor = absl::make_unique<ProtocolCryptorImpl>(
         std::move(local_el_gamal_cipher), std::move(client_el_gamal_cipher),
         std::move(partial_composite_el_gamal_cipher),
         std::move(local_pohlig_hellman_cipher), std::move(context),
         std::move(ec_group));
-    std::cout << "cryptor created." << std::endl;
 
     cryptors.push_back(std::move(cryptor));
   }
