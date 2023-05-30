@@ -1120,7 +1120,13 @@ class ReportsService(
 
           eventGroupKey to
             RequisitionSpecKt.eventGroupEntry {
-              key = eventGroupName
+              key =
+                org.wfanet.measurement.api.v2alpha
+                  .EventGroupKey(
+                    internalEventGroupKey.dataProviderReferenceId,
+                    internalEventGroupKey.eventGroupReferenceId
+                  )
+                  .toName()
               value =
                 RequisitionSpecKt.EventGroupEntryKt.value {
                   collectionInterval = timeInterval

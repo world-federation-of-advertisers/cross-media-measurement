@@ -535,7 +535,10 @@ private val EVENT_GROUP_ENTRIES =
     { DataProviderKey(it.dataProviderReferenceId) },
     {
       eventGroupEntry {
-        key = it.toName()
+        key =
+          org.wfanet.measurement.api.v2alpha
+            .EventGroupKey(it.dataProviderReferenceId, it.eventGroupReferenceId)
+            .toName()
         value =
           EventGroupEntryKt.value {
             collectionInterval = MEASUREMENT_TIME_INTERVAL
