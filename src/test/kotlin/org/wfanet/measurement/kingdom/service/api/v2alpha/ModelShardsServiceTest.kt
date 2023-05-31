@@ -515,7 +515,7 @@ class ModelShardsServiceTest {
   }
 
   @Test
-  fun `listModelShards throws PERMISSION_DENIED when doesn't match principal`() {
+  fun `listModelShards throws PERMISSION_DENIED DataProvider parent doesn't match principal`() {
     val request = listModelShardsRequest { parent = DATA_PROVIDER_NAME_2 }
 
     val exception =
