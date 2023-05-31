@@ -60,6 +60,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry.Value.ENCRYPTED_REQUISITION_SPEC_FIELD_NUMBER
@@ -535,7 +536,7 @@ private val EVENT_GROUP_ENTRIES =
     { DataProviderKey(it.dataProviderReferenceId) },
     {
       eventGroupEntry {
-        key = it.toName()
+        key = CmmsEventGroupKey(it.dataProviderReferenceId, it.eventGroupReferenceId).toName()
         value =
           EventGroupEntryKt.value {
             collectionInterval = MEASUREMENT_TIME_INTERVAL

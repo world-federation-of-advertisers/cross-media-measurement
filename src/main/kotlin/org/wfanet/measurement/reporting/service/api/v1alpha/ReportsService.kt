@@ -43,6 +43,7 @@ import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
@@ -1120,7 +1121,12 @@ class ReportsService(
 
           eventGroupKey to
             RequisitionSpecKt.eventGroupEntry {
-              key = eventGroupName
+              key =
+                CmmsEventGroupKey(
+                    internalEventGroupKey.dataProviderReferenceId,
+                    internalEventGroupKey.eventGroupReferenceId
+                  )
+                  .toName()
               value =
                 RequisitionSpecKt.EventGroupEntryKt.value {
                   collectionInterval = timeInterval
