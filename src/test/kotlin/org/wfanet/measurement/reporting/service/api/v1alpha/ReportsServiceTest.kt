@@ -1470,6 +1470,158 @@ class ReportsServiceTest {
   }
 
   @Test
+  fun `createReport returns a report of reach when no event filter at all`(): Unit = runBlocking {
+    val internalReportingSets: List<InternalReportingSet> =
+      INTERNAL_REPORTING_SETS.map { internalReportingSet ->
+        internalReportingSet.copy {
+          clearFilter()
+          displayName = "$measurementConsumerReferenceId-$externalReportingSetId-$filter"
+        }
+      }
+
+    whenever(
+        internalReportingSetsMock.batchGetReportingSet(
+          eq(
+            batchGetReportingSetRequest {
+              measurementConsumerReferenceId =
+                MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+              externalReportingSetIds += internalReportingSets[0].externalReportingSetId
+              externalReportingSetIds += internalReportingSets[1].externalReportingSetId
+            }
+          )
+        )
+      )
+      .thenReturn(
+        flowOf(
+          internalReportingSets[0],
+          internalReportingSets[1],
+          internalReportingSets[0],
+          internalReportingSets[1]
+        )
+      )
+
+    val requestingReport =
+      PENDING_REACH_REPORT.copy {
+        clearState()
+        eventGroupUniverse =
+          EVENT_GROUP_UNIVERSE.copy {
+            eventGroupEntries.clear()
+            eventGroupEntries +=
+              COVERED_EVENT_GROUP_KEYS.map {
+                EventGroupUniverseKt.eventGroupEntry { key = it.toName() }
+              }
+          }
+      }
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      report = requestingReport
+    }
+
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+      runBlocking { service.createReport(request) }
+    }
+
+    // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
+    val dataProviderEntries =
+      REQUISITION_SPECS.mapValues { (dataProviderKey, requisitionSpec) ->
+        val dataProvider = DATA_PROVIDERS.getValue(dataProviderKey)
+        dataProviderEntry {
+          key = dataProvider.name
+
+          val requisitionSpecWithNoFilter =
+            requisitionSpec.copy {
+              val eventGroupsWithNoFilter =
+                eventGroups.map { eventGroup ->
+                  eventGroup.copy {
+                    value =
+                      EventGroupEntryKt.value {
+                        collectionInterval = MEASUREMENT_TIME_INTERVAL
+                        filter = eventFilter { expression = "" }
+                      }
+                  }
+                }
+              eventGroups.clear()
+              eventGroups += eventGroupsWithNoFilter
+            }
+          value =
+            DataProviderEntryKt.value {
+              dataProviderCertificate = dataProvider.certificate
+              dataProviderPublicKey = dataProvider.publicKey
+              encryptedRequisitionSpec =
+                encryptRequisitionSpec(
+                  signRequisitionSpec(
+                    requisitionSpecWithNoFilter,
+                    MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
+                  ),
+                  EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
+                )
+              nonceHash = hashSha256(requisitionSpecWithNoFilter.nonce)
+            }
+        }
+      }
+
+    val reachMeasurementRequest =
+      REACH_MEASUREMENT_REQUEST.copy {
+        measurement =
+          measurement.copy {
+            dataProviders.clear()
+            dataProviders +=
+              DATA_PROVIDER_KEYS_IN_SET_OPERATION.map { dataProviderEntries.getValue(it) }
+          }
+      }
+
+    val capturedMeasurementRequest =
+      captureFirst<CreateMeasurementRequest> {
+        runBlocking { verify(measurementsMock).createMeasurement(capture()) }
+      }
+    assertThat(capturedMeasurementRequest)
+      .ignoringRepeatedFieldOrder()
+      .ignoringFieldDescriptors(
+        MEASUREMENT_SPEC_FIELD_DESCRIPTOR,
+        ENCRYPTED_REQUISITION_SPEC_FIELD_DESCRIPTOR,
+      )
+      .isEqualTo(reachMeasurementRequest)
+
+    verifyMeasurementSpec(
+      capturedMeasurementRequest.measurement.measurementSpec,
+      MEASUREMENT_CONSUMER_CERTIFICATE,
+      TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+    )
+    val measurementSpec =
+      MeasurementSpec.parseFrom(capturedMeasurementRequest.measurement.measurementSpec.data)
+    assertThat(measurementSpec).isEqualTo(REACH_ONLY_MEASUREMENT_SPEC)
+
+    val dataProvidersList =
+      capturedMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
+
+    val filters =
+      dataProvidersList.flatMap { dataProviderEntry ->
+        val signedRequisitionSpec =
+          decryptRequisitionSpec(
+            dataProviderEntry.value.encryptedRequisitionSpec,
+            DATA_PROVIDER_PRIVATE_KEY_HANDLE
+          )
+        val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+
+        verifyRequisitionSpec(
+          signedRequisitionSpec,
+          requisitionSpec,
+          measurementSpec,
+          MEASUREMENT_CONSUMER_CERTIFICATE,
+          TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+        )
+
+        requisitionSpec.eventGroupsList.map { eventGroupEntry ->
+          eventGroupEntry.value.filter.expression
+        }
+      }
+
+    for (filter in filters) {
+      assertThat(filter).isEqualTo("")
+    }
+  }
+
+  @Test
   fun `createReport returns a report of reach with RUNNING state when timeIntervals set`() {
     val internalReport =
       INTERNAL_PENDING_REACH_REPORT.copy {
