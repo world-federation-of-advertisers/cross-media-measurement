@@ -71,6 +71,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.PublicKey
 import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt
@@ -995,16 +996,14 @@ class MeasurementSystemTest {
       commonArgs +
         arrayOf(
           "model-suites",
-          "--parent=$MODEL_PROVIDER_NAME",
           "create",
+          "--parent=$MODEL_PROVIDER_NAME",
           "--name",
           MODEL_SUITE_NAME,
           "--display-name",
           "Display name",
           "--description",
           "Description",
-          "--create-time",
-          "3000"
         )
     callCli(args)
 
@@ -1013,14 +1012,39 @@ class MeasurementSystemTest {
         runBlocking { verify(modelSuitesServiceMock).createModelSuite(capture()) }
       }
 
-    assertThat(request.modelSuite).comparingExpectedFieldsOnly().isEqualTo(MODEL_SUITE)
+    assertThat(request.modelSuite)
+      .ignoringFields(ModelSuite.CREATE_TIME_FIELD_NUMBER)
+      .isEqualTo(MODEL_SUITE)
+  }
+
+  @Test
+  fun `create model suite succeeds omitting optional params`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-suites",
+          "create",
+          "--parent=$MODEL_PROVIDER_NAME",
+          "--name",
+          MODEL_SUITE_NAME,
+          "--display-name",
+          "Display name",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<CreateModelSuiteRequest> {
+        runBlocking { verify(modelSuitesServiceMock).createModelSuite(capture()) }
+      }
+
+    assertThat(request.modelSuite)
+      .ignoringFields(ModelSuite.CREATE_TIME_FIELD_NUMBER)
+      .isEqualTo(MODEL_SUITE.copy { description = "" })
   }
 
   @Test
   fun `get model suite succeeds`() {
-    val args =
-      commonArgs +
-        arrayOf("model-suites", "--parent=$MODEL_PROVIDER_NAME", "get", "--name", MODEL_SUITE_NAME)
+    val args = commonArgs + arrayOf("model-suites", "get", "--name", MODEL_SUITE_NAME)
     callCli(args)
 
     val request =
@@ -1037,8 +1061,8 @@ class MeasurementSystemTest {
       commonArgs +
         arrayOf(
           "model-suites",
+          "list",
           "--parent=$MODEL_PROVIDER_NAME",
-          "stream",
           "--page-size",
           "10",
           "--page-token",
@@ -1057,6 +1081,32 @@ class MeasurementSystemTest {
           parent = MODEL_PROVIDER_NAME
           pageSize = 10
           pageToken = "token"
+        }
+      )
+  }
+
+  @Test
+  fun `list model suites succeeds omitting optional params`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-suites",
+          "list",
+          "--parent=$MODEL_PROVIDER_NAME",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<ListModelSuitesRequest> {
+        runBlocking { verify(modelSuitesServiceMock).listModelSuites(capture()) }
+      }
+
+    assertThat(request)
+      .isEqualTo(
+        listModelSuitesRequest {
+          parent = MODEL_PROVIDER_NAME
+          pageSize = 0
+          pageToken = ""
         }
       )
   }

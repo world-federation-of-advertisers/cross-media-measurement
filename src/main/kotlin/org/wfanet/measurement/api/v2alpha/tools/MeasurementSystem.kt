@@ -20,7 +20,6 @@ import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.CleartextKeysetHandle
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
-import com.google.protobuf.timestamp
 import io.grpc.ManagedChannel
 import java.io.File
 import java.security.SecureRandom
@@ -1149,19 +1148,18 @@ private class ModelSuites {
   lateinit var parentCommand: MeasurementSystem
     private set
 
-  val modelProviderStub: ModelSuitesCoroutineStub by lazy {
+  val modelSuiteStub: ModelSuitesCoroutineStub by lazy {
     ModelSuitesCoroutineStub(parentCommand.kingdomChannel)
   }
 
-  @Option(
-    names = ["--parent"],
-    description = ["API resource name of the parent ModelProvider."],
-    required = true,
-  )
-  private lateinit var modelProviderName: String
-
   @Command(description = ["Creates model suite."])
   fun create(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent ModelProvider."],
+      required = true,
+    )
+    modelProviderName: String,
     @Option(
       names = ["--name"],
       description = ["Model suite name."],
@@ -1177,15 +1175,10 @@ private class ModelSuites {
     @Option(
       names = ["--description"],
       description = ["Model suite description."],
-      required = true,
+      required = false,
+      defaultValue = ""
     )
-    modelSuiteDescription: String,
-    @Option(
-      names = ["--create-time"],
-      description = ["Unix time stamp of when model suite was created."],
-      required = true,
-    )
-    modelSuiteCreateTime: Long
+    modelSuiteDescription: String
   ) {
     val request = createModelSuiteRequest {
       parent = modelProviderName
@@ -1193,11 +1186,10 @@ private class ModelSuites {
         name = modelSuiteName
         displayName = modelSuiteDisplayName
         description = modelSuiteDescription
-        createTime = timestamp { seconds = modelSuiteCreateTime }
       }
     }
     val outputModelSuite =
-      runBlocking(parentCommand.rpcDispatcher) { modelProviderStub.createModelSuite(request) }
+      runBlocking(parentCommand.rpcDispatcher) { modelSuiteStub.createModelSuite(request) }
 
     println("Model suite ${outputModelSuite.name} has been created.")
   }
@@ -1213,16 +1205,23 @@ private class ModelSuites {
   ): ModelSuite {
     val request = getModelSuiteRequest { name = modelSuiteName }
     val outputModelSuite =
-      runBlocking(parentCommand.rpcDispatcher) { modelProviderStub.getModelSuite(request) }
+      runBlocking(parentCommand.rpcDispatcher) { modelSuiteStub.getModelSuite(request) }
     return outputModelSuite
   }
 
   @Command(description = ["Lists model suites for a model provider."])
-  fun stream(
+  fun list(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent ModelProvider."],
+      required = true,
+    )
+    modelProviderName: String,
     @Option(
       names = ["--page-size"],
       description = ["The maximum number of ModelSuites to return."],
-      required = true,
+      required = false,
+      defaultValue = "0"
     )
     listPageSize: Int,
     @Option(
@@ -1231,7 +1230,8 @@ private class ModelSuites {
         [
           "A page token, received from a previous `ListModelSuitesRequest` call. Provide this to retrieve the subsequent page."
         ],
-      required = true,
+      required = false,
+      defaultValue = ""
     )
     listPageToken: String,
   ) {
@@ -1241,8 +1241,7 @@ private class ModelSuites {
       pageToken = listPageToken
     }
     val response =
-      runBlocking(parentCommand.rpcDispatcher) { modelProviderStub.listModelSuites(request) }
-    response.modelSuiteList
+      runBlocking(parentCommand.rpcDispatcher) { modelSuiteStub.listModelSuites(request) }
     response.modelSuiteList.forEach {
       println(
         "Name: ${it.name}, Display Name: ${it.displayName}, Description: ${it.description}, Created: ${it.createTime}"
