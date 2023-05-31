@@ -61,9 +61,23 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "metric_spec_builder",
+    srcs = ["MetricSpecBuilder.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
+        "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:resource_key",
+        "//src/main/proto/wfa/measurement/config/reporting:metric_spec_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:metrics_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+    ],
+)
+
+kt_jvm_library(
     name = "proto_conversions",
     srcs = ["ProtoConversions.kt"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:metric_spec_builder",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:resource_key",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumers_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
@@ -89,6 +103,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:encryption_key_pair_store",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:metric_spec_builder",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:principal_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:proto_conversions",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:reporting_principal",

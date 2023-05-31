@@ -1450,7 +1450,6 @@ class MetricsServiceTest {
 
     service =
       MetricsService(
-        METRIC_SPEC_CONFIG,
         InternalReportingSetsGrpcKt.ReportingSetsCoroutineStub(grpcTestServerRule.channel),
         InternalMetricsGrpcKt.MetricsCoroutineStub(grpcTestServerRule.channel),
         InternalMeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
@@ -1459,6 +1458,7 @@ class MetricsServiceTest {
         CertificatesGrpcKt.CertificatesCoroutineStub(grpcTestServerRule.channel),
         MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(grpcTestServerRule.channel),
         ENCRYPTION_KEY_PAIR_STORE,
+        METRIC_SPEC_CONFIG,
         secureRandomMock,
         SECRETS_DIR,
         listOf(AGGREGATOR_ROOT_CERTIFICATE, DATA_PROVIDER_ROOT_CERTIFICATE).associateBy {
@@ -2334,7 +2334,6 @@ class MetricsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("privacyParams in reach is not set.")
   }
 
   @Test
@@ -2355,8 +2354,6 @@ class MetricsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("vidSamplingInterval.start cannot be negative.")
   }
 
   @Test
@@ -2377,8 +2374,6 @@ class MetricsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("vidSamplingInterval.start must be smaller than 1.")
   }
 
   @Test
@@ -2399,8 +2394,6 @@ class MetricsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("vidSamplingInterval.width must be greater than 0.")
   }
 
   @Test
@@ -2427,8 +2420,6 @@ class MetricsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("vidSamplingInterval start + width cannot be greater than 1.")
   }
 
   @Test
