@@ -29,7 +29,9 @@ using ::wfa::measurement::common::crypto::ProtocolCryptorOptions;
 absl::StatusOr<std::unique_ptr<MultithreadingHelper>>
 MultithreadingHelper::CreateMultithreadingHelper(
     int num_threads, const ProtocolCryptorOptions& options) {
-  ABSL_ASSERT(num_threads > 0);
+  if (num_threads <= 0) {
+    return absl::InvalidArgumentError("Parallelism cannot be 0.");
+  }
 
   ASSIGN_OR_RETURN_ERROR(
       auto cryptors, CreateIdenticalProtocolCrypors(num_threads, options),

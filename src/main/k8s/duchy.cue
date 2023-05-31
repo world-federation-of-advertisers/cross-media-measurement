@@ -28,6 +28,7 @@ import ("strings")
 	_computation_control_targets: [Name=_]: string
 	_deletableComputationStates: [...#TerminalComputationState] | *[]
 	_computationsTimeToLive:     string | *"180d"
+	_duchyMillParallelism:       uint | *2
 	_kingdom_system_api_target:  string
 	_spannerConfig:              #SpannerConfig & {
 		database: "\(_duchy.name)_duchy_computations"
@@ -79,6 +80,7 @@ import ("strings")
 	_duchy_cert_collection_file_flag:                   "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
 	_duchyComputationsTimeToLiveFlag:                   "--computations-time-to-live=\(_computationsTimeToLive)"
 	_duchyDryRunRetentionPolicyFlag:                    "--dry-run"
+	_duchyMillParallelismFlag:                          "--parallelism=\(_duchyMillParallelism)"
 	_duchy_cs_cert_file_flag:                           "--consent-signaling-certificate-der-file=/var/run/secrets/files/\(_name)_cs_cert.der"
 	_duchy_cs_key_file_flag:                            "--consent-signaling-private-key-der-file=/var/run/secrets/files/\(_name)_cs_private.der"
 	_duchy_cs_cert_rename_name_flag:                    "--consent-signaling-certificate-resource-name=\(_cs_cert_resource_name)"

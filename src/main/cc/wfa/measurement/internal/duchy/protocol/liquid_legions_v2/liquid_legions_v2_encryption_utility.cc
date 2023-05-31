@@ -14,8 +14,6 @@
 
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/liquid_legions_v2_encryption_utility.h"
 
-#include <unistd.h>
-
 #include <algorithm>
 #include <memory>
 #include <string>
@@ -76,8 +74,6 @@ using ::wfa::measurement::common::crypto::ProtocolCryptor;
 using ::wfa::measurement::common::crypto::ProtocolCryptorOptions;
 using ::wfa::measurement::internal::duchy::ElGamalPublicKey;
 using ::wfa::measurement::internal::duchy::protocol::LiquidLegionsV2NoiseConfig;
-
-const int kNumThreads = 2;
 
 // Merge all the counts in each group using the SameKeyAggregation algorithm.
 // The calculated (flag_1, flag_2, flag_3, count) tuple is appended to the
@@ -807,7 +803,7 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
             kGenerateNewParitialCompositeCipher};
     ASSIGN_OR_RETURN(auto multithreading_helper,
                      MultithreadingHelper::CreateMultithreadingHelper(
-                         kNumThreads, protocol_cryptor_options));
+                         request.parallelism(), protocol_cryptor_options));
 
     // 1. Add blinded histogram noise.
     ASSIGN_OR_RETURN(
@@ -864,7 +860,7 @@ absl::StatusOr<CompleteExecutionPhaseOneResponse> CompleteExecutionPhaseOne(
           kGenerateNewParitialCompositeCipher};
   ASSIGN_OR_RETURN(auto multithreading_helper,
                    MultithreadingHelper::CreateMultithreadingHelper(
-                       kNumThreads, protocol_cryptor_options));
+                       request.parallelism(), protocol_cryptor_options));
 
   CompleteExecutionPhaseOneResponse response;
   std::string* response_crv = response.mutable_combined_register_vector();
@@ -921,7 +917,7 @@ CompleteExecutionPhaseOneAtAggregator(
                          request.composite_el_gamal_public_key().element())};
   ASSIGN_OR_RETURN(auto multithreading_helper,
                    MultithreadingHelper::CreateMultithreadingHelper(
-                       kNumThreads, protocol_cryptor_options));
+                       request.parallelism(), protocol_cryptor_options));
 
   ASSIGN_OR_RETURN(
       std::vector<std::string> blinded_register_indexes,
@@ -982,7 +978,7 @@ absl::StatusOr<CompleteExecutionPhaseTwoResponse> CompleteExecutionPhaseTwo(
           request.partial_composite_el_gamal_public_key().element())};
   ASSIGN_OR_RETURN(auto multithreading_helper,
                    MultithreadingHelper::CreateMultithreadingHelper(
-                       kNumThreads, protocol_cryptor_options));
+                       request.parallelism(), protocol_cryptor_options));
 
   CompleteExecutionPhaseTwoResponse response;
   std::string* response_data = response.mutable_flag_count_tuples();
@@ -1159,7 +1155,7 @@ absl::StatusOr<CompleteExecutionPhaseThreeResponse> CompleteExecutionPhaseThree(
 
   ASSIGN_OR_RETURN(auto multithreading_helper,
                    MultithreadingHelper::CreateMultithreadingHelper(
-                       kNumThreads, protocol_cryptor_options));
+                       request.parallelism(), protocol_cryptor_options));
 
   CompleteExecutionPhaseThreeResponse response;
   // The SKA matrix has the same size in the response as in the request.
