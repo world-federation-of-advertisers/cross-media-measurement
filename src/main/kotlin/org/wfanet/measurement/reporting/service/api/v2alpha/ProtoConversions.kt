@@ -36,6 +36,7 @@ import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.TimeInterval as InternalTimeInterval
+import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeInterval as internalTimeInterval
@@ -107,6 +108,130 @@ fun TimeInterval.toInternal(): InternalTimeInterval {
   }
 }
 
+/** Converts a [MetricSpec] to an [InternalMetricSpec]. */
+fun MetricSpec.toInternal(): InternalMetricSpec {
+  val source = this
+
+  return internalMetricSpec {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+    when (source.typeCase) {
+      MetricSpec.TypeCase.REACH -> {
+        reach = source.reach.toInternal()
+      }
+      MetricSpec.TypeCase.FREQUENCY_HISTOGRAM -> {
+        frequencyHistogram = source.frequencyHistogram.toInternal()
+      }
+      MetricSpec.TypeCase.IMPRESSION_COUNT -> {
+        impressionCount = source.impressionCount.toInternal()
+      }
+      MetricSpec.TypeCase.WATCH_DURATION -> {
+        watchDuration = source.watchDuration.toInternal()
+      }
+      MetricSpec.TypeCase.TYPE_NOT_SET ->
+        throw MetricSpecBuildingException(
+          "Invalid metric spec type",
+          IllegalArgumentException("The metric type in Metric is not specified.")
+        )
+    }
+
+    if (source.hasVidSamplingInterval()) {
+      vidSamplingInterval = source.vidSamplingInterval.toInternal()
+    }
+  }
+}
+
+/** Converts a [MetricSpec.WatchDurationParams] to an [InternalMetricSpec.WatchDurationParams]. */
+fun MetricSpec.WatchDurationParams.toInternal(): InternalMetricSpec.WatchDurationParams {
+  val source = this
+  if (!source.hasPrivacyParams()) {
+    throw MetricSpecBuildingException(
+      "Invalid privacy params",
+      IllegalArgumentException("privacyParams in watch duration is not set.")
+    )
+  }
+  return InternalMetricSpecKt.watchDurationParams {
+    privacyParams = source.privacyParams.toInternal()
+    if (source.hasMaximumWatchDurationPerUser()) {
+      maximumWatchDurationPerUser = source.maximumWatchDurationPerUser
+    }
+  }
+}
+
+/**
+ * Converts a [MetricSpec.ImpressionCountParams] to an [InternalMetricSpec.ImpressionCountParams].
+ */
+fun MetricSpec.ImpressionCountParams.toInternal(): InternalMetricSpec.ImpressionCountParams {
+  val source = this
+  if (!source.hasPrivacyParams()) {
+    throw MetricSpecBuildingException(
+      "Invalid privacy params",
+      IllegalArgumentException("privacyParams in impression count is not set.")
+    )
+  }
+  return InternalMetricSpecKt.impressionCountParams {
+    privacyParams = source.privacyParams.toInternal()
+    if (source.hasMaximumFrequencyPerUser()) {
+      maximumFrequencyPerUser = source.maximumFrequencyPerUser
+    }
+  }
+}
+
+/**
+ * Converts a [MetricSpec.FrequencyHistogramParams] to an
+ * [InternalMetricSpec.FrequencyHistogramParams].
+ */
+fun MetricSpec.FrequencyHistogramParams.toInternal(): InternalMetricSpec.FrequencyHistogramParams {
+  val source = this
+  if (!source.hasReachPrivacyParams()) {
+    throw MetricSpecBuildingException(
+      "Invalid privacy params",
+      IllegalArgumentException("reachPrivacyParams in frequency histogram is not set.")
+    )
+  }
+  if (!source.hasFrequencyPrivacyParams()) {
+    throw MetricSpecBuildingException(
+      "Invalid privacy params",
+      IllegalArgumentException("frequencyPrivacyParams in frequency histogram is not set.")
+    )
+  }
+  return InternalMetricSpecKt.frequencyHistogramParams {
+    reachPrivacyParams = source.reachPrivacyParams.toInternal()
+    frequencyPrivacyParams = source.frequencyPrivacyParams.toInternal()
+    if (source.hasMaximumFrequencyPerUser()) {
+      maximumFrequencyPerUser = source.maximumFrequencyPerUser
+    }
+  }
+}
+
+/** Converts a [MetricSpec.ReachParams] to an [InternalMetricSpec.ReachParams]. */
+fun MetricSpec.ReachParams.toInternal(): InternalMetricSpec.ReachParams {
+  val source = this
+  if (!source.hasPrivacyParams()) {
+    throw MetricSpecBuildingException(
+      "Invalid privacy params",
+      IllegalArgumentException("privacyParams in reach is not set.")
+    )
+  }
+  return InternalMetricSpecKt.reachParams { privacyParams = source.privacyParams.toInternal() }
+}
+
+/**
+ * Converts a [MetricSpec.DifferentialPrivacyParams] to an
+ * [InternalMetricSpec.DifferentialPrivacyParams].
+ */
+fun MetricSpec.DifferentialPrivacyParams.toInternal():
+  InternalMetricSpec.DifferentialPrivacyParams {
+  val source = this
+  return InternalMetricSpecKt.differentialPrivacyParams {
+    if (source.hasEpsilon()) {
+      this.epsilon = source.epsilon
+    }
+    if (source.hasDelta()) {
+      this.delta = source.delta
+    }
+  }
+}
+
 /** Converts an [InternalMetricSpec] to a public [MetricSpec]. */
 fun InternalMetricSpec.toMetricSpec(): MetricSpec {
   val source = this
@@ -121,6 +246,8 @@ fun InternalMetricSpec.toMetricSpec(): MetricSpec {
           MetricSpecKt.frequencyHistogramParams {
             maximumFrequencyPerUser = source.frequencyHistogram.maximumFrequencyPerUser
             reachPrivacyParams = source.frequencyHistogram.reachPrivacyParams.toPrivacyParams()
+            frequencyPrivacyParams =
+              source.frequencyHistogram.frequencyPrivacyParams.toPrivacyParams()
           }
       InternalMetricSpec.TypeCase.IMPRESSION_COUNT ->
         impressionCount =
