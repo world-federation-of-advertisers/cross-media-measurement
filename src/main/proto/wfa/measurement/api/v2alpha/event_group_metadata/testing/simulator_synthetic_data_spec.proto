@@ -65,8 +65,7 @@ message SyntheticPopulationSpec {
 // The specification of a synthetic EventGroup which describes all impressions
 // for specific dates.
 message SyntheticEventGroupSpec {
-  string property_under_measurement = 1;
-  string description = 2;
+  string description = 1;
 
   // The specification of VIDs reached at a specific frequency and their
   // non-population attributes.
@@ -93,5 +92,5 @@ message SyntheticEventGroupSpec {
     repeated FrequencySpec frequency_specs = 2;
   }
 
-  repeated DateSpec date_specs = 3;
+  repeated DateSpec date_specs = 2;
 }
