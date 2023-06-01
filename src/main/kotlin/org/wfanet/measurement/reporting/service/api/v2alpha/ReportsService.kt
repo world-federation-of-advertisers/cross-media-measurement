@@ -19,6 +19,8 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.math.min
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.withAuthenticationKey
@@ -41,8 +43,9 @@ import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest as internalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
-import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
-import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
+import org.wfanet.measurement.reporting.service.api.submitBatchRequests
+import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
+import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.CreateReportRequest
 import org.wfanet.measurement.reporting.v2alpha.GetReportRequest
@@ -66,8 +69,8 @@ private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
-private const val MAX_BATCH_SIZE_FOR_BATCH_CREATE_METRICS = 1000
-private const val MAX_BATCH_SIZE_FOR_BATCH_GET_METRICS = 100
+private const val BATCH_CREATE_METRICS_LIMIT = 1000
+private const val BATCH_GET_METRICS_LIMIT = 100
 
 private typealias InternalReportingMetricEntries =
   Map<Long, InternalReport.ReportingMetricCalculationSpec>
@@ -135,19 +138,27 @@ class ReportsService(
       results.subList(0, min(results.size, listReportsPageToken.pageSize))
 
     // Get metrics.
-    val metricNames: List<String> =
-      subResults.flatMap { internalReport ->
-        internalReport.externalMetricIds.map { externalMetricId ->
-          MetricKey(
-              principal.resourceKey.measurementConsumerId,
-              externalIdToApiId(externalMetricId)
-            )
-            .toName()
+    val metricNames: Flow<String> =
+      subResults
+        .flatMap { internalReport ->
+          internalReport.externalMetricIds.map { externalMetricId ->
+            MetricKey(
+                principal.resourceKey.measurementConsumerId,
+                externalIdToApiId(externalMetricId)
+              )
+              .toName()
+          }
         }
-      }
+        .asFlow()
 
+    val rpcCall: suspend (List<String>) -> BatchGetMetricsResponse = { items ->
+      batchGetMetrics(principal.resourceKey.toName(), principal.config.apiKey, items)
+    }
     val externalIdToMetricMap: Map<Long, Metric> =
-      batchGetMetrics(principal.resourceKey.toName(), principal.config.apiKey, metricNames)
+      submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, rpcCall) { response ->
+          response.metricsList
+        }
+        .toList()
         .associateBy { apiIdToExternalId(checkNotNull(MetricKey.fromName(it.name)).metricId) }
 
     return listReportsResponse {
@@ -192,13 +203,25 @@ class ReportsService(
       }
 
     // Get metrics.
-    val metricNames: List<String> =
-      internalReport.externalMetricIds.map { externalMetricId ->
-        MetricKey(principal.resourceKey.measurementConsumerId, externalIdToApiId(externalMetricId))
-          .toName()
-      }
+    val metricNames: Flow<String> =
+      internalReport.externalMetricIds
+        .map { externalMetricId ->
+          MetricKey(
+              principal.resourceKey.measurementConsumerId,
+              externalIdToApiId(externalMetricId)
+            )
+            .toName()
+        }
+        .asFlow()
+
+    val rpcCall: suspend (List<String>) -> BatchGetMetricsResponse = { items ->
+      batchGetMetrics(principal.resourceKey.toName(), principal.config.apiKey, items)
+    }
     val externalIdToMetricMap: Map<Long, Metric> =
-      batchGetMetrics(principal.resourceKey.toName(), principal.config.apiKey, metricNames)
+      submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, rpcCall) { response ->
+          response.metricsList
+        }
+        .toList()
         .associateBy { apiIdToExternalId(checkNotNull(MetricKey.fromName(it.name)).metricId) }
 
     // Convert the internal report to public and return.
@@ -209,34 +232,24 @@ class ReportsService(
     parent: String,
     apiAuthenticationKey: String,
     metricNames: List<String>,
-  ): List<Metric> {
-    val batchGetMetricsRequests = mutableListOf<BatchGetMetricsRequest>()
-
-    while (batchGetMetricsRequests.size * MAX_BATCH_SIZE_FOR_BATCH_GET_METRICS < metricNames.size) {
-      val fromIndex = batchGetMetricsRequests.size * MAX_BATCH_SIZE_FOR_BATCH_GET_METRICS
-      val toIndex = min(fromIndex + MAX_BATCH_SIZE_FOR_BATCH_GET_METRICS, metricNames.size)
-
-      batchGetMetricsRequests += batchGetMetricsRequest {
-        this.parent = parent
-        names += metricNames.slice(fromIndex until toIndex)
-      }
-    }
-
-    return batchGetMetricsRequests.flatMap { batchGetMetricsRequest ->
-      try {
-        metricsStub
-          .withAuthenticationKey(apiAuthenticationKey)
-          .batchGetMetrics(batchGetMetricsRequest)
-          .metricsList
-      } catch (e: StatusException) {
-        throw when (e.status.code) {
-            Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT.withDescription(e.message)
-            Status.Code.PERMISSION_DENIED -> Status.PERMISSION_DENIED.withDescription(e.message)
-            else -> Status.UNKNOWN.withDescription("Unable to create metrics.")
+  ): BatchGetMetricsResponse {
+    return try {
+      metricsStub
+        .withAuthenticationKey(apiAuthenticationKey)
+        .batchGetMetrics(
+          batchGetMetricsRequest {
+            this.parent = parent
+            names += metricNames
           }
-          .withCause(e)
-          .asRuntimeException()
-      }
+        )
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT.withDescription(e.message)
+          Status.Code.PERMISSION_DENIED -> Status.PERMISSION_DENIED.withDescription(e.message)
+          else -> Status.UNKNOWN.withDescription("Unable to create metrics.")
+        }
+        .withCause(e)
+        .asRuntimeException()
     }
   }
 
@@ -281,7 +294,7 @@ class ReportsService(
       }
 
     // Create metrics.
-    val createMetricRequests: List<CreateMetricRequest> =
+    val createMetricRequests: Flow<CreateMetricRequest> =
       internalReport.reportingMetricEntriesMap
         .flatMap { (_, reportingMetricCalculationSpec) ->
           reportingMetricCalculationSpec.metricCalculationSpecsList.flatMap { metricCalculationSpec
@@ -290,8 +303,17 @@ class ReportsService(
           }
         }
         .map { it.toCreateMetricRequest(principal.resourceKey) }
+        .asFlow()
+
+    val rpcCall: suspend (List<CreateMetricRequest>) -> BatchCreateMetricsResponse = { items ->
+      batchCreateMetrics(request.parent, principal.config.apiKey, items)
+    }
     val externalIdToMetricMap: Map<Long, Metric> =
-      batchCreateMetrics(request.parent, principal.config.apiKey, createMetricRequests)
+      submitBatchRequests(createMetricRequests, BATCH_CREATE_METRICS_LIMIT, rpcCall) {
+          response: BatchCreateMetricsResponse ->
+          response.metricsList
+        }
+        .toList()
         .associateBy { apiIdToExternalId(checkNotNull(MetricKey.fromName(it.name)).metricId) }
 
     // Once all metrics are created, get the updated internal report with the metric IDs filled.
@@ -399,40 +421,26 @@ class ReportsService(
     parent: String,
     apiAuthenticationKey: String,
     createMetricRequests: List<CreateMetricRequest>
-  ): List<Metric> {
-    val batchCreateMetricsRequests = mutableListOf<BatchCreateMetricsRequest>()
-
-    while (
-      batchCreateMetricsRequests.size * MAX_BATCH_SIZE_FOR_BATCH_CREATE_METRICS <
-        createMetricRequests.size
-    ) {
-      val fromIndex = batchCreateMetricsRequests.size * MAX_BATCH_SIZE_FOR_BATCH_CREATE_METRICS
-      val toIndex =
-        min(fromIndex + MAX_BATCH_SIZE_FOR_BATCH_CREATE_METRICS, createMetricRequests.size)
-
-      batchCreateMetricsRequests += batchCreateMetricsRequest {
-        this.parent = parent
-        requests += createMetricRequests.slice(fromIndex until toIndex)
-      }
-    }
-
-    return batchCreateMetricsRequests.flatMap { batchCreateMetricsRequest ->
-      try {
-        metricsStub
-          .withAuthenticationKey(apiAuthenticationKey)
-          .batchCreateMetrics(batchCreateMetricsRequest)
-          .metricsList
-      } catch (e: StatusException) {
-        throw when (e.status.code) {
-            Status.Code.PERMISSION_DENIED -> Status.PERMISSION_DENIED.withDescription(e.message)
-            Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT.withDescription(e.message)
-            Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription(e.message)
-            Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION.withDescription(e.message)
-            else -> Status.UNKNOWN.withDescription("Unable to create metrics.")
+  ): BatchCreateMetricsResponse {
+    return try {
+      metricsStub
+        .withAuthenticationKey(apiAuthenticationKey)
+        .batchCreateMetrics(
+          batchCreateMetricsRequest {
+            this.parent = parent
+            requests += createMetricRequests
           }
-          .withCause(e)
-          .asRuntimeException()
-      }
+        )
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+          Status.Code.PERMISSION_DENIED -> Status.PERMISSION_DENIED.withDescription(e.message)
+          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT.withDescription(e.message)
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription(e.message)
+          Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION.withDescription(e.message)
+          else -> Status.UNKNOWN.withDescription("Unable to create metrics.")
+        }
+        .withCause(e)
+        .asRuntimeException()
     }
   }
 
