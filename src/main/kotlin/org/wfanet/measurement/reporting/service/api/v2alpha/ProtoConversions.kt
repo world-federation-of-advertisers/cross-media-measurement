@@ -635,7 +635,7 @@ fun InternalReport.ReportingMetric.toCreateMetricRequest(
       metricSpec = source.details.metricSpec.toMetricSpec()
       filters += source.details.filtersList
     }
-    requestId = source.requestId
+    requestId = source.createMetricRequestId
   }
 }
 

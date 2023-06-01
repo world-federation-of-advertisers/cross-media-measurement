@@ -177,7 +177,7 @@ CREATE TABLE SetExpressions (
   ReportingSetId bigint NOT NULL,
   SetExpressionId bigint NOT NULL,
 
-  -- org.wfanet.measurement.internal.reporting.SetExpression.Operation
+  -- wfa.measurement.internal.reporting.SetExpression.Operation
   -- protobuf enum encoded as an integer.
   Operation integer NOT NULL,
 
@@ -227,7 +227,7 @@ CREATE TABLE Metrics (
   TimeIntervalStart TIMESTAMP WITH TIME ZONE NOT NULL,
   TimeIntervalEndExclusive TIMESTAMP WITH TIME ZONE NOT NULL,
 
-  -- org.wfanet.measurement.internal.reporting.MetricSpec.MetricType
+  -- wfa.measurement.internal.reporting.MetricSpec.MetricType
   -- protobuf oneof encoded as an integer.
   MetricType integer NOT NULL,
 
@@ -251,7 +251,7 @@ CREATE TABLE Metrics (
   -- Serialized byte string of a proto3 protobuf with details about the
   -- metric which do not need to be indexed by the database.
   --
-  -- See org.wfanet.measurement.internal.reporting.Metric.Details protobuf
+  -- See wfa.measurement.internal.reporting.Metric.Details protobuf
   -- message.
   MetricDetails bytea NOT NULL,
 
@@ -277,14 +277,14 @@ CREATE TABLE Measurements (
   TimeIntervalStart TIMESTAMP WITH TIME ZONE NOT NULL,
   TimeIntervalEndExclusive TIMESTAMP WITH TIME ZONE NOT NULL,
 
-  -- org.wfanet.measurement.internal.reporting.Report.Measurement.State
+  -- wfa.measurement.internal.reporting.Report.Measurement.State
   -- protobuf enum encoded as an integer.
   State integer NOT NULL,
 
   -- Serialized byte string of a proto3 protobuf with details about the
   -- measurement which do not need to be indexed by the database.
   --
-  -- See org.wfanet.measurement.internal.reporting.Measurement.Details protobuf
+  -- See wfa.measurement.internal.reporting.Measurement.Details protobuf
   -- message.
   MeasurementDetails bytea NOT NULL,
 
@@ -359,7 +359,7 @@ CREATE TABLE ReportTimeIntervals (
     ON DELETE CASCADE
 );
 
--- changeset riemanli:create-metric-calculations-table dbms:postgresql
+-- changeset riemanli:create-metric-calculation-specs-table dbms:postgresql
 CREATE TABLE MetricCalculationSpecs (
   MeasurementConsumerId bigint NOT NULL,
   ReportId bigint NOT NULL,
@@ -369,7 +369,7 @@ CREATE TABLE MetricCalculationSpecs (
   -- Serialized byte string of a proto3 protobuf with details about the
   -- metric calculation which do not need to be indexed by the database.
   --
-  -- See org.wfanet.measurement.internal.reporting.Report.MetricCalculationSpec.Details
+  -- See wfa.measurement.internal.reporting.Report.MetricCalculationSpec.Details
   -- protobuf message.
   MetricCalculationSpecDetails bytea NOT NULL,
 
@@ -386,24 +386,24 @@ CREATE TABLE MetricCalculationSpecs (
     ON DELETE CASCADE
 );
 
--- changeset riemanli:create-metric-calculation-metrics-table dbms:postgresql
-CREATE TABLE MetricCalculationSpecMetrics (
+-- changeset riemanli:create-metric-calculation-spec-reporting-metrics-table dbms:postgresql
+CREATE TABLE MetricCalculationSpecReportingMetrics (
   MeasurementConsumerId bigint NOT NULL,
   ReportId bigint NOT NULL,
   MetricCalculationSpecId bigint NOT NULL,
-  MetricId bigint,
   CreateMetricRequestId uuid NOT NULL,
+  MetricId bigint,
 
   -- Serialized byte string of a proto3 protobuf with details about the
-  -- Report.CreateMetricRequest which do not need to be indexed by the database.
+  -- Report.ReportingMetric which do not need to be indexed by the database.
   --
-  -- See org.wfanet.measurement.internal.reporting.Report.CreateMetricRequest.Details
+  -- See wfa.measurement.internal.reporting.Report.ReportingMetric.Details
   -- protobuf message.
-  CreateMetricRequestDetails bytea NOT NULL,
+  ReportingMetricDetails bytea NOT NULL,
 
-  -- Human-readable copy of the CreateMetricRequestDetails column solely for
+  -- Human-readable copy of the ReportingMetricDetails column solely for
   -- debugging purposes.
-  CreateMetricRequestDetailsJson text NOT NULL,
+  ReportingMetricDetailsJson text NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, ReportId, MetricCalculationSpecId, CreateMetricRequestId),
   FOREIGN KEY(MeasurementConsumerId, ReportId, MetricCalculationSpecId)
