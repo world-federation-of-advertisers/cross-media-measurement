@@ -32,11 +32,18 @@ message Report {
   google.protobuf.Timestamp create_time = 3;
 
   message ReportingMetric {
-    // Will be filled by the internal reports service. For now, generating a new
-    // UUID. In the future when metric reuse is done. Two cases--(1) When there
-    // is no metric can be found based on the metric config from 3-6, generate a
-    // new UUID. (2) When a corresponding metric is found, fill its request ID.
-    string request_id = 1;
+    // Request ID for the CreateMetric method.
+    //
+    // The request ID will be filled by the internal reports service. For now,
+    // it generates a new UUID directly.
+    // In the future when metric reuse is done, two cases--(1) When there is no
+    // metric can be found based on the metric config, generate a new UUID. (2)
+    // When a corresponding metric is found, fill its request ID and the
+    // external metric ID.
+    string create_metric_request_id = 1;
+
+    // External ID for the metric.
+    //
     // Will be filled by the internal reports service. Use the request ID above
     // to find the metric.
     fixed64 external_metric_id = 2;
