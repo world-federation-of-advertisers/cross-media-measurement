@@ -34,12 +34,14 @@ import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorsGrpc
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub as InternalEventGroupsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub as InternalExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutineStub as InternalExchangesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineStub as InternalModelLinesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineStub as InternalModelReleasesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineStub as InternalModelSuitesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.PublicKeysGrpcKt.PublicKeysCoroutineStub as InternalPublicKeysCoroutineStub
+import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub as InternalRecurringExchangesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfigFlags
@@ -51,12 +53,14 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.EventGroupMetadataDesc
 import org.wfanet.measurement.kingdom.service.api.v2alpha.EventGroupsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepAttemptsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepsService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementConsumersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelLinesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelReleasesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelSuitesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.PublicKeysService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.RecurringExchangesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withAccountAuthenticationServerInterceptor
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withApiKeyAuthenticationServerInterceptor
@@ -128,13 +132,6 @@ private fun run(
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
-      ExchangeStepAttemptsService(
-          InternalExchangeStepAttemptsCoroutineStub(channel),
-          internalExchangeStepsCoroutineStub
-        )
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-      ExchangeStepsService(internalExchangeStepsCoroutineStub)
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       MeasurementsService(
           InternalMeasurementsCoroutineStub(channel),
         )
@@ -153,6 +150,19 @@ private fun run(
       RequisitionsService(InternalRequisitionsCoroutineStub(channel))
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
+      RecurringExchangesService().withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+      ExchangesService(
+          InternalRecurringExchangesCoroutineStub(channel),
+          InternalExchangesCoroutineStub(channel)
+        )
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+      ExchangeStepsService(internalExchangeStepsCoroutineStub)
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+      ExchangeStepAttemptsService(
+          InternalExchangeStepAttemptsCoroutineStub(channel),
+          internalExchangeStepsCoroutineStub
+        )
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ModelLinesService(InternalModelLinesCoroutineStub(channel))
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ModelSuitesService(InternalModelSuitesCoroutineStub(channel))

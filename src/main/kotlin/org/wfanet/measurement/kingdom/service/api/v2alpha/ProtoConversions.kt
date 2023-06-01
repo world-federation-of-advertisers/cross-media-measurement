@@ -505,35 +505,32 @@ fun Measurement.toInternal(
 }
 
 /** @throws [IllegalStateException] if InternalExchange.State not specified */
-fun InternalExchange.toV2Alpha(): Exchange {
+fun InternalExchange.toExchange(): Exchange {
+  val source = this
   val exchangeKey =
     ExchangeKey(
-      dataProviderId = null,
-      modelProviderId = null,
       recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
       exchangeId = date.toLocalDate().toString()
     )
-  return exchange {
-    name = exchangeKey.toName()
-    date = this@toV2Alpha.date
-    state = v2AlphaState
-    auditTrailHash = details.auditTrailHash
-    // TODO(@yunyeng): Add graphvizRepresentation to Exchange proto.
-    graphvizRepresentation = ""
-  }
-}
-
-private val InternalExchange.v2AlphaState: Exchange.State
-  get() {
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-    return when (this.state) {
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // ProtoBuf enum fields cannot be null.
+  val state =
+    when (source.state) {
       InternalExchange.State.ACTIVE -> Exchange.State.ACTIVE
       InternalExchange.State.SUCCEEDED -> Exchange.State.SUCCEEDED
       InternalExchange.State.FAILED -> Exchange.State.FAILED
       InternalExchange.State.STATE_UNSPECIFIED,
       InternalExchange.State.UNRECOGNIZED -> error("Invalid InternalExchange state.")
     }
+
+  return exchange {
+    name = exchangeKey.toName()
+    date = source.date
+    this.state = state
+    auditTrailHash = source.details.auditTrailHash
+    // TODO(@yunyeng): Add graphvizRepresentation to Exchange proto.
+    graphvizRepresentation = ""
   }
+}
 
 /** @throws [IllegalStateException] if InternalExchangeStep.State not specified */
 fun InternalExchangeStep.toV2Alpha(): ExchangeStep {

@@ -458,7 +458,6 @@ abstract class ExchangesServiceTest {
         .apply {
           externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
           date = EXCHANGE_DATE
-          provider = PROVIDER
         }
         .build()
     return runBlocking { exchanges.getExchange(request) }

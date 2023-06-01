@@ -41,8 +41,6 @@ class ExchangeReader : SpannerReader<ExchangeReader.Result>() {
     SELECT $SELECT_COLUMNS_SQL
     FROM Exchanges
     JOIN RecurringExchanges USING (RecurringExchangeId)
-    LEFT JOIN ModelProviders USING (ModelProviderId)
-    LEFT JOIN DataProviders USING (DataProviderId)
     """
       .trimIndent()
 
@@ -111,6 +109,6 @@ class ExchangeReader : SpannerReader<ExchangeReader.Result>() {
         "RecurringExchanges.RecurringExchangeDetails"
       )
 
-    val SELECT_COLUMNS_SQL = SELECT_COLUMNS.joinToString(", ")
+    private val SELECT_COLUMNS_SQL = SELECT_COLUMNS.joinToString(", ")
   }
 }

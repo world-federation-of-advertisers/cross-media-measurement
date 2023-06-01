@@ -354,7 +354,6 @@ abstract class ExchangeStepsServiceTest {
         getExchangeRequest {
           externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
           date = exchangeDate
-          provider = response.exchangeStep.provider
         }
       )
     assertThat(exchange.state).isEqualTo(Exchange.State.FAILED)

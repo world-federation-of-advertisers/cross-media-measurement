@@ -39,6 +39,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.Measur
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineStub as InternalMeasurementLogEntriesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.PublicKeysGrpcKt.PublicKeysCoroutineStub as InternalPublicKeysCoroutineStub
+import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub as InternalRecurringExchangesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
@@ -54,13 +55,14 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementConsumersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.PublicKeysService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.RecurringExchangesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withAccountAuthenticationServerInterceptor
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withApiKeyAuthenticationServerInterceptor
-import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationLogEntriesService as systemComputationLogEntriesService
-import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationParticipantsService as systemComputationParticipantsService
-import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationsService as systemComputationsService
-import org.wfanet.measurement.kingdom.service.system.v1alpha.RequisitionsService as systemRequisitionsService
+import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationLogEntriesService as SystemComputationLogEntriesService
+import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationParticipantsService as SystemComputationParticipantsService
+import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationsService as SystemComputationsService
+import org.wfanet.measurement.kingdom.service.system.v1alpha.RequisitionsService as SystemRequisitionsService
 import org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourceSetup
 
 /** TestRule that starts and stops all Kingdom gRPC services. */
@@ -110,6 +112,9 @@ class InProcessKingdom(
     InternalExchangeStepsCoroutineStub(internalApiChannel)
   }
   private val internalExchangesClient by lazy { InternalExchangesCoroutineStub(internalApiChannel) }
+  private val internalRecurringExchangesClient by lazy {
+    InternalRecurringExchangesCoroutineStub(internalApiChannel)
+  }
 
   private val internalDataServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
@@ -120,10 +125,10 @@ class InProcessKingdom(
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       logger.info("Building Kingdom's system API services")
       listOf(
-          systemComputationsService(internalMeasurementsClient),
-          systemComputationLogEntriesService(internalMeasurementLogEntriesClient),
-          systemComputationParticipantsService(internalComputationParticipantsClient),
-          systemRequisitionsService(internalRequisitionsClient)
+          SystemComputationsService(internalMeasurementsClient),
+          SystemComputationLogEntriesService(internalMeasurementLogEntriesClient),
+          SystemComputationParticipantsService(internalComputationParticipantsClient),
+          SystemRequisitionsService(internalRequisitionsClient)
         )
         .forEach { addService(it.withMetadataDuchyIdentities()) }
     }
@@ -160,19 +165,18 @@ class InProcessKingdom(
           MeasurementConsumersService(internalMeasurementConsumersClient)
             .withMetadataPrincipalIdentities()
             .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri)
-            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient)
+            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+          RecurringExchangesService().withMetadataPrincipalIdentities(),
+          ExchangesService(internalRecurringExchangesClient, internalExchangesClient)
+            .withMetadataPrincipalIdentities(),
+          ExchangeStepsService(internalExchangeStepsClient).withMetadataPrincipalIdentities(),
+          ExchangeStepAttemptsService(
+              internalExchangeStepAttemptsClient,
+              internalExchangeStepsClient
+            )
+            .withMetadataPrincipalIdentities(),
         )
         .forEach { addService(it) }
-
-      listOf(
-          ExchangeStepAttemptsService(
-            internalExchangeStepAttemptsClient,
-            internalExchangeStepsClient
-          ),
-          ExchangeStepsService(internalExchangeStepsClient),
-          ExchangesService(internalExchangesClient)
-        )
-        .forEach { addService(it.withMetadataPrincipalIdentities()) }
     }
 
   /** Provides a gRPC channel to the Kingdom's public API. */

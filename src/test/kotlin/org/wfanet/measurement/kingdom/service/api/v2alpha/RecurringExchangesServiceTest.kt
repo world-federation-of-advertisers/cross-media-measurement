@@ -14,6 +14,9 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.common.truth.Truth.assertThat
+import io.grpc.Status
+import io.grpc.StatusException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -30,34 +33,42 @@ class RecurringExchangesServiceTest {
   val service = RecurringExchangesService()
 
   @Test
-  fun createRecurringExchange() =
-    runBlocking<Unit> {
-      assertFailsWith(NotImplementedError::class) {
+  fun createRecurringExchange() = runBlocking {
+    val exception =
+      assertFailsWith<StatusException> {
         service.createRecurringExchange(CreateRecurringExchangeRequest.getDefaultInstance())
       }
-    }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNIMPLEMENTED)
+  }
 
   @Test
-  fun getRecurringExchange() =
-    runBlocking<Unit> {
-      assertFailsWith(NotImplementedError::class) {
+  fun getRecurringExchange() = runBlocking {
+    val exception =
+      assertFailsWith<StatusException> {
         service.getRecurringExchange(GetRecurringExchangeRequest.getDefaultInstance())
       }
-    }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNIMPLEMENTED)
+  }
 
   @Test
-  fun listRecurringExchanges() =
-    runBlocking<Unit> {
-      assertFailsWith(NotImplementedError::class) {
+  fun listRecurringExchanges() = runBlocking {
+    val exception =
+      assertFailsWith<StatusException> {
         service.listRecurringExchanges(ListRecurringExchangesRequest.getDefaultInstance())
       }
-    }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNIMPLEMENTED)
+  }
 
   @Test
-  fun retireRecurringExchange() =
-    runBlocking<Unit> {
-      assertFailsWith(NotImplementedError::class) {
+  fun retireRecurringExchange() = runBlocking {
+    val exception =
+      assertFailsWith<StatusException> {
         service.retireRecurringExchange(RetireRecurringExchangeRequest.getDefaultInstance())
       }
-    }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNIMPLEMENTED)
+  }
 }
