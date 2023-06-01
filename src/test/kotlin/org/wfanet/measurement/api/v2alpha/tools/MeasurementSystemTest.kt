@@ -185,7 +185,7 @@ private val DATA_PROVIDER = dataProvider {
 
 private const val MODEL_PROVIDER_NAME = "modelProvider/1"
 
-private const val MODEL_SUITE_NAME = "Model suite name"
+private const val MODEL_SUITE_NAME = "$MODEL_PROVIDER_NAME/modelSuites/1"
 private val MODEL_SUITE = modelSuite {
   name = MODEL_SUITE_NAME
   displayName = "Display name"
