@@ -713,7 +713,7 @@ class ReportsServiceTest {
           var requestId = 0
           reportingSetToCreateMetricRequestMap.map { (reportingSet, createMetricRequest) ->
             val updatedReportingCreateMetricRequests =
-              listOf(createMetricRequest.copy { this.requestId = requestId.toString() })
+              listOf(createMetricRequest.copy { this.createMetricRequestId = requestId.toString() })
             requestId++
             reportingMetricEntries.putAll(
               buildInternalReportingMetricEntryWithOneMetricCalculationSpec(
@@ -736,7 +736,7 @@ class ReportsServiceTest {
             val updatedReportingCreateMetricRequests =
               listOf(
                 createMetricRequest.copy {
-                  this.requestId = requestId.toString()
+                  this.createMetricRequestId = requestId.toString()
                   externalMetricId = EXTERNAL_METRIC_ID_BASE + requestId
                 }
               )
@@ -910,7 +910,7 @@ class ReportsServiceTest {
               internalMetricCalculationSpec.copy {
                 val updatedReportingMetrics =
                   reportingMetrics.map { reportingMetric ->
-                    reportingMetric.copy { this.requestId = requestId.toString() }
+                    reportingMetric.copy { this.createMetricRequestId = requestId.toString() }
                   }
                 this.reportingMetrics.clear()
                 this.reportingMetrics += updatedReportingMetrics
@@ -934,7 +934,7 @@ class ReportsServiceTest {
                 val updatedReportingMetrics =
                   reportingMetrics.map { reportingMetric ->
                     reportingMetric.copy {
-                      this.requestId = requestId.toString()
+                      this.createMetricRequestId = requestId.toString()
                       externalMetricId = EXTERNAL_METRIC_ID_BASE + requestId
                     }
                   }
@@ -1111,7 +1111,7 @@ class ReportsServiceTest {
 
           val updatedReportingCreateMetricRequests =
             reportingCreateMetricRequests.mapIndexed { requestId, request ->
-              request.copy { this.requestId = requestId.toString() }
+              request.copy { this.createMetricRequestId = requestId.toString() }
             }
 
           reportingMetricEntries.putAll(
@@ -1130,7 +1130,7 @@ class ReportsServiceTest {
           val updatedReportingCreateMetricRequests =
             reportingCreateMetricRequests.mapIndexed { requestId, request ->
               request.copy {
-                this.requestId = requestId.toString()
+                this.createMetricRequestId = requestId.toString()
                 externalMetricId = EXTERNAL_METRIC_ID_BASE + requestId
               }
             }
@@ -1985,7 +1985,7 @@ class ReportsServiceTest {
 
           val reportingCreateMetricRequests =
             reportingMetrics.mapIndexed { requestId, request ->
-              request.copy { this.requestId = requestId.toString() }
+              request.copy { this.createMetricRequestId = requestId.toString() }
             }
 
           reportingMetricEntries.putAll(
@@ -2003,7 +2003,7 @@ class ReportsServiceTest {
           val reportingCreateMetricRequests =
             reportingMetrics.mapIndexed { requestId, request ->
               request.copy {
-                this.requestId = requestId.toString()
+                this.createMetricRequestId = requestId.toString()
                 externalMetricId = EXTERNAL_METRIC_ID_BASE + requestId
               }
             }
