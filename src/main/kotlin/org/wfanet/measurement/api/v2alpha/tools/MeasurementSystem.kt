@@ -59,9 +59,11 @@ import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCorouti
 import org.wfanet.measurement.api.v2alpha.PublicKey
 import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt.PublicKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt as EventGroupEntries
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.activateAccountRequest
@@ -73,17 +75,21 @@ import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.createModelLineRequest
+import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.getModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
+import org.wfanet.measurement.api.v2alpha.listModelReleasesRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.modelLine
+import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.publicKey
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
@@ -1204,8 +1210,8 @@ private class ModelLines {
     val request = createModelLineRequest {
       parent = modelSuiteName
       modelLine = modelLine {
-        displayName = displayName
-        description = description
+        displayName = modelLineDisplayName
+        description = modelLineDescription
         activeStartTime = modelLineActiveStartTime.toProtoTime()
         if (modelLineActiveEndTime != null) {
           activeEndTime = modelLineActiveEndTime.toProtoTime()
@@ -1337,5 +1343,99 @@ private class ModelLines {
     }
     println("CREATE TIME - ${modelLine.createTime}")
     println("UPDATE TIME - ${modelLine.updateTime}")
+  }
+}
+
+@Command(
+  name = "model-releases",
+  subcommands = [CommandLine.HelpCommand::class],
+)
+private class ModelReleases {
+  @ParentCommand
+  lateinit var parentCommand: MeasurementSystem
+    private set
+
+  val modelReleaseStub: ModelReleasesCoroutineStub by lazy {
+    ModelReleasesCoroutineStub(parentCommand.kingdomChannel)
+  }
+
+  @Command(description = ["Creates model release."])
+  fun create(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent ModelSuite."],
+      required = true,
+    )
+    modelSuiteName: String,
+  ) {
+    val request = createModelReleaseRequest {
+      parent = modelSuiteName
+      modelRelease = modelRelease {}
+    }
+    val outputModelRelease =
+      runBlocking(parentCommand.rpcDispatcher) { modelReleaseStub.createModelRelease(request) }
+
+    println("Model release ${outputModelRelease.name} has been created.")
+    printModelRelease(outputModelRelease)
+  }
+
+  @Command(description = ["Gets model release."])
+  fun get(
+    @Option(
+      names = ["--name"],
+      description = ["Model release name."],
+      required = true,
+    )
+    modelReleaseName: String,
+  ) {
+    val request = getModelReleaseRequest {
+      name = modelReleaseName
+    }
+    val outputModelRelease =
+      runBlocking(parentCommand.rpcDispatcher) { modelReleaseStub.getModelRelease(request) }
+    printModelRelease(outputModelRelease)
+  }
+
+  @Command(description = ["Lists model releases for a model suite."])
+  fun list(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent ModelSuite."],
+      required = true,
+    )
+    modelSuiteName: String,
+    @Option(
+      names = ["--page-size"],
+      description = ["The maximum number of ModelReleases to return."],
+      required = false,
+      defaultValue = "0"
+    )
+    listPageSize: Int,
+    @Option(
+      names = ["--page-token"],
+      description =
+      [
+        "A page token, received from a previous `ListModelReleasesRequest` call. Provide this to retrieve the subsequent page."
+      ],
+      required = false,
+      defaultValue = ""
+    )
+    listPageToken: String,
+  ) {
+    val request = listModelReleasesRequest {
+      parent = modelSuiteName
+      pageSize = listPageSize
+      pageToken = listPageToken
+    }
+    val response =
+      runBlocking(parentCommand.rpcDispatcher) { modelReleaseStub.listModelReleases(request) }
+    response.modelReleaseList.forEach {
+      printModelRelease(it)
+    }
+  }
+
+  private fun printModelRelease(modelRelease: ModelRelease) {
+    println("NAME - ${modelRelease.name}")
+    println("CREATE TIME - ${modelRelease.createTime}")
   }
 }
