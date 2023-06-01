@@ -44,6 +44,11 @@ class MultithreadingHelper {
   const int num_threads_;
   const std::vector<std::unique_ptr<ProtocolCryptor>> cryptors_;
 
+  void ExecuteCryptorTask(
+      size_t thread_index, size_t start_index, size_t count,
+      std::optional<absl::Status>& failure,
+      absl::AnyInvocable<absl::Status(ProtocolCryptor&, size_t)>& f);
+
  public:
   static absl::StatusOr<std::unique_ptr<MultithreadingHelper>>
   CreateMultithreadingHelper(int num_threads,
@@ -70,11 +75,6 @@ class MultithreadingHelper {
 
   // Returns a reference to a protocol cryptor.
   ProtocolCryptor& GetProtocolCryptor();
-
-  void ExecuteCryptorTask(
-      size_t thread_index, size_t start_index, size_t count,
-      std::optional<absl::Status>& failure,
-      absl::AnyInvocable<absl::Status(ProtocolCryptor&, size_t)>& f);
 };
 
 }  // namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2

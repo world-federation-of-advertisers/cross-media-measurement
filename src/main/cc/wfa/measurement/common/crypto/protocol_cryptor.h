@@ -134,7 +134,7 @@ absl::StatusOr<std::unique_ptr<ProtocolCryptor>> CreateProtocolCryptor(
 // Per advise from team `private_join_and_compute`, using a vector of
 // [ProtocolCryptor] is a suggested way. Note that, ProtocolCryptors are not
 // exactly identical. Each of them has a different context that is initialized
-// with a different random generator. But they should generate work consistently
+// with a different random generator. But they should work consistently
 // regardless the minor differences.
 absl::StatusOr<std::vector<std::unique_ptr<ProtocolCryptor>>>
 CreateIdenticalProtocolCrypors(int num, const ProtocolCryptorOptions& options);
