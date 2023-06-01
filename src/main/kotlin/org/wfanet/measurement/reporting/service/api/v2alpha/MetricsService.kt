@@ -88,6 +88,7 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurement
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
+import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequest.MeasurementIds
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequestKt.measurementIds
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequestKt.measurementFailure
@@ -148,6 +149,7 @@ private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 private const val NANOS_PER_SECOND = 1_000_000_000
+private const val MAX_BATCH_SIZE_FOR_BATCH_GET_REPORTING_SETS = 1000
 
 class MetricsService(
   private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
@@ -204,7 +206,7 @@ class MetricsService(
       val measurementConsumer: MeasurementConsumer = getMeasurementConsumer(principal)
 
       // Gets all external IDs of primitive reporting sets from the metric list.
-      val externalPrimitiveReportingSetIds: Set<Long> =
+      val externalPrimitiveReportingSetIds: List<Long> =
         internalMetricsList
           .flatMap { internalMetric ->
             internalMetric.weightedMeasurementsList.flatMap { weightedMeasurement ->
@@ -213,7 +215,7 @@ class MetricsService(
               }
             }
           }
-          .toSet()
+          .distinct()
 
       val internalPrimitiveReportingSetMap: Map<Long, InternalReportingSet> =
         buildInternalReportingSetMap(
@@ -586,20 +588,43 @@ class MetricsService(
      */
     private suspend fun buildInternalReportingSetMap(
       cmmsMeasurementConsumerId: String,
-      externalReportingSetIds: Set<Long>,
+      externalReportingSetIds: List<Long>,
     ): Map<Long, InternalReportingSet> {
-      val batchGetReportingSetsRequest = batchGetReportingSetsRequest {
-        this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-        externalReportingSetIds.forEach { this.externalReportingSetIds += it }
+      val batchGetReportingSetsRequests = mutableListOf<BatchGetReportingSetsRequest>()
+
+      while (
+        batchGetReportingSetsRequests.size * MAX_BATCH_SIZE_FOR_BATCH_GET_REPORTING_SETS <
+          externalReportingSetIds.size
+      ) {
+        val fromIndex =
+          batchGetReportingSetsRequests.size * MAX_BATCH_SIZE_FOR_BATCH_GET_REPORTING_SETS
+        val toIndex =
+          min(fromIndex + MAX_BATCH_SIZE_FOR_BATCH_GET_REPORTING_SETS, externalReportingSetIds.size)
+
+        batchGetReportingSetsRequests += batchGetReportingSetsRequest {
+          this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+          this.externalReportingSetIds += externalReportingSetIds.slice(fromIndex until toIndex)
+        }
       }
 
       val internalReportingSetsList =
-        try {
-          internalReportingSetsStub
-            .batchGetReportingSets(batchGetReportingSetsRequest)
-            .reportingSetsList
-        } catch (e: StatusException) {
-          throw Exception("Unable to get reporting sets from the reporting database.", e)
+        batchGetReportingSetsRequests.flatMap { batchGetReportingSetsRequest ->
+          try {
+            internalReportingSetsStub
+              .batchGetReportingSets(batchGetReportingSetsRequest)
+              .reportingSetsList
+          } catch (e: StatusException) {
+            throw when (e.status.code) {
+                Status.Code.NOT_FOUND ->
+                  Status.NOT_FOUND.withDescription("Reporting Set not found.")
+                else ->
+                  Status.UNKNOWN.withDescription(
+                    "Unable to retrieve the reporting sets used in the requesting metric."
+                  )
+              }
+              .withCause(e)
+              .asRuntimeException()
+          }
         }
 
       return internalReportingSetsList.associateBy { it.externalReportingSetId }
@@ -652,7 +677,6 @@ class MetricsService(
       var anyUpdate = false
 
       for ((newState, measurementsList) in newStateToCmmsMeasurements) {
-        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
         when (newState) {
           Measurement.State.SUCCEEDED -> {
             syncSucceededInternalMeasurements(measurementsList, apiAuthenticationKey, principal)

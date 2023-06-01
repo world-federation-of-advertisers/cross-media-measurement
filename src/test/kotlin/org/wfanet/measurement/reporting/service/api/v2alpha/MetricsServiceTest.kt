@@ -196,6 +196,7 @@ import org.wfanet.measurement.reporting.v2alpha.timeInterval
 private const val MAX_BATCH_SIZE = 1000
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
+private const val MAX_BATCH_SIZE_FOR_BATCH_GET_REPORTING_SETS = 1000
 
 private const val NUMBER_VID_BUCKETS = 300
 private const val REACH_ONLY_VID_SAMPLING_WIDTH = 3.0f / NUMBER_VID_BUCKETS
@@ -2079,6 +2080,63 @@ class MetricsServiceTest {
       for (filter in filters) {
         assertThat(filter).isEqualTo("")
       }
+    }
+  }
+
+  @Test
+  fun `createMetric calls batchGetReportingSets when request number is more than the limit`():
+    Unit = runBlocking {
+    val expectedNumberBatchGetReportingSetsRequests = 3
+    // BatchGetReportingSets is called one time in other place for retrieving a single reporting set
+    val numberBatchReportingSets = expectedNumberBatchGetReportingSetsRequests - 1
+    val numberInternalReportingSets =
+      MAX_BATCH_SIZE_FOR_BATCH_GET_REPORTING_SETS * numberBatchReportingSets
+
+    whenever(internalMetricsMock.createMetric(any()))
+      .thenReturn(
+        INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC.copy {
+          weightedMeasurements.clear()
+          weightedMeasurements += weightedMeasurement {
+            weight = 1
+            measurement =
+              INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
+                clearCmmsMeasurementId()
+                primitiveReportingSetBases.clear()
+                (0 until numberInternalReportingSets).forEach {
+                  primitiveReportingSetBases += primitiveReportingSetBasis {
+                    externalReportingSetId = it.toLong()
+                  }
+                }
+              }
+          }
+        }
+      )
+
+    whenever(internalReportingSetsMock.batchGetReportingSets(any())).thenAnswer {
+      val batchGetReportingSetsRequest = it.arguments[0] as BatchGetReportingSetsRequest
+      batchGetReportingSetsResponse {
+        reportingSets +=
+          batchGetReportingSetsRequest.externalReportingSetIdsList.map { externalReportingSetId ->
+            INTERNAL_INCREMENTAL_REPORTING_SET.copy {
+              this.externalReportingSetId = externalReportingSetId
+            }
+          }
+      }
+    }
+
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = REQUESTING_INCREMENTAL_REACH_METRIC
+    }
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+      runBlocking { service.createMetric(request) }
+    }
+
+    // Verify proto argument of internal ReportingSetsCoroutineImplBase::batchGetReportingSets
+    val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
+      argumentCaptor()
+    verifyBlocking(internalReportingSetsMock, times(expectedNumberBatchGetReportingSetsRequests)) {
+      batchGetReportingSets(batchGetReportingSetsCaptor.capture())
     }
   }
 
