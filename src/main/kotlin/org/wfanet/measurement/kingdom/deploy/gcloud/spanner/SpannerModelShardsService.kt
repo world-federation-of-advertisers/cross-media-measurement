@@ -49,11 +49,11 @@ class SpannerModelShardsService(
     try {
       return CreateModelShard(request).execute(client, idGenerator)
     } catch (e: DataProviderNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "DataProvider not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
     } catch (e: ModelSuiteNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelSuite not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelSuite not found.")
     } catch (e: ModelReleaseNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelRelease not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelRelease not found.")
     }
   }
 
@@ -67,11 +67,11 @@ class SpannerModelShardsService(
         )
         .execute(client, idGenerator)
     } catch (e: DataProviderNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "DataProvider not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
     } catch (e: ModelShardNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelShard not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelShard not found.")
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
   }
 

@@ -73,13 +73,14 @@ class SpannerAccountsService(
         )
         .execute(client, idGenerator)
     } catch (e: AccountNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Creator's Account not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Creator's Account not found.")
     } catch (e: PermissionDeniedException) {
-      e.throwStatusRuntimeException(Status.PERMISSION_DENIED) {
+      throw e.asStatusRuntimeException(
+        Status.Code.PERMISSION_DENIED,
         "Caller does not own the owned measurement consumer."
-      }
+      )
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
   }
 
@@ -102,21 +103,27 @@ class SpannerAccountsService(
         )
         .execute(client, idGenerator)
     } catch (e: PermissionDeniedException) {
-      e.throwStatusRuntimeException(Status.PERMISSION_DENIED) {
+      throw e.asStatusRuntimeException(
+        Status.Code.PERMISSION_DENIED,
         "Activation token is not valid for this account."
-      }
+      )
     } catch (e: DuplicateAccountIdentityException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
         "Issuer and subject pair already exists."
-      }
+      )
     } catch (e: AccountActivationStateIllegalException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
         "Cannot activate an account again. "
-      }
+      )
     } catch (e: AccountNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Account to activate has not been found." }
+      throw e.asStatusRuntimeException(
+        Status.Code.NOT_FOUND,
+        "Account to activate has not been found."
+      )
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error")
     }
   }
 
@@ -129,17 +136,19 @@ class SpannerAccountsService(
         )
         .execute(client, idGenerator)
     } catch (e: DuplicateAccountIdentityException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
         "Issuer and subject pair already exists."
-      }
+      )
     } catch (e: AccountNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Account was not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Account was not found.")
     } catch (e: AccountActivationStateIllegalException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
         "Account has not been activated yet."
-      }
+      )
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
   }
 

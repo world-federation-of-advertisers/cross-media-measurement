@@ -14,11 +14,13 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common
 
+import com.google.protobuf.Any
 import com.google.rpc.errorInfo
+import com.google.rpc.status
 import com.google.type.Date
-import io.grpc.Metadata
 import io.grpc.Status
-import io.grpc.protobuf.ProtoUtils
+import io.grpc.StatusRuntimeException
+import io.grpc.protobuf.StatusProto
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.kingdom.Account
@@ -43,20 +45,23 @@ sealed class KingdomInternalException : Exception {
     this.code = code
   }
 
-  fun throwStatusRuntimeException(
-    status: Status = Status.INVALID_ARGUMENT,
-    provideDescription: () -> String = { message ?: "" },
-  ): Nothing {
-    val info = errorInfo {
-      reason = code.toString()
-      domain = ErrorCode.getDescriptor().fullName
-      metadata.putAll(context)
+  fun asStatusRuntimeException(
+    statusCode: Status.Code,
+    message: String = this.message!!
+  ): StatusRuntimeException {
+    val statusProto = status {
+      code = statusCode.value()
+      this.message = message
+      details +=
+        Any.pack(
+          errorInfo {
+            reason = this@KingdomInternalException.code.toString()
+            domain = ErrorCode.getDescriptor().fullName
+            metadata.putAll(context)
+          }
+        )
     }
-
-    val metadata = Metadata()
-    metadata.put(ProtoUtils.keyForProto(info), info)
-
-    throw status.withDescription(provideDescription()).asRuntimeException(metadata)
+    return StatusProto.toStatusRuntimeException(statusProto)
   }
 
   override fun toString(): String {

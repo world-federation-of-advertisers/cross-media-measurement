@@ -98,13 +98,13 @@ class SpannerExchangeStepAttemptsService(
         }
         .execute(client.singleUse())
         .singleOrNull()
-        ?: ExchangeStepAttemptNotFoundException(
+        ?: throw ExchangeStepAttemptNotFoundException(
             externalRecurringExchangeId,
             request.date,
             request.stepIndex,
             request.attemptNumber
           )
-          .throwStatusRuntimeException(Status.NOT_FOUND)
+          .asStatusRuntimeException(Status.Code.NOT_FOUND)
     return result.exchangeStepAttempt
   }
 
@@ -126,11 +126,11 @@ class SpannerExchangeStepAttemptsService(
     try {
       return writer.execute(client, idGenerator)
     } catch (e: RecurringExchangeNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND)
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     } catch (e: ExchangeStepNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND)
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     } catch (e: ExchangeStepAttemptNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND)
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     }
   }
 }

@@ -43,7 +43,7 @@ class SpannerModelSuitesService(
     try {
       return CreateModelSuite(request).execute(client, idGenerator)
     } catch (e: ModelProviderNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelProvider not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelProvider not found.")
     }
   }
 

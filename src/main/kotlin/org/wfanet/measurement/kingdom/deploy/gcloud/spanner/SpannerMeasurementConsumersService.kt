@@ -59,17 +59,19 @@ class SpannerMeasurementConsumersService(
         )
         .execute(client, idGenerator)
     } catch (e: PermissionDeniedException) {
-      e.throwStatusRuntimeException(Status.PERMISSION_DENIED) {
+      throw e.asStatusRuntimeException(
+        Status.Code.PERMISSION_DENIED,
         "Measurement Consumer creation token is not valid."
-      }
+      )
     } catch (e: AccountNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Account not found." }
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Account not found.")
     } catch (e: AccountActivationStateIllegalException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
         "Account has not been activated yet."
-      }
+      )
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
   }
 
@@ -95,11 +97,11 @@ class SpannerMeasurementConsumersService(
         )
         .execute(client, idGenerator)
     } catch (e: AccountNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Account not found." }
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Account not found.")
     } catch (e: MeasurementConsumerNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "MeasurementConsumer not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
   }
 
@@ -113,15 +115,16 @@ class SpannerMeasurementConsumersService(
         )
         .execute(client, idGenerator)
     } catch (e: AccountNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Account not found." }
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Account not found.")
     } catch (e: MeasurementConsumerNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "MeasurementConsumer not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
     } catch (e: PermissionDeniedException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
         "Account doesn't own MeasurementConsumer."
-      }
+      )
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
   }
 }

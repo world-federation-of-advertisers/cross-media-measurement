@@ -10,6 +10,8 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/proto/google/rpc:error_details_kt_jvm_proto",
+        "//src/main/proto/google/rpc:status_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/common:provider_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:account_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:certificate_kt_jvm_proto",

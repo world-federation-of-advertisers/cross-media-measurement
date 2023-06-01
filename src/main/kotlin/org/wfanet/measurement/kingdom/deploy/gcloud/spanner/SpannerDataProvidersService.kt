@@ -58,7 +58,7 @@ class SpannerDataProvidersService(
     try {
       return ReplaceDataProviderRequiredDuchies(request).execute(client, idGenerator)
     } catch (e: DataProviderNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "DataProvider not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
     }
   }
 }

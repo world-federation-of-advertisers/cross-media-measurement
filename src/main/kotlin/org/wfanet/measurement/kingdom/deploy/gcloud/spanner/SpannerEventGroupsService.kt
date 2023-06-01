@@ -52,19 +52,24 @@ class SpannerEventGroupsService(
     try {
       return CreateEventGroup(request).execute(client, idGenerator)
     } catch (e: MeasurementConsumerNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "MeasurementConsumer not found." }
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
+        "MeasurementConsumer not found."
+      )
     } catch (e: DataProviderNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "DataProvider not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
     } catch (e: CertificateIsInvalidException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
         "MeasurementConsumer's Certificate is invalid."
-      }
+      )
     } catch (e: MeasurementConsumerCertificateNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
         "MeasurementConsumer's Certificate not found."
-      }
+      )
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
   }
 
@@ -76,30 +81,35 @@ class SpannerEventGroupsService(
     try {
       return UpdateEventGroup(request.eventGroup).execute(client, idGenerator)
     } catch (e: EventGroupInvalidArgsException) {
-      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
+      throw e.asStatusRuntimeException(
+        Status.Code.INVALID_ARGUMENT,
         "EventGroup modification param is invalid."
-      }
+      )
     } catch (e: CertificateIsInvalidException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
         "MeasurementConsumer's Certificate is invalid."
-      }
+      )
     } catch (e: MeasurementConsumerCertificateNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
         "MeasurementConsumer's Certificate not found."
-      }
+      )
     } catch (e: EventGroupNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "EventGroup not found.")
     } catch (e: EventGroupStateIllegalException) {
       when (e.state) {
-        EventGroup.State.DELETED ->
-          e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup state is DELETED." }
+        EventGroup.State.DELETED -> {
+          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "EventGroup state is DELETED.")
+        }
         EventGroup.State.ACTIVE,
         EventGroup.State.STATE_UNSPECIFIED,
-        EventGroup.State.UNRECOGNIZED ->
-          e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+        EventGroup.State.UNRECOGNIZED -> {
+          throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
+        }
       }
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
   }
 
@@ -126,18 +136,20 @@ class SpannerEventGroupsService(
     try {
       return DeleteEventGroup(eventGroup).execute(client, idGenerator)
     } catch (e: EventGroupNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "EventGroup not found.")
     } catch (e: EventGroupStateIllegalException) {
       when (e.state) {
-        EventGroup.State.DELETED ->
-          e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup state is DELETED." }
+        EventGroup.State.DELETED -> {
+          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "EventGroup state is DELETED.")
+        }
         EventGroup.State.ACTIVE,
         EventGroup.State.STATE_UNSPECIFIED,
-        EventGroup.State.UNRECOGNIZED ->
-          e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+        EventGroup.State.UNRECOGNIZED -> {
+          throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
+        }
       }
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
   }
 

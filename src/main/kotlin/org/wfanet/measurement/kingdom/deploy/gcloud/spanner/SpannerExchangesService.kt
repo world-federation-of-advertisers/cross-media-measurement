@@ -87,9 +87,9 @@ class SpannerExchangesService(
     try {
       return BatchDeleteExchanges(request).execute(client, idGenerator)
     } catch (e: ExchangeNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Exchange not found" }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Exchange not found")
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error")
     }
   }
 }

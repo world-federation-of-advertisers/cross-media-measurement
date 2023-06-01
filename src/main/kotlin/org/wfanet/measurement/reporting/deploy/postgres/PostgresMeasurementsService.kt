@@ -39,7 +39,7 @@ class PostgresMeasurementsService(
     return try {
       CreateMeasurement(request).execute(client, idGenerator)
     } catch (e: MeasurementAlreadyExistsException) {
-      e.throwStatusRuntimeException(Status.ALREADY_EXISTS) { "Measurement already exists." }
+      throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS, "Measurement already exists.")
     }
   }
 
@@ -53,9 +53,8 @@ class PostgresMeasurementsService(
             request.measurementReferenceId
           )
       }
-        ?: MeasurementNotFoundException().throwStatusRuntimeException(Status.NOT_FOUND) {
-          "Measurement not found."
-        }
+        ?: throw MeasurementNotFoundException()
+          .asStatusRuntimeException(Status.Code.NOT_FOUND, "Measurement not found.")
 
     return measurementResult.measurement
   }
@@ -64,11 +63,12 @@ class PostgresMeasurementsService(
     return try {
       SetMeasurementResult(request).execute(client, idGenerator)
     } catch (e: MeasurementNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Measurement not found.")
     } catch (e: MeasurementStateInvalidException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
         "Measurement has already been updated."
-      }
+      )
     }
   }
 
@@ -76,11 +76,12 @@ class PostgresMeasurementsService(
     return try {
       SetMeasurementFailure(request).execute(client, idGenerator)
     } catch (e: MeasurementNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Measurement not found.")
     } catch (e: MeasurementStateInvalidException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
         "Measurement has already been updated."
-      }
+      )
     }
   }
 }
