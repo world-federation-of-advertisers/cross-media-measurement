@@ -62,5 +62,3 @@ package k8s
 	instance: string @tag("postgres_instance")
 	region:   string @tag("postgres_region")
 }
-
-#PrometheusFrontendPort: 9090

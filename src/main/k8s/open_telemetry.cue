@@ -25,7 +25,7 @@ package k8s
 	}
 	spec: {
 		mode:             *"deployment" | "sidecar"
-		image:            string | *"docker.io/otel/opentelemetry-collector-contrib:0.62.0"
+		image:            string | *"docker.io/otel/opentelemetry-collector-contrib:0.77.0"
 		imagePullPolicy?: "IfNotPresent" | "Always" | "Never"
 		config:           string
 		nodeSelector?: {...}
@@ -108,7 +108,7 @@ service:
 						value: "30000"
 					},
 				]
-				java: image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:1.18.0"
+				java: image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:1.26.0"
 			}
 		}
 	}

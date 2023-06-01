@@ -27,7 +27,8 @@ _secret_name: string @tag("secret_name")
 #KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
 #Worker1PublicApiTarget: (#Target & {name: "worker1-requisition-fulfillment-server"}).target
 
-objectSets: [ for simulator in edpSimulators {simulator}]
+objectSets: [ for simulator in edpSimulators {[simulator.deployment]}] +
+	[ for simulator in edpSimulators {simulator.networkPolicies}]
 
 #EdpConfig: {
 	publisherId: int

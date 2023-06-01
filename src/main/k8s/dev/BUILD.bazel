@@ -3,7 +3,6 @@ load(
     "//build:variables.bzl",
     "DUCHY_K8S_SETTINGS",
     "GCLOUD_SETTINGS",
-    "GRAFANA_K8S_SETTINGS",
     "IMAGE_REPOSITORY_SETTINGS",
     "KINGDOM_K8S_SETTINGS",
     "SIMULATOR_K8S_SETTINGS",
@@ -343,23 +342,8 @@ cue_dump(
 cue_dump(
     name = "prometheus_gke",
     srcs = ["prometheus_gke.cue"],
-    cue_tags = {"google_cloud_project": GCLOUD_SETTINGS.project},
     tags = ["manual"],
     deps = [
         ":base_gke",
-        ":config",
-    ],
-)
-
-cue_dump(
-    name = "grafana_gke",
-    srcs = ["grafana_gke.cue"],
-    cue_tags = {
-        "secret_name": GRAFANA_K8S_SETTINGS.secret_name,
-    },
-    tags = ["manual"],
-    deps = [
-        ":config",
-        "//src/main/k8s:grafana",
     ],
 )

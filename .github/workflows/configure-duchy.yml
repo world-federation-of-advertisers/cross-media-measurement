@@ -78,6 +78,19 @@ jobs:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
 
+    - name: Export BAZEL_BIN
+      run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
+
+    - name: Get GKE cluster credentials
+      uses: google-github-actions/get-gke-credentials@v1
+      with:
+        cluster_name: ${{ format('{0}-duchy', inputs.duchy-name) }}
+        location: ${{ vars.GCLOUD_ZONE }}
+
+    - name: Configure metrics
+      uses: ./.github/actions/configure-metrics
+      if: ${{ inputs.apply }}
+
     - name: Export DUCHY_CERT_ID
       env:
         AGGREGATOR_DUCHY_CERT_ID: ${{ vars.AGGREGATOR_DUCHY_CERT_ID }}
@@ -103,12 +116,8 @@ jobs:
         --define "duchy_storage_bucket=$STORAGE_BUCKET"
         --define "duchy_cert_id=$DUCHY_CERT_ID"
 
-
     - name: Make Kustomization dir
       run: mkdir -p "$KUSTOMIZATION_PATH"
-
-    - name: Export BAZEL_BIN
-      run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
 
     - name: Extract Kustomization archive
       run: >
@@ -129,12 +138,6 @@ jobs:
       run: >
         echo "$AKID_TO_PRINCIPAL_MAP" | sed $'s/\r$//'  >
         "$KUSTOMIZATION_PATH/src/main/k8s/dev/config_files/authority_key_identifier_to_principal_map.textproto"
-
-    - name: Get GKE cluster credentials
-      uses: google-github-actions/get-gke-credentials@v1
-      with:
-        cluster_name: ${{ format('{0}-duchy', inputs.duchy-name) }}
-        location: ${{ vars.GCLOUD_ZONE }}
 
     - name: Export KUSTOMIZE_PATH
       run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/${DUCHY_NAME}_duchy" >> $GITHUB_ENV

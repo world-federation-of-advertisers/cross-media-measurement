@@ -65,6 +65,19 @@ jobs:
           workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
 
+      - name: Export BAZEL_BIN
+        run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
+
+      - name: Get GKE cluster credentials
+        uses: google-github-actions/get-gke-credentials@v1
+        with:
+          cluster_name: kingdom
+          location: ${{ vars.GCLOUD_ZONE }}
+
+      - name: Configure metrics
+        uses: ./.github/actions/configure-metrics
+        if: ${{ inputs.apply }}
+
       - name: Generate archives
         env:
           IMAGE_TAG: ${{ inputs.image-tag }}
@@ -80,10 +93,6 @@ jobs:
 
       - name: Make Kustomization dir
         run: mkdir -p "$KUSTOMIZATION_PATH"
-
-      - name: Export BAZEL_BIN
-        run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
-
       - name: Extract Kustomization archive
         run: >
           tar -xf "$BAZEL_BIN/src/main/k8s/dev/kingdom.tar"
@@ -103,12 +112,6 @@ jobs:
         run: >
           echo "$AKID_TO_PRINCIPAL_MAP" | sed $'s/\r$//'  >
           "$KUSTOMIZATION_PATH/src/main/k8s/dev/config_files/authority_key_identifier_to_principal_map.textproto"
-
-      - name: Get GKE cluster credentials
-        uses: google-github-actions/get-gke-credentials@v1
-        with:
-          cluster_name: kingdom
-          location: ${{ vars.GCLOUD_ZONE }}
 
       # Run kubectl diff, treating the command as succeeded even if the exit
       # code is 1 as kubectl uses this code to indicate there's a diff.
