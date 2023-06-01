@@ -31,7 +31,7 @@ message SimulatorSyntheticDataSpec {
 // A sequence of VIDs represented with a beginning and exclusive end.
 message VidRange {
   int64 start = 1;
-  int64 end = 2;
+  int64 end_exclusive = 2;
 }
 
 // The specification of a synthetic virtual population.
