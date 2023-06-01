@@ -18,7 +18,6 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import io.grpc.Status
 import io.grpc.StatusException
-import kotlin.math.min
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -129,17 +128,13 @@ class ReportsService(
     apiAuthenticationKey: String,
     metricNames: List<String>,
   ): List<Metric> {
-    val batchGetMetricsRequests = mutableListOf<BatchGetMetricsRequest>()
-
-    while (batchGetMetricsRequests.size * MAX_BATCH_SIZE_FOR_BATCH_GET_METRICS < metricNames.size) {
-      val fromIndex = batchGetMetricsRequests.size * MAX_BATCH_SIZE_FOR_BATCH_GET_METRICS
-      val toIndex = min(fromIndex + MAX_BATCH_SIZE_FOR_BATCH_GET_METRICS, metricNames.size)
-
-      batchGetMetricsRequests += batchGetMetricsRequest {
-        this.parent = parent
-        names += metricNames.slice(fromIndex until toIndex)
+    val batchGetMetricsRequests: List<BatchGetMetricsRequest> =
+      metricNames.chunked(MAX_BATCH_SIZE_FOR_BATCH_GET_METRICS) { chunk ->
+        batchGetMetricsRequest {
+          this.parent = parent
+          names += chunk
+        }
       }
-    }
 
     return batchGetMetricsRequests.flatMap { batchGetMetricsRequest ->
       try {
@@ -316,21 +311,13 @@ class ReportsService(
     apiAuthenticationKey: String,
     createMetricRequests: List<CreateMetricRequest>
   ): List<Metric> {
-    val batchCreateMetricsRequests = mutableListOf<BatchCreateMetricsRequest>()
-
-    while (
-      batchCreateMetricsRequests.size * MAX_BATCH_SIZE_FOR_BATCH_CREATE_METRICS <
-        createMetricRequests.size
-    ) {
-      val fromIndex = batchCreateMetricsRequests.size * MAX_BATCH_SIZE_FOR_BATCH_CREATE_METRICS
-      val toIndex =
-        min(fromIndex + MAX_BATCH_SIZE_FOR_BATCH_CREATE_METRICS, createMetricRequests.size)
-
-      batchCreateMetricsRequests += batchCreateMetricsRequest {
-        this.parent = parent
-        requests += createMetricRequests.slice(fromIndex until toIndex)
+    val batchCreateMetricsRequests: List<BatchCreateMetricsRequest> =
+      createMetricRequests.chunked(MAX_BATCH_SIZE_FOR_BATCH_CREATE_METRICS) { chunk ->
+        batchCreateMetricsRequest {
+          this.parent = parent
+          requests += chunk
+        }
       }
-    }
 
     return batchCreateMetricsRequests.flatMap { batchCreateMetricsRequest ->
       try {

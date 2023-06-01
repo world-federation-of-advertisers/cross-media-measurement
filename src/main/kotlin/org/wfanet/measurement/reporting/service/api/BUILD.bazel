@@ -10,3 +10,12 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
     ],
 )
+
+kt_jvm_library(
+    name = "submit_batch_requests",
+    srcs = ["SubmitBatchRequests.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:metrics_service_kt_jvm_grpc_proto",
+    ],
+)
