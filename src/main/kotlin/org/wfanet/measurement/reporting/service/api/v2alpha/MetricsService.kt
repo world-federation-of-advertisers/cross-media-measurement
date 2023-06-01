@@ -523,7 +523,7 @@ class MetricsService(
             val eventGroupName = eventGroupKey.toName()
             val filtersList =
               (primitiveReportingSetBasis.filtersList + internalPrimitiveReportingSet.filter)
-                .filterNotNull()
+                .filter { !it.isNullOrBlank() }
             val filter: String? = if (filtersList.isEmpty()) null else buildConjunction(filtersList)
 
             eventGroupKey to

@@ -150,6 +150,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsRequest as
 import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsResponse as internalBatchCreateMetricsResponse
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsRequest as internalBatchGetMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsResponse as internalBatchGetMetricsResponse
+import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsResponse
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRequest
@@ -1975,6 +1976,109 @@ class MetricsServiceTest {
       )
 
     assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `createMetric creates CMMS measurements when no event filter at all`() = runBlocking {
+    val internalSinglePublisherReportingSet =
+      INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.copy {
+        clearFilter()
+        weightedSubsetUnions.clear()
+        weightedSubsetUnions += weightedSubsetUnion {
+          primitiveReportingSetBases += primitiveReportingSetBasis {
+            externalReportingSetId = this@copy.externalReportingSetId
+          }
+          weight = 1
+        }
+      }
+    val internalCreateMetricRequest = internalCreateMetricRequest {
+      metric =
+        INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+          weightedMeasurements.clear()
+          weightedMeasurements += weightedMeasurement {
+            weight = 1
+            measurement = internalMeasurement {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+              timeInterval = INTERNAL_TIME_INTERVAL
+              primitiveReportingSetBases += primitiveReportingSetBasis {
+                externalReportingSetId = internalSinglePublisherReportingSet.externalReportingSetId
+              }
+            }
+          }
+          details = InternalMetricKt.details {}
+        }
+    }
+
+    val internalPendingInitialSinglePublisherImpressionMetric =
+      INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+        weightedMeasurements.clear()
+        weightedMeasurements += weightedMeasurement {
+          weight = 1
+          measurement =
+            INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
+              clearCmmsMeasurementId()
+              primitiveReportingSetBases.clear()
+              primitiveReportingSetBases += primitiveReportingSetBasis {
+                externalReportingSetId = internalSinglePublisherReportingSet.externalReportingSetId
+              }
+            }
+        }
+        details = InternalMetricKt.details {}
+      }
+
+    whenever(
+        internalReportingSetsMock.batchGetReportingSets(
+          eq(
+            batchGetReportingSetsRequest {
+              cmmsMeasurementConsumerId =
+                internalSinglePublisherReportingSet.cmmsMeasurementConsumerId
+              externalReportingSetIds += internalSinglePublisherReportingSet.externalReportingSetId
+            }
+          )
+        )
+      )
+      .thenReturn(
+        batchGetReportingSetsResponse { reportingSets += internalSinglePublisherReportingSet }
+      )
+
+    whenever(internalMetricsMock.createMetric(eq(internalCreateMetricRequest)))
+      .thenReturn(internalPendingInitialSinglePublisherImpressionMetric)
+
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { filters.clear() }
+    }
+
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+      runBlocking { service.createMetric(request) }
+    }
+
+    // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
+    val measurementsCaptor: KArgumentCaptor<CreateMeasurementRequest> = argumentCaptor()
+    verifyBlocking(measurementsMock, times(1)) { createMeasurement(measurementsCaptor.capture()) }
+    val capturedMeasurementRequests = measurementsCaptor.allValues
+
+    capturedMeasurementRequests.forEach { capturedMeasurementRequest ->
+      val dataProvidersList =
+        capturedMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
+
+      val filters: List<String> =
+        dataProvidersList.flatMap { dataProviderEntry ->
+          val signedRequisitionSpec =
+            decryptRequisitionSpec(
+              dataProviderEntry.value.encryptedRequisitionSpec,
+              DATA_PROVIDER_PRIVATE_KEY_HANDLE
+            )
+          val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+
+          requisitionSpec.eventGroupsList.map { eventGroupEntry ->
+            eventGroupEntry.value.filter.expression
+          }
+        }
+      for (filter in filters) {
+        assertThat(filter).isEqualTo("")
+      }
+    }
   }
 
   @Test
