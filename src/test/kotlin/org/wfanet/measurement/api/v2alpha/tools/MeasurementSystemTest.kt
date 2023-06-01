@@ -998,8 +998,6 @@ class MeasurementSystemTest {
           "model-suites",
           "create",
           "--parent=$MODEL_PROVIDER_NAME",
-          "--name",
-          MODEL_SUITE_NAME,
           "--display-name",
           "Display name",
           "--description",
@@ -1013,7 +1011,7 @@ class MeasurementSystemTest {
       }
 
     assertThat(request.modelSuite)
-      .ignoringFields(ModelSuite.CREATE_TIME_FIELD_NUMBER)
+      .ignoringFields(ModelSuite.CREATE_TIME_FIELD_NUMBER, ModelSuite.NAME_FIELD_NUMBER)
       .isEqualTo(MODEL_SUITE)
   }
 
@@ -1025,8 +1023,6 @@ class MeasurementSystemTest {
           "model-suites",
           "create",
           "--parent=$MODEL_PROVIDER_NAME",
-          "--name",
-          MODEL_SUITE_NAME,
           "--display-name",
           "Display name",
         )
@@ -1038,7 +1034,7 @@ class MeasurementSystemTest {
       }
 
     assertThat(request.modelSuite)
-      .ignoringFields(ModelSuite.CREATE_TIME_FIELD_NUMBER)
+      .ignoringFields(ModelSuite.CREATE_TIME_FIELD_NUMBER, ModelSuite.NAME_FIELD_NUMBER)
       .isEqualTo(MODEL_SUITE.copy { description = "" })
   }
 

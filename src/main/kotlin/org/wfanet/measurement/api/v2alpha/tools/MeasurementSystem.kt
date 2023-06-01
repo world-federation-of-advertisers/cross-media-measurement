@@ -1161,12 +1161,6 @@ private class ModelSuites {
     )
     modelProviderName: String,
     @Option(
-      names = ["--name"],
-      description = ["Model suite name."],
-      required = true,
-    )
-    modelSuiteName: String,
-    @Option(
       names = ["--display-name"],
       description = ["Model suite display name."],
       required = true,
@@ -1183,7 +1177,6 @@ private class ModelSuites {
     val request = createModelSuiteRequest {
       parent = modelProviderName
       modelSuite = modelSuite {
-        name = modelSuiteName
         displayName = modelSuiteDisplayName
         description = modelSuiteDescription
       }
@@ -1191,7 +1184,7 @@ private class ModelSuites {
     val outputModelSuite =
       runBlocking(parentCommand.rpcDispatcher) { modelSuiteStub.createModelSuite(request) }
 
-    println("Model suite ${outputModelSuite.name} has been created.")
+    printModelSuite(outputModelSuite)
   }
 
   @Command(description = ["Gets model suite."])
@@ -1202,11 +1195,11 @@ private class ModelSuites {
       required = true,
     )
     modelSuiteName: String,
-  ): ModelSuite {
+  ) {
     val request = getModelSuiteRequest { name = modelSuiteName }
     val outputModelSuite =
       runBlocking(parentCommand.rpcDispatcher) { modelSuiteStub.getModelSuite(request) }
-    return outputModelSuite
+    printModelSuite(outputModelSuite)
   }
 
   @Command(description = ["Lists model suites for a model provider."])
@@ -1242,10 +1235,15 @@ private class ModelSuites {
     }
     val response =
       runBlocking(parentCommand.rpcDispatcher) { modelSuiteStub.listModelSuites(request) }
-    response.modelSuiteList.forEach {
-      println(
-        "Name: ${it.name}, Display Name: ${it.displayName}, Description: ${it.description}, Created: ${it.createTime}"
-      )
+    response.modelSuiteList.forEach { printModelSuite(it) }
+  }
+
+  private fun printModelSuite(modelSuite: ModelSuite) {
+    println("NAME - ${modelSuite.name}")
+    println("DISPLAY NAME - ${modelSuite.displayName}")
+    if (modelSuite.description.isNotBlank()) {
+      println("DESCRIPTION - ${modelSuite.description}")
     }
+    println("CREATE TIME - ${modelSuite.createTime}")
   }
 }
