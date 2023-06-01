@@ -22,64 +22,70 @@ import "google/type/date.proto";
 option java_package = "org.wfanet.measurement.api.v2alpha.event_group_metadata.testing";
 option java_multiple_files = true;
 
+// The specification of synthetic EventGroups created from a shared synthetic
+// virtual population.
 message SimulatorSyntheticDataSpec {
   repeated SyntheticEventGroupSpec event_group_spec = 1;
   SyntheticPopulationSpec population = 2;
 }
 
-// A sequence of VIDs represented with an inclusive beginning and end.
-message VidInterval {
-  int64 begin = 1;
+// A sequence of VIDs represented with a beginning and exclusive end.
+message VidRange {
+  int64 start = 1;
   int64 end = 2;
 }
 
-// The specification of the entire VID space.
+// The specification of a synthetic virtual population.
 message SyntheticPopulationSpec {
-  VidInterval vid_interval = 1;
+  VidRange vid_range = 1;
 
-  // For Age, Gender, Social Grade ...
-  // These need to be assigned at the VID level here. When generating a
-  // SimulatorSyntheticData you need to import the necessary EventTemplate.
-  repeated google.protobuf.FieldDescriptorProto population_fields = 2;
+  // Set of strings that define population data fields such as Age, Gender,
+  // and Social Grade. These should conform to a CEL expression syntax (e.g.
+  // person.age_group). These are assigned at the subpopulation level.
+  repeated string population_fields = 2;
 
-  // For Device, Location, Duration ...
-  // These need to be assigned at the impression level in the FrequencySpec.
-  repeated google.protobuf.FieldDescriptorProto non_population_fields = 3;
+  // Set of strings that define non-population data fields such as Device,
+  // Location, and Duration. These should conform to a CEL expression syntax
+  // (e.g.person.age_group). These are assigned at the impression level in the
+  // FrequencySpec.
+  repeated string non_population_fields = 3;
 
   message SubPopulation {
-    VidInterval vid_sub_interval = 1;
+    VidRange vid_sub_range = 1;
 
-    // A list of the same length as the population field descriptors whose
-    // values are one of each of the values for the field descriptor
-    // (e.g. if the first field descriptor is age bucket, then the first
-    // value in this list is a particular age bucket). This list should be
-    // unique across subpopulations.
-    repeated string population_fields_values = 2;
+    // A map of `population_fields` to their values for each subpopulation.
+    map<string, string> population_fields_values = 2;
   }
+
+  // Subpopulations should describe non-overlapping VID ranges. The combinations
+  // of population field values should be unique across subpopulations.
   repeated SubPopulation sub_populations = 4;
 }
 
-// Each Synthetic event group spec indicates which VID intervals are reached.
+// The specification of a synthetic EventGroup which describes all impressions
+// for specific dates.
 message SyntheticEventGroupSpec {
   string property_under_measurement = 1;
   string description = 2;
 
-  // The VIDs reached with their frequency non-population attributes.
+  // The specification of VIDs reached at a specific frequency and their
+  // non-population attributes.
   message FrequencySpec {
     int64 frequency = 1;
-    // The VID intervals should be sub-intervals of SubPopulations.
-    message VidIntervalSpec {
-      VidInterval vid_intervals = 1;
 
-      // A list of the same length as the non-population field descriptors
-      // whose values are one of each of the values for the field
-      // descriptor (e.g. if the first field descriptor is device bucket,
-      // then the first value in this list is a particular device).
-      repeated string non_population_field_values = 2;
+    // The specification of non_population_values for a VID range.
+    message VidRangeSpec {
+      VidRange vid_range = 1;
+
+      // A map of `non_population_fields` from `SyntheticPopulationSpec` to
+      // their values.
+      map<string, string> non_population_field_values = 2;
     }
-    repeated VidIntervalSpec vid_interval_specs = 2;
+    // The VID ranges should be non-overlapping sub-ranges of SubPopulations.
+    repeated VidRangeSpec vid_range_specs = 2;
   }
 
+  // The specification for all frequencies reached at a specific date.
   message DateSpec {
     // Date the VIDs were reached.
     google.type.Date date = 1;
