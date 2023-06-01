@@ -350,6 +350,7 @@ class FrontendSimulator(
         }
 
     val request = createMeasurementRequest {
+      parent = measurementConsumer.name
       measurement = measurement {
         measurementConsumerCertificate = measurementConsumer.certificate
         measurementSpec =
@@ -474,7 +475,7 @@ class FrontendSimulator(
   }
 
   /** Gets the expected result of a [Measurement] using raw sketches. */
-  suspend fun getExpectedResult(
+  private suspend fun getExpectedResult(
     measurementName: String,
     protocolConfig: ProtocolConfig.LiquidLegionsV2
   ): Result {

@@ -896,6 +896,7 @@ class CreateMeasurement : Runnable {
           .withAuthenticationKey(parentCommand.apiAuthenticationKey)
           .createMeasurement(
             createMeasurementRequest {
+              parent = measurementConsumer.name
               this.measurement = measurement
               requestId = this@CreateMeasurement.requestId
             }

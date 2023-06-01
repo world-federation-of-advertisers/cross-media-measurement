@@ -19,7 +19,9 @@ package org.wfanet.measurement.api.v2alpha.tools
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.Descriptors
 import com.google.protobuf.duration
+import com.google.protobuf.value
 import io.grpc.Server
 import io.grpc.ServerInterceptors
 import io.grpc.ServerServiceDefinition
@@ -48,7 +50,6 @@ import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
@@ -58,10 +59,12 @@ import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.frequency
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.watchDuration
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
@@ -83,6 +86,7 @@ import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createApiKeyRequest
 import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
+import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
@@ -560,21 +564,25 @@ class MeasurementSystemTest {
   @Test
   fun `measurements create calls CreateMeasurement with valid request`() {
     val requestId = "foo"
+    val measurementReferenceId = "9999"
+    val measurementConsumerName = "measurementConsumers/777"
     val args =
       commonArgs +
         arrayOf(
           "measurements",
           "--api-key=$AUTHENTICATION_KEY",
           "create",
-          "--impression",
-          "--impression-privacy-epsilon=0.015",
-          "--impression-privacy-delta=0.0",
-          "--impression-max-frequency=1000",
+          "--reach-and-frequency",
+          "--reach-privacy-epsilon=0.015",
+          "--reach-privacy-delta=0.0",
+          "--frequency-privacy-epsilon=0.02",
+          "--frequency-privacy-delta=0.0",
+          "--reach-max-frequency=1000",
           "--vid-sampling-start=0.1",
           "--vid-sampling-width=0.2",
-          "--measurement-consumer=measurementConsumers/777",
+          "--measurement-consumer=$measurementConsumerName",
           "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
-          "--measurement-ref-id=9999",
+          "--measurement-ref-id=$measurementReferenceId",
           "--request-id=$requestId",
           "--data-provider=dataProviders/1",
           "--event-group=dataProviders/1/eventGroups/1",
@@ -604,35 +612,80 @@ class MeasurementSystemTest {
       )
       .isEqualTo(AUTHENTICATION_KEY)
 
+    // Verify request.
     val request =
       captureFirst<CreateMeasurementRequest> {
         runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
       }
-    assertThat(request.requestId).isEqualTo(requestId)
-    val measurement = request.measurement
-    // measurementSpec matches
+    assertThat(request)
+      .ignoringFieldDescriptors(
+        MEASUREMENT_SPEC_FIELD,
+        ENCRYPTED_REQUISITION_SPEC_FIELD,
+        NONCE_HASH_FIELD
+      )
+      .isEqualTo(
+        createMeasurementRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          measurement = measurement {
+            measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
+            dataProviders += dataProviderEntry {
+              key = "dataProviders/1"
+              value =
+                MeasurementKt.DataProviderEntryKt.value {
+                  dataProviderCertificate = DATA_PROVIDER.certificate
+                  dataProviderPublicKey = DATA_PROVIDER.publicKey
+                }
+            }
+            dataProviders += dataProviderEntry {
+              key = "dataProviders/2"
+              value =
+                MeasurementKt.DataProviderEntryKt.value {
+                  dataProviderCertificate = DATA_PROVIDER.certificate
+                  dataProviderPublicKey = DATA_PROVIDER.publicKey
+                }
+            }
+            this.measurementReferenceId = measurementReferenceId
+          }
+          this.requestId = requestId
+        }
+      )
+
+    // Verify MeasurementSpec.
     verifyMeasurementSpec(
-      measurement.measurementSpec,
+      request.measurement.measurementSpec,
       MEASUREMENT_CONSUMER_CERTIFICATE,
       TRUSTED_MEASUREMENT_CONSUMER_ISSUER
     )
-    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
-    val nonceHashes = measurement.dataProvidersList.map { it.value.nonceHash }
+    val measurementSpec = MeasurementSpec.parseFrom(request.measurement.measurementSpec.data)
     assertThat(measurementSpec)
-      .comparingExpectedFieldsOnly()
       .isEqualTo(
         measurementSpec {
           measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
-          this.nonceHashes += nonceHashes
+          this.nonceHashes += request.measurement.dataProvidersList.map { it.value.nonceHash }
+          reachAndFrequency =
+            MeasurementSpecKt.reachAndFrequency {
+              reachPrivacyParams = differentialPrivacyParams {
+                epsilon = 0.015
+                delta = 0.0
+              }
+              frequencyPrivacyParams = differentialPrivacyParams {
+                epsilon = 0.02
+                delta = 0.0
+              }
+              maximumFrequencyPerUser = 1000
+            }
+          vidSamplingInterval =
+            MeasurementSpecKt.vidSamplingInterval {
+              start = 0.1f
+              width = 0.2f
+            }
         }
       )
-    assertThat(measurement.measurementReferenceId).isEqualTo("9999")
-    // dataProvider1 matches
-    val dataProviderEntry1 = measurement.dataProvidersList[0]
-    assertThat(dataProviderEntry1.key).isEqualTo("dataProviders/1")
+
+    // Verify first RequisitionSpec.
     val signedRequisitionSpec1 =
       decryptRequisitionSpec(
-        dataProviderEntry1.value.encryptedRequisitionSpec,
+        request.measurement.dataProvidersList[0].value.encryptedRequisitionSpec,
         DATA_PROVIDER_PRIVATE_KEY_HANDLE
       )
     val requisitionSpec1 = RequisitionSpec.parseFrom(signedRequisitionSpec1.data)
@@ -643,9 +696,8 @@ class MeasurementSystemTest {
       MEASUREMENT_CONSUMER_CERTIFICATE,
       TRUSTED_MEASUREMENT_CONSUMER_ISSUER
     )
-
     assertThat(requisitionSpec1)
-      .comparingExpectedFieldsOnly()
+      .ignoringFields(RequisitionSpec.NONCE_FIELD_NUMBER)
       .isEqualTo(
         requisitionSpec {
           measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
@@ -674,8 +726,9 @@ class MeasurementSystemTest {
             }
         }
       )
-    // dataProvider2 matches
-    val dataProviderEntry2 = measurement.dataProvidersList[1]
+
+    // Verify second RequisitionSpec.
+    val dataProviderEntry2 = request.measurement.dataProvidersList[1]
     assertThat(dataProviderEntry2.key).isEqualTo("dataProviders/2")
     val signedRequisitionSpec2 =
       decryptRequisitionSpec(
@@ -691,7 +744,7 @@ class MeasurementSystemTest {
       TRUSTED_MEASUREMENT_CONSUMER_ISSUER
     )
     assertThat(requisitionSpec2)
-      .comparingExpectedFieldsOnly()
+      .ignoringFields(RequisitionSpec.NONCE_FIELD_NUMBER)
       .isEqualTo(
         requisitionSpec {
           measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
@@ -706,64 +759,6 @@ class MeasurementSystemTest {
                   }
                   filter = RequisitionSpecKt.eventFilter { expression = "ijk" }
                 }
-            }
-        }
-      )
-  }
-
-  @Test
-  fun `measurements create calls CreateMeasurement with correct reach and frequency params`() {
-    val args =
-      commonArgs +
-        arrayOf(
-          "measurements",
-          "--api-key=$AUTHENTICATION_KEY",
-          "create",
-          "--measurement-consumer=measurementConsumers/777",
-          "--reach-and-frequency",
-          "--reach-privacy-epsilon=0.015",
-          "--reach-privacy-delta=0.0",
-          "--frequency-privacy-epsilon=0.02",
-          "--frequency-privacy-delta=0.0",
-          "--reach-max-frequency=1000",
-          "--vid-sampling-start=0.1",
-          "--vid-sampling-width=0.2",
-          "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
-          "--data-provider=dataProviders/1",
-          "--event-group=dataProviders/1/eventGroups/1",
-          "--event-filter=abcd",
-          "--event-start-time=$TIME_STRING_1",
-          "--event-end-time=$TIME_STRING_2",
-        )
-    callCli(args)
-
-    val request =
-      captureFirst<CreateMeasurementRequest> {
-        runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
-      }
-
-    val measurement = request.measurement
-    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
-    assertThat(measurementSpec)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(
-        measurementSpec {
-          reachAndFrequency =
-            MeasurementSpecKt.reachAndFrequency {
-              reachPrivacyParams = differentialPrivacyParams {
-                epsilon = 0.015
-                delta = 0.0
-              }
-              frequencyPrivacyParams = differentialPrivacyParams {
-                epsilon = 0.02
-                delta = 0.0
-              }
-              maximumFrequencyPerUser = 1000
-            }
-          vidSamplingInterval =
-            MeasurementSpecKt.vidSamplingInterval {
-              start = 0.1f
-              width = 0.2f
             }
         }
       )
@@ -965,6 +960,17 @@ class MeasurementSystemTest {
   }
 
   companion object {
+    private val MEASUREMENT_SPEC_FIELD: Descriptors.FieldDescriptor =
+      Measurement.getDescriptor().findFieldByNumber(Measurement.MEASUREMENT_SPEC_FIELD_NUMBER)
+    private val ENCRYPTED_REQUISITION_SPEC_FIELD: Descriptors.FieldDescriptor =
+      Measurement.DataProviderEntry.Value.getDescriptor()
+        .findFieldByNumber(
+          Measurement.DataProviderEntry.Value.ENCRYPTED_REQUISITION_SPEC_FIELD_NUMBER
+        )
+    private val NONCE_HASH_FIELD: Descriptors.FieldDescriptor =
+      Measurement.DataProviderEntry.Value.getDescriptor()
+        .findFieldByNumber(Measurement.DataProviderEntry.Value.NONCE_HASH_FIELD_NUMBER)
+
     private val MEASUREMENT_CONSUMER: MeasurementConsumer by lazy {
       measurementConsumer {
         name = MEASUREMENT_CONSUMER_NAME
@@ -1028,14 +1034,6 @@ class MeasurementSystemTest {
           encryptedResult = getEncryptedResult(result, measurementPublicKey)
           certificate = DATA_PROVIDER_CERTIFICATE_NAME
         }
-      }
-    }
-    private val SUCCEEDED_DATA_PROVIDER: DataProvider by lazy {
-      dataProvider {
-        name = DATA_PROVIDER_NAME
-        certificate = DATA_PROVIDER_CERTIFICATE_NAME
-        publicKey = signedData { data = DATA_PROVIDER_PUBLIC_KEY.toByteString() }
-        requiredExternalDuchyIds += DUCHIES
       }
     }
   }

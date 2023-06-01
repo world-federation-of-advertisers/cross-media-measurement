@@ -1475,7 +1475,7 @@ class MetricsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+      withMeasurementConsumerPrincipal(request.parent, CONFIG) {
         runBlocking { service.createMetric(request) }
       }
 
@@ -1500,10 +1500,12 @@ class MetricsServiceTest {
       )
       .containsExactly(
         createMeasurementRequest {
+          parent = request.parent
           measurement = REQUESTING_UNION_ALL_REACH_MEASUREMENT
           requestId = INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsCreateMeasurementRequestId
         },
         createMeasurementRequest {
+          parent = request.parent
           measurement = REQUESTING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
           requestId =
             INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
@@ -1615,6 +1617,7 @@ class MetricsServiceTest {
       )
       .containsExactly(
         createMeasurementRequest {
+          parent = request.parent
           measurement = REQUESTING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
           requestId =
             INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsCreateMeasurementRequestId
@@ -1806,6 +1809,7 @@ class MetricsServiceTest {
       )
       .containsExactly(
         createMeasurementRequest {
+          parent = request.parent
           measurement = requestingSinglePublisherImpressionMeasurement
           requestId =
             INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsCreateMeasurementRequestId
@@ -1902,10 +1906,12 @@ class MetricsServiceTest {
       )
       .containsExactly(
         createMeasurementRequest {
+          parent = request.parent
           measurement = REQUESTING_UNION_ALL_REACH_MEASUREMENT
           requestId = INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsCreateMeasurementRequestId
         },
         createMeasurementRequest {
+          parent = request.parent
           measurement = REQUESTING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
           requestId =
             INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
@@ -2714,16 +2720,19 @@ class MetricsServiceTest {
       )
       .containsExactly(
         createMeasurementRequest {
+          parent = request.parent
           measurement = REQUESTING_UNION_ALL_REACH_MEASUREMENT
           requestId = INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsCreateMeasurementRequestId
         },
         createMeasurementRequest {
+          parent = request.parent
           measurement = REQUESTING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
           requestId =
             INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
               .cmmsCreateMeasurementRequestId
         },
         createMeasurementRequest {
+          parent = request.parent
           measurement = REQUESTING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
           requestId =
             INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsCreateMeasurementRequestId

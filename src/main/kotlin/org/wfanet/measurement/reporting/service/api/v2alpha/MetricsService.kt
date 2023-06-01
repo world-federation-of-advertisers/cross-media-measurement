@@ -327,30 +327,29 @@ class MetricsService(
       val measurementConsumerSigningKey = getMeasurementConsumerSigningKey(principal)
       val measurementEncryptionPublicKey = measurementConsumer.publicKey.data
 
-      val measurement = measurement {
-        this.measurementConsumerCertificate = principal.config.signingCertificateName
-
-        dataProviders +=
-          buildDataProviderEntries(
-            eventGroupEntriesByDataProvider,
-            measurementEncryptionPublicKey,
-            measurementConsumerSigningKey,
-            principal.config.apiKey,
-          )
-
-        val unsignedMeasurementSpec: MeasurementSpec =
-          buildUnsignedMeasurementSpec(
-            measurementEncryptionPublicKey,
-            dataProviders.map { it.value.nonceHash },
-            metricSpec
-          )
-
-        measurementSpec =
-          signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
-      }
-
       return createMeasurementRequest {
-        this.measurement = measurement
+        parent = measurementConsumer.name
+        measurement = measurement {
+          measurementConsumerCertificate = principal.config.signingCertificateName
+
+          dataProviders +=
+            buildDataProviderEntries(
+              eventGroupEntriesByDataProvider,
+              measurementEncryptionPublicKey,
+              measurementConsumerSigningKey,
+              principal.config.apiKey,
+            )
+
+          val unsignedMeasurementSpec: MeasurementSpec =
+            buildUnsignedMeasurementSpec(
+              measurementEncryptionPublicKey,
+              dataProviders.map { it.value.nonceHash },
+              metricSpec
+            )
+
+          measurementSpec =
+            signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
+        }
         requestId = internalMeasurement.cmmsCreateMeasurementRequestId
       }
     }
@@ -649,7 +648,6 @@ class MetricsService(
       var anyUpdate = false
 
       for ((newState, measurementsList) in newStateToCmmsMeasurements) {
-        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
         when (newState) {
           Measurement.State.SUCCEEDED -> {
             syncSucceededInternalMeasurements(measurementsList, apiAuthenticationKey, principal)
