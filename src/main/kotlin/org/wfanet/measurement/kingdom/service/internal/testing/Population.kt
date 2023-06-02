@@ -15,10 +15,11 @@
 package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.gson.JsonParser
+import com.google.protobuf.Any
 import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.rpc.ErrorInfo
 import io.grpc.StatusRuntimeException
-import io.grpc.protobuf.ProtoUtils
+import io.grpc.protobuf.StatusProto
 import java.time.Clock
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -423,12 +424,16 @@ fun DataProvider.toDataProviderValue(nonce: Long = Random.Default.nextLong()) = 
 }
 
 /**
- * [ErrorInfo] from [trailers][StatusRuntimeException.getTrailers].
+ * [ErrorInfo] from status details.
  *
  * TODO(@SanjayVas): Move this to common.grpc.
  */
 val StatusRuntimeException.errorInfo: ErrorInfo?
   get() {
-    val key = ProtoUtils.keyForProto(ErrorInfo.getDefaultInstance())
-    return trailers?.get(key)
+    val errorInfoFullName = ErrorInfo.getDescriptor().fullName
+    val statusProto: com.google.rpc.Status = StatusProto.fromStatusAndTrailers(status, trailers)
+    val errorInfoPacked: Any =
+      statusProto.detailsList.find { it.typeUrl.endsWith("/$errorInfoFullName") } ?: return null
+
+    return errorInfoPacked.unpack(ErrorInfo::class.java)
   }

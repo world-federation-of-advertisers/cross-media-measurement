@@ -52,13 +52,16 @@ class SpannerMeasurementLogEntriesService(
     try {
       return CreateDuchyMeasurementLogEntry(request).execute(client, idGenerator)
     } catch (e: MeasurementNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Measurement not found.")
     } catch (e: DuchyNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Duchy not found." }
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Duchy not found.")
     } catch (e: MeasurementStateIllegalException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Measurement in wrong state." }
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
+        "Measurement in wrong state."
+      )
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error")
     }
   }
 

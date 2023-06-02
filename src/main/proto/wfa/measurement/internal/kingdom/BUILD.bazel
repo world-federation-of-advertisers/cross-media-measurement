@@ -459,9 +459,6 @@ proto_and_java_proto_library(name = "exchange_workflow")
 proto_library(
     name = "error_code_proto",
     srcs = ["error_code.proto"],
-    deps = [
-        "@com_google_googleapis//google/rpc:error_details_proto",
-    ],
 )
 
 java_proto_library(
