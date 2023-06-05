@@ -1056,10 +1056,6 @@ class ReportsService(
     apiAuthenticationKey: String,
     signingConfig: SigningConfig,
   ): CreateMeasurementRequest {
-    grpcRequireNotNull(MeasurementConsumerKey.fromName(measurementConsumer.name)) {
-      "Invalid measurement consumer name [${measurementConsumer.name}]"
-    }
-
     val measurementConsumerCertificate: X509Certificate =
       readCertificate(signingConfig.signingCertificateDer)
     val measurementConsumerSigningKey =
@@ -1067,6 +1063,7 @@ class ReportsService(
     val measurementEncryptionPublicKey: ByteString = measurementConsumer.publicKey.data
 
     return createMeasurementRequest {
+      parent = measurementConsumer.name
       measurement = measurement {
         this.measurementConsumerCertificate = signingConfig.signingCertificateName
 
