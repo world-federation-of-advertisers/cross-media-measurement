@@ -57,11 +57,11 @@ class SpannerModelRolloutsService(
     try {
       return CreateModelRollout(request, clock).execute(client, idGenerator)
     } catch (e: ModelRolloutInvalidArgsException) {
-      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT)
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     } catch (e: ModelLineNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelLine not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelLine not found.")
     } catch (e: ModelReleaseNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelRelease not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelRelease not found.")
     }
   }
 
@@ -74,9 +74,9 @@ class SpannerModelRolloutsService(
     try {
       return ScheduleModelRolloutFreeze(request, clock).execute(client, idGenerator)
     } catch (e: ModelRolloutInvalidArgsException) {
-      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT)
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     } catch (e: ModelRolloutNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelRollout not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelRollout not found.")
     }
   }
 
@@ -120,11 +120,12 @@ class SpannerModelRolloutsService(
     try {
       return DeleteModelRollout(request, clock).execute(client, idGenerator)
     } catch (e: ModelRolloutNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelRollout not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelRollout not found.")
     } catch (e: ModelRolloutInvalidArgsException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
         "RolloutStartTime already passed"
-      }
+      )
     }
   }
 }
