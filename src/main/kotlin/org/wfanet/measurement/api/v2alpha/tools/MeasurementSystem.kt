@@ -41,6 +41,7 @@ import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
@@ -56,14 +57,13 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelRelease
+import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PublicKey
 import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt.PublicKeysCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt as EventGroupEntries
-import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt.filter
-import org.wfanet.measurement.api.v2alpha.ModelLine
-import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.activateAccountRequest
@@ -147,6 +147,8 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = systemDuration.ofSeconds(30)
       Measurements::class,
       ApiKeys::class,
       DataProviders::class,
+      ModelLines::class,
+      ModelReleases::class,
     ]
 )
 class MeasurementSystem private constructor() : Runnable {
@@ -1183,13 +1185,13 @@ private class ModelLines {
     modelLineDescription: String,
     @Option(
       names = ["--active-start-time"],
-      description = ["Model line active start time."],
+      description = ["Model line active start time in ISO 8601 format of UTC."],
       required = true,
     )
     modelLineActiveStartTime: Instant,
     @Option(
       names = ["--active-end-time"],
-      description = ["Model line active end time."],
+      description = ["Model line active end time in ISO 8601 format of UTC."],
       required = false,
     )
     modelLineActiveEndTime: Instant? = null,
@@ -1247,7 +1249,9 @@ private class ModelLines {
       holdbackModelLine = modelLineHoldbackModelLine
     }
     val outputModelLine =
-      runBlocking(parentCommand.rpcDispatcher) { modelLineStub.setModelLineHoldbackModelLine(request) }
+      runBlocking(parentCommand.rpcDispatcher) {
+        modelLineStub.setModelLineHoldbackModelLine(request)
+      }
     printModelLine(outputModelLine)
   }
 
@@ -1260,8 +1264,8 @@ private class ModelLines {
     )
     modelLineName: String,
     @Option(
-      names = ["--holdback-model-line"],
-      description = ["Holdback model line."],
+      names = ["--active-end-time"],
+      description = ["Model line active end time in ISO 8601 format of UTC."],
       required = true,
     )
     modelLineActiveEndTime: Instant,
@@ -1293,36 +1297,31 @@ private class ModelLines {
     @Option(
       names = ["--page-token"],
       description =
-      [
-        "A page token, received from a previous `ListModelLinesRequest` call. Provide this to retrieve the subsequent page."
-      ],
+        [
+          "A page token, received from a previous `ListModelLinesRequest` call. Provide this to retrieve the subsequent page."
+        ],
       required = false,
       defaultValue = ""
     )
     listPageToken: String,
     @Option(
       names = ["--types"],
-      description =
-      [
-        "The list of types used to filter the result."
-      ],
+      description = ["The list of types used to filter the result."],
       required = false,
     )
-    modelLineTypes: List<ModelLine.Type>? = emptyList()
+    modelLineTypes: List<ModelLine.Type>?
   ) {
     val request = listModelLinesRequest {
       parent = modelSuiteName
       pageSize = listPageSize
       pageToken = listPageToken
-      filter = filter {
-        type += modelLineTypes!!.asIterable()
+      if (modelLineTypes != null) {
+        filter = filter { type += modelLineTypes }
       }
     }
     val response =
       runBlocking(parentCommand.rpcDispatcher) { modelLineStub.listModelLines(request) }
-    response.modelLineList.forEach {
-      printModelLine(it)
-    }
+    response.modelLineList.forEach { printModelLine(it) }
   }
 
   private fun printModelLine(modelLine: ModelLine) {
@@ -1388,9 +1387,7 @@ private class ModelReleases {
     )
     modelReleaseName: String,
   ) {
-    val request = getModelReleaseRequest {
-      name = modelReleaseName
-    }
+    val request = getModelReleaseRequest { name = modelReleaseName }
     val outputModelRelease =
       runBlocking(parentCommand.rpcDispatcher) { modelReleaseStub.getModelRelease(request) }
     printModelRelease(outputModelRelease)
@@ -1414,9 +1411,9 @@ private class ModelReleases {
     @Option(
       names = ["--page-token"],
       description =
-      [
-        "A page token, received from a previous `ListModelReleasesRequest` call. Provide this to retrieve the subsequent page."
-      ],
+        [
+          "A page token, received from a previous `ListModelReleasesRequest` call. Provide this to retrieve the subsequent page."
+        ],
       required = false,
       defaultValue = ""
     )
@@ -1429,9 +1426,7 @@ private class ModelReleases {
     }
     val response =
       runBlocking(parentCommand.rpcDispatcher) { modelReleaseStub.listModelReleases(request) }
-    response.modelReleaseList.forEach {
-      printModelRelease(it)
-    }
+    response.modelReleaseList.forEach { printModelRelease(it) }
   }
 
   private fun printModelRelease(modelRelease: ModelRelease) {

@@ -50,12 +50,17 @@ import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelLineRequest
+import org.wfanet.measurement.api.v2alpha.CreateModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.GetModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
+import org.wfanet.measurement.api.v2alpha.ListModelLinesRequest
+import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt.filter
+import org.wfanet.measurement.api.v2alpha.ListModelReleasesRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
@@ -72,11 +77,15 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ModelRelease
+import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.PublicKey
 import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.ReplaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
+import org.wfanet.measurement.api.v2alpha.SetActiveEndTimeRequest
+import org.wfanet.measurement.api.v2alpha.SetModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.api.v2alpha.account
 import org.wfanet.measurement.api.v2alpha.activateAccountRequest
 import org.wfanet.measurement.api.v2alpha.apiKey
@@ -90,21 +99,27 @@ import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.getModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
+import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.listModelLinesResponse
+import org.wfanet.measurement.api.v2alpha.listModelReleasesRequest
+import org.wfanet.measurement.api.v2alpha.listModelReleasesResponse
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.modelLine
+import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.publicKey
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.revokeCertificateRequest
+import org.wfanet.measurement.api.v2alpha.setActiveEndTimeRequest
+import org.wfanet.measurement.api.v2alpha.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.api.v2alpha.updatePublicKeyRequest
-import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -175,6 +190,9 @@ private val DATA_PROVIDER_PRIVATE_KEY_HANDLE =
 private val DUCHY = DuchyKey("worker1")
 private val DUCHIES = listOf(DUCHY).map { it.toName() }
 
+private const val MODEL_LINE_ACTIVE_START_TIME = "2025-05-24T05:00:00.000Z"
+private const val MODEL_LINE_ACTIVE_END_TIME = "2030-05-24T05:00:00.000Z"
+
 private val DATA_PROVIDER = dataProvider {
   name = DATA_PROVIDER_NAME
   certificate = DATA_PROVIDER_CERTIFICATE_NAME
@@ -184,22 +202,27 @@ private const val MODEL_PROVIDER_NAME = "modelProvider/1"
 private const val MODEL_SUITE_NAME = "$MODEL_PROVIDER_NAME/modelSuites/1"
 private const val MODEL_LINE_NAME = "$MODEL_SUITE_NAME/modelLines/1"
 private const val HOLDBACK_MODEL_LINE_NAME = "$MODEL_SUITE_NAME/modelLines/2"
-private val MODEL_SUITE = modelSuite {
-  name = MODEL_SUITE_NAME
-  displayName = "Display name"
-  description = "Description"
-  createTime = timestamp { seconds = 3000 }
-}
+private const val MODEL_RELEASE_NAME = "$MODEL_SUITE_NAME/modelReleases/1"
+
 private val MODEL_LINE = modelLine {
   name = MODEL_LINE_NAME
   displayName = "Display name"
   description = "Description"
-  activeStartTime = timestamp { seconds = 4000 }
-  activeEndTime = timestamp { seconds = 5000 }
+  activeStartTime = timestamp {
+    seconds = Instant.parse(MODEL_LINE_ACTIVE_START_TIME).toProtoTime().seconds
+  }
+  activeEndTime = timestamp {
+    seconds = Instant.parse(MODEL_LINE_ACTIVE_END_TIME).toProtoTime().seconds
+  }
   type = ModelLine.Type.PROD
   holdbackModelLine = HOLDBACK_MODEL_LINE_NAME
   createTime = timestamp { seconds = 3000 }
   updateTime = timestamp { seconds = 3000 }
+}
+
+private val MODEL_RELEASE = modelRelease {
+  name = MODEL_RELEASE_NAME
+  createTime = timestamp { seconds = 3000 }
 }
 
 private const val TIME_STRING_1 = "2022-05-22T01:00:00.000Z"
@@ -282,7 +305,13 @@ class MeasurementSystemTest {
     onBlocking { setModelLineHoldbackModelLine(any()) }.thenReturn(MODEL_LINE)
     onBlocking { setActiveEndTime(any()) }.thenReturn(MODEL_LINE)
     onBlocking { listModelLines(any()) }
-      .thenReturn(listModelLinesResponse { modelLine  += listOf(MODEL_LINE) })
+      .thenReturn(listModelLinesResponse { modelLine += listOf(MODEL_LINE) })
+  }
+  private val modelReleasesServiceMock: ModelReleasesCoroutineImplBase = mockService {
+    onBlocking { createModelRelease(any()) }.thenReturn(MODEL_RELEASE)
+    onBlocking { getModelRelease(any()) }.thenReturn(MODEL_RELEASE)
+    onBlocking { listModelReleases(any()) }
+      .thenReturn(listModelReleasesResponse { modelRelease += listOf(MODEL_RELEASE) })
   }
 
   val services: List<ServerServiceDefinition> =
@@ -294,6 +323,8 @@ class MeasurementSystemTest {
       dataProvidersServiceMock.bindService(),
       ServerInterceptors.intercept(certificatesServiceMock, headerInterceptor),
       ServerInterceptors.intercept(publicKeysServiceMock, headerInterceptor),
+      ServerInterceptors.intercept(modelLinesServiceMock, headerInterceptor),
+      ServerInterceptors.intercept(modelReleasesServiceMock, headerInterceptor),
     )
 
   private val publicApiServer: Server =
@@ -1007,18 +1038,12 @@ class MeasurementSystemTest {
           "model-lines",
           "create",
           "--parent=$MODEL_SUITE_NAME",
-          "--display-name",
-          "Display name",
-          "--description",
-          "Description",
-          "--active-start-time",
-          "1641828224000L",
-          "--active-end-time",
-          "1641828228000L",
-          "--type",
-          "2",
-          "--holdback-model-line",
-          "Holdback model line",
+          "--display-name=Display name",
+          "--description=Description",
+          "--active-start-time=$MODEL_LINE_ACTIVE_START_TIME",
+          "--active-end-time=$MODEL_LINE_ACTIVE_END_TIME",
+          "--type=PROD",
+          "--holdback-model-line=$HOLDBACK_MODEL_LINE_NAME",
         )
     callCli(args)
 
@@ -1030,73 +1055,209 @@ class MeasurementSystemTest {
     assertThat(request.modelLine)
       .ignoringFields(
         ModelLine.CREATE_TIME_FIELD_NUMBER,
-        ModelLine.UPDATE_TIME_FIELD_NUMBER
+        ModelLine.UPDATE_TIME_FIELD_NUMBER,
+        ModelLine.NAME_FIELD_NUMBER
       )
       .isEqualTo(MODEL_LINE)
   }
-/*
+
   @Test
-  fun `create model suite succeeds omitting optional params`() {
+  fun `create model line succeeds omitting optional params`() {
     val args =
       commonArgs +
         arrayOf(
-          "model-suites",
+          "model-lines",
           "create",
-          "--parent=$MODEL_PROVIDER_NAME",
-          "--name",
-          MODEL_SUITE_NAME,
-          "--display-name",
-          "Display name",
+          "--parent=$MODEL_SUITE_NAME",
+          "--active-start-time=$MODEL_LINE_ACTIVE_START_TIME",
+          "--type=PROD",
         )
     callCli(args)
 
     val request =
-      captureFirst<CreateModelSuiteRequest> {
-        runBlocking { verify(modelSuitesServiceMock).createModelSuite(capture()) }
+      captureFirst<CreateModelLineRequest> {
+        runBlocking { verify(modelLinesServiceMock).createModelLine(capture()) }
       }
 
-    assertThat(request.modelSuite)
-      .ignoringFields(ModelSuite.CREATE_TIME_FIELD_NUMBER)
-      .isEqualTo(MODEL_SUITE.copy { description = "" })
+    assertThat(request.modelLine)
+      .ignoringFields(
+        ModelLine.CREATE_TIME_FIELD_NUMBER,
+        ModelLine.UPDATE_TIME_FIELD_NUMBER,
+        ModelLine.NAME_FIELD_NUMBER
+      )
+      .isEqualTo(
+        MODEL_LINE.copy {
+          description = ""
+          displayName = ""
+          holdbackModelLine = ""
+          clearActiveEndTime()
+        }
+      )
   }
 
   @Test
-  fun `get model suite succeeds`() {
-    val args = commonArgs + arrayOf("model-suites", "get", "--name", MODEL_SUITE_NAME)
-    callCli(args)
-
-    val request =
-      captureFirst<GetModelSuiteRequest> {
-        runBlocking { verify(modelSuitesServiceMock).getModelSuite(capture()) }
-      }
-
-    assertThat(request).isEqualTo(getModelSuiteRequest { name = MODEL_SUITE_NAME })
-  }
-
-  @Test
-  fun `list model suites succeeds`() {
+  fun `set holdback model line succeeds`() {
     val args =
       commonArgs +
         arrayOf(
-          "model-suites",
-          "list",
-          "--parent=$MODEL_PROVIDER_NAME",
-          "--page-size",
-          "10",
-          "--page-token",
-          "token"
+          "model-lines",
+          "setHoldbackModelLine",
+          "--name=$MODEL_LINE_NAME",
+          "--holdback-model-line=$HOLDBACK_MODEL_LINE_NAME"
         )
     callCli(args)
 
     val request =
-      captureFirst<ListModelSuitesRequest> {
-        runBlocking { verify(modelSuitesServiceMock).listModelSuites(capture()) }
+      captureFirst<SetModelLineHoldbackModelLineRequest> {
+        runBlocking { verify(modelLinesServiceMock).setModelLineHoldbackModelLine(capture()) }
       }
 
     assertThat(request)
       .isEqualTo(
-        listModelSuitesRequest {
-          parent = MODEL_PROVIDER_NAME
+        setModelLineHoldbackModelLineRequest {
+          name = MODEL_LINE_NAME
+          holdbackModelLine = HOLDBACK_MODEL_LINE_NAME
+        }
+      )
+  }
+
+  @Test
+  fun `set active end time succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-lines",
+          "setActiveEndTime",
+          "--name=$MODEL_LINE_NAME",
+          "--active-end-time=$MODEL_LINE_ACTIVE_END_TIME"
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<SetActiveEndTimeRequest> {
+        runBlocking { verify(modelLinesServiceMock).setActiveEndTime(capture()) }
+      }
+
+    assertThat(request)
+      .isEqualTo(
+        setActiveEndTimeRequest {
+          name = MODEL_LINE_NAME
+          activeEndTime = Instant.parse(MODEL_LINE_ACTIVE_END_TIME).toProtoTime()
+        }
+      )
+  }
+
+  @Test
+  fun `list model lines succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-lines",
+          "list",
+          "--parent=$MODEL_SUITE_NAME",
+          "--page-size=10",
+          "--page-token=token",
+          "--types=PROD"
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<ListModelLinesRequest> {
+        runBlocking { verify(modelLinesServiceMock).listModelLines(capture()) }
+      }
+
+    assertThat(request)
+      .isEqualTo(
+        listModelLinesRequest {
+          parent = MODEL_SUITE_NAME
+          pageSize = 10
+          pageToken = "token"
+          filter = filter { type += ModelLine.Type.PROD }
+        }
+      )
+  }
+
+  @Test
+  fun `list model lines succeeds omitting optional params`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-lines",
+          "list",
+          "--parent=$MODEL_SUITE_NAME",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<ListModelLinesRequest> {
+        runBlocking { verify(modelLinesServiceMock).listModelLines(capture()) }
+      }
+
+    assertThat(request).isEqualTo(listModelLinesRequest { parent = MODEL_SUITE_NAME })
+  }
+
+  @Test
+  fun `create model release succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-releases",
+          "create",
+          "--parent=$MODEL_SUITE_NAME",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<CreateModelReleaseRequest> {
+        runBlocking { verify(modelReleasesServiceMock).createModelRelease(capture()) }
+      }
+
+    assertThat(request.modelRelease)
+      .ignoringFields(ModelRelease.CREATE_TIME_FIELD_NUMBER, ModelRelease.NAME_FIELD_NUMBER)
+      .isEqualTo(MODEL_RELEASE)
+  }
+
+  @Test
+  fun `get model release succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-releases",
+          "get",
+          "--name=$MODEL_RELEASE_NAME",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<GetModelReleaseRequest> {
+        runBlocking { verify(modelReleasesServiceMock).getModelRelease(capture()) }
+      }
+
+    assertThat(request).isEqualTo(getModelReleaseRequest { name = MODEL_RELEASE_NAME })
+  }
+
+  @Test
+  fun `list model releases succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-releases",
+          "list",
+          "--parent=$MODEL_SUITE_NAME",
+          "--page-size=10",
+          "--page-token=token",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<ListModelReleasesRequest> {
+        runBlocking { verify(modelReleasesServiceMock).listModelReleases(capture()) }
+      }
+
+    assertThat(request)
+      .isEqualTo(
+        listModelReleasesRequest {
+          parent = MODEL_SUITE_NAME
           pageSize = 10
           pageToken = "token"
         }
@@ -1104,31 +1265,24 @@ class MeasurementSystemTest {
   }
 
   @Test
-  fun `list model suites succeeds omitting optional params`() {
+  fun `list model releases succeeds omitting optional params`() {
     val args =
       commonArgs +
         arrayOf(
-          "model-suites",
+          "model-releases",
           "list",
-          "--parent=$MODEL_PROVIDER_NAME",
+          "--parent=$MODEL_SUITE_NAME",
         )
     callCli(args)
 
     val request =
-      captureFirst<ListModelSuitesRequest> {
-        runBlocking { verify(modelSuitesServiceMock).listModelSuites(capture()) }
+      captureFirst<ListModelReleasesRequest> {
+        runBlocking { verify(modelReleasesServiceMock).listModelReleases(capture()) }
       }
 
-    assertThat(request)
-      .isEqualTo(
-        listModelSuitesRequest {
-          parent = MODEL_PROVIDER_NAME
-          pageSize = 0
-          pageToken = ""
-        }
-      )
+    assertThat(request).isEqualTo(listModelReleasesRequest { parent = MODEL_SUITE_NAME })
   }
-*/
+
   companion object {
     private val MEASUREMENT_CONSUMER: MeasurementConsumer by lazy {
       measurementConsumer {
