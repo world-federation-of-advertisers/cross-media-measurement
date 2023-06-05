@@ -49,11 +49,12 @@ class SpannerModelOutagesService(
     try {
       return CreateModelOutage(request).execute(client, idGenerator)
     } catch (e: ModelLineNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelLine not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelLine not found.")
     } catch (e: ModelOutageInvalidArgsException) {
-      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
+      throw e.asStatusRuntimeException(
+        Status.Code.INVALID_ARGUMENT,
         e.message ?: "ModelOutageStartTime cannot precede ModelOutageEndTime."
-      }
+      )
     }
   }
 
@@ -73,18 +74,20 @@ class SpannerModelOutagesService(
     try {
       return DeleteModelOutage(modelOutage).execute(client, idGenerator)
     } catch (e: ModelOutageNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelOutage not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelOutage not found.")
     } catch (e: ModelOutageStateIllegalException) {
       when (e.state) {
-        ModelOutage.State.DELETED ->
-          e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelOutage state is DELETED." }
+        ModelOutage.State.DELETED -> {
+          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelOutage state is DELETED.")
+        }
         ModelOutage.State.ACTIVE,
         ModelOutage.State.STATE_UNSPECIFIED,
-        ModelOutage.State.UNRECOGNIZED ->
-          e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+        ModelOutage.State.UNRECOGNIZED -> {
+          throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
+        }
       }
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
   }
 

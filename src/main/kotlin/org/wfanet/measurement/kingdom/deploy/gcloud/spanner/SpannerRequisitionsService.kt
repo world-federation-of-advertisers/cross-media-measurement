@@ -95,15 +95,21 @@ class SpannerRequisitionsService(
     try {
       return FulfillRequisition(request).execute(client, idGenerator)
     } catch (e: RequisitionNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Requisition not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Requisition not found.")
     } catch (e: RequisitionStateIllegalException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Requisition state illegal." }
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
+        "Requisition state illegal."
+      )
     } catch (e: MeasurementStateIllegalException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Measurement state illegal." }
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
+        "Measurement state illegal."
+      )
     } catch (e: DuchyNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Duchy not found." }
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Duchy not found.")
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
   }
 
@@ -122,13 +128,19 @@ class SpannerRequisitionsService(
     try {
       return RefuseRequisition(request).execute(client, idGenerator)
     } catch (e: RequisitionNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Requisition not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Requisition not found.")
     } catch (e: RequisitionStateIllegalException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Requisition state illegal." }
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
+        "Requisition state illegal."
+      )
     } catch (e: MeasurementStateIllegalException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Measurement state illegal." }
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
+        "Measurement state illegal."
+      )
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
   }
 }
