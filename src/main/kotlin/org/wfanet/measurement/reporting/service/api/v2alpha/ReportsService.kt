@@ -71,7 +71,7 @@ class ReportsService(
     val internalTimeRange: InternalTimeRange,
   )
 
-  private val metricSpecBuilder = MetricSpecBuilder(metricSpecConfig)
+  private val metricSpecDefaults = MetricSpecDefaults(metricSpecConfig)
 
   override suspend fun createReport(request: CreateReportRequest): Report {
     grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
@@ -449,8 +449,8 @@ class ReportsService(
                     this.externalReportingSetId = externalReportingSetId
                     this.metricSpec =
                       try {
-                        metricSpecBuilder.buildMetricSpec(metricSpec).toInternal()
-                      } catch (e: MetricSpecBuildingException) {
+                        metricSpecDefaults.specifyDefaults(metricSpec).toInternal()
+                      } catch (e: MetricSpecDefaultsException) {
                         failGrpc(Status.INVALID_ARGUMENT) {
                           listOfNotNull("Invalid metric spec.", e.message, e.cause?.message)
                             .joinToString(separator = "\n")
