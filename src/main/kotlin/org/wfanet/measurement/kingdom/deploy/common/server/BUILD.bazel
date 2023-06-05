@@ -53,6 +53,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:measurements_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:model_lines_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:model_releases_service",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:model_rollouts_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:model_suites_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:public_keys_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:recurring_exchanges_service",
