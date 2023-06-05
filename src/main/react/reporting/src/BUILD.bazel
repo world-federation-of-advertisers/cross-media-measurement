@@ -1,0 +1,87 @@
+load("@aspect_rules_jest//jest:defs.bzl", "jest_test")
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
+load("@npm//:eslint/package_json.bzl", eslint_bin = "bin")
+
+ASSET_PATTERNS = [
+    "*.svg",
+    "*.css",
+]
+
+SRC_PATTERNS = [
+    "*.tsx",
+    "*.ts",
+]
+
+# Filename conventions described at
+# https://create-react-app.dev/docs/running-tests#filename-conventions
+TEST_PATTERNS = [
+    "*.test.tsx",
+    "*.test.ts",
+    "*.spec.tsx",
+    "*.spec.ts",
+]
+
+js_library(
+    name = "src",
+    srcs = glob(ASSET_PATTERNS),
+    visibility = ["//visibility:public"],
+    deps = [
+        ":src_ts",
+    ],
+)
+
+ts_project(
+    name = "src_ts",
+    srcs = glob(
+        include = SRC_PATTERNS,
+        exclude = TEST_PATTERNS,
+    ),
+    declaration = True,
+    resolve_json_module = True,
+    tsconfig = "//src/main/react/reporting:tsconfig",
+    deps = [
+        "//src/main/react/reporting:node_modules/react",
+        "//src/main/react/reporting:node_modules/react-dom",
+        "//src/main/react/reporting:node_modules/web-vitals",
+    ],
+)
+
+ts_project(
+    name = "src_test_ts",
+    srcs = glob(TEST_PATTERNS),
+    declaration = True,
+    resolve_json_module = True,
+    supports_workers = False,  # worker bug on macos: ERROR: react-cra/src/BUILD.bazel:50:11: output 'src/App.test.js' was not created
+    tsconfig = "//src/main/react/reporting:tsconfig",
+    deps = [
+        ":src_ts",
+        "//src/main/react/reporting:node_modules/@testing-library/jest-dom",
+        "//src/main/react/reporting:node_modules/@testing-library/react",
+        "//src/main/react/reporting:node_modules/@types/jest",
+    ],
+)
+
+jest_test(
+    name = "src_test",
+    config = "//src/main/react/reporting:jest_config",
+    data = [
+        ":src",
+        ":src_test_ts",
+        "//src/main/react/reporting:node_modules/jest-environment-jsdom",
+        "//src/main/react/reporting:node_modules/jest-transform-stub",
+    ],
+    node_modules = "//src/main/react/reporting:node_modules",
+)
+
+eslint_bin.eslint_test(
+    name = "eslint_test",
+    args = ["{}/{}".format(
+        package_name(),
+        p,
+    ) for p in SRC_PATTERNS],
+    data = [
+        "//src/main/react/reporting:package_json",
+        "//src/main/react/reporting:node_modules/eslint-config-react-app",
+    ] + glob(SRC_PATTERNS),
+)
