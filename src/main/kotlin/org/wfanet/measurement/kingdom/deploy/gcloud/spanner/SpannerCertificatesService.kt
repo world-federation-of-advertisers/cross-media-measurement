@@ -56,19 +56,20 @@ class SpannerCertificatesService(
     try {
       return CreateCertificate(request).execute(client, idGenerator)
     } catch (e: MeasurementConsumerNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement Consumer not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Measurement Consumer not found.")
     } catch (e: DataProviderNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Data Provider not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Data Provider not found.")
     } catch (e: ModelProviderNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Model Provider not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Model Provider not found.")
     } catch (e: CertSubjectKeyIdAlreadyExistsException) {
-      e.throwStatusRuntimeException(Status.ALREADY_EXISTS) {
+      throw e.asStatusRuntimeException(
+        Status.Code.ALREADY_EXISTS,
         "Certificate with the subject key identifier (SKID) already exists."
-      }
+      )
     } catch (e: DuchyNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Duchy not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Duchy not found.")
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error")
     }
   }
 
@@ -117,13 +118,16 @@ class SpannerCertificatesService(
     try {
       return RevokeCertificate(request).execute(client, idGenerator)
     } catch (e: CertificateNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Certificate not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Certificate not found.")
     } catch (e: DuchyNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Duchy not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Duchy not found.")
     } catch (e: CertificateRevocationStateIllegalException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Certificate is in wrong State." }
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
+        "Certificate is in wrong State."
+      )
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error")
     }
   }
 
@@ -134,13 +138,16 @@ class SpannerCertificatesService(
     try {
       return ReleaseCertificateHold(request).execute(client, idGenerator)
     } catch (e: CertificateNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Certificate not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Certificate not found.")
     } catch (e: DuchyNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Duchy not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Duchy not found.")
     } catch (e: CertificateRevocationStateIllegalException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Certificate is in wrong State." }
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
+        "Certificate is in wrong State."
+      )
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error")
     }
   }
 }
