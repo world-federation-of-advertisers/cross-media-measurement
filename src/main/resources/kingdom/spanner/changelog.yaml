@@ -48,3 +48,6 @@ databaseChangeLog:
 - include:
     file: update-model-shards-foreign-key.sql
     relativeToChangeLogFile: true
+- include:
+    file: update-vid-model-foreign-keys-and-indexes.sql
+    relativeToChangeLogFile: true

@@ -757,6 +757,55 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     }
 
   @Test
+  fun `setModelLineHoldbackModelLine fails if HoldbackModelLine and ModelLine are not part of the same ModelSuite`() =
+    runBlocking {
+      val modelSuite1 = population.createModelSuite(modelProvidersService, modelSuitesService)
+      val modelLine1 =
+        modelLinesService.createModelLine(
+          modelLine {
+            externalModelSuiteId = modelSuite1.externalModelSuiteId
+            externalModelProviderId = modelSuite1.externalModelProviderId
+            activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+            type = ModelLine.Type.PROD
+            displayName = "display name1"
+            description = "description1"
+          }
+        )
+
+      val modelSuite2 = population.createModelSuite(modelProvidersService, modelSuitesService)
+      val modelLine2 =
+        modelLinesService.createModelLine(
+          modelLine {
+            externalModelSuiteId = modelSuite2.externalModelSuiteId
+            externalModelProviderId = modelSuite2.externalModelProviderId
+            activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+            type = ModelLine.Type.HOLDBACK
+            displayName = "display name2"
+            description = "description2"
+          }
+        )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          modelLinesService.setModelLineHoldbackModelLine(
+            setModelLineHoldbackModelLineRequest {
+              externalModelLineId = modelLine1.externalModelLineId
+              externalModelSuiteId = modelSuite1.externalModelSuiteId
+              externalModelProviderId = modelSuite1.externalModelProviderId
+              externalHoldbackModelLineId = modelLine2.externalModelLineId
+              externalHoldbackModelSuiteId = modelSuite2.externalModelSuiteId
+              externalHoldbackModelProviderId = modelSuite2.externalModelProviderId
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .hasMessageThat()
+        .contains("HoldbackModelLine and ModelLine must be part of the same ModelSuite.")
+    }
+
+  @Test
   fun `setModelLineHoldbackModelLine succeeds`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
 

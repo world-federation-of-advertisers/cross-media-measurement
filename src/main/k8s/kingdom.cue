@@ -28,6 +28,8 @@ import ("strings")
 	_completedMeasurementsDryRun:     bool | *false
 	_pendingMeasurementsTimeToLive:   string | *"15d"
 	_pendingMeasurementsDryRun:       bool | *false
+	_exchangesDaysToLive:             int | *"100"
+	_exchangesDryRun:                 bool | *false
 
 	_imageSuffixes: [string]: string
 	_imageSuffixes: {
@@ -37,6 +39,7 @@ import ("strings")
 		"update-kingdom-schema":             string | *"kingdom/spanner-update-schema"
 		"completed-measurements-deletion":   string | *"kingdom/completed-measurements-deletion"
 		"pending-measurements-cancellation": string | *"kingdom/pending-measurements-cancellation"
+		"exchanges-deletion":                string | *"kingdom/exchanges-deletion"
 	}
 	_imageConfigs: [string]: #ImageConfig
 	_imageConfigs: {
@@ -71,6 +74,8 @@ import ("strings")
 	_kingdomCompletedMeasurementsDryRunRetentionPolicyFlag: "--dry-run=\(_completedMeasurementsDryRun)"
 	_kingdomPendingMeasurementsTimeToLiveFlag:              "--time-to-live=\(_pendingMeasurementsTimeToLive)"
 	_kingdomPendingMeasurementsDryRunRetentionPolicyFlag:   "--dry-run=\(_pendingMeasurementsDryRun)"
+	_kingdomExchangesDaysToLiveFlag:                        "--time-to-live=\(_exchangesDaysToLive)"
+	_kingdomExchangesDryRunRetentionPolicyFlag:             "--dry-run=\(_exchangesDryRun)"
 	_otlpEndpoint:                                          "--otel-exporter-otlp-endpoint=\(#OpenTelemetryCollectorEndpoint)"
 
 	services: [Name=_]: #GrpcService & {
@@ -209,6 +214,21 @@ import ("strings")
 			]
 			spec: schedule: "45 * * * *" // Hourly, 45 minutes past the hour
 		}
+		"exchanges-deletion": Cronjob={
+			_container: args: [
+				_internal_api_target_flag,
+				_internal_api_cert_host_flag,
+				_kingdom_tls_cert_file_flag,
+				_kingdom_tls_key_file_flag,
+				_kingdom_cert_collection_file_flag,
+				_kingdomExchangesDaysToLiveFlag,
+				_kingdomExchangesDryRunRetentionPolicyFlag,
+				_debug_verbose_grpc_client_logging_flag,
+				_otlpEndpoint,
+				"--otel-service-name=\(Cronjob.metadata.name)",
+			]
+			spec: schedule: "40 6 * * *" // Daily, 6:40 am
+		}
 	}
 
 	networkPolicies: [Name=_]: #NetworkPolicy & {
@@ -224,6 +244,7 @@ import ("strings")
 				"resource-setup-app",
 				"completed-measurements-deletion-app",
 				"pending-measurements-cancellation-app",
+				"exchanges-deletion-app",
 			]
 			_egresses: {
 				// Need to send external traffic to Spanner.
@@ -270,6 +291,12 @@ import ("strings")
 		}
 		"pending-measurements-cancellation": {
 			_app_label: "pending-measurements-cancellation-app"
+			_destinationMatchLabels: [
+				"gcp-kingdom-data-server-app",
+			]
+		}
+		"exchanges-deletion": {
+			_app_label: "exchanges-deletion-app"
 			_destinationMatchLabels: [
 				"gcp-kingdom-data-server-app",
 			]
