@@ -143,6 +143,35 @@ abstract class ModelOutagesServiceTest<T : ModelOutagesGrpcKt.ModelOutagesCorout
   }
 
   @Test
+  fun `createModelOutage fails when Model Line doesn't have a HoldbackModelLine set`() =
+    runBlocking {
+      val devModelLine =
+        population.createModelLine(
+          modelProvidersService,
+          modelSuitesService,
+          modelLinesService,
+        )
+
+      val modelOutage = modelOutage {
+        externalModelProviderId = devModelLine.externalModelProviderId
+        externalModelSuiteId = devModelLine.externalModelSuiteId
+        externalModelLineId = devModelLine.externalModelLineId
+        modelOutageStartTime = Instant.now().minusSeconds(100L).toProtoTime()
+        modelOutageEndTime = Instant.now().plusSeconds(100L).toProtoTime()
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          modelOutagesService.createModelOutage(modelOutage)
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .hasMessageThat()
+        .contains("ModelOutage can be created only for model lines having a HoldbackModelLine.")
+    }
+
+  @Test
   fun `createModelOutage fails when Model Line is not found`() = runBlocking {
     val modelOutage = modelOutage {
       externalModelProviderId = 123L
