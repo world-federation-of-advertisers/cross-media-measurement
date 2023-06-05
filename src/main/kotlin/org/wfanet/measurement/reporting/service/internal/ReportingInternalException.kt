@@ -14,12 +14,12 @@
 
 package org.wfanet.measurement.reporting.service.internal
 
-import com.google.rpc.ErrorInfo
+import com.google.protobuf.Any
 import com.google.rpc.errorInfo
-import io.grpc.Metadata
+import com.google.rpc.status
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
-import io.grpc.protobuf.ProtoUtils
+import io.grpc.protobuf.StatusProto
 import org.wfanet.measurement.internal.reporting.ErrorCode
 
 /** TODO(tristanvuong2021): Add context when each of these exceptions are thrown. */
@@ -35,30 +35,24 @@ sealed class ReportingInternalException : Exception {
     this.code = code
   }
 
-  fun throwStatusRuntimeException(
-    status: Status = Status.INVALID_ARGUMENT,
-    provideDescription: () -> String,
-  ): Nothing {
-    val info = errorInfo {
-      reason = code.toString()
-      domain = ErrorInfo::class.qualifiedName.toString()
-      metadata.putAll(context)
+  fun asStatusRuntimeException(
+    statusCode: Status.Code,
+    message: String = this.message!!
+  ): StatusRuntimeException {
+    val statusProto = status {
+      code = statusCode.value()
+      this.message = message
+      details +=
+        Any.pack(
+          errorInfo {
+            reason = this@ReportingInternalException.code.toString()
+            domain = ErrorCode.getDescriptor().fullName
+            metadata.putAll(context)
+          }
+        )
     }
-
-    val metadata = Metadata()
-    metadata.put(ProtoUtils.keyForProto(info), info)
-
-    throw status
-      .withDescription(provideDescription() + contextToString())
-      .asRuntimeException(metadata)
+    return StatusProto.toStatusRuntimeException(statusProto)
   }
-
-  private fun contextToString() = context.entries.joinToString(prefix = " ", separator = " ")
-}
-
-fun StatusRuntimeException.getErrorInfo(): ErrorInfo? {
-  val key = ProtoUtils.keyForProto(ErrorInfo.getDefaultInstance())
-  return trailers?.get(key)
 }
 
 class ReportingSetAlreadyExistsException(

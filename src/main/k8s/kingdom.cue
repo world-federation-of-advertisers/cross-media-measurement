@@ -74,7 +74,7 @@ import ("strings")
 	_kingdomCompletedMeasurementsDryRunRetentionPolicyFlag: "--dry-run=\(_completedMeasurementsDryRun)"
 	_kingdomPendingMeasurementsTimeToLiveFlag:              "--time-to-live=\(_pendingMeasurementsTimeToLive)"
 	_kingdomPendingMeasurementsDryRunRetentionPolicyFlag:   "--dry-run=\(_pendingMeasurementsDryRun)"
-	_kingdomExchangesDaysToLiveFlag:                        "--time-to-live=\(_exchangesDaysToLive)"
+	_kingdomExchangesDaysToLiveFlag:                        "--days-to-live=\(_exchangesDaysToLive)"
 	_kingdomExchangesDryRunRetentionPolicyFlag:             "--dry-run=\(_exchangesDryRun)"
 	_otlpEndpoint:                                          "--otel-exporter-otlp-endpoint=\(#OpenTelemetryCollectorEndpoint)"
 
