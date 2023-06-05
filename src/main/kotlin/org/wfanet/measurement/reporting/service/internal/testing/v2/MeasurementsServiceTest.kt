@@ -96,7 +96,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
   @Test
   fun `batchSetCmmsMeasurementIds succeeds when updating one measurement`(): Unit = runBlocking {
     val metric =
-      createMetric(
+      createReachMetric(
         CMMS_MEASUREMENT_CONSUMER_ID,
         metricsService,
         reportingSetsService,
@@ -140,7 +140,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
   @Test
   fun `batchSetCmmsMeasurementIds succeeds when updating two measurements`(): Unit = runBlocking {
     val metric =
-      createMetric(
+      createReachMetric(
         CMMS_MEASUREMENT_CONSUMER_ID,
         metricsService,
         reportingSetsService,
@@ -198,7 +198,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
   fun `batchSetCmmsMeasurementIds succeeds when no filters in bases in measurements`(): Unit =
     runBlocking {
       val metric =
-        createMetric(
+        createReachMetric(
           CMMS_MEASUREMENT_CONSUMER_ID,
           metricsService,
           reportingSetsService,
@@ -257,7 +257,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
   fun `batchSetCmmsMeasurementIds succeeds when updating the same measurement twice`(): Unit =
     runBlocking {
       val metric =
-        createMetric(
+        createReachMetric(
           CMMS_MEASUREMENT_CONSUMER_ID,
           metricsService,
           reportingSetsService,
@@ -303,7 +303,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
   fun `batchSetCmmsMeasurementIds throws NOT_FOUND when not all measurements found`(): Unit =
     runBlocking {
       val metric =
-        createMetric(
+        createReachMetric(
           CMMS_MEASUREMENT_CONSUMER_ID,
           metricsService,
           reportingSetsService,
@@ -424,7 +424,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
   @Test
   fun `batchSetMeasurementResults succeeds when updating one measurement`(): Unit = runBlocking {
     val metric =
-      createMetric(
+      createReachMetric(
         CMMS_MEASUREMENT_CONSUMER_ID,
         metricsService,
         reportingSetsService,
@@ -483,7 +483,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
   @Test
   fun `batchSetMeasurementResults succeeds when updating two measurements`(): Unit = runBlocking {
     val metric =
-      createMetric(
+      createReachMetric(
         CMMS_MEASUREMENT_CONSUMER_ID,
         metricsService,
         reportingSetsService,
@@ -566,7 +566,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
   fun `batchSetMeasurementResults succeeds when no filters in bases in measurements`(): Unit =
     runBlocking {
       val metric =
-        createMetric(
+        createReachMetric(
           CMMS_MEASUREMENT_CONSUMER_ID,
           metricsService,
           reportingSetsService,
@@ -650,7 +650,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
   fun `batchSetMeasurementResults succeeds when updating same measurement twice`(): Unit =
     runBlocking {
       val metric =
-        createMetric(
+        createReachMetric(
           CMMS_MEASUREMENT_CONSUMER_ID,
           metricsService,
           reportingSetsService,
@@ -711,7 +711,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
   fun `batchSetMeasurementResults throws NOT_FOUND when not all measurements found`(): Unit =
     runBlocking {
       val metric =
-        createMetric(
+        createReachMetric(
           CMMS_MEASUREMENT_CONSUMER_ID,
           metricsService,
           reportingSetsService,
@@ -842,7 +842,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
   @Test
   fun `batchSetMeasurementFailures succeeds when updating one measurement`(): Unit = runBlocking {
     val metric =
-      createMetric(
+      createReachMetric(
         CMMS_MEASUREMENT_CONSUMER_ID,
         metricsService,
         reportingSetsService,
@@ -898,7 +898,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
   @Test
   fun `batchSetMeasurementFailures succeeds when updating two measurements`(): Unit = runBlocking {
     val metric =
-      createMetric(
+      createReachMetric(
         CMMS_MEASUREMENT_CONSUMER_ID,
         metricsService,
         reportingSetsService,
@@ -975,7 +975,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
   fun `batchSetMeasurementFailures succeeds when no filters in bases in measurements`(): Unit =
     runBlocking {
       val metric =
-        createMetric(
+        createReachMetric(
           CMMS_MEASUREMENT_CONSUMER_ID,
           metricsService,
           reportingSetsService,
@@ -1053,7 +1053,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
   fun `batchSetMeasurementFailures succeeds when updating same measurement twice`(): Unit =
     runBlocking {
       val metric =
-        createMetric(
+        createReachMetric(
           CMMS_MEASUREMENT_CONSUMER_ID,
           metricsService,
           reportingSetsService,
@@ -1111,7 +1111,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
   fun `batchSetMeasurementFailures throws NOT_FOUND when not all measurements found`(): Unit =
     runBlocking {
       val metric =
-        createMetric(
+        createReachMetric(
           CMMS_MEASUREMENT_CONSUMER_ID,
           metricsService,
           reportingSetsService,
@@ -1240,7 +1240,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
     }
 
   companion object {
-    private suspend fun createMetric(
+    private suspend fun createReachMetric(
       cmmsMeasurementConsumerId: String,
       metricsService: MetricsGrpcKt.MetricsCoroutineImplBase,
       reportingSetsService: ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase,
@@ -1249,7 +1249,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
       noFiltersInMeasurementBases: Boolean = false,
     ): Metric {
       createMeasurementConsumer(cmmsMeasurementConsumerId, measurementConsumersService)
-      val createdReportingSet = createReportingSet(cmmsMeasurementConsumerId, reportingSetsService)
+      val createdReportingSet = createPrimitiveReportingSet(cmmsMeasurementConsumerId, reportingSetsService)
 
       val metric = metric {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
@@ -1304,7 +1304,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
       return metricsService.createMetric(createMetricRequest { this.metric = metric })
     }
 
-    private suspend fun createReportingSet(
+    private suspend fun createPrimitiveReportingSet(
       cmmsMeasurementConsumerId: String,
       reportingSetsService: ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
     ): ReportingSet {
