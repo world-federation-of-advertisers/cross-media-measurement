@@ -50,8 +50,6 @@
 package org.wfanet.measurement.api.v2alpha.tools
 
 import com.google.protobuf.ByteString
-import com.google.protobuf.Timestamp
-import com.google.protobuf.timestamp
 import io.grpc.ManagedChannel
 import java.io.File
 import java.security.SecureRandom
@@ -447,13 +445,6 @@ private fun getDataProviderEntry(
   }
 }
 
-private fun convertToTimestamp(instant: Instant): Timestamp {
-  return timestamp {
-    seconds = instant.epochSecond
-    nanos = instant.nano
-  }
-}
-
 private fun getReachAndFrequency(measurementTypeParams: MeasurementTypeParams): ReachAndFrequency {
   return reachAndFrequency {
     reachPrivacyParams = differentialPrivacyParams {
@@ -493,8 +484,7 @@ private fun getMeasurementResult(
   privateKeyHandle: PrivateKeyHandle
 ): Measurement.Result {
   val signedResult = decryptResult(resultPair.encryptedResult, privateKeyHandle)
-  val result = Measurement.Result.parseFrom(signedResult.data)
-  return result
+  return Measurement.Result.parseFrom(signedResult.data)
 }
 
 class Benchmark(
@@ -540,10 +530,10 @@ class Benchmark(
     lateinit var result: Measurement.Result
   }
   /** List of tasks that have been submitted to the Kingdom. */
-  val taskList: MutableList<MeasurementTask> = Collections.synchronizedList(mutableListOf())
+  private val taskList: MutableList<MeasurementTask> = Collections.synchronizedList(mutableListOf())
 
   /** List of tasks for which responses have been received or which have timed out. */
-  val completedTasks: MutableList<MeasurementTask> = mutableListOf()
+  private val completedTasks: MutableList<MeasurementTask> = mutableListOf()
 
   /** Creates list of requests and sends them to the Kingdom. */
   private fun generateRequests(
@@ -620,7 +610,12 @@ class Benchmark(
         runBlocking(Dispatchers.IO) {
           measurementStub
             .withAuthenticationKey(apiAuthenticationKey)
-            .createMeasurement(createMeasurementRequest { this.measurement = measurement })
+            .createMeasurement(
+              createMeasurementRequest {
+                parent = measurementConsumer.name
+                this.measurement = measurement
+              }
+            )
         }
       println("Measurement Name: ${response.name}")
 
@@ -637,7 +632,7 @@ class Benchmark(
   ) {
     var iTask = 0
     while (iTask < taskList.size) {
-      val task = taskList.get(iTask)
+      val task = taskList[iTask]
 
       print("${(Instant.now(clock).toEpochMilli() - firstInstant.toEpochMilli()) / 1000.0} ")
       print("Trying to retrieve ${task.referenceId} ${task.measurementName}...")
@@ -660,16 +655,20 @@ class Benchmark(
           (measurement.state == Measurement.State.FAILED) ||
           timeoutOccurred
       ) {
-        if (measurement.state == Measurement.State.SUCCEEDED) {
-          val result = getMeasurementResult(measurement.resultsList.get(0), flags.privateKeyHandle)
-          task.result = result
-          // println ("Got result for task $iTask\n$measurement\n-----\n$result")
-          task.status = "success"
-        } else if (measurement.state == Measurement.State.FAILED) {
-          task.status = "failed"
-          task.errorMessage = measurement.failure.message
-        } else {
-          task.status = "timeout"
+        when (measurement.state) {
+          Measurement.State.SUCCEEDED -> {
+            val result = getMeasurementResult(measurement.resultsList[0], flags.privateKeyHandle)
+            task.result = result
+            // println ("Got result for task $iTask\n$measurement\n-----\n$result")
+            task.status = "success"
+          }
+          Measurement.State.FAILED -> {
+            task.status = "failed"
+            task.errorMessage = measurement.failure.message
+          }
+          else -> {
+            task.status = "timeout"
+          }
         }
 
         task.responseTime = Instant.now(clock)
@@ -712,7 +711,7 @@ class Benchmark(
             reach = task.result.reach.value
           }
           out.print(reach)
-          var frequencies = arrayOf(0.0, 0.0, 0.0, 0.0, 0.0)
+          val frequencies = arrayOf(0.0, 0.0, 0.0, 0.0, 0.0)
           if (task.status == "success" && task.result.hasFrequency()) {
             task.result.frequency.relativeFrequencyDistributionMap.forEach {
               if (it.key <= frequencies.size) {
