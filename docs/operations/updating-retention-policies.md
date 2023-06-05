@@ -64,68 +64,19 @@ The `time-to-live` flag is a ISO-8601 duration formatted string, while the
   non-terminal state and the time since their created time exceeds the
   `time-to-live` duration set.
 
-## Modifying Retention Cronjobs
+### Modifying Retention Cronjobs
 
 Modifications to a Cronjob will only update future Jobs created, but not any
 currently running Jobs.
 
-If you wish to modify a schedule, you can patch a cronjob with a command
-like:
+If you wish to modify a cronjob's `schedule`, `dry-run`, or `time-to-live` 
+settings, you can interactively modify the config with a command like:
 
 ```shell
-kubectl patch cronjob exchanges-deletion-cronjob  -p '''{"spec":{"schedule": "15 * * * *"}}'''
+kubectl edit cronjob exchanges-deletion-cronjob
 ```
 
-The args for setting a Job's `time-to-live` and `dry run` statuses are specified
-as part of a list. Updating an arg requires finding its index and using a `JSON`
-patch instead of the default `strategic merge` used above for scheduling
-updates. This is recommended to avoid having to respecify all args while
-desiring to
-change only one.
+You can then edit and save desired changes using your default text editor.
 
-See other [patching strategies](pending-measurements-cancellation-cronjob)
-available.
-
-The index of the arg to be modified for the specified cronjob can be identified
-through the output of the command:
-
-```shell
-kubectl get cronjob completed-measurements-deletion-cronjob -o yaml
-```
-
-The resulting output should contain the args in a section like:
-
-```
-spec:
-  jobTemplate:
-    spec:
-      template:
-        spec:
-          containers:
-          - args:
-            - --internal-api-target=$(GCP_KINGDOM_DATA_SERVER_SERVICE_HOST):$(GCP_KINGDOM_DATA_SERVER_SERVICE_PORT)
-            - --internal-api-cert-host=localhost
-            - --tls-cert-file=/var/run/secrets/files/kingdom_tls.pem
-            - --tls-key-file=/var/run/secrets/files/kingdom_tls.key
-            - --cert-collection-file=/var/run/secrets/files/all_root_certs.pem
-            - --time-to-live=180d
-            - --dry-run=false
-            - --debug-verbose-grpc-client-logging=true
-            - --otel-exporter-otlp-endpoint=http://default-collector-headless.default.svc:4317
-            - --otel-service-name=completed-measurements-deletion-cronjob
-```
-
-To update the `time-to-live` argument, note the path to the argument and its
-index - 5.
-
-You can then apply a `JSON` patch using a command like (adding the `-o yaml`
-flag to verify the changes):
-
-```shell
-kubectl patch --type=json cronjob completed-measurements-deletion-cronjob -p \
-'''
-[{ "op": "replace", 
-"path":"/spec/jobTemplate/spec/template/spec/containers/0/args/5", 
-"value":"--time-to-live=25d"}]
-''' -o yaml
-```
+To modify cronjobs in a non-interactive manner, see 
+[`kubectl patch`](https://kubernetes.io/docs/tasks/manage-kubernetes-objects/update-api-object-kubectl-patch/).
