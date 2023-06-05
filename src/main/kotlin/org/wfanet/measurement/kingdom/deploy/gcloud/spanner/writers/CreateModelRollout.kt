@@ -65,13 +65,17 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
       }
     }
 
-    val previousModelRolloutData: Struct? =
-      readModelRolloutData(
-        ExternalId(modelRollout.externalModelProviderId),
-        ExternalId(modelRollout.externalModelSuiteId),
-        ExternalId(modelRollout.externalModelLineId),
-        modelRollout.rolloutPeriodStartTime
-      )
+    val previousModelRolloutData =
+      if (modelRollout.rolloutPeriodStartTime != modelRollout.rolloutPeriodEndTime) {
+        readModelRolloutData(
+          ExternalId(modelRollout.externalModelProviderId),
+          ExternalId(modelRollout.externalModelSuiteId),
+          ExternalId(modelRollout.externalModelLineId),
+          modelRollout.rolloutPeriodStartTime
+        )
+      } else {
+        null
+      }
 
     val modelLineData =
       readModelLineData(

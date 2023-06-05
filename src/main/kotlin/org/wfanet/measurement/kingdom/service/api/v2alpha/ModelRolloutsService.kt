@@ -17,6 +17,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.Empty
+import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.math.min
@@ -36,7 +37,6 @@ import org.wfanet.measurement.api.v2alpha.ModelRollout
 import org.wfanet.measurement.api.v2alpha.ModelRolloutKey
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase as ModelRolloutsCoroutineService
 import org.wfanet.measurement.api.v2alpha.ScheduleModelRolloutFreezeRequest
-import org.wfanet.measurement.api.v2alpha.TimeInterval
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsPageToken
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsResponse
@@ -229,8 +229,7 @@ class ModelRolloutsService(private val internalClient: ModelRolloutsCoroutineStu
       }
     }
 
-    val listModelRolloutsPageToken =
-      request.toListModelRolloutsPageToken(request.filter.rolloutPeriodOverlapping)
+    val listModelRolloutsPageToken = request.toListModelRolloutsPageToken()
 
     val results: List<InternalModelRollout> =
       internalClient
@@ -264,9 +263,7 @@ class ModelRolloutsService(private val internalClient: ModelRolloutsCoroutineStu
   }
 
   /** Converts a public [ListModelRolloutsRequest] to an internal [ListModelRolloutsPageToken]. */
-  private fun ListModelRolloutsRequest.toListModelRolloutsPageToken(
-    rolloutPeriodOverlapping: TimeInterval?
-  ): ListModelRolloutsPageToken {
+  private fun ListModelRolloutsRequest.toListModelRolloutsPageToken(): ListModelRolloutsPageToken {
     val source = this
 
     val key =
@@ -290,8 +287,19 @@ class ModelRolloutsService(private val internalClient: ModelRolloutsCoroutineStu
         grpcRequire(this.externalModelLineId == externalModelLineId) {
           "Arguments must be kept the same when using a page token"
         }
-        if (rolloutPeriodOverlapping != null) {
-          grpcRequire(this.rolloutPeriodOverlapping == rolloutPeriodOverlapping) {
+        if (this.hasRolloutPeriodOverlapping()) {
+          grpcRequire(
+            source.hasFilter() &&
+              source.filter.hasRolloutPeriodOverlapping() &&
+              Timestamps.compare(
+                source.filter.rolloutPeriodOverlapping.startTime,
+                this.rolloutPeriodOverlapping.startTime
+              ) == 0 &&
+              Timestamps.compare(
+                source.filter.rolloutPeriodOverlapping.endTime,
+                this.rolloutPeriodOverlapping.endTime
+              ) == 0
+          ) {
             "Arguments must be kept the same when using a page token"
           }
         }
@@ -311,7 +319,9 @@ class ModelRolloutsService(private val internalClient: ModelRolloutsCoroutineStu
         this.externalModelProviderId = externalModelProviderId
         this.externalModelSuiteId = externalModelSuiteId
         this.externalModelLineId = externalModelLineId
-        this.rolloutPeriodOverlapping = source.filter.rolloutPeriodOverlapping
+        if (source.hasFilter() && source.filter.hasRolloutPeriodOverlapping()) {
+          this.rolloutPeriodOverlapping = source.filter.rolloutPeriodOverlapping
+        }
       }
     }
   }

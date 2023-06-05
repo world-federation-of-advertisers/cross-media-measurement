@@ -67,8 +67,8 @@ import org.wfanet.measurement.internal.kingdom.ModelRollout as InternalModelRoll
 import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequest
+import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequestKt.afterFilter
-import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequestKt.filter as internalFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequestKt.rolloutPeriod
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.deleteModelRolloutRequest as internalDeleteModelRolloutRequest
@@ -601,15 +601,12 @@ class ModelRolloutsServiceTest {
       .isEqualTo(
         internalStreamModelRolloutsRequest {
           limit = DEFAULT_LIMIT + 1
-          filter = internalFilter {
-            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-            externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-            externalModelLineId = EXTERNAL_MODEL_LINE_ID
-            rolloutPeriod = rolloutPeriod {
-              rolloutPeriodStartTime = Timestamp.getDefaultInstance()
-              rolloutPeriodEndTime = Timestamp.getDefaultInstance()
+          filter =
+            StreamModelRolloutsRequestKt.filter {
+              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+              externalModelLineId = EXTERNAL_MODEL_LINE_ID
             }
-          }
         }
       )
 
@@ -641,15 +638,12 @@ class ModelRolloutsServiceTest {
       .isEqualTo(
         internalStreamModelRolloutsRequest {
           limit = DEFAULT_LIMIT + 1
-          filter = internalFilter {
-            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-            externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-            externalModelLineId = EXTERNAL_MODEL_LINE_ID
-            rolloutPeriod = rolloutPeriod {
-              rolloutPeriodStartTime = Timestamp.getDefaultInstance()
-              rolloutPeriodEndTime = Timestamp.getDefaultInstance()
+          filter =
+            StreamModelRolloutsRequestKt.filter {
+              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+              externalModelLineId = EXTERNAL_MODEL_LINE_ID
             }
-          }
         }
       )
 
@@ -796,6 +790,40 @@ class ModelRolloutsServiceTest {
   }
 
   @Test
+  fun `listModelRollouts throws invalid argument when rolloutPeriodOverlapping is missing from request and set in page token`() {
+    val request = listModelRolloutsRequest {
+      parent = MODEL_LINE_NAME
+
+      val listModelRolloutsPageToken = listModelRolloutsPageToken {
+        pageSize = 2
+        externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+        externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+        externalModelLineId = EXTERNAL_MODEL_LINE_ID
+        rolloutPeriodOverlapping = timeInterval {
+          startTime = ROLLOUT_PERIOD_START_TIME
+          endTime = ROLLOUT_PERIOD_END_TIME
+        }
+        lastModelRollout = previousPageEnd {
+          rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME
+          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+          externalModelLineId = EXTERNAL_MODEL_LINE_ID
+          externalModelRolloutId = EXTERNAL_MODEL_ROLLOUT_ID
+        }
+      }
+      pageToken = listModelRolloutsPageToken.toByteArray().base64UrlEncode()
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking { service.listModelRollouts(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
   fun `listModelRollouts with page token gets the next page`() {
     val request = listModelRolloutsRequest {
       parent = MODEL_LINE_NAME
@@ -864,22 +892,23 @@ class ModelRolloutsServiceTest {
       .isEqualTo(
         internalStreamModelRolloutsRequest {
           limit = request.pageSize + 1
-          filter = internalFilter {
-            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-            externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-            externalModelLineId = EXTERNAL_MODEL_LINE_ID
-            rolloutPeriod = rolloutPeriod {
-              rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME
-              rolloutPeriodEndTime = ROLLOUT_PERIOD_END_TIME
-            }
-            after = afterFilter {
-              rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME
+          filter =
+            StreamModelRolloutsRequestKt.filter {
               externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
               externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
               externalModelLineId = EXTERNAL_MODEL_LINE_ID
-              externalModelRolloutId = EXTERNAL_MODEL_ROLLOUT_ID
+              rolloutPeriod = rolloutPeriod {
+                rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME
+                rolloutPeriodEndTime = ROLLOUT_PERIOD_END_TIME
+              }
+              after = afterFilter {
+                rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME
+                externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+                externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+                externalModelLineId = EXTERNAL_MODEL_LINE_ID
+                externalModelRolloutId = EXTERNAL_MODEL_ROLLOUT_ID
+              }
             }
-          }
         }
       )
 
@@ -931,22 +960,23 @@ class ModelRolloutsServiceTest {
       .isEqualTo(
         internalStreamModelRolloutsRequest {
           limit = request.pageSize + 1
-          filter = internalFilter {
-            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-            externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-            externalModelLineId = EXTERNAL_MODEL_LINE_ID
-            rolloutPeriod = rolloutPeriod {
-              rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME
-              rolloutPeriodEndTime = ROLLOUT_PERIOD_END_TIME
-            }
-            after = afterFilter {
-              rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME
+          filter =
+            StreamModelRolloutsRequestKt.filter {
               externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
               externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
               externalModelLineId = EXTERNAL_MODEL_LINE_ID
-              externalModelRolloutId = EXTERNAL_MODEL_ROLLOUT_ID
+              rolloutPeriod = rolloutPeriod {
+                rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME
+                rolloutPeriodEndTime = ROLLOUT_PERIOD_END_TIME
+              }
+              after = afterFilter {
+                rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME
+                externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+                externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+                externalModelLineId = EXTERNAL_MODEL_LINE_ID
+                externalModelRolloutId = EXTERNAL_MODEL_ROLLOUT_ID
+              }
             }
-          }
         }
       )
   }
@@ -985,18 +1015,19 @@ class ModelRolloutsServiceTest {
       .isEqualTo(
         internalStreamModelRolloutsRequest {
           limit = 3
-          filter = internalFilter {
-            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-            externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-            externalModelLineId = EXTERNAL_MODEL_LINE_ID
-            after = afterFilter {
-              rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME
+          filter =
+            StreamModelRolloutsRequestKt.filter {
               externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
               externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
               externalModelLineId = EXTERNAL_MODEL_LINE_ID
-              externalModelRolloutId = EXTERNAL_MODEL_ROLLOUT_ID
+              after = afterFilter {
+                rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME
+                externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+                externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+                externalModelLineId = EXTERNAL_MODEL_LINE_ID
+                externalModelRolloutId = EXTERNAL_MODEL_ROLLOUT_ID
+              }
             }
-          }
         }
       )
   }
