@@ -65,6 +65,7 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.ModelShard as InternalModelShard
 import org.wfanet.measurement.internal.kingdom.ModelShardsGrpcKt.ModelShardsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelShardsGrpcKt.ModelShardsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.StreamModelShardsRequest as InternalStreamModelShardsRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelShardsRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelShardsRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelShardsRequestKt.filter
@@ -98,10 +99,16 @@ private val EXTERNAL_MODEL_SHARD_ID_3 =
   apiIdToExternalId(ModelShardKey.fromName(MODEL_SHARD_NAME_3)!!.modelShardId)
 private val EXTERNAL_MODEL_PROVIDER_ID =
   apiIdToExternalId(ModelProviderKey.fromName(MODEL_PROVIDER_NAME)!!.modelProviderId)
+private val EXTERNAL_MODEL_PROVIDER_ID_2 =
+  apiIdToExternalId(ModelProviderKey.fromName(MODEL_PROVIDER_NAME_2)!!.modelProviderId)
 private val EXTERNAL_MODEL_SUITE_ID =
   apiIdToExternalId(ModelSuiteKey.fromName(MODEL_SUITE_NAME)!!.modelSuiteId)
+private val EXTERNAL_MODEL_SUITE_ID_2 =
+  apiIdToExternalId(ModelSuiteKey.fromName(MODEL_SUITE_NAME_2)!!.modelSuiteId)
 private val EXTERNAL_MODEL_RELEASE_ID =
   apiIdToExternalId(ModelReleaseKey.fromName(MODEL_RELEASE_NAME)!!.modelReleaseId)
+private val EXTERNAL_MODEL_RELEASE_ID_2 =
+  apiIdToExternalId(ModelReleaseKey.fromName(MODEL_RELEASE_NAME_2)!!.modelReleaseId)
 
 private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 
@@ -145,13 +152,27 @@ class ModelShardsServiceTest {
         }
       onBlocking { deleteModelShard(any()) }.thenReturn(INTERNAL_MODEL_SHARD)
       onBlocking { streamModelShards(any()) }
-        .thenReturn(
-          flowOf(
-            INTERNAL_MODEL_SHARD,
-            INTERNAL_MODEL_SHARD.copy { externalModelShardId = EXTERNAL_MODEL_SHARD_ID_2 },
-            INTERNAL_MODEL_SHARD.copy { externalModelShardId = EXTERNAL_MODEL_SHARD_ID_3 }
-          )
-        )
+        .thenAnswer {
+          val request = it.getArgument<InternalStreamModelShardsRequest>(0)
+          if (
+            request.hasFilter() &&
+              request.filter.externalModelProviderId == EXTERNAL_MODEL_PROVIDER_ID_2
+          ) {
+            flowOf(
+              INTERNAL_MODEL_SHARD.copy {
+                externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID_2
+                externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID_2
+                externalModelReleaseId = EXTERNAL_MODEL_RELEASE_ID_2
+              }
+            )
+          } else {
+            flowOf(
+              INTERNAL_MODEL_SHARD,
+              INTERNAL_MODEL_SHARD.copy { externalModelShardId = EXTERNAL_MODEL_SHARD_ID_2 },
+              INTERNAL_MODEL_SHARD.copy { externalModelShardId = EXTERNAL_MODEL_SHARD_ID_3 }
+            )
+          }
+        }
     }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalModelShardsMock) }
@@ -352,15 +373,11 @@ class ModelShardsServiceTest {
     val request = listModelShardsRequest { parent = DATA_PROVIDER_NAME }
 
     val result =
-      withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+      withModelProviderPrincipal(MODEL_PROVIDER_NAME_2) {
         runBlocking { service.listModelShards(request) }
       }
 
-    val expected = listModelShardsResponse {
-      modelShard += MODEL_SHARD
-      modelShard += MODEL_SHARD.copy { name = MODEL_SHARD_NAME_2 }
-      modelShard += MODEL_SHARD.copy { name = MODEL_SHARD_NAME_3 }
-    }
+    val expected = listModelShardsResponse { modelShard += MODEL_SHARD_2 }
 
     val streamModelLinesRequest =
       captureFirst<StreamModelShardsRequest> {
@@ -374,7 +391,7 @@ class ModelShardsServiceTest {
           limit = DEFAULT_LIMIT + 1
           filter = filter {
             externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID_2
           }
         }
       )
