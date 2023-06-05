@@ -83,13 +83,19 @@ message SyntheticEventGroupSpec {
     repeated VidRangeSpec vid_range_specs = 2;
   }
 
-  // The specification for all frequencies reached at a specific date.
+  // The specification for all frequencies reached for a specific date range.
   message DateSpec {
-    // Date the VIDs were reached.
-    google.type.Date date = 1;
+    // A range of `Date`s represented with a beginning and exclusive end.
+    message DateRange {
+      google.type.Date start = 1;
+      google.type.Date end_exclusive = 2;
+    }
+    // Dates the VIDs were reached.
+    DateRange date_range = 1;
+
     // Each FrequencySpec must have a unique frequency.
     repeated FrequencySpec frequency_specs = 2;
   }
-
+  // `DateSpec`s should describe non-overlapping date ranges.
   repeated DateSpec date_specs = 2;
 }
