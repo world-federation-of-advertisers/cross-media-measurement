@@ -105,22 +105,29 @@ class MeasurementsService(
   override suspend fun createMeasurement(request: CreateMeasurementRequest): Measurement {
     val authenticatedMeasurementConsumerKey = getAuthenticatedMeasurementConsumerKey()
 
+    val parentKey =
+      grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
+        "parent is either unspecified or invalid"
+      }
+
+    if (parentKey != authenticatedMeasurementConsumerKey) {
+      failGrpc(Status.PERMISSION_DENIED) {
+        "Cannot create a Measurement for another MeasurementConsumer"
+      }
+    }
+
     val measurementConsumerCertificateKey =
       grpcRequireNotNull(
         MeasurementConsumerCertificateKey.fromName(
           request.measurement.measurementConsumerCertificate
         )
       ) {
-        "Measurement Consumer Certificate resource name is either unspecified or invalid"
+        "measurement_consumer_certificate is either unspecified or invalid"
       }
-
-    if (
-      authenticatedMeasurementConsumerKey.measurementConsumerId !=
-        measurementConsumerCertificateKey.measurementConsumerId
+    grpcRequire(
+      measurementConsumerCertificateKey.measurementConsumerId == parentKey.measurementConsumerId
     ) {
-      failGrpc(Status.PERMISSION_DENIED) {
-        "Cannot create a Measurement for another MeasurementConsumer"
-      }
+      "measurement_consumer_certificate does not belong to ${request.parent}"
     }
 
     val measurementSpec = request.measurement.measurementSpec

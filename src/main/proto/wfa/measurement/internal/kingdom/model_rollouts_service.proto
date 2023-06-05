@@ -45,9 +45,9 @@ message StreamModelRolloutsRequest {
   }
   message RolloutPeriod {
     // Inclusive time.
-    google.protobuf.Timestamp rollout_period_start_time = 5;
+    google.protobuf.Timestamp rollout_period_start_time = 1;
     // Exclusive time.
-    google.protobuf.Timestamp rollout_period_end_time = 6;
+    google.protobuf.Timestamp rollout_period_end_time = 2;
   }
 
   // Filter criteria as a conjunction of specified fields.
@@ -55,8 +55,8 @@ message StreamModelRolloutsRequest {
     int64 external_model_provider_id = 1;
     int64 external_model_suite_id = 2;
     int64 external_model_line_id = 3;
-    RolloutPeriod rollout_period = 5;
-    AfterFilter after = 6;
+    RolloutPeriod rollout_period = 4;
+    AfterFilter after = 5;
   }
   Filter filter = 1;
 

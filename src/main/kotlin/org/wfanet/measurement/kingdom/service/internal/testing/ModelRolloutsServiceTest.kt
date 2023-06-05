@@ -199,6 +199,45 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
   }
 
   @Test
+  fun `createModelRollout correctly leave previous model rollout unset when rollout start time is equal to rollout end time`() =
+    runBlocking {
+      val modelLine =
+        population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+      val modelRelease =
+        population.createModelRelease(
+          modelSuite {
+            externalModelProviderId = modelLine.externalModelProviderId
+            externalModelSuiteId = modelLine.externalModelSuiteId
+          },
+          modelReleasesService
+        )
+
+      val modelRollout = modelRollout {
+        externalModelProviderId = modelLine.externalModelProviderId
+        externalModelSuiteId = modelLine.externalModelSuiteId
+        externalModelLineId = modelLine.externalModelLineId
+        rolloutPeriodStartTime = Instant.now().plusSeconds(100L).toProtoTime()
+        rolloutPeriodEndTime = Instant.now().plusSeconds(100L).toProtoTime()
+        externalModelReleaseId = modelRelease.externalModelReleaseId
+      }
+      val createdModelRollout = modelRolloutsService.createModelRollout(modelRollout)
+
+      val rolloutPeriodStartEndTime = Instant.now().plusSeconds(200L).toProtoTime()
+      val modelRollout2 = modelRollout {
+        externalModelProviderId = modelLine.externalModelProviderId
+        externalModelSuiteId = modelLine.externalModelSuiteId
+        externalModelLineId = modelLine.externalModelLineId
+        rolloutPeriodStartTime = rolloutPeriodStartEndTime
+        rolloutPeriodEndTime = rolloutPeriodStartEndTime
+        externalModelReleaseId = modelRelease.externalModelReleaseId
+      }
+
+      val createdModelRollout2 = modelRolloutsService.createModelRollout(modelRollout2)
+
+      assertThat(createdModelRollout2.externalPreviousModelRolloutId).isEqualTo(0L)
+    }
+
+  @Test
   fun `createModelRollout fails when rollout period start time is missing`() = runBlocking {
     val modelLine =
       population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
