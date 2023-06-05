@@ -4,6 +4,7 @@ load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
 package(
     default_visibility = [
         "//src/main/react/reporting-ui:__pkg__",
+        "//src/test/react/reporting-ui:__pkg__",
     ],
 )
 

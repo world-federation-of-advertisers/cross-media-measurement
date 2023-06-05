@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "target": "es6",
+    "jsx": "react-jsx"
+  },
+  "include": ["./"],
+  "types": ["node", "jest", "@testing-library/jest-dom"],
+}
