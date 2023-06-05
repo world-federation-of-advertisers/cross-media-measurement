@@ -21,6 +21,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
 import com.google.protobuf.duration
+import com.google.protobuf.timestamp
 import com.google.protobuf.value
 import io.grpc.Server
 import io.grpc.ServerInterceptors
@@ -50,11 +51,14 @@ import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.CreateModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.GetModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
+import org.wfanet.measurement.api.v2alpha.ListModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
@@ -71,6 +75,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelSuite
+import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.PublicKey
 import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.ReplaceDataProviderRequiredDuchiesRequest
@@ -90,11 +96,15 @@ import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
+import org.wfanet.measurement.api.v2alpha.listModelSuitesRequest
+import org.wfanet.measurement.api.v2alpha.listModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.publicKey
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
@@ -178,6 +188,16 @@ private val DATA_PROVIDER = dataProvider {
   publicKey = signedData { data = DATA_PROVIDER_PUBLIC_KEY.toByteString() }
 }
 
+private const val MODEL_PROVIDER_NAME = "modelProvider/1"
+
+private const val MODEL_SUITE_NAME = "$MODEL_PROVIDER_NAME/modelSuites/1"
+private val MODEL_SUITE = modelSuite {
+  name = MODEL_SUITE_NAME
+  displayName = "Display name"
+  description = "Description"
+  createTime = timestamp { seconds = 3000 }
+}
+
 private const val TIME_STRING_1 = "2022-05-22T01:00:00.000Z"
 private const val TIME_STRING_2 = "2022-05-24T05:00:00.000Z"
 private const val TIME_STRING_3 = "2022-05-22T01:22:32.122Z"
@@ -253,6 +273,12 @@ class MeasurementSystemTest {
       onBlocking { getCertificate(any()) }.thenReturn(AGGREGATOR_CERTIFICATE)
     }
   private val publicKeysServiceMock: PublicKeysGrpcKt.PublicKeysCoroutineImplBase = mockService()
+  private val modelSuitesServiceMock: ModelSuitesCoroutineImplBase = mockService {
+    onBlocking { createModelSuite(any()) }.thenReturn(MODEL_SUITE)
+    onBlocking { getModelSuite(any()) }.thenReturn(MODEL_SUITE)
+    onBlocking { listModelSuites(any()) }
+      .thenReturn(listModelSuitesResponse { modelSuite += listOf(MODEL_SUITE) })
+  }
 
   val services: List<ServerServiceDefinition> =
     listOf(
@@ -263,6 +289,7 @@ class MeasurementSystemTest {
       dataProvidersServiceMock.bindService(),
       ServerInterceptors.intercept(certificatesServiceMock, headerInterceptor),
       ServerInterceptors.intercept(publicKeysServiceMock, headerInterceptor),
+      ServerInterceptors.intercept(modelSuitesServiceMock, headerInterceptor),
     )
 
   private val publicApiServer: Server =
@@ -955,6 +982,123 @@ class MeasurementSystemTest {
         replaceDataProviderRequiredDuchiesRequest {
           name = DATA_PROVIDER_NAME
           requiredExternalDuchies += DUCHIES
+        }
+      )
+  }
+
+  @Test
+  fun `create model suite succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-suites",
+          "create",
+          "--parent=$MODEL_PROVIDER_NAME",
+          "--display-name",
+          "Display name",
+          "--description",
+          "Description",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<CreateModelSuiteRequest> {
+        runBlocking { verify(modelSuitesServiceMock).createModelSuite(capture()) }
+      }
+
+    assertThat(request.modelSuite)
+      .ignoringFields(ModelSuite.CREATE_TIME_FIELD_NUMBER, ModelSuite.NAME_FIELD_NUMBER)
+      .isEqualTo(MODEL_SUITE)
+  }
+
+  @Test
+  fun `create model suite succeeds omitting optional params`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-suites",
+          "create",
+          "--parent=$MODEL_PROVIDER_NAME",
+          "--display-name",
+          "Display name",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<CreateModelSuiteRequest> {
+        runBlocking { verify(modelSuitesServiceMock).createModelSuite(capture()) }
+      }
+
+    assertThat(request.modelSuite)
+      .ignoringFields(ModelSuite.CREATE_TIME_FIELD_NUMBER, ModelSuite.NAME_FIELD_NUMBER)
+      .isEqualTo(MODEL_SUITE.copy { description = "" })
+  }
+
+  @Test
+  fun `get model suite succeeds`() {
+    val args = commonArgs + arrayOf("model-suites", "get", "--name", MODEL_SUITE_NAME)
+    callCli(args)
+
+    val request =
+      captureFirst<GetModelSuiteRequest> {
+        runBlocking { verify(modelSuitesServiceMock).getModelSuite(capture()) }
+      }
+
+    assertThat(request).isEqualTo(getModelSuiteRequest { name = MODEL_SUITE_NAME })
+  }
+
+  @Test
+  fun `list model suites succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-suites",
+          "list",
+          "--parent=$MODEL_PROVIDER_NAME",
+          "--page-size",
+          "10",
+          "--page-token",
+          "token"
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<ListModelSuitesRequest> {
+        runBlocking { verify(modelSuitesServiceMock).listModelSuites(capture()) }
+      }
+
+    assertThat(request)
+      .isEqualTo(
+        listModelSuitesRequest {
+          parent = MODEL_PROVIDER_NAME
+          pageSize = 10
+          pageToken = "token"
+        }
+      )
+  }
+
+  @Test
+  fun `list model suites succeeds omitting optional params`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-suites",
+          "list",
+          "--parent=$MODEL_PROVIDER_NAME",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<ListModelSuitesRequest> {
+        runBlocking { verify(modelSuitesServiceMock).listModelSuites(capture()) }
+      }
+
+    assertThat(request)
+      .isEqualTo(
+        listModelSuitesRequest {
+          parent = MODEL_PROVIDER_NAME
+          pageSize = 0
+          pageToken = ""
         }
       )
   }
