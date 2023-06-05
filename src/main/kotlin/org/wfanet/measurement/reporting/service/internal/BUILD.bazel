@@ -8,6 +8,8 @@ kt_jvm_library(
     name = "internal_exception",
     srcs = ["ReportingInternalException.kt"],
     deps = [
+        "//src/main/proto/google/rpc:error_details_kt_jvm_proto",
+        "//src/main/proto/google/rpc:status_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting:error_code_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/io/grpc/protobuf",
