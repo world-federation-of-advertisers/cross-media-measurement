@@ -1249,7 +1249,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
       noFiltersInMeasurementBases: Boolean = false,
     ): Metric {
       createMeasurementConsumer(cmmsMeasurementConsumerId, measurementConsumersService)
-      val createdReportingSet = createPrimitiveReportingSet(cmmsMeasurementConsumerId, reportingSetsService)
+      val createdReportingSet =
+        createPrimitiveReportingSet(cmmsMeasurementConsumerId, reportingSetsService)
 
       val metric = metric {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
