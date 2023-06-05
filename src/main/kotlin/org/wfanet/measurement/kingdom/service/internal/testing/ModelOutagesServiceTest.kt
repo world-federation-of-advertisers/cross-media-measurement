@@ -33,6 +33,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelOutage
 import org.wfanet.measurement.internal.kingdom.ModelOutagesGrpcKt
@@ -88,7 +89,13 @@ abstract class ModelOutagesServiceTest<T : ModelOutagesGrpcKt.ModelOutagesCorout
   @Test
   fun `createModelOutage succeeds`() = runBlocking {
     val modelLine =
-      population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+      population.createModelLine(
+        modelProvidersService,
+        modelSuitesService,
+        modelLinesService,
+        ModelLine.Type.PROD,
+        true
+      )
 
     val modelOutage = modelOutage {
       externalModelProviderId = modelLine.externalModelProviderId
@@ -106,6 +113,33 @@ abstract class ModelOutagesServiceTest<T : ModelOutagesGrpcKt.ModelOutagesCorout
         ModelOutage.EXTERNAL_MODEL_OUTAGE_ID_FIELD_NUMBER
       )
       .isEqualTo(modelOutage.copy { state = ModelOutage.State.ACTIVE })
+  }
+
+  @Test
+  fun `createModelOutage fails when Model Line type is not equal to PROD`() = runBlocking {
+    val devModelLine =
+      population.createModelLine(
+        modelProvidersService,
+        modelSuitesService,
+        modelLinesService,
+        ModelLine.Type.DEV
+      )
+
+    val modelOutage = modelOutage {
+      externalModelProviderId = devModelLine.externalModelProviderId
+      externalModelSuiteId = devModelLine.externalModelSuiteId
+      externalModelLineId = devModelLine.externalModelLineId
+      modelOutageStartTime = Instant.now().minusSeconds(100L).toProtoTime()
+      modelOutageEndTime = Instant.now().plusSeconds(100L).toProtoTime()
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { modelOutagesService.createModelOutage(modelOutage) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("ModelOutage can be created only for model lines having type equal to 'PROD'.")
   }
 
   @Test
@@ -165,7 +199,13 @@ abstract class ModelOutagesServiceTest<T : ModelOutagesGrpcKt.ModelOutagesCorout
   @Test
   fun `deleteModelOutage succeeds`() = runBlocking {
     val modelLine =
-      population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+      population.createModelLine(
+        modelProvidersService,
+        modelSuitesService,
+        modelLinesService,
+        ModelLine.Type.PROD,
+        true
+      )
 
     val modelOutage = modelOutage {
       externalModelProviderId = modelLine.externalModelProviderId
@@ -284,7 +324,13 @@ abstract class ModelOutagesServiceTest<T : ModelOutagesGrpcKt.ModelOutagesCorout
   @Test
   fun `deleteModelOutage fails for deleted ModelOutage`() = runBlocking {
     val modelLine =
-      population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+      population.createModelLine(
+        modelProvidersService,
+        modelSuitesService,
+        modelLinesService,
+        ModelLine.Type.PROD,
+        true
+      )
 
     val modelOutage = modelOutage {
       externalModelProviderId = modelLine.externalModelProviderId
@@ -316,7 +362,13 @@ abstract class ModelOutagesServiceTest<T : ModelOutagesGrpcKt.ModelOutagesCorout
   @Test
   fun `streamModelOutages returns all ACTIVE model outages`(): Unit = runBlocking {
     val modelLine =
-      population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+      population.createModelLine(
+        modelProvidersService,
+        modelSuitesService,
+        modelLinesService,
+        ModelLine.Type.PROD,
+        true
+      )
 
     val modelOutage = modelOutage {
       externalModelProviderId = modelLine.externalModelProviderId
@@ -363,7 +415,13 @@ abstract class ModelOutagesServiceTest<T : ModelOutagesGrpcKt.ModelOutagesCorout
   @Test
   fun `streamModelOutages returns all ACTIVE and DELETED model outages`(): Unit = runBlocking {
     val modelLine =
-      population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+      population.createModelLine(
+        modelProvidersService,
+        modelSuitesService,
+        modelLinesService,
+        ModelLine.Type.PROD,
+        true
+      )
 
     val modelOutage = modelOutage {
       externalModelProviderId = modelLine.externalModelProviderId
@@ -412,7 +470,13 @@ abstract class ModelOutagesServiceTest<T : ModelOutagesGrpcKt.ModelOutagesCorout
   @Test
   fun `streamModelOutages can get one page at a time`(): Unit = runBlocking {
     val modelLine =
-      population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+      population.createModelLine(
+        modelProvidersService,
+        modelSuitesService,
+        modelLinesService,
+        ModelLine.Type.PROD,
+        true
+      )
 
     val modelOutage = modelOutage {
       externalModelProviderId = modelLine.externalModelProviderId
@@ -470,7 +534,13 @@ abstract class ModelOutagesServiceTest<T : ModelOutagesGrpcKt.ModelOutagesCorout
   @Test
   fun `streamModelOutages fails for missing after filter fields`(): Unit = runBlocking {
     val modelLine =
-      population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+      population.createModelLine(
+        modelProvidersService,
+        modelSuitesService,
+        modelLinesService,
+        ModelLine.Type.PROD,
+        true
+      )
 
     val modelOutage = modelOutage {
       externalModelProviderId = modelLine.externalModelProviderId
@@ -545,7 +615,13 @@ abstract class ModelOutagesServiceTest<T : ModelOutagesGrpcKt.ModelOutagesCorout
   @Test
   fun `streamModelOutages filter by outage interval`(): Unit = runBlocking {
     val modelLine =
-      population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+      population.createModelLine(
+        modelProvidersService,
+        modelSuitesService,
+        modelLinesService,
+        ModelLine.Type.PROD,
+        true
+      )
 
     val START_OUTAGE_LIMIT_1 = Instant.now().minusSeconds(2000L).toProtoTime()
     val END_OUTAGE_LIMIT_1 = Instant.now().minusSeconds(1000L).toProtoTime()

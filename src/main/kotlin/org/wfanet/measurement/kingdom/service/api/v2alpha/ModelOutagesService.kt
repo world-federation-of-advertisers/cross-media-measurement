@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.math.min
@@ -33,7 +34,6 @@ import org.wfanet.measurement.api.v2alpha.ModelOutage
 import org.wfanet.measurement.api.v2alpha.ModelOutageKey
 import org.wfanet.measurement.api.v2alpha.ModelOutagesGrpcKt.ModelOutagesCoroutineImplBase as ModelOutagesCoroutineService
 import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
-import org.wfanet.measurement.api.v2alpha.TimeInterval
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.listModelOutagesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelOutagesResponse
@@ -160,8 +160,7 @@ class ModelOutagesService(
       }
     }
 
-    val listModelOutagesPageToken =
-      request.toListModelOutagesPageToken(request.showDeleted, request.filter.timeInterval)
+    val listModelOutagesPageToken = request.toListModelOutagesPageToken()
 
     val results: List<InternalModelOutage> =
       internalClient
@@ -195,10 +194,7 @@ class ModelOutagesService(
   }
 
   /** Converts a public [ListModelOutagesRequest] to an internal [ListModelOutagesPageToken]. */
-  private fun ListModelOutagesRequest.toListModelOutagesPageToken(
-    showDeleted: Boolean,
-    outageInterval: TimeInterval?
-  ): ListModelOutagesPageToken {
+  private fun ListModelOutagesRequest.toListModelOutagesPageToken(): ListModelOutagesPageToken {
     val source = this
 
     val key =
@@ -222,12 +218,21 @@ class ModelOutagesService(
         grpcRequire(this.externalModelLineId == externalModelLineId) {
           "Arguments must be kept the same when using a page token"
         }
-        if (outageInterval != null) {
-          grpcRequire(this.outageInterval == outageInterval) {
+        if (this.hasOutageInterval()) {
+          grpcRequire(
+            source.hasFilter() &&
+              source.filter.hasTimeInterval() &&
+              Timestamps.compare(
+                source.filter.timeInterval.startTime,
+                this.outageInterval.startTime
+              ) == 0 &&
+              Timestamps.compare(source.filter.timeInterval.endTime, this.outageInterval.endTime) ==
+                0
+          ) {
             "Arguments must be kept the same when using a page token"
           }
         }
-        grpcRequire(this.showDeleted == showDeleted) {
+        grpcRequire(this.showDeleted == source.showDeleted) {
           "Arguments must be kept the same when using a page token"
         }
 
@@ -246,7 +251,9 @@ class ModelOutagesService(
         this.externalModelProviderId = externalModelProviderId
         this.externalModelSuiteId = externalModelSuiteId
         this.externalModelLineId = externalModelLineId
-        this.outageInterval = source.filter.timeInterval
+        if (source.hasFilter() && source.filter.hasTimeInterval()) {
+          this.outageInterval = source.filter.timeInterval
+        }
         this.showDeleted = source.showDeleted
       }
     }

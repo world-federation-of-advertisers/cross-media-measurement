@@ -305,7 +305,7 @@ class ModelOutagesServiceTest {
       parent = MODEL_LINE_NAME
       showDeleted = true
       filter = filter {
-        timeInterval {
+        timeInterval = timeInterval {
           startTime = OUTAGE_START_TIME
           endTime = OUTAGE_END_TIME
         }
@@ -338,8 +338,8 @@ class ModelOutagesServiceTest {
             externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
             externalModelLineId = EXTERNAL_MODEL_LINE_ID
             outageInterval = outageInterval {
-              modelOutageStartTime = Timestamp.getDefaultInstance()
-              modelOutageEndTime = Timestamp.getDefaultInstance()
+              modelOutageStartTime = OUTAGE_START_TIME
+              modelOutageEndTime = OUTAGE_END_TIME
             }
             showDeleted = true
           }
@@ -355,7 +355,7 @@ class ModelOutagesServiceTest {
       parent = MODEL_LINE_NAME
       showDeleted = true
       filter = filter {
-        timeInterval {
+        timeInterval = timeInterval {
           startTime = OUTAGE_START_TIME
           endTime = OUTAGE_END_TIME
         }
@@ -388,8 +388,8 @@ class ModelOutagesServiceTest {
             externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
             externalModelLineId = EXTERNAL_MODEL_LINE_ID
             outageInterval = outageInterval {
-              modelOutageStartTime = Timestamp.getDefaultInstance()
-              modelOutageEndTime = Timestamp.getDefaultInstance()
+              modelOutageStartTime = OUTAGE_START_TIME
+              modelOutageEndTime = OUTAGE_END_TIME
             }
             showDeleted = true
           }

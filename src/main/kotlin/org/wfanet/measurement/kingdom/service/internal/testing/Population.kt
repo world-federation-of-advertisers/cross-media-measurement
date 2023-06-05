@@ -209,10 +209,28 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
   suspend fun createModelLine(
     modelProvidersService: ModelProvidersCoroutineImplBase,
     modelSuitesService: ModelSuitesCoroutineImplBase,
-    modelLinesService: ModelLinesCoroutineImplBase
+    modelLinesService: ModelLinesCoroutineImplBase,
+    modelLineType: ModelLine.Type = ModelLine.Type.PROD,
+    createHoldbackModelLine: Boolean = false
   ): ModelLine {
 
     val modelSuite = createModelSuite(modelProvidersService, modelSuitesService)
+
+    val holdbackModelLine =
+      if (createHoldbackModelLine) {
+        modelLinesService.createModelLine(
+          modelLine {
+            externalModelProviderId = modelSuite.externalModelProviderId
+            externalModelSuiteId = modelSuite.externalModelSuiteId
+            displayName = "holdback displayName"
+            description = "holdback description"
+            activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+            type = ModelLine.Type.HOLDBACK
+          }
+        )
+      } else {
+        null
+      }
 
     val modelLine = modelLine {
       externalModelProviderId = modelSuite.externalModelProviderId
@@ -220,7 +238,10 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
       displayName = "displayName"
       description = "description"
       activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
-      type = ModelLine.Type.PROD
+      if (holdbackModelLine != null) {
+        externalHoldbackModelLineId = holdbackModelLine.externalModelLineId
+      }
+      type = modelLineType
     }
     return modelLinesService.createModelLine(modelLine)
   }
