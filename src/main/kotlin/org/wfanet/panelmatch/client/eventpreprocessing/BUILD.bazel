@@ -29,7 +29,6 @@ kt_jvm_library(
         ":swig_resources",
     ],
     deps = [
-        "//imports/java/com/google/common:guava",
         "//imports/java/org/apache/beam:core",
         "//imports/java/org/apache/beam/extensions:protobuf",
         "//imports/java/org/joda",
@@ -41,6 +40,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/common/compression:compression_kt_jvm_proto",
         "//src/main/swig/wfanet/panelmatch/client/eventpreprocessing:preprocess_events",
+        "@wfa_common_jvm//imports/java/com/google/common:guava",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],

@@ -7,8 +7,7 @@ kt_jvm_library(
     srcs = ["DataflowRoundTripTestMain.kt"],
     runtime_deps = ["//imports/java/org/slf4j:simple"],
     deps = [
-        "//imports/java/com/google/api/services:cloud_bigquery",
-        "//imports/java/com/google/api/services:services_bigquery",
+        "//imports/java/com/google/api/services/bigquery",
         "//imports/java/org/apache/beam:core",
         "//imports/java/org/apache/beam/extensions:google_cloud_platform_core",
         "//imports/java/org/apache/beam/extensions:protobuf",

@@ -9,7 +9,6 @@ kt_jvm_library(
     name = "gcloud",
     srcs = glob(["*.kt"]),
     deps = [
-        "//imports/java/com/google/api/grpc:proto-google-cloud-security-private-ca-v1",
         "//imports/java/com/google/cloud/security/privateca/v1",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
         "//src/main/kotlin/org/wfanet/panelmatch/common/certificates",
