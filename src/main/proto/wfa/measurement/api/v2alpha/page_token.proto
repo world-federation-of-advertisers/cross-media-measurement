@@ -126,3 +126,19 @@ message ListModelOutagesPageToken {
   PreviousPageEnd last_model_outage = 6;
   bool show_deleted = 7;
 }
+
+message ListModelRolloutsPageToken {
+  int32 page_size = 1;
+  fixed64 external_model_provider_id = 2;
+  fixed64 external_model_suite_id = 3;
+  fixed64 external_model_line_id = 4;
+  TimeInterval rollout_period_overlapping = 5;
+  message PreviousPageEnd {
+    fixed64 external_model_provider_id = 1;
+    fixed64 external_model_suite_id = 2;
+    fixed64 external_model_line_id = 3;
+    fixed64 external_model_rollout_id = 4;
+    google.protobuf.Timestamp rollout_period_start_time = 5;
+  }
+  PreviousPageEnd last_model_rollout = 6;
+}

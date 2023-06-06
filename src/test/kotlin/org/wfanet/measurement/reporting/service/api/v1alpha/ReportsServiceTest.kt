@@ -626,6 +626,7 @@ private val REACH_ONLY_MEASUREMENT_SPEC = measurementSpec {
 }
 
 private val REACH_MEASUREMENT_REQUEST = createMeasurementRequest {
+  parent = MeasurementConsumerKey(REACH_MEASUREMENT_KEY.measurementConsumerId).toName()
   measurement =
     BASE_MEASUREMENT.copy {
       dataProviders +=

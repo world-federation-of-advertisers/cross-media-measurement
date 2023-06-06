@@ -68,11 +68,12 @@ class PostgresMetricsService(
     return try {
       CreateMetrics(listOf(request)).execute(client, idGenerator).first()
     } catch (e: ReportingSetNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Reporting Set not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Reporting Set not found.")
     } catch (e: MeasurementConsumerNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
         "Measurement Consumer not found."
-      }
+      )
     }
   }
 
@@ -106,11 +107,12 @@ class PostgresMetricsService(
         metrics += CreateMetrics(request.requestsList).execute(client, idGenerator)
       }
     } catch (e: ReportingSetNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Reporting Set not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Reporting Set not found.")
     } catch (e: MeasurementConsumerNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
         "Measurement Consumer not found."
-      }
+      )
     }
   }
 
