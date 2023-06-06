@@ -395,7 +395,6 @@ kt_jvm_test(
     ],
 )
 
-
 kt_jvm_test(
     name = "ModelRolloutsServiceTest",
     srcs = ["ModelRolloutsServiceTest.kt"],
