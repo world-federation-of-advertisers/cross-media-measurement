@@ -12,18 +12,24 @@
  * the License.
  */
 
-package org.wfanet.measurement.loadtest.dataprovider
+package org.wfanet.measurement.eventdataprovider.noisers
 
-import java.util.Random
-import org.apache.commons.math3.distribution.LaplaceDistribution
-import org.apache.commons.math3.random.RandomGeneratorFactory
-import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
+/**
+ * Noise mechanism for generating publisher noise for direct measurements.
+ *
+ * TODO(@iverson52000): Move this to public API if EDP needs to report back the direct noise
+ *   mechanism for PBM tracking. NONE mechanism is testing only and should not move to public API.
+ */
+enum class DirectNoiseMechanism {
+  /** NONE mechanism is testing only. */
+  NONE,
+  LAPLACE,
+  GAUSSIAN,
+}
 
-class LaplaceNoiser(privacyParams: DifferentialPrivacyParams, random: Random) : AbstractNoiser() {
-  override val distribution: LaplaceDistribution =
-    LaplaceDistribution(
-      RandomGeneratorFactory.createRandomGenerator(random),
-      0.0,
-      1 / privacyParams.epsilon
-    )
+/** A base Noiser interface for direct measurements */
+interface Noiser {
+
+  /** Returns a random value sampled from the distribution. */
+  fun sample(): Double
 }
