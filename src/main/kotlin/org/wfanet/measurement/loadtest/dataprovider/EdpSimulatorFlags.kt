@@ -17,6 +17,7 @@ package org.wfanet.measurement.loadtest.dataprovider
 import java.io.File
 import java.time.Duration
 import org.wfanet.measurement.common.grpc.TlsFlags
+import org.wfanet.measurement.eventdataprovider.noisers.DirectNoiseMechanism
 import org.wfanet.measurement.loadtest.KingdomPublicApiFlags
 import org.wfanet.measurement.loadtest.RequisitionFulfillmentServiceFlags
 import picocli.CommandLine

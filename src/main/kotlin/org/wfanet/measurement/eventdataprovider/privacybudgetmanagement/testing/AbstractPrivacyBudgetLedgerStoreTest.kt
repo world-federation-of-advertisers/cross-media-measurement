@@ -19,7 +19,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Charge
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.DpCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetBalanceEntry
@@ -85,19 +85,19 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
       )
 
-    val charge = Charge(0.01f, 0.0001f)
+    val dpCharge = DpCharge(0.01f, 0.0001f)
 
     val backingStore = createBackingStore()
     val txContext1 = backingStore.startTransaction()
     txContext1.addLedgerEntries(
       setOf(bucket1, bucket2, bucket3),
-      setOf(charge),
+      setOf(dpCharge),
       Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", false)
     )
 
     txContext1.addLedgerEntries(
       setOf(bucket1),
-      setOf(charge),
+      setOf(dpCharge),
       Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId2", false)
     )
     txContext1.commit()
@@ -125,11 +125,11 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           0.3f,
           PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
         )
-      val charge = Charge(0.01f, 0.0001f)
+      val dpCharge = DpCharge(0.01f, 0.0001f)
       backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
         txContext.addLedgerEntries(
           setOf(bucket1),
-          setOf(charge),
+          setOf(dpCharge),
           Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", false)
         )
         txContext.commit()
@@ -142,7 +142,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         assertThat(matchingBalanceEntries[0].repetitionCount).isEqualTo(1)
         txContext.addLedgerEntries(
           setOf(bucket1),
-          setOf(charge),
+          setOf(dpCharge),
           Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", true)
         )
         txContext.commit()
@@ -172,18 +172,18 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
         )
       val bucketForOtherMC = bucket.copy(measurementConsumerId = otherMeasurementConsumerId)
-      val charge = Charge(0.01f, 0.0001f)
+      val dpCharge = DpCharge(0.01f, 0.0001f)
       createBackingStore().use { backingStore: PrivacyBudgetLedgerBackingStore ->
         backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
           txContext.addLedgerEntries(
             setOf(bucket),
-            setOf(charge),
+            setOf(dpCharge),
             Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false)
           )
 
           txContext.addLedgerEntries(
             setOf(bucketForOtherMC),
-            setOf(charge),
+            setOf(dpCharge),
             Reference(otherMeasurementConsumerId, requisitionId, false)
           )
           txContext.commit()
@@ -232,10 +232,10 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
       )
 
-    val charge = Charge(0.01f, 0.0001f)
+    val dpCharge = DpCharge(0.01f, 0.0001f)
     txContext.addLedgerEntries(
       setOf(bucket1),
-      setOf(charge),
+      setOf(dpCharge),
       Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", false)
     )
 
@@ -270,11 +270,11 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
         )
 
-      val charge = Charge(0.01f, 0.0001f)
+      val dpCharge = DpCharge(0.01f, 0.0001f)
       // charge works
       txContext1.addLedgerEntries(
         setOf(bucket1),
-        setOf(charge),
+        setOf(dpCharge),
         Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", false)
       )
 
@@ -296,7 +296,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
       // refund works
       txContext2.addLedgerEntries(
         setOf(bucket1),
-        setOf(charge),
+        setOf(dpCharge),
         Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", true)
       )
       txContext2.commit()
@@ -327,11 +327,11 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
         )
 
-      val charge = Charge(0.01f, 0.0001f)
+      val dpCharge = DpCharge(0.01f, 0.0001f)
       // charge works
       txContext1.addLedgerEntries(
         setOf(bucket1),
-        setOf(charge),
+        setOf(dpCharge),
         Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false)
       )
 
