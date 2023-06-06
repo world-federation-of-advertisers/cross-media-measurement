@@ -26,8 +26,10 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
+import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.ModelOutage
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
@@ -57,6 +59,27 @@ class CreateModelOutage(private val modelOutage: ModelOutage) :
         ExternalId(modelOutage.externalModelLineId),
       ) {
         "ModelOutageStartTime cannot precede ModelOutageEndTime."
+      }
+    }
+
+    val modelLineType = modelLineData.getProtoEnum("Type", ModelLine.Type::forNumber)
+    if (modelLineType != ModelLine.Type.PROD) {
+      throw ModelOutageInvalidArgsException(
+        ExternalId(modelOutage.externalModelProviderId),
+        ExternalId(modelOutage.externalModelSuiteId),
+        ExternalId(modelOutage.externalModelLineId),
+      ) {
+        "ModelOutage can be created only for model lines having type equal to 'PROD'."
+      }
+    }
+
+    if (modelLineData.isNull("HoldbackModelLineId")) {
+      throw ModelOutageInvalidArgsException(
+        ExternalId(modelOutage.externalModelProviderId),
+        ExternalId(modelOutage.externalModelSuiteId),
+        ExternalId(modelOutage.externalModelLineId),
+      ) {
+        "ModelOutage can be created only for model lines having a HoldbackModelLine."
       }
     }
 
@@ -91,7 +114,9 @@ class CreateModelOutage(private val modelOutage: ModelOutage) :
     SELECT
     ModelLines.ModelProviderId,
     ModelLines.ModelSuiteId,
-    ModelLines.ModelLineId
+    ModelLines.ModelLineId,
+    ModelLines.HoldbackModelLineId,
+    ModelLines.Type
     FROM ModelSuites JOIN ModelProviders USING(ModelProviderId)
     JOIN ModelLines USING (ModelSuiteId, ModelProviderId)
     WHERE ExternalModelProviderId = @externalModelProviderId

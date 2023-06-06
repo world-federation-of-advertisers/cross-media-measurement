@@ -36,6 +36,7 @@ internal enum class IdVariable {
   MODEL_SUITE,
   MODEL_RELEASE,
   MODEL_LINE,
+  MODEL_OUTAGE,
   MODEL_ROLLOUT
 }
 
