@@ -6,7 +6,6 @@ kt_jvm_test(
     srcs = ["FakeEncryptEventsDoFnTest.kt"],
     test_class = "org.wfanet.panelmatch.client.eventpreprocessing.testing.FakeEncryptEventsDoFnTest",
     deps = [
-        "//imports/java/com/google/common:guava",
         "//imports/java/org/apache/beam:core",
         "//imports/java/org/apache/beam/extensions:protobuf",
         "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
@@ -15,6 +14,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
         "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common:guava",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/org/junit",
     ],

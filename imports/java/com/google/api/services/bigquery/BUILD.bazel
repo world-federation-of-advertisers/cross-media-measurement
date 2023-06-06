@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "bigquery",
+    actual = "@maven//:com_google_apis_google_api_services_bigquery",
+)
