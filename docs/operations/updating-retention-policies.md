@@ -67,16 +67,37 @@ The `time-to-live` flag is a ISO-8601 duration formatted string, while the
 ### Modifying Retention Cronjobs
 
 Modifications to a Cronjob will only update future Jobs created, but not any
-currently running Jobs.
+currently running Jobs. These modifications can be applied to the
+[`CronJobSpec`](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/cron-job-v1/#CronJobSpec)
+for each cronjob you wish to modify.
 
-If you wish to modify a cronjob's `schedule`, `dry-run`, or `time-to-live` 
+- The `schedule` field can be found in the CronJobSpec under the path
+  `spec/schedule`, should looke similar to ` 30 * * * *` and can be modified
+  using the Cron syntax to update the frequency at which jobs are created to
+  enforce the retention policy.
+
+
+- The `dry-run` field can be found under the path
+  `spec/jobTemplate/spec/template/spec/containers/0/args/6`, should look similar
+  to `--dry-run=false`, and can be updated with a boolean value to
+  enable/disable the retention operations.
+
+
+- The `time-to-live` or `days-to-live` fields can be found under the path
+  `spec/jobTemplate/spec/template/spec/containers/0/args/5`, should look similar
+  to `--days-to-live=100` or `--time-to-live=100d`, and can be updated with an
+  int and ISO-8601 duration respectively to modify the time allowed to pass
+  before a retention procedure should apply.
+
+If you wish to modify a cronjob's `schedule`, `dry-run`, or `time-to-live`
 settings, you can interactively modify the config with a command like:
 
 ```shell
 kubectl edit cronjob exchanges-deletion-cronjob
 ```
 
-You can then edit and save desired changes using your default text editor.
+You can then edit the fields described above and save desired changes using your
+default text editor.
 
-To modify cronjobs in a non-interactive manner, see 
+To modify cronjobs in a non-interactive manner, see
 [`kubectl patch`](https://kubernetes.io/docs/tasks/manage-kubernetes-objects/update-api-object-kubectl-patch/).
