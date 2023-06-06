@@ -45,7 +45,7 @@ class PostgresMeasurementsService(
   override suspend fun batchSetCmmsMeasurementIds(
     request: BatchSetCmmsMeasurementIdsRequest
   ): BatchSetCmmsMeasurementIdsResponse {
-    grpcRequire(request.measurementIdsList.size <= BATCH_SIZE) { "Too many request" }
+    grpcRequire(request.measurementIdsList.size <= BATCH_SIZE) { "Too many requests" }
 
     grpcRequire(request.cmmsMeasurementConsumerId.isNotBlank()) {
       "CmmsMeasurementConsumerId is missing"
@@ -65,7 +65,7 @@ class PostgresMeasurementsService(
   override suspend fun batchSetMeasurementResults(
     request: BatchSetMeasurementResultsRequest
   ): BatchSetCmmsMeasurementResultsResponse {
-    grpcRequire(request.measurementResultsList.size <= BATCH_SIZE) { "Too many request" }
+    grpcRequire(request.measurementResultsList.size <= BATCH_SIZE) { "Too many requests" }
 
     grpcRequire(request.cmmsMeasurementConsumerId.isNotBlank()) {
       "CmmsMeasurementConsumerId is missing"
@@ -85,7 +85,7 @@ class PostgresMeasurementsService(
   override suspend fun batchSetMeasurementFailures(
     request: BatchSetMeasurementFailuresRequest
   ): BatchSetCmmsMeasurementFailuresResponse {
-    grpcRequire(request.measurementFailuresList.size <= BATCH_SIZE) { "Too many request" }
+    grpcRequire(request.measurementFailuresList.size <= BATCH_SIZE) { "Too many requests" }
 
     grpcRequire(request.cmmsMeasurementConsumerId.isNotBlank()) {
       "CmmsMeasurementConsumerId is missing"
