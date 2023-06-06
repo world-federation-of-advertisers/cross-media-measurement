@@ -61,6 +61,8 @@ import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelSuite
+import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PublicKey
 import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt.PublicKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt as EventGroupEntries
@@ -76,20 +78,24 @@ import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.createModelLineRequest
 import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
+import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.getModelReleaseRequest
+import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.listModelReleasesRequest
+import org.wfanet.measurement.api.v2alpha.listModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.modelRelease
+import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.publicKey
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
@@ -149,6 +155,7 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = systemDuration.ofSeconds(30)
       DataProviders::class,
       ModelLines::class,
       ModelReleases::class,
+      ModelSuites::class,
     ]
 )
 class MeasurementSystem private constructor() : Runnable {
@@ -912,6 +919,7 @@ class CreateMeasurement : Runnable {
           .withAuthenticationKey(parentCommand.apiAuthenticationKey)
           .createMeasurement(
             createMeasurementRequest {
+              parent = measurementConsumer.name
               this.measurement = measurement
               requestId = this@CreateMeasurement.requestId
             }
@@ -1434,3 +1442,114 @@ private class ModelReleases {
     println("CREATE TIME - ${modelRelease.createTime}")
   }
 }
+
+@Command(
+  name = "model-suites",
+  subcommands = [CommandLine.HelpCommand::class],
+)
+private class ModelSuites {
+  @ParentCommand
+  lateinit var parentCommand: MeasurementSystem
+    private set
+
+  val modelSuiteStub: ModelSuitesCoroutineStub by lazy {
+    ModelSuitesCoroutineStub(parentCommand.kingdomChannel)
+  }
+
+  @Command(description = ["Creates model suite."])
+  fun create(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent ModelProvider."],
+      required = true,
+    )
+    modelProviderName: String,
+    @Option(
+      names = ["--display-name"],
+      description = ["Model suite display name."],
+      required = true,
+    )
+    modelSuiteDisplayName: String,
+    @Option(
+      names = ["--description"],
+      description = ["Model suite description."],
+      required = false,
+      defaultValue = ""
+    )
+    modelSuiteDescription: String
+  ) {
+    val request = createModelSuiteRequest {
+      parent = modelProviderName
+      modelSuite = modelSuite {
+        displayName = modelSuiteDisplayName
+        description = modelSuiteDescription
+      }
+    }
+    val outputModelSuite =
+      runBlocking(parentCommand.rpcDispatcher) { modelSuiteStub.createModelSuite(request) }
+
+    printModelSuite(outputModelSuite)
+  }
+
+  @Command(description = ["Gets model suite."])
+  fun get(
+    @Option(
+      names = ["--name"],
+      description = ["Model suite name."],
+      required = true,
+    )
+    modelSuiteName: String,
+  ) {
+    val request = getModelSuiteRequest { name = modelSuiteName }
+    val outputModelSuite =
+      runBlocking(parentCommand.rpcDispatcher) { modelSuiteStub.getModelSuite(request) }
+    printModelSuite(outputModelSuite)
+  }
+
+  @Command(description = ["Lists model suites for a model provider."])
+  fun list(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent ModelProvider."],
+      required = true,
+    )
+    modelProviderName: String,
+    @Option(
+      names = ["--page-size"],
+      description = ["The maximum number of ModelSuites to return."],
+      required = false,
+      defaultValue = "0"
+    )
+    listPageSize: Int,
+    @Option(
+      names = ["--page-token"],
+      description =
+        [
+          "A page token, received from a previous `ListModelSuitesRequest` call. Provide this to retrieve the subsequent page."
+        ],
+      required = false,
+      defaultValue = ""
+    )
+    listPageToken: String,
+  ) {
+    val request = listModelSuitesRequest {
+      parent = modelProviderName
+      pageSize = listPageSize
+      pageToken = listPageToken
+    }
+    val response =
+      runBlocking(parentCommand.rpcDispatcher) { modelSuiteStub.listModelSuites(request) }
+    response.modelSuiteList.forEach { printModelSuite(it) }
+  }
+
+  private fun printModelSuite(modelSuite: ModelSuite) {
+    println("NAME - ${modelSuite.name}")
+    println("DISPLAY NAME - ${modelSuite.displayName}")
+    if (modelSuite.description.isNotBlank()) {
+      println("DESCRIPTION - ${modelSuite.description}")
+    }
+    println("CREATE TIME - ${modelSuite.createTime}")
+  }
+}
+  
+  

@@ -41,11 +41,12 @@ class PostgresReportsService(
     try {
       return CreateReport(request).execute(client, idGenerator)
     } catch (e: ReportingSetNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Reporting Set not found" }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Reporting Set not found")
     } catch (e: MeasurementCalculationTimeIntervalNotFoundException) {
-      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
+      throw e.asStatusRuntimeException(
+        Status.Code.INVALID_ARGUMENT,
         "Measurement Calculation Time Interval not found in Report"
-      }
+      )
     }
   }
 
@@ -61,7 +62,7 @@ class PostgresReportsService(
           .report
       }
     } catch (e: ReportNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Report not found" }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Report not found")
     }
   }
 
@@ -79,7 +80,7 @@ class PostgresReportsService(
           .report
       }
     } catch (e: ReportNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Report not found" }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Report not found")
     }
   }
 
