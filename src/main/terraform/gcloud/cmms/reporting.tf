@@ -58,6 +58,5 @@ module "reporting" {
     kubernetes = kubernetes.reporting
   }
 
-  postgres_instance          = google_sql_database_instance.postgres
-  monitoring_service_account = module.common.monitoring_service_account
+  postgres_instance = google_sql_database_instance.postgres
 }

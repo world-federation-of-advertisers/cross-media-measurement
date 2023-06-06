@@ -69,8 +69,7 @@ module "simulators" {
     kubernetes = kubernetes.simulators
   }
 
-  storage_bucket             = module.storage.storage_bucket
-  monitoring_service_account = module.common.monitoring_service_account
+  storage_bucket = module.storage.storage_bucket
 
   # TODO(hashicorp/terraform-provider-google#5693): Use data source once available.
   bigquery_table = {

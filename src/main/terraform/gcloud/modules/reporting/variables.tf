@@ -20,12 +20,3 @@ variable "postgres_instance" {
   })
   nullable = false
 }
-
-variable "monitoring_service_account" {
-  description = "`google_service_account` for GMP monitoring."
-  type = object({
-    name  = string
-    email = string
-  })
-  nullable = false
-}
