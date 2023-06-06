@@ -110,6 +110,23 @@ message ListModelLinesPageToken {
   PreviousPageEnd last_model_line = 5;
 }
 
+message ListModelOutagesPageToken {
+  int32 page_size = 1;
+  fixed64 external_model_provider_id = 2;
+  fixed64 external_model_suite_id = 3;
+  fixed64 external_model_line_id = 4;
+  TimeInterval outage_interval = 5;
+  message PreviousPageEnd {
+    fixed64 external_model_provider_id = 1;
+    fixed64 external_model_suite_id = 2;
+    fixed64 external_model_line_id = 3;
+    fixed64 external_model_outage_id = 4;
+    google.protobuf.Timestamp create_time = 5;
+  }
+  PreviousPageEnd last_model_outage = 6;
+  bool show_deleted = 7;
+}
+
 message ListModelRolloutsPageToken {
   int32 page_size = 1;
   fixed64 external_model_provider_id = 2;
