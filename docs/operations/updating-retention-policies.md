@@ -41,8 +41,6 @@ controls whether the jobs created execute the retention operations, i.e. when
 `dry-run` is `true` a job will only log the operations that would have been
 performed. The time to live flags control how long a Measurement or Exchange
 must have been in specified state before qualifying for a retention operation.
-The `time-to-live` flag is a ISO-8601 duration formatted string, while the
-`days-to-live` flag is an int.
 
 ### Current Kingdom Retention Cronjobs
 
@@ -72,22 +70,19 @@ currently running Jobs. These modifications can be applied to the
 for each cronjob you wish to modify.
 
 - The `schedule` field can be found in the CronJobSpec under the path
-  `spec/schedule`, should looke similar to ` 30 * * * *` and can be modified
+  `spec.schedule`, should look similar to ` 30 * * * *` and can be modified
   using the Cron syntax to update the frequency at which jobs are created to
   enforce the retention policy.
 
 
-- The `dry-run` field can be found under the path
-  `spec/jobTemplate/spec/template/spec/containers/0/args/6`, should look similar
-  to `--dry-run=false`, and can be updated with a boolean value to
-  enable/disable the retention operations.
-
-
-- The `time-to-live` or `days-to-live` fields can be found under the path
-  `spec/jobTemplate/spec/template/spec/containers/0/args/5`, should look similar
-  to `--days-to-live=100` or `--time-to-live=100d`, and can be updated with an
-  int and ISO-8601 duration respectively to modify the time allowed to pass
-  before a retention procedure should apply.
+- Other configurable options are passed as container args and can be found under
+  the path `spec.jobTemplate.spec.template.spec.containers.0.args`. There you
+  can update the `--dry-run=false` arg with a different boolean value to
+  enable/disable the retention operations. You can also find the
+  `--days-to-live` or `--time-to-live` arg which control the time allowed to
+  pass before a retention procedure should apply. The `days-to-live` arg is
+  specified as an int and the `time-to-live` arg is specified as a
+  human-readable duration.
 
 If you wish to modify a cronjob's `schedule`, `dry-run`, or `time-to-live`
 settings, you can interactively modify the config with a command like:
