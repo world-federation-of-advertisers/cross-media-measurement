@@ -39,7 +39,8 @@ class PostgresContinuationTokenService(
   ): GetContinuationTokenResponse {
     return ContinuationTokenReader().getContinuationToken(client.singleUse())?.let {
       getContinuationTokenResponse { token = it.continuationToken }
-    } ?: GetContinuationTokenResponse.getDefaultInstance()
+    }
+      ?: GetContinuationTokenResponse.getDefaultInstance()
   }
 
   override suspend fun setContinuationToken(

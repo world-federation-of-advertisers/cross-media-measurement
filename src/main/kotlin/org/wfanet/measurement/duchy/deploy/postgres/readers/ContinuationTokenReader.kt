@@ -16,13 +16,13 @@ package org.wfanet.measurement.duchy.deploy.postgres.readers
 
 import kotlinx.coroutines.flow.firstOrNull
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
-import org.wfanet.measurement.common.db.r2dbc.BoundStatement
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 
 class ContinuationTokenReader {
   companion object {
-    private const val parameterizedQueryString = """
+    private const val parameterizedQueryString =
+      """
       SELECT ContinuationToken
       FROM HeraldContinuationTokens
       Limit 1
@@ -33,9 +33,7 @@ class ContinuationTokenReader {
 
   fun translate(row: ResultRow): Result = Result(row["ContinuationToken"])
 
-  suspend fun getContinuationToken(
-    readContext: ReadContext
-  ): Result? {
+  suspend fun getContinuationToken(readContext: ReadContext): Result? {
     val statement = boundStatement(parameterizedQueryString)
     return readContext.executeQuery(statement).consume(::translate).firstOrNull()
   }
