@@ -42,7 +42,7 @@ class PrivacyBudgetManagerTest {
     Query(
       Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
       LandscapeMask(listOf(EventGroupSpec(expression, timeRange)), 0.01f, 0.02f),
-      Charge(0.6f, 0.02f)
+      DpCharge(0.6f, 0.02f)
     )
 
   private suspend fun PrivacyBudgetManager.assertChargeExceedsPrivacyBudget(

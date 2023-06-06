@@ -12,11 +12,15 @@
  * the License.
  */
 
-package org.wfanet.measurement.loadtest.dataprovider
+package org.wfanet.measurement.eventdataprovider.noisers
 
-/** A base Noiser interface for direct measurements */
-interface Noiser {
+import org.apache.commons.math3.distribution.RealDistribution
 
-  /** Returns a random value sampled from the distribution. */
-  fun sample(): Double
+/** A base noiser class for direct measurements */
+abstract class AbstractNoiser : Noiser {
+  protected abstract val distribution: RealDistribution
+
+  override fun sample(): Double {
+    return distribution.sample()
+  }
 }

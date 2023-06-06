@@ -96,3 +96,16 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/testing",
     ],
 )
+
+kt_jvm_test(
+    name = "AcdpParamsConverterTest",
+    srcs = ["AcdpParamsConverterTest.kt"],
+    test_class = "org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpParamsConverterTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
+        "//src/main/proto/wfa/measurement/api/v2alpha:differential_privacy_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)

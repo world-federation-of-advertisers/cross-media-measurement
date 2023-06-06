@@ -12,15 +12,18 @@
  * the License.
  */
 
-package org.wfanet.measurement.loadtest.dataprovider
+package org.wfanet.measurement.eventdataprovider.noisers
 
-import org.apache.commons.math3.distribution.RealDistribution
+import java.util.Random
+import org.apache.commons.math3.distribution.LaplaceDistribution
+import org.apache.commons.math3.random.RandomGeneratorFactory
+import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 
-/** A base noiser class for direct measurements */
-abstract class AbstractNoiser : Noiser {
-  protected abstract val distribution: RealDistribution
-
-  override fun sample(): Double {
-    return distribution.sample()
-  }
+class LaplaceNoiser(privacyParams: DifferentialPrivacyParams, random: Random) : AbstractNoiser() {
+  override val distribution: LaplaceDistribution =
+    LaplaceDistribution(
+      RandomGeneratorFactory.createRandomGenerator(random),
+      0.0,
+      1 / privacyParams.epsilon
+    )
 }
