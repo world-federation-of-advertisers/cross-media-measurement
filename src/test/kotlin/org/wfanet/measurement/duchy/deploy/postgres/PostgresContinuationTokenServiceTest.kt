@@ -25,7 +25,7 @@ import org.wfanet.measurement.duchy.service.internal.testing.ContinuationTokensS
 
 @RunWith(JUnit4::class)
 class PostgresContinuationTokenServiceTest :
-    ContinuationTokensServiceTest<PostgresContinuationTokenService>() {
+  ContinuationTokensServiceTest<PostgresContinuationTokenService>() {
   override fun newService(): PostgresContinuationTokenService {
     val client = EmbeddedPostgresDatabaseProvider(DUCHY_CHANGELOG_PATH).createNewDatabase()
     val idGenerator = RandomIdGenerator(Clock.systemUTC(), Random(1))
