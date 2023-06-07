@@ -83,7 +83,7 @@ class SpannerModelShardsService(
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelShard not found.")
     } catch (e: ModelShardInvalidArgsException) {
       throw e.asStatusRuntimeException(
-        Status.INVALID_ARGUMENT,
+        Status.Code.INVALID_ARGUMENT,
         "Cannot delete ModelShard having ModelRelease owned by another ModelProvider."
       )
     } catch (e: KingdomInternalException) {
