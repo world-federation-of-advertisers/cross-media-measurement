@@ -10,8 +10,7 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     deps = [
         "//imports/java/org/apache/beam:core",
-        "//imports/java/org/apache/beam/extensions:protobuf",
-        "//imports/java/org/apache/beam/runners:google_cloud_dataflow",
+        "//imports/java/org/apache/beam/runners/dataflow",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
         "//src/main/kotlin/org/wfanet/panelmatch/common/storage",
         "@wfa_common_jvm//imports/java/com/google/protobuf",

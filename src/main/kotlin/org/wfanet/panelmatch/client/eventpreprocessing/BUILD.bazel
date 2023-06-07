@@ -30,7 +30,6 @@ kt_jvm_library(
     ],
     deps = [
         "//imports/java/org/apache/beam:core",
-        "//imports/java/org/apache/beam/extensions:protobuf",
         "//imports/java/org/joda",
         "//src/main/kotlin/org/wfanet/panelmatch/client/common",
         "//src/main/kotlin/org/wfanet/panelmatch/client/logger",

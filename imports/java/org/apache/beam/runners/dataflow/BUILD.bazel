@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "dataflow",
+    actual = "@maven//:org_apache_beam_beam_runners_google_cloud_dataflow_java",
+)

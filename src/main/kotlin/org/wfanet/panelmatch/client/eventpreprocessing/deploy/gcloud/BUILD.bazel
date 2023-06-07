@@ -10,10 +10,8 @@ kt_jvm_library(
     deps = [
         "//imports/java/com/google/api/services/bigquery",
         "//imports/java/org/apache/beam:core",
-        "//imports/java/org/apache/beam/extensions:google_cloud_platform_core",
-        "//imports/java/org/apache/beam/extensions:protobuf",
-        "//imports/java/org/apache/beam/io:google_cloud_platform",
-        "//imports/java/org/apache/beam/runners:google_cloud_dataflow",
+        "//imports/java/org/apache/beam/runners/dataflow",
+        "//imports/java/org/apache/beam/sdk/io/gcp",
         "//src/main/kotlin/org/wfanet/panelmatch/client/common",
         "//src/main/kotlin/org/wfanet/panelmatch/client/common/compression",
         "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
