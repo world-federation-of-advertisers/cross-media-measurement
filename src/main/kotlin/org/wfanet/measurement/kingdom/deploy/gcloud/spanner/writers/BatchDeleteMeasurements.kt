@@ -45,12 +45,21 @@ class BatchDeleteMeasurements(
     val keySet = KeySet.newBuilder()
 
     for (request in requests.requestsList) {
+      val externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
+      val externalMeasurementId = ExternalId(request.externalMeasurementId)
       val result: Key =
         MeasurementReader.readKeyByExternalIds(
           transactionContext,
-          ExternalId(request.externalMeasurementConsumerId),
-          ExternalId(request.externalMeasurementId)
+          externalMeasurementConsumerId,
+          externalMeasurementId
         )
+          ?: throw MeasurementNotFoundByMeasurementConsumerException(
+            externalMeasurementConsumerId,
+            externalMeasurementId
+          ) {
+            "Measurement with external MeasurementConsumer ID $externalMeasurementConsumerId and " +
+              "external Measurement ID $externalMeasurementId not found"
+          }
       if (request.etag.isNotEmpty()) {
         val actualEtag = readEtag(transactionContext, result)
         if (actualEtag != request.etag) {

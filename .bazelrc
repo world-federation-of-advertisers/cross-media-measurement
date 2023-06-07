@@ -26,5 +26,6 @@ build:debian-bullseye --platforms=//build/platforms:debian_bullseye
 build:ubuntu-bionic --platforms=//build/platforms:ubuntu_bionic
 
 import %workspace%/container.bazelrc
+import %workspace%/maven.bazelrc
 import %workspace%/remote.bazelrc
 import %workspace%/results.bazelrc

@@ -1,0 +1,7 @@
+# Configuration for deploy to maven.
+
+build:maven --compilation_mode=opt
+build:maven --strip=always
+build:maven --action_env=BAZEL_LINKOPTS=-Wl,-Bstatic
+build:maven --action_env=BAZEL_LINKOPTS=-static-libgcc
+build:maven --action_env=BAZEL_LINKLIBS=-l%:libstdc++.a

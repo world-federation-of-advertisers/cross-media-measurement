@@ -39,8 +39,10 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.ArgumentMatcher
 import org.mockito.kotlin.KArgumentCaptor
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argThat
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.eq
@@ -57,6 +59,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.GetMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
@@ -148,6 +151,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsRequest as
 import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsResponse as internalBatchCreateMetricsResponse
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsRequest as internalBatchGetMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsResponse as internalBatchGetMetricsResponse
+import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsResponse
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRequest
@@ -164,6 +168,7 @@ import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalRepo
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeInterval as internalTimeInterval
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
+import org.wfanet.measurement.reporting.service.api.v2alpha.RequestIdMatcher.Companion.requestIdEq
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.Metric
@@ -546,7 +551,7 @@ private val REQUISITION_SPECS: Map<DataProviderKey, RequisitionSpec> =
       { DataProviderKey(it.cmmsDataProviderId) },
       {
         RequisitionSpecKt.eventGroupEntry {
-          key = it.toName()
+          key = CmmsEventGroupKey(it.cmmsDataProviderId, it.cmmsEventGroupId).toName()
           value =
             RequisitionSpecKt.EventGroupEntryKt.value {
               collectionInterval = MEASUREMENT_TIME_INTERVAL
@@ -742,9 +747,6 @@ private val REQUESTING_UNION_ALL_REACH_MEASUREMENT =
         },
         MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
       )
-
-    measurementReferenceId =
-      INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsCreateMeasurementRequestId
   }
 private val REQUESTING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
   BASE_MEASUREMENT.copy {
@@ -755,9 +757,6 @@ private val REQUESTING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
         UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC,
         MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
       )
-
-    measurementReferenceId =
-      INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.cmmsCreateMeasurementRequestId
   }
 
 private val PENDING_UNION_ALL_REACH_MEASUREMENT =
@@ -840,9 +839,6 @@ private val REQUESTING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
         SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC,
         MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
       )
-
-    measurementReferenceId =
-      INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsCreateMeasurementRequestId
   }
 
 private val PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
@@ -897,9 +893,6 @@ private val REQUESTING_UNION_ALL_WATCH_DURATION_MEASUREMENT =
         },
         MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
       )
-
-    measurementReferenceId =
-      INTERNAL_PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.cmmsCreateMeasurementRequestId
   }
 
 private val PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT =
@@ -1367,19 +1360,29 @@ class MetricsServiceTest {
         .thenReturn(pendingMeasurement)
     }
 
-    onBlocking { createMeasurement(any()) }
-      .thenAnswer {
-        val request = it.arguments[0] as CreateMeasurementRequest
-        mapOf(
-            PENDING_UNION_ALL_REACH_MEASUREMENT.measurementReferenceId to
-              PENDING_UNION_ALL_REACH_MEASUREMENT,
-            PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.measurementReferenceId to
-              PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT,
-            PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.measurementReferenceId to
-              PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT,
-          )
-          .getValue(request.measurement.measurementReferenceId)
+    onBlocking {
+        createMeasurement(
+          requestIdEq(INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsCreateMeasurementRequestId)
+        )
       }
+      .thenReturn(PENDING_UNION_ALL_REACH_MEASUREMENT)
+    onBlocking {
+        createMeasurement(
+          requestIdEq(
+            INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+              .cmmsCreateMeasurementRequestId
+          )
+        )
+      }
+      .thenReturn(PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT)
+    onBlocking {
+        createMeasurement(
+          requestIdEq(
+            INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsCreateMeasurementRequestId
+          )
+        )
+      }
+      .thenReturn(PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT)
   }
 
   private val measurementConsumersMock:
@@ -1474,7 +1477,7 @@ class MetricsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+      withMeasurementConsumerPrincipal(request.parent, CONFIG) {
         runBlocking { service.createMetric(request) }
       }
 
@@ -1494,16 +1497,21 @@ class MetricsServiceTest {
     assertThat(capturedMeasurementRequests)
       .ignoringRepeatedFieldOrder()
       .ignoringFieldDescriptors(
-        Measurement.getDescriptor().findFieldByNumber(Measurement.MEASUREMENT_SPEC_FIELD_NUMBER),
-        Measurement.DataProviderEntry.Value.getDescriptor()
-          .findFieldByNumber(
-            Measurement.DataProviderEntry.Value.ENCRYPTED_REQUISITION_SPEC_FIELD_NUMBER
-          ),
+        MEASUREMENT_SPEC_FIELD,
+        ENCRYPTED_REQUISITION_SPEC_FIELD,
       )
       .containsExactly(
-        createMeasurementRequest { measurement = REQUESTING_UNION_ALL_REACH_MEASUREMENT },
         createMeasurementRequest {
+          parent = request.parent
+          measurement = REQUESTING_UNION_ALL_REACH_MEASUREMENT
+          requestId = INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsCreateMeasurementRequestId
+        },
+        createMeasurementRequest {
+          parent = request.parent
           measurement = REQUESTING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+          requestId =
+            INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+              .cmmsCreateMeasurementRequestId
         },
       )
 
@@ -1606,15 +1614,15 @@ class MetricsServiceTest {
     assertThat(capturedMeasurementRequests)
       .ignoringRepeatedFieldOrder()
       .ignoringFieldDescriptors(
-        Measurement.getDescriptor().findFieldByNumber(Measurement.MEASUREMENT_SPEC_FIELD_NUMBER),
-        Measurement.DataProviderEntry.Value.getDescriptor()
-          .findFieldByNumber(
-            Measurement.DataProviderEntry.Value.ENCRYPTED_REQUISITION_SPEC_FIELD_NUMBER
-          ),
+        MEASUREMENT_SPEC_FIELD,
+        ENCRYPTED_REQUISITION_SPEC_FIELD,
       )
       .containsExactly(
         createMeasurementRequest {
+          parent = request.parent
           measurement = REQUESTING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+          requestId =
+            INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsCreateMeasurementRequestId
         },
       )
 
@@ -1798,14 +1806,16 @@ class MetricsServiceTest {
     assertThat(capturedMeasurementRequests)
       .ignoringRepeatedFieldOrder()
       .ignoringFieldDescriptors(
-        Measurement.getDescriptor().findFieldByNumber(Measurement.MEASUREMENT_SPEC_FIELD_NUMBER),
-        Measurement.DataProviderEntry.Value.getDescriptor()
-          .findFieldByNumber(
-            Measurement.DataProviderEntry.Value.ENCRYPTED_REQUISITION_SPEC_FIELD_NUMBER
-          ),
+        MEASUREMENT_SPEC_FIELD,
+        ENCRYPTED_REQUISITION_SPEC_FIELD,
       )
       .containsExactly(
-        createMeasurementRequest { measurement = requestingSinglePublisherImpressionMeasurement },
+        createMeasurementRequest {
+          parent = request.parent
+          measurement = requestingSinglePublisherImpressionMeasurement
+          requestId =
+            INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsCreateMeasurementRequestId
+        },
       )
 
     capturedMeasurementRequests.forEach { capturedMeasurementRequest ->
@@ -1893,16 +1903,21 @@ class MetricsServiceTest {
     assertThat(capturedMeasurementRequests)
       .ignoringRepeatedFieldOrder()
       .ignoringFieldDescriptors(
-        Measurement.getDescriptor().findFieldByNumber(Measurement.MEASUREMENT_SPEC_FIELD_NUMBER),
-        Measurement.DataProviderEntry.Value.getDescriptor()
-          .findFieldByNumber(
-            Measurement.DataProviderEntry.Value.ENCRYPTED_REQUISITION_SPEC_FIELD_NUMBER
-          ),
+        MEASUREMENT_SPEC_FIELD,
+        ENCRYPTED_REQUISITION_SPEC_FIELD,
       )
       .containsExactly(
-        createMeasurementRequest { measurement = REQUESTING_UNION_ALL_REACH_MEASUREMENT },
         createMeasurementRequest {
+          parent = request.parent
+          measurement = REQUESTING_UNION_ALL_REACH_MEASUREMENT
+          requestId = INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsCreateMeasurementRequestId
+        },
+        createMeasurementRequest {
+          parent = request.parent
           measurement = REQUESTING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+          requestId =
+            INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+              .cmmsCreateMeasurementRequestId
         },
       )
 
@@ -1968,6 +1983,109 @@ class MetricsServiceTest {
       )
 
     assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `createMetric creates CMMS measurements when no event filter at all`() = runBlocking {
+    val internalSinglePublisherReportingSet =
+      INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.copy {
+        clearFilter()
+        weightedSubsetUnions.clear()
+        weightedSubsetUnions += weightedSubsetUnion {
+          primitiveReportingSetBases += primitiveReportingSetBasis {
+            externalReportingSetId = this@copy.externalReportingSetId
+          }
+          weight = 1
+        }
+      }
+    val internalCreateMetricRequest = internalCreateMetricRequest {
+      metric =
+        INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+          weightedMeasurements.clear()
+          weightedMeasurements += weightedMeasurement {
+            weight = 1
+            measurement = internalMeasurement {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+              timeInterval = INTERNAL_TIME_INTERVAL
+              primitiveReportingSetBases += primitiveReportingSetBasis {
+                externalReportingSetId = internalSinglePublisherReportingSet.externalReportingSetId
+              }
+            }
+          }
+          details = InternalMetricKt.details {}
+        }
+    }
+
+    val internalPendingInitialSinglePublisherImpressionMetric =
+      INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+        weightedMeasurements.clear()
+        weightedMeasurements += weightedMeasurement {
+          weight = 1
+          measurement =
+            INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
+              clearCmmsMeasurementId()
+              primitiveReportingSetBases.clear()
+              primitiveReportingSetBases += primitiveReportingSetBasis {
+                externalReportingSetId = internalSinglePublisherReportingSet.externalReportingSetId
+              }
+            }
+        }
+        details = InternalMetricKt.details {}
+      }
+
+    whenever(
+        internalReportingSetsMock.batchGetReportingSets(
+          eq(
+            batchGetReportingSetsRequest {
+              cmmsMeasurementConsumerId =
+                internalSinglePublisherReportingSet.cmmsMeasurementConsumerId
+              externalReportingSetIds += internalSinglePublisherReportingSet.externalReportingSetId
+            }
+          )
+        )
+      )
+      .thenReturn(
+        batchGetReportingSetsResponse { reportingSets += internalSinglePublisherReportingSet }
+      )
+
+    whenever(internalMetricsMock.createMetric(eq(internalCreateMetricRequest)))
+      .thenReturn(internalPendingInitialSinglePublisherImpressionMetric)
+
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { filters.clear() }
+    }
+
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+      runBlocking { service.createMetric(request) }
+    }
+
+    // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
+    val measurementsCaptor: KArgumentCaptor<CreateMeasurementRequest> = argumentCaptor()
+    verifyBlocking(measurementsMock, times(1)) { createMeasurement(measurementsCaptor.capture()) }
+    val capturedMeasurementRequests = measurementsCaptor.allValues
+
+    capturedMeasurementRequests.forEach { capturedMeasurementRequest ->
+      val dataProvidersList =
+        capturedMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
+
+      val filters: List<String> =
+        dataProvidersList.flatMap { dataProviderEntry ->
+          val signedRequisitionSpec =
+            decryptRequisitionSpec(
+              dataProviderEntry.value.encryptedRequisitionSpec,
+              DATA_PROVIDER_PRIVATE_KEY_HANDLE
+            )
+          val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+
+          requisitionSpec.eventGroupsList.map { eventGroupEntry ->
+            eventGroupEntry.value.filter.expression
+          }
+        }
+      for (filter in filters) {
+        assertThat(filter).isEqualTo("")
+      }
+    }
   }
 
   @Test
@@ -2327,7 +2445,6 @@ class MetricsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("privacyParams in reach is not set.")
   }
 
   @Test
@@ -2348,8 +2465,6 @@ class MetricsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("vidSamplingInterval.start cannot be negative.")
   }
 
   @Test
@@ -2370,8 +2485,6 @@ class MetricsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("vidSamplingInterval.start must be smaller than 1.")
   }
 
   @Test
@@ -2392,8 +2505,6 @@ class MetricsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("vidSamplingInterval.width must be greater than 0.")
   }
 
   @Test
@@ -2420,8 +2531,6 @@ class MetricsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("vidSamplingInterval start + width cannot be greater than 1.")
   }
 
   @Test
@@ -2702,19 +2811,27 @@ class MetricsServiceTest {
     assertThat(capturedMeasurementRequests)
       .ignoringRepeatedFieldOrder()
       .ignoringFieldDescriptors(
-        Measurement.getDescriptor().findFieldByNumber(Measurement.MEASUREMENT_SPEC_FIELD_NUMBER),
-        Measurement.DataProviderEntry.Value.getDescriptor()
-          .findFieldByNumber(
-            Measurement.DataProviderEntry.Value.ENCRYPTED_REQUISITION_SPEC_FIELD_NUMBER
-          ),
+        MEASUREMENT_SPEC_FIELD,
+        ENCRYPTED_REQUISITION_SPEC_FIELD,
       )
       .containsExactly(
-        createMeasurementRequest { measurement = REQUESTING_UNION_ALL_REACH_MEASUREMENT },
         createMeasurementRequest {
-          measurement = REQUESTING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+          parent = request.parent
+          measurement = REQUESTING_UNION_ALL_REACH_MEASUREMENT
+          requestId = INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsCreateMeasurementRequestId
         },
         createMeasurementRequest {
+          parent = request.parent
+          measurement = REQUESTING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+          requestId =
+            INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+              .cmmsCreateMeasurementRequestId
+        },
+        createMeasurementRequest {
+          parent = request.parent
           measurement = REQUESTING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+          requestId =
+            INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsCreateMeasurementRequestId
         },
       )
 
@@ -4323,6 +4440,30 @@ class MetricsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)
       .isEqualTo("At most $MAX_BATCH_SIZE metrics can be supported in a batch.")
+  }
+
+  companion object {
+    private val MEASUREMENT_SPEC_FIELD =
+      Measurement.getDescriptor().findFieldByNumber(Measurement.MEASUREMENT_SPEC_FIELD_NUMBER)
+    private val ENCRYPTED_REQUISITION_SPEC_FIELD =
+      Measurement.DataProviderEntry.Value.getDescriptor()
+        .findFieldByNumber(
+          Measurement.DataProviderEntry.Value.ENCRYPTED_REQUISITION_SPEC_FIELD_NUMBER
+        )
+  }
+}
+
+private class RequestIdMatcher(private val expected: String) :
+  ArgumentMatcher<CreateMeasurementRequest> {
+
+  override fun matches(actual: CreateMeasurementRequest?): Boolean {
+    return actual?.requestId == expected
+  }
+
+  companion object {
+    fun requestIdEq(expected: String): CreateMeasurementRequest {
+      return argThat(RequestIdMatcher(expected))
+    }
   }
 }
 

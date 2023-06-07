@@ -41,6 +41,7 @@ import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
@@ -56,6 +57,12 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelRelease
+import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelSuite
+import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PublicKey
 import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt.PublicKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt as EventGroupEntries
@@ -69,19 +76,32 @@ import org.wfanet.measurement.api.v2alpha.createApiKeyRequest
 import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.createModelLineRequest
+import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
+import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.getModelReleaseRequest
+import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
+import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
+import org.wfanet.measurement.api.v2alpha.listModelReleasesRequest
+import org.wfanet.measurement.api.v2alpha.listModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.modelLine
+import org.wfanet.measurement.api.v2alpha.modelRelease
+import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.publicKey
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.revokeCertificateRequest
+import org.wfanet.measurement.api.v2alpha.setActiveEndTimeRequest
+import org.wfanet.measurement.api.v2alpha.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.api.v2alpha.updatePublicKeyRequest
@@ -133,6 +153,9 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = systemDuration.ofSeconds(30)
       Measurements::class,
       ApiKeys::class,
       DataProviders::class,
+      ModelLines::class,
+      ModelReleases::class,
+      ModelSuites::class,
     ]
 )
 class MeasurementSystem private constructor() : Runnable {
@@ -534,6 +557,14 @@ class CreateMeasurement : Runnable {
   private lateinit var measurementConsumer: String
 
   @Option(
+    names = ["--request-id"],
+    description = ["ID of API request for idempotency"],
+    required = false,
+    defaultValue = "",
+  )
+  private lateinit var requestId: String
+
+  @Option(
     names = ["--private-key-der-file"],
     description = ["Private key for MeasurementConsumer"],
     required = true
@@ -546,7 +577,7 @@ class CreateMeasurement : Runnable {
     required = false,
     defaultValue = ""
   )
-  private lateinit var measurementIdempotencyKey: String
+  private lateinit var measurementReferenceId: String
 
   @set:Option(
     names = ["--vid-sampling-start"],
@@ -879,14 +910,20 @@ class CreateMeasurement : Runnable {
 
       this.measurementSpec =
         signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
-      measurementReferenceId = measurementIdempotencyKey
+      measurementReferenceId = this@CreateMeasurement.measurementReferenceId
     }
 
     val response =
       runBlocking(parentCommand.parentCommand.rpcDispatcher) {
         parentCommand.measurementStub
           .withAuthenticationKey(parentCommand.apiAuthenticationKey)
-          .createMeasurement(createMeasurementRequest { this.measurement = measurement })
+          .createMeasurement(
+            createMeasurementRequest {
+              parent = measurementConsumer.name
+              this.measurement = measurement
+              requestId = this@CreateMeasurement.requestId
+            }
+          )
       }
     println("Measurement Name: ${response.name}")
   }
@@ -1116,5 +1153,401 @@ private class ApiKeys {
         apiKeysClient.withIdToken(idToken).createApiKey(request)
       }
     println(response)
+  }
+}
+
+@Command(
+  name = "model-lines",
+  subcommands = [CommandLine.HelpCommand::class],
+)
+private class ModelLines {
+  @ParentCommand
+  lateinit var parentCommand: MeasurementSystem
+    private set
+
+  val modelLineStub: ModelLinesCoroutineStub by lazy {
+    ModelLinesCoroutineStub(parentCommand.kingdomChannel)
+  }
+
+  @Command(description = ["Creates model line."])
+  fun create(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent ModelSuite."],
+      required = true,
+    )
+    modelSuiteName: String,
+    @Option(
+      names = ["--display-name"],
+      description = ["Model line display name."],
+      required = false,
+      defaultValue = ""
+    )
+    modelLineDisplayName: String,
+    @Option(
+      names = ["--description"],
+      description = ["Model line description."],
+      required = false,
+      defaultValue = ""
+    )
+    modelLineDescription: String,
+    @Option(
+      names = ["--active-start-time"],
+      description = ["Model line active start time in ISO 8601 format of UTC."],
+      required = true,
+    )
+    modelLineActiveStartTime: Instant,
+    @Option(
+      names = ["--active-end-time"],
+      description = ["Model line active end time in ISO 8601 format of UTC."],
+      required = false,
+    )
+    modelLineActiveEndTime: Instant? = null,
+    @Option(
+      names = ["--type"],
+      description = ["Model line type."],
+      required = true,
+    )
+    modelLineType: ModelLine.Type,
+    @Option(
+      names = ["--holdback-model-line"],
+      description = ["Holdback model line."],
+      required = false,
+      defaultValue = ""
+    )
+    modelLineHoldbackModelLine: String
+  ) {
+    val request = createModelLineRequest {
+      parent = modelSuiteName
+      modelLine = modelLine {
+        displayName = modelLineDisplayName
+        description = modelLineDescription
+        activeStartTime = modelLineActiveStartTime.toProtoTime()
+        if (modelLineActiveEndTime != null) {
+          activeEndTime = modelLineActiveEndTime.toProtoTime()
+        }
+        type = modelLineType
+        holdbackModelLine = modelLineHoldbackModelLine
+      }
+    }
+    val outputModelLine =
+      runBlocking(parentCommand.rpcDispatcher) { modelLineStub.createModelLine(request) }
+
+    println("Model line ${outputModelLine.name} has been created.")
+    printModelLine(outputModelLine)
+  }
+
+  @Command(description = ["Sets the holdback model line for a given model line."])
+  fun setHoldbackModelLine(
+    @Option(
+      names = ["--name"],
+      description = ["Model line name."],
+      required = true,
+    )
+    modelLineName: String,
+    @Option(
+      names = ["--holdback-model-line"],
+      description = ["Holdback model line."],
+      required = true,
+    )
+    modelLineHoldbackModelLine: String,
+  ) {
+    val request = setModelLineHoldbackModelLineRequest {
+      name = modelLineName
+      holdbackModelLine = modelLineHoldbackModelLine
+    }
+    val outputModelLine =
+      runBlocking(parentCommand.rpcDispatcher) {
+        modelLineStub.setModelLineHoldbackModelLine(request)
+      }
+    printModelLine(outputModelLine)
+  }
+
+  @Command(description = ["Sets the active end time for a given model line."])
+  fun setActiveEndTime(
+    @Option(
+      names = ["--name"],
+      description = ["Model line name."],
+      required = true,
+    )
+    modelLineName: String,
+    @Option(
+      names = ["--active-end-time"],
+      description = ["Model line active end time in ISO 8601 format of UTC."],
+      required = true,
+    )
+    modelLineActiveEndTime: Instant,
+  ) {
+    val request = setActiveEndTimeRequest {
+      name = modelLineName
+      activeEndTime = modelLineActiveEndTime.toProtoTime()
+    }
+    val outputModelLine =
+      runBlocking(parentCommand.rpcDispatcher) { modelLineStub.setActiveEndTime(request) }
+    printModelLine(outputModelLine)
+  }
+
+  @Command(description = ["Lists model lines for a model suite."])
+  fun list(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent ModelSuite."],
+      required = true,
+    )
+    modelSuiteName: String,
+    @Option(
+      names = ["--page-size"],
+      description = ["The maximum number of ModelLines to return."],
+      required = false,
+      defaultValue = "0"
+    )
+    listPageSize: Int,
+    @Option(
+      names = ["--page-token"],
+      description =
+        [
+          "A page token, received from a previous `ListModelLinesRequest` call. Provide this to retrieve the subsequent page."
+        ],
+      required = false,
+      defaultValue = ""
+    )
+    listPageToken: String,
+    @Option(
+      names = ["--types"],
+      description = ["The list of types used to filter the result."],
+      required = false,
+    )
+    modelLineTypes: List<ModelLine.Type>?
+  ) {
+    val request = listModelLinesRequest {
+      parent = modelSuiteName
+      pageSize = listPageSize
+      pageToken = listPageToken
+      if (modelLineTypes != null) {
+        filter = filter { type += modelLineTypes }
+      }
+    }
+    val response =
+      runBlocking(parentCommand.rpcDispatcher) { modelLineStub.listModelLines(request) }
+    response.modelLineList.forEach { printModelLine(it) }
+  }
+
+  private fun printModelLine(modelLine: ModelLine) {
+    println("NAME - ${modelLine.name}")
+    if (modelLine.displayName.isNotBlank()) {
+      println("DISPLAY NAME - ${modelLine.displayName}")
+    }
+    if (modelLine.description.isNotBlank()) {
+      println("DESCRIPTION - ${modelLine.description}")
+    }
+    println("ACTIVE START TIME - ${modelLine.activeStartTime}")
+    if (modelLine.hasActiveEndTime()) {
+      println("ACTIVE END TIME - ${modelLine.activeEndTime}")
+    }
+    println("TYPE - ${modelLine.type}")
+    if (modelLine.holdbackModelLine.isNotBlank()) {
+      println("HOLDBACK MODEL LINE - ${modelLine.holdbackModelLine}")
+    }
+    println("CREATE TIME - ${modelLine.createTime}")
+    println("UPDATE TIME - ${modelLine.updateTime}")
+  }
+}
+
+@Command(
+  name = "model-releases",
+  subcommands = [CommandLine.HelpCommand::class],
+)
+private class ModelReleases {
+  @ParentCommand
+  lateinit var parentCommand: MeasurementSystem
+    private set
+
+  val modelReleaseStub: ModelReleasesCoroutineStub by lazy {
+    ModelReleasesCoroutineStub(parentCommand.kingdomChannel)
+  }
+
+  @Command(description = ["Creates model release."])
+  fun create(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent ModelSuite."],
+      required = true,
+    )
+    modelSuiteName: String,
+  ) {
+    val request = createModelReleaseRequest {
+      parent = modelSuiteName
+      modelRelease = modelRelease {}
+    }
+    val outputModelRelease =
+      runBlocking(parentCommand.rpcDispatcher) { modelReleaseStub.createModelRelease(request) }
+
+    println("Model release ${outputModelRelease.name} has been created.")
+    printModelRelease(outputModelRelease)
+  }
+
+  @Command(description = ["Gets model release."])
+  fun get(
+    @Option(
+      names = ["--name"],
+      description = ["Model release name."],
+      required = true,
+    )
+    modelReleaseName: String,
+  ) {
+    val request = getModelReleaseRequest { name = modelReleaseName }
+    val outputModelRelease =
+      runBlocking(parentCommand.rpcDispatcher) { modelReleaseStub.getModelRelease(request) }
+    printModelRelease(outputModelRelease)
+  }
+
+  @Command(description = ["Lists model releases for a model suite."])
+  fun list(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent ModelSuite."],
+      required = true,
+    )
+    modelSuiteName: String,
+    @Option(
+      names = ["--page-size"],
+      description = ["The maximum number of ModelReleases to return."],
+      required = false,
+      defaultValue = "0"
+    )
+    listPageSize: Int,
+    @Option(
+      names = ["--page-token"],
+      description =
+        [
+          "A page token, received from a previous `ListModelReleasesRequest` call. Provide this to retrieve the subsequent page."
+        ],
+      required = false,
+      defaultValue = ""
+    )
+    listPageToken: String,
+  ) {
+    val request = listModelReleasesRequest {
+      parent = modelSuiteName
+      pageSize = listPageSize
+      pageToken = listPageToken
+    }
+    val response =
+      runBlocking(parentCommand.rpcDispatcher) { modelReleaseStub.listModelReleases(request) }
+    response.modelReleaseList.forEach { printModelRelease(it) }
+  }
+
+  private fun printModelRelease(modelRelease: ModelRelease) {
+    println("NAME - ${modelRelease.name}")
+    println("CREATE TIME - ${modelRelease.createTime}")
+  }
+}
+
+@Command(
+  name = "model-suites",
+  subcommands = [CommandLine.HelpCommand::class],
+)
+private class ModelSuites {
+  @ParentCommand
+  lateinit var parentCommand: MeasurementSystem
+    private set
+
+  val modelSuiteStub: ModelSuitesCoroutineStub by lazy {
+    ModelSuitesCoroutineStub(parentCommand.kingdomChannel)
+  }
+
+  @Command(description = ["Creates model suite."])
+  fun create(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent ModelProvider."],
+      required = true,
+    )
+    modelProviderName: String,
+    @Option(
+      names = ["--display-name"],
+      description = ["Model suite display name."],
+      required = true,
+    )
+    modelSuiteDisplayName: String,
+    @Option(
+      names = ["--description"],
+      description = ["Model suite description."],
+      required = false,
+      defaultValue = ""
+    )
+    modelSuiteDescription: String
+  ) {
+    val request = createModelSuiteRequest {
+      parent = modelProviderName
+      modelSuite = modelSuite {
+        displayName = modelSuiteDisplayName
+        description = modelSuiteDescription
+      }
+    }
+    val outputModelSuite =
+      runBlocking(parentCommand.rpcDispatcher) { modelSuiteStub.createModelSuite(request) }
+
+    printModelSuite(outputModelSuite)
+  }
+
+  @Command(description = ["Gets model suite."])
+  fun get(
+    @Option(
+      names = ["--name"],
+      description = ["Model suite name."],
+      required = true,
+    )
+    modelSuiteName: String,
+  ) {
+    val request = getModelSuiteRequest { name = modelSuiteName }
+    val outputModelSuite =
+      runBlocking(parentCommand.rpcDispatcher) { modelSuiteStub.getModelSuite(request) }
+    printModelSuite(outputModelSuite)
+  }
+
+  @Command(description = ["Lists model suites for a model provider."])
+  fun list(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent ModelProvider."],
+      required = true,
+    )
+    modelProviderName: String,
+    @Option(
+      names = ["--page-size"],
+      description = ["The maximum number of ModelSuites to return."],
+      required = false,
+      defaultValue = "0"
+    )
+    listPageSize: Int,
+    @Option(
+      names = ["--page-token"],
+      description =
+        [
+          "A page token, received from a previous `ListModelSuitesRequest` call. Provide this to retrieve the subsequent page."
+        ],
+      required = false,
+      defaultValue = ""
+    )
+    listPageToken: String,
+  ) {
+    val request = listModelSuitesRequest {
+      parent = modelProviderName
+      pageSize = listPageSize
+      pageToken = listPageToken
+    }
+    val response =
+      runBlocking(parentCommand.rpcDispatcher) { modelSuiteStub.listModelSuites(request) }
+    response.modelSuiteList.forEach { printModelSuite(it) }
+  }
+
+  private fun printModelSuite(modelSuite: ModelSuite) {
+    println("NAME - ${modelSuite.name}")
+    println("DISPLAY NAME - ${modelSuite.displayName}")
+    if (modelSuite.description.isNotBlank()) {
+      println("DESCRIPTION - ${modelSuite.description}")
+    }
+    println("CREATE TIME - ${modelSuite.createTime}")
   }
 }

@@ -206,12 +206,13 @@ class EdpSimulator(
         throw Exception("Error creating EventGroupMetadataDescriptor", e)
       }
 
+    val eventGroupReferenceId =
+      "${TestIdentifiers.EVENT_GROUP_REFERENCE_ID_PREFIX}-${edpData.displayName}"
     val request = createEventGroupRequest {
       parent = edpData.name
       eventGroup = eventGroup {
         this.measurementConsumer = measurementConsumerName
-        eventGroupReferenceId =
-          "${TestIdentifiers.EVENT_GROUP_REFERENCE_ID_PREFIX}-${edpData.displayName}"
+        this.eventGroupReferenceId = eventGroupReferenceId
         eventTemplates += eventTemplateNames.map { eventTemplate { type = it } }
         measurementConsumerCertificate = measurementConsumer.certificate
         measurementConsumerPublicKey = measurementConsumer.publicKey
@@ -227,6 +228,7 @@ class EdpSimulator(
             EncryptionPublicKey.parseFrom(measurementConsumer.publicKey.data)
           )
       }
+      requestId = eventGroupReferenceId
     }
     val eventGroup =
       try {

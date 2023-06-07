@@ -52,16 +52,18 @@ class SpannerModelLinesService(
     try {
       return CreateModelLine(request, clock).execute(client, idGenerator)
     } catch (e: ModelSuiteNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelSuite not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelSuite not found.")
     } catch (e: ModelLineTypeIllegalException) {
-      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
+      throw e.asStatusRuntimeException(
+        Status.Code.INVALID_ARGUMENT,
         e.message
           ?: "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
-      }
+      )
     } catch (e: ModelLineInvalidArgsException) {
-      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
+      throw e.asStatusRuntimeException(
+        Status.Code.INVALID_ARGUMENT,
         e.message ?: "ActiveStartTime and/or ActiveEndTime is invalid."
-      }
+      )
     }
   }
 
@@ -70,11 +72,12 @@ class SpannerModelLinesService(
     try {
       return SetActiveEndTime(request, clock).execute(client, idGenerator)
     } catch (e: ModelLineNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelLine not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelLine not found.")
     } catch (e: ModelLineInvalidArgsException) {
-      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
+      throw e.asStatusRuntimeException(
+        Status.Code.INVALID_ARGUMENT,
         e.message ?: "ModelLine invalid active time argument."
-      }
+      )
     }
   }
 
@@ -101,15 +104,36 @@ class SpannerModelLinesService(
   override suspend fun setModelLineHoldbackModelLine(
     request: SetModelLineHoldbackModelLineRequest
   ): ModelLine {
+    grpcRequire(request.externalModelProviderId != 0L) {
+      "external_model_provider_id not specified"
+    }
+    grpcRequire(request.externalModelSuiteId != 0L) { "external_model_suite_id not specified" }
+    grpcRequire(request.externalModelLineId != 0L) { "external_model_line_id not specified" }
+    grpcRequire(request.externalHoldbackModelProviderId != 0L) {
+      "external_holdback_model_provider_id not specified"
+    }
+    grpcRequire(request.externalHoldbackModelSuiteId != 0L) {
+      "external_holdback_model_suite_id not specified"
+    }
+    grpcRequire(request.externalHoldbackModelLineId != 0L) {
+      "external_holdback_model_line_id not specified"
+    }
+    grpcRequire(
+      request.externalModelProviderId == request.externalHoldbackModelProviderId &&
+        request.externalModelSuiteId == request.externalHoldbackModelSuiteId
+    ) {
+      "HoldbackModelLine and ModelLine must be part of the same ModelSuite."
+    }
     try {
       return SetModelLineHoldbackModelLine(request).execute(client, idGenerator)
     } catch (e: ModelLineNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { e.message ?: "ModelLine not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, e.message ?: "ModelLine not found.")
     } catch (e: ModelLineTypeIllegalException) {
-      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
+      throw e.asStatusRuntimeException(
+        Status.Code.INVALID_ARGUMENT,
         e.message
           ?: "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'."
-      }
+      )
     }
   }
 }

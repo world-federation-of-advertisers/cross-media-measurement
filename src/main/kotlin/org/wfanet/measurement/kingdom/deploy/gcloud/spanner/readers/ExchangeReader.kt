@@ -14,10 +14,18 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
+import com.google.cloud.Date
+import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Struct
+import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.common.toProtoDate
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.gcloud.spanner.getInternalId
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
+import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeDetails
 import org.wfanet.measurement.internal.kingdom.RecurringExchangeDetails
@@ -56,6 +64,42 @@ class ExchangeReader : SpannerReader<ExchangeReader.Result>() {
   }
 
   companion object {
+    /** Returns a [Key] for the specified external recurring Exchange ID and date. */
+    suspend fun readKeyByExternalIds(
+      readContext: AsyncDatabaseClient.ReadContext,
+      externalRecurringExchangeId: ExternalId,
+      date: Date,
+    ): Key? {
+      val sql =
+        """
+        SELECT
+          Exchanges.RecurringExchangeId AS recurringExchangeId,
+          Exchanges.Date AS date
+        FROM
+          Exchanges
+          JOIN RecurringExchanges USING (RecurringExchangeId)
+        """
+          .trimIndent()
+      val statement =
+        statement(sql) {
+          appendClause(
+            """
+            WHERE
+              ExternalRecurringExchangeId = @externalRecurringExchangeId
+              AND Date = @date
+            """
+              .trimIndent()
+          )
+          bind("externalRecurringExchangeId").to(externalRecurringExchangeId.value)
+          bind("date").to(date)
+          appendClause("LIMIT 1")
+        }
+
+      val row: Struct = readContext.executeQuery(statement).singleOrNull() ?: return null
+
+      return Key.of(row.getInternalId("recurringExchangeId").value, row.getDate("date"))
+    }
+
     private val SELECT_COLUMNS =
       listOf(
         "Exchanges.RecurringExchangeId",

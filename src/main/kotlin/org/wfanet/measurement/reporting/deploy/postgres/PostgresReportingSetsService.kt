@@ -40,9 +40,10 @@ class PostgresReportingSetsService(
     return try {
       CreateReportingSet(request).execute(client, idGenerator)
     } catch (e: ReportingSetAlreadyExistsException) {
-      e.throwStatusRuntimeException(Status.ALREADY_EXISTS) {
+      throw e.asStatusRuntimeException(
+        Status.Code.ALREADY_EXISTS,
         "IDs generated for Reporting Set already exist"
-      }
+      )
     }
   }
 
@@ -58,7 +59,7 @@ class PostgresReportingSetsService(
           .reportingSet
       }
     } catch (e: ReportingSetNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Reporting Set not found" }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Reporting Set not found")
     }
   }
 

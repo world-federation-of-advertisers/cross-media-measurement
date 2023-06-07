@@ -66,19 +66,19 @@ class SpannerMeasurementsService(
     try {
       return CreateMeasurement(request).execute(client, idGenerator)
     } catch (e: CertificateIsInvalidException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Certificate is invalid." }
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Certificate is invalid.")
     } catch (e: MeasurementConsumerNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "MeasurementConsumer not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
     } catch (e: DataProviderNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "DataProvider not found." }
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "DataProvider not found.")
     } catch (e: DuchyNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Duchy not found." }
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Duchy not found.")
     } catch (e: CertificateNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Certificate not found." }
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Certificate not found.")
     } catch (e: DuchyNotActiveException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Inactive required duchy." }
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Inactive required duchy.")
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
   }
 
@@ -139,15 +139,16 @@ class SpannerMeasurementsService(
     try {
       return SetMeasurementResult(request).execute(client, idGenerator)
     } catch (e: MeasurementNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Measurement not found.")
     } catch (e: DuchyNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Duchy not found." }
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Duchy not found.")
     } catch (e: DuchyCertificateNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
         "Aggregator's Certificate not found."
-      }
+      )
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
   }
 
@@ -166,11 +167,14 @@ class SpannerMeasurementsService(
       return CancelMeasurement(externalMeasurementConsumerId, externalMeasurementId)
         .execute(client, idGenerator)
     } catch (e: MeasurementNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Measurement not found.")
     } catch (e: MeasurementStateIllegalException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Measurement state illegal." }
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
+        "Measurement state illegal."
+      )
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
   }
 
@@ -179,11 +183,11 @@ class SpannerMeasurementsService(
     try {
       return BatchDeleteMeasurements(request).execute(client, idGenerator)
     } catch (e: MeasurementNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Measurement not found.")
     } catch (e: MeasurementEtagMismatchException) {
-      e.throwStatusRuntimeException(Status.ABORTED) { "Measurement etag mismatch." }
+      throw e.asStatusRuntimeException(Status.Code.ABORTED, "Measurement etag mismatch.")
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
   }
 
@@ -208,11 +212,11 @@ class SpannerMeasurementsService(
     try {
       return BatchCancelMeasurements(request).execute(client, idGenerator)
     } catch (e: MeasurementNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Measurement not found.")
     } catch (e: MeasurementEtagMismatchException) {
-      e.throwStatusRuntimeException(Status.ABORTED) { "Measurement etag mismatch." }
+      throw e.asStatusRuntimeException(Status.Code.ABORTED, "Measurement etag mismatch.")
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
   }
 

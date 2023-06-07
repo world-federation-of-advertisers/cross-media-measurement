@@ -46,8 +46,6 @@ class ModelRolloutReader : SpannerReader<ModelRolloutReader.Result>() {
       ModelRollouts.RolloutPeriodStartTime,
       ModelRollouts.RolloutPeriodEndTime,
       ModelRollouts.RolloutFreezeTime,
-      ModelRollouts.PreviousModelRollout,
-      ModelRollouts.ModelRelease,
       ModelRollouts.CreateTime,
       ModelRollouts.UpdateTime,
       ModelLines.ExternalModelLineId,
@@ -59,8 +57,16 @@ class ModelRolloutReader : SpannerReader<ModelRolloutReader.Result>() {
       JOIN ModelLines USING (ModelProviderId, ModelSuiteId, ModelLineId)
       JOIN ModelSuites USING (ModelProviderId, ModelSuiteId)
       JOIN ModelProviders USING (ModelProviderId)
-      LEFT JOIN ModelRollouts as PreviousModelRollout ON (ModelRollouts.PreviousModelRollout = PreviousModelRollout.ModelRolloutId)
-      JOIN ModelReleases ON (ModelRollouts.ModelRelease = ModelReleases.ModelReleaseId)
+      LEFT JOIN ModelRollouts as PreviousModelRollout ON (
+        ModelRollouts.ModelProviderId = PreviousModelRollout.ModelProviderId
+        AND ModelRollouts.ModelSuiteId = PreviousModelRollout.ModelSuiteId
+        AND ModelRollouts.PreviousModelRolloutId = PreviousModelRollout.ModelRolloutId
+      )
+      JOIN ModelReleases ON (
+        ModelRollouts.ModelProviderId = ModelReleases.ModelProviderId
+        AND ModelRollouts.ModelSuiteId = ModelReleases.ModelSuiteId
+        AND ModelRollouts.ModelReleaseId = ModelReleases.ModelReleaseId
+      )
     """
       .trimIndent()
 

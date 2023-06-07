@@ -57,10 +57,7 @@ jobs:
             ${{ steps.get-cache-params.outputs.restore-key }}
 
       - name: Build
-        run: bazelisk build //...
-
-      # Shut down Bazel server to reclaim memory.
-      - run: bazelisk shutdown
+        run: bazelisk build //... --worker_quit_after_build
 
       - name: Run tests
         id: run-tests
@@ -100,8 +97,8 @@ jobs:
       # Delete large files that are cheap to re-create.
       - name: Trim Bazel cache
         run: |
-          bazel_bin="$(bazelisk info -c opt bazel-bin)"
-          find "${bazel_bin}" -type f -iname '*.tar' -delete
+          bazel_out="$(bazelisk info output_path)"
+          find "${bazel_out}" -type f \( -iname '*.tar' -o -iname '*.tar.gz' \) -delete
 
       - name: Save Bazel cache
         if: github.event_name == 'push'

@@ -14,10 +14,14 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.type.date
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import kotlin.test.assertFails
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -31,6 +35,7 @@ import org.wfanet.measurement.internal.kingdom.CreateExchangeRequest
 import org.wfanet.measurement.internal.kingdom.CreateRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.DeleteExchangeRequest
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutineImplBase
@@ -40,12 +45,15 @@ import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamExchangesRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.batchDeleteExchangesRequest
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createExchangeRequest
+import org.wfanet.measurement.internal.kingdom.deleteExchangeRequest
 import org.wfanet.measurement.internal.kingdom.streamExchangesRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
 
+private const val MAX_BATCH_DELETE = 1000
 private const val INTERNAL_RECURRING_EXCHANGE_ID = 111L
 private const val EXTERNAL_RECURRING_EXCHANGE_ID = 222L
 private val idGenerator =
@@ -299,6 +307,146 @@ abstract class ExchangesServiceTest {
 
     assertThat(response).hasSize(1)
   }
+
+  @Test
+  fun `batchDeleteExchanges deletes all requested Exchanges`(): Unit = runBlocking {
+    val exchangeRequest1 = createExchangeRequest { exchange = EXCHANGE }
+    val exchangeRequest2 = createExchangeRequest {
+      exchange =
+        EXCHANGE.copy {
+          date = date {
+            year = 2021
+            month = 1
+            day = 1
+          }
+        }
+    }
+    createExchange(exchangeRequest1)
+    createExchange(exchangeRequest2)
+
+    val deleteExchangeRequest1 = deleteExchangeRequest {
+      externalRecurringExchangeId = exchangeRequest1.exchange.externalRecurringExchangeId
+      date = exchangeRequest1.exchange.date
+    }
+    val deleteExchangeRequest2 = deleteExchangeRequest {
+      externalRecurringExchangeId = exchangeRequest2.exchange.externalRecurringExchangeId
+      date = exchangeRequest2.exchange.date
+    }
+
+    exchanges.batchDeleteExchanges(
+      batchDeleteExchangesRequest {
+        requests += listOf(deleteExchangeRequest1, deleteExchangeRequest2)
+      }
+    )
+
+    val allExchanges: List<Exchange> = exchanges.streamExchanges(streamExchangesRequest {}).toList()
+    assertThat(allExchanges).hasSize(0)
+  }
+
+  @Test
+  fun `batchDeleteExchanges does not delete any Exchange when any is missing`(): Unit =
+    runBlocking {
+      val exchangeRequest1 = createExchangeRequest { exchange = EXCHANGE }
+      val validExchange = createExchange(exchangeRequest1)
+
+      val validDeleteExchangeRequest = deleteExchangeRequest {
+        externalRecurringExchangeId = exchangeRequest1.exchange.externalRecurringExchangeId
+        date = exchangeRequest1.exchange.date
+      }
+      val missingExchangeRequest = deleteExchangeRequest {
+        externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+        date = date {
+          year = 2021
+          month = 1
+          day = 1
+        }
+      }
+
+      assertFailsWith<StatusRuntimeException> {
+        exchanges.batchDeleteExchanges(
+          batchDeleteExchangesRequest {
+            requests += listOf(validDeleteExchangeRequest, missingExchangeRequest)
+          }
+        )
+      }
+
+      val allExchanges: List<Exchange> =
+        exchanges.streamExchanges(streamExchangesRequest { limit = 1 }).toList()
+
+      assertThat(allExchanges).containsExactly(validExchange)
+    }
+
+  @Test
+  fun `batchDeleteExchanges throws NOT_FOUND when Exchange is missing`(): Unit = runBlocking {
+    val missingExchangeRequest = deleteExchangeRequest {
+      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+      date = date {
+        year = 2021
+        month = 1
+        day = 1
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        exchanges.batchDeleteExchanges(
+          batchDeleteExchangesRequest { requests += listOf(missingExchangeRequest) }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("Exchange not found")
+  }
+
+  @Test
+  fun `batchDeleteExchanges throws INVALID_ARGUMENT when external recurring Exchange ID is missing`():
+    Unit = runBlocking {
+    val invalidExchangeRequest = deleteExchangeRequest {
+      date = date {
+        year = 2021
+        month = 1
+        day = 1
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        exchanges.batchDeleteExchanges(
+          batchDeleteExchangesRequest { requests += listOf(invalidExchangeRequest) }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("not specified")
+  }
+
+  @Test
+  fun `batchDeleteExchanges deletes throws INVALID_ARGUMENT when limit is exceeded`(): Unit =
+    runBlocking {
+      val deletionRequests = mutableListOf<DeleteExchangeRequest>()
+      for (i in 1..MAX_BATCH_DELETE + 1) {
+        deletionRequests.add(
+          deleteExchangeRequest {
+            externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+            date = date {
+              year = 1 + 2 * i
+              month = 1
+              day = 31
+            }
+          }
+        )
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          exchanges.batchDeleteExchanges(
+            batchDeleteExchangesRequest { requests += deletionRequests }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("exceeds limit")
+    }
 
   private fun createExchange(request: CreateExchangeRequest): Exchange {
     return runBlocking { exchanges.createExchange(request) }

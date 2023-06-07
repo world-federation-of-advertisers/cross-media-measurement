@@ -131,8 +131,7 @@ class CreateModelLine(private val modelLine: ModelLine, private val clock: Clock
             "Only ModelLine with type == HOLDBACK can be set as Holdback ModelLine."
           }
         }
-
-        set("HoldbackModelLine" to holdbackModelLineResult.modelLineId)
+        set("HoldbackModelLineId" to holdbackModelLineResult.modelLineId)
       }
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)

@@ -40,9 +40,9 @@ class SpannerApiKeysService(
     try {
       return CreateApiKey(request).execute(client, idGenerator)
     } catch (e: MeasurementConsumerNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "MeasurementConsumer not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error")
     }
   }
 
@@ -54,11 +54,11 @@ class SpannerApiKeysService(
         )
         .execute(client, idGenerator)
     } catch (e: MeasurementConsumerNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "MeasurementConsumer not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
     } catch (e: ApiKeyNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Api Key not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Api Key not found.")
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
   }
 

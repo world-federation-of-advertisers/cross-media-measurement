@@ -65,13 +65,17 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
       }
     }
 
-    val previousModelRolloutData: Struct? =
-      readModelRolloutData(
-        ExternalId(modelRollout.externalModelProviderId),
-        ExternalId(modelRollout.externalModelSuiteId),
-        ExternalId(modelRollout.externalModelLineId),
-        modelRollout.rolloutPeriodStartTime
-      )
+    val previousModelRolloutData =
+      if (modelRollout.rolloutPeriodStartTime != modelRollout.rolloutPeriodEndTime) {
+        readModelRolloutData(
+          ExternalId(modelRollout.externalModelProviderId),
+          ExternalId(modelRollout.externalModelSuiteId),
+          ExternalId(modelRollout.externalModelLineId),
+          modelRollout.rolloutPeriodStartTime
+        )
+      } else {
+        null
+      }
 
     val modelLineData =
       readModelLineData(
@@ -112,10 +116,10 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
       set("RolloutPeriodEndTime" to modelRollout.rolloutPeriodEndTime.toGcloudTimestamp())
       if (previousModelRolloutData != null) {
         set(
-          "PreviousModelRollout" to InternalId(previousModelRolloutData.getLong("ModelRolloutId"))
+          "PreviousModelRolloutId" to InternalId(previousModelRolloutData.getLong("ModelRolloutId"))
         )
       }
-      set("ModelRelease" to modelReleaseResult.modelReleaseId)
+      set("ModelReleaseId" to modelReleaseResult.modelReleaseId)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
     }

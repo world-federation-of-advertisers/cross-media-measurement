@@ -42,7 +42,7 @@ class SpannerModelReleasesService(
     try {
       return CreateModelRelease(request).execute(client, idGenerator)
     } catch (e: ModelSuiteNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelSuite not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelSuite not found.")
     }
   }
 

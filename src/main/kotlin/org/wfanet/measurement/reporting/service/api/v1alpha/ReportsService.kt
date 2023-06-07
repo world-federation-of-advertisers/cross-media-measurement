@@ -43,6 +43,7 @@ import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
@@ -466,7 +467,7 @@ class ReportsService(
     signingConfig: SigningConfig,
     internalReportingSetMap: Map<Long, InternalReportingSet>
   ) = coroutineScope {
-    val deferred = mutableListOf<Deferred<Measurement>>()
+    val deferredMeasurements = mutableListOf<Deferred<Measurement>>()
     for (metric in request.report.metricsList) {
       val internalMetricDetails = buildInternalMetricDetails(metric)
 
@@ -481,34 +482,35 @@ class ReportsService(
         val setOperationResult: SetOperationResult =
           namedSetOperationResults[setOperationId] ?: continue
 
-        setOperationResult.weightedMeasurementInfoList.forEach { weightedMeasurementInfo ->
-          deferred.add(
+        for (weightedMeasurementInfo in setOperationResult.weightedMeasurementInfoList) {
+          deferredMeasurements.add(
             async {
               createMeasurement(
-                weightedMeasurementInfo,
-                reportInfo,
-                setOperationResult.internalMetricDetails,
-                measurementConsumer,
-                apiAuthenticationKey,
-                signingConfig,
-                internalReportingSetMap
-              )
+                  weightedMeasurementInfo,
+                  reportInfo,
+                  setOperationResult.internalMetricDetails,
+                  measurementConsumer,
+                  apiAuthenticationKey,
+                  signingConfig,
+                  internalReportingSetMap
+                )
+                .also {
+                  weightedMeasurementInfo.kingdomMeasurementId =
+                    checkNotNull(MeasurementKey.fromName(it.name)).measurementId
+                }
             }
           )
         }
       }
     }
 
-    // map of kingdom measurementReferenceId to kingdom apiId
-    val measurementMap = mutableMapOf<String, String>()
-    deferred.awaitAll().forEach { measurement ->
+    for (measurement in deferredMeasurements.awaitAll()) {
       try {
-        val apiId = MeasurementKey.fromName(measurement.name)!!.measurementId
-        measurementMap[measurement.measurementReferenceId] = apiId
+        val measurementKey = checkNotNull(MeasurementKey.fromName(measurement.name))
         internalMeasurementsStub.createMeasurement(
           internalMeasurement {
-            this.measurementConsumerReferenceId = reportInfo.measurementConsumerReferenceId
-            this.measurementReferenceId = apiId
+            this.measurementConsumerReferenceId = measurementKey.measurementConsumerId
+            this.measurementReferenceId = measurementKey.measurementId
             state = InternalMeasurement.State.PENDING
           }
         )
@@ -519,27 +521,6 @@ class ReportsService(
               "in the reporting database.",
             e
           )
-        }
-      }
-    }
-
-    for (metric in request.report.metricsList) {
-      val internalMetricDetails = buildInternalMetricDetails(metric)
-
-      for (namedSetOperation in metric.setOperationsList) {
-        val setOperationId =
-          buildSetOperationId(
-            reportInfo.reportIdempotencyKey,
-            internalMetricDetails,
-            namedSetOperation.uniqueName,
-          )
-
-        val setOperationResult: SetOperationResult =
-          namedSetOperationResults[setOperationId] ?: continue
-
-        setOperationResult.weightedMeasurementInfoList.forEach { weightedMeasurementInfo ->
-          weightedMeasurementInfo.kingdomMeasurementId =
-            measurementMap[weightedMeasurementInfo.reportingMeasurementId]
         }
       }
     }
@@ -579,7 +560,7 @@ class ReportsService(
         .createMeasurement(createMeasurementRequest)
     } catch (e: StatusException) {
       throw Exception(
-        "Unable to create the measurement [${createMeasurementRequest.measurement.name}].",
+        "Unable to create Measurement with request ID ${createMeasurementRequest.requestId}",
         e
       )
     }
@@ -1050,13 +1031,14 @@ class ReportsService(
       .forEach { (reportTimeInterval, weightedMeasurementInfos) ->
         measurementCalculations.add(
           InternalMetricKt.measurementCalculation {
-            this.timeInterval = reportTimeInterval.toInternal()
+            timeInterval = reportTimeInterval.toInternal()
 
-            weightedMeasurementInfos.forEach {
+            for (weightedMeasurementInfo in weightedMeasurementInfos) {
               weightedMeasurements +=
                 MeasurementCalculationKt.weightedMeasurement {
-                  this.measurementReferenceId = it.kingdomMeasurementId!!
-                  coefficient = it.weightedMeasurement.coefficient
+                  measurementReferenceId =
+                    checkNotNull(weightedMeasurementInfo.kingdomMeasurementId)
+                  coefficient = weightedMeasurementInfo.weightedMeasurement.coefficient
                 }
             }
           }
@@ -1070,50 +1052,41 @@ class ReportsService(
     measurementConsumer: MeasurementConsumer,
     eventGroupEntriesByDataProvider: Map<DataProviderKey, List<EventGroupEntry>>,
     internalMetricDetails: InternalMetricDetails,
-    measurementReferenceId: String,
+    requestId: String,
     apiAuthenticationKey: String,
     signingConfig: SigningConfig,
   ): CreateMeasurementRequest {
-    val measurementConsumerReferenceId =
-      grpcRequireNotNull(MeasurementConsumerKey.fromName(measurementConsumer.name)) {
-          "Invalid measurement consumer name [${measurementConsumer.name}]"
-        }
-        .measurementConsumerId
-
-    val measurementConsumerCertificate = readCertificate(signingConfig.signingCertificateDer)
+    val measurementConsumerCertificate: X509Certificate =
+      readCertificate(signingConfig.signingCertificateDer)
     val measurementConsumerSigningKey =
       SigningKeyHandle(measurementConsumerCertificate, signingConfig.signingPrivateKey)
-    val measurementEncryptionPublicKey = measurementConsumer.publicKey.data
+    val measurementEncryptionPublicKey: ByteString = measurementConsumer.publicKey.data
 
-    val measurementResourceName =
-      MeasurementKey(measurementConsumerReferenceId, measurementReferenceId).toName()
+    return createMeasurementRequest {
+      parent = measurementConsumer.name
+      measurement = measurement {
+        this.measurementConsumerCertificate = signingConfig.signingCertificateName
 
-    val measurement = measurement {
-      name = measurementResourceName
-      this.measurementConsumerCertificate = signingConfig.signingCertificateName
+        dataProviders +=
+          buildDataProviderEntries(
+            eventGroupEntriesByDataProvider,
+            measurementEncryptionPublicKey,
+            measurementConsumerSigningKey,
+            apiAuthenticationKey,
+          )
 
-      dataProviders +=
-        buildDataProviderEntries(
-          eventGroupEntriesByDataProvider,
-          measurementEncryptionPublicKey,
-          measurementConsumerSigningKey,
-          apiAuthenticationKey,
-        )
+        val unsignedMeasurementSpec: MeasurementSpec =
+          buildUnsignedMeasurementSpec(
+            measurementEncryptionPublicKey,
+            dataProviders.map { it.value.nonceHash },
+            internalMetricDetails,
+          )
 
-      val unsignedMeasurementSpec: MeasurementSpec =
-        buildUnsignedMeasurementSpec(
-          measurementEncryptionPublicKey,
-          dataProviders.map { it.value.nonceHash },
-          internalMetricDetails,
-        )
-
-      this.measurementSpec =
-        signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
-
-      this.measurementReferenceId = measurementReferenceId
+        measurementSpec =
+          signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
+      }
+      this.requestId = requestId
     }
-
-    return createMeasurementRequest { this.measurement = measurement }
   }
 
   /**
@@ -1145,7 +1118,12 @@ class ReportsService(
 
           eventGroupKey to
             RequisitionSpecKt.eventGroupEntry {
-              key = eventGroupName
+              key =
+                CmmsEventGroupKey(
+                    internalEventGroupKey.dataProviderReferenceId,
+                    internalEventGroupKey.eventGroupReferenceId
+                  )
+                  .toName()
               value =
                 RequisitionSpecKt.EventGroupEntryKt.value {
                   collectionInterval = timeInterval
@@ -1636,9 +1614,9 @@ private fun buildMeasurementReferenceId(
 
 /** Combines two event group filters. */
 private fun combineEventGroupFilters(filter1: String?, filter2: String?): String? {
-  if (filter1 == null) return filter2
+  if (filter1.isNullOrBlank()) return filter2
 
-  return if (filter2 == null) filter1
+  return if (filter2.isNullOrBlank()) filter1
   else {
     "($filter1) AND ($filter2)"
   }
@@ -1733,10 +1711,7 @@ private fun buildDurationMeasurementSpec(
 
 /** Converts a public [SetOperation.Type] to an [InternalSetOperation.Type]. */
 private fun SetOperation.Type.toInternal(): InternalSetOperation.Type {
-  val source = this
-
-  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-  return when (source) {
+  return when (this) {
     SetOperation.Type.UNION -> InternalSetOperation.Type.UNION
     SetOperation.Type.INTERSECTION -> InternalSetOperation.Type.INTERSECTION
     SetOperation.Type.DIFFERENCE -> InternalSetOperation.Type.DIFFERENCE
@@ -1984,7 +1959,6 @@ private fun InternalReport.toReport(): Report {
 
 /** Converts an [InternalReport.State] to a public [Report.State]. */
 private fun InternalReport.State.toState(): Report.State {
-  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
   return when (this) {
     InternalReport.State.RUNNING -> Report.State.RUNNING
     InternalReport.State.SUCCEEDED -> Report.State.SUCCEEDED
@@ -2096,7 +2070,6 @@ private fun InternalOperand.toOperand(): Operand {
 
 /** Converts an internal [InternalSetOperation.Type] to a public [SetOperation.Type]. */
 private fun InternalSetOperation.Type.toType(): SetOperation.Type {
-  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
   return when (this) {
     InternalSetOperation.Type.UNION -> SetOperation.Type.UNION
     InternalSetOperation.Type.INTERSECTION -> SetOperation.Type.INTERSECTION
