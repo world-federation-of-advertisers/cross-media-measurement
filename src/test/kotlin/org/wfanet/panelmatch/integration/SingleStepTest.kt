@@ -32,7 +32,7 @@ private val FIXTURES_FILES_PATH: Path =
   checkNotNull(
     getRuntimePath(
       Paths.get(
-        "panel_exchange_client",
+        "wfa_measurement_system",
         "src",
         "main",
         "kotlin",
