@@ -238,7 +238,7 @@ class InProcessDuchy(
             cryptoWorker = JniLiquidLegionsV2Encryption(),
             workLockDuration = Duration.ofSeconds(1),
             openTelemetry = GlobalOpenTelemetry.get(),
-            parallelism = MILL_PARALLELISM,
+            parallelism = DUCHY_MILL_PARALLELISM,
           )
         liquidLegionsV2mill.continuallyProcessComputationQueue()
       }
@@ -283,6 +283,5 @@ class InProcessDuchy(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-    private const val MILL_PARALLELISM = 2
   }
 }
