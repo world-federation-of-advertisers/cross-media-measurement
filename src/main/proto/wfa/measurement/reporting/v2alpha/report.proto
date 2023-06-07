@@ -60,16 +60,13 @@ message Report {
       (google.api.field_behavior) = REQUIRED,
       (google.api.field_behavior) = IMMUTABLE
     ];
-
     // A collection of metrics.
-    repeated MetricSpec metric_specs = 2 [
-      (google.api.field_behavior) = REQUIRED,
-      (google.api.field_behavior) = IMMUTABLE
-    ];
+    repeated MetricSpec metric_specs = 2
+        [(google.api.field_behavior) = REQUIRED];
     // The final set of groups is the Cartesian product of `groupings` and will
     // fan out multiple metrics per metric spec and per time interval, i.e.
     // one metric per element of the Cartesian product of the groupings with a
-    // single metric type and a single time interval.
+    // single metric type and a single time interval. Predicates must be unique.
     repeated Grouping groupings = 3 [(google.api.field_behavior) = IMMUTABLE];
     // Whether the results for a given time interval is cumulative with those of
     // previous time intervals.
@@ -96,8 +93,10 @@ message Report {
       }
     ];
     // Value of the map entry.
-    ReportingMetricCalculationSpec value = 2
-        [(google.api.field_behavior) = IMMUTABLE];
+    ReportingMetricCalculationSpec value = 2 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.field_behavior) = IMMUTABLE
+    ];
   }
 
   // The calculations defined for specific reporting sets.
@@ -154,17 +153,20 @@ message Report {
       // Cartesian product of groupings.
       repeated string grouping_predicates = 1;
 
+      // The metric spec that is associated with the metric calculation.
+      MetricSpec metric_spec = 2;
+
       // The time interval associated with the metric calculation.
       //
       // If `cumulative` in `MetricCalculationSpec` is true, the metric result
       // is calculated cumulatively from the first start time defined in the
       // report to the end of this time interval. Otherwise, the result is
       // calculated cumulatively over this time interval.
-      TimeInterval time_interval = 2;
+      TimeInterval time_interval = 3;
 
       // The metric result calculated on the reporting set with the setup in the
       // attribute.
-      MetricResult metric_result = 3;
+      MetricResult metric_result = 4;
     }
     // The number of results is equal to the size of the Cartesian product of
     // groupings, time intervals, and metric types.
