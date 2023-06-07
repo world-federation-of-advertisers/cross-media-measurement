@@ -54,7 +54,6 @@ import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelLineRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelSuiteRequest
-import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
@@ -218,6 +217,13 @@ private const val MODEL_LINE_NAME = "$MODEL_SUITE_NAME/modelLines/1"
 private const val HOLDBACK_MODEL_LINE_NAME = "$MODEL_SUITE_NAME/modelLines/2"
 private const val MODEL_RELEASE_NAME = "$MODEL_SUITE_NAME/modelReleases/1"
 
+private val MODEL_SUITE = modelSuite {
+  name = MODEL_SUITE_NAME
+  displayName = "Display name"
+  description = "Description"
+  createTime = timestamp { seconds = 3000 }
+}
+
 private val MODEL_LINE = modelLine {
   name = MODEL_LINE_NAME
   displayName = "Display name"
@@ -236,16 +242,6 @@ private val MODEL_LINE = modelLine {
 
 private val MODEL_RELEASE = modelRelease {
   name = MODEL_RELEASE_NAME
-  createTime = timestamp { seconds = 3000 }
-}
-
-private const val MODEL_PROVIDER_NAME = "modelProvider/1"
-
-private const val MODEL_SUITE_NAME = "$MODEL_PROVIDER_NAME/modelSuites/1"
-private val MODEL_SUITE = modelSuite {
-  name = MODEL_SUITE_NAME
-  displayName = "Display name"
-  description = "Description"
   createTime = timestamp { seconds = 3000 }
 }
 
@@ -336,6 +332,7 @@ class MeasurementSystemTest {
     onBlocking { getModelRelease(any()) }.thenReturn(MODEL_RELEASE)
     onBlocking { listModelReleases(any()) }
       .thenReturn(listModelReleasesResponse { modelRelease += listOf(MODEL_RELEASE) })
+  }
   private val modelSuitesServiceMock: ModelSuitesCoroutineImplBase = mockService {
     onBlocking { createModelSuite(any()) }.thenReturn(MODEL_SUITE)
     onBlocking { getModelSuite(any()) }.thenReturn(MODEL_SUITE)
@@ -1050,8 +1047,8 @@ class MeasurementSystemTest {
         }
       )
   }
-  
-    @Test
+
+  @Test
   fun `create model line succeeds`() {
     val args =
       commonArgs +
