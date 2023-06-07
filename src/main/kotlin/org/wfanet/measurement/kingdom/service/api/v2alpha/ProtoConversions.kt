@@ -50,6 +50,9 @@ import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.api.v2alpha.ModelReleaseKey
 import org.wfanet.measurement.api.v2alpha.ModelRollout
 import org.wfanet.measurement.api.v2alpha.ModelRolloutKey
+import org.wfanet.measurement.api.v2alpha.ModelShard
+import org.wfanet.measurement.api.v2alpha.ModelShardKey
+import org.wfanet.measurement.api.v2alpha.ModelShardKt.modelBlob
 import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
@@ -69,6 +72,7 @@ import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.modelOutage
 import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.modelRollout
+import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.signedData
@@ -92,6 +96,7 @@ import org.wfanet.measurement.internal.kingdom.ModelLine as InternalModelLine
 import org.wfanet.measurement.internal.kingdom.ModelOutage as InternalModelOutage
 import org.wfanet.measurement.internal.kingdom.ModelRelease as InternalModelRelease
 import org.wfanet.measurement.internal.kingdom.ModelRollout as InternalModelRollout
+import org.wfanet.measurement.internal.kingdom.ModelShard as InternalModelShard
 import org.wfanet.measurement.internal.kingdom.ModelSuite as InternalModelSuite
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
@@ -102,6 +107,7 @@ import org.wfanet.measurement.internal.kingdom.modelLine as internalModelLine
 import org.wfanet.measurement.internal.kingdom.modelOutage as internalModelOutage
 import org.wfanet.measurement.internal.kingdom.modelRelease as internalModelRelease
 import org.wfanet.measurement.internal.kingdom.modelRollout as internalModelRollout
+import org.wfanet.measurement.internal.kingdom.modelShard as internalModelShard
 import org.wfanet.measurement.internal.kingdom.modelSuite as internalModelSuite
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
@@ -477,6 +483,45 @@ fun ModelRollout.toInternal(
     rolloutPeriodEndTime = publicModelRollout.rolloutPeriod.endTime
     rolloutFreezeTime = publicModelRollout.rolloutFreezeTime
     externalModelReleaseId = apiIdToExternalId(modelReleaseKey.modelReleaseId)
+  }
+}
+
+/** Converts an internal [InternalModelShard] to a public [ModelShard]. */
+fun InternalModelShard.toModelShard(): ModelShard {
+  val source = this
+
+  return modelShard {
+    name =
+      ModelShardKey(
+          externalIdToApiId(source.externalDataProviderId),
+          externalIdToApiId(source.externalModelShardId)
+        )
+        .toName()
+    modelRelease =
+      ModelReleaseKey(
+          externalIdToApiId(source.externalModelProviderId),
+          externalIdToApiId(source.externalModelSuiteId),
+          externalIdToApiId(source.externalModelReleaseId)
+        )
+        .toName()
+    modelBlob = modelBlob { modelBlobPath = source.modelBlobPath }
+    createTime = source.createTime
+  }
+}
+
+/** Converts a public [ModelShard] to an internal [InternalModelShard] */
+fun ModelShard.toInternal(
+  dataProviderKey: DataProviderKey,
+  modelReleaseKey: ModelReleaseKey
+): InternalModelShard {
+  val publicModelShard = this
+
+  return internalModelShard {
+    externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
+    externalModelProviderId = apiIdToExternalId(modelReleaseKey.modelProviderId)
+    externalModelSuiteId = apiIdToExternalId(modelReleaseKey.modelSuiteId)
+    externalModelReleaseId = apiIdToExternalId(modelReleaseKey.modelReleaseId)
+    modelBlobPath = publicModelShard.modelBlob.modelBlobPath
   }
 }
 
