@@ -29,7 +29,7 @@ import org.wfanet.measurement.internal.duchy.SetContinuationTokenRequest
 import org.wfanet.measurement.internal.duchy.SetContinuationTokenResponse
 import org.wfanet.measurement.internal.duchy.getContinuationTokenResponse
 
-class PostgresContinuationTokenService(
+class PostgresContinuationTokensService(
   private val client: DatabaseClient,
   private val idGenerator: IdGenerator,
 ) : ContinuationTokensCoroutineImplBase() {

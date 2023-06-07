@@ -14,9 +14,9 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "PostgresContinuationTokenServiceTest",
-    srcs = ["PostgresContinuationTokenServiceTest.kt"],
-    test_class = "org.wfanet.measurement.duchy.deploy.postgres.PostgresContinuationTokenServiceTest",
+    name = "PostgresContinuationTokensServiceTest",
+    srcs = ["PostgresContinuationTokensServiceTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.deploy.postgres.PostgresContinuationTokensServiceTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/postgres:services",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/postgres/testing",
