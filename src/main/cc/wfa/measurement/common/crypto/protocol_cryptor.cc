@@ -395,11 +395,10 @@ absl::StatusOr<ProtocolCryptorOptions> CompleteProtocolCryptorOptions(
           std::unique_ptr<CommutativeElGamal> cipher,
           CommutativeElGamal::CreateFromPublicKey(
               options.curve_id, options.local_el_gamal_public_key));
-      ASSIGN_OR_RETURN(ElGamalCiphertext public_key,
+      ASSIGN_OR_RETURN(complete_options.local_el_gamal_public_key,
                        cipher->GetPublicKeyBytes());
-      ASSIGN_OR_RETURN(std::string private_key, cipher->GetPrivateKeyBytes());
-      complete_options.local_el_gamal_public_key = public_key;
-      complete_options.local_el_gamal_private_key = private_key;
+      ASSIGN_OR_RETURN(complete_options.local_el_gamal_private_key,
+                       cipher->GetPrivateKeyBytes());
     } else {
       // have both local_el_gamal_public_key and local_el_gamal_private_key.
       complete_options.local_el_gamal_public_key =
