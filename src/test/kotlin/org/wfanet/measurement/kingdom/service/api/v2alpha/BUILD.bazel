@@ -415,7 +415,6 @@ kt_jvm_test(
     ],
 )
 
-
 kt_jvm_test(
     name = "ModelShardsServiceTest",
     srcs = ["ModelShardsServiceTest.kt"],

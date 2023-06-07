@@ -664,7 +664,7 @@ kt_jvm_grpc_proto_library(
     name = "model_outages_service_kt_jvm_grpc_proto",
     srcs = [":model_outages_service_proto"],
 )
-      
+
 java_proto_library(
     name = "model_shard_java_proto",
     deps = [
@@ -688,4 +688,4 @@ alias(
 kt_jvm_grpc_proto_library(
     name = "model_shards_service_kt_jvm_grpc_proto",
     srcs = [":model_shards_service_proto"],
-) 
+)
