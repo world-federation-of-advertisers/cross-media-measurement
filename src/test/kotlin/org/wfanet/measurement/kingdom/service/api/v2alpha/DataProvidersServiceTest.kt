@@ -37,6 +37,7 @@ import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequ
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.withDuchyPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -69,6 +70,7 @@ private val DUCHY = DuchyKey("worker1")
 private val DUCHIES = listOf(DUCHY).map { it.toName() }
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
+private const val DUCHY_NAME = "duchies/AAAAAAAAAHs"
 
 @RunWith(JUnit4::class)
 class DataProvidersServiceTest {
@@ -130,6 +132,27 @@ class DataProvidersServiceTest {
   }
 
   @Test
+  fun `get with model provider caller returns resource`() {
+    val dataProvider =
+      withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+        runBlocking {
+          service.getDataProvider(getDataProviderRequest { name = DATA_PROVIDER_NAME })
+        }
+      }
+
+    val expectedDataProvider = dataProvider {
+      name = DATA_PROVIDER_NAME
+      certificate = CERTIFICATE_NAME
+      certificateDer = SERVER_CERTIFICATE_DER
+      publicKey = SIGNED_PUBLIC_KEY
+      requiredExternalDuchyIds += DUCHIES
+    }
+    assertThat(dataProvider).isEqualTo(expectedDataProvider)
+    verifyProtoArgument(internalServiceMock, InternalDataProvidersService::getDataProvider)
+      .isEqualTo(internalGetDataProviderRequest { externalDataProviderId = DATA_PROVIDER_ID })
+  }
+
+  @Test
   fun `get throws UNAUTHENTICATED when no principal found`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -157,7 +180,7 @@ class DataProvidersServiceTest {
   fun `get throws PERMISSION_DENIED when principal with no authorization found`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+        withDuchyPrincipal(DUCHY_NAME) {
           runBlocking {
             service.getDataProvider(getDataProviderRequest { name = DATA_PROVIDER_NAME })
           }
