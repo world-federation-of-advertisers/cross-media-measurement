@@ -1389,16 +1389,13 @@ fun ListMetricsRequest.toListMetricsPageToken(): ListMetricsPageToken {
     }
   val cmmsMeasurementConsumerId = parentKey.measurementConsumerId
 
-  val isValidPageSize =
-    source.pageSize != 0 && source.pageSize >= MIN_PAGE_SIZE && source.pageSize <= MAX_PAGE_SIZE
-
   return if (pageToken.isNotBlank()) {
     ListMetricsPageToken.parseFrom(source.pageToken.base64UrlDecode()).copy {
       grpcRequire(this.cmmsMeasurementConsumerId == cmmsMeasurementConsumerId) {
         "Arguments must be kept the same when using a page token."
       }
 
-      if (isValidPageSize) {
+      if (source.pageSize in MIN_PAGE_SIZE..MAX_PAGE_SIZE) {
         pageSize = source.pageSize
       }
     }
