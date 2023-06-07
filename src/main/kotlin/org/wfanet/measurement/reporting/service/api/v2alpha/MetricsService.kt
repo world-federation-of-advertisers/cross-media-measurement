@@ -46,6 +46,7 @@ import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
@@ -518,15 +519,19 @@ class MetricsService(
                 internalEventGroupKey.cmmsDataProviderId,
                 internalEventGroupKey.cmmsEventGroupId
               )
-            val eventGroupName = eventGroupKey.toName()
             val filtersList =
               (primitiveReportingSetBasis.filtersList + internalPrimitiveReportingSet.filter)
-                .filterNotNull()
+                .filter { !it.isNullOrBlank() }
             val filter: String? = if (filtersList.isEmpty()) null else buildConjunction(filtersList)
 
             eventGroupKey to
               RequisitionSpecKt.eventGroupEntry {
-                key = eventGroupName
+                key =
+                  CmmsEventGroupKey(
+                      internalEventGroupKey.cmmsDataProviderId,
+                      internalEventGroupKey.cmmsEventGroupId
+                    )
+                    .toName()
                 value =
                   RequisitionSpecKt.EventGroupEntryKt.value {
                     collectionInterval = measurement.timeInterval.toCmmsTimeInterval()
