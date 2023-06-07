@@ -175,16 +175,16 @@ class CelEnvProviderTest {
   @Test
   fun `cache provider loop runs at least twice`() =
     runBlocking() {
-      val testMessage = testParentMetadataMessage {
-        name = "test"
-      }
+      val testMessage = testParentMetadataMessage { name = "test" }
 
       val eventGroupMetadataDescriptor = eventGroupMetadataDescriptor {
         name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
         descriptorSet = ProtoReflection.buildFileDescriptorSet(testMessage.descriptorForType)
       }
 
-      whenever(cmmsEventGroupMetadataDescriptorsServiceMock.listEventGroupMetadataDescriptors(any()))
+      whenever(
+          cmmsEventGroupMetadataDescriptorsServiceMock.listEventGroupMetadataDescriptors(any())
+        )
         .thenReturn(
           listEventGroupMetadataDescriptorsResponse {
             eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
@@ -201,14 +201,14 @@ class CelEnvProviderTest {
         argumentCaptor()
 
       CelEnvCacheProvider(
-        EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
-          grpcTestServerRule.channel
-        ),
-        Duration.ofMillis(500),
-        coroutineContext,
-        Clock.systemUTC(),
-        0
-      )
+          EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
+            grpcTestServerRule.channel
+          ),
+          Duration.ofMillis(500),
+          coroutineContext,
+          Clock.systemUTC(),
+          0
+        )
         .use {
           val typeRegistryAndEnv = it.getTypeRegistryAndEnv()
           val eventGroup = eventGroup {
@@ -230,10 +230,11 @@ class CelEnvProviderTest {
 
           val typeRegistryAndEnv2 = it.getTypeRegistryAndEnv()
           val eventGroup2 = eventGroup {
-            metadata = EventGroupKt.metadata {
-              this.eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-              metadata = pack(testMessage)
-            }
+            metadata =
+              EventGroupKt.metadata {
+                this.eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+                metadata = pack(testMessage)
+              }
           }
           val filter2 = "metadata.metadata.name == 'test'"
           assertThat(filterEventGroups(listOf(eventGroup2), filter2, typeRegistryAndEnv2))
@@ -242,10 +243,12 @@ class CelEnvProviderTest {
 
       eventGroupMetadataDescriptorsCaptor.allValues.forEach {
         assertThat(it)
-          .isEqualTo(listEventGroupMetadataDescriptorsRequest {
-            parent = "dataProviders/-"
-            pageSize = MAX_PAGE_SIZE
-          })
+          .isEqualTo(
+            listEventGroupMetadataDescriptorsRequest {
+              parent = "dataProviders/-"
+              pageSize = MAX_PAGE_SIZE
+            }
+          )
       }
     }
 
