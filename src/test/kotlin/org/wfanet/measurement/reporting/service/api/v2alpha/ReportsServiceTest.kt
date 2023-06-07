@@ -25,6 +25,7 @@ import io.grpc.StatusRuntimeException
 import java.time.Duration
 import java.time.Instant
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -41,6 +42,7 @@ import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
@@ -58,6 +60,7 @@ import org.wfanet.measurement.internal.reporting.v2.Report as InternalReport
 import org.wfanet.measurement.internal.reporting.v2.ReportKt as InternalReportKt
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.TimeInterval as InternalTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest as internalCreateReportRequest
@@ -65,10 +68,13 @@ import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internal
 import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.periodicTimeInterval as internalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
+import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeInterval as internalTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals as internalTimeIntervals
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
+import org.wfanet.measurement.reporting.v2alpha.ListReportsPageTokenKt
+import org.wfanet.measurement.reporting.v2alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.reachResult
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
@@ -87,6 +93,9 @@ import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
+import org.wfanet.measurement.reporting.v2alpha.listReportsPageToken
+import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
+import org.wfanet.measurement.reporting.v2alpha.listReportsResponse
 import org.wfanet.measurement.reporting.v2alpha.metric
 import org.wfanet.measurement.reporting.v2alpha.metricResult
 import org.wfanet.measurement.reporting.v2alpha.metricSpec
@@ -95,6 +104,10 @@ import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.timeInterval
 import org.wfanet.measurement.reporting.v2alpha.timeIntervals
+
+private const val DEFAULT_PAGE_SIZE = 50
+private const val MAX_PAGE_SIZE = 1000
+private const val PAGE_SIZE = 3
 
 // Authentication key
 private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
@@ -156,6 +169,18 @@ class ReportsServiceTest {
   private val metricsMock: MetricsGrpcKt.MetricsCoroutineImplBase = mockService {
     onBlocking { batchCreateMetrics(any()) }
       .thenReturn(batchCreateMetricsResponse { metrics += RUNNING_REACH_METRIC })
+
+    onBlocking {
+        batchGetMetrics(
+          eq(
+            batchGetMetricsRequest {
+              parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+              names += RUNNING_REACH_METRIC.name
+            }
+          )
+        )
+      }
+      .thenReturn(batchGetMetricsResponse { metrics += SUCCEEDED_REACH_METRIC })
   }
 
   @get:Rule
@@ -2317,6 +2342,596 @@ class ReportsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
+  @Test
+  fun `listReports returns without a next page token when there is no previous page token`() {
+    val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        runBlocking { service.listReports(request) }
+      }
+
+    val expected = listReportsResponse {}
+
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::streamReports)
+      .isEqualTo(
+        streamReportsRequest {
+          limit = DEFAULT_PAGE_SIZE + 1
+          filter =
+            StreamReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listReports returns with a next page token when there is no previous page token`() {
+    val request = listReportsRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      pageSize = PAGE_SIZE
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        runBlocking { service.listReports(request) }
+      }
+
+    val expected = listReportsResponse {
+      reports.add(SUCCEEDED_REACH_REPORT)
+
+      nextPageToken =
+        listReportsPageToken {
+            pageSize = PAGE_SIZE
+            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+            lastReport =
+              ListReportsPageTokenKt.previousPageEnd {
+                cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+                externalReportId = 220L
+              }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::streamReports)
+      .isEqualTo(
+        streamReportsRequest {
+          limit = PAGE_SIZE + 1
+          this.filter =
+            StreamReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listReports returns with a next page token when there is a previous page token`() {
+    val request = listReportsRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      pageSize = PAGE_SIZE
+      pageToken =
+        listReportsPageToken {
+            pageSize = PAGE_SIZE
+            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+            lastReport =
+              ListReportsPageTokenKt.previousPageEnd {
+                cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+                externalReportId = 220L
+              }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        runBlocking { service.listReports(request) }
+      }
+
+    val expected = listReportsResponse {
+      reports.add(SUCCEEDED_REACH_REPORT)
+
+      nextPageToken =
+        listReportsPageToken {
+            pageSize = PAGE_SIZE
+            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+            lastReport =
+              ListReportsPageTokenKt.previousPageEnd {
+                cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+                externalReportId = 220L
+              }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::streamReports)
+      .isEqualTo(
+        streamReportsRequest {
+          limit = PAGE_SIZE + 1
+          this.filter =
+            StreamReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+              externalReportIdAfter = 220L
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listReports with page size replaced with a valid value and no previous page token`() {
+    val invalidPageSize = MAX_PAGE_SIZE * 2
+    val request = listReportsRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      pageSize = invalidPageSize
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        runBlocking { service.listReports(request) }
+      }
+
+    val expected = listReportsResponse { reports.add(SUCCEEDED_REACH_REPORT) }
+
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::streamReports)
+      .isEqualTo(
+        streamReportsRequest {
+          limit = MAX_PAGE_SIZE + 1
+          this.filter =
+            StreamReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listReports with invalid page size replaced with the one in previous page token`() {
+    val invalidPageSize = MAX_PAGE_SIZE * 2
+    val previousPageSize = PAGE_SIZE
+    val request = listReportsRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      pageSize = invalidPageSize
+      pageToken =
+        listReportsPageToken {
+            pageSize = previousPageSize
+            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+            lastReport =
+              ListReportsPageTokenKt.previousPageEnd {
+                cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+                externalReportId = 220L
+              }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        runBlocking { service.listReports(request) }
+      }
+
+    val expected = listReportsResponse {
+      reports.add(SUCCEEDED_REACH_REPORT)
+
+      nextPageToken =
+        listReportsPageToken {
+            pageSize = previousPageSize
+            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+            lastReport =
+              ListReportsPageTokenKt.previousPageEnd {
+                cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+                externalReportId = 220L
+              }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::streamReports)
+      .isEqualTo(
+        streamReportsRequest {
+          limit = previousPageSize + 1
+          this.filter =
+            StreamReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+              externalReportIdAfter = 220L
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listReports with page size replacing the one in previous page token`() {
+    val newPageSize = PAGE_SIZE
+    val previousPageSize = 1
+    val request = listReportsRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      pageSize = newPageSize
+      pageToken =
+        listReportsPageToken {
+            pageSize = previousPageSize
+            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+            lastReport =
+              ListReportsPageTokenKt.previousPageEnd {
+                cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+                externalReportId = 220L
+              }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        runBlocking { service.listReports(request) }
+      }
+
+    val expected = listReportsResponse {
+      reports.add(SUCCEEDED_REACH_REPORT)
+
+      nextPageToken =
+        listReportsPageToken {
+            pageSize = newPageSize
+            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+            lastReport =
+              ListReportsPageTokenKt.previousPageEnd {
+                cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+                externalReportId = 220L
+              }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::streamReports)
+      .isEqualTo(
+        streamReportsRequest {
+          limit = newPageSize + 1
+          this.filter =
+            StreamReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+              externalReportIdAfter = 220L
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listReports throws UNAUTHENTICATED when no principal is found`() {
+    val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.listReports(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `listReports throws PERMISSION_DENIED when MeasurementConsumer caller doesn't match`() {
+    val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.last().toName(), CONFIG) {
+          runBlocking { service.listReports(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description)
+      .isEqualTo("Cannot list Reports belonging to other MeasurementConsumers.")
+  }
+
+  @Test
+  fun `listReports throws UNAUTHENTICATED when the caller is not MeasurementConsumer`() {
+    val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DataProviderKey(ExternalId(550L).apiId.value).toName()) {
+          runBlocking { service.listReports(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception.status.description).isEqualTo("No ReportingPrincipal found")
+  }
+
+  @Test
+  fun `listReports throws INVALID_ARGUMENT when page size is less than 0`() {
+    val request = listReportsRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      pageSize = -1
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.listReports(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Page size cannot be less than 0")
+  }
+
+  @Test
+  fun `listReports throws INVALID_ARGUMENT when parent is unspecified`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.listReports(ListReportsRequest.getDefaultInstance()) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `listReports throws INVALID_ARGUMENT when mc id doesn't match one in page token`() {
+    val cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.last().measurementConsumerId
+    val request = listReportsRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      pageToken =
+        listReportsPageToken {
+            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+            lastReport =
+              ListReportsPageTokenKt.previousPageEnd {
+                this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+                externalReportId = 220L
+              }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.listReports(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `listReports throws Exception when the internal streamReports throws Exception`() =
+    runBlocking {
+      whenever(internalReportsMock.streamReports(any()))
+        .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
+
+      val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
+
+      val exception =
+        assertFailsWith(Exception::class) {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+            runBlocking { service.listReports(request) }
+          }
+        }
+      val expectedExceptionDescription = "Unable to list reports from the reporting database."
+      assertThat(exception.message).isEqualTo(expectedExceptionDescription)
+    }
+
+  @Test
+  fun `listReports throws Exception when the internal getReport throws Exception`() = runBlocking {
+    whenever(internalReportsMock.getReport(any()))
+      .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
+
+    val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
+
+    val exception =
+      assertFailsWith(Exception::class) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.listReports(request) }
+        }
+      }
+    val expectedExceptionDescription = "Unable to get the report from the reporting database."
+    assertThat(exception.message).isEqualTo(expectedExceptionDescription)
+  }
+
+  @Test
+  fun `listReports returns reports with SUCCEEDED states when reports are already succeeded`() {
+    whenever(internalReportsMock.streamReports(any())).thenReturn(flowOf())
+
+    val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        runBlocking { service.listReports(request) }
+      }
+
+    val expected = listReportsResponse { reports.add(SUCCEEDED_REACH_REPORT) }
+
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::streamReports)
+      .isEqualTo(
+        streamReportsRequest {
+          limit = DEFAULT_PAGE_SIZE + 1
+          this.filter =
+            StreamReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listReports returns reports with FAILED states when reports are already failed`() {
+    whenever(internalReportsMock.streamReports(any())).thenReturn(flowOf())
+
+    val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        runBlocking { service.listReports(request) }
+      }
+
+    val expected = listReportsResponse {
+      reports.add(PENDING_REACH_REPORT.copy { state = Report.State.FAILED })
+    }
+
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::streamReports)
+      .isEqualTo(
+        streamReportsRequest {
+          limit = DEFAULT_PAGE_SIZE + 1
+          this.filter =
+            StreamReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listReports returns reports with RUNNING states when measurements are PENDING`() =
+    runBlocking {
+      whenever(internalReportsMock.streamReports(any())).thenReturn(flowOf())
+      whenever(internalReportsMock.getReport(any())).thenReturn()
+
+      val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.listReports(request) }
+        }
+
+      val expected = listReportsResponse { reports.add(PENDING_REACH_REPORT) }
+
+      verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::streamReports)
+        .isEqualTo(
+          streamReportsRequest {
+            limit = DEFAULT_PAGE_SIZE + 1
+            this.filter =
+              StreamReportsRequestKt.filter {
+                cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+              }
+          }
+        )
+
+      assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+    }
+
+  @Test
+  fun `listReports returns reports with FAILED states when measurements are FAILED`() =
+    runBlocking {
+      whenever(internalReportsMock.streamReports(any())).thenReturn(flowOf())
+      whenever(internalReportsMock.getReport(any())).thenReturn()
+
+      val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.listReports(request) }
+        }
+
+      val expected = listReportsResponse {
+        reports.add(PENDING_REACH_REPORT.copy { state = Report.State.FAILED })
+      }
+
+      verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::streamReports)
+        .isEqualTo(
+          streamReportsRequest {
+            limit = DEFAULT_PAGE_SIZE + 1
+            this.filter =
+              StreamReportsRequestKt.filter {
+                cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+              }
+          }
+        )
+      assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+    }
+
+  @Test
+  fun `listReports returns reports with SUCCEEDED states when measurements are SUCCEEDED`() =
+    runBlocking {
+      whenever(internalReportsMock.streamReports(any())).thenReturn(flowOf())
+      whenever(internalReportsMock.getReport(any())).thenReturn()
+
+      val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.listReports(request) }
+        }
+
+      val expected = listReportsResponse { reports.add(SUCCEEDED_REACH_REPORT) }
+
+      verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::streamReports)
+        .isEqualTo(
+          streamReportsRequest {
+            limit = DEFAULT_PAGE_SIZE + 1
+            this.filter =
+              StreamReportsRequestKt.filter {
+                cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+              }
+          }
+        )
+      assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+    }
+
+  @Test
+  fun `listReports returns an impression report with aggregated results`() = runBlocking {
+    whenever(internalReportsMock.streamReports(any())).thenReturn(flowOf())
+    whenever(internalReportsMock.getReport(any())).thenReturn()
+
+    val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        runBlocking { service.listReports(request) }
+      }
+
+    val expected = listReportsResponse {}
+
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::streamReports)
+      .isEqualTo(
+        streamReportsRequest {
+          limit = DEFAULT_PAGE_SIZE + 1
+          this.filter =
+            StreamReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+            }
+        }
+      )
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listReports returns a watch duration report with aggregated results`() = runBlocking {
+    whenever(internalReportsMock.streamReports(any())).thenReturn(flowOf())
+    whenever(internalReportsMock.getReport(any())).thenReturn()
+
+    val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        runBlocking { service.listReports(request) }
+      }
+
+    val expected = listReportsResponse {}
+
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::streamReports)
+      .isEqualTo(
+        streamReportsRequest {
+          limit = DEFAULT_PAGE_SIZE + 1
+          this.filter =
+            StreamReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+            }
+        }
+      )
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
   companion object {
     private fun buildInitialReportingMetric(
       externalReportingSetId: Long,
@@ -2645,7 +3260,7 @@ class ReportsServiceTest {
     // Reports
     private const val DISPLAY_NAME = "DISPLAY_NAME"
     // Internal reports
-    private val INITIAL_REPORTING_CREATE_METRIC_REQUEST =
+    private val INITIAL_REPORTING_METRIC =
       buildInitialReportingMetric(
         PRIMITIVE_REPORTING_SETS.first().externalId,
         internalTimeInterval {
@@ -2666,7 +3281,7 @@ class ReportsServiceTest {
           }
         ),
         PRIMITIVE_REPORTING_SETS.first().externalId,
-        listOf(INITIAL_REPORTING_CREATE_METRIC_REQUEST),
+        listOf(INITIAL_REPORTING_METRIC),
         listOf(),
       )
 
