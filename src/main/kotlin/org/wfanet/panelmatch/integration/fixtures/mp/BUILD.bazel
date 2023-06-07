@@ -1,0 +1,13 @@
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/testing:__subpackages__",
+        "//src/main/kotlin/org/wfanet/panelmatch/integration:__subpackages__",
+        "//src/test/kotlin/org/wfanet/panelmatch/integration:__subpackages__",
+    ],
+)
+
+filegroup(
+    name = "mp",
+    srcs = glob(["*"]),
+)

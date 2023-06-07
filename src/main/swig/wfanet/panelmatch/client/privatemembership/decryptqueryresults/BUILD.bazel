@@ -1,0 +1,16 @@
+load("@wfa_rules_swig//java:defs.bzl", "java_wrap_cc")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/panelmatch:__subpackages__",
+    "//src/test/kotlin/org/wfanet/panelmatch:__subpackages__",
+])
+
+java_wrap_cc(
+    name = "decrypt_query_results",
+    src = "decrypt_query_results.swig",
+    module = "DecryptQueryResultsSwig",
+    package = "org.wfanet.panelmatch.protocol.decryptqueryresults",
+    deps = [
+        "//src/main/cc/wfa/panelmatch/client/privatemembership:decrypt_query_results_wrapper",
+    ],
+)

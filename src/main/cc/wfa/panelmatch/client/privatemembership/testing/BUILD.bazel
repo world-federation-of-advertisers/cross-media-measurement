@@ -1,0 +1,28 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/test/cc/wfa/panelmatch:__subpackages__",
+    ],
+)
+
+_INCLUDE_PREFIX = "/src/main/cc"
+
+cc_library(
+    name = "private_membership_helper",
+    srcs = ["private_membership_helper.cc"],
+    hdrs = ["private_membership_helper.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@private_membership//private_membership/rlwe/batch/cpp/client",
+        "@private_membership//private_membership/rlwe/batch/cpp/server",
+        "@private_membership//private_membership/rlwe/batch/proto:client_cc_proto",
+        "@private_membership//private_membership/rlwe/batch/proto:server_cc_proto",
+        "@private_membership//private_membership/rlwe/batch/proto:shared_cc_proto",
+        "@wfa_common_cpp//src/main/cc/common_cpp/macros",
+    ],
+)

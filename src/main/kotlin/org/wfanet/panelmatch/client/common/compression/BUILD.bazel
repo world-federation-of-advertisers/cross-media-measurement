@@ -1,0 +1,21 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//visibility:public"])
+
+java_library(
+    name = "resources",
+    resources = [
+        "//data:brotli_dictionary",
+    ],
+)
+
+kt_jvm_library(
+    name = "compression",
+    srcs = glob(["*.kt"]),
+    runtime_deps = [":resources"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
+        "//src/main/proto/wfa/panelmatch/common/compression:compression_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)

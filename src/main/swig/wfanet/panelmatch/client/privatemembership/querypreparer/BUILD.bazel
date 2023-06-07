@@ -1,0 +1,16 @@
+load("@wfa_rules_swig//java:defs.bzl", "java_wrap_cc")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/panelmatch:__subpackages__",
+    "//src/test/kotlin/org/wfanet/panelmatch:__subpackages__",
+])
+
+java_wrap_cc(
+    name = "query_preparer",
+    src = "query_preparer.swig",
+    module = "QueryPreparerSwig",
+    package = "org.wfanet.panelmatch.protocol.querypreparer",
+    deps = [
+        "//src/main/cc/wfa/panelmatch/client/privatemembership:query_preparer_wrapper",
+    ],
+)

@@ -1,0 +1,149 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@rules_java//java:defs.bzl", "java_proto_library")
+load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
+load("@rules_cc//cc:defs.bzl", "cc_proto_library")
+
+package(default_visibility = ["//src:__subpackages__"])
+
+proto_library(
+    name = "database_proto",
+    srcs = ["database.proto"],
+    strip_import_prefix = "/src/main/proto",
+    deps = [":prepare_query_proto"],
+)
+
+cc_proto_library(
+    name = "database_cc_proto",
+    deps = [":database_proto"],
+)
+
+java_proto_library(
+    name = "database_java_proto",
+    deps = [":database_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "database_kt_jvm_proto",
+    srcs = [":database_proto"],
+    deps = [":database_java_proto"],
+)
+
+proto_library(
+    name = "query_proto",
+    srcs = ["query.proto"],
+    strip_import_prefix = "/src/main/proto",
+    deps = [
+        "//src/main/proto/wfa/panelmatch/client/exchangetasks:join_key_exchange_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "query_cc_proto",
+    deps = [":query_proto"],
+)
+
+java_proto_library(
+    name = "query_java_proto",
+    deps = [":query_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "query_kt_jvm_proto",
+    srcs = [":query_proto"],
+    deps = [":query_java_proto"],
+)
+
+proto_library(
+    name = "private_membership_proto",
+    srcs = ["private_membership.proto"],
+    strip_import_prefix = "/src/main/proto",
+    deps = [":query_proto"],
+)
+
+java_proto_library(
+    name = "private_membership_java_proto",
+    deps = [":private_membership_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "private_membership_kt_jvm_proto",
+    srcs = [":private_membership_proto"],
+    deps = [":private_membership_java_proto"],
+)
+
+proto_library(
+    name = "query_evaluator_proto",
+    srcs = ["query_evaluator.proto"],
+    strip_import_prefix = "/src/main/proto",
+    deps = [
+        ":query_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "query_evaluator_cc_proto",
+    deps = [":query_evaluator_proto"],
+)
+
+java_proto_library(
+    name = "query_evaluator_java_proto",
+    deps = [":query_evaluator_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "query_evaluator_kt_jvm_proto",
+    srcs = [":query_evaluator_proto"],
+    deps = [":query_evaluator_java_proto"],
+)
+
+proto_library(
+    name = "prepare_query_proto",
+    srcs = ["prepare_query.proto"],
+    strip_import_prefix = "/src/main/proto",
+    deps = [
+        "//src/main/proto/wfa/panelmatch/client/exchangetasks:join_key_exchange_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "prepare_query_cc_proto",
+    deps = [":prepare_query_proto"],
+)
+
+java_proto_library(
+    name = "prepare_query_java_proto",
+    deps = [":prepare_query_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "prepare_query_kt_jvm_proto",
+    srcs = [":prepare_query_proto"],
+    deps = [":prepare_query_java_proto"],
+)
+
+proto_library(
+    name = "decrypt_event_data_proto",
+    srcs = ["decrypt_event_data.proto"],
+    strip_import_prefix = "/src/main/proto",
+    deps = [
+        ":query_proto",
+        "//src/main/proto/wfa/panelmatch/client/exchangetasks:join_key_exchange_proto",
+        "//src/main/proto/wfa/panelmatch/common/compression:compression_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "decrypt_event_data_cc_proto",
+    deps = [":decrypt_event_data_proto"],
+)
+
+java_proto_library(
+    name = "decrypt_event_data_java_proto",
+    deps = [":decrypt_event_data_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "decrypt_event_data_kt_jvm_proto",
+    srcs = [":decrypt_event_data_proto"],
+    deps = [":decrypt_event_data_java_proto"],
+)

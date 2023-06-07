@@ -1,0 +1,18 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/panelmatch:__subpackages__",
+    "//src/test/kotlin/org/wfanet/panelmatch:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "aws",
+    srcs = glob(["*.kt"]),
+    deps = [
+        "//imports/java/software/amazon/awssdk/acmpca",
+        "//imports/java/software/amazon/awssdk/awscore",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/certificates",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/secrets",
+    ],
+)

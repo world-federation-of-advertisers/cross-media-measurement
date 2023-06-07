@@ -1,0 +1,16 @@
+load("@rules_cc//cc:defs.bzl", "cc_test")
+
+cc_test(
+    name = "brotli_test",
+    timeout = "short",
+    srcs = ["brotli_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/panelmatch/common/compression:brotli",
+        "//src/main/cc/wfa/panelmatch/common/compression:compressor",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+    ],
+)
