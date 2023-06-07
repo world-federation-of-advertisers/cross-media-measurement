@@ -59,7 +59,6 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
-import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.GetMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
@@ -551,7 +550,7 @@ private val REQUISITION_SPECS: Map<DataProviderKey, RequisitionSpec> =
       { DataProviderKey(it.cmmsDataProviderId) },
       {
         RequisitionSpecKt.eventGroupEntry {
-          key = CmmsEventGroupKey(it.cmmsDataProviderId, it.cmmsEventGroupId).toName()
+          key = it.toName()
           value =
             RequisitionSpecKt.EventGroupEntryKt.value {
               collectionInterval = MEASUREMENT_TIME_INTERVAL
