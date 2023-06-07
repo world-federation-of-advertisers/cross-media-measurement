@@ -24,6 +24,8 @@ import java.time.Clock
 import java.time.Duration
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
@@ -44,6 +46,7 @@ import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessageKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.copy
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testParentMetadataMessage
 import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.common.ProtoReflection
@@ -168,6 +171,83 @@ class CelEnvProviderTest {
       }
     }
   }
+
+  @Test
+  fun `cache provider loop runs at least twice`() =
+    runBlocking() {
+      val testMessage = testParentMetadataMessage {
+        name = "test"
+      }
+
+      val eventGroupMetadataDescriptor = eventGroupMetadataDescriptor {
+        name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+        descriptorSet = ProtoReflection.buildFileDescriptorSet(testMessage.descriptorForType)
+      }
+
+      whenever(cmmsEventGroupMetadataDescriptorsServiceMock.listEventGroupMetadataDescriptors(any()))
+        .thenReturn(
+          listEventGroupMetadataDescriptorsResponse {
+            eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
+          }
+        )
+        .thenReturn(
+          listEventGroupMetadataDescriptorsResponse {
+            eventGroupMetadataDescriptors += eventGroupMetadataDescriptor
+          }
+        )
+
+      val eventGroupMetadataDescriptorsCaptor:
+        KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> =
+        argumentCaptor()
+
+      CelEnvCacheProvider(
+        EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
+          grpcTestServerRule.channel
+        ),
+        Duration.ofMillis(500),
+        coroutineContext,
+        Clock.systemUTC(),
+        0
+      )
+        .use {
+          val typeRegistryAndEnv = it.getTypeRegistryAndEnv()
+          val eventGroup = eventGroup {
+            metadata =
+              EventGroupKt.metadata {
+                this.eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+                metadata =
+                  pack(TEST_MESSAGE.copy { age = TestMetadataMessageKt.age { value = 15 } })
+              }
+          }
+          val filter = "metadata.metadata.age.value > 10"
+          assertThat(filterEventGroups(listOf(eventGroup), filter, typeRegistryAndEnv))
+            .containsExactly(eventGroup)
+
+          delay(850)
+
+          verify(cmmsEventGroupMetadataDescriptorsServiceMock, atLeast(2))
+            .listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
+
+          val typeRegistryAndEnv2 = it.getTypeRegistryAndEnv()
+          val eventGroup2 = eventGroup {
+            metadata = EventGroupKt.metadata {
+              this.eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+              metadata = pack(testMessage)
+            }
+          }
+          val filter2 = "metadata.metadata.name == 'test'"
+          assertThat(filterEventGroups(listOf(eventGroup2), filter2, typeRegistryAndEnv2))
+            .containsExactly(eventGroup2)
+        }
+
+      eventGroupMetadataDescriptorsCaptor.allValues.forEach {
+        assertThat(it)
+          .isEqualTo(listEventGroupMetadataDescriptorsRequest {
+            parent = "dataProviders/-"
+            pageSize = MAX_PAGE_SIZE
+          })
+      }
+    }
 
   companion object {
     private fun filterEventGroups(
