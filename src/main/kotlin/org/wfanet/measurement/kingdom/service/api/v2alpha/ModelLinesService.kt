@@ -83,7 +83,9 @@ class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
       when (ex.status.code) {
         Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "ModelProvider not found" }
         Status.Code.INVALID_ARGUMENT ->
-          failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "Required field unspecified or invalid" }
+          failGrpc(Status.INVALID_ARGUMENT, ex) {
+            ex.message ?: "Required field unspecified or invalid"
+          }
         else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception" }
       }
     }

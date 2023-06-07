@@ -65,6 +65,19 @@ jobs:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
 
+    - name: Export BAZEL_BIN
+      run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
+
+    - name: Get GKE cluster credentials
+      uses: google-github-actions/get-gke-credentials@v1
+      with:
+        cluster_name: reporting
+        location: ${{ vars.GCLOUD_ZONE }}
+
+    - name: Configure metrics
+      uses: ./.github/actions/configure-metrics
+      if: ${{ inputs.apply }}
+
     - name: Generate archives
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
@@ -82,12 +95,8 @@ jobs:
         --define "postgres_region=$GCLOUD_REGION"
         --define "kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
 
-
     - name: Make Kustomization dir
       run: mkdir -p "$KUSTOMIZATION_PATH"
-
-    - name: Export BAZEL_BIN
-      run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
 
     - name: Extract Kustomization archive
       run: >
@@ -128,12 +137,6 @@ jobs:
       run: >
         cp src/main/k8s/testing/secretfiles/reporting_secrets_kustomization.yaml
         "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_secrets/kustomization.yaml"
-
-    - name: Get GKE cluster credentials
-      uses: google-github-actions/get-gke-credentials@v1
-      with:
-        cluster_name: reporting
-        location: ${{ vars.GCLOUD_ZONE }}
 
     - name: Export KUSTOMIZE_PATH
       run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting" >> $GITHUB_ENV

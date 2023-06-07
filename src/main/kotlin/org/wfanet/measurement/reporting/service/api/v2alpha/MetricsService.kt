@@ -46,6 +46,7 @@ import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
@@ -100,7 +101,6 @@ import org.wfanet.measurement.internal.reporting.v2.Metric.WeightedMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MetricKt as InternalMetricKt
 import org.wfanet.measurement.internal.reporting.v2.MetricKt.weightedMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
-import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
@@ -115,7 +115,6 @@ import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest as internalCreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.measurement as internalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.metric as internalMetric
-import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
@@ -135,7 +134,6 @@ import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.histogramResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.impressionCountResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.reachResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.watchDurationResult
-import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.batchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.batchGetMetricsResponse
@@ -521,15 +519,19 @@ class MetricsService(
                 internalEventGroupKey.cmmsDataProviderId,
                 internalEventGroupKey.cmmsEventGroupId
               )
-            val eventGroupName = eventGroupKey.toName()
             val filtersList =
               (primitiveReportingSetBasis.filtersList + internalPrimitiveReportingSet.filter)
-                .filterNotNull()
+                .filter { !it.isNullOrBlank() }
             val filter: String? = if (filtersList.isEmpty()) null else buildConjunction(filtersList)
 
             eventGroupKey to
               RequisitionSpecKt.eventGroupEntry {
-                key = eventGroupName
+                key =
+                  CmmsEventGroupKey(
+                      internalEventGroupKey.cmmsDataProviderId,
+                      internalEventGroupKey.cmmsEventGroupId
+                    )
+                    .toName()
                 value =
                   RequisitionSpecKt.EventGroupEntryKt.value {
                     collectionInterval = measurement.timeInterval.toCmmsTimeInterval()
@@ -1298,7 +1300,17 @@ class MetricsService(
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
         externalReportingSetId = internalReportingSet.externalReportingSetId
         timeInterval = request.metric.timeInterval.toInternal()
-        metricSpec = buildInternalMetricSpec(request.metric.metricSpec)
+        metricSpec =
+          try {
+            request.metric.metricSpec.withDefaults(metricSpecConfig).toInternal()
+          } catch (e: MetricSpecDefaultsException) {
+            failGrpc(Status.INVALID_ARGUMENT) {
+              listOfNotNull("Invalid metric spec.", e.message, e.cause?.message)
+                .joinToString(separator = "\n")
+            }
+          } catch (e: Exception) {
+            failGrpc(Status.UNKNOWN) { "Failed to read the metric spec." }
+          }
         weightedMeasurements +=
           buildInitialInternalMeasurements(
             cmmsMeasurementConsumerId,
@@ -1307,160 +1319,6 @@ class MetricsService(
           )
         details = InternalMetricKt.details { filters += request.metric.filtersList }
       }
-    }
-  }
-
-  /** Builds an [InternalMetricSpec] given a [MetricSpec]. */
-  private fun buildInternalMetricSpec(
-    metricSpec: MetricSpec,
-  ): InternalMetricSpec {
-    return internalMetricSpec {
-      val defaultVidSamplingInterval: MetricSpecConfig.VidSamplingInterval =
-        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-        when (metricSpec.typeCase) {
-          MetricSpec.TypeCase.REACH -> {
-            reach = buildInternalReachParams(metricSpec.reach)
-            metricSpecConfig.reachVidSamplingInterval
-          }
-          MetricSpec.TypeCase.FREQUENCY_HISTOGRAM -> {
-            frequencyHistogram =
-              buildInternalFrequencyHistogramParams(metricSpec.frequencyHistogram)
-            metricSpecConfig.frequencyHistogramVidSamplingInterval
-          }
-          MetricSpec.TypeCase.IMPRESSION_COUNT -> {
-            impressionCount = buildInternalImpressionCountParams(metricSpec.impressionCount)
-            metricSpecConfig.impressionCountVidSamplingInterval
-          }
-          MetricSpec.TypeCase.WATCH_DURATION -> {
-            watchDuration = buildInternalWatchDurationParams(metricSpec.watchDuration)
-            metricSpecConfig.watchDurationVidSamplingInterval
-          }
-          MetricSpec.TypeCase.TYPE_NOT_SET ->
-            failGrpc(Status.INVALID_ARGUMENT) { "The metric type in Metric is not specified." }
-        }
-
-      vidSamplingInterval =
-        if (metricSpec.hasVidSamplingInterval()) {
-          metricSpec.vidSamplingInterval.toInternal()
-        } else defaultVidSamplingInterval.toInternal()
-
-      grpcRequire(vidSamplingInterval.start >= 0) {
-        "vidSamplingInterval.start cannot be negative."
-      }
-      grpcRequire(vidSamplingInterval.start < 1) {
-        "vidSamplingInterval.start must be smaller than 1."
-      }
-      grpcRequire(vidSamplingInterval.width > 0) {
-        "vidSamplingInterval.width must be greater than 0."
-      }
-      grpcRequire(vidSamplingInterval.start + vidSamplingInterval.width <= 1) {
-        "vidSamplingInterval start + width cannot be greater than 1."
-      }
-    }
-  }
-
-  /** Builds an [InternalMetricSpec.ReachParams] given a [MetricSpec.ReachParams]. */
-  private fun buildInternalReachParams(
-    reachParams: MetricSpec.ReachParams,
-  ): InternalMetricSpec.ReachParams {
-    grpcRequire(reachParams.hasPrivacyParams()) { "privacyParams in reach is not set." }
-
-    return InternalMetricSpecKt.reachParams {
-      privacyParams =
-        buildInternalDifferentialPrivacyParams(
-          reachParams.privacyParams,
-          metricSpecConfig.reachParams.privacyParams.epsilon,
-          metricSpecConfig.reachParams.privacyParams.delta
-        )
-    }
-  }
-
-  /**
-   * Builds an [InternalMetricSpec.FrequencyHistogramParams] given a
-   * [MetricSpec.FrequencyHistogramParams].
-   */
-  private fun buildInternalFrequencyHistogramParams(
-    frequencyHistogramParams: MetricSpec.FrequencyHistogramParams
-  ): InternalMetricSpec.FrequencyHistogramParams {
-    grpcRequire(frequencyHistogramParams.hasReachPrivacyParams()) {
-      "reachPrivacyParams in frequency histogram is not set."
-    }
-    grpcRequire(frequencyHistogramParams.hasFrequencyPrivacyParams()) {
-      "frequencyPrivacyParams in frequency histogram is not set."
-    }
-
-    return InternalMetricSpecKt.frequencyHistogramParams {
-      reachPrivacyParams =
-        buildInternalDifferentialPrivacyParams(
-          frequencyHistogramParams.reachPrivacyParams,
-          metricSpecConfig.frequencyHistogramParams.reachPrivacyParams.epsilon,
-          metricSpecConfig.frequencyHistogramParams.reachPrivacyParams.delta
-        )
-      frequencyPrivacyParams =
-        buildInternalDifferentialPrivacyParams(
-          frequencyHistogramParams.frequencyPrivacyParams,
-          metricSpecConfig.frequencyHistogramParams.frequencyPrivacyParams.epsilon,
-          metricSpecConfig.frequencyHistogramParams.frequencyPrivacyParams.delta
-        )
-      maximumFrequencyPerUser =
-        if (frequencyHistogramParams.hasMaximumFrequencyPerUser()) {
-          frequencyHistogramParams.maximumFrequencyPerUser
-        } else {
-          metricSpecConfig.frequencyHistogramParams.maximumFrequencyPerUser
-        }
-    }
-  }
-
-  /**
-   * Builds an [InternalMetricSpec.WatchDurationParams] given a [MetricSpec.WatchDurationParams].
-   */
-  private fun buildInternalWatchDurationParams(
-    watchDurationParams: MetricSpec.WatchDurationParams
-  ): InternalMetricSpec.WatchDurationParams {
-    grpcRequire(watchDurationParams.hasPrivacyParams()) {
-      "privacyParams in watch duration is not set."
-    }
-
-    return InternalMetricSpecKt.watchDurationParams {
-      privacyParams =
-        buildInternalDifferentialPrivacyParams(
-          watchDurationParams.privacyParams,
-          metricSpecConfig.watchDurationParams.privacyParams.epsilon,
-          metricSpecConfig.watchDurationParams.privacyParams.delta
-        )
-      maximumWatchDurationPerUser =
-        if (watchDurationParams.hasMaximumWatchDurationPerUser()) {
-          watchDurationParams.maximumWatchDurationPerUser
-        } else {
-          metricSpecConfig.watchDurationParams.maximumWatchDurationPerUser
-        }
-    }
-  }
-
-  /**
-   * Builds an [InternalMetricSpec.ImpressionCountParams] given a
-   * [MetricSpec.ImpressionCountParams].
-   */
-  private fun buildInternalImpressionCountParams(
-    impressionCountParams: MetricSpec.ImpressionCountParams
-  ): InternalMetricSpec.ImpressionCountParams {
-    grpcRequire(impressionCountParams.hasPrivacyParams()) {
-      "privacyParams in impression count is not set."
-    }
-
-    return InternalMetricSpecKt.impressionCountParams {
-      privacyParams =
-        buildInternalDifferentialPrivacyParams(
-          impressionCountParams.privacyParams,
-          metricSpecConfig.impressionCountParams.privacyParams.epsilon,
-          metricSpecConfig.impressionCountParams.privacyParams.delta
-        )
-      maximumFrequencyPerUser =
-        if (impressionCountParams.hasMaximumFrequencyPerUser()) {
-          impressionCountParams.maximumFrequencyPerUser
-        } else {
-          metricSpecConfig.impressionCountParams.maximumFrequencyPerUser
-        }
     }
   }
 
@@ -1516,22 +1374,6 @@ class MetricsService(
         e
       )
     }
-  }
-}
-
-/**
- * Build an [InternalMetricSpec.DifferentialPrivacyParams] given
- * [MetricSpec.DifferentialPrivacyParams]. If any field in the given
- * [MetricSpec.DifferentialPrivacyParams] is unspecified, it will use the provided default value.
- */
-private fun buildInternalDifferentialPrivacyParams(
-  dpParams: MetricSpec.DifferentialPrivacyParams,
-  defaultEpsilon: Double,
-  defaultDelta: Double
-): InternalMetricSpec.DifferentialPrivacyParams {
-  return InternalMetricSpecKt.differentialPrivacyParams {
-    epsilon = if (dpParams.hasEpsilon()) dpParams.epsilon else defaultEpsilon
-    delta = if (dpParams.hasDelta()) dpParams.delta else defaultDelta
   }
 }
 

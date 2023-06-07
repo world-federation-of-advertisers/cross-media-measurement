@@ -58,6 +58,5 @@ module "kingdom" {
     kubernetes = kubernetes.kingdom
   }
 
-  monitoring_service_account = module.common.monitoring_service_account
-  spanner_instance           = google_spanner_instance.spanner_instance
+  spanner_instance = google_spanner_instance.spanner_instance
 }

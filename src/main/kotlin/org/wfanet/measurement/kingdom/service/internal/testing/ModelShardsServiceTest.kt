@@ -149,6 +149,30 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
   }
 
   @Test
+  fun `createModelShard fails when externalDataProviderId is missing`() = runBlocking {
+    val modelShard = modelShard {}
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { modelShardsService.createModelShard(modelShard) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("DataProviderId field of ModelShard is missing.")
+  }
+
+  @Test
+  fun `createModelShard fails when modelBlobPath is missing`() = runBlocking {
+    val modelShard = modelShard { externalDataProviderId = 123L }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { modelShardsService.createModelShard(modelShard) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("ModelBlobPath field of ModelShard is missing.")
+  }
+
+  @Test
   fun `createModelShard fails when Model Suite is not found`() = runBlocking {
     val dataProvider = population.createDataProvider(dataProvidersService)
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
@@ -235,6 +259,48 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
       )
       .isEqualTo(0)
   }
+
+  @Test
+  fun `deleteModelShard fails when external model release is owned by another model provider`() =
+    runBlocking {
+      val dataProvider = population.createDataProvider(dataProvidersService)
+      val modelSuite1 = population.createModelSuite(modelProvidersService, modelSuitesService)
+      val modelSuite2 = population.createModelSuite(modelProvidersService, modelSuitesService)
+
+      val modelRelease =
+        population.createModelRelease(
+          modelSuite {
+            externalModelProviderId = modelSuite1.externalModelProviderId
+            externalModelSuiteId = modelSuite1.externalModelSuiteId
+          },
+          modelReleasesService
+        )
+
+      val modelShard = modelShard {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        externalModelProviderId = modelSuite1.externalModelProviderId
+        externalModelSuiteId = modelSuite1.externalModelSuiteId
+        externalModelReleaseId = modelRelease.externalModelReleaseId
+        modelBlobPath = "modelBlobPath"
+      }
+      val createdModelShard = modelShardsService.createModelShard(modelShard)
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          modelShardsService.deleteModelShard(
+            deleteModelShardRequest {
+              externalDataProviderId = createdModelShard.externalDataProviderId
+              externalModelShardId = createdModelShard.externalModelShardId
+              externalModelProviderId = modelSuite2.externalModelProviderId
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .hasMessageThat()
+        .contains("Cannot delete ModelShard having ModelRelease owned by another ModelProvider.")
+    }
 
   @Test
   fun `deleteModelShard fails when external data provider is missing`() = runBlocking {
@@ -331,6 +397,63 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
       .comparingExpectedFieldsOnly()
       .containsExactly(modelShard1, modelShard2)
       .inOrder()
+  }
+
+  @Test
+  fun `streamModelShards returns all model shards for a given ModelProvider`(): Unit = runBlocking {
+    val dataProvider = population.createDataProvider(dataProvidersService)
+    val modelSuite1 = population.createModelSuite(modelProvidersService, modelSuitesService)
+    val modelSuite2 = population.createModelSuite(modelProvidersService, modelSuitesService)
+    val modelRelease1 =
+      population.createModelRelease(
+        modelSuite {
+          externalModelProviderId = modelSuite1.externalModelProviderId
+          externalModelSuiteId = modelSuite1.externalModelSuiteId
+        },
+        modelReleasesService
+      )
+
+    val modelRelease2 =
+      population.createModelRelease(
+        modelSuite {
+          externalModelProviderId = modelSuite2.externalModelProviderId
+          externalModelSuiteId = modelSuite2.externalModelSuiteId
+        },
+        modelReleasesService
+      )
+
+    val modelShardProto1 = modelShard {
+      externalDataProviderId = dataProvider.externalDataProviderId
+      externalModelProviderId = modelSuite1.externalModelProviderId
+      externalModelSuiteId = modelSuite1.externalModelSuiteId
+      externalModelReleaseId = modelRelease1.externalModelReleaseId
+      modelBlobPath = "modelBlobPath"
+    }
+
+    val modelShardProto2 = modelShard {
+      externalDataProviderId = dataProvider.externalDataProviderId
+      externalModelProviderId = modelSuite2.externalModelProviderId
+      externalModelSuiteId = modelSuite2.externalModelSuiteId
+      externalModelReleaseId = modelRelease2.externalModelReleaseId
+      modelBlobPath = "modelBlobPath"
+    }
+
+    val modelShard1 = modelShardsService.createModelShard(modelShardProto1)
+    modelShardsService.createModelShard(modelShardProto2)
+
+    val modelShards: List<ModelShard> =
+      modelShardsService
+        .streamModelShards(
+          streamModelShardsRequest {
+            filter = filter {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              externalModelProviderId = modelSuite1.externalModelProviderId
+            }
+          }
+        )
+        .toList()
+
+    assertThat(modelShards).comparingExpectedFieldsOnly().containsExactly(modelShard1)
   }
 
   @Test

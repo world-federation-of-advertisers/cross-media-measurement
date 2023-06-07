@@ -40,7 +40,8 @@ _duchyPublicApiTarget:   string @tag("duchy_public_api_target")
 	}
 }
 
-objectSets: [ for edp in edp_simulators {edp}]
+objectSets: [ for edp in edp_simulators {[edp.deployment]}] +
+	[ for edp in edp_simulators {edp.networkPolicies}]
 
 _cloudStorageConfig: #CloudStorageConfig & {
 	bucket: _cloudStorageBucket

@@ -1,0 +1,101 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha.event_group_metadata.testing;
+
+import "google/type/date.proto";
+
+option java_package = "org.wfanet.measurement.api.v2alpha.event_group_metadata.testing";
+option java_multiple_files = true;
+
+// The specification of synthetic EventGroups created from a shared synthetic
+// virtual population.
+message SimulatorSyntheticDataSpec {
+  repeated SyntheticEventGroupSpec event_group_spec = 1;
+  SyntheticPopulationSpec population = 2;
+}
+
+// A sequence of VIDs represented with a beginning and exclusive end.
+message VidRange {
+  int64 start = 1;
+  int64 end_exclusive = 2;
+}
+
+// The specification of a synthetic virtual population.
+message SyntheticPopulationSpec {
+  VidRange vid_range = 1;
+
+  // Set of strings that define population data fields such as Age, Gender,
+  // and Social Grade. These should conform to a CEL expression syntax (e.g.
+  // person.age_group). These are assigned at the subpopulation level.
+  repeated string population_fields = 2;
+
+  // Set of strings that define non-population data fields such as Device,
+  // Location, and Duration. These should conform to a CEL expression syntax
+  // (e.g.person.age_group). These are assigned at the impression level in the
+  // FrequencySpec.
+  repeated string non_population_fields = 3;
+
+  message SubPopulation {
+    VidRange vid_sub_range = 1;
+
+    // A map of `population_fields` to their values for each subpopulation.
+    map<string, string> population_fields_values = 2;
+  }
+
+  // Subpopulations should describe non-overlapping VID ranges. The combinations
+  // of population field values should be unique across subpopulations.
+  repeated SubPopulation sub_populations = 4;
+}
+
+// The specification of a synthetic EventGroup which describes all impressions
+// for specific dates.
+message SyntheticEventGroupSpec {
+  string description = 1;
+
+  // The specification of VIDs reached at a specific frequency and their
+  // non-population attributes.
+  message FrequencySpec {
+    int64 frequency = 1;
+
+    // The specification of non_population_values for a VID range.
+    message VidRangeSpec {
+      VidRange vid_range = 1;
+
+      // A map of `non_population_fields` from `SyntheticPopulationSpec` to
+      // their values.
+      map<string, string> non_population_field_values = 2;
+    }
+    // The VID ranges should be non-overlapping sub-ranges of SubPopulations.
+    repeated VidRangeSpec vid_range_specs = 2;
+  }
+
+  // The specification for all frequencies reached for a specific date range.
+  message DateSpec {
+    // A range of `Date`s represented with a beginning and exclusive end.
+    message DateRange {
+      google.type.Date start = 1;
+      google.type.Date end_exclusive = 2;
+    }
+    // Dates the VIDs were reached.
+    DateRange date_range = 1;
+
+    // Each FrequencySpec must have a unique frequency.
+    repeated FrequencySpec frequency_specs = 2;
+  }
+  // `DateSpec`s should describe non-overlapping date ranges.
+  repeated DateSpec date_specs = 2;
+}

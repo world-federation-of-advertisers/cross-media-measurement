@@ -43,7 +43,8 @@ message StreamModelShardsRequest {
   // Filter criteria as a conjunction of specified fields.
   message Filter {
     fixed64 external_data_provider_id = 1;
-    AfterFilter after = 2;
+    fixed64 external_model_provider_id = 2;
+    AfterFilter after = 3;
   }
   Filter filter = 1;
 
@@ -55,4 +56,5 @@ message StreamModelShardsRequest {
 message DeleteModelShardRequest {
   fixed64 external_data_provider_id = 1;
   fixed64 external_model_shard_id = 2;
+  fixed64 external_model_provider_id = 3;
 }
