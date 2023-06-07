@@ -21,7 +21,6 @@ kt_jvm_test(
     test_class = "org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesTest",
     deps = [
         "//imports/java/org/apache/beam:core",
-        "//imports/java/org/apache/beam/extensions:protobuf",
         "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
         "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
@@ -107,7 +106,6 @@ kt_jvm_test(
     test_class = "org.wfanet.panelmatch.client.privatemembership.DecryptQueryResultsTest",
     deps = [
         "//imports/java/org/apache/beam:core",
-        "//imports/java/org/apache/beam/extensions:protobuf",
         "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
         "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
