@@ -22,7 +22,6 @@ import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.nio.file.Path
 import java.nio.file.Paths
-import java.time.Clock
 import java.time.Duration
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.Dispatchers
@@ -204,7 +203,6 @@ class EventGroupsServiceTest {
         EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
         Duration.ofSeconds(5),
         Dispatchers.Default,
-        Clock.systemUTC(),
       )
 
     service =

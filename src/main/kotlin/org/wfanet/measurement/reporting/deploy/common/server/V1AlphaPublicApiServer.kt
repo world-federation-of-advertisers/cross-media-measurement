@@ -19,7 +19,6 @@ import io.grpc.Channel
 import io.grpc.ServerServiceDefinition
 import java.io.File
 import java.security.SecureRandom
-import java.time.Clock
 import kotlinx.coroutines.Dispatchers
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as KingdomCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as KingdomDataProvidersCoroutineStub
@@ -105,7 +104,6 @@ private fun run(
         .withAuthenticationKey(apiKey),
       reportingApiServerFlags.eventGroupMetadataDescriptorCacheDuration,
       Dispatchers.Default,
-      Clock.systemUTC(),
     )
 
   val services: List<ServerServiceDefinition> =

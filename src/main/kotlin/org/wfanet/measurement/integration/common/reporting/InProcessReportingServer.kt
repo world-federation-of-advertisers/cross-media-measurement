@@ -19,7 +19,6 @@ import io.grpc.Channel
 import java.io.File
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
-import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
@@ -124,7 +123,6 @@ class InProcessReportingServer(
           ),
           Duration.ofSeconds(5),
           Dispatchers.Default,
-          Clock.systemUTC(),
         )
 
       listOf(
