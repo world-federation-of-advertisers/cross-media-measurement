@@ -1,0 +1,88 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.panelmatch.client.privatemembership;
+
+import "wfa/panelmatch/client/exchangetasks/join_key.proto";
+
+option java_package = "org.wfanet.panelmatch.client.privatemembership";
+option java_multiple_files = true;
+option java_outer_classname = "QueryProto";
+
+message ShardId {
+  int32 id = 1;
+}
+
+message BucketId {
+  int32 id = 1;
+}
+
+// A new id assigned to each individual query unique to that transaction.
+// These cannot be randomly generated. For 30k QueryIds, the odds of collision
+// in 32 bit space are 1/10.
+message QueryId {
+  int32 id = 1;
+}
+
+// A set of oblivious queries for a single database shard.
+//
+// All of the queries for a specific shard need not fit into a single
+// QueryBundle -- this is just a way of packing multiple queries into multiple
+// ciphertexts to improve efficiency.
+//
+// The buckets within the shard that each query selects are encoded in the
+// serialized_encrypted_queries field.
+message EncryptedQueryBundle {
+  ShardId shard_id = 1;
+  repeated QueryId query_ids = 2;
+
+  // Serialized, encrypted queries.
+  bytes serialized_encrypted_queries = 3;
+}
+
+// Query id of an encrypted query/encrypted query bundle. The id is used
+// to tie it later to its decrypted and plaintext values.
+message QueryIdAndId {
+  QueryId query_id = 1;
+  wfa.panelmatch.client.exchangetasks.JoinKeyIdentifier join_key_identifier = 2;
+}
+
+// Generic message type holding an encrypted query result
+message EncryptedQueryResult {
+  QueryId query_id = 1;
+
+  // Serialized encrypted query results.
+  bytes serialized_encrypted_query_result = 2;
+}
+
+message EncryptedEventData {
+  repeated bytes ciphertexts = 1;
+}
+
+// Generic message type holding a decrypted query result
+message DecryptedQueryResult {
+  QueryId query_id = 1;
+  BucketContents query_result = 2;
+}
+
+// Generic message type holding an unencrypted query result
+message Plaintext {
+  bytes payload = 1;
+}
+
+message BucketContents {
+  repeated bytes items = 1;
+}

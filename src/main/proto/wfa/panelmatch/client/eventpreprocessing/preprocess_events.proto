@@ -1,0 +1,46 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.panelmatch.client;
+
+import "wfa/panelmatch/common/compression/compression.proto";
+
+option java_package = "org.wfanet.panelmatch.client.eventpreprocessing";
+option java_multiple_files = true;
+
+// An Unprocessed Event
+message UnprocessedEvent {
+  bytes id = 1;
+  bytes data = 2;
+}
+
+// Request to preprocess event data
+message PreprocessEventsRequest {
+  repeated UnprocessedEvent unprocessed_events = 1;
+  bytes crypto_key = 2;
+  bytes identifier_hash_pepper = 3;
+  bytes hkdf_pepper = 4;
+  CompressionParameters compression_parameters = 5;
+}
+
+// Response of the PreprocessEvents method
+message PreprocessEventsResponse {
+  repeated ProcessedEvent processed_events = 1;
+  message ProcessedEvent {
+    fixed64 encrypted_id = 1;
+    bytes encrypted_data = 2;
+  }
+}

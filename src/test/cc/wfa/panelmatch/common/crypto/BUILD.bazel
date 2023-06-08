@@ -1,0 +1,132 @@
+load("@rules_cc//cc:defs.bzl", "cc_test")
+
+cc_test(
+    name = "aes_test",
+    timeout = "short",
+    srcs = ["aes_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/panelmatch/common/crypto:aes",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+        "@tink_cc//subtle",
+        "@tink_cc//util:secret_data",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+    ],
+)
+
+cc_test(
+    name = "aes_with_hkdf_test",
+    timeout = "short",
+    srcs = ["aes_with_hkdf_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/panelmatch/common/crypto:aes_with_hkdf",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+    ],
+)
+
+cc_test(
+    name = "deterministic_commutative_cipher_test",
+    timeout = "short",
+    srcs = ["deterministic_commutative_cipher_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/panelmatch/common/crypto:deterministic_commutative_cipher",
+        "//src/main/cc/wfa/panelmatch/common/crypto:ec_commutative_cipher_key_generator",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+        "@com_google_googletest//:gtest_main",
+        "@com_google_private_join_and_compute//private_join_and_compute/crypto:ec_commutative_cipher",
+        "@tink_cc//util:secret_data",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+    ],
+)
+
+cc_test(
+    name = "ec_commutative_cipher_key_generator",
+    timeout = "short",
+    srcs = ["ec_commutative_cipher_key_generator_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/panelmatch/common/crypto:ec_commutative_cipher_key_generator",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest_main",
+        "@com_google_private_join_and_compute//private_join_and_compute/crypto:ec_commutative_cipher",
+        "@tink_cc//util:secret_data",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+    ],
+)
+
+cc_test(
+    name = "hkdf_test",
+    timeout = "short",
+    srcs = ["hkdf_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/panelmatch/common/crypto:hkdf",
+        "@com_google_googletest//:gtest_main",
+        "@tink_cc//util:secret_data",
+        "@tink_cc//util:status",
+        "@tink_cc//util:statusor",
+        "@tink_cc//util:test_util",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:common_matchers",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+    ],
+)
+
+cc_test(
+    name = "key_loader_test",
+    timeout = "short",
+    srcs = ["key_loader_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/panelmatch/common/crypto:key_loader",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+        "@tink_cc//util:secret_data",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+    ],
+)
+
+cc_test(
+    name = "identity_key_loader_test",
+    timeout = "short",
+    srcs = ["identity_key_loader_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/panelmatch/common/crypto:key_loader",
+        "//src/main/cc/wfa/panelmatch/common/crypto:register_identity_key_loader",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+        "@tink_cc//util:secret_data",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+    ],
+)
+
+cc_test(
+    name = "peppered_fingerprinter_test",
+    timeout = "short",
+    srcs = ["peppered_fingerprinter_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/panelmatch/common/crypto:peppered_fingerprinter",
+        "@com_google_googletest//:gtest_main",
+        "@tink_cc//util:secret_data",
+        "@wfa_common_cpp//src/main/cc/common_cpp/fingerprinters",
+    ],
+)
+
+cc_test(
+    name = "random_bytes_key_generator",
+    timeout = "short",
+    srcs = ["random_bytes_key_generator_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/panelmatch/common/crypto:random_bytes_key_generator",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest_main",
+        "@tink_cc//util:secret_data",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+    ],
+)

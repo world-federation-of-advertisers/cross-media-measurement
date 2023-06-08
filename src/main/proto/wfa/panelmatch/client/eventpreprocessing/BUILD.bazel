@@ -1,0 +1,55 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@rules_java//java:defs.bzl", "java_proto_library")
+load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
+load("@rules_cc//cc:defs.bzl", "cc_proto_library")
+
+package(default_visibility = [
+    "//visibility:public",
+])
+
+proto_library(
+    name = "preprocess_events_proto",
+    srcs = ["preprocess_events.proto"],
+    strip_import_prefix = "/src/main/proto",
+    deps = [
+        "//src/main/proto/wfa/panelmatch/common/compression:compression_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "preprocess_events_cc_proto",
+    deps = [":preprocess_events_proto"],
+)
+
+java_proto_library(
+    name = "preprocess_events_java_proto",
+    deps = [":preprocess_events_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "preprocess_events_kt_jvm_proto",
+    srcs = [":preprocess_events_proto"],
+    deps = [":preprocess_events_java_proto"],
+)
+
+proto_library(
+    name = "combined_events_proto",
+    srcs = ["combined_events.proto"],
+    strip_import_prefix = "/src/main/proto",
+)
+
+cc_proto_library(
+    name = "combined_events_cc_proto",
+    deps = [":combined_events_proto"],
+)
+
+java_proto_library(
+    name = "combined_events_java_proto",
+    deps = [":combined_events_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "combined_events_kt_jvm_proto",
+    srcs = [":combined_events_proto"],
+    deps = [":combined_events_java_proto"],
+)

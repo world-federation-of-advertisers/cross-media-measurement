@@ -1,0 +1,145 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+_INCLUDE_PREFIX = "/src/main/cc"
+
+cc_library(
+    name = "aes",
+    srcs = ["aes.cc"],
+    hdrs = ["aes.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@tink_cc//subtle",
+        "@tink_cc//util:secret_data",
+        "@wfa_common_cpp//src/main/cc/common_cpp/macros",
+    ],
+)
+
+cc_library(
+    name = "aes_with_hkdf",
+    srcs = ["aes_with_hkdf.cc"],
+    hdrs = ["aes_with_hkdf.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "//src/main/cc/wfa/panelmatch/common/crypto:aes",
+        "//src/main/cc/wfa/panelmatch/common/crypto:hkdf",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@tink_cc//util:secret_data",
+        "@wfa_common_cpp//src/main/cc/common_cpp/macros",
+    ],
+)
+
+cc_library(
+    name = "deterministic_commutative_cipher",
+    srcs = ["deterministic_commutative_cipher.cc"],
+    hdrs = ["deterministic_commutative_cipher.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/types:span",
+        "@com_google_private_join_and_compute//private_join_and_compute/crypto:ec_commutative_cipher",
+        "@com_google_private_join_and_compute//private_join_and_compute/util:status_includes",
+        "@com_google_protobuf//:protobuf",
+        "@tink_cc//util:secret_data",
+    ],
+)
+
+cc_library(
+    name = "ec_commutative_cipher_key_generator",
+    srcs = ["ec_commutative_cipher_key_generator.cc"],
+    hdrs = ["ec_commutative_cipher_key_generator.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_private_join_and_compute//private_join_and_compute/crypto:ec_commutative_cipher",
+        "@tink_cc//util:secret_data",
+    ],
+)
+
+cc_library(
+    name = "hkdf",
+    srcs = ["hkdf.cc"],
+    hdrs = ["hkdf.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@tink_cc//subtle",
+        "@tink_cc//util:secret_data",
+    ],
+)
+
+cc_library(
+    name = "peppered_fingerprinter",
+    srcs = ["peppered_fingerprinter.cc"],
+    hdrs = ["peppered_fingerprinter.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_github_google_glog//:glog",
+        "@com_google_absl//absl/status",
+        "@tink_cc//util:secret_data",
+        "@wfa_common_cpp//src/main/cc/common_cpp/fingerprinters",
+        "@wfa_common_cpp//src/main/cc/common_cpp/macros",
+    ],
+)
+
+cc_library(
+    name = "random_bytes_key_generator",
+    srcs = ["random_bytes_key_generator.cc"],
+    hdrs = ["random_bytes_key_generator.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@boringssl//:crypto",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@tink_cc//util:secret_data",
+    ],
+)
+
+cc_library(
+    name = "key_loader",
+    srcs = ["key_loader.cc"],
+    hdrs = ["key_loader.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_github_google_glog//:glog",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/synchronization",
+        "@tink_cc//util:secret_data",
+    ],
+)
+
+cc_library(
+    name = "identity_key_loader",
+    srcs = ["identity_key_loader.cc"],
+    hdrs = ["identity_key_loader.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        ":key_loader",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@tink_cc//util:secret_data",
+    ],
+)
+
+cc_library(
+    name = "register_identity_key_loader",
+    srcs = ["register_identity_key_loader.cc"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        ":identity_key_loader",
+    ],
+    alwayslink = True,
+)

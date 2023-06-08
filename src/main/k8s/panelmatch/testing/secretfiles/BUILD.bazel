@@ -1,0 +1,55 @@
+load("@rules_pkg//pkg:pkg.bzl", "pkg_tar")
+load("@bazel_skylib//rules:write_file.bzl", "write_file")
+
+filegroup(
+    name = "root_certs",
+    srcs = glob(["*_root.pem"]),
+)
+
+genrule(
+    name = "gen_trusted_certs",
+    srcs = [":root_certs"],
+    outs = ["trusted_certs.pem"],
+    cmd = "cat $(SRCS) > $@",
+)
+
+SECRET_FILES = [
+    "edp1_tls.key",
+    "edp1_tls.pem",
+    "health_probe_tls.key",
+    "health_probe_tls.pem",
+    "mp1_tls.key",
+    "mp1_tls.pem",
+    "trusted_certs.pem",
+]
+
+filegroup(
+    name = "secret_files",
+    srcs = SECRET_FILES,
+)
+
+write_file(
+    name = "gen_kustomization",
+    out = "kustomization.yaml",
+    content = [
+        "secretGenerator:",
+        "- name: certs-and-configs",
+        "  files:",
+    ] + ["  - " + file for file in SECRET_FILES],
+)
+
+pkg_tar(
+    name = "pkg_secretfiles",
+    srcs = [
+        ":kustomization.yaml",
+        ":secret_files",
+    ],
+    out = "secretfiles.tar",
+)
+
+sh_binary(
+    name = "apply_kustomization",
+    srcs = ["apply_kustomization.sh"],
+    data = [":secretfiles.tar"],
+    deps = ["@bazel_tools//tools/bash/runfiles"],
+)

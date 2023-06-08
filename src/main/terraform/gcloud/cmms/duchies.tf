@@ -106,11 +106,10 @@ module "aggregator_duchy" {
     kubernetes = kubernetes.aggregator
   }
 
-  name                       = "aggregator"
-  database_name              = "aggregator_duchy_computations"
-  spanner_instance           = google_spanner_instance.spanner_instance
-  storage_bucket             = module.storage.storage_bucket
-  monitoring_service_account = module.common.monitoring_service_account
+  name             = "aggregator"
+  database_name    = "aggregator_duchy_computations"
+  spanner_instance = google_spanner_instance.spanner_instance
+  storage_bucket   = module.storage.storage_bucket
 }
 
 module "worker1_duchy" {
@@ -119,11 +118,10 @@ module "worker1_duchy" {
     kubernetes = kubernetes.worker1
   }
 
-  name                       = "worker1"
-  database_name              = "worker1_duchy_computations"
-  spanner_instance           = google_spanner_instance.spanner_instance
-  storage_bucket             = module.storage.storage_bucket
-  monitoring_service_account = module.common.monitoring_service_account
+  name             = "worker1"
+  database_name    = "worker1_duchy_computations"
+  spanner_instance = google_spanner_instance.spanner_instance
+  storage_bucket   = module.storage.storage_bucket
 }
 
 module "worker2_duchy" {
@@ -132,9 +130,8 @@ module "worker2_duchy" {
     kubernetes = kubernetes.worker2
   }
 
-  name                       = "worker2"
-  database_name              = "worker2_duchy_computations"
-  spanner_instance           = google_spanner_instance.spanner_instance
-  storage_bucket             = module.storage.storage_bucket
-  monitoring_service_account = module.common.monitoring_service_account
+  name             = "worker2"
+  database_name    = "worker2_duchy_computations"
+  spanner_instance = google_spanner_instance.spanner_instance
+  storage_bucket   = module.storage.storage_bucket
 }
