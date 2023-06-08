@@ -20,13 +20,11 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any.pack
 import com.google.protobuf.DynamicMessage
 import io.grpc.Status
-import java.time.Clock
 import java.time.Duration
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -72,10 +70,11 @@ private val EVENT_GROUP_METADATA_DESCRIPTOR = eventGroupMetadataDescriptor {
 }
 
 @RunWith(JUnit4::class)
+@OptIn(ExperimentalCoroutinesApi::class) // For `runTest`
 class CelEnvProviderTest {
   private val cmmsEventGroupMetadataDescriptorsServiceMock:
     EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase =
-    mockService {}
+    mockService()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -83,7 +82,6 @@ class CelEnvProviderTest {
   }
 
   @Test
-  @OptIn(ExperimentalCoroutinesApi::class) // For `runTest`
   fun `cache provider retries initial cache sync if exception occurs`() =
     runTest(UnconfinedTestDispatcher()) {
       whenever(
@@ -102,7 +100,6 @@ class CelEnvProviderTest {
           ),
           Duration.ofMinutes(5),
           coroutineContext,
-          Clock.systemUTC(),
           1
         )
         .use {
@@ -147,7 +144,6 @@ class CelEnvProviderTest {
     }
 
   @Test
-  @OptIn(ExperimentalCoroutinesApi::class) // For `runTest`
   fun `cache provider throws EXCEPTION when initial sync fails`() {
     assertFailsWith<Exception> {
       runTest(UnconfinedTestDispatcher()) {
@@ -163,7 +159,6 @@ class CelEnvProviderTest {
             ),
             Duration.ofMinutes(5),
             coroutineContext,
-            Clock.systemUTC(),
             0
           )
 
@@ -174,7 +169,7 @@ class CelEnvProviderTest {
 
   @Test
   fun `cache provider loop runs at least twice`() =
-    runBlocking() {
+    runTest(UnconfinedTestDispatcher()) {
       val testMessage = testParentMetadataMessage { name = "test" }
 
       val eventGroupMetadataDescriptor = eventGroupMetadataDescriptor {
@@ -206,7 +201,6 @@ class CelEnvProviderTest {
           ),
           Duration.ofMillis(500),
           coroutineContext,
-          Clock.systemUTC(),
           0
         )
         .use {
@@ -223,7 +217,8 @@ class CelEnvProviderTest {
           assertThat(filterEventGroups(listOf(eventGroup), filter, typeRegistryAndEnv))
             .containsExactly(eventGroup)
 
-          delay(850)
+          advanceTimeBy(501)
+          it.waitForSync()
 
           verify(cmmsEventGroupMetadataDescriptorsServiceMock, atLeast(2))
             .listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())

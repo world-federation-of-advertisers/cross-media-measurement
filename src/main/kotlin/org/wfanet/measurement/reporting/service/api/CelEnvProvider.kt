@@ -21,7 +21,6 @@ import com.google.protobuf.Descriptors
 import com.google.protobuf.TypeRegistry
 import io.grpc.Status
 import io.grpc.StatusException
-import java.time.Clock
 import java.time.Duration
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -33,7 +32,11 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.retry
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.time.delay
 import org.projectnessie.cel.Env
 import org.projectnessie.cel.EnvOption
 import org.projectnessie.cel.checker.Decls
@@ -43,7 +46,6 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt
 import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.common.ProtoReflection
-import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.reporting.v1alpha.EventGroup
 
 private const val METADATA_FIELD = "metadata.metadata"
@@ -63,35 +65,38 @@ class CelEnvCacheProvider(
     EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub,
   private val cacheRefreshInterval: Duration,
   coroutineContext: CoroutineContext,
-  private val clock: Clock,
   private val numRetriesInitialSync: Long = 3L,
 ) : CelEnvProvider, AutoCloseable {
   private lateinit var typeRegistryAndEnv: CelEnvProvider.TypeRegistryAndEnv
   private val coroutineScope = CoroutineScope(coroutineContext + SupervisorJob())
   private val initialSyncJob: CompletableJob = Job()
+  private val syncMutex = Mutex()
 
   init {
     coroutineScope.launch {
-      MinimumIntervalThrottler(clock, cacheRefreshInterval).loopOnReady {
-        if (initialSyncJob.isActive) {
-          var updateFlow = flow<Unit> { setTypeRegistryAndEnv() }
-          if (numRetriesInitialSync > 0) {
-            updateFlow = updateFlow.retry(numRetriesInitialSync) { e -> e is RetriableException }
-          }
-          try {
-            updateFlow.collect {}
-            initialSyncJob.complete()
-          } catch (e: Exception) {
-            initialSyncJob.completeExceptionally(e)
-            throw (e)
-          }
-        } else {
-          try {
-            setTypeRegistryAndEnv()
-          } catch (e: Exception) {
-            logger.log(Level.WARNING, e) { "Error updating CEL env cache" }
+      while (coroutineContext.isActive) {
+        syncMutex.withLock {
+          if (initialSyncJob.isActive) {
+            var updateFlow = flow<Unit> { setTypeRegistryAndEnv() }
+            if (numRetriesInitialSync > 0) {
+              updateFlow = updateFlow.retry(numRetriesInitialSync) { e -> e is RetriableException }
+            }
+            try {
+              updateFlow.collect {}
+              initialSyncJob.complete()
+            } catch (e: Exception) {
+              initialSyncJob.completeExceptionally(e)
+              throw (e)
+            }
+          } else {
+            try {
+              setTypeRegistryAndEnv()
+            } catch (e: Exception) {
+              logger.log(Level.WARNING, e) { "Error updating CEL env cache" }
+            }
           }
         }
+        delay(cacheRefreshInterval)
       }
     }
   }
@@ -203,6 +208,14 @@ class CelEnvCacheProvider(
         }
       }
       .build()
+  }
+
+  /** Suspends until any in-flight sync operations are complete. */
+  suspend fun waitForSync() {
+    initialSyncJob.join()
+    syncMutex.withLock {
+      // No-op.
+    }
   }
 
   private class RetriableException : Exception()
