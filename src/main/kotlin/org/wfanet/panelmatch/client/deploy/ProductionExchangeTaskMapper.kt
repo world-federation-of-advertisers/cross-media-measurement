@@ -132,9 +132,9 @@ open class ProductionExchangeTaskMapper(
 
     val parameters =
       CreateQueriesParameters(
-        numShards = stepDetails.numShards,
-        numBucketsPerShard = stepDetails.numBucketsPerShard,
-        maxQueriesPerShard = stepDetails.numQueriesPerShard,
+        numShards = stepDetails.shardCount,
+        numBucketsPerShard = stepDetails.bucketsPerShard,
+        maxQueriesPerShard = stepDetails.queriesPerShard,
         padQueries = stepDetails.addPaddingQueries,
       )
     // TODO: remove this functionality v2.0.0
@@ -156,8 +156,8 @@ open class ProductionExchangeTaskMapper(
 
     val parameters =
       EvaluateQueriesParameters(
-        numShards = stepDetails.numShards,
-        numBucketsPerShard = stepDetails.numBucketsPerShard,
+        numShards = stepDetails.shardCount,
+        numBucketsPerShard = stepDetails.bucketsPerShard,
         maxQueriesPerShard = stepDetails.maxQueriesPerShard
       )
 
@@ -336,7 +336,7 @@ open class ProductionExchangeTaskMapper(
   }
 
   override suspend fun ExchangeContext.generateRandomBytes(): ExchangeTask {
-    val numBytes = step.generateRandomBytesStep.numBytes
+    val numBytes = step.generateRandomBytesStep.byteCount
     return ProducerTask("random-bytes") { generateSecureRandomByteString(numBytes) }
   }
 

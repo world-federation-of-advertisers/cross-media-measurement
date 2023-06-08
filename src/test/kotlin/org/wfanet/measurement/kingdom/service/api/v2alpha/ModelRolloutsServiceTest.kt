@@ -157,29 +157,28 @@ private val MODEL_ROLLOUT_2: ModelRollout = modelRollout {
 @RunWith(JUnit4::class)
 class ModelRolloutsServiceTest {
 
-  private val internalModelRolloutsMock: ModelRolloutsCoroutineImplBase =
-    mockService() {
-      onBlocking { createModelRollout(any()) }
-        .thenAnswer {
-          val request = it.getArgument<InternalModelRollout>(0)
-          if (request.externalModelLineId != EXTERNAL_MODEL_LINE_ID) {
-            failGrpc(Status.NOT_FOUND) { "ModelLine not found" }
-          } else {
-            INTERNAL_MODEL_ROLLOUT
-          }
+  private val internalModelRolloutsMock: ModelRolloutsCoroutineImplBase = mockService {
+    onBlocking { createModelRollout(any()) }
+      .thenAnswer {
+        val request = it.getArgument<InternalModelRollout>(0)
+        if (request.externalModelLineId != EXTERNAL_MODEL_LINE_ID) {
+          failGrpc(Status.NOT_FOUND) { "ModelLine not found" }
+        } else {
+          INTERNAL_MODEL_ROLLOUT
         }
-      onBlocking { scheduleModelRolloutFreeze(any()) }
-        .thenReturn(INTERNAL_MODEL_ROLLOUT.copy { rolloutFreezeTime = ROLLOUT_FREEZE_TIME })
-      onBlocking { deleteModelRollout(any()) }.thenReturn(INTERNAL_MODEL_ROLLOUT)
-      onBlocking { streamModelRollouts(any()) }
-        .thenReturn(
-          flowOf(
-            INTERNAL_MODEL_ROLLOUT,
-            INTERNAL_MODEL_ROLLOUT.copy { externalModelRolloutId = EXTERNAL_MODEL_ROLLOUT_ID_2 },
-            INTERNAL_MODEL_ROLLOUT.copy { externalModelRolloutId = EXTERNAL_MODEL_ROLLOUT_ID_3 }
-          )
+      }
+    onBlocking { scheduleModelRolloutFreeze(any()) }
+      .thenReturn(INTERNAL_MODEL_ROLLOUT.copy { rolloutFreezeTime = ROLLOUT_FREEZE_TIME })
+    onBlocking { deleteModelRollout(any()) }.thenReturn(INTERNAL_MODEL_ROLLOUT)
+    onBlocking { streamModelRollouts(any()) }
+      .thenReturn(
+        flowOf(
+          INTERNAL_MODEL_ROLLOUT,
+          INTERNAL_MODEL_ROLLOUT.copy { externalModelRolloutId = EXTERNAL_MODEL_ROLLOUT_ID_2 },
+          INTERNAL_MODEL_ROLLOUT.copy { externalModelRolloutId = EXTERNAL_MODEL_ROLLOUT_ID_3 }
         )
-    }
+      )
+  }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalModelRolloutsMock) }
 
@@ -586,9 +585,9 @@ class ModelRolloutsServiceTest {
       }
 
     val expected = listModelRolloutsResponse {
-      modelRollout += MODEL_ROLLOUT
-      modelRollout += MODEL_ROLLOUT.copy { name = MODEL_ROLLOUT_NAME_2 }
-      modelRollout += MODEL_ROLLOUT.copy { name = MODEL_ROLLOUT_NAME_3 }
+      modelRollouts += MODEL_ROLLOUT
+      modelRollouts += MODEL_ROLLOUT.copy { name = MODEL_ROLLOUT_NAME_2 }
+      modelRollouts += MODEL_ROLLOUT.copy { name = MODEL_ROLLOUT_NAME_3 }
     }
 
     val streamModelRolloutsRequest =
@@ -623,9 +622,9 @@ class ModelRolloutsServiceTest {
       }
 
     val expected = listModelRolloutsResponse {
-      modelRollout += MODEL_ROLLOUT
-      modelRollout += MODEL_ROLLOUT.copy { name = MODEL_ROLLOUT_NAME_2 }
-      modelRollout += MODEL_ROLLOUT.copy { name = MODEL_ROLLOUT_NAME_3 }
+      modelRollouts += MODEL_ROLLOUT
+      modelRollouts += MODEL_ROLLOUT.copy { name = MODEL_ROLLOUT_NAME_2 }
+      modelRollouts += MODEL_ROLLOUT.copy { name = MODEL_ROLLOUT_NAME_3 }
     }
 
     val streamModelRolloutsRequest =
@@ -860,8 +859,8 @@ class ModelRolloutsServiceTest {
       }
 
     val expected = listModelRolloutsResponse {
-      modelRollout += MODEL_ROLLOUT
-      modelRollout += MODEL_ROLLOUT.copy { name = MODEL_ROLLOUT_NAME_2 }
+      modelRollouts += MODEL_ROLLOUT
+      modelRollouts += MODEL_ROLLOUT.copy { name = MODEL_ROLLOUT_NAME_2 }
       val listModelRolloutsPageToken = listModelRolloutsPageToken {
         pageSize = request.pageSize
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID

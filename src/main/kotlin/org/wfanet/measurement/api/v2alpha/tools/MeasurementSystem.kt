@@ -100,7 +100,7 @@ import org.wfanet.measurement.api.v2alpha.publicKey
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.revokeCertificateRequest
-import org.wfanet.measurement.api.v2alpha.setActiveEndTimeRequest
+import org.wfanet.measurement.api.v2alpha.setModelLineActiveEndTimeRequest
 import org.wfanet.measurement.api.v2alpha.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.timeInterval
@@ -948,7 +948,7 @@ class ListMeasurements : Runnable {
           .listMeasurements(listMeasurementsRequest { parent = measurementConsumerName })
       }
 
-    response.measurementList.forEach {
+    response.measurementsList.forEach {
       if (it.state == Measurement.State.FAILED) {
         println(it.name + " FAILED - " + it.failure.reason + ": " + it.failure.message)
       } else {
@@ -1082,7 +1082,7 @@ private class DataProviders {
   ) {
     val request = replaceDataProviderRequiredDuchiesRequest {
       name = dataProviderName
-      requiredExternalDuchies += requiredDuchies
+      this.requiredDuchies += requiredDuchies
     }
     val outputDataProvider =
       runBlocking(parentCommand.rpcDispatcher) {
@@ -1090,7 +1090,7 @@ private class DataProviders {
       }
 
     println(
-      "Data Provider ${outputDataProvider.name} duchy list replaced with ${outputDataProvider.requiredExternalDuchyIdsList}"
+      "Data Provider ${outputDataProvider.name} duchy list replaced with ${outputDataProvider.requiredDuchiesList}"
     )
   }
 }
@@ -1278,12 +1278,12 @@ private class ModelLines {
     )
     modelLineActiveEndTime: Instant,
   ) {
-    val request = setActiveEndTimeRequest {
+    val request = setModelLineActiveEndTimeRequest {
       name = modelLineName
       activeEndTime = modelLineActiveEndTime.toProtoTime()
     }
     val outputModelLine =
-      runBlocking(parentCommand.rpcDispatcher) { modelLineStub.setActiveEndTime(request) }
+      runBlocking(parentCommand.rpcDispatcher) { modelLineStub.setModelLineActiveEndTime(request) }
     printModelLine(outputModelLine)
   }
 
@@ -1324,12 +1324,12 @@ private class ModelLines {
       pageSize = listPageSize
       pageToken = listPageToken
       if (modelLineTypes != null) {
-        filter = filter { type += modelLineTypes }
+        filter = filter { types += modelLineTypes }
       }
     }
     val response =
       runBlocking(parentCommand.rpcDispatcher) { modelLineStub.listModelLines(request) }
-    response.modelLineList.forEach { printModelLine(it) }
+    response.modelLinesList.forEach { printModelLine(it) }
   }
 
   private fun printModelLine(modelLine: ModelLine) {
@@ -1434,7 +1434,7 @@ private class ModelReleases {
     }
     val response =
       runBlocking(parentCommand.rpcDispatcher) { modelReleaseStub.listModelReleases(request) }
-    response.modelReleaseList.forEach { printModelRelease(it) }
+    response.modelReleasesList.forEach { printModelRelease(it) }
   }
 
   private fun printModelRelease(modelRelease: ModelRelease) {
@@ -1539,7 +1539,7 @@ private class ModelSuites {
     }
     val response =
       runBlocking(parentCommand.rpcDispatcher) { modelSuiteStub.listModelSuites(request) }
-    response.modelSuiteList.forEach { printModelSuite(it) }
+    response.modelSuitesList.forEach { printModelSuite(it) }
   }
 
   private fun printModelSuite(modelSuite: ModelSuite) {

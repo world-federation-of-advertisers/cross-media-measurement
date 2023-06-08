@@ -88,10 +88,10 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
         "Resource name unspecified or invalid"
       }
 
-    val requiredDuchyList: List<String> =
-      request.requiredExternalDuchiesList.map { name ->
+    val requiredExternalDuchyIds: List<String> =
+      request.requiredDuchiesList.map { name ->
         val duchyKey =
-          grpcRequireNotNull(DuchyKey.fromName(name)) { "Resource name unspecified or invalid" }
+          grpcRequireNotNull(DuchyKey.fromName(name)) { "required_duchies entry invalid" }
         duchyKey.duchyId
       }
 
@@ -111,7 +111,7 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
         internalClient.replaceDataProviderRequiredDuchies(
           replaceDataProviderRequiredDuchiesRequest {
             externalDataProviderId = apiIdToExternalId(key.dataProviderId)
-            requiredExternalDuchyIds += requiredDuchyList
+            this.requiredExternalDuchyIds += requiredExternalDuchyIds
           }
         )
       } catch (ex: StatusException) {
@@ -140,6 +140,7 @@ private fun InternalDataProvider.toDataProvider(): DataProvider {
       data = internalDataProvider.details.publicKey
       signature = internalDataProvider.details.publicKeySignature
     }
-    requiredExternalDuchyIds += internalDataProvider.requiredExternalDuchyIdsList
+    requiredDuchies +=
+      internalDataProvider.requiredExternalDuchyIdsList.map { DuchyKey(it).toName() }
   }
 }

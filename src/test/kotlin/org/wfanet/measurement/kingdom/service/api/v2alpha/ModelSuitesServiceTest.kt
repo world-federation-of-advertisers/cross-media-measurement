@@ -386,9 +386,9 @@ class ModelSuitesServiceTest {
       }
 
     val expected = listModelSuitesResponse {
-      modelSuite += MODEL_SUITE
-      modelSuite += MODEL_SUITE.copy { name = MODEL_SUITE_NAME_2 }
-      modelSuite += MODEL_SUITE.copy { name = MODEL_SUITE_NAME_3 }
+      modelSuites += MODEL_SUITE
+      modelSuites += MODEL_SUITE.copy { name = MODEL_SUITE_NAME_2 }
+      modelSuites += MODEL_SUITE.copy { name = MODEL_SUITE_NAME_3 }
     }
 
     val streamModelSuitesRequest =
@@ -418,9 +418,9 @@ class ModelSuitesServiceTest {
       }
 
     val expected = listModelSuitesResponse {
-      modelSuite += MODEL_SUITE
-      modelSuite += MODEL_SUITE.copy { name = MODEL_SUITE_NAME_2 }
-      modelSuite += MODEL_SUITE.copy { name = MODEL_SUITE_NAME_3 }
+      modelSuites += MODEL_SUITE
+      modelSuites += MODEL_SUITE.copy { name = MODEL_SUITE_NAME_2 }
+      modelSuites += MODEL_SUITE.copy { name = MODEL_SUITE_NAME_3 }
     }
 
     val streamModelSuitesRequest =
@@ -463,8 +463,8 @@ class ModelSuitesServiceTest {
       }
 
     val expected = listModelSuitesResponse {
-      modelSuite += MODEL_SUITE
-      modelSuite += MODEL_SUITE.copy { name = MODEL_SUITE_NAME_2 }
+      modelSuites += MODEL_SUITE
+      modelSuites += MODEL_SUITE.copy { name = MODEL_SUITE_NAME_2 }
       val listModelSuitesPageToken = listModelSuitesPageToken {
         pageSize = request.pageSize
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID

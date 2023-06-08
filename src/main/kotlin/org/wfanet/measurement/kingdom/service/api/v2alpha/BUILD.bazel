@@ -170,20 +170,6 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "recurring_exchanges_service",
-    srcs = ["RecurringExchangesService.kt"],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common/identity",
-        "//src/main/proto/wfa/measurement/api/v2alpha:recurring_exchange_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:recurring_exchanges_service_kt_jvm_grpc_proto",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
-    ],
-)
-
-kt_jvm_library(
     name = "exchanges_service",
     srcs = ["ExchangesService.kt"],
     deps = [
