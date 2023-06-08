@@ -23,7 +23,6 @@ import io.grpc.Status
 import java.time.Duration
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
@@ -33,7 +32,7 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.KArgumentCaptor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.atLeast
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.projectnessie.cel.common.types.Err
@@ -83,7 +82,7 @@ class CelEnvProviderTest {
 
   @Test
   fun `cache provider retries initial cache sync if exception occurs`() =
-    runTest(UnconfinedTestDispatcher()) {
+    runTest() {
       whenever(
           cmmsEventGroupMetadataDescriptorsServiceMock.listEventGroupMetadataDescriptors(any())
         )
@@ -129,7 +128,7 @@ class CelEnvProviderTest {
         KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> =
         argumentCaptor()
 
-      verify(cmmsEventGroupMetadataDescriptorsServiceMock, atLeast(2))
+      verify(cmmsEventGroupMetadataDescriptorsServiceMock, times(2))
         .listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
 
       eventGroupMetadataDescriptorsCaptor.allValues.forEach {
@@ -146,7 +145,7 @@ class CelEnvProviderTest {
   @Test
   fun `cache provider throws EXCEPTION when initial sync fails`() {
     assertFailsWith<Exception> {
-      runTest(UnconfinedTestDispatcher()) {
+      runTest() {
         whenever(
             cmmsEventGroupMetadataDescriptorsServiceMock.listEventGroupMetadataDescriptors(any())
           )
@@ -169,7 +168,7 @@ class CelEnvProviderTest {
 
   @Test
   fun `cache provider loop runs at least twice`() =
-    runTest(UnconfinedTestDispatcher()) {
+    runTest() {
       val testMessage = testParentMetadataMessage { name = "test" }
 
       val eventGroupMetadataDescriptor = eventGroupMetadataDescriptor {
@@ -220,7 +219,7 @@ class CelEnvProviderTest {
           advanceTimeBy(501)
           it.waitForSync()
 
-          verify(cmmsEventGroupMetadataDescriptorsServiceMock, atLeast(2))
+          verify(cmmsEventGroupMetadataDescriptorsServiceMock, times(2))
             .listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
 
           val typeRegistryAndEnv2 = it.getTypeRegistryAndEnv()
