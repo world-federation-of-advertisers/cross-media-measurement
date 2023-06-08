@@ -98,7 +98,7 @@ class ProtocolCryptor {
   // the certain position of the result string.
   virtual absl::Status BatchProcess(absl::string_view data,
                                     absl::Span<const Action> actions,
-                                    std::string& result, size_t& pos) = 0;
+                                    size_t pos, std::string& result) = 0;
   // Returns true if the result of DecryptLocalElGamal() is zero, i.e., Point at
   // infinity.
   virtual absl::StatusOr<bool> IsDecryptLocalElGamalResultZero(

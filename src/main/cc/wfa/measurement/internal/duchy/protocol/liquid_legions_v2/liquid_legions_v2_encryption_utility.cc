@@ -254,8 +254,8 @@ absl::Status EncryptCompositeElGamalAndAppendToString(
 // Encrypts plaintext and writes bytes of the cipher text to a target string at
 // a certain position.
 // Bytes are written by replacing content of the string starting at pos. The
-// length of bytes written is kBytesPerCipherText = kBytesPerEcPoint * 2 = 66.
-// Throw absl::InvalidArgumentError when the result string is not long enough.
+// length of bytes written is kBytesPerCipherText = kBytesPerEcPoint * 2.
+// Returns error InvalidArgument when the result string is not long enough.
 absl::Status EncryptCompositeElGamalAndWriteToString(
     ProtocolCryptor& protocol_cryptor, CompositeType composite_type,
     absl::string_view plaintext_ec, size_t pos, std::string& result) {
@@ -896,8 +896,8 @@ absl::StatusOr<CompleteExecutionPhaseOneResponse> CompleteExecutionPhaseOne(
 
     RETURN_IF_ERROR(cryptor.BatchProcess(
         current_block,
-        {Action::kBlind, Action::kReRandomize, Action::kReRandomize},
-        *response_crv, pos));
+        {Action::kBlind, Action::kReRandomize, Action::kReRandomize}, pos,
+        *response_crv));
 
     return absl::OkStatus();
   };
@@ -1018,7 +1018,7 @@ absl::StatusOr<CompleteExecutionPhaseTwoResponse> CompleteExecutionPhaseTwo(
         {Action::kPartialDecryptAndReRandomize,
          Action::kPartialDecryptAndReRandomize,
          Action::kPartialDecryptAndReRandomize, Action::kReRandomize},
-        *response_data, pos));
+        pos, *response_data));
 
     return absl::OkStatus();
   };
@@ -1189,9 +1189,9 @@ absl::StatusOr<CompleteExecutionPhaseThreeResponse> CompleteExecutionPhaseThree(
             .substr(index * kBytesPerCipherText, kBytesPerCipherText);
 
     size_t pos = start_pos + index * kBytesPerCipherText;
-    RETURN_IF_ERROR(cryptor.BatchProcess(
-        current_block, {Action::kPartialDecrypt},
-        *response.mutable_same_key_aggregator_matrix(), pos));
+    RETURN_IF_ERROR(
+        cryptor.BatchProcess(current_block, {Action::kPartialDecrypt}, pos,
+                             *response.mutable_same_key_aggregator_matrix()));
 
     return absl::OkStatus();
   };

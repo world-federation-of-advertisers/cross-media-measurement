@@ -77,8 +77,8 @@ class ProtocolCryptorImpl : public ProtocolCryptor {
       const ElGamalCiphertext& cipher_text) override;
   std::string GetLocalPohligHellmanKey() override;
   absl::Status BatchProcess(absl::string_view data,
-                            absl::Span<const Action> actions,
-                            std::string& result, size_t& pos) override;
+                            absl::Span<const Action> actions, size_t pos,
+                            std::string& result) override;
   absl::StatusOr<bool> IsDecryptLocalElGamalResultZero(
       const ElGamalCiphertext& ciphertext) override;
   BigNum NextRandomBigNum() override;
@@ -223,8 +223,8 @@ std::string ProtocolCryptorImpl::GetLocalPohligHellmanKey() {
 
 absl::Status ProtocolCryptorImpl::BatchProcess(absl::string_view data,
                                                absl::Span<const Action> actions,
-                                               std::string& result,
-                                               size_t& pos) {
+                                               size_t pos,
+                                               std::string& result) {
   size_t num_of_ciphertext = actions.size();
   if (data.size() != num_of_ciphertext * kBytesPerCipherText) {
     return absl::InvalidArgumentError(
