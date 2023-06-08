@@ -74,7 +74,7 @@ class CelEnvCacheProvider(
 
   init {
     coroutineScope.launch {
-      while (coroutineContext.isActive) {
+      while (this.coroutineContext.isActive) {
         syncMutex.withLock {
           if (initialSyncJob.isActive) {
             var updateFlow = flow<Unit> { setTypeRegistryAndEnv() }
