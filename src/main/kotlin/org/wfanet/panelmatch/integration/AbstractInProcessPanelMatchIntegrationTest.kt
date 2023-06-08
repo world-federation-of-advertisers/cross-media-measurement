@@ -43,7 +43,6 @@ import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCorou
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ExchangesGrpcKt.ExchangesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepsRequestKt.filter
-import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
@@ -183,11 +182,7 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
   }
 
   private suspend fun isDone(): Boolean {
-    val modelProviderId = requireNotNull(exchangeKey.modelProviderId)
-    val request = getExchangeRequest {
-      name = exchangeKey.toName()
-      modelProvider = ModelProviderKey(modelProviderId).toName()
-    }
+    val request = getExchangeRequest { name = exchangeKey.toName() }
 
     return try {
       val exchange = exchangesClient.getExchange(request)
@@ -275,12 +270,7 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
     exchangeStepsClient = makeExchangeStepsServiceClient(keys.modelProviderKey.toName())
     recurringExchangeId = keys.recurringExchangeKey.recurringExchangeId
     exchangeKey =
-      ExchangeKey(
-        null,
-        keys.modelProviderKey.modelProviderId,
-        recurringExchangeId = recurringExchangeId,
-        exchangeId = EXCHANGE_DATE.toString()
-      )
+      ExchangeKey(recurringExchangeId = recurringExchangeId, exchangeId = EXCHANGE_DATE.toString())
     dataProviderContext =
       ProviderContext(
         keys.dataProviderKey,
