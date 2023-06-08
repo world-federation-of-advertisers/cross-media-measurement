@@ -81,7 +81,11 @@ private fun run(
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
   val kingdomChannel: Channel =
-    buildMutualTlsChannel(kingdomApiFlags.target, clientCerts, kingdomApiFlags.target)
+    buildMutualTlsChannel(
+      target = kingdomApiFlags.target,
+      clientCerts = clientCerts,
+      hostName = kingdomApiFlags.certHost
+    )
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
   val principalLookup: PrincipalLookup<ReportingPrincipal, ByteString> =
