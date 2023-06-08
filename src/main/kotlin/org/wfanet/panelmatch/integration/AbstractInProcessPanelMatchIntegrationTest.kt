@@ -158,7 +158,7 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
           filter = filter { exchangeDates += EXCHANGE_DATE.toProtoDate() }
         }
       )
-      .exchangeStepList
+      .exchangeStepsList
       .sortedBy { step -> step.stepIndex }
   }
 

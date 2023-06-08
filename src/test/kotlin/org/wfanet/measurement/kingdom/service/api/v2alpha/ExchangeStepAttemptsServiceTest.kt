@@ -30,7 +30,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
-import org.wfanet.measurement.api.v2alpha.AppendLogEntryRequest
+import org.wfanet.measurement.api.v2alpha.AppendExchangeStepAttemptLogEntryRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
@@ -110,11 +110,11 @@ private val EXCHANGE_STEP_ATTEMPT: ExchangeStepAttempt =
       startTime = INTERNAL_EXCHANGE_STEP_ATTEMPT.details.startTime
       updateTime = INTERNAL_EXCHANGE_STEP_ATTEMPT.details.updateTime
       addDebugLogEntriesBuilder().apply {
-        time = DEBUG_LOG_1_TIME
+        entryTime = DEBUG_LOG_1_TIME
         message = DEBUG_LOG_1_MESSAGE
       }
       addDebugLogEntriesBuilder().apply {
-        time = DEBUG_LOG_2_TIME
+        entryTime = DEBUG_LOG_2_TIME
         message = DEBUG_LOG_2_MESSAGE
       }
     }
@@ -145,14 +145,15 @@ class ExchangeStepAttemptsServiceTest {
   @Test
   fun appendLogEntry() {
     val request =
-      AppendLogEntryRequest.newBuilder()
+      AppendExchangeStepAttemptLogEntryRequest.newBuilder()
         .apply {
           name = EXCHANGE_STEP_ATTEMPT.name
           addAllLogEntries(EXCHANGE_STEP_ATTEMPT.debugLogEntriesList)
         }
         .build()
 
-    assertThat(runBlocking { service.appendLogEntry(request) }).isEqualTo(EXCHANGE_STEP_ATTEMPT)
+    assertThat(runBlocking { service.appendExchangeStepAttemptLogEntry(request) })
+      .isEqualTo(EXCHANGE_STEP_ATTEMPT)
 
     verifyProtoArgument(internalExchangeStepAttempts, InternalExchangeStepAttempts::appendLogEntry)
       .isEqualTo(

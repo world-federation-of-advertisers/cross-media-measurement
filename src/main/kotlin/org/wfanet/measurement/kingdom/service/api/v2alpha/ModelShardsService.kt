@@ -175,7 +175,7 @@ class ModelShardsService(private val internalClient: ModelShardsCoroutineStub) :
     }
 
     return listModelShardsResponse {
-      modelShard +=
+      modelShards +=
         results.subList(0, min(results.size, listModelShardsPageToken.pageSize)).map {
           internalModelShard ->
           internalModelShard.toModelShard()

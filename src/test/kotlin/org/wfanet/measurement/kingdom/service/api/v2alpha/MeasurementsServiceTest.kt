@@ -1205,9 +1205,9 @@ class MeasurementsServiceTest {
       }
 
     val expected = listMeasurementsResponse {
-      measurement += MEASUREMENT.copy { name = MEASUREMENT_NAME }
-      measurement += MEASUREMENT.copy { name = MEASUREMENT_NAME_2 }
-      measurement += MEASUREMENT.copy { name = MEASUREMENT_NAME_3 }
+      measurements += MEASUREMENT.copy { name = MEASUREMENT_NAME }
+      measurements += MEASUREMENT.copy { name = MEASUREMENT_NAME_2 }
+      measurements += MEASUREMENT.copy { name = MEASUREMENT_NAME_3 }
     }
 
     val streamMeasurementsRequest =
@@ -1270,8 +1270,8 @@ class MeasurementsServiceTest {
       }
 
     val expected = listMeasurementsResponse {
-      measurement += MEASUREMENT.copy { name = MEASUREMENT_NAME }
-      measurement += MEASUREMENT.copy { name = MEASUREMENT_NAME_2 }
+      measurements += MEASUREMENT.copy { name = MEASUREMENT_NAME }
+      measurements += MEASUREMENT.copy { name = MEASUREMENT_NAME_2 }
       val listMeasurementsPageToken = listMeasurementsPageToken {
         this.pageSize = pageSize
         externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID

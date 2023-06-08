@@ -163,7 +163,7 @@ class ModelSuitesService(private val internalClient: ModelSuitesCoroutineStub) :
     }
 
     return listModelSuitesResponse {
-      modelSuite +=
+      modelSuites +=
         results.subList(0, min(results.size, listModelSuitesPageToken.pageSize)).map {
           internalModelSuite ->
           internalModelSuite.toModelSuite()

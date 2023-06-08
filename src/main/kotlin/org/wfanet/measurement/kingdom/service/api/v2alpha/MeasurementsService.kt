@@ -213,7 +213,7 @@ class MeasurementsService(
     }
 
     return listMeasurementsResponse {
-      measurement +=
+      measurements +=
         results.subList(0, min(results.size, listMeasurementsPageToken.pageSize)).map {
           internalMeasurement ->
           internalMeasurement.toMeasurement()

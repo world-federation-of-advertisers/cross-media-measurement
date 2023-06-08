@@ -46,7 +46,7 @@ import org.wfanet.measurement.api.v2alpha.listModelLinesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.listModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.modelLine
-import org.wfanet.measurement.api.v2alpha.setActiveEndTimeRequest
+import org.wfanet.measurement.api.v2alpha.setModelLineActiveEndTimeRequest
 import org.wfanet.measurement.api.v2alpha.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withDuchyPrincipal
@@ -325,15 +325,15 @@ class ModelLinesServiceTest {
   }
 
   @Test
-  fun `setActiveEndTime returns model line with active end time`() {
-    val request = setActiveEndTimeRequest {
+  fun `setModelLineActiveEndTime returns model line with active end time`() {
+    val request = setModelLineActiveEndTimeRequest {
       name = MODEL_LINE_NAME
       activeEndTime = ACTIVE_END_TIME
     }
 
     val result =
       withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
-        runBlocking { service.setActiveEndTime(request) }
+        runBlocking { service.setModelLineActiveEndTime(request) }
       }
 
     val expected = MODEL_LINE.copy { activeEndTime = ACTIVE_END_TIME }
@@ -352,12 +352,14 @@ class ModelLinesServiceTest {
   }
 
   @Test
-  fun `setActiveEndTime throws INVALID_ARGUMENT when name is missing`() {
+  fun `setModelLineActiveEndTime throws INVALID_ARGUMENT when name is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
           runBlocking {
-            service.setActiveEndTime(setActiveEndTimeRequest { activeEndTime = ACTIVE_END_TIME })
+            service.setModelLineActiveEndTime(
+              setModelLineActiveEndTimeRequest { activeEndTime = ACTIVE_END_TIME }
+            )
           }
         }
       }
@@ -365,20 +367,22 @@ class ModelLinesServiceTest {
   }
 
   @Test
-  fun `setActiveEndTime throws UNAUTHENTICATED when no principal is found`() {
-    val request = setActiveEndTimeRequest {
+  fun `setModelLineActiveEndTime throws UNAUTHENTICATED when no principal is found`() {
+    val request = setModelLineActiveEndTimeRequest {
       name = MODEL_LINE_NAME
       activeEndTime = ACTIVE_END_TIME
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> { runBlocking { service.setActiveEndTime(request) } }
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking { service.setModelLineActiveEndTime(request) }
+      }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
   @Test
-  fun `setActiveEndTime throws PERMISSION_DENIED when principal is data provider`() {
-    val request = setActiveEndTimeRequest {
+  fun `setModelLineActiveEndTime throws PERMISSION_DENIED when principal is data provider`() {
+    val request = setModelLineActiveEndTimeRequest {
       name = MODEL_LINE_NAME
       activeEndTime = ACTIVE_END_TIME
     }
@@ -386,29 +390,31 @@ class ModelLinesServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-          runBlocking { service.setActiveEndTime(request) }
+          runBlocking { service.setModelLineActiveEndTime(request) }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
-  fun `setActiveEndTime throws PERMISSION_DENIED when principal is duchy`() {
-    val request = setActiveEndTimeRequest {
+  fun `setModelLineActiveEndTime throws PERMISSION_DENIED when principal is duchy`() {
+    val request = setModelLineActiveEndTimeRequest {
       name = MODEL_LINE_NAME
       activeEndTime = ACTIVE_END_TIME
     }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withDuchyPrincipal(DUCHY_NAME) { runBlocking { service.setActiveEndTime(request) } }
+        withDuchyPrincipal(DUCHY_NAME) {
+          runBlocking { service.setModelLineActiveEndTime(request) }
+        }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
-  fun `setActiveEndTime throws PERMISSION_DENIED when principal is measurement consumer`() {
-    val request = setActiveEndTimeRequest {
+  fun `setModelLineActiveEndTime throws PERMISSION_DENIED when principal is measurement consumer`() {
+    val request = setModelLineActiveEndTimeRequest {
       name = MODEL_LINE_NAME
       activeEndTime = ACTIVE_END_TIME
     }
@@ -416,15 +422,15 @@ class ModelLinesServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking { service.setActiveEndTime(request) }
+          runBlocking { service.setModelLineActiveEndTime(request) }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
-  fun `setActiveEndTime throws PERMISSION_DENIED when model provider caller doesn't match`() {
-    val request = setActiveEndTimeRequest {
+  fun `setModelLineActiveEndTime throws PERMISSION_DENIED when model provider caller doesn't match`() {
+    val request = setModelLineActiveEndTimeRequest {
       name = MODEL_LINE_NAME
       activeEndTime = ACTIVE_END_TIME
     }
@@ -432,7 +438,7 @@ class ModelLinesServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withModelProviderPrincipal(MODEL_PROVIDER_NAME_2) {
-          runBlocking { service.setActiveEndTime(request) }
+          runBlocking { service.setModelLineActiveEndTime(request) }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
@@ -583,9 +589,9 @@ class ModelLinesServiceTest {
     val request = listModelLinesRequest {
       parent = MODEL_SUITE_NAME
       filter = filter {
-        type += Type.PROD
-        type += Type.DEV
-        type += Type.HOLDBACK
+        types += Type.PROD
+        types += Type.DEV
+        types += Type.HOLDBACK
       }
     }
 
@@ -595,13 +601,13 @@ class ModelLinesServiceTest {
       }
 
     val expected = listModelLinesResponse {
-      modelLine += MODEL_LINE.copy { type = Type.PROD }
-      modelLine +=
+      modelLines += MODEL_LINE.copy { type = Type.PROD }
+      modelLines +=
         MODEL_LINE.copy {
           name = MODEL_LINE_NAME_2
           type = Type.DEV
         }
-      modelLine +=
+      modelLines +=
         MODEL_LINE.copy {
           name = MODEL_LINE_NAME_3
           type = Type.HOLDBACK
@@ -634,9 +640,9 @@ class ModelLinesServiceTest {
     val request = listModelLinesRequest {
       parent = MODEL_SUITE_NAME
       filter = filter {
-        type += Type.PROD
-        type += Type.DEV
-        type += Type.HOLDBACK
+        types += Type.PROD
+        types += Type.DEV
+        types += Type.HOLDBACK
       }
     }
 
@@ -646,13 +652,13 @@ class ModelLinesServiceTest {
       }
 
     val expected = listModelLinesResponse {
-      modelLine += MODEL_LINE.copy { type = Type.PROD }
-      modelLine +=
+      modelLines += MODEL_LINE.copy { type = Type.PROD }
+      modelLines +=
         MODEL_LINE.copy {
           name = MODEL_LINE_NAME_2
           type = Type.DEV
         }
-      modelLine +=
+      modelLines +=
         MODEL_LINE.copy {
           name = MODEL_LINE_NAME_3
           type = Type.HOLDBACK
@@ -787,9 +793,9 @@ class ModelLinesServiceTest {
       parent = MODEL_SUITE_NAME
       pageSize = 2
       filter = filter {
-        type += Type.PROD
-        type += Type.DEV
-        type += Type.HOLDBACK
+        types += Type.PROD
+        types += Type.DEV
+        types += Type.HOLDBACK
       }
       val listModelLinesPageToken = listModelLinesPageToken {
         pageSize = 2
@@ -814,8 +820,8 @@ class ModelLinesServiceTest {
       }
 
     val expected = listModelLinesResponse {
-      modelLine += MODEL_LINE.copy { type = Type.PROD }
-      modelLine +=
+      modelLines += MODEL_LINE.copy { type = Type.PROD }
+      modelLines +=
         MODEL_LINE.copy {
           name = MODEL_LINE_NAME_2
           type = Type.DEV
@@ -870,9 +876,9 @@ class ModelLinesServiceTest {
       parent = MODEL_SUITE_NAME
       pageSize = 4
       filter = filter {
-        type += Type.PROD
-        type += Type.DEV
-        type += Type.HOLDBACK
+        types += Type.PROD
+        types += Type.DEV
+        types += Type.HOLDBACK
       }
       val listModelLinesPageToken = listModelLinesPageToken {
         pageSize = 2
@@ -925,9 +931,9 @@ class ModelLinesServiceTest {
     val request = listModelLinesRequest {
       parent = MODEL_SUITE_NAME
       filter = filter {
-        type += Type.PROD
-        type += Type.DEV
-        type += Type.HOLDBACK
+        types += Type.PROD
+        types += Type.DEV
+        types += Type.HOLDBACK
       }
       val listModelLinesPageToken = listModelLinesPageToken {
         pageSize = 2
