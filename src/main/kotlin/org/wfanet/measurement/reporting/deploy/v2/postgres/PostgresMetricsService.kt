@@ -42,6 +42,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsResponse
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MetricReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateMetrics
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.reporting.service.internal.MetricNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
 private const val MAX_BATCH_SIZE = 1000
@@ -131,14 +132,16 @@ class PostgresMetricsService(
           .map { it.metric }
           .withSerializableErrorRetries()
           .toList()
+      } catch (e: MetricNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Metric not found")
       } catch (e: IllegalStateException) {
-        failGrpc(Status.NOT_FOUND) { "Metric is not found" }
+        failGrpc(Status.NOT_FOUND) { "Metric not found" }
       } finally {
         readContext.close()
       }
 
     if (metrics.size < request.externalMetricIdsList.size) {
-      failGrpc(Status.NOT_FOUND) { "Metric is not found" }
+      failGrpc(Status.NOT_FOUND) { "Metric not found" }
     }
 
     return batchGetMetricsResponse { this.metrics += metrics }
@@ -158,8 +161,6 @@ class PostgresMetricsService(
             .map { it.metric }
             .withSerializableErrorRetries()
         )
-      } catch (e: IllegalStateException) {
-        failGrpc(Status.NOT_FOUND) { "Metric is not found" }
       } finally {
         readContext.close()
       }

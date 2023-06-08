@@ -49,4 +49,7 @@ enum ErrorCode {
 
   /** Measurement Consumer with the provided reference ID already exists. */
   MEASUREMENT_CONSUMER_ALREADY_EXISTS = 9;
+
+  /** Metric with the provided IDs does not exist. */
+  METRIC_NOT_FOUND = 10;
 }
