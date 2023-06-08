@@ -172,7 +172,7 @@ class ModelOutagesService(
     }
 
     return listModelOutagesResponse {
-      modelOutage +=
+      modelOutages +=
         results.subList(0, min(results.size, listModelOutagesPageToken.pageSize)).map {
           internalModelOutage ->
           internalModelOutage.toModelOutage()
@@ -221,13 +221,15 @@ class ModelOutagesService(
         if (this.hasOutageInterval()) {
           grpcRequire(
             source.hasFilter() &&
-              source.filter.hasTimeInterval() &&
+              source.filter.hasOutageIntervalOverlapping() &&
               Timestamps.compare(
-                source.filter.timeInterval.startTime,
+                source.filter.outageIntervalOverlapping.startTime,
                 this.outageInterval.startTime
               ) == 0 &&
-              Timestamps.compare(source.filter.timeInterval.endTime, this.outageInterval.endTime) ==
-                0
+              Timestamps.compare(
+                source.filter.outageIntervalOverlapping.endTime,
+                this.outageInterval.endTime
+              ) == 0
           ) {
             "Arguments must be kept the same when using a page token"
           }
@@ -251,8 +253,8 @@ class ModelOutagesService(
         this.externalModelProviderId = externalModelProviderId
         this.externalModelSuiteId = externalModelSuiteId
         this.externalModelLineId = externalModelLineId
-        if (source.hasFilter() && source.filter.hasTimeInterval()) {
-          this.outageInterval = source.filter.timeInterval
+        if (source.hasFilter() && source.filter.hasOutageIntervalOverlapping()) {
+          this.outageInterval = source.filter.outageIntervalOverlapping
         }
         this.showDeleted = source.showDeleted
       }

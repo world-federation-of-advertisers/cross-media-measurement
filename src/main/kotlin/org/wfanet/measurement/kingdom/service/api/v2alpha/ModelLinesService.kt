@@ -32,7 +32,7 @@ import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineImplBase as ModelLinesCoroutineService
 import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
-import org.wfanet.measurement.api.v2alpha.SetActiveEndTimeRequest
+import org.wfanet.measurement.api.v2alpha.SetModelLineActiveEndTimeRequest
 import org.wfanet.measurement.api.v2alpha.SetModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.listModelLinesPageToken
@@ -49,7 +49,7 @@ import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCorout
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.filter
-import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest
+import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalSetActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest
 
@@ -91,7 +91,9 @@ class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
     }
   }
 
-  override suspend fun setActiveEndTime(request: SetActiveEndTimeRequest): ModelLine {
+  override suspend fun setModelLineActiveEndTime(
+    request: SetModelLineActiveEndTimeRequest
+  ): ModelLine {
     val key =
       grpcRequireNotNull(ModelLineKey.fromName(request.name)) {
         "Resource name is either unspecified or invalid"
@@ -108,7 +110,7 @@ class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
       }
     }
 
-    val internalSetActiveEndTimeRequest = setActiveEndTimeRequest {
+    val internalRequest = internalSetActiveEndTimeRequest {
       externalModelLineId = apiIdToExternalId(key.modelLineId)
       externalModelSuiteId = apiIdToExternalId(key.modelSuiteId)
       externalModelProviderId = apiIdToExternalId(key.modelProviderId)
@@ -116,7 +118,7 @@ class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
     }
 
     try {
-      return internalClient.setActiveEndTime(internalSetActiveEndTimeRequest).toModelLine()
+      return internalClient.setActiveEndTime(internalRequest).toModelLine()
     } catch (ex: StatusException) {
       when (ex.status.code) {
         Status.Code.NOT_FOUND ->
@@ -204,7 +206,7 @@ class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
     }
 
     return listModelLinesResponse {
-      modelLine +=
+      modelLines +=
         results.subList(0, min(results.size, listModelLinesPageToken.pageSize)).map {
           internalModelLine ->
           internalModelLine.toModelLine()
@@ -260,7 +262,7 @@ class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
           }
         this.externalModelProviderId = externalModelProviderId
         this.externalModelSuiteId = externalModelSuiteId
-        this.types += source.filter.typeList
+        this.types += source.filter.typesList
       }
     }
   }

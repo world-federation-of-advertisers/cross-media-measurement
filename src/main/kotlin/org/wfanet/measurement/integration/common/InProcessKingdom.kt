@@ -55,7 +55,6 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementConsumersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.PublicKeysService
-import org.wfanet.measurement.kingdom.service.api.v2alpha.RecurringExchangesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withAccountAuthenticationServerInterceptor
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withApiKeyAuthenticationServerInterceptor
@@ -166,7 +165,6 @@ class InProcessKingdom(
             .withMetadataPrincipalIdentities()
             .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri)
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-          RecurringExchangesService().withMetadataPrincipalIdentities(),
           ExchangesService(internalRecurringExchangesClient, internalExchangesClient)
             .withMetadataPrincipalIdentities(),
           ExchangeStepsService(internalExchangeStepsClient).withMetadataPrincipalIdentities(),

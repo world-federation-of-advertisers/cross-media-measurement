@@ -31,13 +31,13 @@ import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
-import org.wfanet.measurement.api.v2alpha.AppendLogEntryRequest
+import org.wfanet.measurement.api.v2alpha.AppendExchangeStepAttemptLogEntryRequest
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKt.debugLog
+import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKt.debugLogEntry
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeStepKey
@@ -46,7 +46,7 @@ import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCorou
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party
 import org.wfanet.measurement.api.v2alpha.FinishExchangeStepAttemptRequest
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
-import org.wfanet.measurement.api.v2alpha.appendLogEntryRequest
+import org.wfanet.measurement.api.v2alpha.appendExchangeStepAttemptLogEntryRequest
 import org.wfanet.measurement.api.v2alpha.claimReadyExchangeStepRequest
 import org.wfanet.measurement.api.v2alpha.claimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.exchangeStep
@@ -116,9 +116,9 @@ class GrpcApiClientTest {
     return GrpcApiClient(identity, exchangeStepsStub, exchangeStepAttemptsStub, clock)
   }
 
-  private fun makeLogEntry(message: String): ExchangeStepAttempt.DebugLog {
-    return debugLog {
-      time = clock.instant().toProtoTime()
+  private fun makeLogEntry(message: String): ExchangeStepAttempt.DebugLogEntry {
+    return debugLogEntry {
+      entryTime = clock.instant().toProtoTime()
       this.message = message
     }
   }
@@ -193,19 +193,21 @@ class GrpcApiClientTest {
   @Test
   fun appendLogEntry() {
     exchangeStepsAttemptsServiceMock.stub {
-      onBlocking { appendLogEntry(any()) }.thenReturn(exchangeStepAttempt {})
+      onBlocking { appendExchangeStepAttemptLogEntry(any()) }.thenReturn(exchangeStepAttempt {})
     }
 
     runBlocking {
       makeClient().appendLogEntry(EXCHANGE_STEP_ATTEMPT_KEY, listOf("message-1", "message-2"))
     }
 
-    argumentCaptor<AppendLogEntryRequest> {
-      verifyBlocking(exchangeStepsAttemptsServiceMock) { appendLogEntry(capture()) }
+    argumentCaptor<AppendExchangeStepAttemptLogEntryRequest> {
+      verifyBlocking(exchangeStepsAttemptsServiceMock) {
+        appendExchangeStepAttemptLogEntry(capture())
+      }
       assertThat(firstValue)
         .ignoringRepeatedFieldOrder()
         .isEqualTo(
-          appendLogEntryRequest {
+          appendExchangeStepAttemptLogEntryRequest {
             name = EXCHANGE_STEP_ATTEMPT_KEY.toName()
             logEntries += makeLogEntry("message-1")
             logEntries += makeLogEntry("message-2")

@@ -480,16 +480,6 @@ kt_jvm_proto_library(
     deps = [":recurring_exchange_java_proto"],
 )
 
-alias(
-    name = "recurring_exchanges_service_proto",
-    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:recurring_exchanges_service_proto",
-)
-
-kt_jvm_grpc_proto_library(
-    name = "recurring_exchanges_service_kt_jvm_grpc_proto",
-    srcs = [":recurring_exchanges_service_proto"],
-)
-
 java_proto_library(
     name = "requisition_java_proto",
     deps = [

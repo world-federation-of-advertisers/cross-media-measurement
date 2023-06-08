@@ -18,12 +18,12 @@ import java.time.Clock
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKt.debugLog
+import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKt.debugLogEntry
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
-import org.wfanet.measurement.api.v2alpha.appendLogEntryRequest
+import org.wfanet.measurement.api.v2alpha.appendExchangeStepAttemptLogEntryRequest
 import org.wfanet.measurement.api.v2alpha.claimReadyExchangeStepRequest
 import org.wfanet.measurement.api.v2alpha.finishExchangeStepAttemptRequest
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -56,13 +56,13 @@ class GrpcApiClient(
   }
 
   override suspend fun appendLogEntry(key: ExchangeStepAttemptKey, messages: Iterable<String>) {
-    val request = appendLogEntryRequest {
+    val request = appendExchangeStepAttemptLogEntryRequest {
       name = key.toName()
       for (message in messages) {
         logEntries += makeLogEntry(message)
       }
     }
-    exchangeStepAttemptsClient.appendLogEntry(request)
+    exchangeStepAttemptsClient.appendExchangeStepAttemptLogEntry(request)
   }
 
   override suspend fun finishExchangeStepAttempt(
@@ -80,9 +80,9 @@ class GrpcApiClient(
     exchangeStepAttemptsClient.finishExchangeStepAttempt(request)
   }
 
-  private fun makeLogEntry(message: String): ExchangeStepAttempt.DebugLog {
-    return debugLog {
-      time = clock.instant().toProtoTime()
+  private fun makeLogEntry(message: String): ExchangeStepAttempt.DebugLogEntry {
+    return debugLogEntry {
+      entryTime = clock.instant().toProtoTime()
       this.message = message
     }
   }
