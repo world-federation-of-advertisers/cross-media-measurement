@@ -20,9 +20,11 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any.pack
 import com.google.protobuf.DynamicMessage
 import io.grpc.Status
+import io.grpc.StatusException
 import java.time.Duration
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
@@ -32,12 +34,14 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.KArgumentCaptor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
-import org.mockito.kotlin.whenever
+import org.mockito.kotlin.verifyBlocking
 import org.projectnessie.cel.common.types.Err
 import org.projectnessie.cel.common.types.ref.Val
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ListEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessageKt
@@ -49,6 +53,7 @@ import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsRespo
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.reporting.v1alpha.EventGroup
 import org.wfanet.measurement.reporting.v1alpha.EventGroupKt
 import org.wfanet.measurement.reporting.v1alpha.eventGroup
@@ -72,7 +77,7 @@ private val EVENT_GROUP_METADATA_DESCRIPTOR = eventGroupMetadataDescriptor {
 @OptIn(ExperimentalCoroutinesApi::class) // For `runTest`
 class CelEnvProviderTest {
   private val cmmsEventGroupMetadataDescriptorsServiceMock:
-    EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase =
+    EventGroupMetadataDescriptorsCoroutineImplBase =
     mockService()
 
   @get:Rule
@@ -81,18 +86,53 @@ class CelEnvProviderTest {
   }
 
   @Test
-  fun `cache provider retries initial cache sync if exception occurs`() =
-    runTest() {
-      whenever(
-          cmmsEventGroupMetadataDescriptorsServiceMock.listEventGroupMetadataDescriptors(any())
+  fun `getTypeRegistryAndEnv returns cached value`() {
+    cmmsEventGroupMetadataDescriptorsServiceMock.stub {
+      onBlocking { listEventGroupMetadataDescriptors(any()) }
+        .thenReturn(
+          listEventGroupMetadataDescriptorsResponse {
+            eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
+          }
         )
+    }
+
+    val typeRegistryAndEnv: CelEnvProvider.TypeRegistryAndEnv = runBlocking {
+      CelEnvCacheProvider(
+          EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
+            grpcTestServerRule.channel
+          ),
+          Duration.ofMinutes(5),
+          coroutineContext
+        )
+        .use { it.getTypeRegistryAndEnv() }
+    }
+
+    verifyTypeRegistryAndEnv(typeRegistryAndEnv)
+    verifyProtoArgument(
+        cmmsEventGroupMetadataDescriptorsServiceMock,
+        EventGroupMetadataDescriptorsCoroutineImplBase::listEventGroupMetadataDescriptors
+      )
+      .isEqualTo(
+        listEventGroupMetadataDescriptorsRequest {
+          parent = "dataProviders/-"
+          pageSize = MAX_PAGE_SIZE
+        }
+      )
+  }
+
+  @Test
+  fun `cache provider retries initial cache sync when status is retryable`() {
+    cmmsEventGroupMetadataDescriptorsServiceMock.stub {
+      onBlocking { listEventGroupMetadataDescriptors(any()) }
         .thenThrow(Status.DEADLINE_EXCEEDED.asRuntimeException())
         .thenReturn(
           listEventGroupMetadataDescriptorsResponse {
             eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
           }
         )
+    }
 
+    runTest {
       CelEnvCacheProvider(
           EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
             grpcTestServerRule.channel
@@ -102,151 +142,160 @@ class CelEnvProviderTest {
           1
         )
         .use {
+          advanceTimeBy(CelEnvCacheProvider.RETRY_DELAY.toMillis())
           val typeRegistryAndEnv = it.getTypeRegistryAndEnv()
-          val eventGroup = eventGroup {
-            metadata =
-              EventGroupKt.metadata {
-                eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-                metadata =
-                  pack(TEST_MESSAGE.copy { age = TestMetadataMessageKt.age { value = 15 } })
-              }
-          }
-          val eventGroup2 = eventGroup {
-            metadata =
-              EventGroupKt.metadata {
-                eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-                metadata = pack(TEST_MESSAGE.copy { age = TestMetadataMessageKt.age { value = 9 } })
-              }
-          }
-          val filter = "metadata.metadata.age.value > 10"
-
-          assertThat(filterEventGroups(listOf(eventGroup, eventGroup2), filter, typeRegistryAndEnv))
-            .containsExactly(eventGroup)
+          verifyTypeRegistryAndEnv(typeRegistryAndEnv)
         }
-
-      val eventGroupMetadataDescriptorsCaptor:
-        KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> =
-        argumentCaptor()
-
-      verify(cmmsEventGroupMetadataDescriptorsServiceMock, times(2))
-        .listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
-
-      eventGroupMetadataDescriptorsCaptor.allValues.forEach {
-        assertThat(it)
-          .isEqualTo(
-            listEventGroupMetadataDescriptorsRequest {
-              parent = "dataProviders/-"
-              pageSize = MAX_PAGE_SIZE
-            }
-          )
-      }
     }
 
-  @Test
-  fun `cache provider throws EXCEPTION when initial sync fails`() {
-    assertFailsWith<Exception> {
-      runTest() {
-        whenever(
-            cmmsEventGroupMetadataDescriptorsServiceMock.listEventGroupMetadataDescriptors(any())
-          )
-          .thenThrow(Status.DEADLINE_EXCEEDED.asRuntimeException())
-
-        val celEnvCacheProvider =
-          CelEnvCacheProvider(
-            EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
-              grpcTestServerRule.channel
-            ),
-            Duration.ofMinutes(5),
-            coroutineContext,
-            0
-          )
-
-        celEnvCacheProvider.getTypeRegistryAndEnv()
-      }
+    val expectedRequest = listEventGroupMetadataDescriptorsRequest {
+      parent = "dataProviders/-"
+      pageSize = MAX_PAGE_SIZE
     }
+    val listDescriptorsRequestCaptor: KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> =
+      argumentCaptor()
+    verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, times(2)) {
+      listEventGroupMetadataDescriptors(listDescriptorsRequestCaptor.capture())
+    }
+    assertThat(listDescriptorsRequestCaptor.allValues)
+      .containsExactly(expectedRequest, expectedRequest)
   }
 
   @Test
-  fun `cache provider loop runs at least twice`() =
-    runTest() {
-      val testMessage = testParentMetadataMessage { name = "test" }
+  fun `cache provider throws exception when status is not retryable`() {
+    cmmsEventGroupMetadataDescriptorsServiceMock.stub {
+      onBlocking { listEventGroupMetadataDescriptors(any()) }
+        .thenThrow(Status.UNKNOWN.asRuntimeException())
+    }
+    val numRetries = 3
 
-      val eventGroupMetadataDescriptor = eventGroupMetadataDescriptor {
-        name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-        descriptorSet = ProtoReflection.buildFileDescriptorSet(testMessage.descriptorForType)
+    val exception =
+      assertFailsWith<Exception> {
+        runTest {
+          CelEnvCacheProvider(
+              EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
+                grpcTestServerRule.channel
+              ),
+              Duration.ofMinutes(5),
+              coroutineContext,
+              numRetries
+            )
+            .use { it.getTypeRegistryAndEnv() }
+        }
       }
 
-      whenever(
-          cmmsEventGroupMetadataDescriptorsServiceMock.listEventGroupMetadataDescriptors(any())
+    verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock) {
+      listEventGroupMetadataDescriptors(any())
+    }
+    assertThat(exception).hasCauseThat().isInstanceOf(StatusException::class.java)
+    assertThat((exception.cause as StatusException).status.code).isEqualTo(Status.Code.UNKNOWN)
+  }
+
+  @Test
+  fun `cache provider throws exception when retry limit exceeded`() {
+    cmmsEventGroupMetadataDescriptorsServiceMock.stub {
+      onBlocking { listEventGroupMetadataDescriptors(any()) }
+        .thenThrow(Status.DEADLINE_EXCEEDED.asRuntimeException())
+    }
+    val numRetries = 3
+
+    val exception =
+      assertFailsWith<Exception> {
+        runTest {
+          CelEnvCacheProvider(
+              EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
+                grpcTestServerRule.channel
+              ),
+              Duration.ofMinutes(5),
+              coroutineContext,
+              numRetries
+            )
+            .use { it.getTypeRegistryAndEnv() }
+        }
+      }
+
+    verifyBlocking(cmmsEventGroupMetadataDescriptorsServiceMock, times(numRetries + 1)) {
+      listEventGroupMetadataDescriptors(any())
+    }
+    assertThat(exception).hasCauseThat().isInstanceOf(StatusException::class.java)
+    assertThat((exception.cause as StatusException).status.code)
+      .isEqualTo(Status.Code.DEADLINE_EXCEEDED)
+  }
+
+  @Test
+  fun `cache provider syncs cache again after interval`() {
+    val testMessage = testParentMetadataMessage { name = "test" }
+    val eventGroupMetadataDescriptor = eventGroupMetadataDescriptor {
+      name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+      descriptorSet = ProtoReflection.buildFileDescriptorSet(testMessage.descriptorForType)
+    }
+    cmmsEventGroupMetadataDescriptorsServiceMock.stub {
+      onBlocking { listEventGroupMetadataDescriptors(any()) }
+        .thenReturn(
+          listEventGroupMetadataDescriptorsResponse {
+            eventGroupMetadataDescriptors += eventGroupMetadataDescriptor
+          }
         )
         .thenReturn(
           listEventGroupMetadataDescriptorsResponse {
             eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
           }
         )
-        .thenReturn(
-          listEventGroupMetadataDescriptorsResponse {
-            eventGroupMetadataDescriptors += eventGroupMetadataDescriptor
-          }
-        )
-
-      val eventGroupMetadataDescriptorsCaptor:
-        KArgumentCaptor<ListEventGroupMetadataDescriptorsRequest> =
-        argumentCaptor()
-
-      CelEnvCacheProvider(
-          EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
-            grpcTestServerRule.channel
-          ),
-          Duration.ofMillis(500),
-          coroutineContext,
-          0
-        )
-        .use {
-          val typeRegistryAndEnv = it.getTypeRegistryAndEnv()
-          val eventGroup = eventGroup {
-            metadata =
-              EventGroupKt.metadata {
-                this.eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-                metadata =
-                  pack(TEST_MESSAGE.copy { age = TestMetadataMessageKt.age { value = 15 } })
-              }
-          }
-          val filter = "metadata.metadata.age.value > 10"
-          assertThat(filterEventGroups(listOf(eventGroup), filter, typeRegistryAndEnv))
-            .containsExactly(eventGroup)
-
-          advanceTimeBy(501)
-          it.waitForSync()
-
-          verify(cmmsEventGroupMetadataDescriptorsServiceMock, times(2))
-            .listEventGroupMetadataDescriptors(eventGroupMetadataDescriptorsCaptor.capture())
-
-          val typeRegistryAndEnv2 = it.getTypeRegistryAndEnv()
-          val eventGroup2 = eventGroup {
-            metadata =
-              EventGroupKt.metadata {
-                this.eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-                metadata = pack(testMessage)
-              }
-          }
-          val filter2 = "metadata.metadata.name == 'test'"
-          assertThat(filterEventGroups(listOf(eventGroup2), filter2, typeRegistryAndEnv2))
-            .containsExactly(eventGroup2)
-        }
-
-      eventGroupMetadataDescriptorsCaptor.allValues.forEach {
-        assertThat(it)
-          .isEqualTo(
-            listEventGroupMetadataDescriptorsRequest {
-              parent = "dataProviders/-"
-              pageSize = MAX_PAGE_SIZE
-            }
-          )
-      }
     }
+    val cacheRefreshInterval = Duration.ofMillis(500)
+
+    runTest {
+      val typeRegistryAndEnv: CelEnvProvider.TypeRegistryAndEnv =
+        CelEnvCacheProvider(
+            EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(
+              grpcTestServerRule.channel
+            ),
+            cacheRefreshInterval,
+            coroutineContext
+          )
+          .use {
+            it.getTypeRegistryAndEnv()
+
+            // Verify only called once for initial sync.
+            verify(cmmsEventGroupMetadataDescriptorsServiceMock)
+              .listEventGroupMetadataDescriptors(any())
+
+            advanceTimeBy(cacheRefreshInterval.toMillis() + 1)
+            it.waitForSync()
+            it.getTypeRegistryAndEnv()
+          }
+
+      // Verify called again.
+      verify(cmmsEventGroupMetadataDescriptorsServiceMock, times(2))
+        .listEventGroupMetadataDescriptors(any())
+
+      // Verify against latest response.
+      verifyTypeRegistryAndEnv(typeRegistryAndEnv)
+    }
+  }
 
   companion object {
+    private fun verifyTypeRegistryAndEnv(typeRegistryAndEnv: CelEnvProvider.TypeRegistryAndEnv) {
+      val eventGroup = eventGroup {
+        metadata =
+          EventGroupKt.metadata {
+            eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+            metadata = pack(TEST_MESSAGE.copy { age = TestMetadataMessageKt.age { value = 15 } })
+          }
+      }
+      val eventGroup2 = eventGroup {
+        metadata =
+          EventGroupKt.metadata {
+            eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+            metadata = pack(TEST_MESSAGE.copy { age = TestMetadataMessageKt.age { value = 9 } })
+          }
+      }
+      val filter = "metadata.metadata.age.value > 10"
+
+      assertThat(filterEventGroups(listOf(eventGroup, eventGroup2), filter, typeRegistryAndEnv))
+        .containsExactly(eventGroup)
+    }
+
     private fun filterEventGroups(
       eventGroups: Iterable<EventGroup>,
       filter: String,

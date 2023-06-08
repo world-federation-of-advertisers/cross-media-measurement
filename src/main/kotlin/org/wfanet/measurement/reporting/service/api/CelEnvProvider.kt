@@ -25,11 +25,13 @@ import java.time.Duration
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.coroutines.CoroutineContext
-import kotlinx.coroutines.CompletableJob
+import kotlin.coroutines.coroutineContext
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.retry
 import kotlinx.coroutines.isActive
@@ -37,6 +39,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.time.delay
+import org.jetbrains.annotations.VisibleForTesting
 import org.projectnessie.cel.Env
 import org.projectnessie.cel.EnvOption
 import org.projectnessie.cel.checker.Decls
@@ -65,28 +68,31 @@ class CelEnvCacheProvider(
     EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub,
   private val cacheRefreshInterval: Duration,
   coroutineContext: CoroutineContext,
-  private val numRetriesInitialSync: Long = 3L,
+  private val numRetriesInitialSync: Int = 3,
 ) : CelEnvProvider, AutoCloseable {
   private lateinit var typeRegistryAndEnv: CelEnvProvider.TypeRegistryAndEnv
   private val coroutineScope = CoroutineScope(coroutineContext + SupervisorJob())
-  private val initialSyncJob: CompletableJob = Job()
+  private val initialSyncJob = CompletableDeferred<Unit>()
   private val syncMutex = Mutex()
 
   init {
     coroutineScope.launch {
-      while (this.coroutineContext.isActive) {
+      while (currentCoroutineContext().isActive) {
         syncMutex.withLock {
           if (initialSyncJob.isActive) {
             var updateFlow = flow<Unit> { setTypeRegistryAndEnv() }
             if (numRetriesInitialSync > 0) {
-              updateFlow = updateFlow.retry(numRetriesInitialSync) { e -> e is RetriableException }
+              updateFlow =
+                updateFlow.retry(numRetriesInitialSync.toLong()) { e ->
+                  (e is RetryableException).also { if (it) delay(RETRY_DELAY) }
+                }
             }
             try {
-              updateFlow.collect {}
-              initialSyncJob.complete()
+              updateFlow.collect()
+              initialSyncJob.complete(Unit)
             } catch (e: Exception) {
               initialSyncJob.completeExceptionally(e)
-              throw (e)
+              throw e
             }
           } else {
             try {
@@ -102,11 +108,12 @@ class CelEnvCacheProvider(
   }
 
   override fun close() {
+    initialSyncJob.cancel()
     coroutineScope.cancel()
   }
 
   override suspend fun getTypeRegistryAndEnv(): CelEnvProvider.TypeRegistryAndEnv {
-    initialSyncJob.join()
+    initialSyncJob.await()
     return typeRegistryAndEnv
   }
 
@@ -172,7 +179,7 @@ class CelEnvCacheProvider(
         )
       eventGroupMetadataDescriptors.addAll(response.eventGroupMetadataDescriptorsList)
 
-      while (response.nextPageToken.isNotBlank()) {
+      while (coroutineContext.isActive && response.nextPageToken.isNotEmpty()) {
         response =
           eventGroupsMetadataDescriptorsStub.listEventGroupMetadataDescriptors(
             listEventGroupMetadataDescriptorsRequest {
@@ -186,14 +193,11 @@ class CelEnvCacheProvider(
 
       return eventGroupMetadataDescriptors
     } catch (e: StatusException) {
-      when (e.status.code) {
+      val message = "Error retrieving EventGroupMetadataDescriptors"
+      throw when (e.status.code) {
         Status.Code.UNAVAILABLE,
-        Status.Code.DEADLINE_EXCEEDED -> {
-          throw RetriableException()
-        }
-        else -> {
-          throw e
-        }
+        Status.Code.DEADLINE_EXCEEDED -> RetryableException(message, e)
+        else -> NonRetryableException(message, e)
       }
     }
   }
@@ -218,9 +222,20 @@ class CelEnvCacheProvider(
     }
   }
 
-  private class RetriableException : Exception()
+  private class RetryableException(message: String? = null, cause: Throwable? = null) :
+    Exception(message, cause)
+
+  private class NonRetryableException(message: String? = null, cause: Throwable? = null) :
+    Exception(message, cause)
 
   companion object {
+    /**
+     * Duration of delay between initial sync retries.
+     *
+     * TODO(@SanjayVas): Use exponential backoff.
+     */
+    @VisibleForTesting internal val RETRY_DELAY: Duration = Duration.ofMillis(100)
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
