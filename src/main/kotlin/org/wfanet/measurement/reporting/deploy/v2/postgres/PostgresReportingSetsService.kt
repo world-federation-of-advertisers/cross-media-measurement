@@ -86,6 +86,8 @@ class PostgresReportingSetsService(
           .map { it.reportingSet }
           .withSerializableErrorRetries()
           .toList()
+      } catch (e: ReportingSetNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Reporting Set not found")
       } finally {
         readContext.close()
       }

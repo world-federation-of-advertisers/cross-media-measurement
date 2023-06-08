@@ -1909,6 +1909,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     assertThat(retrievedMetrics.metricsList)
       .ignoringRepeatedFieldOrder()
       .containsExactly(createdMetric, createdMetric2)
+      .inOrder()
   }
 
   @Test

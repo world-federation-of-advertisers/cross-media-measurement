@@ -42,6 +42,7 @@ import org.wfanet.measurement.internal.reporting.v2.measurement
 import org.wfanet.measurement.internal.reporting.v2.metric
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.internal.reporting.v2.timeInterval
+import org.wfanet.measurement.reporting.service.internal.MetricNotFoundException
 
 class MetricReader(private val readContext: ReadContext) {
   data class Result(
@@ -181,9 +182,28 @@ class MetricReader(private val readContext: ReadContext) {
         createMetricRequestIds.forEach { bind(bindingMap.getValue(it), it) }
       }
 
-    return createResultFlow(statement)
+    return flow {
+      val metricInfoMap = buildResultMap(statement)
+
+      for (entry in metricInfoMap) {
+        val metricInfo = entry.value
+
+        val metric = metricInfo.buildMetric()
+
+        val createMetricRequestId = metricInfo.createMetricRequestId ?: ""
+        emit(
+          Result(
+            measurementConsumerId = metricInfo.measurementConsumerId,
+            metricId = metricInfo.metricId,
+            createMetricRequestId = createMetricRequestId,
+            metric = metric
+          )
+        )
+      }
+    }
   }
 
+  /** Throws [MetricNotFoundException] if any Metric not found. */
   fun batchGetMetrics(
     request: BatchGetMetricsRequest,
   ): Flow<Result> {
@@ -218,7 +238,26 @@ class MetricReader(private val readContext: ReadContext) {
         request.externalMetricIdsList.forEach { bind(bindingMap.getValue(it), it) }
       }
 
-    return createResultFlow(statement)
+    return flow {
+      val metricInfoMap = buildResultMap(statement)
+
+      for (externalMetricId in request.externalMetricIdsList) {
+        val metricInfo =
+          metricInfoMap[ExternalId(externalMetricId)] ?: throw MetricNotFoundException()
+
+        val metric = metricInfo.buildMetric()
+
+        val createMetricRequestId = metricInfo.createMetricRequestId ?: ""
+        emit(
+          Result(
+            measurementConsumerId = metricInfo.measurementConsumerId,
+            metricId = metricInfo.metricId,
+            createMetricRequestId = createMetricRequestId,
+            metric = metric
+          )
+        )
+      }
+    }
   }
 
   fun readMetrics(
@@ -252,59 +291,19 @@ class MetricReader(private val readContext: ReadContext) {
         }
       }
 
-    return createResultFlow(statement)
-  }
-
-  private fun createResultFlow(statement: BoundStatement): Flow<Result> {
     return flow {
       val metricInfoMap = buildResultMap(statement)
 
       for (entry in metricInfoMap) {
-        val metricId = entry.key
         val metricInfo = entry.value
 
-        val metric = metric {
-          cmmsMeasurementConsumerId = metricInfo.cmmsMeasurementConsumerId
-          externalMetricId = metricInfo.externalMetricId.value
-          externalReportingSetId = metricInfo.externalReportingSetId.value
-          createTime = metricInfo.createTime
-          timeInterval = metricInfo.timeInterval
-          metricSpec = metricInfo.metricSpec
-          metricInfo.weightedMeasurementInfoMap.values.forEach {
-            weightedMeasurements +=
-              MetricKt.weightedMeasurement {
-                weight = it.weight
-                measurement = measurement {
-                  cmmsMeasurementConsumerId = metricInfo.cmmsMeasurementConsumerId
-                  if (it.measurementInfo.cmmsMeasurementId != null) {
-                    cmmsMeasurementId = it.measurementInfo.cmmsMeasurementId
-                  }
-                  cmmsCreateMeasurementRequestId = it.measurementInfo.cmmsCreateMeasurementRequestId
-                  timeInterval = it.measurementInfo.timeInterval
-                  it.measurementInfo.primitiveReportingSetBasisInfoMap.values.forEach {
-                    primitiveReportingSetBases +=
-                      ReportingSetKt.primitiveReportingSetBasis {
-                        externalReportingSetId = it.externalReportingSetId.value
-                        filters += it.filterSet
-                      }
-                  }
-                  state = it.measurementInfo.state
-                  if (it.measurementInfo.details != Measurement.Details.getDefaultInstance()) {
-                    details = it.measurementInfo.details
-                  }
-                }
-              }
-          }
-          if (metricInfo.details != Metric.Details.getDefaultInstance()) {
-            details = metricInfo.details
-          }
-        }
+        val metric = metricInfo.buildMetric()
 
         val createMetricRequestId = metricInfo.createMetricRequestId ?: ""
         emit(
           Result(
             measurementConsumerId = metricInfo.measurementConsumerId,
-            metricId = metricId,
+            metricId = metricInfo.metricId,
             createMetricRequestId = createMetricRequestId,
             metric = metric
           )
@@ -313,10 +312,50 @@ class MetricReader(private val readContext: ReadContext) {
     }
   }
 
+  private fun MetricInfo.buildMetric(): Metric {
+    val metricInfo = this
+    return metric {
+      cmmsMeasurementConsumerId = metricInfo.cmmsMeasurementConsumerId
+      externalMetricId = metricInfo.externalMetricId.value
+      externalReportingSetId = metricInfo.externalReportingSetId.value
+      createTime = metricInfo.createTime
+      timeInterval = metricInfo.timeInterval
+      metricSpec = metricInfo.metricSpec
+      metricInfo.weightedMeasurementInfoMap.values.forEach {
+        weightedMeasurements +=
+          MetricKt.weightedMeasurement {
+            weight = it.weight
+            measurement = measurement {
+              cmmsMeasurementConsumerId = metricInfo.cmmsMeasurementConsumerId
+              if (it.measurementInfo.cmmsMeasurementId != null) {
+                cmmsMeasurementId = it.measurementInfo.cmmsMeasurementId
+              }
+              cmmsCreateMeasurementRequestId = it.measurementInfo.cmmsCreateMeasurementRequestId
+              timeInterval = it.measurementInfo.timeInterval
+              it.measurementInfo.primitiveReportingSetBasisInfoMap.values.forEach {
+                primitiveReportingSetBases +=
+                  ReportingSetKt.primitiveReportingSetBasis {
+                    externalReportingSetId = it.externalReportingSetId.value
+                    filters += it.filterSet
+                  }
+              }
+              state = it.measurementInfo.state
+              if (it.measurementInfo.details != Measurement.Details.getDefaultInstance()) {
+                details = it.measurementInfo.details
+              }
+            }
+          }
+      }
+      if (metricInfo.details != Metric.Details.getDefaultInstance()) {
+        details = metricInfo.details
+      }
+    }
+  }
+
   /** Returns a map that maintains the order of the query result. */
-  private suspend fun buildResultMap(statement: BoundStatement): Map<InternalId, MetricInfo> {
-    // Key is metricId.
-    val metricInfoMap: MutableMap<InternalId, MetricInfo> = linkedMapOf()
+  private suspend fun buildResultMap(statement: BoundStatement): Map<ExternalId, MetricInfo> {
+    // Key is externalMetricId.
+    val metricInfoMap: MutableMap<ExternalId, MetricInfo> = linkedMapOf()
 
     val translate: (row: ResultRow) -> Unit = { row: ResultRow ->
       val measurementConsumerId: InternalId = row["MeasurementConsumerId"]
@@ -353,7 +392,7 @@ class MetricReader(private val readContext: ReadContext) {
       val primitiveReportingSetBasisFilter: String? = row["PrimitiveReportingSetBasisFilter"]
 
       val metricInfo =
-        metricInfoMap.computeIfAbsent(metricId) {
+        metricInfoMap.computeIfAbsent(externalMetricId) {
           val metricTimeInterval = timeInterval {
             startTime = metricTimeIntervalStart.toProtoTime()
             endTime = metricTimeIntervalEnd.toProtoTime()
