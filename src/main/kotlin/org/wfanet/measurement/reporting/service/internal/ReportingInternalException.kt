@@ -120,9 +120,8 @@ class MeasurementConsumerAlreadyExistsException(
     get() = emptyMap<String, String>()
 }
 
-class MetricNotFoundException(
-  provideDescription: () -> String = { "Metric not found" }
-) : ReportingInternalException(ErrorCode.METRIC_NOT_FOUND, provideDescription) {
+class MetricNotFoundException(provideDescription: () -> String = { "Metric not found" }) :
+  ReportingInternalException(ErrorCode.METRIC_NOT_FOUND, provideDescription) {
   override val context: Map<String, String>
     get() = emptyMap<String, String>()
 }

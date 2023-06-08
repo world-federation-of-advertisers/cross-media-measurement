@@ -203,9 +203,7 @@ class MetricReader(private val readContext: ReadContext) {
     }
   }
 
-  /**
-   * Throws [MetricNotFoundException] if any Metric not found.
-   */
+  /** Throws [MetricNotFoundException] if any Metric not found. */
   fun batchGetMetrics(
     request: BatchGetMetricsRequest,
   ): Flow<Result> {
@@ -244,8 +242,8 @@ class MetricReader(private val readContext: ReadContext) {
       val metricInfoMap = buildResultMap(statement)
 
       for (externalMetricId in request.externalMetricIdsList) {
-        val metricInfo = metricInfoMap[ExternalId(externalMetricId)]
-          ?: throw MetricNotFoundException()
+        val metricInfo =
+          metricInfoMap[ExternalId(externalMetricId)] ?: throw MetricNotFoundException()
 
         val metric = metricInfo.buildMetric()
 

@@ -131,9 +131,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
     """
       .trimIndent()
 
-  /**
-   * Throws [ReportingSetNotFoundException] if any ReportingSet not found.
-   */
+  /** Throws [ReportingSetNotFoundException] if any ReportingSet not found. */
   fun batchGetReportingSets(
     request: BatchGetReportingSetsRequest,
   ): Flow<Result> {
@@ -176,8 +174,9 @@ class ReportingSetReader(private val readContext: ReadContext) {
       val reportingSetInfoMap = buildResultMap(statement)
 
       for (externalReportingSetId in request.externalReportingSetIdsList) {
-        val reportingSetInfo = reportingSetInfoMap[ExternalId(externalReportingSetId)]
-          ?: throw ReportingSetNotFoundException()
+        val reportingSetInfo =
+          reportingSetInfoMap[ExternalId(externalReportingSetId)]
+            ?: throw ReportingSetNotFoundException()
 
         val reportingSet = reportingSetInfo.buildReportingSet()
 
