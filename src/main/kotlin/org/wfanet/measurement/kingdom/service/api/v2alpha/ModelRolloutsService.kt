@@ -241,7 +241,7 @@ class ModelRolloutsService(private val internalClient: ModelRolloutsCoroutineStu
     }
 
     return listModelRolloutsResponse {
-      modelRollout +=
+      modelRollouts +=
         results.subList(0, min(results.size, listModelRolloutsPageToken.pageSize)).map {
           internalModelRollout ->
           internalModelRollout.toModelRollout()

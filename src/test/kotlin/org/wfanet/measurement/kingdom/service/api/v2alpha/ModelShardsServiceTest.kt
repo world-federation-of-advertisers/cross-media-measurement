@@ -48,7 +48,6 @@ import org.wfanet.measurement.api.v2alpha.deleteModelShardRequest
 import org.wfanet.measurement.api.v2alpha.listModelShardsPageToken
 import org.wfanet.measurement.api.v2alpha.listModelShardsRequest
 import org.wfanet.measurement.api.v2alpha.listModelShardsResponse
-import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withDuchyPrincipal
@@ -139,41 +138,40 @@ private val MODEL_SHARD_2: ModelShard = modelShard {
 @RunWith(JUnit4::class)
 class ModelShardsServiceTest {
 
-  private val internalModelShardsMock: ModelShardsCoroutineImplBase =
-    mockService() {
-      onBlocking { createModelShard(any()) }
-        .thenAnswer {
-          val request = it.getArgument<InternalModelShard>(0)
-          if (request.externalDataProviderId != EXTERNAL_DATA_PROVIDER_ID) {
-            failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
-          } else {
-            INTERNAL_MODEL_SHARD
-          }
+  private val internalModelShardsMock: ModelShardsCoroutineImplBase = mockService {
+    onBlocking { createModelShard(any()) }
+      .thenAnswer {
+        val request = it.getArgument<InternalModelShard>(0)
+        if (request.externalDataProviderId != EXTERNAL_DATA_PROVIDER_ID) {
+          failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
+        } else {
+          INTERNAL_MODEL_SHARD
         }
-      onBlocking { deleteModelShard(any()) }.thenReturn(INTERNAL_MODEL_SHARD)
-      onBlocking { streamModelShards(any()) }
-        .thenAnswer {
-          val request = it.getArgument<InternalStreamModelShardsRequest>(0)
-          if (
-            request.hasFilter() &&
-              request.filter.externalModelProviderId == EXTERNAL_MODEL_PROVIDER_ID_2
-          ) {
-            flowOf(
-              INTERNAL_MODEL_SHARD.copy {
-                externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID_2
-                externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID_2
-                externalModelReleaseId = EXTERNAL_MODEL_RELEASE_ID_2
-              }
-            )
-          } else {
-            flowOf(
-              INTERNAL_MODEL_SHARD,
-              INTERNAL_MODEL_SHARD.copy { externalModelShardId = EXTERNAL_MODEL_SHARD_ID_2 },
-              INTERNAL_MODEL_SHARD.copy { externalModelShardId = EXTERNAL_MODEL_SHARD_ID_3 }
-            )
-          }
+      }
+    onBlocking { deleteModelShard(any()) }.thenReturn(INTERNAL_MODEL_SHARD)
+    onBlocking { streamModelShards(any()) }
+      .thenAnswer {
+        val request = it.getArgument<InternalStreamModelShardsRequest>(0)
+        if (
+          request.hasFilter() &&
+            request.filter.externalModelProviderId == EXTERNAL_MODEL_PROVIDER_ID_2
+        ) {
+          flowOf(
+            INTERNAL_MODEL_SHARD.copy {
+              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID_2
+              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID_2
+              externalModelReleaseId = EXTERNAL_MODEL_RELEASE_ID_2
+            }
+          )
+        } else {
+          flowOf(
+            INTERNAL_MODEL_SHARD,
+            INTERNAL_MODEL_SHARD.copy { externalModelShardId = EXTERNAL_MODEL_SHARD_ID_2 },
+            INTERNAL_MODEL_SHARD.copy { externalModelShardId = EXTERNAL_MODEL_SHARD_ID_3 }
+          )
         }
-    }
+      }
+  }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalModelShardsMock) }
 
@@ -377,7 +375,7 @@ class ModelShardsServiceTest {
         runBlocking { service.listModelShards(request) }
       }
 
-    val expected = listModelShardsResponse { modelShard += MODEL_SHARD_2 }
+    val expected = listModelShardsResponse { modelShards += MODEL_SHARD_2 }
 
     val streamModelLinesRequest =
       captureFirst<StreamModelShardsRequest> {
@@ -409,9 +407,9 @@ class ModelShardsServiceTest {
       }
 
     val expected = listModelShardsResponse {
-      modelShard += MODEL_SHARD
-      modelShard += MODEL_SHARD.copy { name = MODEL_SHARD_NAME_2 }
-      modelShard += MODEL_SHARD.copy { name = MODEL_SHARD_NAME_3 }
+      modelShards += MODEL_SHARD
+      modelShards += MODEL_SHARD.copy { name = MODEL_SHARD_NAME_2 }
+      modelShards += MODEL_SHARD.copy { name = MODEL_SHARD_NAME_3 }
     }
 
     val streamModelLinesRequest =
@@ -580,8 +578,8 @@ class ModelShardsServiceTest {
       }
 
     val expected = listModelShardsResponse {
-      modelShard += MODEL_SHARD
-      modelShard += MODEL_SHARD.copy { name = MODEL_SHARD_NAME_2 }
+      modelShards += MODEL_SHARD
+      modelShards += MODEL_SHARD.copy { name = MODEL_SHARD_NAME_2 }
       val listModelShardsPageToken = listModelShardsPageToken {
         pageSize = request.pageSize
         externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID

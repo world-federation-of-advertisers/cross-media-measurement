@@ -40,7 +40,6 @@ import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepKey
-import org.wfanet.measurement.api.v2alpha.GetExchangeStepRequest
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepsResponse
@@ -133,30 +132,21 @@ private val INTERNAL_EXCHANGE_STEP: InternalExchangeStep = internalExchangeStep 
 @RunWith(JUnit4::class)
 class ExchangeStepsServiceTest {
 
-  private val internalService: InternalExchangeStepsCoroutineImplBase =
-    mockService() {
-      onBlocking { claimReadyExchangeStep(any()) }
-        .thenReturn(
-          internalClaimReadyExchangeStepResponse {
-            exchangeStep = INTERNAL_EXCHANGE_STEP
-            attemptNumber = ATTEMPT_NUMBER
-          }
-        )
-      onBlocking { streamExchangeSteps(any()) }.thenReturn(flowOf(INTERNAL_EXCHANGE_STEP))
-    }
+  private val internalService: InternalExchangeStepsCoroutineImplBase = mockService {
+    onBlocking { claimReadyExchangeStep(any()) }
+      .thenReturn(
+        internalClaimReadyExchangeStepResponse {
+          exchangeStep = INTERNAL_EXCHANGE_STEP
+          attemptNumber = ATTEMPT_NUMBER
+        }
+      )
+    onBlocking { streamExchangeSteps(any()) }.thenReturn(flowOf(INTERNAL_EXCHANGE_STEP))
+  }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalService) }
 
   private val service =
     ExchangeStepsService(InternalExchangeStepsCoroutineStub(grpcTestServerRule.channel))
-
-  @Test
-  fun getExchangeStep() =
-    runBlocking<Unit> {
-      assertFailsWith(NotImplementedError::class) {
-        service.getExchangeStep(GetExchangeStepRequest.getDefaultInstance())
-      }
-    }
 
   private fun claimReadyExchangeStep(
     init: ClaimReadyExchangeStepRequestKt.Dsl.() -> Unit
@@ -266,7 +256,7 @@ class ExchangeStepsServiceTest {
       }
 
     val expected = listExchangeStepsResponse {
-      exchangeStep += EXCHANGE_STEP
+      exchangeSteps += EXCHANGE_STEP
       nextPageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
     }
 

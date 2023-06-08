@@ -305,7 +305,7 @@ class ModelOutagesServiceTest {
       parent = MODEL_LINE_NAME
       showDeleted = true
       filter = filter {
-        timeInterval = timeInterval {
+        outageIntervalOverlapping = timeInterval {
           startTime = OUTAGE_START_TIME
           endTime = OUTAGE_END_TIME
         }
@@ -318,9 +318,9 @@ class ModelOutagesServiceTest {
       }
 
     val expected = listModelOutagesResponse {
-      modelOutage += MODEL_OUTAGE
-      modelOutage += MODEL_OUTAGE.copy { name = MODEL_OUTAGE_NAME_2 }
-      modelOutage += MODEL_OUTAGE.copy { name = MODEL_OUTAGE_NAME_3 }
+      modelOutages += MODEL_OUTAGE
+      modelOutages += MODEL_OUTAGE.copy { name = MODEL_OUTAGE_NAME_2 }
+      modelOutages += MODEL_OUTAGE.copy { name = MODEL_OUTAGE_NAME_3 }
     }
 
     val streamModelOutagesRequest =
@@ -355,7 +355,7 @@ class ModelOutagesServiceTest {
       parent = MODEL_LINE_NAME
       showDeleted = true
       filter = filter {
-        timeInterval = timeInterval {
+        outageIntervalOverlapping = timeInterval {
           startTime = OUTAGE_START_TIME
           endTime = OUTAGE_END_TIME
         }
@@ -368,9 +368,9 @@ class ModelOutagesServiceTest {
       }
 
     val expected = listModelOutagesResponse {
-      modelOutage += MODEL_OUTAGE
-      modelOutage += MODEL_OUTAGE.copy { name = MODEL_OUTAGE_NAME_2 }
-      modelOutage += MODEL_OUTAGE.copy { name = MODEL_OUTAGE_NAME_3 }
+      modelOutages += MODEL_OUTAGE
+      modelOutages += MODEL_OUTAGE.copy { name = MODEL_OUTAGE_NAME_2 }
+      modelOutages += MODEL_OUTAGE.copy { name = MODEL_OUTAGE_NAME_3 }
     }
 
     val streamModelOutagesRequest =
@@ -559,7 +559,7 @@ class ModelOutagesServiceTest {
       pageSize = 2
       showDeleted = true
       filter = filter {
-        timeInterval = timeInterval {
+        outageIntervalOverlapping = timeInterval {
           startTime = OUTAGE_START_TIME
           endTime = OUTAGE_END_TIME
         }
@@ -591,8 +591,8 @@ class ModelOutagesServiceTest {
       }
 
     val expected = listModelOutagesResponse {
-      modelOutage += MODEL_OUTAGE
-      modelOutage += MODEL_OUTAGE.copy { name = MODEL_OUTAGE_NAME_2 }
+      modelOutages += MODEL_OUTAGE
+      modelOutages += MODEL_OUTAGE.copy { name = MODEL_OUTAGE_NAME_2 }
       val listModelRolloutsPageToken = listModelOutagesPageToken {
         pageSize = request.pageSize
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
@@ -654,7 +654,7 @@ class ModelOutagesServiceTest {
       pageSize = 4
       showDeleted = false
       filter = filter {
-        timeInterval = timeInterval {
+        outageIntervalOverlapping = timeInterval {
           startTime = OUTAGE_START_TIME
           endTime = OUTAGE_END_TIME
         }
@@ -721,7 +721,7 @@ class ModelOutagesServiceTest {
       parent = MODEL_LINE_NAME
       showDeleted = false
       filter = filter {
-        timeInterval = timeInterval {
+        outageIntervalOverlapping = timeInterval {
           startTime = OUTAGE_START_TIME
           endTime = OUTAGE_END_TIME
         }

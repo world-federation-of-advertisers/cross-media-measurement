@@ -109,27 +109,26 @@ private val MODEL_RELEASE: ModelRelease = modelRelease {
 @RunWith(JUnit4::class)
 class ModelReleasesServiceTest {
 
-  private val internalModelLinesMock: ModelReleasesCoroutineImplBase =
-    mockService() {
-      onBlocking { createModelRelease(any()) }
-        .thenAnswer {
-          val request = it.getArgument<InternalModelRelease>(0)
-          if (request.externalModelSuiteId != EXTERNAL_MODEL_SUITE_ID) {
-            failGrpc(Status.NOT_FOUND) { "ModelProvider not found" }
-          } else {
-            INTERNAL_MODEL_RELEASE
-          }
+  private val internalModelLinesMock: ModelReleasesCoroutineImplBase = mockService {
+    onBlocking { createModelRelease(any()) }
+      .thenAnswer {
+        val request = it.getArgument<InternalModelRelease>(0)
+        if (request.externalModelSuiteId != EXTERNAL_MODEL_SUITE_ID) {
+          failGrpc(Status.NOT_FOUND) { "ModelProvider not found" }
+        } else {
+          INTERNAL_MODEL_RELEASE
         }
-      onBlocking { getModelRelease(any()) }.thenReturn(INTERNAL_MODEL_RELEASE)
-      onBlocking { streamModelReleases(any()) }
-        .thenReturn(
-          flowOf(
-            INTERNAL_MODEL_RELEASE,
-            INTERNAL_MODEL_RELEASE.copy { externalModelReleaseId = EXTERNAL_MODEL_RELEASE_ID_2 },
-            INTERNAL_MODEL_RELEASE.copy { externalModelReleaseId = EXTERNAL_MODEL_RELEASE_ID_3 }
-          )
+      }
+    onBlocking { getModelRelease(any()) }.thenReturn(INTERNAL_MODEL_RELEASE)
+    onBlocking { streamModelReleases(any()) }
+      .thenReturn(
+        flowOf(
+          INTERNAL_MODEL_RELEASE,
+          INTERNAL_MODEL_RELEASE.copy { externalModelReleaseId = EXTERNAL_MODEL_RELEASE_ID_2 },
+          INTERNAL_MODEL_RELEASE.copy { externalModelReleaseId = EXTERNAL_MODEL_RELEASE_ID_3 }
         )
-    }
+      )
+  }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalModelLinesMock) }
 
@@ -386,9 +385,9 @@ class ModelReleasesServiceTest {
       }
 
     val expected = listModelReleasesResponse {
-      modelRelease += MODEL_RELEASE
-      modelRelease += MODEL_RELEASE.copy { name = MODEL_RELEASE_NAME_2 }
-      modelRelease += MODEL_RELEASE.copy { name = MODEL_RELEASE_NAME_3 }
+      modelReleases += MODEL_RELEASE
+      modelReleases += MODEL_RELEASE.copy { name = MODEL_RELEASE_NAME_2 }
+      modelReleases += MODEL_RELEASE.copy { name = MODEL_RELEASE_NAME_3 }
     }
 
     val streamModelLinesRequest =
@@ -421,9 +420,9 @@ class ModelReleasesServiceTest {
       }
 
     val expected = listModelReleasesResponse {
-      modelRelease += MODEL_RELEASE
-      modelRelease += MODEL_RELEASE.copy { name = MODEL_RELEASE_NAME_2 }
-      modelRelease += MODEL_RELEASE.copy { name = MODEL_RELEASE_NAME_3 }
+      modelReleases += MODEL_RELEASE
+      modelReleases += MODEL_RELEASE.copy { name = MODEL_RELEASE_NAME_2 }
+      modelReleases += MODEL_RELEASE.copy { name = MODEL_RELEASE_NAME_3 }
     }
 
     val streamModelLinesRequest =
@@ -573,8 +572,8 @@ class ModelReleasesServiceTest {
       }
 
     val expected = listModelReleasesResponse {
-      modelRelease += MODEL_RELEASE
-      modelRelease += MODEL_RELEASE.copy { name = MODEL_RELEASE_NAME_2 }
+      modelReleases += MODEL_RELEASE
+      modelReleases += MODEL_RELEASE.copy { name = MODEL_RELEASE_NAME_2 }
       val listModelLinesPageToken = listModelReleasesPageToken {
         pageSize = request.pageSize
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID

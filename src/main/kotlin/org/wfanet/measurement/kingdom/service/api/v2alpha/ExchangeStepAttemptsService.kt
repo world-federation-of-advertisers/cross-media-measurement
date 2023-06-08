@@ -17,46 +17,45 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import io.grpc.Status
 import io.grpc.StatusException
 import java.time.LocalDate
-import org.wfanet.measurement.api.v2alpha.AppendLogEntryRequest
+import org.wfanet.measurement.api.v2alpha.AppendExchangeStepAttemptLogEntryRequest
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.FinishExchangeStepAttemptRequest
-import org.wfanet.measurement.api.v2alpha.GetExchangeStepAttemptRequest
-import org.wfanet.measurement.api.v2alpha.ListExchangeStepAttemptsRequest
-import org.wfanet.measurement.api.v2alpha.ListExchangeStepAttemptsResponse
 import org.wfanet.measurement.api.v2alpha.getProviderFromContext
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.toProtoDate
-import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetailsKt
+import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetailsKt as InternalExchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub as InternalExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
-import org.wfanet.measurement.internal.kingdom.appendLogEntryRequest
-import org.wfanet.measurement.internal.kingdom.finishExchangeStepAttemptRequest
-import org.wfanet.measurement.internal.kingdom.getExchangeStepRequest
+import org.wfanet.measurement.internal.kingdom.appendLogEntryRequest as internalAppendLogEntryRequest
+import org.wfanet.measurement.internal.kingdom.finishExchangeStepAttemptRequest as internalFinishExchangeStepAttemptRequest
+import org.wfanet.measurement.internal.kingdom.getExchangeStepRequest as internalGetExchangeStepRequest
 
 class ExchangeStepAttemptsService(
   private val internalExchangeStepAttempts: InternalExchangeStepAttemptsCoroutineStub,
   private val internalExchangeSteps: InternalExchangeStepsCoroutineStub
 ) : ExchangeStepAttemptsCoroutineImplBase() {
 
-  override suspend fun appendLogEntry(request: AppendLogEntryRequest): ExchangeStepAttempt {
+  override suspend fun appendExchangeStepAttemptLogEntry(
+    request: AppendExchangeStepAttemptLogEntryRequest
+  ): ExchangeStepAttempt {
     val exchangeStepAttempt =
       grpcRequireNotNull(ExchangeStepAttemptKey.fromName(request.name)) {
         "Resource name unspecified or invalid."
       }
-    val internalRequest = appendLogEntryRequest {
+    val internalRequest = internalAppendLogEntryRequest {
       externalRecurringExchangeId = apiIdToExternalId(exchangeStepAttempt.recurringExchangeId)
       date = LocalDate.parse(exchangeStepAttempt.exchangeId).toProtoDate()
       stepIndex = exchangeStepAttempt.exchangeStepId.toInt()
       attemptNumber = exchangeStepAttempt.exchangeStepAttemptId.toInt()
       for (entry in request.logEntriesList) {
         debugLogEntries +=
-          ExchangeStepAttemptDetailsKt.debugLog {
-            time = entry.time
+          InternalExchangeStepAttemptDetails.debugLog {
+            time = entry.entryTime
             message = entry.message
           }
       }
@@ -88,7 +87,7 @@ class ExchangeStepAttemptsService(
     val exchangeStep =
       try {
         internalExchangeSteps.getExchangeStep(
-          getExchangeStepRequest {
+          internalGetExchangeStepRequest {
             this.externalRecurringExchangeId = externalRecurringExchangeId
             this.date = date
             this.stepIndex = stepIndex
@@ -107,7 +106,7 @@ class ExchangeStepAttemptsService(
       failGrpc(Status.PERMISSION_DENIED) { "ExchangeStep write access denied" }
     }
 
-    val internalRequest = finishExchangeStepAttemptRequest {
+    val internalRequest = internalFinishExchangeStepAttemptRequest {
       this.provider = provider
       this.externalRecurringExchangeId = externalRecurringExchangeId
       this.date = date
@@ -138,18 +137,6 @@ class ExchangeStepAttemptsService(
         e.message ?: "Failed to convert FinishExchangeStepAttempt"
       }
     }
-  }
-
-  override suspend fun getExchangeStepAttempt(
-    request: GetExchangeStepAttemptRequest
-  ): ExchangeStepAttempt {
-    TODO("world-federation-of-advertisers/cross-media-measurement#3: implement this")
-  }
-
-  override suspend fun listExchangeStepAttempts(
-    request: ListExchangeStepAttemptsRequest
-  ): ListExchangeStepAttemptsResponse {
-    TODO("world-federation-of-advertisers/cross-media-measurement#3: implement this")
   }
 }
 

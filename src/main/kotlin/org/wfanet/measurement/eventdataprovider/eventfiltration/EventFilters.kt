@@ -24,7 +24,7 @@ import org.projectnessie.cel.common.types.BoolT
 import org.projectnessie.cel.common.types.Err
 import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
 import org.projectnessie.cel.common.types.ref.Val
-import org.wfanet.measurement.api.v2alpha.EventAnnotations
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.common.ProtoReflection.allDependencies
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters.matches
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
@@ -76,7 +76,7 @@ object EventFilters {
       }
     val celVariables =
       eventMessageDescriptor.fields
-        .filter { it.messageType.options.hasExtension(EventAnnotations.eventTemplate) }
+        .filter { it.messageType.options.hasExtension(EventAnnotationsProto.eventTemplate) }
         .map { field ->
           val fieldType =
             checkNotNull(

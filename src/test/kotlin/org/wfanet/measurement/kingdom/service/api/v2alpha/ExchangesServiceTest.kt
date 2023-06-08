@@ -19,10 +19,8 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.type.date
 import io.grpc.Status
-import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -34,7 +32,6 @@ import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.Exchange
 import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.GetExchangeRequestKt
-import org.wfanet.measurement.api.v2alpha.ListExchangesRequest
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.exchange
@@ -86,12 +83,7 @@ class ExchangesServiceTest {
   @Test
   fun `getExchange throws UNAUTHENTICATED for no principal`() {
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        getExchange {
-          name = EXCHANGE_KEY.toName()
-          dataProvider = DATA_PROVIDER_KEY.toName()
-        }
-      }
+      assertFailsWith<StatusRuntimeException> { getExchange { name = EXCHANGE_KEY.toName() } }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
@@ -162,24 +154,6 @@ class ExchangesServiceTest {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-  }
-
-  @Test
-  fun `listExchanges throws UNIMPLEMENTED`() = runBlocking {
-    val exception =
-      assertFailsWith(StatusException::class) {
-        service.listExchanges(ListExchangesRequest.getDefaultInstance())
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNIMPLEMENTED)
-  }
-
-  @Test
-  fun `uploadAuditTrail throws UNIMPLEMENTED`() = runBlocking {
-    val exception =
-      assertFailsWith(StatusException::class) { service.uploadAuditTrail(emptyFlow()) }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNIMPLEMENTED)
   }
 
   companion object {

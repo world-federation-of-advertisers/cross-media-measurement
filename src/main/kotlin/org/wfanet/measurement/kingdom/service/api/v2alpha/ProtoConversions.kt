@@ -129,7 +129,6 @@ fun InternalMeasurement.State.toState(): State =
 
 /** Convert a public [State] to an internal [InternalMeasurement.State]. */
 fun State.toInternalState(): List<InternalMeasurement.State> {
-  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   return when (this) {
     State.AWAITING_REQUISITION_FULFILLMENT -> {
       listOf(
@@ -320,7 +319,6 @@ fun InternalModelLine.Type.toType(): Type =
 
 /** Convert a public [Type] to an internal [InternalModelLine.Type]. */
 fun Type.toInternalType(): InternalModelLine.Type {
-  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   return when (this) {
     Type.DEV -> InternalModelLine.Type.DEV
     Type.PROD -> InternalModelLine.Type.PROD
@@ -721,11 +719,11 @@ fun ExchangeStepAttempt.State.toInternal(): InternalExchangeStepAttempt.State {
   }
 }
 
-fun Iterable<ExchangeStepAttempt.DebugLog>.toInternal():
+fun Iterable<ExchangeStepAttempt.DebugLogEntry>.toInternal():
   Iterable<ExchangeStepAttemptDetails.DebugLog> {
   return map { apiProto ->
     ExchangeStepAttemptDetailsKt.debugLog {
-      time = apiProto.time
+      time = apiProto.entryTime
       message = apiProto.message
     }
   }
@@ -752,7 +750,6 @@ fun InternalExchangeStepAttempt.toV2Alpha(): ExchangeStepAttempt {
 
 /** @throws [IllegalStateException] if State not specified */
 fun ExchangeStep.State.toInternal(): InternalExchangeStep.State {
-  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   return when (this) {
     ExchangeStep.State.BLOCKED -> InternalExchangeStep.State.BLOCKED
     ExchangeStep.State.READY -> InternalExchangeStep.State.READY
@@ -765,9 +762,9 @@ fun ExchangeStep.State.toInternal(): InternalExchangeStep.State {
   }
 }
 
-private fun ExchangeStepAttemptDetails.DebugLog.toV2Alpha(): ExchangeStepAttempt.DebugLog {
-  return ExchangeStepAttemptKt.debugLog {
-    time = this@toV2Alpha.time
+private fun ExchangeStepAttemptDetails.DebugLog.toV2Alpha(): ExchangeStepAttempt.DebugLogEntry {
+  return ExchangeStepAttemptKt.debugLogEntry {
+    entryTime = this@toV2Alpha.time
     message = this@toV2Alpha.message
   }
 }

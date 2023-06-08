@@ -102,7 +102,7 @@ class SharedStorageSelector(
     when (storageType) {
       GOOGLE_CLOUD_STORAGE -> require(platform == PlatformCase.GCS)
       AMAZON_S3 -> require(platform == PlatformCase.AWS)
-      StorageType.UNKNOWN_STORAGE_CLIENT,
+      StorageType.STORAGE_TYPE_UNSPECIFIED,
       StorageType.UNRECOGNIZED -> require(platform !in EXPLICITLY_SUPPORTED_STORAGE_TYPES)
     // TODO(world-federation-of-advertisers/cross-media-measurement-api#73): throw
     //   IllegalArgumentException("$storageType unsupported")

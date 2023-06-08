@@ -66,7 +66,6 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelRolloutsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelShardsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelSuitesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.PublicKeysService
-import org.wfanet.measurement.kingdom.service.api.v2alpha.RecurringExchangesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withAccountAuthenticationServerInterceptor
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withApiKeyAuthenticationServerInterceptor
@@ -156,7 +155,6 @@ private fun run(
       RequisitionsService(InternalRequisitionsCoroutineStub(channel))
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
-      RecurringExchangesService().withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ExchangesService(
           InternalRecurringExchangesCoroutineStub(channel),
           InternalExchangesCoroutineStub(channel)

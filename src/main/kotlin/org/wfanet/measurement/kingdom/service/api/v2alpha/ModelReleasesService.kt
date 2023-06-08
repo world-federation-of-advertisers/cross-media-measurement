@@ -160,7 +160,7 @@ class ModelReleasesService(private val internalClient: ModelReleasesCoroutineStu
     }
 
     return listModelReleasesResponse {
-      modelRelease +=
+      modelReleases +=
         results.subList(0, min(results.size, listModelReleasesPageToken.pageSize)).map {
           internalModelRelease ->
           internalModelRelease.toModelRelease()

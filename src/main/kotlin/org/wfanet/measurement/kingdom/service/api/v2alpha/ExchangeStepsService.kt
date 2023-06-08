@@ -23,10 +23,8 @@ import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest.PartyCas
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeKey
-import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
-import org.wfanet.measurement.api.v2alpha.GetExchangeStepRequest
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepsRequest
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepsResponse
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
@@ -156,7 +154,7 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
     }
 
     return listExchangeStepsResponse {
-      exchangeStep +=
+      exchangeSteps +=
         results.map {
           try {
             it.toV2Alpha()
@@ -168,10 +166,6 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
         }
       nextPageToken = results.last().updateTime.toByteArray().base64UrlEncode()
     }
-  }
-
-  override suspend fun getExchangeStep(request: GetExchangeStepRequest): ExchangeStep {
-    TODO("world-federation-of-advertisers/cross-media-measurement#3: implement this")
   }
 }
 

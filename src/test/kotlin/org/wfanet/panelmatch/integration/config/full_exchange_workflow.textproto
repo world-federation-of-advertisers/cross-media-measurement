@@ -1,3 +1,6 @@
+# proto-file: wfa/measurement/api/v2alpha/exchange_workflow.proto
+# proto-message: ExchangeWorkflow
+
 # MP generates a blob storage public/private key pair.
 steps {
   step_id: "generate-blob-encryption-key-pair-step"
@@ -366,9 +369,9 @@ steps {
     }
     encrypted_query_bundle_file_count: 1
     query_id_to_ids_file_count: 1
-    num_shards: 1
-    num_buckets_per_shard: 10
-    num_queries_per_shard: 3
+    shard_count: 1
+    buckets_per_shard: 10
+    queries_per_shard: 3
     add_padding_queries: true
   }
 
@@ -495,8 +498,8 @@ steps {
       }
     }
     encrypted_query_result_file_count: 1
-    num_shards: 1
-    num_buckets_per_shard: 10
+    shard_count: 1
+    buckets_per_shard: 10
     max_queries_per_shard: 10
   }
 

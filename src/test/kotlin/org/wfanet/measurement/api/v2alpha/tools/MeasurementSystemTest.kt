@@ -92,7 +92,7 @@ import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.ReplaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
-import org.wfanet.measurement.api.v2alpha.SetActiveEndTimeRequest
+import org.wfanet.measurement.api.v2alpha.SetModelLineActiveEndTimeRequest
 import org.wfanet.measurement.api.v2alpha.SetModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.api.v2alpha.account
 import org.wfanet.measurement.api.v2alpha.activateAccountRequest
@@ -128,7 +128,7 @@ import org.wfanet.measurement.api.v2alpha.publicKey
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.revokeCertificateRequest
-import org.wfanet.measurement.api.v2alpha.setActiveEndTimeRequest
+import org.wfanet.measurement.api.v2alpha.setModelLineActiveEndTimeRequest
 import org.wfanet.measurement.api.v2alpha.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.timeInterval
@@ -200,8 +200,8 @@ private val DATA_PROVIDER_PUBLIC_KEY =
   loadPublicKey(SECRETS_DIR.resolve("edp1_enc_public.tink")).toEncryptionPublicKey()
 private val DATA_PROVIDER_PRIVATE_KEY_HANDLE =
   loadPrivateKey(SECRETS_DIR.resolve("edp1_enc_private.tink"))
-private val DUCHY = DuchyKey("worker1")
-private val DUCHIES = listOf(DUCHY).map { it.toName() }
+private val DUCHY_KEY = DuchyKey("worker1")
+private val DUCHY_NAMES = listOf(DUCHY_KEY).map { it.toName() }
 
 private const val MODEL_LINE_ACTIVE_START_TIME = "2025-05-24T05:00:00.000Z"
 private const val MODEL_LINE_ACTIVE_END_TIME = "2030-05-24T05:00:00.000Z"
@@ -269,15 +269,15 @@ private const val MEASUREMENT_NAME = "$MEASUREMENT_CONSUMER_NAME/measurements/10
 private val MEASUREMENT = measurement { name = MEASUREMENT_NAME }
 
 private val LIST_MEASUREMENT_RESPONSE = listMeasurementsResponse {
-  measurement += measurement {
+  measurements += measurement {
     name = "$MEASUREMENT_CONSUMER_NAME/measurements/101"
     state = Measurement.State.AWAITING_REQUISITION_FULFILLMENT
   }
-  measurement += measurement {
+  measurements += measurement {
     name = "$MEASUREMENT_CONSUMER_NAME/measurements/102"
     state = Measurement.State.SUCCEEDED
   }
-  measurement += measurement {
+  measurements += measurement {
     name = "$MEASUREMENT_CONSUMER_NAME/measurements/102"
     state = Measurement.State.FAILED
     failure = failure {
@@ -323,21 +323,21 @@ class MeasurementSystemTest {
   private val modelLinesServiceMock: ModelLinesCoroutineImplBase = mockService {
     onBlocking { createModelLine(any()) }.thenReturn(MODEL_LINE)
     onBlocking { setModelLineHoldbackModelLine(any()) }.thenReturn(MODEL_LINE)
-    onBlocking { setActiveEndTime(any()) }.thenReturn(MODEL_LINE)
+    onBlocking { setModelLineActiveEndTime(any()) }.thenReturn(MODEL_LINE)
     onBlocking { listModelLines(any()) }
-      .thenReturn(listModelLinesResponse { modelLine += listOf(MODEL_LINE) })
+      .thenReturn(listModelLinesResponse { modelLines += listOf(MODEL_LINE) })
   }
   private val modelReleasesServiceMock: ModelReleasesCoroutineImplBase = mockService {
     onBlocking { createModelRelease(any()) }.thenReturn(MODEL_RELEASE)
     onBlocking { getModelRelease(any()) }.thenReturn(MODEL_RELEASE)
     onBlocking { listModelReleases(any()) }
-      .thenReturn(listModelReleasesResponse { modelRelease += listOf(MODEL_RELEASE) })
+      .thenReturn(listModelReleasesResponse { modelReleases += listOf(MODEL_RELEASE) })
   }
   private val modelSuitesServiceMock: ModelSuitesCoroutineImplBase = mockService {
     onBlocking { createModelSuite(any()) }.thenReturn(MODEL_SUITE)
     onBlocking { getModelSuite(any()) }.thenReturn(MODEL_SUITE)
     onBlocking { listModelSuites(any()) }
-      .thenReturn(listModelSuitesResponse { modelSuite += listOf(MODEL_SUITE) })
+      .thenReturn(listModelSuitesResponse { modelSuites += listOf(MODEL_SUITE) })
   }
 
   val services: List<ServerServiceDefinition> =
@@ -1043,7 +1043,7 @@ class MeasurementSystemTest {
       .isEqualTo(
         replaceDataProviderRequiredDuchiesRequest {
           name = DATA_PROVIDER_NAME
-          requiredExternalDuchies += DUCHIES
+          requiredDuchies += DUCHY_NAMES
         }
       )
   }
@@ -1152,13 +1152,13 @@ class MeasurementSystemTest {
     callCli(args)
 
     val request =
-      captureFirst<SetActiveEndTimeRequest> {
-        runBlocking { verify(modelLinesServiceMock).setActiveEndTime(capture()) }
+      captureFirst<SetModelLineActiveEndTimeRequest> {
+        runBlocking { verify(modelLinesServiceMock).setModelLineActiveEndTime(capture()) }
       }
 
     assertThat(request)
       .isEqualTo(
-        setActiveEndTimeRequest {
+        setModelLineActiveEndTimeRequest {
           name = MODEL_LINE_NAME
           activeEndTime = Instant.parse(MODEL_LINE_ACTIVE_END_TIME).toProtoTime()
         }
@@ -1190,7 +1190,7 @@ class MeasurementSystemTest {
           parent = MODEL_SUITE_NAME
           pageSize = 10
           pageToken = "token"
-          filter = filter { type += ModelLine.Type.PROD }
+          filter = filter { types += ModelLine.Type.PROD }
         }
       )
   }

@@ -17,7 +17,6 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import io.grpc.Status
 import io.grpc.StatusException
 import java.time.LocalDate
-import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.api.v2alpha.AccountPrincipal
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.DuchyPrincipal
@@ -25,12 +24,9 @@ import org.wfanet.measurement.api.v2alpha.Exchange
 import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.ExchangesGrpcKt.ExchangesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.GetExchangeRequest
-import org.wfanet.measurement.api.v2alpha.ListExchangesRequest
-import org.wfanet.measurement.api.v2alpha.ListExchangesResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
-import org.wfanet.measurement.api.v2alpha.UploadAuditTrailRequest
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.ApiId
@@ -120,15 +116,5 @@ class ExchangesService(
       }
 
     return internalExchange.toExchange()
-  }
-
-  override suspend fun listExchanges(request: ListExchangesRequest): ListExchangesResponse {
-    // TODO(world-federation-of-advertisers/cross-media-measurement#3): Implement this.
-    return super.listExchanges(request)
-  }
-
-  override suspend fun uploadAuditTrail(requests: Flow<UploadAuditTrailRequest>): Exchange {
-    // TODO(world-federation-of-advertisers/cross-media-measurement#3): Implement this.
-    return super.uploadAuditTrail(requests)
   }
 }
