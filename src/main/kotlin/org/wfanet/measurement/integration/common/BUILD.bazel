@@ -25,6 +25,7 @@ java_library(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:measurement_consumers_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:measurements_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:public_keys_service",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:recurring_exchanges_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:requisitions_service",
     ],
 )

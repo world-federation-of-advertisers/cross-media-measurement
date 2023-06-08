@@ -22,7 +22,7 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.internal.common.Provider
 import org.wfanet.measurement.internal.common.provider
 
-fun ResourceKey.toProvider(): Provider? {
+fun ResourceKey.toProvider(): Provider {
   return when (this) {
     is DataProviderKey ->
       provider {

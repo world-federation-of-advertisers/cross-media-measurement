@@ -26,24 +26,28 @@ class RecurringExchangesService : RecurringExchangesCoroutineImplBase() {
   override suspend fun createRecurringExchange(
     request: CreateRecurringExchangeRequest
   ): RecurringExchange {
-    TODO("world-federation-of-advertisers/cross-media-measurement#3: implement this")
+    // TODO(world-federation-of-advertisers/cross-media-measurement#3): Implement this.
+    return super.createRecurringExchange(request)
   }
 
   override suspend fun getRecurringExchange(
     request: GetRecurringExchangeRequest
   ): RecurringExchange {
-    TODO("world-federation-of-advertisers/cross-media-measurement#3: implement this")
+    // TODO(world-federation-of-advertisers/cross-media-measurement#3): Implement this.
+    return super.getRecurringExchange(request)
   }
 
   override suspend fun listRecurringExchanges(
     request: ListRecurringExchangesRequest
   ): ListRecurringExchangesResponse {
-    TODO("world-federation-of-advertisers/cross-media-measurement#3: implement this")
+    // TODO(world-federation-of-advertisers/cross-media-measurement#3): Implement this.
+    return super.listRecurringExchanges(request)
   }
 
   override suspend fun retireRecurringExchange(
     request: RetireRecurringExchangeRequest
   ): RecurringExchange {
-    TODO("world-federation-of-advertisers/cross-media-measurement#3: implement this")
+    // TODO(world-federation-of-advertisers/cross-media-measurement#3): Implement this.
+    return super.retireRecurringExchange(request)
   }
 }
