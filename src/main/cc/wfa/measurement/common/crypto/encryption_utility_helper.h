@@ -61,7 +61,8 @@ absl::Status AppendEcPointPairToString(const ElGamalEcPointPair& ec_point_pair,
 // Writes bytes of a pair of EcPoint to a target string at a certain position.
 // Bytes are written by replacing content of the string starting at pos. The
 // length of bytes written is kBytesPerCipherText = kBytesPerEcPoint * 2.
-// Throw absl::InvalidArgumentError when the result string is not long enough.
+// Returns a Status with code `INVALID_ARGUMENT` when the result string is not
+// long enough.
 absl::Status WriteEcPointPairToString(const ElGamalEcPointPair& ec_point_pair,
                                       size_t pos, std::string& result);
 

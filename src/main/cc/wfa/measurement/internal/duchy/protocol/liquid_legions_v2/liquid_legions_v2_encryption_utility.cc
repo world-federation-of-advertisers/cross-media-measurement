@@ -255,7 +255,8 @@ absl::Status EncryptCompositeElGamalAndAppendToString(
 // a certain position.
 // Bytes are written by replacing content of the string starting at pos. The
 // length of bytes written is kBytesPerCipherText = kBytesPerEcPoint * 2.
-// Returns error InvalidArgument when the result string is not long enough.
+// Returns a Status with code `INVALID_ARGUMENT` when the result string is not
+// long enough.
 absl::Status EncryptCompositeElGamalAndWriteToString(
     ProtocolCryptor& protocol_cryptor, CompositeType composite_type,
     absl::string_view plaintext_ec, size_t pos, std::string& result) {
