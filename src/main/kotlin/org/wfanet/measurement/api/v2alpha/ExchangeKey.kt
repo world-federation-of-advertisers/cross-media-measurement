@@ -17,53 +17,26 @@ package org.wfanet.measurement.api.v2alpha
 import org.wfanet.measurement.common.ResourceNameParser
 import org.wfanet.measurement.common.api.ResourceKey
 
-private val parsers =
-  listOf(
-    ResourceNameParser("recurringExchanges/{recurring_exchange}/exchanges/{exchange}"),
-    ResourceNameParser(
-      "dataProviders/{data_provider}/recurringExchanges/{recurring_exchange}/exchanges/{exchange}"
-    ),
-    ResourceNameParser(
-      "modelProviders/{model_provider}/recurringExchanges/{recurring_exchange}/exchanges/{exchange}"
-    )
-  )
-
 /** [ExchangeKey] of an Exchange. */
-data class ExchangeKey(
-  val dataProviderId: String?,
-  val modelProviderId: String?,
-  val recurringExchangeId: String,
-  val exchangeId: String
-) : ResourceKey {
-  init {
-    require((dataProviderId == null) || (modelProviderId == null))
-  }
-
+data class ExchangeKey(val recurringExchangeId: String, val exchangeId: String) : ResourceKey {
   override fun toName(): String {
-    return parsers
-      .first()
-      .assembleName(
-        mapOf(
-          IdVariable.RECURRING_EXCHANGE to recurringExchangeId,
-          IdVariable.EXCHANGE to exchangeId
-        )
-      )
+    return parser.assembleName(
+      mapOf(IdVariable.RECURRING_EXCHANGE to recurringExchangeId, IdVariable.EXCHANGE to exchangeId)
+    )
   }
 
   companion object FACTORY : ResourceKey.Factory<ExchangeKey> {
-    val defaultValue = ExchangeKey(null, null, "", "")
+    private val parser =
+      ResourceNameParser("recurringExchanges/{recurring_exchange}/exchanges/{exchange}")
+
+    val defaultValue = ExchangeKey("", "")
 
     override fun fromName(resourceName: String): ExchangeKey? {
-      for (parser in parsers) {
-        val idVars = parser.parseIdVars(resourceName) ?: continue
-        return ExchangeKey(
-          idVars[IdVariable.DATA_PROVIDER],
-          idVars[IdVariable.MODEL_PROVIDER],
-          idVars.getValue(IdVariable.RECURRING_EXCHANGE),
-          idVars.getValue(IdVariable.EXCHANGE)
-        )
-      }
-      return null
+      val idVars = parser.parseIdVars(resourceName) ?: return null
+      return ExchangeKey(
+        idVars.getValue(IdVariable.RECURRING_EXCHANGE),
+        idVars.getValue(IdVariable.EXCHANGE)
+      )
     }
   }
 }

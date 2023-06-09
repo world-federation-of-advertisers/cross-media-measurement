@@ -356,8 +356,7 @@ private fun InternalRefusal.Justification.toRefusalJustification(): Refusal.Just
   when (this) {
     InternalRefusal.Justification.CONSENT_SIGNAL_INVALID ->
       Refusal.Justification.CONSENT_SIGNAL_INVALID
-    InternalRefusal.Justification.SPECIFICATION_INVALID ->
-      Refusal.Justification.SPECIFICATION_INVALID
+    InternalRefusal.Justification.SPECIFICATION_INVALID -> Refusal.Justification.SPEC_INVALID
     InternalRefusal.Justification.INSUFFICIENT_PRIVACY_BUDGET ->
       Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET
     InternalRefusal.Justification.UNFULFILLABLE -> Refusal.Justification.UNFULFILLABLE
@@ -371,8 +370,7 @@ private fun Refusal.Justification.toInternal(): InternalRefusal.Justification =
   when (this) {
     Refusal.Justification.CONSENT_SIGNAL_INVALID ->
       InternalRefusal.Justification.CONSENT_SIGNAL_INVALID
-    Refusal.Justification.SPECIFICATION_INVALID ->
-      InternalRefusal.Justification.SPECIFICATION_INVALID
+    Refusal.Justification.SPEC_INVALID -> InternalRefusal.Justification.SPECIFICATION_INVALID
     Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET ->
       InternalRefusal.Justification.INSUFFICIENT_PRIVACY_BUDGET
     Refusal.Justification.UNFULFILLABLE -> InternalRefusal.Justification.UNFULFILLABLE

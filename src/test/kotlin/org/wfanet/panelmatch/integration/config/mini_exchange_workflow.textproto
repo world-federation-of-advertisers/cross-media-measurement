@@ -1,3 +1,6 @@
+# proto-file: wfa/measurement/api/v2alpha/exchange_workflow.proto
+# proto-message: ExchangeWorkflow
+
 # EDP provides a previously generated pepper used in generating AES keys.
 steps {
   step_id: "input-hkdf-pepper"

@@ -64,7 +64,6 @@ internal suspend fun ExchangesCoroutineImplBase.assertTestExchangeHasState(
         getExchangeRequest {
           externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
           date = EXCHANGE_DATE
-          provider = PROVIDER
         }
       )
     )
