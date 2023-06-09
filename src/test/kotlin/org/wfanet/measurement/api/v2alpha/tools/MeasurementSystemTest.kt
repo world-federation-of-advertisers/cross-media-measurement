@@ -19,7 +19,10 @@ package org.wfanet.measurement.api.v2alpha.tools
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.Descriptors
 import com.google.protobuf.duration
+import com.google.protobuf.timestamp
+import com.google.protobuf.value
 import io.grpc.Server
 import io.grpc.ServerInterceptors
 import io.grpc.ServerServiceDefinition
@@ -48,31 +51,49 @@ import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.DataProvider
+import org.wfanet.measurement.api.v2alpha.CreateModelLineRequest
+import org.wfanet.measurement.api.v2alpha.CreateModelReleaseRequest
+import org.wfanet.measurement.api.v2alpha.CreateModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.GetModelReleaseRequest
+import org.wfanet.measurement.api.v2alpha.GetModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
+import org.wfanet.measurement.api.v2alpha.ListModelLinesRequest
+import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt.filter
+import org.wfanet.measurement.api.v2alpha.ListModelReleasesRequest
+import org.wfanet.measurement.api.v2alpha.ListModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.frequency
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.watchDuration
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ModelRelease
+import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ModelSuite
+import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.PublicKey
 import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.ReplaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
+import org.wfanet.measurement.api.v2alpha.SetModelLineActiveEndTimeRequest
+import org.wfanet.measurement.api.v2alpha.SetModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.api.v2alpha.account
 import org.wfanet.measurement.api.v2alpha.activateAccountRequest
 import org.wfanet.measurement.api.v2alpha.apiKey
@@ -83,18 +104,32 @@ import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createApiKeyRequest
 import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
+import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.getModelReleaseRequest
+import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
+import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
+import org.wfanet.measurement.api.v2alpha.listModelLinesResponse
+import org.wfanet.measurement.api.v2alpha.listModelReleasesRequest
+import org.wfanet.measurement.api.v2alpha.listModelReleasesResponse
+import org.wfanet.measurement.api.v2alpha.listModelSuitesRequest
+import org.wfanet.measurement.api.v2alpha.listModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.modelLine
+import org.wfanet.measurement.api.v2alpha.modelRelease
+import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.publicKey
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.revokeCertificateRequest
+import org.wfanet.measurement.api.v2alpha.setModelLineActiveEndTimeRequest
+import org.wfanet.measurement.api.v2alpha.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.api.v2alpha.updatePublicKeyRequest
@@ -165,13 +200,49 @@ private val DATA_PROVIDER_PUBLIC_KEY =
   loadPublicKey(SECRETS_DIR.resolve("edp1_enc_public.tink")).toEncryptionPublicKey()
 private val DATA_PROVIDER_PRIVATE_KEY_HANDLE =
   loadPrivateKey(SECRETS_DIR.resolve("edp1_enc_private.tink"))
-private val DUCHY = DuchyKey("worker1")
-private val DUCHIES = listOf(DUCHY).map { it.toName() }
+private val DUCHY_KEY = DuchyKey("worker1")
+private val DUCHY_NAMES = listOf(DUCHY_KEY).map { it.toName() }
+
+private const val MODEL_LINE_ACTIVE_START_TIME = "2025-05-24T05:00:00.000Z"
+private const val MODEL_LINE_ACTIVE_END_TIME = "2030-05-24T05:00:00.000Z"
 
 private val DATA_PROVIDER = dataProvider {
   name = DATA_PROVIDER_NAME
   certificate = DATA_PROVIDER_CERTIFICATE_NAME
   publicKey = signedData { data = DATA_PROVIDER_PUBLIC_KEY.toByteString() }
+}
+private const val MODEL_PROVIDER_NAME = "modelProvider/1"
+private const val MODEL_SUITE_NAME = "$MODEL_PROVIDER_NAME/modelSuites/1"
+private const val MODEL_LINE_NAME = "$MODEL_SUITE_NAME/modelLines/1"
+private const val HOLDBACK_MODEL_LINE_NAME = "$MODEL_SUITE_NAME/modelLines/2"
+private const val MODEL_RELEASE_NAME = "$MODEL_SUITE_NAME/modelReleases/1"
+
+private val MODEL_SUITE = modelSuite {
+  name = MODEL_SUITE_NAME
+  displayName = "Display name"
+  description = "Description"
+  createTime = timestamp { seconds = 3000 }
+}
+
+private val MODEL_LINE = modelLine {
+  name = MODEL_LINE_NAME
+  displayName = "Display name"
+  description = "Description"
+  activeStartTime = timestamp {
+    seconds = Instant.parse(MODEL_LINE_ACTIVE_START_TIME).toProtoTime().seconds
+  }
+  activeEndTime = timestamp {
+    seconds = Instant.parse(MODEL_LINE_ACTIVE_END_TIME).toProtoTime().seconds
+  }
+  type = ModelLine.Type.PROD
+  holdbackModelLine = HOLDBACK_MODEL_LINE_NAME
+  createTime = timestamp { seconds = 3000 }
+  updateTime = timestamp { seconds = 3000 }
+}
+
+private val MODEL_RELEASE = modelRelease {
+  name = MODEL_RELEASE_NAME
+  createTime = timestamp { seconds = 3000 }
 }
 
 private const val TIME_STRING_1 = "2022-05-22T01:00:00.000Z"
@@ -198,15 +269,15 @@ private const val MEASUREMENT_NAME = "$MEASUREMENT_CONSUMER_NAME/measurements/10
 private val MEASUREMENT = measurement { name = MEASUREMENT_NAME }
 
 private val LIST_MEASUREMENT_RESPONSE = listMeasurementsResponse {
-  measurement += measurement {
+  measurements += measurement {
     name = "$MEASUREMENT_CONSUMER_NAME/measurements/101"
     state = Measurement.State.AWAITING_REQUISITION_FULFILLMENT
   }
-  measurement += measurement {
+  measurements += measurement {
     name = "$MEASUREMENT_CONSUMER_NAME/measurements/102"
     state = Measurement.State.SUCCEEDED
   }
-  measurement += measurement {
+  measurements += measurement {
     name = "$MEASUREMENT_CONSUMER_NAME/measurements/102"
     state = Measurement.State.FAILED
     failure = failure {
@@ -249,6 +320,25 @@ class MeasurementSystemTest {
       onBlocking { getCertificate(any()) }.thenReturn(AGGREGATOR_CERTIFICATE)
     }
   private val publicKeysServiceMock: PublicKeysGrpcKt.PublicKeysCoroutineImplBase = mockService()
+  private val modelLinesServiceMock: ModelLinesCoroutineImplBase = mockService {
+    onBlocking { createModelLine(any()) }.thenReturn(MODEL_LINE)
+    onBlocking { setModelLineHoldbackModelLine(any()) }.thenReturn(MODEL_LINE)
+    onBlocking { setModelLineActiveEndTime(any()) }.thenReturn(MODEL_LINE)
+    onBlocking { listModelLines(any()) }
+      .thenReturn(listModelLinesResponse { modelLines += listOf(MODEL_LINE) })
+  }
+  private val modelReleasesServiceMock: ModelReleasesCoroutineImplBase = mockService {
+    onBlocking { createModelRelease(any()) }.thenReturn(MODEL_RELEASE)
+    onBlocking { getModelRelease(any()) }.thenReturn(MODEL_RELEASE)
+    onBlocking { listModelReleases(any()) }
+      .thenReturn(listModelReleasesResponse { modelReleases += listOf(MODEL_RELEASE) })
+  }
+  private val modelSuitesServiceMock: ModelSuitesCoroutineImplBase = mockService {
+    onBlocking { createModelSuite(any()) }.thenReturn(MODEL_SUITE)
+    onBlocking { getModelSuite(any()) }.thenReturn(MODEL_SUITE)
+    onBlocking { listModelSuites(any()) }
+      .thenReturn(listModelSuitesResponse { modelSuites += listOf(MODEL_SUITE) })
+  }
 
   val services: List<ServerServiceDefinition> =
     listOf(
@@ -259,6 +349,9 @@ class MeasurementSystemTest {
       dataProvidersServiceMock.bindService(),
       ServerInterceptors.intercept(certificatesServiceMock, headerInterceptor),
       ServerInterceptors.intercept(publicKeysServiceMock, headerInterceptor),
+      ServerInterceptors.intercept(modelLinesServiceMock, headerInterceptor),
+      ServerInterceptors.intercept(modelReleasesServiceMock, headerInterceptor),
+      ServerInterceptors.intercept(modelSuitesServiceMock, headerInterceptor),
     )
 
   private val publicApiServer: Server =
@@ -560,21 +653,25 @@ class MeasurementSystemTest {
   @Test
   fun `measurements create calls CreateMeasurement with valid request`() {
     val requestId = "foo"
+    val measurementReferenceId = "9999"
+    val measurementConsumerName = "measurementConsumers/777"
     val args =
       commonArgs +
         arrayOf(
           "measurements",
           "--api-key=$AUTHENTICATION_KEY",
           "create",
-          "--impression",
-          "--impression-privacy-epsilon=0.015",
-          "--impression-privacy-delta=0.0",
-          "--impression-max-frequency=1000",
+          "--reach-and-frequency",
+          "--reach-privacy-epsilon=0.015",
+          "--reach-privacy-delta=0.0",
+          "--frequency-privacy-epsilon=0.02",
+          "--frequency-privacy-delta=0.0",
+          "--reach-max-frequency=1000",
           "--vid-sampling-start=0.1",
           "--vid-sampling-width=0.2",
-          "--measurement-consumer=measurementConsumers/777",
+          "--measurement-consumer=$measurementConsumerName",
           "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
-          "--measurement-ref-id=9999",
+          "--measurement-ref-id=$measurementReferenceId",
           "--request-id=$requestId",
           "--data-provider=dataProviders/1",
           "--event-group=dataProviders/1/eventGroups/1",
@@ -604,35 +701,80 @@ class MeasurementSystemTest {
       )
       .isEqualTo(AUTHENTICATION_KEY)
 
+    // Verify request.
     val request =
       captureFirst<CreateMeasurementRequest> {
         runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
       }
-    assertThat(request.requestId).isEqualTo(requestId)
-    val measurement = request.measurement
-    // measurementSpec matches
+    assertThat(request)
+      .ignoringFieldDescriptors(
+        MEASUREMENT_SPEC_FIELD,
+        ENCRYPTED_REQUISITION_SPEC_FIELD,
+        NONCE_HASH_FIELD
+      )
+      .isEqualTo(
+        createMeasurementRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          measurement = measurement {
+            measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
+            dataProviders += dataProviderEntry {
+              key = "dataProviders/1"
+              value =
+                MeasurementKt.DataProviderEntryKt.value {
+                  dataProviderCertificate = DATA_PROVIDER.certificate
+                  dataProviderPublicKey = DATA_PROVIDER.publicKey
+                }
+            }
+            dataProviders += dataProviderEntry {
+              key = "dataProviders/2"
+              value =
+                MeasurementKt.DataProviderEntryKt.value {
+                  dataProviderCertificate = DATA_PROVIDER.certificate
+                  dataProviderPublicKey = DATA_PROVIDER.publicKey
+                }
+            }
+            this.measurementReferenceId = measurementReferenceId
+          }
+          this.requestId = requestId
+        }
+      )
+
+    // Verify MeasurementSpec.
     verifyMeasurementSpec(
-      measurement.measurementSpec,
+      request.measurement.measurementSpec,
       MEASUREMENT_CONSUMER_CERTIFICATE,
       TRUSTED_MEASUREMENT_CONSUMER_ISSUER
     )
-    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
-    val nonceHashes = measurement.dataProvidersList.map { it.value.nonceHash }
+    val measurementSpec = MeasurementSpec.parseFrom(request.measurement.measurementSpec.data)
     assertThat(measurementSpec)
-      .comparingExpectedFieldsOnly()
       .isEqualTo(
         measurementSpec {
           measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
-          this.nonceHashes += nonceHashes
+          this.nonceHashes += request.measurement.dataProvidersList.map { it.value.nonceHash }
+          reachAndFrequency =
+            MeasurementSpecKt.reachAndFrequency {
+              reachPrivacyParams = differentialPrivacyParams {
+                epsilon = 0.015
+                delta = 0.0
+              }
+              frequencyPrivacyParams = differentialPrivacyParams {
+                epsilon = 0.02
+                delta = 0.0
+              }
+              maximumFrequencyPerUser = 1000
+            }
+          vidSamplingInterval =
+            MeasurementSpecKt.vidSamplingInterval {
+              start = 0.1f
+              width = 0.2f
+            }
         }
       )
-    assertThat(measurement.measurementReferenceId).isEqualTo("9999")
-    // dataProvider1 matches
-    val dataProviderEntry1 = measurement.dataProvidersList[0]
-    assertThat(dataProviderEntry1.key).isEqualTo("dataProviders/1")
+
+    // Verify first RequisitionSpec.
     val signedRequisitionSpec1 =
       decryptRequisitionSpec(
-        dataProviderEntry1.value.encryptedRequisitionSpec,
+        request.measurement.dataProvidersList[0].value.encryptedRequisitionSpec,
         DATA_PROVIDER_PRIVATE_KEY_HANDLE
       )
     val requisitionSpec1 = RequisitionSpec.parseFrom(signedRequisitionSpec1.data)
@@ -643,9 +785,8 @@ class MeasurementSystemTest {
       MEASUREMENT_CONSUMER_CERTIFICATE,
       TRUSTED_MEASUREMENT_CONSUMER_ISSUER
     )
-
     assertThat(requisitionSpec1)
-      .comparingExpectedFieldsOnly()
+      .ignoringFields(RequisitionSpec.NONCE_FIELD_NUMBER)
       .isEqualTo(
         requisitionSpec {
           measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
@@ -674,8 +815,9 @@ class MeasurementSystemTest {
             }
         }
       )
-    // dataProvider2 matches
-    val dataProviderEntry2 = measurement.dataProvidersList[1]
+
+    // Verify second RequisitionSpec.
+    val dataProviderEntry2 = request.measurement.dataProvidersList[1]
     assertThat(dataProviderEntry2.key).isEqualTo("dataProviders/2")
     val signedRequisitionSpec2 =
       decryptRequisitionSpec(
@@ -691,7 +833,7 @@ class MeasurementSystemTest {
       TRUSTED_MEASUREMENT_CONSUMER_ISSUER
     )
     assertThat(requisitionSpec2)
-      .comparingExpectedFieldsOnly()
+      .ignoringFields(RequisitionSpec.NONCE_FIELD_NUMBER)
       .isEqualTo(
         requisitionSpec {
           measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
@@ -706,64 +848,6 @@ class MeasurementSystemTest {
                   }
                   filter = RequisitionSpecKt.eventFilter { expression = "ijk" }
                 }
-            }
-        }
-      )
-  }
-
-  @Test
-  fun `measurements create calls CreateMeasurement with correct reach and frequency params`() {
-    val args =
-      commonArgs +
-        arrayOf(
-          "measurements",
-          "--api-key=$AUTHENTICATION_KEY",
-          "create",
-          "--measurement-consumer=measurementConsumers/777",
-          "--reach-and-frequency",
-          "--reach-privacy-epsilon=0.015",
-          "--reach-privacy-delta=0.0",
-          "--frequency-privacy-epsilon=0.02",
-          "--frequency-privacy-delta=0.0",
-          "--reach-max-frequency=1000",
-          "--vid-sampling-start=0.1",
-          "--vid-sampling-width=0.2",
-          "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
-          "--data-provider=dataProviders/1",
-          "--event-group=dataProviders/1/eventGroups/1",
-          "--event-filter=abcd",
-          "--event-start-time=$TIME_STRING_1",
-          "--event-end-time=$TIME_STRING_2",
-        )
-    callCli(args)
-
-    val request =
-      captureFirst<CreateMeasurementRequest> {
-        runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
-      }
-
-    val measurement = request.measurement
-    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
-    assertThat(measurementSpec)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(
-        measurementSpec {
-          reachAndFrequency =
-            MeasurementSpecKt.reachAndFrequency {
-              reachPrivacyParams = differentialPrivacyParams {
-                epsilon = 0.015
-                delta = 0.0
-              }
-              frequencyPrivacyParams = differentialPrivacyParams {
-                epsilon = 0.02
-                delta = 0.0
-              }
-              maximumFrequencyPerUser = 1000
-            }
-          vidSamplingInterval =
-            MeasurementSpecKt.vidSamplingInterval {
-              start = 0.1f
-              width = 0.2f
             }
         }
       )
@@ -959,12 +1043,393 @@ class MeasurementSystemTest {
       .isEqualTo(
         replaceDataProviderRequiredDuchiesRequest {
           name = DATA_PROVIDER_NAME
-          requiredExternalDuchies += DUCHIES
+          requiredDuchies += DUCHY_NAMES
+        }
+      )
+  }
+
+  @Test
+  fun `create model line succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-lines",
+          "create",
+          "--parent=$MODEL_SUITE_NAME",
+          "--display-name=Display name",
+          "--description=Description",
+          "--active-start-time=$MODEL_LINE_ACTIVE_START_TIME",
+          "--active-end-time=$MODEL_LINE_ACTIVE_END_TIME",
+          "--type=PROD",
+          "--holdback-model-line=$HOLDBACK_MODEL_LINE_NAME",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<CreateModelLineRequest> {
+        runBlocking { verify(modelLinesServiceMock).createModelLine(capture()) }
+      }
+
+    assertThat(request.modelLine)
+      .ignoringFields(
+        ModelLine.CREATE_TIME_FIELD_NUMBER,
+        ModelLine.UPDATE_TIME_FIELD_NUMBER,
+        ModelLine.NAME_FIELD_NUMBER
+      )
+      .isEqualTo(MODEL_LINE)
+  }
+
+  @Test
+  fun `create model line succeeds omitting optional params`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-lines",
+          "create",
+          "--parent=$MODEL_SUITE_NAME",
+          "--active-start-time=$MODEL_LINE_ACTIVE_START_TIME",
+          "--type=PROD",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<CreateModelLineRequest> {
+        runBlocking { verify(modelLinesServiceMock).createModelLine(capture()) }
+      }
+
+    assertThat(request.modelLine)
+      .ignoringFields(
+        ModelLine.CREATE_TIME_FIELD_NUMBER,
+        ModelLine.UPDATE_TIME_FIELD_NUMBER,
+        ModelLine.NAME_FIELD_NUMBER
+      )
+      .isEqualTo(
+        MODEL_LINE.copy {
+          description = ""
+          displayName = ""
+          holdbackModelLine = ""
+          clearActiveEndTime()
+        }
+      )
+  }
+
+  @Test
+  fun `set holdback model line succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-lines",
+          "setHoldbackModelLine",
+          "--name=$MODEL_LINE_NAME",
+          "--holdback-model-line=$HOLDBACK_MODEL_LINE_NAME"
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<SetModelLineHoldbackModelLineRequest> {
+        runBlocking { verify(modelLinesServiceMock).setModelLineHoldbackModelLine(capture()) }
+      }
+
+    assertThat(request)
+      .isEqualTo(
+        setModelLineHoldbackModelLineRequest {
+          name = MODEL_LINE_NAME
+          holdbackModelLine = HOLDBACK_MODEL_LINE_NAME
+        }
+      )
+  }
+
+  @Test
+  fun `set active end time succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-lines",
+          "setActiveEndTime",
+          "--name=$MODEL_LINE_NAME",
+          "--active-end-time=$MODEL_LINE_ACTIVE_END_TIME"
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<SetModelLineActiveEndTimeRequest> {
+        runBlocking { verify(modelLinesServiceMock).setModelLineActiveEndTime(capture()) }
+      }
+
+    assertThat(request)
+      .isEqualTo(
+        setModelLineActiveEndTimeRequest {
+          name = MODEL_LINE_NAME
+          activeEndTime = Instant.parse(MODEL_LINE_ACTIVE_END_TIME).toProtoTime()
+        }
+      )
+  }
+
+  @Test
+  fun `list model lines succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-lines",
+          "list",
+          "--parent=$MODEL_SUITE_NAME",
+          "--page-size=10",
+          "--page-token=token",
+          "--types=PROD"
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<ListModelLinesRequest> {
+        runBlocking { verify(modelLinesServiceMock).listModelLines(capture()) }
+      }
+
+    assertThat(request)
+      .isEqualTo(
+        listModelLinesRequest {
+          parent = MODEL_SUITE_NAME
+          pageSize = 10
+          pageToken = "token"
+          filter = filter { types += ModelLine.Type.PROD }
+        }
+      )
+  }
+
+  @Test
+  fun `list model lines succeeds omitting optional params`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-lines",
+          "list",
+          "--parent=$MODEL_SUITE_NAME",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<ListModelLinesRequest> {
+        runBlocking { verify(modelLinesServiceMock).listModelLines(capture()) }
+      }
+
+    assertThat(request).isEqualTo(listModelLinesRequest { parent = MODEL_SUITE_NAME })
+  }
+
+  @Test
+  fun `create model release succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-releases",
+          "create",
+          "--parent=$MODEL_SUITE_NAME",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<CreateModelReleaseRequest> {
+        runBlocking { verify(modelReleasesServiceMock).createModelRelease(capture()) }
+      }
+
+    assertThat(request.modelRelease)
+      .ignoringFields(ModelRelease.CREATE_TIME_FIELD_NUMBER, ModelRelease.NAME_FIELD_NUMBER)
+      .isEqualTo(MODEL_RELEASE)
+  }
+
+  @Test
+  fun `get model release succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-releases",
+          "get",
+          "--name=$MODEL_RELEASE_NAME",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<GetModelReleaseRequest> {
+        runBlocking { verify(modelReleasesServiceMock).getModelRelease(capture()) }
+      }
+
+    assertThat(request).isEqualTo(getModelReleaseRequest { name = MODEL_RELEASE_NAME })
+  }
+
+  @Test
+  fun `list model releases succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-releases",
+          "list",
+          "--parent=$MODEL_SUITE_NAME",
+          "--page-size=10",
+          "--page-token=token",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<ListModelReleasesRequest> {
+        runBlocking { verify(modelReleasesServiceMock).listModelReleases(capture()) }
+      }
+
+    assertThat(request)
+      .isEqualTo(
+        listModelReleasesRequest {
+          parent = MODEL_SUITE_NAME
+          pageSize = 10
+          pageToken = "token"
+        }
+      )
+  }
+
+  @Test
+  fun `list model releases succeeds omitting optional params`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-releases",
+          "list",
+          "--parent=$MODEL_SUITE_NAME",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<ListModelReleasesRequest> {
+        runBlocking { verify(modelReleasesServiceMock).listModelReleases(capture()) }
+      }
+
+    assertThat(request).isEqualTo(listModelReleasesRequest { parent = MODEL_SUITE_NAME })
+  }
+
+  @Test
+  fun `create model suite succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-suites",
+          "create",
+          "--parent=$MODEL_PROVIDER_NAME",
+          "--display-name",
+          "Display name",
+          "--description",
+          "Description",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<CreateModelSuiteRequest> {
+        runBlocking { verify(modelSuitesServiceMock).createModelSuite(capture()) }
+      }
+
+    assertThat(request.modelSuite)
+      .ignoringFields(ModelSuite.CREATE_TIME_FIELD_NUMBER, ModelSuite.NAME_FIELD_NUMBER)
+      .isEqualTo(MODEL_SUITE)
+  }
+
+  @Test
+  fun `create model suite succeeds omitting optional params`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-suites",
+          "create",
+          "--parent=$MODEL_PROVIDER_NAME",
+          "--display-name",
+          "Display name",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<CreateModelSuiteRequest> {
+        runBlocking { verify(modelSuitesServiceMock).createModelSuite(capture()) }
+      }
+
+    assertThat(request.modelSuite)
+      .ignoringFields(ModelSuite.CREATE_TIME_FIELD_NUMBER, ModelSuite.NAME_FIELD_NUMBER)
+      .isEqualTo(MODEL_SUITE.copy { description = "" })
+  }
+
+  @Test
+  fun `get model suite succeeds`() {
+    val args = commonArgs + arrayOf("model-suites", "get", "--name", MODEL_SUITE_NAME)
+    callCli(args)
+
+    val request =
+      captureFirst<GetModelSuiteRequest> {
+        runBlocking { verify(modelSuitesServiceMock).getModelSuite(capture()) }
+      }
+
+    assertThat(request).isEqualTo(getModelSuiteRequest { name = MODEL_SUITE_NAME })
+  }
+
+  @Test
+  fun `list model suites succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-suites",
+          "list",
+          "--parent=$MODEL_PROVIDER_NAME",
+          "--page-size",
+          "10",
+          "--page-token",
+          "token"
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<ListModelSuitesRequest> {
+        runBlocking { verify(modelSuitesServiceMock).listModelSuites(capture()) }
+      }
+
+    assertThat(request)
+      .isEqualTo(
+        listModelSuitesRequest {
+          parent = MODEL_PROVIDER_NAME
+          pageSize = 10
+          pageToken = "token"
+        }
+      )
+  }
+
+  @Test
+  fun `list model suites succeeds omitting optional params`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-suites",
+          "list",
+          "--parent=$MODEL_PROVIDER_NAME",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<ListModelSuitesRequest> {
+        runBlocking { verify(modelSuitesServiceMock).listModelSuites(capture()) }
+      }
+
+    assertThat(request)
+      .isEqualTo(
+        listModelSuitesRequest {
+          parent = MODEL_PROVIDER_NAME
+          pageSize = 0
+          pageToken = ""
         }
       )
   }
 
   companion object {
+    private val MEASUREMENT_SPEC_FIELD: Descriptors.FieldDescriptor =
+      Measurement.getDescriptor().findFieldByNumber(Measurement.MEASUREMENT_SPEC_FIELD_NUMBER)
+    private val ENCRYPTED_REQUISITION_SPEC_FIELD: Descriptors.FieldDescriptor =
+      Measurement.DataProviderEntry.Value.getDescriptor()
+        .findFieldByNumber(
+          Measurement.DataProviderEntry.Value.ENCRYPTED_REQUISITION_SPEC_FIELD_NUMBER
+        )
+    private val NONCE_HASH_FIELD: Descriptors.FieldDescriptor =
+      Measurement.DataProviderEntry.Value.getDescriptor()
+        .findFieldByNumber(Measurement.DataProviderEntry.Value.NONCE_HASH_FIELD_NUMBER)
+
     private val MEASUREMENT_CONSUMER: MeasurementConsumer by lazy {
       measurementConsumer {
         name = MEASUREMENT_CONSUMER_NAME
@@ -1028,14 +1493,6 @@ class MeasurementSystemTest {
           encryptedResult = getEncryptedResult(result, measurementPublicKey)
           certificate = DATA_PROVIDER_CERTIFICATE_NAME
         }
-      }
-    }
-    private val SUCCEEDED_DATA_PROVIDER: DataProvider by lazy {
-      dataProvider {
-        name = DATA_PROVIDER_NAME
-        certificate = DATA_PROVIDER_CERTIFICATE_NAME
-        publicKey = signedData { data = DATA_PROVIDER_PUBLIC_KEY.toByteString() }
-        requiredExternalDuchyIds += DUCHIES
       }
     }
   }

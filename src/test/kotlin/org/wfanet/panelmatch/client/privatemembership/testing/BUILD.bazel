@@ -1,0 +1,103 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "PlaintextEvaluateQueriesEndToEndTest",
+    timeout = "moderate",
+    srcs = ["PlaintextEvaluateQueriesEndToEndTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.privatemembership.testing.PlaintextEvaluateQueriesEndToEndTest",
+    deps = [
+        "//imports/java/org/apache/beam:core",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
+    name = "PlaintextQueryEvaluatorTest",
+    timeout = "short",
+    srcs = ["PlaintextQueryEvaluatorTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.privatemembership.testing.PlaintextQueryEvaluatorTest",
+    deps = [
+        "//imports/java/org/apache/beam:core",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
+    name = "PlaintextPrivateMembershipCryptorTest",
+    timeout = "short",
+    srcs = ["PlaintextPrivateMembershipCryptorTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.privatemembership.testing.PlaintextPrivateMembershipCryptorTest",
+    deps = [
+        "//imports/java/org/apache/beam:core",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
+        "//src/main/proto/wfa/panelmatch/client/privatemembership:private_membership_kt_jvm_proto",
+        "//src/main/proto/wfa/panelmatch/client/privatemembership:query_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
+    name = "PlaintextQueryResultsDecryptorTest",
+    timeout = "short",
+    srcs = ["PlaintextQueryResultsDecryptorTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.privatemembership.testing.PlaintextQueryResultsDecryptorTest",
+    deps = [
+        "//imports/java/org/apache/beam:core",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
+        "//src/main/proto/wfa/panelmatch/client/privatemembership:decrypt_event_data_kt_jvm_proto",
+        "//src/main/proto/wfa/panelmatch/client/privatemembership:query_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
+    name = "PlaintextCreateQueriesTest",
+    timeout = "short",
+    srcs = ["PlaintextCreateQueriesTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.privatemembership.testing.PlaintextCreateQueriesTest",
+    deps = [
+        "//imports/java/org/apache/beam:core",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
+    name = "PlaintextQueryPreparerTest",
+    timeout = "moderate",
+    srcs = ["PlaintextQueryPreparerTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.privatemembership.testing.PlaintextQueryPreparerTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)

@@ -1,0 +1,56 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.panelmatch.client.privatemembership;
+
+import "wfa/panelmatch/client/exchangetasks/join_key.proto";
+
+option java_package = "org.wfanet.panelmatch.client.privatemembership";
+option java_multiple_files = true;
+
+// Hashes a single blinded joinkey
+message PrepareQueryRequest {
+  repeated wfa.panelmatch.client.exchangetasks.JoinKeyAndId
+      decrypted_join_key_and_ids = 1;
+  bytes identifier_hash_pepper = 2;
+}
+
+// Hashed from the decrypted join key and identifier hash pepper.
+message LookupKey {
+  fixed64 key = 1;
+}
+
+// A lookup key and its join key identifier.
+message LookupKeyAndId {
+  LookupKey lookup_key = 1;
+  wfa.panelmatch.client.exchangetasks.JoinKeyIdentifier join_key_identifier = 2;
+}
+
+// A collection of lookup key and ids.
+message LookupKeyAndIdCollection {
+  repeated LookupKeyAndId lookup_key_and_ids = 1;
+}
+
+// Response of the PrepareQueryRequest method
+message PrepareQueryResponse {
+  repeated LookupKeyAndId lookup_key_and_ids = 1;
+}
+
+// Holds a list of JoinKeyIdentifier such as discarded join keys
+message JoinKeyIdentifierCollection {
+  repeated wfa.panelmatch.client.exchangetasks.JoinKeyIdentifier
+      join_key_identifiers = 1;
+}

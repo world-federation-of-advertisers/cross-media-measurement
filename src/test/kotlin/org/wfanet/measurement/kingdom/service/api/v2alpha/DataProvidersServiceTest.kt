@@ -37,6 +37,7 @@ import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequ
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.withDuchyPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -65,8 +66,10 @@ private const val CERTIFICATE_ID = 456L
 private val DATA_PROVIDER_NAME = makeDataProvider(DATA_PROVIDER_ID)
 private val DATA_PROVIDER_NAME_2 = makeDataProvider(DATA_PROVIDER_ID_2)
 private val CERTIFICATE_NAME = "$DATA_PROVIDER_NAME/certificates/AAAAAAAAAcg"
-private val DUCHY = DuchyKey("worker1")
-private val DUCHIES = listOf(DUCHY).map { it.toName() }
+private const val EXTERNAL_DUCHY_ID = "worker1"
+private val DUCHY_KEY = DuchyKey(EXTERNAL_DUCHY_ID)
+private val DUCHY_NAME = DUCHY_KEY.toName()
+private val DUCHY_NAMES = listOf(DUCHY_NAME)
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
 
@@ -101,7 +104,7 @@ class DataProvidersServiceTest {
       certificate = CERTIFICATE_NAME
       certificateDer = SERVER_CERTIFICATE_DER
       publicKey = SIGNED_PUBLIC_KEY
-      requiredExternalDuchyIds += DUCHIES
+      requiredDuchies += DUCHY_NAMES
     }
     assertThat(dataProvider).isEqualTo(expectedDataProvider)
     verifyProtoArgument(internalServiceMock, InternalDataProvidersService::getDataProvider)
@@ -122,7 +125,28 @@ class DataProvidersServiceTest {
       certificate = CERTIFICATE_NAME
       certificateDer = SERVER_CERTIFICATE_DER
       publicKey = SIGNED_PUBLIC_KEY
-      requiredExternalDuchyIds += DUCHIES
+      requiredDuchies += DUCHY_NAMES
+    }
+    assertThat(dataProvider).isEqualTo(expectedDataProvider)
+    verifyProtoArgument(internalServiceMock, InternalDataProvidersService::getDataProvider)
+      .isEqualTo(internalGetDataProviderRequest { externalDataProviderId = DATA_PROVIDER_ID })
+  }
+
+  @Test
+  fun `get with model provider caller returns resource`() {
+    val dataProvider =
+      withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+        runBlocking {
+          service.getDataProvider(getDataProviderRequest { name = DATA_PROVIDER_NAME })
+        }
+      }
+
+    val expectedDataProvider = dataProvider {
+      name = DATA_PROVIDER_NAME
+      certificate = CERTIFICATE_NAME
+      certificateDer = SERVER_CERTIFICATE_DER
+      publicKey = SIGNED_PUBLIC_KEY
+      requiredDuchies += DUCHY_NAMES
     }
     assertThat(dataProvider).isEqualTo(expectedDataProvider)
     verifyProtoArgument(internalServiceMock, InternalDataProvidersService::getDataProvider)
@@ -157,7 +181,7 @@ class DataProvidersServiceTest {
   fun `get throws PERMISSION_DENIED when principal with no authorization found`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+        withDuchyPrincipal(DUCHY_NAME) {
           runBlocking {
             service.getDataProvider(getDataProviderRequest { name = DATA_PROVIDER_NAME })
           }
@@ -196,7 +220,7 @@ class DataProvidersServiceTest {
           service.replaceDataProviderRequiredDuchies(
             replaceDataProviderRequiredDuchiesRequest {
               name = DATA_PROVIDER_NAME
-              requiredExternalDuchies += DUCHIES
+              requiredDuchies += DUCHY_NAMES
             }
           )
         }
@@ -207,7 +231,7 @@ class DataProvidersServiceTest {
       certificate = CERTIFICATE_NAME
       certificateDer = SERVER_CERTIFICATE_DER
       publicKey = SIGNED_PUBLIC_KEY
-      requiredExternalDuchyIds += DUCHIES
+      requiredDuchies += DUCHY_NAMES
     }
     assertThat(dataProvider).isEqualTo(expectedDataProvider)
     verifyProtoArgument(
@@ -217,7 +241,7 @@ class DataProvidersServiceTest {
       .isEqualTo(
         internalReplaceDataProviderRequiredDuchiesRequest {
           externalDataProviderId = DATA_PROVIDER_ID
-          requiredExternalDuchyIds += listOf("worker1")
+          requiredExternalDuchyIds += EXTERNAL_DUCHY_ID
         }
       )
   }
@@ -231,7 +255,7 @@ class DataProvidersServiceTest {
             service.replaceDataProviderRequiredDuchies(
               replaceDataProviderRequiredDuchiesRequest {
                 name = "foo"
-                requiredExternalDuchies += DUCHIES
+                requiredDuchies += DUCHY_NAMES
               }
             )
           }
@@ -241,7 +265,7 @@ class DataProvidersServiceTest {
   }
 
   @Test
-  fun `replaceDataProviderRequiredDuchies throws INVALID_ARGUMENT when requiredExternalDuchies is invalid`() {
+  fun `replaceDataProviderRequiredDuchies throws INVALID_ARGUMENT when requiredDuchies is invalid`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withDataProviderPrincipal(DATA_PROVIDER_NAME) {
@@ -249,7 +273,7 @@ class DataProvidersServiceTest {
             service.replaceDataProviderRequiredDuchies(
               replaceDataProviderRequiredDuchiesRequest {
                 name = DATA_PROVIDER_NAME
-                requiredExternalDuchies += listOf("worker1")
+                requiredDuchies += listOf("worker1")
               }
             )
           }
@@ -266,7 +290,7 @@ class DataProvidersServiceTest {
           service.replaceDataProviderRequiredDuchies(
             replaceDataProviderRequiredDuchiesRequest {
               name = DATA_PROVIDER_NAME
-              requiredExternalDuchies += DUCHIES
+              requiredDuchies += DUCHY_NAMES
             }
           )
         }
@@ -283,7 +307,7 @@ class DataProvidersServiceTest {
             service.replaceDataProviderRequiredDuchies(
               replaceDataProviderRequiredDuchiesRequest {
                 name = DATA_PROVIDER_NAME
-                requiredExternalDuchies += DUCHIES
+                requiredDuchies += DUCHY_NAMES
               }
             )
           }
@@ -301,7 +325,7 @@ class DataProvidersServiceTest {
             service.replaceDataProviderRequiredDuchies(
               replaceDataProviderRequiredDuchiesRequest {
                 name = DATA_PROVIDER_NAME
-                requiredExternalDuchies += DUCHIES
+                requiredDuchies += DUCHY_NAMES
               }
             )
           }
@@ -319,7 +343,7 @@ class DataProvidersServiceTest {
             service.replaceDataProviderRequiredDuchies(
               replaceDataProviderRequiredDuchiesRequest {
                 name = DATA_PROVIDER_NAME
-                requiredExternalDuchies += DUCHIES
+                requiredDuchies += DUCHY_NAMES
               }
             )
           }
@@ -355,7 +379,7 @@ class DataProvidersServiceTest {
         notValidAfter = serverCertificate.notAfter.toInstant().toProtoTime()
         details = CertificateKt.details { x509Der = SERVER_CERTIFICATE_DER }
       }
-      requiredExternalDuchyIds += DUCHIES
+      requiredExternalDuchyIds += EXTERNAL_DUCHY_ID
     }
   }
 }

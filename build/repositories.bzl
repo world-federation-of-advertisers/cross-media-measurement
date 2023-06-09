@@ -27,8 +27,8 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_common_jvm",
         repo = "common-jvm",
-        sha256 = "06ab7259708f490c052bd6ada0b9f193a99e9d621abd5428649d67378530a977",
-        version = "0.55.0",
+        sha256 = "79835398bc2a1365ecb6584066766fa8590a543cd13f9cecd969afe4e9b5c1da",
+        version = "0.56.0",
     )
 
     wfa_repo_archive(
@@ -40,9 +40,10 @@ def wfa_measurement_system_repositories():
 
     wfa_repo_archive(
         name = "wfa_measurement_proto",
+        # TODO(world-federation-of-advertisers/cross-media-measurement-api#137): Use version
+        commit = "6b10c80ea0e09bf9a8fb7834348e2d9ab82ffda7",
         repo = "cross-media-measurement-api",
-        sha256 = "644fa51594fa183b65dbc0a5a064ddfaa16c807b573ec66e171a9de63b0f2b03",
-        version = "0.31.0",
+        sha256 = "a8b61b196484fda8a73bb1a55d91116af1368a07277dc55984624aff1a948e39",
     )
 
     wfa_repo_archive(

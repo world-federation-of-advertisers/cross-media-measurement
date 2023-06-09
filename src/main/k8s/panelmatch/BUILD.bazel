@@ -1,0 +1,8 @@
+load("@wfa_rules_cue//cue:defs.bzl", "cue_library")
+
+package(default_visibility = ["//src/main/k8s/panelmatch:__subpackages__"])
+
+cue_library(
+    name = "base",
+    srcs = ["panelmatch/base.cue"],
+)

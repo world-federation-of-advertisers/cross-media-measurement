@@ -1,0 +1,20 @@
+load("@wfa_rules_swig//java:defs.bzl", "java_wrap_cc")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/panelmatch:__subpackages__",
+    "//src/test/kotlin/org/wfanet/panelmatch:__subpackages__",
+])
+
+java_wrap_cc(
+    name = "deterministic_commutative_encryption",
+    src = "deterministic_commutative_encryption.swig",
+    module = "DeterministicCommutativeEncryptionWrapper",
+    package = "org.wfanet.panelmatch.protocol.crypto",
+    deps = [
+        "//src/main/cc/wfa/panelmatch/protocol/crypto:deterministic_commutative_encryption_utility_wrapper",
+
+        # To change the KeyLoader in use, replace this with a cc_library that
+        # statically registers a different KeyLoader.
+        "//src/main/cc/wfa/panelmatch/common/crypto:register_identity_key_loader",
+    ],
+)

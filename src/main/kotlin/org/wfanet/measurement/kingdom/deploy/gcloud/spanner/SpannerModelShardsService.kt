@@ -31,6 +31,7 @@ import org.wfanet.measurement.internal.kingdom.StreamModelShardsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelReleaseNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelShardInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelShardNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelShards
@@ -46,14 +47,17 @@ class SpannerModelShardsService(
     grpcRequire(request.externalDataProviderId != 0L) {
       "DataProviderId field of ModelShard is missing."
     }
+    grpcRequire(request.modelBlobPath.isNotBlank()) {
+      "ModelBlobPath field of ModelShard is missing."
+    }
     try {
       return CreateModelShard(request).execute(client, idGenerator)
     } catch (e: DataProviderNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "DataProvider not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
     } catch (e: ModelSuiteNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelSuite not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelSuite not found.")
     } catch (e: ModelReleaseNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelRelease not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelRelease not found.")
     }
   }
 
@@ -61,17 +65,29 @@ class SpannerModelShardsService(
     grpcRequire(request.externalDataProviderId != 0L) { "ExternalDataProviderId unspecified" }
     grpcRequire(request.externalModelShardId != 0L) { "ExternalModelShardId unspecified" }
     try {
+      val externalModelProviderId =
+        if (request.externalModelProviderId != 0L) {
+          ExternalId(request.externalModelProviderId)
+        } else {
+          null
+        }
       return DeleteModelShard(
           ExternalId(request.externalDataProviderId),
-          ExternalId(request.externalModelShardId)
+          ExternalId(request.externalModelShardId),
+          externalModelProviderId
         )
         .execute(client, idGenerator)
     } catch (e: DataProviderNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "DataProvider not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
     } catch (e: ModelShardNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ModelShard not found." }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelShard not found.")
+    } catch (e: ModelShardInvalidArgsException) {
+      throw e.asStatusRuntimeException(
+        Status.Code.INVALID_ARGUMENT,
+        "Cannot delete ModelShard having ModelRelease owned by another ModelProvider."
+      )
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
   }
 

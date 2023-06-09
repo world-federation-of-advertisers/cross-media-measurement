@@ -14,11 +14,13 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common
 
+import com.google.protobuf.Any
 import com.google.rpc.errorInfo
+import com.google.rpc.status
 import com.google.type.Date
-import io.grpc.Metadata
 import io.grpc.Status
-import io.grpc.protobuf.ProtoUtils
+import io.grpc.StatusRuntimeException
+import io.grpc.protobuf.StatusProto
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.kingdom.Account
@@ -43,20 +45,27 @@ sealed class KingdomInternalException : Exception {
     this.code = code
   }
 
-  fun throwStatusRuntimeException(
-    status: Status = Status.INVALID_ARGUMENT,
-    provideDescription: () -> String = { message ?: "" },
-  ): Nothing {
-    val info = errorInfo {
-      reason = code.toString()
-      domain = ErrorCode.getDescriptor().fullName
-      metadata.putAll(context)
+  fun asStatusRuntimeException(
+    statusCode: Status.Code,
+    message: String = this.message!!
+  ): StatusRuntimeException {
+    val statusProto = status {
+      code = statusCode.value()
+      this.message = message
+      details +=
+        Any.pack(
+          errorInfo {
+            reason = this@KingdomInternalException.code.toString()
+            domain = ErrorCode.getDescriptor().fullName
+            metadata.putAll(context)
+          }
+        )
     }
 
-    val metadata = Metadata()
-    metadata.put(ProtoUtils.keyForProto(info), info)
-
-    throw status.withDescription(provideDescription()).asRuntimeException(metadata)
+    // Unpack exception to add cause.
+    // TODO(grpc/grpc-java#10230): Use new API when available.
+    val exception = StatusProto.toStatusRuntimeException(statusProto)
+    return exception.status.withCause(this).asRuntimeException(exception.trailers)
   }
 
   override fun toString(): String {
@@ -662,6 +671,21 @@ class ModelShardNotFoundException(
       mapOf(
         "external_data_provider_id" to externalDataProviderId.toString(),
         "external_model_shard_id" to externalModelShardId.toString()
+      )
+}
+
+class ModelShardInvalidArgsException(
+  val externalDataProviderId: ExternalId,
+  val externalModelShardId: ExternalId,
+  val externalModelProviderId: ExternalId,
+  provideDescription: () -> String = { "ModelShard invalid arguments" }
+) : KingdomInternalException(ErrorCode.MODEL_SHARD_INVALID_ARGS, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_data_provider_id" to externalDataProviderId.toString(),
+        "external_model_shard_id" to externalModelShardId.toString(),
+        "external_model_provider_id" to externalModelProviderId.toString()
       )
 }
 

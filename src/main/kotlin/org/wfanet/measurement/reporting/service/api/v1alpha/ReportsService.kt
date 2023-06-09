@@ -43,6 +43,7 @@ import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
@@ -1055,10 +1056,6 @@ class ReportsService(
     apiAuthenticationKey: String,
     signingConfig: SigningConfig,
   ): CreateMeasurementRequest {
-    grpcRequireNotNull(MeasurementConsumerKey.fromName(measurementConsumer.name)) {
-      "Invalid measurement consumer name [${measurementConsumer.name}]"
-    }
-
     val measurementConsumerCertificate: X509Certificate =
       readCertificate(signingConfig.signingCertificateDer)
     val measurementConsumerSigningKey =
@@ -1066,6 +1063,7 @@ class ReportsService(
     val measurementEncryptionPublicKey: ByteString = measurementConsumer.publicKey.data
 
     return createMeasurementRequest {
+      parent = measurementConsumer.name
       measurement = measurement {
         this.measurementConsumerCertificate = signingConfig.signingCertificateName
 
@@ -1120,7 +1118,12 @@ class ReportsService(
 
           eventGroupKey to
             RequisitionSpecKt.eventGroupEntry {
-              key = eventGroupName
+              key =
+                CmmsEventGroupKey(
+                    internalEventGroupKey.dataProviderReferenceId,
+                    internalEventGroupKey.eventGroupReferenceId
+                  )
+                  .toName()
               value =
                 RequisitionSpecKt.EventGroupEntryKt.value {
                   collectionInterval = timeInterval
@@ -1611,9 +1614,9 @@ private fun buildMeasurementReferenceId(
 
 /** Combines two event group filters. */
 private fun combineEventGroupFilters(filter1: String?, filter2: String?): String? {
-  if (filter1 == null) return filter2
+  if (filter1.isNullOrBlank()) return filter2
 
-  return if (filter2 == null) filter1
+  return if (filter2.isNullOrBlank()) filter1
   else {
     "($filter1) AND ($filter2)"
   }

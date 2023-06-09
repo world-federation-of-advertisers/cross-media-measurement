@@ -1,0 +1,88 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "BatchingDoFnTest",
+    timeout = "moderate",
+    srcs = ["BatchingDoFnTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.BatchingDoFnTest",
+    deps = [
+        "//imports/java/org/apache/beam:core",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
+        "@wfa_common_jvm//imports/java/com/google/common:guava",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
+    name = "EventSizeTest",
+    timeout = "short",
+    srcs = ["EventSizeTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.EventSizeTest",
+    deps = [
+        "//imports/java/org/apache/beam:core",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
+    name = "JniEncryptEventsTest",
+    timeout = "short",
+    srcs = ["JniEncryptEventsTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.JniEncryptEventsTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common:guava",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "JniEventPreprocessorTest",
+    timeout = "short",
+    srcs = ["JniEventPreprocessorTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.JniEventPreprocessorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_java_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "PreprocessEventsTest",
+    timeout = "short",
+    srcs = ["PreprocessEventsTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.PreprocessEventsTest",
+    deps = [
+        "//imports/java/org/apache/beam:core",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
+        "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common:guava",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)

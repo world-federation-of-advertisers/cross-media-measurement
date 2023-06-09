@@ -529,7 +529,7 @@ class EdpSimulator(
         PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER -> {
           refuseRequisition(
             requisitionName,
-            Requisition.Refusal.Justification.SPECIFICATION_INVALID,
+            Requisition.Refusal.Justification.SPEC_INVALID,
             "Invalid event filter"
           )
         }
@@ -618,7 +618,7 @@ class EdpSimulator(
       } catch (e: EventFilterValidationException) {
         refuseRequisition(
           requisition.name,
-          Requisition.Refusal.Justification.SPECIFICATION_INVALID,
+          Requisition.Refusal.Justification.SPEC_INVALID,
           "Invalid event filter (${e.code}): ${e.code.description}"
         )
         logger.log(

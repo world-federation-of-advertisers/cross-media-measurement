@@ -52,6 +52,11 @@ COMMON_IMAGES = [
         repository = _PREFIX + "/kingdom/completed-measurements-deletion",
     ),
     struct(
+        name = "kingdom_exchanges_deletion_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/job:exchanges_deletion_image",
+        repository = _PREFIX + "/kingdom/exchanges-deletion",
+    ),
+    struct(
         name = "kingdom_pending_measurements_cancellation_image",
         image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/job:pending_measurements_cancellation_image",
         repository = _PREFIX + "/kingdom/pending-measurements-cancellation",

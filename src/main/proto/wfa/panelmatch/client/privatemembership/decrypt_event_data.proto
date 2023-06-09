@@ -1,0 +1,66 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.panelmatch.client.privatemembership;
+
+import "wfa/panelmatch/client/exchangetasks/join_key.proto";
+import "wfa/panelmatch/client/privatemembership/query.proto";
+import "wfa/panelmatch/common/compression/compression.proto";
+
+option java_package = "org.wfanet.panelmatch.client.privatemembership";
+option java_multiple_files = true;
+
+// Removes the final layer of encryption for event data using the lookup key and
+// pepper.
+message DecryptEventDataRequest {
+  message EncryptedEventDataSet {
+    QueryId query_id = 1;
+    EncryptedEventData encrypted_event_data = 2;
+  }
+  EncryptedEventDataSet encrypted_event_data_set = 1;
+  wfa.panelmatch.client.exchangetasks.JoinKey lookup_key = 2;
+  bytes hkdf_pepper = 3;
+}
+
+// Response of DecryptEventDataRequest
+message DecryptedEventDataSet {
+  QueryId query_id = 1;
+  repeated Plaintext decrypted_event_data = 2;
+}
+
+// A decrypted event data set tied to its plaintext join key and id.
+message KeyedDecryptedEventDataSet {
+  wfa.panelmatch.client.exchangetasks.JoinKeyAndId plaintext_join_key_and_id =
+      1;
+  repeated Plaintext decrypted_event_data = 2;
+}
+
+// Removes in one step both the private membership encryption as well as the
+// symmetric encryption that ensures the data is computationally symmetric.
+message DecryptQueryResultsRequest {
+  bytes serialized_parameters = 1;
+  bytes serialized_public_key = 2;
+  bytes serialized_private_key = 3;
+  repeated EncryptedQueryResult encrypted_query_results = 4;
+  wfa.panelmatch.client.exchangetasks.JoinKey decrypted_join_key = 5;
+  bytes hkdf_pepper = 6;
+  CompressionParameters compression_parameters = 7;
+}
+
+// Response of DecryptQueryResultsRequest
+message DecryptQueryResultsResponse {
+  repeated DecryptedEventDataSet event_data_sets = 1;
+}

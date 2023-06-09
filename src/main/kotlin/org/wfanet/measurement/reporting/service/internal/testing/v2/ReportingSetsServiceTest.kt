@@ -573,7 +573,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
   }
 
   @Test
-  fun `CreateReportingSet throws INVALID_ARGUMENT when ReportingSet missing value`() = runBlocking {
+  fun `createReportingSet throws INVALID_ARGUMENT when ReportingSet missing value`() = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
@@ -602,7 +602,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
   }
 
   @Test
-  fun `CreateReportingSet throws INVALID_ARGUMENT when set expression missing lhs`() = runBlocking {
+  fun `createReportingSet throws INVALID_ARGUMENT when set expression missing lhs`() = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
@@ -664,7 +664,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
   }
 
   @Test
-  fun `CreateReportingSet throws NOT_FOUND when ReportingSet in basis not found`() = runBlocking {
+  fun `createReportingSet throws NOT_FOUND when ReportingSet in basis not found`() = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
@@ -728,7 +728,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
   }
 
   @Test
-  fun `CreateReportingSet throws NOT_FOUND when ReportingSet in operand not found`() = runBlocking {
+  fun `createReportingSet throws NOT_FOUND when ReportingSet in operand not found`() = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
@@ -771,7 +771,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
   }
 
   @Test
-  fun `CreateReportingSet throws FAILED_PRECONDITION when MC not found`() = runBlocking {
+  fun `createReportingSet throws FAILED_PRECONDITION when MC not found`() = runBlocking {
     val compositeReportingSet = reportingSet {
       cmmsMeasurementConsumerId = "123"
       displayName = "displayName"
@@ -1107,6 +1107,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
               }
           }
         )
+        .inOrder()
     }
 
   @Test

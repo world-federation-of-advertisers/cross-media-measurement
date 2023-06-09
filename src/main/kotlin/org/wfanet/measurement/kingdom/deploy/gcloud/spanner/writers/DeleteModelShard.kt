@@ -21,6 +21,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.kingdom.ModelShard
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelShardInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelShardNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelShardReader
@@ -36,11 +37,23 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelShardRe
 class DeleteModelShard(
   private val externalDataProviderId: ExternalId,
   private val externalModelShardId: ExternalId,
+  private val externalModelProviderId: ExternalId?,
 ) : SimpleSpannerWriter<ModelShard>() {
 
   override suspend fun TransactionScope.runTransaction(): ModelShard {
     val dataProviderId = readInternalDataProviderId()
     val modelShardResult = readModelShard()
+
+    if (
+      externalModelProviderId != null &&
+        externalModelProviderId.value != modelShardResult.modelShard.externalModelProviderId
+    ) {
+      throw ModelShardInvalidArgsException(
+        externalDataProviderId,
+        externalModelShardId,
+        externalModelProviderId
+      )
+    }
 
     transactionContext.buffer(
       Mutation.delete(

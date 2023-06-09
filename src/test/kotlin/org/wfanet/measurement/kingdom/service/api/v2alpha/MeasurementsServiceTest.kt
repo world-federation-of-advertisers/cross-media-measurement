@@ -130,7 +130,7 @@ private val EXTERNAL_MEASUREMENT_CONSUMER_ID =
     MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
   )
 private val ENCRYPTED_DATA = ByteString.copyFromUtf8("data")
-private val DUCHY_CERTIFICATE_NAME = "duchies/AAAAAAAAAHs/certificates/AAAAAAAAAHs"
+private const val DUCHY_CERTIFICATE_NAME = "duchies/AAAAAAAAAHs/certificates/AAAAAAAAAHs"
 private val DATA_PROVIDER_NONCE_HASH: ByteString =
   HexString("97F76220FEB39EE6F262B1F0C8D40F221285EEDE105748AE98F7DC241198D69F").bytes
 private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
@@ -244,6 +244,7 @@ class MeasurementsServiceTest {
   @Test
   fun `createMeasurement returns created measurement`() {
     val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
       measurement =
         MEASUREMENT.copy {
           // This should be ignored.
@@ -319,6 +320,7 @@ class MeasurementsServiceTest {
           }
       }
     val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
       this.measurement =
         measurement.copy {
           // This should be ignored.
@@ -405,6 +407,7 @@ class MeasurementsServiceTest {
           }
       }
     val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
       this.measurement =
         measurement.copy {
           clearName()
@@ -484,6 +487,7 @@ class MeasurementsServiceTest {
           }
       }
     val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
       this.measurement =
         measurement.copy {
           clearName()
@@ -553,7 +557,12 @@ class MeasurementsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME_2) {
           runBlocking {
-            service.createMeasurement(createMeasurementRequest { measurement = MEASUREMENT })
+            service.createMeasurement(
+              createMeasurementRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                measurement = MEASUREMENT
+              }
+            )
           }
         }
       }
@@ -582,6 +591,50 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when parent is missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.createMeasurement(createMeasurementRequest { measurement = MEASUREMENT })
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("parent")
+  }
+
+  @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when certificate does not match parent`() {
+    val measurementConsumerCertificateKey =
+      MeasurementConsumerCertificateKey.fromName(MEASUREMENT_CONSUMER_CERTIFICATE_NAME)!!
+    val measurementConsumerCertificate =
+      MeasurementConsumerCertificateKey("bogus", measurementConsumerCertificateKey.certificateId)
+        .toName()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                measurement =
+                  MEASUREMENT.copy {
+                    this.measurementConsumerCertificate = measurementConsumerCertificate
+                  }
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("measurement_consumer_certificate")
   }
 
   @Test
@@ -1152,9 +1205,9 @@ class MeasurementsServiceTest {
       }
 
     val expected = listMeasurementsResponse {
-      measurement += MEASUREMENT.copy { name = MEASUREMENT_NAME }
-      measurement += MEASUREMENT.copy { name = MEASUREMENT_NAME_2 }
-      measurement += MEASUREMENT.copy { name = MEASUREMENT_NAME_3 }
+      measurements += MEASUREMENT.copy { name = MEASUREMENT_NAME }
+      measurements += MEASUREMENT.copy { name = MEASUREMENT_NAME_2 }
+      measurements += MEASUREMENT.copy { name = MEASUREMENT_NAME_3 }
     }
 
     val streamMeasurementsRequest =
@@ -1217,8 +1270,8 @@ class MeasurementsServiceTest {
       }
 
     val expected = listMeasurementsResponse {
-      measurement += MEASUREMENT.copy { name = MEASUREMENT_NAME }
-      measurement += MEASUREMENT.copy { name = MEASUREMENT_NAME_2 }
+      measurements += MEASUREMENT.copy { name = MEASUREMENT_NAME }
+      measurements += MEASUREMENT.copy { name = MEASUREMENT_NAME_2 }
       val listMeasurementsPageToken = listMeasurementsPageToken {
         this.pageSize = pageSize
         externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID

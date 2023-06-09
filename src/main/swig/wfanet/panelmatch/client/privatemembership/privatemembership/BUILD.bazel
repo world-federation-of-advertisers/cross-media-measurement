@@ -1,0 +1,16 @@
+load("@wfa_rules_swig//java:defs.bzl", "java_wrap_cc")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/panelmatch:__subpackages__",
+    "//src/test/kotlin/org/wfanet/panelmatch:__subpackages__",
+])
+
+java_wrap_cc(
+    name = "private_membership",
+    src = "private_membership.swig",
+    module = "PrivateMembershipSwig",
+    package = "org.wfanet.panelmatch.protocol.privatemembership",
+    deps = [
+        "//src/main/cc/wfa/panelmatch/client/privatemembership:private_membership_wrapper",
+    ],
+)

@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "gcp",
+    actual = "@maven//:org_apache_beam_beam_sdks_java_io_google_cloud_platform",
+)

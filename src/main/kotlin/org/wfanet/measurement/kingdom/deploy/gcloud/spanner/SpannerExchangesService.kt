@@ -34,8 +34,6 @@ import org.wfanet.measurement.internal.kingdom.GetExchangeRequest
 import org.wfanet.measurement.internal.kingdom.StreamExchangesRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ExchangeNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.PROVIDER_PARAM
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.providerFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamExchanges
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchDeleteExchanges
@@ -58,13 +56,11 @@ class SpannerExchangesService(
           """
           WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id
             AND Exchanges.Date = @date
-            AND ${providerFilter(request.provider)}
           """
             .trimIndent()
         )
         bind("external_recurring_exchange_id" to request.externalRecurringExchangeId)
         bind("date" to request.date.toCloudDate())
-        bind(PROVIDER_PARAM to request.provider.externalId)
         appendClause("LIMIT 1")
       }
       .execute(client.singleUse())
@@ -91,9 +87,9 @@ class SpannerExchangesService(
     try {
       return BatchDeleteExchanges(request).execute(client, idGenerator)
     } catch (e: ExchangeNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Exchange not found" }
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Exchange not found")
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error")
     }
   }
 }

@@ -1,0 +1,64 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+_INCLUDE_PREFIX = "/src/main/cc"
+
+cc_library(
+    name = "brotli",
+    srcs = ["brotli.cc"],
+    hdrs = ["brotli.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    visibility = [
+        ":__pkg__",
+        "//src/test/cc/wfa/panelmatch/common/compression:__pkg__",
+    ],
+    deps = [
+        ":compressor",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_riegeli//riegeli/brotli:brotli_reader",
+        "@com_google_riegeli//riegeli/brotli:brotli_writer",
+        "@com_google_riegeli//riegeli/bytes:string_reader",
+        "@com_google_riegeli//riegeli/bytes:string_writer",
+    ],
+)
+
+cc_library(
+    name = "compressor",
+    hdrs = ["compressor.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "make_compressor",
+    srcs = ["make_compressor.cc"],
+    hdrs = ["make_compressor.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        ":brotli",
+        ":compressor",
+        ":no_op",
+        "//src/main/proto/wfa/panelmatch/common/compression:compression_cc_proto",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "no_op",
+    srcs = ["no_op.cc"],
+    hdrs = ["no_op.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    visibility = ["//visibility:private"],
+    deps = [
+        ":compressor",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
