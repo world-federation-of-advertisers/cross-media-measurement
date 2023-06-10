@@ -313,16 +313,13 @@ class EventGroupsServiceTest {
   }
 
   @Test
-  fun `listEventGroups returns list with filter when event group with metadata and one without`(){
+  fun `listEventGroups returns list with filter when event group with metadata and one without`() {
     runBlocking {
       whenever(cmmsEventGroupsServiceMock.listEventGroups(any()))
         .thenReturn(
           cmmsListEventGroupsResponse {
             eventGroups +=
-              listOf(
-                CMMS_EVENT_GROUP,
-                CMMS_EVENT_GROUP_2.copy { clearEncryptedMetadata() }
-              )
+              listOf(CMMS_EVENT_GROUP, CMMS_EVENT_GROUP_2.copy { clearEncryptedMetadata() })
           }
         )
     }
@@ -340,12 +337,7 @@ class EventGroupsServiceTest {
         }
       }
 
-    assertThat(result)
-      .isEqualTo(
-        listEventGroupsResponse {
-          eventGroups += EVENT_GROUP
-        }
-      )
+    assertThat(result).isEqualTo(listEventGroupsResponse { eventGroups += EVENT_GROUP })
 
     val expectedCmmsEventGroupsRequest = cmmsListEventGroupsRequest {
       parent = DATA_PROVIDER_NAME
