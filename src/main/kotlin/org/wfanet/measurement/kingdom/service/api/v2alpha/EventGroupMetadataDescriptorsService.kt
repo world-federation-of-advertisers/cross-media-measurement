@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.protobuf.Descriptors.DescriptorValidationException
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.math.min
@@ -49,6 +50,7 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor as InternalEventGroupMetadataDescriptor
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorKt.details
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
@@ -133,6 +135,12 @@ class EventGroupMetadataDescriptorsService(
           "Caller does not have permission to create EventGroupMetadataDescriptors"
         }
       }
+    }
+
+    try {
+      ProtoReflection.buildDescriptors(listOf(request.eventGroupMetadataDescriptor.descriptorSet))
+    } catch (e: DescriptorValidationException) {
+      failGrpc(Status.INVALID_ARGUMENT) { "DescriptorSet is invalid" }
     }
 
     val createRequest =

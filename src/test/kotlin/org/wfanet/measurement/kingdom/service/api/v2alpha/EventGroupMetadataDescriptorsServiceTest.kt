@@ -64,6 +64,7 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptor as internalEventGroupMetadataDescriptor
 import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptorKey
 import org.wfanet.measurement.internal.kingdom.getEventGroupMetadataDescriptorRequest as internalGetEventGroupMetadataDescriptorRequest
+import com.google.protobuf.TextFormat
 import org.wfanet.measurement.internal.kingdom.streamEventGroupMetadataDescriptorsRequest
 
 private const val DEFAULT_LIMIT = 50
@@ -232,6 +233,45 @@ class EventGroupMetadataDescriptorsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `createEventGroupMetadataDescriptor throws INVALID_ARGUMENT when descriptorSet invalid`() {
+    val badFileDescriptorSetText =
+      """
+      file {
+        name: ""
+        package: ""
+        message_type {
+          name: ""
+          field {
+            name: "test"
+            number: 1
+            label: LABEL_OPTIONAL
+            type: TYPE_STRING
+          }
+        }
+      }
+      """.trimIndent()
+
+    val badFileDescriptorSetBuilder = FileDescriptorSet.newBuilder()
+    TextFormat.getParser().merge(badFileDescriptorSetText, badFileDescriptorSetBuilder)
+
+    val request = createEventGroupMetadataDescriptorRequest {
+      parent = DATA_PROVIDER_NAME
+      eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR.copy {
+        clearDescriptorSet()
+        descriptorSet = badFileDescriptorSetBuilder.build()
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.createEventGroupMetadataDescriptor(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
