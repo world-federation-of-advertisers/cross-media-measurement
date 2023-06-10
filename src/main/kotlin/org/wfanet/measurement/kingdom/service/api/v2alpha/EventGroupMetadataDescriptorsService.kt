@@ -137,6 +137,7 @@ class EventGroupMetadataDescriptorsService(
       }
     }
 
+    // Check if the FileDescriptorSet is valid by trying to build a list of Descriptors from it.
     try {
       ProtoReflection.buildDescriptors(listOf(request.eventGroupMetadataDescriptor.descriptorSet))
     } catch (e: DescriptorValidationException) {
