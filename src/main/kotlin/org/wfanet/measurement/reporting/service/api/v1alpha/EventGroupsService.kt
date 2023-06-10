@@ -145,6 +145,7 @@ class EventGroupsService(
     val program = env.program(astAndIssues.ast)
 
     eventGroups
+      .filter { it.hasMetadata() }
       .distinctBy { it.metadata.metadata.typeUrl }
       .forEach {
         val typeUrl = it.metadata.metadata.typeUrl
@@ -175,6 +176,10 @@ class EventGroupsService(
         }
       val result: Val = program.eval(variables).`val`
       if (result is Err) {
+        // For when the field in the filter doesn't exist in the event group.
+        if (result.toString().contains("undeclared reference to")) {
+          return@filter false
+        }
         throw result.toRuntimeException()
       }
       result.booleanValue()

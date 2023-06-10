@@ -33,6 +33,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
+import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
@@ -297,6 +298,52 @@ class EventGroupsServiceTest {
         listEventGroupsResponse {
           eventGroups += EVENT_GROUP
           nextPageToken = NEXT_PAGE_TOKEN
+        }
+      )
+
+    val expectedCmmsEventGroupsRequest = cmmsListEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      pageSize = DEFAULT_PAGE_SIZE
+      pageToken = PAGE_TOKEN
+      filter = ListEventGroupsRequestKt.filter { measurementConsumers += MEASUREMENT_CONSUMER_NAME }
+    }
+
+    verifyProtoArgument(cmmsEventGroupsServiceMock, EventGroupsCoroutineImplBase::listEventGroups)
+      .isEqualTo(expectedCmmsEventGroupsRequest)
+  }
+
+  @Test
+  fun `listEventGroups returns list with filter when event group with metadata and one without`(){
+    runBlocking {
+      whenever(cmmsEventGroupsServiceMock.listEventGroups(any()))
+        .thenReturn(
+          cmmsListEventGroupsResponse {
+            eventGroups +=
+              listOf(
+                CMMS_EVENT_GROUP,
+                CMMS_EVENT_GROUP_2.copy { clearEncryptedMetadata() }
+              )
+          }
+        )
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        runBlocking {
+          service.listEventGroups(
+            listEventGroupsRequest {
+              parent = EVENT_GROUP_PARENT
+              filter = "metadata.metadata.age.value > 10"
+              pageToken = PAGE_TOKEN
+            }
+          )
+        }
+      }
+
+    assertThat(result)
+      .isEqualTo(
+        listEventGroupsResponse {
+          eventGroups += EVENT_GROUP
         }
       )
 
