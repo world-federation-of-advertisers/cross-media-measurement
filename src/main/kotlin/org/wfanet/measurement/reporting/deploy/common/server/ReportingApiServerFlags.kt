@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.reporting.deploy.common.server
 
+import java.time.Duration
 import kotlin.properties.Delegates
 import org.wfanet.measurement.reporting.deploy.common.InternalApiFlags
 import picocli.CommandLine
@@ -29,5 +30,17 @@ class ReportingApiServerFlags {
     defaultValue = "false"
   )
   var debugVerboseGrpcClientLogging by Delegates.notNull<Boolean>()
+    private set
+
+  @CommandLine.Option(
+    names = ["--event-group-metadata-descriptor-cache-duration"],
+    description =
+      [
+        "How long the event group metadata descriptors are cached for before refreshing in format 1d1h1m1s1ms1ns"
+      ],
+    defaultValue = "1h",
+    required = false,
+  )
+  lateinit var eventGroupMetadataDescriptorCacheDuration: Duration
     private set
 }

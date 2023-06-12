@@ -19,7 +19,9 @@ import io.grpc.Channel
 import java.io.File
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
+import java.time.Duration
 import java.util.logging.Logger
+import kotlinx.coroutines.Dispatchers
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
@@ -29,6 +31,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.Ev
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as PublicKingdomEventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as PublicKingdomMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as PublicKingdomMeasurementsCoroutineStub
+import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
@@ -42,6 +45,7 @@ import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSe
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.reporting.deploy.common.server.ReportingDataServer
 import org.wfanet.measurement.reporting.deploy.common.server.ReportingDataServer.Companion.toList
+import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v1alpha.EventGroupsService
 import org.wfanet.measurement.reporting.service.api.v1alpha.ReportingSetsService
@@ -112,11 +116,20 @@ class InProcessReportingServer(
           )
         )
 
+      val celEnvCacheProvider =
+        CelEnvCacheProvider(
+          publicKingdomEventGroupMetadataDescriptorsClient.withAuthenticationKey(
+            measurementConsumerConfig.apiKey
+          ),
+          Duration.ofSeconds(5),
+          Dispatchers.Default,
+        )
+
       listOf(
           EventGroupsService(
               publicKingdomEventGroupsClient,
-              publicKingdomEventGroupMetadataDescriptorsClient,
-              encryptionKeyPairStore
+              encryptionKeyPairStore,
+              celEnvCacheProvider,
             )
             .withMetadataPrincipalIdentities(measurementConsumerConfig),
           ReportingSetsService(internalReportingSetsClient)

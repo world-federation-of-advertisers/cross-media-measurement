@@ -36,6 +36,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/api:memoizing_principal_lookup",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common:encryption_key_pair_map",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common:kingdom_flags",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:cel_env_provider",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:encryption_key_pair_store",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:akid_principal_lookup",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:event_groups_service",
