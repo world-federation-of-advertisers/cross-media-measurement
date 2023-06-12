@@ -30,7 +30,7 @@ absl::StatusOr<std::unique_ptr<MultithreadingHelper>>
 MultithreadingHelper::CreateMultithreadingHelper(
     int num_threads, const ProtocolCryptorOptions& options) {
   if (num_threads <= 0) {
-    return absl::InvalidArgumentError("Parallelism cannot be 0.");
+    return absl::InvalidArgumentError("Parallelism must be greater than zero.");
   }
 
   ASSIGN_OR_RETURN_ERROR(

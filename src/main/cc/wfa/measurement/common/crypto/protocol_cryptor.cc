@@ -388,24 +388,21 @@ absl::StatusOr<ProtocolCryptorOptions> CompleteProtocolCryptorOptions(
                      cipher->GetPublicKeyBytes());
     ASSIGN_OR_RETURN(complete_options.local_el_gamal_private_key,
                      cipher->GetPrivateKeyBytes());
+  } else if (options.local_el_gamal_private_key.empty()) {
+    // have local_el_gamal_public_key but no local_el_gamal_private_key.
+    ASSIGN_OR_RETURN(std::unique_ptr<CommutativeElGamal> cipher,
+                     CommutativeElGamal::CreateFromPublicKey(
+                         options.curve_id, options.local_el_gamal_public_key));
+    ASSIGN_OR_RETURN(complete_options.local_el_gamal_public_key,
+                     cipher->GetPublicKeyBytes());
+    ASSIGN_OR_RETURN(complete_options.local_el_gamal_private_key,
+                     cipher->GetPrivateKeyBytes());
   } else {
-    if (options.local_el_gamal_private_key.empty()) {
-      // have local_el_gamal_public_key but no local_el_gamal_private_key.
-      ASSIGN_OR_RETURN(
-          std::unique_ptr<CommutativeElGamal> cipher,
-          CommutativeElGamal::CreateFromPublicKey(
-              options.curve_id, options.local_el_gamal_public_key));
-      ASSIGN_OR_RETURN(complete_options.local_el_gamal_public_key,
-                       cipher->GetPublicKeyBytes());
-      ASSIGN_OR_RETURN(complete_options.local_el_gamal_private_key,
-                       cipher->GetPrivateKeyBytes());
-    } else {
-      // have both local_el_gamal_public_key and local_el_gamal_private_key.
-      complete_options.local_el_gamal_public_key =
-          options.local_el_gamal_public_key;
-      complete_options.local_el_gamal_private_key =
-          options.local_el_gamal_private_key;
-    }
+    // have both local_el_gamal_public_key and local_el_gamal_private_key.
+    complete_options.local_el_gamal_public_key =
+        options.local_el_gamal_public_key;
+    complete_options.local_el_gamal_private_key =
+        options.local_el_gamal_private_key;
   }
 
   if (options.local_pohlig_hellman_private_key.empty()) {

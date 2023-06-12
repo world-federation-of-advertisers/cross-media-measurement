@@ -30,7 +30,7 @@ class JniLiquidLegionsV2EncryptionTest {
         JniLiquidLegionsV2Encryption()
           .completeExecutionPhaseTwo(CompleteExecutionPhaseTwoRequest.getDefaultInstance())
       }
-    assertThat(e1.message).contains("Parallelism cannot be 0.")
+    assertThat(e1.message).contains("Parallelism must be greater than zero.")
 
     // Send an invalid request and check if we can get the error thrown inside JNI.
     val e2 =
