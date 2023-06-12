@@ -19,12 +19,14 @@ import io.grpc.Channel
 import io.grpc.ServerServiceDefinition
 import java.io.File
 import java.security.SecureRandom
+import kotlinx.coroutines.Dispatchers
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as KingdomCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as KingdomDataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub as KingdomEventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as KingdomEventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as KingdomMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as KingdomMeasurementsCoroutineStub
+import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.api.PrincipalLookup
 import org.wfanet.measurement.common.api.memoizing
 import org.wfanet.measurement.common.commandLineMain
@@ -32,11 +34,14 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
+import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.reporting.deploy.common.EncryptionKeyPairMap
 import org.wfanet.measurement.reporting.deploy.common.KingdomApiFlags
+import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v1alpha.AkidPrincipalLookup
 import org.wfanet.measurement.reporting.service.api.v1alpha.EventGroupsService
@@ -76,7 +81,11 @@ private fun run(
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
   val kingdomChannel: Channel =
-    buildMutualTlsChannel(kingdomApiFlags.target, clientCerts, kingdomApiFlags.target)
+    buildMutualTlsChannel(
+        target = kingdomApiFlags.target,
+        clientCerts = clientCerts,
+        hostName = kingdomApiFlags.certHost
+      )
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
   val principalLookup: PrincipalLookup<ReportingPrincipal, ByteString> =
@@ -86,12 +95,27 @@ private fun run(
       )
       .memoizing()
 
+  val measurementConsumerConfigs =
+    parseTextProto(
+      v1AlphaFlags.measurementConsumerConfigFile,
+      MeasurementConsumerConfigs.getDefaultInstance()
+    )
+
+  val apiKey = measurementConsumerConfigs.configsMap.values.first().apiKey
+  val celEnvCacheProvider =
+    CelEnvCacheProvider(
+      KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel)
+        .withAuthenticationKey(apiKey),
+      reportingApiServerFlags.eventGroupMetadataDescriptorCacheDuration,
+      Dispatchers.Default,
+    )
+
   val services: List<ServerServiceDefinition> =
     listOf(
       EventGroupsService(
           KingdomEventGroupsCoroutineStub(kingdomChannel),
-          KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel),
-          InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs)
+          InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
+          celEnvCacheProvider,
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ReportingSetsService(InternalReportingSetsCoroutineStub(channel))

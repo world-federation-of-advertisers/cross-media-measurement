@@ -42,7 +42,7 @@ This can be done via the Google Cloud Console under "Features", or using the
 gcloud CLI. For example, assuming a cluster named "kingdom":
 
 ```shell
-gcloud beta container clusters update kingdom --enable-managed-prometheus
+gcloud container clusters update kingdom --enable-managed-prometheus
 ```
 
 ## Service Accounts
