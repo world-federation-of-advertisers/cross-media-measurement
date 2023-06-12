@@ -101,10 +101,10 @@ class EdpSimulatorFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--noise-mechanism"],
+    names = ["--direct-noise-mechanism"],
     description = ["Differential privacy noise mechanism for direct measurements"],
     defaultValue = "LAPLACE",
   )
-  lateinit var noiseMechanism: NoiseMechanism
+  lateinit var directNoiseMechanism: DirectNoiseMechanism
     private set
 }

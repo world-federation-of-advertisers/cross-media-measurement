@@ -37,11 +37,10 @@ class GaussianNoiser(privacyParams: DifferentialPrivacyParams, random: Random) :
    * N(0,1)
    */
   private fun solveDelta(epsilon: Double, sigma: Double): Double {
-    val normalDistribution = NormalDistribution(0.0, 1.0)
     val x = sigma * epsilon + 1 / (2 * sigma)
 
-    return (1 - normalDistribution.cumulativeProbability(x - 1 / sigma)) -
-      exp(epsilon) * (1 - normalDistribution.cumulativeProbability(x))
+    return (1 - standardNormalDistribution.cumulativeProbability(x - 1 / sigma)) -
+      exp(epsilon) * (1 - standardNormalDistribution.cumulativeProbability(x))
   }
   /**
    * Assuming sensitivity = 1, solve std given epsilon and delta.
@@ -51,15 +50,17 @@ class GaussianNoiser(privacyParams: DifferentialPrivacyParams, random: Random) :
    * find an upper bound of sigma and then apply the bisection search.
    */
   private fun solveSigma(epsilon: Double, delta: Double, startingSigma: Double = 1e-3): Double {
-    var sigma = startingSigma
-    require(solveDelta(epsilon, sigma) >= delta) { "startingSigma $startingSigma is too large" }
+    require(solveDelta(epsilon, startingSigma) >= delta) {
+      "startingSigma $startingSigma is too large"
+    }
 
+    var sigma = startingSigma
     while (solveDelta(epsilon, sigma) > delta) {
       sigma *= 2
     }
 
     return BisectionSolver()
-      .solve(10000, { x: Double -> solveDelta(epsilon, x) - delta }, sigma / 2, sigma)
+      .solve(MAX_EVAL, { x: Double -> solveDelta(epsilon, x) - delta }, sigma / 2, sigma)
   }
   private fun getNormalDistribution(
     epsilon: Double,
@@ -69,5 +70,10 @@ class GaussianNoiser(privacyParams: DifferentialPrivacyParams, random: Random) :
     val sigma = solveSigma(epsilon, delta)
 
     return NormalDistribution(RandomGeneratorFactory.createRandomGenerator(random), 0.0, sigma)
+  }
+
+  companion object {
+    private val standardNormalDistribution = NormalDistribution(0.0, 1.0)
+    private const val MAX_EVAL = 10000
   }
 }
