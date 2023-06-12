@@ -20,8 +20,8 @@ import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.duchy.deploy.postgres.readers.ContinuationTokenReader
-import org.wfanet.measurement.duchy.deploy.postgres.writers.InvalidContinuationTokenException
 import org.wfanet.measurement.duchy.deploy.postgres.writers.SetContinuationToken
+import org.wfanet.measurement.duchy.service.internal.ContinuationTokenInvalidException
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.GetContinuationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetContinuationTokenResponse
@@ -48,8 +48,8 @@ class PostgresContinuationTokensService(
   ): SetContinuationTokenResponse {
     try {
       SetContinuationToken(request.token).execute(client, idGenerator)
-    } catch (e: InvalidContinuationTokenException) {
-      failGrpc(Status.FAILED_PRECONDITION) { e.message ?: "Invalid continuation token." }
+    } catch (e: ContinuationTokenInvalidException) {
+      throw e.asStatusRuntimeException(Status.FAILED_PRECONDITION.code)
     } catch (e: InvalidProtocolBufferException) {
       failGrpc(Status.INVALID_ARGUMENT) { e.message ?: "Malformed continuation token." }
     }

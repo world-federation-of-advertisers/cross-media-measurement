@@ -20,6 +20,7 @@ import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.duchy.deploy.postgres.readers.ContinuationTokenReader
+import org.wfanet.measurement.duchy.service.internal.ContinuationTokenInvalidException
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsContinuationToken
 
 class SetContinuationToken(private val continuationToken: String) : PostgresWriter<Unit>() {
@@ -56,7 +57,8 @@ class SetContinuationToken(private val continuationToken: String) : PostgresWrit
             oldContinuationToken.updateTimeSince
           ) < 0
       ) {
-        throw InvalidContinuationTokenException(
+        throw ContinuationTokenInvalidException(
+          continuationToken,
           "ContinuationToken to set cannot have older timestamp."
         )
       }
@@ -64,5 +66,3 @@ class SetContinuationToken(private val continuationToken: String) : PostgresWrit
     }
   }
 }
-
-class InvalidContinuationTokenException(message: String) : Exception(message) {}
