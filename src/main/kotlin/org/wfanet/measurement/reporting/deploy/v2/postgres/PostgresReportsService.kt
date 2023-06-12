@@ -43,7 +43,7 @@ class PostgresReportsService(
       "Report is missing reporting metric entries."
     }
 
-    request.report.reportingMetricEntriesMap.entries.forEach {entry ->
+    request.report.reportingMetricEntriesMap.entries.forEach { entry ->
       entry.value.metricCalculationSpecsList.forEach { metricCalculationSpec ->
         metricCalculationSpec.reportingMetricsList.forEach {
           grpcRequire(entry.key == it.details.externalReportingSetId) {
@@ -66,7 +66,7 @@ class PostgresReportsService(
   }
 
   override suspend fun getReport(request: GetReportRequest): Report {
-   return super.getReport(request)
+    return super.getReport(request)
   }
 
   override fun streamReports(request: StreamReportsRequest): Flow<Report> {

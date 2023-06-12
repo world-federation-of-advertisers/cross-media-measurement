@@ -45,8 +45,7 @@ import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundExc
  * * [ReportingSetNotFoundException] ReportingSet not found
  * * [MeasurementConsumerNotFoundException] MeasurementConsumer not found
  */
-class CreateReport(private val request: CreateReportRequest) :
-  PostgresWriter<Report>() {
+class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Report>() {
   private data class ReportingMetricEntriesAndBinders(
     val metricCalculationSpecsBinders: List<BoundStatement.Binder.() -> Unit>,
     val metricCalculationSpecReportingMetricsBinders: List<BoundStatement.Binder.() -> Unit>,
@@ -168,9 +167,10 @@ class CreateReport(private val request: CreateReportRequest) :
         VALUES ($1, $2, $3, $4, $5, $6)
       """
       ) {
-        reportingMetricEntriesAndBinders.metricCalculationSpecReportingMetricsBinders.forEach { addBinding(it) }
+        reportingMetricEntriesAndBinders.metricCalculationSpecReportingMetricsBinders.forEach {
+          addBinding(it)
+        }
       }
-
 
     transactionContext.run {
       executeStatement(statement)
@@ -231,7 +231,8 @@ class CreateReport(private val request: CreateReportRequest) :
     reportingSetMap: Map<ExternalId, InternalId>,
   ): ReportingMetricEntriesAndBinders {
     val metricCalculationSpecsBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
-    val metricCalculationSpecReportingMetricsBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
+    val metricCalculationSpecReportingMetricsBinders =
+      mutableListOf<BoundStatement.Binder.() -> Unit>()
     val updatedReportingMetricEntries = mutableMapOf<Long, Report.ReportingMetricCalculationSpec>()
 
     report.reportingMetricEntriesMap.entries.forEach { entry ->
@@ -259,22 +260,23 @@ class CreateReport(private val request: CreateReportRequest) :
             bind("$6", it.details.toJson())
           }
           updatedReportingMetricsList.add(
-            it.copy {
-              this.createMetricRequestId = createMetricRequestId.toString()
-            }
+            it.copy { this.createMetricRequestId = createMetricRequestId.toString() }
           )
         }
 
-        updatedMetricCalculationSpecs.add(metricCalculationSpec.copy {
-          reportingMetrics.clear()
-          reportingMetrics.addAll(updatedReportingMetricsList)
-        })
+        updatedMetricCalculationSpecs.add(
+          metricCalculationSpec.copy {
+            reportingMetrics.clear()
+            reportingMetrics.addAll(updatedReportingMetricsList)
+          }
+        )
       }
 
-      updatedReportingMetricEntries[entry.key] = entry.value.copy {
-        metricCalculationSpecs.clear()
-        metricCalculationSpecs.addAll(updatedMetricCalculationSpecs)
-      }
+      updatedReportingMetricEntries[entry.key] =
+        entry.value.copy {
+          metricCalculationSpecs.clear()
+          metricCalculationSpecs.addAll(updatedMetricCalculationSpecs)
+        }
     }
 
     return ReportingMetricEntriesAndBinders(
