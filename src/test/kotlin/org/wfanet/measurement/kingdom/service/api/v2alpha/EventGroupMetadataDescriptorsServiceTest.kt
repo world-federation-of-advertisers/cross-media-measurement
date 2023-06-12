@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.DescriptorProtos.FileDescriptorSet
+import com.google.protobuf.TextFormat
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
@@ -64,7 +65,6 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptor as internalEventGroupMetadataDescriptor
 import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptorKey
 import org.wfanet.measurement.internal.kingdom.getEventGroupMetadataDescriptorRequest as internalGetEventGroupMetadataDescriptorRequest
-import com.google.protobuf.TextFormat
 import org.wfanet.measurement.internal.kingdom.streamEventGroupMetadataDescriptorsRequest
 
 private const val DEFAULT_LIMIT = 50
@@ -252,17 +252,19 @@ class EventGroupMetadataDescriptorsServiceTest {
           }
         }
       }
-      """.trimIndent()
+      """
+        .trimIndent()
 
     val badFileDescriptorSetBuilder = FileDescriptorSet.newBuilder()
     TextFormat.getParser().merge(badFileDescriptorSetText, badFileDescriptorSetBuilder)
 
     val request = createEventGroupMetadataDescriptorRequest {
       parent = DATA_PROVIDER_NAME
-      eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR.copy {
-        clearDescriptorSet()
-        descriptorSet = badFileDescriptorSetBuilder.build()
-      }
+      eventGroupMetadataDescriptor =
+        EVENT_GROUP_METADATA_DESCRIPTOR.copy {
+          clearDescriptorSet()
+          descriptorSet = badFileDescriptorSetBuilder.build()
+        }
     }
 
     val exception =
