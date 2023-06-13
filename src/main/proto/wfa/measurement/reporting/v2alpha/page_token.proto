@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.reporting.v2alpha;
 
+import "google/protobuf/timestamp.proto";
+
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
 
@@ -34,7 +36,8 @@ message ListReportsPageToken {
   string cmms_measurement_consumer_id = 2;
   message PreviousPageEnd {
     string cmms_measurement_consumer_id = 1;
-    fixed64 external_report_id = 2;
+    google.protobuf.Timestamp create_time = 2;
+    fixed64 external_report_id = 3;
   }
   PreviousPageEnd last_report = 3;
 }

@@ -124,6 +124,7 @@ class ReportsService(
           lastReport =
             ListReportsPageTokenKt.previousPageEnd {
               cmmsMeasurementConsumerId = results[results.lastIndex - 1].cmmsMeasurementConsumerId
+              createTime = results[results.lastIndex - 1].createTime
               externalReportId = results[results.lastIndex - 1].externalReportId
             }
         }
