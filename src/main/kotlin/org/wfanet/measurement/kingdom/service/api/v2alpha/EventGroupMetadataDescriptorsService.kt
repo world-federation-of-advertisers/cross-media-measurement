@@ -141,8 +141,7 @@ class EventGroupMetadataDescriptorsService(
     try {
       ProtoReflection.buildDescriptors(listOf(request.eventGroupMetadataDescriptor.descriptorSet))
     } catch (e: DescriptorValidationException) {
-      throw Status.INVALID_ARGUMENT
-        .withCause(e)
+      throw Status.INVALID_ARGUMENT.withCause(e)
         .withDescription("descriptor_set is invalid")
         .asRuntimeException()
     }
