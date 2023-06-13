@@ -35,6 +35,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt
+import org.wfanet.measurement.internal.reporting.v2.MetricKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.Report
@@ -44,10 +45,13 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequestKt
+import org.wfanet.measurement.internal.reporting.v2.createMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest
+import org.wfanet.measurement.internal.reporting.v2.measurement
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
+import org.wfanet.measurement.internal.reporting.v2.metric
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.internal.reporting.v2.periodicTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.report
@@ -685,6 +689,62 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
     })
 
     assertThat(createdReport).ignoringRepeatedFieldOrder().isEqualTo(retrievedReport)
+  }
+
+  @Test
+  fun `getReport returns report after report metrics have been created`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val createdReport = createReport(CMMS_MEASUREMENT_CONSUMER_ID, service, reportingSetsService, usePeriodicTimeInterval = true)
+
+    createdReport.reportingMetricEntriesMap.values.forEach { reportingMetricCalculationSpec ->
+      reportingMetricCalculationSpec.metricCalculationSpecsList.forEach { metricCalculationSpec ->
+        metricCalculationSpec.reportingMetricsList.forEach {
+          val request = createMetricRequest {
+            requestId = it.createMetricRequestId
+            metric = metric {
+              cmmsMeasurementConsumerId = createdReport.cmmsMeasurementConsumerId
+              externalReportingSetId = it.details.externalReportingSetId
+              timeInterval = it.details.timeInterval
+              metricSpec = it.details.metricSpec
+              weightedMeasurements +=
+                MetricKt.weightedMeasurement {
+                  weight = 2
+                  measurement = measurement {
+                    cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                    timeInterval = timeInterval {
+                      startTime = timestamp { seconds = 10 }
+                      endTime = timestamp { seconds = 100 }
+                    }
+                    primitiveReportingSetBases +=
+                      ReportingSetKt.primitiveReportingSetBasis {
+                        externalReportingSetId = it.details.externalReportingSetId
+                        filters += "filter1"
+                        filters += "filter2"
+                      }
+                  }
+                }
+              details = MetricKt.details {
+                filters += it.details.filtersList
+              }
+            }
+          }
+          metricsService.createMetric(request)
+        }
+      }
+    }
+
+    val retrievedReport = service.getReport(getReportRequest {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalReportId = createdReport.externalReportId
+    })
+
+    retrievedReport.reportingMetricEntriesMap.values.forEach { reportingMetricCalculationSpec ->
+      reportingMetricCalculationSpec.metricCalculationSpecsList.forEach { metricCalculationSpec ->
+        metricCalculationSpec.reportingMetricsList.forEach {
+          assertThat(it.externalMetricId).isNotEqualTo(0L)
+        }
+      }
+    }
   }
 
   @Test
