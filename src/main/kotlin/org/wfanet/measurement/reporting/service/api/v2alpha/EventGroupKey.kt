@@ -19,39 +19,32 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 import org.wfanet.measurement.common.ResourceNameParser
 import org.wfanet.measurement.common.api.ResourceKey
 
-private val parser =
-  ResourceNameParser(
-    "measurementConsumers/{measurement_consumer}" +
-      "/dataProviders/{data_provider}/eventGroups/{event_group}"
-  )
-
 /** [ResourceKey] of an EventGroup. */
-class EventGroupKey(
-  val cmmsMeasurementConsumerId: String,
-  val cmmsDataProviderId: String,
-  val cmmsEventGroupId: String
-) : ResourceKey {
+class EventGroupKey(val cmmsMeasurementConsumerId: String, val cmmsEventGroupId: String) :
+  ResourceKey {
   override fun toName(): String {
     return parser.assembleName(
       mapOf(
         IdVariable.MEASUREMENT_CONSUMER to cmmsMeasurementConsumerId,
-        IdVariable.DATA_PROVIDER to cmmsDataProviderId,
         IdVariable.EVENT_GROUP to cmmsEventGroupId
       )
     )
   }
 
+  @Deprecated(message = "Broken") val cmmsDataProviderId: String = ""
+
   companion object FACTORY : ResourceKey.Factory<EventGroupKey> {
-    val defaultValue = EventGroupKey("", "", "")
+    private val parser =
+      ResourceNameParser("measurementConsumers/{measurement_consumer}/eventGroups/{event_group}")
+
+    val defaultValue = EventGroupKey("", "")
 
     override fun fromName(resourceName: String): EventGroupKey? {
-      return parser.parseIdVars(resourceName)?.let {
-        EventGroupKey(
-          it.getValue(IdVariable.MEASUREMENT_CONSUMER),
-          it.getValue(IdVariable.DATA_PROVIDER),
-          it.getValue(IdVariable.EVENT_GROUP)
-        )
-      }
+      val idVars: Map<IdVariable, String> = parser.parseIdVars(resourceName) ?: return null
+      return EventGroupKey(
+        idVars.getValue(IdVariable.MEASUREMENT_CONSUMER),
+        idVars.getValue(IdVariable.EVENT_GROUP)
+      )
     }
   }
 }
