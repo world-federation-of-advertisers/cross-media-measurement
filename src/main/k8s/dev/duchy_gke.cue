@@ -37,7 +37,7 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 }
 #MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu:    "1500m"
+		cpu:    "4"
 		memory: "2Gi"
 	}
 	limits: {
