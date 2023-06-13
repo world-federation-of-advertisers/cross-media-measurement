@@ -39,6 +39,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.Ev
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest as CmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.copy
@@ -268,10 +269,10 @@ class EventGroupsServiceTest {
       )
 
     val expectedCmmsEventGroupsRequest = cmmsListEventGroupsRequest {
-      parent = DATA_PROVIDER_NAME
+      parent = MEASUREMENT_CONSUMER_NAME
       pageSize = 10
       pageToken = PAGE_TOKEN
-      filter = ListEventGroupsRequestKt.filter { measurementConsumers += MEASUREMENT_CONSUMER_NAME }
+      filter = ListEventGroupsRequestKt.filter { dataProviders += DATA_PROVIDER_NAME }
     }
 
     verifyProtoArgument(cmmsEventGroupsServiceMock, EventGroupsCoroutineImplBase::listEventGroups)
@@ -302,14 +303,34 @@ class EventGroupsServiceTest {
       )
 
     val expectedCmmsEventGroupsRequest = cmmsListEventGroupsRequest {
-      parent = DATA_PROVIDER_NAME
+      parent = MEASUREMENT_CONSUMER_NAME
       pageSize = DEFAULT_PAGE_SIZE
       pageToken = PAGE_TOKEN
-      filter = ListEventGroupsRequestKt.filter { measurementConsumers += MEASUREMENT_CONSUMER_NAME }
+      filter = ListEventGroupsRequestKt.filter { dataProviders += DATA_PROVIDER_NAME }
     }
 
     verifyProtoArgument(cmmsEventGroupsServiceMock, EventGroupsCoroutineImplBase::listEventGroups)
       .isEqualTo(expectedCmmsEventGroupsRequest)
+  }
+
+  @Test
+  fun `listEventGroups omits DataProvider filter in CMMS request when ID is wildcard`() {
+    val request = listEventGroupsRequest {
+      parent = "measurementConsumers/$MEASUREMENT_CONSUMER_REFERENCE_ID/dataProviders/-"
+    }
+
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      runBlocking { service.listEventGroups(request) }
+    }
+
+    verifyProtoArgument(cmmsEventGroupsServiceMock, EventGroupsCoroutineImplBase::listEventGroups)
+      .isEqualTo(
+        cmmsListEventGroupsRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          pageSize = DEFAULT_PAGE_SIZE
+          filter = CmmsListEventGroupsRequest.Filter.getDefaultInstance()
+        }
+      )
   }
 
   @Test
@@ -340,10 +361,10 @@ class EventGroupsServiceTest {
     assertThat(result).isEqualTo(listEventGroupsResponse { eventGroups += EVENT_GROUP })
 
     val expectedCmmsEventGroupsRequest = cmmsListEventGroupsRequest {
-      parent = DATA_PROVIDER_NAME
+      parent = MEASUREMENT_CONSUMER_NAME
       pageSize = DEFAULT_PAGE_SIZE
       pageToken = PAGE_TOKEN
-      filter = ListEventGroupsRequestKt.filter { measurementConsumers += MEASUREMENT_CONSUMER_NAME }
+      filter = ListEventGroupsRequestKt.filter { dataProviders += DATA_PROVIDER_NAME }
     }
 
     verifyProtoArgument(cmmsEventGroupsServiceMock, EventGroupsCoroutineImplBase::listEventGroups)

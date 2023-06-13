@@ -35,96 +35,125 @@ import org.wfanet.measurement.api.v2alpha.ListEventGroupsPageTokenKt.previousPag
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerEventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
-import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.common.identity.ApiId
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest as InternalCreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupKt
 import org.wfanet.measurement.internal.kingdom.EventGroupKt.details
-import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
-import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub as InternalEventGroupsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest as InternalGetEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt as InternalStreamEventGroupsRequests
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest as internalCreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
-import org.wfanet.measurement.internal.kingdom.getEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.eventGroupKey
+import org.wfanet.measurement.internal.kingdom.getEventGroupRequest as internalGetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest
 
-private const val MIN_PAGE_SIZE = 1
-private const val DEFAULT_PAGE_SIZE = 50
-private const val MAX_PAGE_SIZE = 1000
-private const val WILDCARD = ResourceKey.WILDCARD_ID
-private val API_VERSION = Version.V2_ALPHA
-
-class EventGroupsService(private val internalEventGroupsStub: EventGroupsCoroutineStub) :
+class EventGroupsService(private val internalEventGroupsStub: InternalEventGroupsCoroutineStub) :
   EventGroupsCoroutineImplBase() {
 
   override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup {
-    val key =
-      grpcRequireNotNull(EventGroupKey.fromName(request.name)) {
+    fun permissionDeniedStatus() =
+      Status.PERMISSION_DENIED.withDescription(
+        "Permission denied on resource ${request.name} (or it might not exist)"
+      )
+
+    val key: ChildResourceKey =
+      grpcRequireNotNull(
+        EventGroupKey.fromName(request.name)
+          ?: MeasurementConsumerEventGroupKey.fromName(request.name)
+      ) {
         "Resource name is either unspecified or invalid"
       }
+    val principal = principalFromCurrentContext
 
-    val principal: MeasurementPrincipal = principalFromCurrentContext
+    val internalRequest: InternalGetEventGroupRequest =
+      when (key) {
+        is EventGroupKey -> {
+          val denied =
+            when (principal) {
+              is DataProviderPrincipal -> principal.resourceKey != key.parentKey
+              is MeasurementConsumerPrincipal -> false
+              else -> true
+            }
+          if (denied) throw permissionDeniedStatus().asRuntimeException()
+          internalGetEventGroupRequest {
+            externalDataProviderId = ApiId(key.dataProviderId).externalId.value
+            externalEventGroupId = ApiId(key.eventGroupId).externalId.value
+          }
+        }
+        is MeasurementConsumerEventGroupKey -> {
+          if (key.parentKey != principal.resourceKey) {
+            throw permissionDeniedStatus().asRuntimeException()
+          }
+          internalGetEventGroupRequest {
+            externalMeasurementConsumerId = ApiId(key.measurementConsumerId).externalId.value
+            externalEventGroupId = ApiId(key.eventGroupId).externalId.value
+          }
+        }
+        else -> error("Unexpected resource key $key")
+      }
+    val internalResponse: InternalEventGroup =
+      try {
+        internalEventGroupsStub.getEventGroup(internalRequest)
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+            Status.Code.NOT_FOUND ->
+              if (key.parentKey == principal.resourceKey) {
+                Status.NOT_FOUND
+              } else {
+                permissionDeniedStatus()
+              }
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            else -> Status.UNKNOWN
+          }
+          .withCause(e)
+          .asRuntimeException()
+      }
 
     when (principal) {
       is DataProviderPrincipal -> {
-        if (principal.resourceKey.dataProviderId != key.dataProviderId) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot get EventGroups belonging to other DataProviders"
-          }
+        if (
+          ExternalId(internalResponse.externalDataProviderId) !=
+            ApiId(principal.resourceKey.dataProviderId).externalId
+        ) {
+          throw permissionDeniedStatus().asRuntimeException()
         }
       }
-      is MeasurementConsumerPrincipal -> {}
-      else -> {
-        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to get EventGroups" }
-      }
-    }
-
-    val getRequest = getEventGroupRequest {
-      externalDataProviderId = apiIdToExternalId(key.dataProviderId)
-      externalEventGroupId = apiIdToExternalId(key.eventGroupId)
-    }
-
-    val eventGroup =
-      try {
-        internalEventGroupsStub.getEventGroup(getRequest).toEventGroup()
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "EventGroup not found." }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-        }
-      }
-
-    when (principal) {
       is MeasurementConsumerPrincipal -> {
-        if (eventGroup.measurementConsumer != principal.resourceKey.toName()) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot get EventGroups belonging to other MeasurementConsumers"
-          }
+        if (
+          ExternalId(internalResponse.externalMeasurementConsumerId) !=
+            ApiId(principal.resourceKey.measurementConsumerId).externalId
+        ) {
+          throw permissionDeniedStatus().asRuntimeException()
         }
       }
-      else -> {}
+      else -> throw permissionDeniedStatus().asRuntimeException()
     }
 
-    return eventGroup
+    return internalResponse.toEventGroup()
   }
 
   override suspend fun createEventGroup(request: CreateEventGroupRequest): EventGroup {
@@ -233,22 +262,18 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
   }
 
   override suspend fun deleteEventGroup(request: DeleteEventGroupRequest): EventGroup {
+    fun permissionDeniedStatus() =
+      Status.PERMISSION_DENIED.withDescription(
+        "Permission denied on resource ${request.name} (or it might not exist)"
+      )
+
     val eventGroupKey =
       grpcRequireNotNull(EventGroupKey.fromName(request.name)) {
-        "EventGroup name is either unspecified or invalid"
+        "Resource name is either unspecified or invalid"
       }
 
-    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
-      is DataProviderPrincipal -> {
-        if (principal.resourceKey.dataProviderId != eventGroupKey.dataProviderId) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot delete EventGroups for another DataProvider"
-          }
-        }
-      }
-      else -> {
-        failGrpc(Status.PERMISSION_DENIED) { "Only a DataProvider can delete an EventGroup" }
-      }
+    if (principalFromCurrentContext.resourceKey != eventGroupKey.parentKey) {
+      throw permissionDeniedStatus().asRuntimeException()
     }
 
     val deleteRequest = deleteEventGroupRequest {
@@ -271,46 +296,83 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
   }
 
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
-    val listEventGroupsPageToken = request.toListEventGroupPageToken()
+    fun permissionDeniedStatus() =
+      Status.PERMISSION_DENIED.withDescription(
+        "Permission ListEventGroups denied on resource ${request.parent} (or it might not exist)"
+      )
 
-    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
-      is DataProviderPrincipal -> {
-        if (
-          apiIdToExternalId(principal.resourceKey.dataProviderId) !=
-            listEventGroupsPageToken.externalDataProviderId
-        ) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot list EventGroups belonging to other DataProviders"
-          }
-        }
-      }
-      is MeasurementConsumerPrincipal -> {
-        val externalMeasurementConsumerId =
-          apiIdToExternalId(principal.resourceKey.measurementConsumerId)
-        if (listEventGroupsPageToken.externalMeasurementConsumerIdsList.isEmpty()) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot list Event Groups belonging to other MeasurementConsumers"
-          }
-        }
+    grpcRequire(request.pageSize >= 0) { "Page size cannot be less than 0" }
 
-        listEventGroupsPageToken.externalMeasurementConsumerIdsList.forEach {
-          if (it != externalMeasurementConsumerId) {
-            failGrpc(Status.PERMISSION_DENIED) {
-              "Cannot list Event Groups belonging to other MeasurementConsumers"
+    val parentKey: ResourceKey =
+      DataProviderKey.fromName(request.parent)
+        ?: MeasurementConsumerKey.fromName(request.parent)
+          ?: throw Status.INVALID_ARGUMENT.withDescription("parent unspecified or invalid")
+          .asRuntimeException()
+    if (parentKey != principalFromCurrentContext.resourceKey) {
+      throw permissionDeniedStatus().asRuntimeException()
+    }
+
+    val pageToken: ListEventGroupsPageToken? =
+      if (request.pageToken.isEmpty()) null
+      else ListEventGroupsPageToken.parseFrom(request.pageToken.base64UrlDecode())
+    val pageSize =
+      if (request.pageSize == 0) DEFAULT_PAGE_SIZE else request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
+    val internalRequest = streamEventGroupsRequest {
+      filter =
+        InternalStreamEventGroupsRequests.filter {
+          if (parentKey is DataProviderKey) {
+            externalDataProviderId = ApiId(parentKey.dataProviderId).externalId.value
+          }
+          if (parentKey is MeasurementConsumerKey) {
+            externalMeasurementConsumerId = ApiId(parentKey.measurementConsumerId).externalId.value
+          }
+          if (request.filter.measurementConsumersList.isNotEmpty()) {
+            externalMeasurementConsumerIds +=
+              request.filter.measurementConsumersList.map {
+                val measurementConsumerKey =
+                  grpcRequireNotNull(MeasurementConsumerKey.fromName(it)) {
+                    "Invalid resource name in filter.measurement_consumers"
+                  }
+                ApiId(measurementConsumerKey.measurementConsumerId).externalId.value
+              }
+          }
+          if (request.filter.dataProvidersList.isNotEmpty()) {
+            externalDataProviderIds +=
+              request.filter.dataProvidersList.map {
+                val dataProviderKey =
+                  grpcRequireNotNull(DataProviderKey.fromName(it)) {
+                    "Invalid resource name in filter.data_providers"
+                  }
+                ApiId(dataProviderKey.dataProviderId).externalId.value
+              }
+          }
+          if (request.showDeleted) {
+            showDeleted = request.showDeleted
+          }
+          if (pageToken != null) {
+            if (
+              pageToken.externalDataProviderId != externalDataProviderId ||
+                pageToken.externalMeasurementConsumerId != externalMeasurementConsumerId ||
+                pageToken.showDeleted != showDeleted ||
+                pageToken.externalDataProviderIdsList != externalDataProviderIds ||
+                pageToken.externalMeasurementConsumerIdsList != externalMeasurementConsumerIds
+            ) {
+              throw Status.INVALID_ARGUMENT.withDescription(
+                  "Arguments other than page_size must remain the same for subsequent page requests"
+                )
+                .asRuntimeException()
+            }
+            after = eventGroupKey {
+              externalDataProviderId = pageToken.lastEventGroup.externalDataProviderId
+              externalEventGroupId = pageToken.lastEventGroup.externalEventGroupId
             }
           }
         }
-      }
-      else -> {
-        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to list EventGroups" }
-      }
+      limit = pageSize + 1
     }
-
     val results: List<InternalEventGroup> =
       try {
-        internalEventGroupsStub
-          .streamEventGroups(listEventGroupsPageToken.toStreamEventGroupsRequest())
-          .toList()
+        internalEventGroupsStub.streamEventGroups(internalRequest).toList()
       } catch (e: StatusException) {
         throw when (e.status.code) {
             Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
@@ -326,20 +388,33 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
 
     return listEventGroupsResponse {
       eventGroups +=
-        results
-          .subList(0, min(results.size, listEventGroupsPageToken.pageSize))
-          .map(InternalEventGroup::toEventGroup)
-      if (results.size > listEventGroupsPageToken.pageSize) {
-        val pageToken =
-          listEventGroupsPageToken.copy {
-            lastEventGroup = previousPageEnd {
-              externalDataProviderId = results[results.lastIndex - 1].externalDataProviderId
-              externalEventGroupId = results[results.lastIndex - 1].externalEventGroupId
+        results.subList(0, min(results.size, pageSize)).map(InternalEventGroup::toEventGroup)
+      if (results.size > pageSize) {
+        nextPageToken =
+          listEventGroupsPageToken {
+              if (internalRequest.filter.externalDataProviderId != 0L) {
+                externalDataProviderId = internalRequest.filter.externalDataProviderId
+              }
+              if (internalRequest.filter.externalMeasurementConsumerId != 0L) {
+                externalMeasurementConsumerId = internalRequest.filter.externalMeasurementConsumerId
+              }
+              externalDataProviderIds += internalRequest.filter.externalDataProviderIdsList
+              externalMeasurementConsumerIds +=
+                internalRequest.filter.externalMeasurementConsumerIdsList
+              lastEventGroup = previousPageEnd {
+                externalDataProviderId = results[results.lastIndex - 1].externalDataProviderId
+                externalEventGroupId = results[results.lastIndex - 1].externalEventGroupId
+              }
             }
-          }
-        nextPageToken = pageToken.toByteArray().base64UrlEncode()
+            .toByteString()
+            .base64UrlEncode()
       }
     }
+  }
+
+  companion object {
+    private const val DEFAULT_PAGE_SIZE = 50
+    private const val MAX_PAGE_SIZE = 1000
   }
 }
 
@@ -403,7 +478,7 @@ private fun EventGroup.toInternal(
 
     providedEventGroupId = eventGroupReferenceId
     details = details {
-      apiVersion = API_VERSION.string
+      apiVersion = Version.V2_ALPHA.string
       measurementConsumerPublicKey = this@toInternal.measurementConsumerPublicKey.data
       measurementConsumerPublicKeySignature = this@toInternal.measurementConsumerPublicKey.signature
       vidModelLines += this@toInternal.vidModelLinesList
@@ -413,89 +488,6 @@ private fun EventGroup.toInternal(
         }
       )
       encryptedMetadata = this@toInternal.encryptedMetadata
-    }
-  }
-}
-
-/** Converts a public [ListEventGroupsRequest] to an internal [ListEventGroupsPageToken]. */
-private fun ListEventGroupsRequest.toListEventGroupPageToken(): ListEventGroupsPageToken {
-  val source = this
-
-  grpcRequire(source.pageSize >= 0) { "Page size cannot be less than 0" }
-
-  val parentKey: DataProviderKey =
-    grpcRequireNotNull(DataProviderKey.fromName(source.parent)) {
-      "Parent is either unspecified or invalid"
-    }
-
-  grpcRequire(
-    (source.filter.measurementConsumersCount > 0 && parentKey.dataProviderId == WILDCARD) ||
-      parentKey.dataProviderId != WILDCARD
-  ) {
-    "Either parent data provider or measurement consumers filter must be provided"
-  }
-
-  var externalDataProviderId = 0L
-  if (parentKey.dataProviderId != WILDCARD) {
-    externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
-  }
-
-  val externalMeasurementConsumerIdsList =
-    source.filter.measurementConsumersList.map { measurementConsumerName ->
-      grpcRequireNotNull(MeasurementConsumerKey.fromName(measurementConsumerName)) {
-          "Measurement consumer name in filter invalid"
-        }
-        .let { key -> apiIdToExternalId(key.measurementConsumerId) }
-    }
-
-  return if (source.pageToken.isNotBlank()) {
-    ListEventGroupsPageToken.parseFrom(source.pageToken.base64UrlDecode()).copy {
-      grpcRequire(this.externalDataProviderId == externalDataProviderId) {
-        "Arguments must be kept the same when using a page token"
-      }
-
-      grpcRequire(
-        externalMeasurementConsumerIdsList.containsAll(externalMeasurementConsumerIds) &&
-          externalMeasurementConsumerIds.containsAll(externalMeasurementConsumerIdsList)
-      ) {
-        "Arguments must be kept the same when using a page token"
-      }
-
-      if (
-        source.pageSize != 0 && source.pageSize >= MIN_PAGE_SIZE && source.pageSize <= MAX_PAGE_SIZE
-      ) {
-        pageSize = source.pageSize
-      }
-      this.showDeleted = source.showDeleted
-    }
-  } else {
-    listEventGroupsPageToken {
-      pageSize =
-        when {
-          source.pageSize < MIN_PAGE_SIZE -> DEFAULT_PAGE_SIZE
-          source.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
-          else -> source.pageSize
-        }
-
-      this.externalDataProviderId = externalDataProviderId
-      externalMeasurementConsumerIds += externalMeasurementConsumerIdsList
-      this.showDeleted = source.showDeleted
-    }
-  }
-}
-
-/** Converts an internal [ListEventGroupsPageToken] to an internal [StreamEventGroupsRequest]. */
-private fun ListEventGroupsPageToken.toStreamEventGroupsRequest(): StreamEventGroupsRequest {
-  val source = this
-  return streamEventGroupsRequest {
-    // get 1 more than the actual page size for deciding whether or not to set page token
-    limit = source.pageSize + 1
-    filter = filter {
-      externalDataProviderId = source.externalDataProviderId
-      externalMeasurementConsumerIds += source.externalMeasurementConsumerIdsList
-      externalDataProviderIdAfter = source.lastEventGroup.externalDataProviderId
-      externalEventGroupIdAfter = source.lastEventGroup.externalEventGroupId
-      showDeleted = source.showDeleted
     }
   }
 }
