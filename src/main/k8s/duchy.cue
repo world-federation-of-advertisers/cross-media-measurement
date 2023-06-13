@@ -139,6 +139,7 @@ import ("strings")
 						_duchy_info_config_flag,
 						_duchy_tls_cert_file_flag,
 						_duchy_tls_key_file_flag,
+						_duchyMillParallelismFlag,
 						_duchy_cert_collection_file_flag,
 						_duchy_cs_cert_file_flag,
 						_duchy_cs_key_file_flag,
