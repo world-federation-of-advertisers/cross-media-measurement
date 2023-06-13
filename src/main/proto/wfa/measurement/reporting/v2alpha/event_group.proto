@@ -29,23 +29,19 @@ option java_outer_classname = "EventGroupProto";
 message EventGroup {
   option (google.api.resource) = {
     type: "reporting.halo-cmm.org/EventGroup"
-    pattern: "measurementConsumers/{measurement_consumer}/dataProviders/{data_provider}/eventGroups/{event_group}"
+    pattern: "measurementConsumers/{measurement_consumer}/eventGroups/{event_group}"
   };
 
   // Resource name.
   string name = 1;
 
-  // Kingdom resource name of the `DataProvider` associated with this
-  // `EventGroup`.
-  string data_provider = 2 [
-    (google.api.field_behavior) = IMMUTABLE,
-    (google.api.resource_reference).type = "halo.wfanet.org/DataProvider"
+  // Resource name of the corresponding `EventGroup` in the CMMS API.
+  string cmms_event_group = 2 [
+    (google.api.resource_reference).type = "halo.wfanet.org/EventGroup",
+    (google.api.field_behavior) = OUTPUT_ONLY
   ];
 
   // ID referencing the `EventGroup` in an external system, provided by the
-  // `DataProvider`.
-  //
-  // If set, this value must be unique among `EventGroup`s for the parent
   // `DataProvider`.
   string event_group_reference_id = 3;
 

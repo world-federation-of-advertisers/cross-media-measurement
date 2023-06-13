@@ -21,8 +21,10 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
+import org.wfanet.measurement.internal.kingdom.DeleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
@@ -33,33 +35,29 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupRe
  *
  * Throws one of the following [KingdomInternalException] types on [execute]:
  * * [EventGroupNotFoundException] EventGroup not found
+ * * [EventGroupNotFoundByMeasurementConsumerException] EventGroup not found
  * * [EventGroupStateIllegalException] EventGroup state is DELETED
  */
-class DeleteEventGroup(private val eventGroup: EventGroup) :
+class DeleteEventGroup(private val request: DeleteEventGroupRequest) :
   SpannerWriter<EventGroup, EventGroup>() {
 
   override suspend fun TransactionScope.runTransaction(): EventGroup {
-    val internalEventGroupResult =
+    val externalEventGroupId = ExternalId(request.externalEventGroupId)
+    val externalDataProviderId = ExternalId(request.externalDataProviderId)
+    val result: EventGroupReader.Result =
       EventGroupReader()
-        .readByExternalIds(
-          transactionContext,
-          eventGroup.externalDataProviderId,
-          eventGroup.externalEventGroupId,
-        )
-        ?: throw EventGroupNotFoundException(
-          ExternalId(eventGroup.externalDataProviderId),
-          ExternalId(eventGroup.externalEventGroupId),
-        )
-    if (internalEventGroupResult.eventGroup.state == EventGroup.State.DELETED) {
+        .readByDataProvider(transactionContext, externalDataProviderId, externalEventGroupId)
+        ?: throw EventGroupNotFoundException(externalDataProviderId, externalEventGroupId)
+    if (result.eventGroup.state == EventGroup.State.DELETED) {
       throw EventGroupStateIllegalException(
-        ExternalId(eventGroup.externalDataProviderId),
-        ExternalId(eventGroup.externalEventGroupId),
-        internalEventGroupResult.eventGroup.state
+        ExternalId(result.eventGroup.externalDataProviderId),
+        externalEventGroupId,
+        result.eventGroup.state
       )
     }
     transactionContext.bufferUpdateMutation("EventGroups") {
-      set("DataProviderId" to internalEventGroupResult.internalDataProviderId.value)
-      set("EventGroupId" to internalEventGroupResult.internalEventGroupId.value)
+      set("DataProviderId" to result.internalDataProviderId.value)
+      set("EventGroupId" to result.internalEventGroupId.value)
       set("MeasurementConsumerCertificateId" to null as Long?)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("EventGroupDetails" to EventGroup.Details.getDefaultInstance())
@@ -67,7 +65,7 @@ class DeleteEventGroup(private val eventGroup: EventGroup) :
       set("State" to EventGroup.State.DELETED)
     }
 
-    return internalEventGroupResult.eventGroup.copy {
+    return result.eventGroup.copy {
       this.externalMeasurementConsumerCertificateId = 0L
       this.details = EventGroup.Details.getDefaultInstance()
       this.state = EventGroup.State.DELETED
