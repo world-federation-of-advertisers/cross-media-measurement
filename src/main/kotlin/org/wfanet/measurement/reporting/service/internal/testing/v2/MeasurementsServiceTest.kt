@@ -51,6 +51,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresR
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest
+import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.measurement
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.metric
@@ -1302,7 +1303,12 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
           }
       }
 
-      return metricsService.createMetric(createMetricRequest { this.metric = metric })
+      return metricsService.createMetric(
+        createMetricRequest {
+          this.metric = metric
+          externalMetricId = "externalMetricId"
+        }
+      )
     }
 
     private suspend fun createPrimitiveReportingSet(
@@ -1321,7 +1327,12 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
               }
           }
       }
-      return reportingSetsService.createReportingSet(reportingSet)
+      return reportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = reportingSet
+          externalReportingSetId = "reportingSetId"
+        }
+      )
     }
 
     private suspend fun createMeasurementConsumer(

@@ -23,21 +23,24 @@ import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.db.r2dbc.BoundStatement
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
-import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.CreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.Measurement
 import org.wfanet.measurement.internal.reporting.v2.Metric
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
+import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementConsumerReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MetricReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.reporting.service.internal.MetricAlreadyExistsException
+import org.wfanet.measurement.reporting.service.internal.MetricNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
 /**
@@ -71,27 +74,63 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
           ?: throw MeasurementConsumerNotFoundException())
         .measurementConsumerId
 
-    val createMetricRequestIds: List<String> = requests.map { it.requestId }.distinct()
+    // The following check of ALREADY_EXISTS assumes there is no duplicate metric IDs in the
+    // requests. If there are any duplicate metric IDs with different request IDs, it will try to
+    // create a metric with existing metric ID but with a different request ID, which will cause a
+    // DB error,
+    val externalIdToRequestId: Map<String, String> =
+      requests.associate { it.externalMetricId to it.requestId }
+    val batchGetMetricsRequest: BatchGetMetricsRequest = batchGetMetricsRequest {
+      cmmsMeasurementConsumerId = requests[0].metric.cmmsMeasurementConsumerId
+      externalMetricIds += requests.map { it.externalMetricId }
+    }
+    val existingMetricsMap: MutableMap<String, Metric> = mutableMapOf()
+    existingMetricsMap +=
+      MetricReader(transactionContext).batchGetMetrics(batchGetMetricsRequest).toList().associate {
+        result ->
+        val requestId =
+          externalIdToRequestId[result.metric.externalMetricId] ?: throw MetricNotFoundException()
+        // If the request ID is blank, no matter what there is already one existing metric. However,
+        // if the request ID is not blank and is associated to an existing metric, we should return
+        // the metric without complaining.
+        if (requestId.isBlank() || requestId != result.createMetricRequestId) {
+          throw MetricAlreadyExistsException()
+        }
 
-    val existingMetricsMap: Map<String, Metric> =
+        requestId to result.metric
+      }
+
+    // Only extract the request IDs that haven't been queried yet.
+    val createMetricRequestIds: List<String> =
+      requests
+        .mapNotNull {
+          if (existingMetricsMap.containsKey(it.requestId)) {
+            null
+          } else {
+            it.requestId
+          }
+        }
+        .distinct()
+
+    existingMetricsMap +=
       MetricReader(transactionContext)
         .readMetricsByRequestId(measurementConsumerId, createMetricRequestIds)
         .toList()
         .associateBy({ it.createMetricRequestId }, { it.metric })
 
-    val externalReportingSetIds = mutableSetOf<ExternalId>()
+    val externalReportingSetIds = mutableSetOf<String>()
     requests.forEach {
       if (!existingMetricsMap.containsKey(it.requestId)) {
-        externalReportingSetIds.add(ExternalId(it.metric.externalReportingSetId))
+        externalReportingSetIds.add(it.metric.externalReportingSetId)
         it.metric.weightedMeasurementsList.forEach { weightedMeasurement ->
           weightedMeasurement.measurement.primitiveReportingSetBasesList.forEach { bases ->
-            externalReportingSetIds.add(ExternalId(bases.externalReportingSetId))
+            externalReportingSetIds.add(bases.externalReportingSetId)
           }
         }
       }
     }
 
-    val reportingSetMap: Map<ExternalId, InternalId> =
+    val reportingSetMap: Map<String, InternalId> =
       ReportingSetReader(transactionContext)
         .readIds(measurementConsumerId, externalReportingSetIds)
         .toList()
@@ -144,9 +183,8 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
             metrics.add(existingMetric)
           } else {
             val metricId = idGenerator.generateInternalId()
-            val externalMetricId = idGenerator.generateExternalId()
-            val reportingSetId: InternalId? =
-              reportingSetMap[ExternalId(it.metric.externalReportingSetId)]
+            val externalMetricId: String = it.externalMetricId
+            val reportingSetId: InternalId? = reportingSetMap[it.metric.externalReportingSetId]
             val createTime = Instant.now().atOffset(ZoneOffset.UTC)
 
             addBinding {
@@ -219,7 +257,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
 
             metrics.add(
               it.metric.copy {
-                this.externalMetricId = externalMetricId.value
+                this.externalMetricId = externalMetricId
                 weightedMeasurements.clear()
                 weightedMeasurements.addAll(weightedMeasurementsAndBindings.weightedMeasurements)
                 this.createTime = createTime.toInstant().toProtoTime()
@@ -346,7 +384,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
     measurementConsumerId: InternalId,
     metricId: InternalId,
     weightedMeasurements: Collection<Metric.WeightedMeasurement>,
-    reportingSetMap: Map<ExternalId, InternalId>,
+    reportingSetMap: Map<String, InternalId>,
   ): WeightedMeasurementsAndBinders {
     val updatedWeightedMeasurements = mutableListOf<Metric.WeightedMeasurement>()
     val measurementsBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
@@ -416,7 +454,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
     measurementConsumerId: InternalId,
     measurementId: InternalId,
     primitiveReportingSetBases: Collection<ReportingSet.PrimitiveReportingSetBasis>,
-    reportingSetMap: Map<ExternalId, InternalId>,
+    reportingSetMap: Map<String, InternalId>,
   ): PrimitiveReportingSetBasesBinders {
     val primitiveReportingSetBasesBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
     val primitiveReportingSetBasisFiltersBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
@@ -428,7 +466,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
       primitiveReportingSetBasesBinders.add {
         bind("$1", measurementConsumerId)
         bind("$2", primitiveReportingSetBasisId)
-        bind("$3", reportingSetMap[ExternalId(it.externalReportingSetId)])
+        bind("$3", reportingSetMap[it.externalReportingSetId])
       }
 
       it.filtersList.forEach { filter ->

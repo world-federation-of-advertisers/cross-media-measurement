@@ -29,8 +29,6 @@ import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
-import org.wfanet.measurement.common.identity.apiIdToExternalId
-import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.CreateReportRequest as InternalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
@@ -73,7 +71,7 @@ private const val BATCH_CREATE_METRICS_LIMIT = 1000
 private const val BATCH_GET_METRICS_LIMIT = 100
 
 private typealias InternalReportingMetricEntries =
-  Map<Long, InternalReport.ReportingMetricCalculationSpec>
+  Map<String, InternalReport.ReportingMetricCalculationSpec>
 
 class ReportsService(
   private val internalReportsStub: ReportsCoroutineStub,
@@ -144,12 +142,12 @@ class ReportsService(
     val callRpc: suspend (List<String>) -> BatchGetMetricsResponse = { items ->
       batchGetMetrics(principal.resourceKey.toName(), principal.config.apiKey, items)
     }
-    val externalIdToMetricMap: Map<Long, Metric> =
+    val externalIdToMetricMap: Map<String, Metric> =
       submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc) { response ->
           response.metricsList
         }
         .toList()
-        .associateBy { apiIdToExternalId(checkNotNull(MetricKey.fromName(it.name)).metricId) }
+        .associateBy { checkNotNull(MetricKey.fromName(it.name)).metricId }
 
     return listReportsResponse {
       reports +=
@@ -185,7 +183,7 @@ class ReportsService(
         internalReportsStub.getReport(
           internalGetReportRequest {
             cmmsMeasurementConsumerId = reportKey.cmmsMeasurementConsumerId
-            externalReportId = apiIdToExternalId(reportKey.reportId)
+            externalReportId = reportKey.reportId
           }
         )
       } catch (e: StatusException) {
@@ -198,12 +196,12 @@ class ReportsService(
     val callRpc: suspend (List<String>) -> BatchGetMetricsResponse = { items ->
       batchGetMetrics(principal.resourceKey.toName(), principal.config.apiKey, items)
     }
-    val externalIdToMetricMap: Map<Long, Metric> =
+    val externalIdToMetricMap: Map<String, Metric> =
       submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc) { response ->
           response.metricsList
         }
         .toList()
-        .associateBy { apiIdToExternalId(checkNotNull(MetricKey.fromName(it.name)).metricId) }
+        .associateBy { checkNotNull(MetricKey.fromName(it.name)).metricId }
 
     // Convert the internal report to public and return.
     return convertInternalReportToPublic(internalReport, externalIdToMetricMap)
@@ -252,6 +250,7 @@ class ReportsService(
     }
 
     grpcRequire(request.hasReport()) { "Report is not specified." }
+    grpcRequire(request.reportId.isNotBlank()) { "Report ID is not specified." }
 
     grpcRequire(request.report.reportingMetricEntriesList.isNotEmpty()) {
       "No ReportingMetricEntry is specified."
@@ -289,13 +288,13 @@ class ReportsService(
     val callRpc: suspend (List<CreateMetricRequest>) -> BatchCreateMetricsResponse = { items ->
       batchCreateMetrics(request.parent, principal.config.apiKey, items)
     }
-    val externalIdToMetricMap: Map<Long, Metric> =
+    val externalIdToMetricMap: Map<String, Metric> =
       submitBatchRequests(createMetricRequests, BATCH_CREATE_METRICS_LIMIT, callRpc) {
           response: BatchCreateMetricsResponse ->
           response.metricsList
         }
         .toList()
-        .associateBy { apiIdToExternalId(checkNotNull(MetricKey.fromName(it.name)).metricId) }
+        .associateBy { checkNotNull(MetricKey.fromName(it.name)).metricId }
 
     // Once all metrics are created, get the updated internal report with the metric IDs filled.
     val updatedInternalReport =
@@ -317,14 +316,11 @@ class ReportsService(
   /** Converts an internal [InternalReport] to a public [Report]. */
   private fun convertInternalReportToPublic(
     internalReport: InternalReport,
-    externalIdToMetricMap: Map<Long, Metric>,
+    externalIdToMetricMap: Map<String, Metric>,
   ): Report {
     return report {
       name =
-        ReportKey(
-            internalReport.cmmsMeasurementConsumerId,
-            externalIdToApiId(internalReport.externalReportId)
-          )
+        ReportKey(internalReport.cmmsMeasurementConsumerId, internalReport.externalReportId)
           .toName()
 
       reportingMetricEntries +=
@@ -367,13 +363,11 @@ class ReportsService(
   private fun buildMetricCalculationResults(
     cmmsMeasurementConsumerId: String,
     internalReportingMetricEntries: InternalReportingMetricEntries,
-    externalIdToMetricMap: Map<Long, Metric>,
+    externalIdToMetricMap: Map<String, Metric>,
   ): List<Report.MetricCalculationResult> {
-    return internalReportingMetricEntries.flatMap {
-      (externalReportingSetId, reportingMetricCalculationSpec) ->
-      val reportingSetName =
-        ReportingSetKey(cmmsMeasurementConsumerId, externalIdToApiId(externalReportingSetId))
-          .toName()
+    return internalReportingMetricEntries.flatMap { (reportingSetId, reportingMetricCalculationSpec)
+      ->
+      val reportingSetName = ReportingSetKey(cmmsMeasurementConsumerId, reportingSetId).toName()
 
       reportingMetricCalculationSpec.metricCalculationSpecsList.map { metricCalculationSpec ->
         ReportKt.metricCalculationResult {
@@ -510,6 +504,7 @@ class ReportsService(
         }
       }
       requestId = request.requestId
+      externalReportId = request.reportId
     }
   }
 
@@ -541,14 +536,14 @@ class ReportsService(
         "There is no MetricCalculationSpec associated to ${reportingMetricEntry.key}."
       }
 
-      val externalReportingSetId = apiIdToExternalId(reportingSetKey.reportingSetId)
+      val reportingSetId = reportingSetKey.reportingSetId
 
-      externalReportingSetId to
+      reportingSetId to
         InternalReportKt.reportingMetricCalculationSpec {
           metricCalculationSpecs +=
             reportingMetricEntry.value.metricCalculationSpecsList.map { metricCalculationSpec ->
               buildInternalMetricCalculationSpec(
-                externalReportingSetId,
+                reportingSetId,
                 metricCalculationSpec,
                 createReportInfo,
               )
@@ -559,7 +554,7 @@ class ReportsService(
 
   /** Builds an [InternalReport.MetricCalculationSpec] from a [Report.MetricCalculationSpec]. */
   private fun buildInternalMetricCalculationSpec(
-    externalReportingSetId: Long,
+    reportingSetId: String,
     metricCalculationSpec: Report.MetricCalculationSpec,
     createReportInfo: CreateReportInfo,
   ): InternalReport.MetricCalculationSpec {
@@ -605,7 +600,7 @@ class ReportsService(
               InternalReportKt.reportingMetric {
                 details =
                   InternalReportKt.ReportingMetricKt.details {
-                    this.externalReportingSetId = externalReportingSetId
+                    this.externalReportingSetId = reportingSetId
                     this.metricSpec =
                       try {
                         metricSpec.withDefaults(metricSpecConfig).toInternal()
@@ -682,7 +677,7 @@ private fun inferReportState(metrics: Collection<Metric>): Report.State {
 }
 
 /** Gets all external metric IDs used in the [InternalReport]. */
-private val InternalReport.externalMetricIds: List<Long>
+private val InternalReport.externalMetricIds: List<String>
   get() =
     reportingMetricEntriesMap.flatMap { (_, reportingMetricCalculationSpec) ->
       reportingMetricCalculationSpec.metricCalculationSpecsList.flatMap { metricCalculationSpec ->
@@ -695,7 +690,7 @@ private val InternalReport.externalMetricIds: List<Long>
 private val InternalReport.metricNames: List<String>
   get() =
     externalMetricIds.map { externalMetricId ->
-      MetricKey(cmmsMeasurementConsumerId, externalIdToApiId(externalMetricId)).toName()
+      MetricKey(cmmsMeasurementConsumerId, externalMetricId).toName()
     }
 
 /** Converts a public [ListReportsRequest] to a [ListReportsPageToken]. */

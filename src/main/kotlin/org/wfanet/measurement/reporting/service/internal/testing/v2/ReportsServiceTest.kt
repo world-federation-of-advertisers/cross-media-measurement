@@ -44,6 +44,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest
+import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.internal.reporting.v2.periodicTimeInterval
@@ -146,9 +147,18 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
   @Test
   fun `createReport succeeds when multiple reporting metric entries set`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-    val createdReportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val createdReportingSet =
+      createReportingSet(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        reportingSetsService,
+        "externalReportingSetId"
+      )
     val createdReportingSet2 =
-      createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+      createReportingSet(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        reportingSetsService,
+        "externalReportingSetId2"
+      )
 
     val reportingMetricCalculationSpec =
       ReportKt.reportingMetricCalculationSpec {
@@ -323,7 +333,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
 
     val report = report {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      reportingMetricEntries[1234] =
+      reportingMetricEntries["1234"] =
         ReportKt.reportingMetricCalculationSpec {
           metricCalculationSpecs +=
             ReportKt.metricCalculationSpec {
@@ -331,7 +341,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                 ReportKt.reportingMetric {
                   details =
                     ReportKt.ReportingMetricKt.details {
-                      externalReportingSetId = 1234
+                      externalReportingSetId = "1234"
                       metricSpec = metricSpec {
                         reach =
                           MetricSpecKt.reachParams {
@@ -460,7 +470,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
               ReportKt.reportingMetric {
                 details =
                   ReportKt.ReportingMetricKt.details {
-                    externalReportingSetId = 1234
+                    externalReportingSetId = "1234"
                     metricSpec = metricSpec {
                       reach =
                         MetricSpecKt.reachParams {
@@ -510,7 +520,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       reportingMetricEntries[createdReportingSet.externalReportingSetId] =
         reportingMetricCalculationSpec
-      reportingMetricEntries[1234] = reportingMetricCalculationSpec2
+      reportingMetricEntries["1234"] = reportingMetricCalculationSpec2
       periodicTimeInterval = periodicTimeInterval {
         startTime = timestamp { seconds = 100 }
         increment = duration { seconds = 50 }
@@ -539,7 +549,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
               ReportKt.reportingMetric {
                 details =
                   ReportKt.ReportingMetricKt.details {
-                    externalReportingSetId = 1234
+                    externalReportingSetId = "1234"
                     metricSpec = metricSpec {
                       reach =
                         MetricSpecKt.reachParams {
@@ -740,7 +750,8 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
 
     private suspend fun createReportingSet(
       cmmsMeasurementConsumerId: String,
-      reportingSetsService: ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
+      reportingSetsService: ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase,
+      externalReportingSetId: String = "externalReportingSetId"
     ): ReportingSet {
       val reportingSet = reportingSet {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
@@ -754,7 +765,12 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
               }
           }
       }
-      return reportingSetsService.createReportingSet(reportingSet)
+      return reportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = reportingSet
+          this.externalReportingSetId = externalReportingSetId
+        }
+      )
     }
 
     private suspend fun createMeasurementConsumer(

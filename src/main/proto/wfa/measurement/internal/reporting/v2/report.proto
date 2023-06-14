@@ -27,7 +27,7 @@ option java_multiple_files = true;
 message Report {
   // `MeasurementConsumer` ID from the CMMS public API.
   string cmms_measurement_consumer_id = 1;
-  fixed64 external_report_id = 2;
+  string external_report_id = 2;
 
   google.protobuf.Timestamp create_time = 3;
 
@@ -44,12 +44,12 @@ message Report {
 
     // External ID for the metric.
     //
-    // Will be filled by the internal reports service. Use the request ID above
-    // to find the metric.
-    fixed64 external_metric_id = 2;
+    // Will be filled by the internal reports service during reading. It can be
+    // found by using the request ID above.
+    string external_metric_id = 2;
 
     message Details {
-      fixed64 external_reporting_set_id = 1;
+      string external_reporting_set_id = 1;
       MetricSpec metric_spec = 2;
       TimeInterval time_interval = 3;
       repeated string filters = 4;
@@ -80,7 +80,7 @@ message Report {
   }
 
   // Map of `external_reporting_set_id` to `ReportingMetricCalculationSpec`.
-  map<fixed64, ReportingMetricCalculationSpec> reporting_metric_entries = 4;
+  map<string, ReportingMetricCalculationSpec> reporting_metric_entries = 4;
 
   oneof time {
     TimeIntervals time_intervals = 5;
