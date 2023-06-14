@@ -39,7 +39,10 @@ class SetContinuationToken(private val continuationToken: String) : PostgresWrit
     try {
       StreamActiveComputationsContinuationToken.parseFrom(token.base64UrlDecode())
     } catch (e: InvalidProtocolBufferException) {
-      throw ContinuationTokenMalformedException(continuationToken, "ContinuationToken is malformed.")
+      throw ContinuationTokenMalformedException(
+        continuationToken,
+        "ContinuationToken is malformed."
+      )
     }
 
   override suspend fun TransactionScope.runTransaction() {

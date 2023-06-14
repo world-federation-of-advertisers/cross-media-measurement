@@ -14,10 +14,8 @@
 
 package org.wfanet.measurement.duchy.deploy.postgres
 
-import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.duchy.deploy.postgres.readers.ContinuationTokenReader
 import org.wfanet.measurement.duchy.deploy.postgres.writers.SetContinuationToken
