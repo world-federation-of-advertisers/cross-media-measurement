@@ -110,11 +110,18 @@ message CreateReportRequest {
     }
   ];
 
+  // The ID to use for the report, which will become the final component of
+  // the report's resource name.
+  //
+  // This value should be 4-63 characters, and valid characters
+  // are /[a-z][0-9]-/.
+  string report_id = 2 [(google.api.field_behavior) = REQUIRED];
+
   // The report to create.
-  Report report = 2 [(google.api.field_behavior) = REQUIRED];
+  Report report = 3 [(google.api.field_behavior) = REQUIRED];
 
   // A unique identifier for this request. Restricted to 36 ASCII characters.
   // A random UUID is recommended.
   // This request is only idempotent if a `request_id` is provided.
-  string request_id = 3;
+  string request_id = 4;
 }

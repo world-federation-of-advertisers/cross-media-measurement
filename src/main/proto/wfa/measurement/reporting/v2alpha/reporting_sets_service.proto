@@ -92,6 +92,13 @@ message CreateReportingSetRequest {
     }
   ];
 
+  // The ID to use for the reporting set, which will become the final component
+  // of the reporting set's resource name.
+  //
+  // This value should be 4-63 characters, and valid characters
+  // are /[a-z][0-9]-/.
+  string reporting_set_id = 2 [(google.api.field_behavior) = REQUIRED];
+
   // The ReportingSet to create.
-  ReportingSet reporting_set = 2 [(google.api.field_behavior) = REQUIRED];
+  ReportingSet reporting_set = 3 [(google.api.field_behavior) = REQUIRED];
 }

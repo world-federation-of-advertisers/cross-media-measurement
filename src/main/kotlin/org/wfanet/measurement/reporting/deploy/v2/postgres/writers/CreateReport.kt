@@ -24,7 +24,6 @@ import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.db.r2dbc.BoundStatement
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
-import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toJson
@@ -36,6 +35,7 @@ import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementCo
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.reporting.service.internal.ReportAlreadyExistsException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
 /**
@@ -44,12 +44,13 @@ import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundExc
  * Throws the following on [execute]:
  * * [ReportingSetNotFoundException] ReportingSet not found
  * * [MeasurementConsumerNotFoundException] MeasurementConsumer not found
+ * * [ReportAlreadyExistsException] Report already exists
  */
 class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Report>() {
   private data class ReportingMetricEntriesAndBinders(
     val metricCalculationSpecsBinders: List<BoundStatement.Binder.() -> Unit>,
     val metricCalculationSpecReportingMetricsBinders: List<BoundStatement.Binder.() -> Unit>,
-    val updatedReportingMetricEntries: Map<Long, Report.ReportingMetricCalculationSpec>,
+    val updatedReportingMetricEntries: Map<String, Report.ReportingMetricCalculationSpec>,
   )
   override suspend fun TransactionScope.runTransaction(): Report {
     val measurementConsumerId =
@@ -61,6 +62,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     val createReportRequestId = request.requestId
     val report = request.report
 
+    /** Request IDs take precedence */
     val existingReportResult: ReportReader.Result? =
       ReportReader(transactionContext)
         .readReportByRequestId(measurementConsumerId, createReportRequestId)
@@ -69,12 +71,24 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
       return existingReportResult.report
     }
 
-    val externalReportingSetIds = mutableListOf<ExternalId>()
-    request.report.reportingMetricEntriesMap.entries.forEach {
-      externalReportingSetIds += ExternalId(it.key)
+    /**
+     * If we can't find a report given the request ID but found a report given the external ID,
+     * return Already Exists exception.
+     */
+    if (
+      ReportReader(transactionContext)
+        .readReportByExternalId(
+          request.report.cmmsMeasurementConsumerId,
+          request.externalReportId
+        ) != null
+    ) {
+      throw ReportAlreadyExistsException()
     }
 
-    val reportingSetMap: Map<ExternalId, InternalId> =
+    val externalReportingSetIds = mutableListOf<String>()
+    request.report.reportingMetricEntriesMap.entries.forEach { externalReportingSetIds += it.key }
+
+    val reportingSetMap: Map<String, InternalId> =
       ReportingSetReader(transactionContext)
         .readIds(measurementConsumerId, externalReportingSetIds)
         .toList()
@@ -85,7 +99,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     }
 
     val reportId = idGenerator.generateInternalId()
-    val externalReportId = idGenerator.generateExternalId()
+    val externalReportId = request.externalReportId
     val createTime = Instant.now().atOffset(ZoneOffset.UTC)
 
     val statement =
@@ -181,7 +195,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
 
     return request.report.copy {
       this.createTime = createTime.toInstant().toProtoTime()
-      this.externalReportId = externalReportId.value
+      this.externalReportId = externalReportId
       reportingMetricEntries.clear()
       reportingMetricEntries.putAll(reportingMetricEntriesAndBinders.updatedReportingMetricEntries)
     }
@@ -228,12 +242,13 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     measurementConsumerId: InternalId,
     reportId: InternalId,
     report: Report,
-    reportingSetMap: Map<ExternalId, InternalId>,
+    reportingSetMap: Map<String, InternalId>,
   ): ReportingMetricEntriesAndBinders {
     val metricCalculationSpecsBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
     val metricCalculationSpecReportingMetricsBinders =
       mutableListOf<BoundStatement.Binder.() -> Unit>()
-    val updatedReportingMetricEntries = mutableMapOf<Long, Report.ReportingMetricCalculationSpec>()
+    val updatedReportingMetricEntries =
+      mutableMapOf<String, Report.ReportingMetricCalculationSpec>()
 
     report.reportingMetricEntriesMap.entries.forEach { entry ->
       val updatedMetricCalculationSpecs = mutableListOf<Report.MetricCalculationSpec>()
@@ -243,7 +258,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
           bind("$1", measurementConsumerId)
           bind("$2", reportId)
           bind("$3", metricCalculationSpecId)
-          bind("$4", reportingSetMap[ExternalId(entry.key)])
+          bind("$4", reportingSetMap[entry.key])
           bind("$5", metricCalculationSpec.details)
           bind("$6", metricCalculationSpec.details.toJson())
         }

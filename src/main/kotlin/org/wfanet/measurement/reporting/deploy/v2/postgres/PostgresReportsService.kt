@@ -24,7 +24,6 @@ import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.db.r2dbc.postgres.SerializableErrors.withSerializableErrorRetries
 import org.wfanet.measurement.common.grpc.grpcRequire
-import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.v2.CreateReportRequest
 import org.wfanet.measurement.internal.reporting.v2.GetReportRequest
@@ -34,6 +33,7 @@ import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequest
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateReport
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.reporting.service.internal.ReportAlreadyExistsException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
 class PostgresReportsService(
@@ -41,6 +41,7 @@ class PostgresReportsService(
   private val client: DatabaseClient,
 ) : ReportsGrpcKt.ReportsCoroutineImplBase() {
   override suspend fun createReport(request: CreateReportRequest): Report {
+    grpcRequire(request.externalReportId.isNotBlank()) { "External report ID is not set." }
     grpcRequire(request.report.hasTimeIntervals() || request.report.hasPeriodicTimeInterval()) {
       "Report is missing time."
     }
@@ -68,6 +69,8 @@ class PostgresReportsService(
         Status.Code.FAILED_PRECONDITION,
         "Measurement Consumer not found."
       )
+    } catch (e: ReportAlreadyExistsException) {
+      throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS, "Report already exists")
     }
   }
 
@@ -75,10 +78,7 @@ class PostgresReportsService(
     val readContext = client.readTransaction()
     return try {
       ReportReader(readContext)
-        .readReportByExternalId(
-          request.cmmsMeasurementConsumerId,
-          ExternalId(request.externalReportId)
-        )
+        .readReportByExternalId(request.cmmsMeasurementConsumerId, request.externalReportId)
         ?.report
         ?: throw Status.NOT_FOUND.withDescription("Report not found.").asRuntimeException()
     } finally {
