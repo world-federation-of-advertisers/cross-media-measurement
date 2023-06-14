@@ -33,6 +33,12 @@ class ContinuationTokenReader {
 
   fun translate(row: ResultRow): Result = Result(row["ContinuationToken"])
 
+  /**
+   * Reads a ContinuationToken from the HeraldContinuationTokens table.
+   *
+   * @return [Result] when a ContinuationToken is found.
+   * @return null when there is no ContinuationToken.
+   */
   suspend fun getContinuationToken(readContext: ReadContext): Result? {
     val statement = boundStatement(parameterizedQueryString)
     return readContext.executeQuery(statement).consume(::translate).firstOrNull()
