@@ -71,7 +71,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
 
     val externalReportingSetIds = mutableListOf<ExternalId>()
     request.report.reportingMetricEntriesMap.entries.forEach {
-      externalReportingSetIds.add(ExternalId(it.key))
+      externalReportingSetIds += ExternalId(it.key)
     }
 
     val reportingSetMap: Map<ExternalId, InternalId> =
