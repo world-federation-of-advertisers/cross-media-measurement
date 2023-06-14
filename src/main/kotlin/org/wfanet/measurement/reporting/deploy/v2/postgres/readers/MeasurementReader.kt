@@ -25,7 +25,6 @@ import org.wfanet.measurement.common.db.r2dbc.BoundStatement
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
-import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.reporting.v2.Measurement
@@ -54,7 +53,7 @@ class MeasurementReader(private val readContext: ReadContext) {
   )
 
   private data class PrimitiveReportingSetBasisInfo(
-    val externalReportingSetId: ExternalId,
+    val externalReportingSetId: String,
     val filterSet: MutableSet<String>,
   )
 
@@ -178,7 +177,7 @@ class MeasurementReader(private val readContext: ReadContext) {
           measurementInfo.primitiveReportingSetBasisInfoMap.values.forEach {
             primitiveReportingSetBases +=
               ReportingSetKt.primitiveReportingSetBasis {
-                externalReportingSetId = it.externalReportingSetId.value
+                externalReportingSetId = it.externalReportingSetId
                 filters += it.filterSet
               }
           }
@@ -216,7 +215,7 @@ class MeasurementReader(private val readContext: ReadContext) {
       val measurementDetails: Measurement.Details =
         row.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
       val primitiveReportingSetBasisId: InternalId = row["PrimitiveReportingSetBasisId"]
-      val primitiveExternalReportingSetId: ExternalId = row["PrimitiveExternalReportingSetId"]
+      val primitiveExternalReportingSetId: String = row["PrimitiveExternalReportingSetId"]
       val primitiveReportingSetBasisFilter: String? = row["PrimitiveReportingSetBasisFilter"]
 
       val measurementInfo =
