@@ -15,27 +15,24 @@
 package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
-import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
 
-private val parser = ResourceNameParser("dataProviders/{data_provider}/eventGroups/{event_group}")
+private val parser = ResourceNameParser("dataProviders/{data_provider}/requisitions/{requisition}")
 
-/** [ResourceKey] of an EventGroup. */
-data class EventGroupKey(val dataProviderId: String, val eventGroupId: String) : ChildResourceKey {
+/** [ResourceKey] of a Requisition. */
+data class RequisitionKey(val dataProviderId: String, val requisitionId: String) : ResourceKey {
   override fun toName(): String {
     return parser.assembleName(
-      mapOf(IdVariable.DATA_PROVIDER to dataProviderId, IdVariable.EVENT_GROUP to eventGroupId)
+      mapOf(IdVariable.DATA_PROVIDER to dataProviderId, IdVariable.REQUISITION to requisitionId)
     )
   }
 
-  override val parentKey = DataProviderKey(dataProviderId)
+  companion object FACTORY : ResourceKey.Factory<RequisitionKey> {
+    val defaultValue = RequisitionKey("", "")
 
-  companion object FACTORY : ResourceKey.Factory<EventGroupKey> {
-    val defaultValue = EventGroupKey("", "")
-
-    override fun fromName(resourceName: String): EventGroupKey? {
+    override fun fromName(resourceName: String): RequisitionKey? {
       return parser.parseIdVars(resourceName)?.let {
-        EventGroupKey(it.getValue(IdVariable.DATA_PROVIDER), it.getValue(IdVariable.EVENT_GROUP))
+        RequisitionKey(it.getValue(IdVariable.DATA_PROVIDER), it.getValue(IdVariable.REQUISITION))
       }
     }
   }
