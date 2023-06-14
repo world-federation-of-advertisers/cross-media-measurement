@@ -517,8 +517,21 @@ class EventGroupNotFoundException(
   override val context
     get() =
       mapOf(
-        "external_data_provider_id" to externalDataProviderId.toString(),
-        "external_event_group_id" to externalEventGroupId.toString()
+        "external_data_provider_id" to externalDataProviderId.value.toString(),
+        "external_event_group_id" to externalEventGroupId.value.toString()
+      )
+}
+
+class EventGroupNotFoundByMeasurementConsumerException(
+  val externalMeasurementConsumerId: ExternalId,
+  val externalEventGroupId: ExternalId,
+  provideDescription: () -> String = { "EventGroup not found" }
+) : KingdomInternalException(ErrorCode.EVENT_GROUP_NOT_FOUND, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_measurement_consumer_id" to externalMeasurementConsumerId.value.toString(),
+        "external_event_group_id" to externalEventGroupId.value.toString()
       )
 }
 
@@ -539,7 +552,7 @@ class EventGroupStateIllegalException(
   val externalDataProviderId: ExternalId,
   val externalEventGroupId: ExternalId,
   val state: EventGroup.State,
-  provideDescription: () -> String = { "EventGroup state illegal" }
+  provideDescription: () -> String = { "EventGroup state is $state" }
 ) : KingdomInternalException(ErrorCode.EVENT_GROUP_STATE_ILLEGAL, provideDescription) {
   override val context
     get() =

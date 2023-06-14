@@ -45,6 +45,7 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup
+import org.wfanet.measurement.internal.kingdom.eventGroupKey
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest
@@ -91,7 +92,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
-  fun `getEventGroup fails for missing EventGroup`() = runBlocking {
+  fun `getEventGroup throws INVALID_ARGUMENT when parent ID omitted`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         eventGroupsService.getEventGroup(
@@ -99,8 +100,30 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         )
       }
 
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("external_parent_id")
+  }
+
+  @Test
+  fun `getEventGroup throws NOT_FOUND when EventGroup not found`(): Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        eventGroupsService.getEventGroup(
+          getEventGroupRequest {
+            externalDataProviderId = 404L
+            externalEventGroupId = EXTERNAL_EVENT_GROUP_ID
+          }
+        )
+      }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("NOT_FOUND: EventGroup not found")
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsAtLeast(
+        "external_data_provider_id",
+        "404",
+        "external_event_group_id",
+        EXTERNAL_EVENT_GROUP_ID.toString()
+      )
   }
 
   @Test
@@ -224,37 +247,36 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
-  fun `createEventGroup succeeds`() = runBlocking {
+  fun `createEventGroup returns created EventGroup`() = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
     val externalCertificateId = measurementConsumer.certificate.externalCertificateId
-
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId
-
-    val eventGroup = eventGroup {
-      this.externalDataProviderId = externalDataProviderId
-      this.externalMeasurementConsumerId = externalMeasurementConsumerId
-      providedEventGroupId = PROVIDED_EVENT_GROUP_ID
-      externalMeasurementConsumerCertificateId = externalCertificateId
-      details = DETAILS
+    val request = createEventGroupRequest {
+      this.eventGroup = eventGroup {
+        this.externalDataProviderId = externalDataProviderId
+        this.externalMeasurementConsumerId = externalMeasurementConsumerId
+        providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+        externalMeasurementConsumerCertificateId = externalCertificateId
+        details = DETAILS
+      }
     }
 
-    val createdEventGroup =
-      eventGroupsService.createEventGroup(createEventGroupRequest { this.eventGroup = eventGroup })
+    val response: EventGroup = eventGroupsService.createEventGroup(request)
 
-    assertThat(createdEventGroup)
+    assertThat(response)
       .ignoringFields(
         EventGroup.EXTERNAL_EVENT_GROUP_ID_FIELD_NUMBER,
         EventGroup.CREATE_TIME_FIELD_NUMBER,
         EventGroup.UPDATE_TIME_FIELD_NUMBER,
       )
-      .isEqualTo(eventGroup.copy { this.state = EventGroup.State.ACTIVE })
-    assertThat(createdEventGroup.externalEventGroupId).isGreaterThan(0)
-    assertThat(createdEventGroup.createTime.seconds).isGreaterThan(0)
-    assertThat(createdEventGroup.updateTime).isEqualTo(createdEventGroup.createTime)
-    assertThat(createdEventGroup.state).isEqualTo(EventGroup.State.ACTIVE)
+      .isEqualTo(request.eventGroup.copy { this.state = EventGroup.State.ACTIVE })
+    assertThat(response.externalEventGroupId).isNotEqualTo(0)
+    assertThat(response.createTime.seconds).isGreaterThan(0)
+    assertThat(response.updateTime).isEqualTo(response.createTime)
+    assertThat(response.state).isEqualTo(EventGroup.State.ACTIVE)
   }
 
   @Test
@@ -531,63 +553,61 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
-  fun `getEventGroup succeeds`() = runBlocking {
+  fun `getEventGroup returns EventGroup by DataProvider`() = runBlocking {
     val externalMeasurementConsumerId =
       population
         .createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
-
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId
-
-    val eventGroup = eventGroup {
-      this.externalDataProviderId = externalDataProviderId
-      this.externalMeasurementConsumerId = externalMeasurementConsumerId
-    }
-
-    val createdEventGroup =
-      eventGroupsService.createEventGroup(createEventGroupRequest { this.eventGroup = eventGroup })
-
-    val eventGroupRead =
-      eventGroupsService.getEventGroup(
-        GetEventGroupRequest.newBuilder()
-          .also {
-            it.externalDataProviderId = externalDataProviderId
-            it.externalEventGroupId = createdEventGroup.externalEventGroupId
+    val eventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            this.externalDataProviderId = externalDataProviderId
+            this.externalMeasurementConsumerId = externalMeasurementConsumerId
           }
-          .build()
-      )
-
-    assertThat(eventGroupRead).isEqualTo(createdEventGroup)
-  }
-
-  @Test
-  fun `getEventGroup succeeds when certificate id is set`() = runBlocking {
-    val measurementConsumer =
-      population.createMeasurementConsumer(measurementConsumersService, accountsService)
-
-    val externalDataProviderId =
-      population.createDataProvider(dataProvidersService).externalDataProviderId
-
-    val eventGroup = eventGroup {
-      this.externalDataProviderId = externalDataProviderId
-      this.externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-      this.externalMeasurementConsumerCertificateId =
-        measurementConsumer.certificate.externalCertificateId
-    }
-
-    val createdEventGroup =
-      eventGroupsService.createEventGroup(createEventGroupRequest { this.eventGroup = eventGroup })
-
-    val retrievedEventGroup =
-      eventGroupsService.getEventGroup(
-        getEventGroupRequest {
-          this.externalDataProviderId = externalDataProviderId
-          this.externalEventGroupId = createdEventGroup.externalEventGroupId
         }
       )
 
-    assertThat(retrievedEventGroup).isEqualTo(createdEventGroup)
+    val response =
+      eventGroupsService.getEventGroup(
+        getEventGroupRequest {
+          this.externalDataProviderId = externalDataProviderId
+          externalEventGroupId = eventGroup.externalEventGroupId
+        }
+      )
+
+    assertThat(response).isEqualTo(eventGroup)
+  }
+
+  @Test
+  fun `getEventGroup returns EventGroup by MeasurementConsumer`() = runBlocking {
+    val externalMeasurementConsumerId =
+      population
+        .createMeasurementConsumer(measurementConsumersService, accountsService)
+        .externalMeasurementConsumerId
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+    val eventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            this.externalDataProviderId = externalDataProviderId
+            this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          }
+        }
+      )
+
+    val response: EventGroup =
+      eventGroupsService.getEventGroup(
+        getEventGroupRequest {
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          externalEventGroupId = eventGroup.externalEventGroupId
+        }
+      )
+
+    assertThat(response).isEqualTo(eventGroup)
   }
 
   @Test
@@ -627,7 +647,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       eventGroupsService
         .streamEventGroups(
           streamEventGroupsRequest {
-            filter = filter { this.externalDataProviderId = externalDataProviderId }
+            filter = filter { externalDataProviderIds += externalDataProviderId }
           }
         )
         .toList()
@@ -682,7 +702,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       eventGroupsService
         .streamEventGroups(
           streamEventGroupsRequest {
-            filter = filter { this.externalDataProviderId = externalDataProviderId }
+            filter = filter { externalDataProviderIds += externalDataProviderId }
             limit = 1
           }
         )
@@ -697,8 +717,10 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
           streamEventGroupsRequest {
             filter = filter {
               this.externalDataProviderId = externalDataProviderId
-              externalEventGroupIdAfter = eventGroups[0].externalEventGroupId
-              externalDataProviderIdAfter = eventGroups[0].externalDataProviderId
+              after = eventGroupKey {
+                this.externalDataProviderId = eventGroups[0].externalDataProviderId
+                externalEventGroupId = eventGroups[0].externalEventGroupId
+              }
             }
             limit = 1
           }
@@ -803,7 +825,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
-  fun `deleteEventGroup fails for missing data provider`() = runBlocking {
+  fun `deleteEventGroup throws NOT_FOUND for missing DataProvider`() = runBlocking {
     val externalMeasurementConsumerId =
       population
         .createMeasurementConsumer(measurementConsumersService, accountsService)
@@ -833,18 +855,16 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("EventGroup not found")
+    assertThat(exception).hasMessageThat().contains("EventGroup")
   }
 
   @Test
-  fun `deleteEventGroup succeeds`() = runBlocking {
+  fun `deleteEventGroup transitions EventGroup to DELETED state`() = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
-
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId
-
-    val createdEventGroup =
+    val eventGroup =
       eventGroupsService.createEventGroup(
         createEventGroupRequest {
           eventGroup = eventGroup {
@@ -856,22 +876,31 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         }
       )
 
-    val deletedEventGroup =
+    val response: EventGroup =
       eventGroupsService.deleteEventGroup(
         deleteEventGroupRequest {
           this.externalDataProviderId = externalDataProviderId
-          this.externalEventGroupId = createdEventGroup.externalEventGroupId
+          this.externalEventGroupId = eventGroup.externalEventGroupId
         }
       )
 
-    assertThat(deletedEventGroup)
+    assertThat(response)
       .isEqualTo(
-        createdEventGroup.copy {
+        eventGroup.copy {
           this.externalMeasurementConsumerCertificateId = 0L
-          this.updateTime = deletedEventGroup.updateTime
+          this.updateTime = response.updateTime
           this.details = EventGroup.Details.getDefaultInstance()
           this.state = EventGroup.State.DELETED
         }
+      )
+    assertThat(response)
+      .isEqualTo(
+        eventGroupsService.getEventGroup(
+          getEventGroupRequest {
+            this.externalDataProviderId = externalDataProviderId
+            externalEventGroupId = eventGroup.externalEventGroupId
+          }
+        )
       )
   }
 
