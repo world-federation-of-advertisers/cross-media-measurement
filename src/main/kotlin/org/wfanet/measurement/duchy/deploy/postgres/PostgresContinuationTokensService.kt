@@ -22,6 +22,7 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.duchy.deploy.postgres.readers.ContinuationTokenReader
 import org.wfanet.measurement.duchy.deploy.postgres.writers.SetContinuationToken
 import org.wfanet.measurement.duchy.service.internal.ContinuationTokenInvalidException
+import org.wfanet.measurement.duchy.service.internal.ContinuationTokenMalformedException
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.GetContinuationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetContinuationTokenResponse
@@ -37,10 +38,10 @@ class PostgresContinuationTokensService(
   override suspend fun getContinuationToken(
     request: GetContinuationTokenRequest
   ): GetContinuationTokenResponse {
-    return ContinuationTokenReader().getContinuationToken(client.singleUse())?.let {
-      getContinuationTokenResponse { token = it.continuationToken }
-    }
-      ?: GetContinuationTokenResponse.getDefaultInstance()
+    val result: ContinuationTokenReader.Result =
+      ContinuationTokenReader().getContinuationToken(client.singleUse())
+        ?: return GetContinuationTokenResponse.getDefaultInstance()
+    return getContinuationTokenResponse { token = result.continuationToken }
   }
 
   override suspend fun setContinuationToken(
@@ -49,9 +50,9 @@ class PostgresContinuationTokensService(
     try {
       SetContinuationToken(request.token).execute(client, idGenerator)
     } catch (e: ContinuationTokenInvalidException) {
-      throw e.asStatusRuntimeException(Status.FAILED_PRECONDITION.code)
-    } catch (e: InvalidProtocolBufferException) {
-      failGrpc(Status.INVALID_ARGUMENT) { e.message ?: "Malformed continuation token." }
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    } catch (e: ContinuationTokenMalformedException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     return SetContinuationTokenResponse.getDefaultInstance()
   }

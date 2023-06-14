@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.deploy.postgres.writers
 
+import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.Timestamps
 import java.time.Instant
 import org.wfanet.measurement.common.base64UrlDecode
@@ -21,11 +22,25 @@ import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.duchy.deploy.postgres.readers.ContinuationTokenReader
 import org.wfanet.measurement.duchy.service.internal.ContinuationTokenInvalidException
+import org.wfanet.measurement.duchy.service.internal.ContinuationTokenMalformedException
+import org.wfanet.measurement.duchy.service.internal.DuchyInternalException
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsContinuationToken
 
+/**
+ * [PostgresWriter] for setting continuation tokens.
+ *
+ * Throws a subclass of [DuchyInternalException] on [execute].
+ *
+ * @throws [ContinuationTokenMalformedException] when the new token is malformed
+ * @throws [ContinuationTokenInvalidException] when the new token is invalid
+ */
 class SetContinuationToken(private val continuationToken: String) : PostgresWriter<Unit>() {
   private fun decodeContinuationToken(token: String): StreamActiveComputationsContinuationToken =
-    StreamActiveComputationsContinuationToken.parseFrom(token.base64UrlDecode())
+    try {
+      StreamActiveComputationsContinuationToken.parseFrom(token.base64UrlDecode())
+    } catch (e: InvalidProtocolBufferException) {
+      throw ContinuationTokenMalformedException(continuationToken, "ContinuationToken is malformed.")
+    }
 
   override suspend fun TransactionScope.runTransaction() {
     val statement =

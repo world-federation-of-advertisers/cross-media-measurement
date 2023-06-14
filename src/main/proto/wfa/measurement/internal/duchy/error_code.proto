@@ -20,8 +20,11 @@ option java_package = "org.wfanet.measurement.internal.duchy";
 option java_multiple_files = true;
 
 enum ErrorCode {
-  UNKNOWN_ERROR = 0;
+  ERROR_CODE_UNSPECIFIED = 0;
 
   /** ContinuationToken is invalid. */
   CONTINUATION_TOKEN_INVALID = 1;
+
+  /** ContinuationToken is malformed. */
+  CONTINUATION_TOKEN_MALFORMED = 2;
 }

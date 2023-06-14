@@ -53,3 +53,11 @@ class ContinuationTokenInvalidException(
   override val context
     get() = mapOf("continuation_token" to continuationToken)
 }
+
+class ContinuationTokenMalformedException(
+  val continuationToken: String,
+  message: String,
+) : DuchyInternalException(ErrorCode.CONTINUATION_TOKEN_MALFORMED, message) {
+  override val context
+    get() = mapOf("continuation_token" to continuationToken)
+}
