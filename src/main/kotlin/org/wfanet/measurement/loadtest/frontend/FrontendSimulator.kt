@@ -43,7 +43,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
-import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
+import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
 import org.wfanet.measurement.api.v2alpha.Measurement.Failure
@@ -627,18 +627,17 @@ class FrontendSimulator(
   }
 
   private suspend fun listRequisitions(measurement: String): List<Requisition> {
-    val request = listRequisitionsRequest {
-      parent = DATA_PROVIDER_WILDCARD
-      filter = ListRequisitionsRequestKt.filter { this.measurement = measurement }
-    }
-    try {
-      return requisitionsClient
-        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-        .listRequisitions(request)
-        .requisitionsList
-    } catch (e: StatusException) {
-      throw Exception("Error listing requisitions for measurement $measurement", e)
-    }
+    val request = listRequisitionsRequest { parent = measurement }
+    val response: ListRequisitionsResponse =
+      try {
+        requisitionsClient
+          .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+          .listRequisitions(request)
+      } catch (e: StatusException) {
+        throw Exception("Error listing requisitions for measurement $measurement", e)
+      }
+
+    return response.requisitionsList
   }
 
   private fun extractDataProviderKey(eventGroupName: String): DataProviderKey {
@@ -737,8 +736,6 @@ class FrontendSimulator(
   }
 
   companion object {
-    private const val DATA_PROVIDER_WILDCARD = "dataProviders/-"
-
     /**
      * Date range for events.
      *

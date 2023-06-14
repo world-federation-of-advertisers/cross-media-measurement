@@ -32,7 +32,6 @@ import org.wfanet.measurement.api.v2alpha.ListRequisitionsPageTokenKt.previousPa
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -47,7 +46,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
-import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.getProviderFromContext
 import org.wfanet.measurement.api.v2alpha.listRequisitionsPageToken
@@ -55,11 +53,13 @@ import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.common.Provider
@@ -72,7 +72,6 @@ import org.wfanet.measurement.internal.kingdom.RequisitionKt as InternalRequisit
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
-import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
@@ -90,61 +89,39 @@ class RequisitionsService(
   override suspend fun listRequisitions(
     request: ListRequisitionsRequest
   ): ListRequisitionsResponse {
+    fun permissionDeniedStatus() =
+      Status.PERMISSION_DENIED.withDescription(
+        "Permission ListRequisitions denied on resource ${request.parent} (or it might not exist)"
+      )
+
+    val parentKey =
+      DataProviderKey.fromName(request.parent)
+        ?: MeasurementKey.fromName(request.parent)
+          ?: throw Status.INVALID_ARGUMENT.withDescription("parent is invalid").asRuntimeException()
+
     val principal: MeasurementPrincipal = principalFromCurrentContext
-
-    val listRequisitionsPageToken = request.toListRequisitionsPageToken()
-
-    var externalMeasurementConsumerId = 0L
-    when (principal) {
-      is DataProviderPrincipal -> {
-        if (
-          apiIdToExternalId(principal.resourceKey.dataProviderId) !=
-            listRequisitionsPageToken.externalDataProviderId
-        ) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot list Requisitions belonging to other DataProviders"
-          }
+    when (parentKey) {
+      is DataProviderKey ->
+        if (parentKey != principal.resourceKey) {
+          throw permissionDeniedStatus().asRuntimeException()
         }
-      }
-      is MeasurementConsumerPrincipal -> {
-        externalMeasurementConsumerId =
-          apiIdToExternalId(principal.resourceKey.measurementConsumerId)
-        if (
-          listRequisitionsPageToken.externalMeasurementConsumerId != 0L &&
-            listRequisitionsPageToken.externalMeasurementConsumerId != externalMeasurementConsumerId
-        ) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot list Requisitions belonging to other MeasurementConsumers"
-          }
+      is MeasurementKey ->
+        if (parentKey.parentKey != principal.resourceKey) {
+          throw permissionDeniedStatus().asRuntimeException()
         }
-      }
-      else -> {
-        failGrpc(Status.PERMISSION_DENIED) {
-          "Caller does not have permission to list Requisitions"
-        }
-      }
     }
 
-    val streamRequest =
-      listRequisitionsPageToken.toStreamRequisitionsRequest().copy {
-        filter =
-          filter.copy {
-            // Filters for the caller's ID if the caller is an MC.
-            if (this.externalMeasurementConsumerId == 0L) {
-              this.externalMeasurementConsumerId = externalMeasurementConsumerId
-            }
+    val pageSize: Int =
+      if (request.pageSize == 0) DEFAULT_PAGE_SIZE else request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
+    val pageToken: ListRequisitionsPageToken? =
+      if (request.pageToken.isEmpty()) null
+      else ListRequisitionsPageToken.parseFrom(request.pageToken.base64UrlDecode())
 
-            // If no state filter set in public request, include all visible states.
-            if (states.isEmpty()) {
-              states += InternalState.UNFULFILLED
-              states += InternalState.FULFILLED
-              states += InternalState.REFUSED
-            }
-          }
-      }
-    val results: List<InternalRequisition> =
+    val internalRequest =
+      buildInternalStreamRequisitionsRequest(request.filter, parentKey, pageSize, pageToken)
+    val internalRequisitions: List<InternalRequisition> =
       try {
-        internalRequisitionStub.streamRequisitions(streamRequest).toList()
+        internalRequisitionStub.streamRequisitions(internalRequest).toList()
       } catch (ex: StatusException) {
         throw when (ex.status.code) {
             Status.Code.INVALID_ARGUMENT ->
@@ -156,25 +133,21 @@ class RequisitionsService(
           .asRuntimeException()
       }
 
-    if (results.isEmpty()) {
+    if (internalRequisitions.isEmpty()) {
       return ListRequisitionsResponse.getDefaultInstance()
     }
 
     return listRequisitionsResponse {
       requisitions +=
-        results
-          .subList(0, min(results.size, listRequisitionsPageToken.pageSize))
+        internalRequisitions
+          .subList(0, min(internalRequisitions.size, pageSize))
           .map(InternalRequisition::toRequisition)
 
-      if (results.size > listRequisitionsPageToken.pageSize) {
-        val pageToken =
-          listRequisitionsPageToken.copy {
-            lastRequisition = previousPageEnd {
-              externalDataProviderId = results[results.lastIndex - 1].externalDataProviderId
-              externalRequisitionId = results[results.lastIndex - 1].externalRequisitionId
-            }
-          }
-        nextPageToken = pageToken.toByteArray().base64UrlEncode()
+      if (internalRequisitions.size > pageSize) {
+        nextPageToken =
+          buildNextPageToken(request.filter, internalRequest.filter, internalRequisitions)
+            .toByteArray()
+            .base64UrlEncode()
       }
     }
   }
@@ -428,104 +401,81 @@ private fun Map.Entry<String, DuchyValue>.toDuchyEntry(): DuchyEntry {
   }
 }
 
-/** Converts a public [ListRequisitionsRequest] to an internal [ListRequisitionsPageToken]. */
-private fun ListRequisitionsRequest.toListRequisitionsPageToken(): ListRequisitionsPageToken {
-  val source = this
-
-  val parentKey: DataProviderKey =
-    grpcRequireNotNull(DataProviderKey.fromName(source.parent)) {
-      "Parent is either unspecified or invalid"
-    }
-  grpcRequire(parentKey.dataProviderId != WILDCARD || source.filter.measurement.isNotBlank()) {
-    "Either parent data provider or measurement filter must be provided"
-  }
-
-  grpcRequire(source.pageSize >= 0) { "Page size cannot be less than 0" }
-
-  var externalMeasurementConsumerId = 0L
-  var externalMeasurementId = 0L
-  var externalDataProviderId = 0L
-  if (source.filter.measurement.isNotBlank()) {
-    val measurementKey: MeasurementKey =
-      grpcRequireNotNull(MeasurementKey.fromName(source.filter.measurement)) {
-        "Resource name invalid"
-      }
-    externalMeasurementConsumerId = apiIdToExternalId(measurementKey.measurementConsumerId)
-    externalMeasurementId = apiIdToExternalId(measurementKey.measurementId)
-  }
-  if (parentKey.dataProviderId != WILDCARD) {
-    externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
-  }
-
-  val requisitionsStatesList = source.filter.statesList
-  val measurementsStatesList = source.filter.measurementStatesList
-
-  return if (source.pageToken.isNotBlank()) {
-    ListRequisitionsPageToken.parseFrom(source.pageToken.base64UrlDecode()).copy {
-      grpcRequire(externalMeasurementConsumerId == this.externalMeasurementConsumerId) {
-        "Arguments must be kept the same when using a page token"
-      }
-
-      grpcRequire(externalMeasurementId == this.externalMeasurementId) {
-        "Arguments must be kept the same when using a page token"
-      }
-
-      grpcRequire(externalDataProviderId == this.externalDataProviderId) {
-        "Arguments must be kept the same when using a page token"
-      }
-
-      grpcRequire(
-        states.containsAll(requisitionsStatesList) && requisitionsStatesList.containsAll(states)
-      ) {
-        "Arguments must be kept the same when using a page token"
-      }
-
-      grpcRequire(
-        measurementStates.containsAll(measurementsStatesList) &&
-          measurementsStatesList.containsAll(measurementStates)
-      ) {
-        "Arguments must be kept the same when using a page token"
-      }
-
-      if (source.pageSize in MIN_PAGE_SIZE..MAX_PAGE_SIZE) {
-        pageSize = source.pageSize
-      }
-    }
-  } else {
-    listRequisitionsPageToken {
-      pageSize =
-        when {
-          source.pageSize == 0 -> DEFAULT_PAGE_SIZE
-          source.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
-          else -> source.pageSize
+private fun buildInternalStreamRequisitionsRequest(
+  filter: ListRequisitionsRequest.Filter,
+  parentKey: ResourceKey,
+  pageSize: Int,
+  pageToken: ListRequisitionsPageToken?
+): StreamRequisitionsRequest {
+  val requestStates = filter.statesList
+  return streamRequisitionsRequest {
+    this.filter =
+      StreamRequisitionsRequestKt.filter {
+        when (parentKey) {
+          is DataProviderKey -> {
+            externalDataProviderId = ApiId(parentKey.dataProviderId).externalId.value
+          }
+          is MeasurementKey -> {
+            externalMeasurementConsumerId = ApiId(parentKey.measurementConsumerId).externalId.value
+            externalMeasurementId = ApiId(parentKey.measurementId).externalId.value
+          }
         }
 
-      this.externalMeasurementConsumerId = externalMeasurementConsumerId
-      this.externalMeasurementId = externalMeasurementId
-      this.externalDataProviderId = externalDataProviderId
-      states += requisitionsStatesList
-      measurementStates += measurementsStatesList
-    }
+        if (requestStates.isEmpty()) {
+          // If no state filter set in public request, include all visible states.
+          states += InternalState.UNFULFILLED
+          states += InternalState.FULFILLED
+          states += InternalState.REFUSED
+        } else {
+          states += requestStates.map { it.toInternal() }
+        }
+
+        measurementStates += filter.measurementStatesList.flatMap { it.toInternalState() }
+
+        if (pageToken != null) {
+          if (
+            pageToken.externalDataProviderId != externalDataProviderId ||
+              pageToken.externalMeasurementConsumerId != externalMeasurementConsumerId ||
+              pageToken.externalMeasurementId != externalMeasurementId ||
+              pageToken.statesList != filter.statesList ||
+              pageToken.measurementStatesList != filter.measurementStatesList
+          ) {
+            throw Status.INVALID_ARGUMENT.withDescription(
+                "Arguments other than page_size must remain the same for subsequent page requests"
+              )
+              .asRuntimeException()
+          }
+          externalDataProviderIdAfter = pageToken.lastRequisition.externalDataProviderId
+          externalRequisitionIdAfter = pageToken.lastRequisition.externalRequisitionId
+        }
+      }
+    // Fetch one extra to determine if we need to set next_page_token in response.
+    limit = pageSize + 1
   }
 }
 
-/** Converts an internal [ListRequisitionsPageToken] to an internal [StreamRequisitionsRequest]. */
-private fun ListRequisitionsPageToken.toStreamRequisitionsRequest(): StreamRequisitionsRequest {
-  val source = this
-  return streamRequisitionsRequest {
-    // get 1 more than the actual page size for deciding whether to set page token
-    limit = source.pageSize + 1
-    filter =
-      StreamRequisitionsRequestKt.filter {
-        externalMeasurementConsumerId = source.externalMeasurementConsumerId
-        externalMeasurementId = source.externalMeasurementId
-        externalDataProviderId = source.externalDataProviderId
-        states += source.statesList.map { state -> state.toInternal() }
-        if (source.hasLastRequisition()) {
-          externalDataProviderIdAfter = source.lastRequisition.externalDataProviderId
-          externalRequisitionIdAfter = source.lastRequisition.externalRequisitionId
-        }
-        source.measurementStatesList.forEach { measurementStates += it.toInternalState() }
-      }
+private fun buildNextPageToken(
+  filter: ListRequisitionsRequest.Filter,
+  internalFilter: StreamRequisitionsRequest.Filter,
+  internalRequisitions: List<InternalRequisition>
+): ListRequisitionsPageToken {
+  return listRequisitionsPageToken {
+    if (internalFilter.externalDataProviderId != 0L) {
+      externalDataProviderId = internalFilter.externalDataProviderId
+    }
+    if (internalFilter.externalMeasurementConsumerId != 0L) {
+      externalMeasurementConsumerId = internalFilter.externalMeasurementConsumerId
+    }
+    if (internalFilter.externalMeasurementId != 0L) {
+      externalMeasurementId = internalFilter.externalMeasurementId
+    }
+    states += filter.statesList
+    measurementStates += filter.measurementStatesList
+    lastRequisition = previousPageEnd {
+      externalDataProviderId =
+        internalRequisitions[internalRequisitions.lastIndex - 1].externalDataProviderId
+      externalRequisitionId =
+        internalRequisitions[internalRequisitions.lastIndex - 1].externalRequisitionId
+    }
   }
 }
