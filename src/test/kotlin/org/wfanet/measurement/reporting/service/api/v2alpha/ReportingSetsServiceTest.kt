@@ -48,6 +48,7 @@ import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsResponse
 import org.wfanet.measurement.internal.reporting.v2.copy
+import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest as internalCreateReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageTokenKt.previousPageEnd
@@ -87,7 +88,7 @@ private val INTERNAL_PRIMITIVE_REPORTING_SETS: List<InternalReportingSet> =
   (0L..2L).map {
     internalReportingSet {
       cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-      externalReportingSetId = it + 440L
+      externalReportingSetId = (it + 440L).toString()
       filter = "AGE>18"
       displayName = "primitive_reporting_set_display_name$it"
       primitive =
@@ -108,7 +109,7 @@ private val INTERNAL_PRIMITIVE_REPORTING_SETS: List<InternalReportingSet> =
 
 private val INTERNAL_COMPOSITE_REPORTING_SET: InternalReportingSet = internalReportingSet {
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-  externalReportingSetId = 450L
+  externalReportingSetId = "450"
   filter = "GENDER==MALE"
   displayName = "composite_reporting_set_display_name"
   composite =
@@ -141,13 +142,13 @@ private val INTERNAL_COMPOSITE_REPORTING_SET: InternalReportingSet = internalRep
 
 private val INTERNAL_COMPOSITE_REPORTING_SET2: InternalReportingSet =
   INTERNAL_COMPOSITE_REPORTING_SET.copy {
-    externalReportingSetId += 1L
+    externalReportingSetId += "2"
     displayName = "composite_reporting_set_display_name2"
   }
 
 private val INTERNAL_ROOT_COMPOSITE_REPORTING_SET: InternalReportingSet = internalReportingSet {
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-  externalReportingSetId = 451L
+  externalReportingSetId = "451"
   displayName = "root_composite_reporting_set_display_name"
   composite =
     InternalReportingSetKt.setExpression {
@@ -316,6 +317,7 @@ class ReportingSetsServiceTest {
     val request = createReportingSetRequest {
       parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
       reportingSet = PRIMITIVE_REPORTING_SETS.first().copy { clearName() }
+      reportingSetId = "reportingSetId"
     }
 
     val result =
@@ -330,9 +332,13 @@ class ReportingSetsServiceTest {
         ReportingSetsCoroutineImplBase::createReportingSet
       )
       .isEqualTo(
-        INTERNAL_PRIMITIVE_REPORTING_SETS.first().copy {
-          clearExternalReportingSetId()
-          weightedSubsetUnions.clear()
+        internalCreateReportingSetRequest {
+          reportingSet =
+            INTERNAL_PRIMITIVE_REPORTING_SETS.first().copy {
+              clearExternalReportingSetId()
+              weightedSubsetUnions.clear()
+            }
+          externalReportingSetId = "reportingSetId"
         }
       )
 
@@ -344,6 +350,7 @@ class ReportingSetsServiceTest {
     val request = createReportingSetRequest {
       parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
       reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
+      reportingSetId = "reportingSetId"
     }
 
     val result =
@@ -356,7 +363,13 @@ class ReportingSetsServiceTest {
         ReportingSetsCoroutineImplBase::createReportingSet
       )
       .ignoringRepeatedFieldOrder()
-      .isEqualTo(INTERNAL_ROOT_COMPOSITE_REPORTING_SET.copy { clearExternalReportingSetId() })
+      .isEqualTo(
+        internalCreateReportingSetRequest {
+          reportingSet =
+            INTERNAL_ROOT_COMPOSITE_REPORTING_SET.copy { clearExternalReportingSetId() }
+          externalReportingSetId = "reportingSetId"
+        }
+      )
 
     assertThat(result).isEqualTo(ROOT_COMPOSITE_REPORTING_SET)
   }
@@ -452,6 +465,7 @@ class ReportingSetsServiceTest {
       val request = createReportingSetRequest {
         parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
         reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
+        reportingSetId = "reportingSetId"
       }
 
       val result =
@@ -464,7 +478,12 @@ class ReportingSetsServiceTest {
           ReportingSetsCoroutineImplBase::createReportingSet
         )
         .ignoringRepeatedFieldOrder()
-        .isEqualTo(internalRootCompositeReportingSet)
+        .isEqualTo(
+          internalCreateReportingSetRequest {
+            reportingSet = internalRootCompositeReportingSet
+            externalReportingSetId = "reportingSetId"
+          }
+        )
 
       assertThat(result).isEqualTo(ROOT_COMPOSITE_REPORTING_SET)
     }
@@ -474,6 +493,7 @@ class ReportingSetsServiceTest {
     val request = createReportingSetRequest {
       parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
       reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
+      reportingSetId = "reportingSetId"
     }
 
     val exception =
@@ -488,6 +508,7 @@ class ReportingSetsServiceTest {
     val request = createReportingSetRequest {
       parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
       reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
+      reportingSetId = "reportingSetId"
     }
 
     val exception =
@@ -504,6 +525,7 @@ class ReportingSetsServiceTest {
     val request = createReportingSetRequest {
       parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
       reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
+      reportingSetId = "reportingSetId"
     }
 
     val exception =
@@ -520,6 +542,70 @@ class ReportingSetsServiceTest {
   fun `createReportingSet throws INVALID_ARGUMENT when parent is missing`() {
     val request = createReportingSetRequest {
       reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
+      reportingSetId = "reportingSetId"
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.createReportingSet(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createReportingSet throws INVALID_ARGUMENT when resource ID is missing`() {
+    val request = createReportingSetRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.createReportingSet(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createReportingSet throws INVALID_ARGUMENT when resource ID starts with number`() {
+    val request = createReportingSetRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
+      reportingSetId = "1s"
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.createReportingSet(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createReportingSet throws INVALID_ARGUMENT when resource ID is too long`() {
+    val request = createReportingSetRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
+      reportingSetId = "s".repeat(100)
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.createReportingSet(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createReportingSet throws INVALID_ARGUMENT when resource ID contains invalid char`() {
+    val request = createReportingSetRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
+      reportingSetId = "contain_invalid_char"
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -532,7 +618,10 @@ class ReportingSetsServiceTest {
 
   @Test
   fun `createReportingSet throws INVALID_ARGUMENT if ReportingSet is not specified`() {
-    val request = createReportingSetRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
+    val request = createReportingSetRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      reportingSetId = "reportingSetId"
+    }
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
@@ -551,6 +640,7 @@ class ReportingSetsServiceTest {
           clearName()
           clearValue()
         }
+      reportingSetId = "reportingSetId"
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -570,6 +660,7 @@ class ReportingSetsServiceTest {
           clearName()
           composite = ReportingSetKt.composite {}
         }
+      reportingSetId = "reportingSetId"
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -589,6 +680,7 @@ class ReportingSetsServiceTest {
           clearName()
           composite = this.composite.copy { expression = this.expression.copy { clearOperation() } }
         }
+      reportingSetId = "reportingSetId"
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -608,6 +700,7 @@ class ReportingSetsServiceTest {
           clearName()
           composite = this.composite.copy { expression = this.expression.copy { clearLhs() } }
         }
+      reportingSetId = "reportingSetId"
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -637,6 +730,7 @@ class ReportingSetsServiceTest {
                 }
             }
         }
+      reportingSetId = "reportingSetId"
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -672,6 +766,7 @@ class ReportingSetsServiceTest {
                 }
             }
         }
+      reportingSetId = "reportingSetId"
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -690,6 +785,7 @@ class ReportingSetsServiceTest {
     val request = createReportingSetRequest {
       parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
       reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
+      reportingSetId = "reportingSetId"
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -708,6 +804,7 @@ class ReportingSetsServiceTest {
       val request = createReportingSetRequest {
         parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
         reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
+        reportingSetId = "reportingSetId"
       }
       val exception =
         assertFailsWith<StatusRuntimeException> {
@@ -727,6 +824,7 @@ class ReportingSetsServiceTest {
           clearName()
           primitive = ReportingSetKt.primitive {}
         }
+      reportingSetId = "reportingSetId"
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -747,6 +845,7 @@ class ReportingSetsServiceTest {
           clearName()
           primitive = ReportingSetKt.primitive { cmmsEventGroups += invalidEventGroupName }
         }
+      reportingSetId = "reportingSetId"
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -1106,6 +1205,6 @@ private fun CmmsEventGroupKey.toInternal(): InternalReportingSet.Primitive.Event
 }
 
 private val InternalReportingSet.resourceKey: ReportingSetKey
-  get() = ReportingSetKey(cmmsMeasurementConsumerId, ExternalId(externalReportingSetId).apiId.value)
+  get() = ReportingSetKey(cmmsMeasurementConsumerId, externalReportingSetId)
 private val InternalReportingSet.resourceName: String
   get() = resourceKey.toName()

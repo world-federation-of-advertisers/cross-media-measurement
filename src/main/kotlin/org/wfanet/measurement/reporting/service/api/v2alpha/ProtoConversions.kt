@@ -27,7 +27,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.TimeInterval as CmmsTimeInterval
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.timeInterval as cmmsTimeInterval
-import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
@@ -441,7 +440,7 @@ fun InternalReportingSet.toReportingSet(): ReportingSet {
     name =
       ReportingSetKey(
           cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId,
-          reportingSetId = externalIdToApiId(source.externalReportingSetId)
+          reportingSetId = source.externalReportingSetId
         )
         .toName()
 
@@ -525,10 +524,7 @@ fun InternalReportingSet.SetExpression.Operand.toOperand(
     when (source.operandCase) {
       InternalReportingSet.SetExpression.Operand.OperandCase.EXTERNAL_REPORTING_SET_ID -> {
         val reportingSetKey =
-          ReportingSetKey(
-            cmmsMeasurementConsumerId,
-            externalIdToApiId(source.externalReportingSetId)
-          )
+          ReportingSetKey(cmmsMeasurementConsumerId, source.externalReportingSetId)
         reportingSet = reportingSetKey.toName()
       }
       InternalReportingSet.SetExpression.Operand.OperandCase.EXPRESSION -> {
@@ -628,7 +624,7 @@ fun InternalReport.ReportingMetric.toCreateMetricRequest(
       reportingSet =
         ReportingSetKey(
             measurementConsumerKey.measurementConsumerId,
-            externalIdToApiId(source.details.externalReportingSetId)
+            source.details.externalReportingSetId
           )
           .toName()
       timeInterval = source.details.timeInterval.toTimeInterval()
@@ -636,6 +632,7 @@ fun InternalReport.ReportingMetric.toCreateMetricRequest(
       filters += source.details.filtersList
     }
     requestId = source.createMetricRequestId
+    metricId = source.createMetricRequestId
   }
 }
 
@@ -643,13 +640,13 @@ fun InternalReport.ReportingMetric.toCreateMetricRequest(
  * Converts an internal ReportingMetricEntry Map.Entry<Long,
  * [InternalReport.ReportingMetricCalculationSpec]> to an [Report.ReportingMetricEntry].
  */
-fun Map.Entry<Long, InternalReport.ReportingMetricCalculationSpec>.toReportingMetricEntry(
+fun Map.Entry<String, InternalReport.ReportingMetricCalculationSpec>.toReportingMetricEntry(
   cmmsMeasurementConsumerId: String
 ): Report.ReportingMetricEntry {
   val source = this
 
   return ReportKt.reportingMetricEntry {
-    key = ReportingSetKey(cmmsMeasurementConsumerId, externalIdToApiId(source.key)).toName()
+    key = ReportingSetKey(cmmsMeasurementConsumerId, source.key).toName()
 
     value =
       ReportKt.reportingMetricCalculationSpec {
