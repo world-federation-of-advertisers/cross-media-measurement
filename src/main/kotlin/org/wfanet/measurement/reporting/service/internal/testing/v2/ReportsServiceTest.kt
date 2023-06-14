@@ -89,18 +89,19 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val baseReport = createReportForRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
 
-    val report = baseReport.copy {
-      timeIntervals = timeIntervals {
-        timeIntervals += timeInterval {
-          startTime = timestamp { seconds = 100 }
-          endTime = timestamp { seconds = 200 }
-        }
-        timeIntervals += timeInterval {
-          startTime = timestamp { seconds = 300 }
-          endTime = timestamp { seconds = 400 }
+    val report =
+      baseReport.copy {
+        timeIntervals = timeIntervals {
+          timeIntervals += timeInterval {
+            startTime = timestamp { seconds = 100 }
+            endTime = timestamp { seconds = 200 }
+          }
+          timeIntervals += timeInterval {
+            startTime = timestamp { seconds = 300 }
+            endTime = timestamp { seconds = 400 }
+          }
         }
       }
-    }
 
     val createdReport = service.createReport(createReportRequest { this.report = report })
 
@@ -120,13 +121,14 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val baseReport = createReportForRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
 
-    val report = baseReport.copy {
-      periodicTimeInterval = periodicTimeInterval {
-        startTime = timestamp { seconds = 100 }
-        increment = duration { seconds = 50 }
-        intervalCount = 3
+    val report =
+      baseReport.copy {
+        periodicTimeInterval = periodicTimeInterval {
+          startTime = timestamp { seconds = 100 }
+          increment = duration { seconds = 50 }
+          intervalCount = 3
+        }
       }
-    }
 
     val createdReport = service.createReport(createReportRequest { this.report = report })
 
@@ -608,9 +610,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val baseReport = createReportForRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
 
-    val report = baseReport.copy {
-      clearTime()
-    }
+    val report = baseReport.copy { clearTime() }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -648,9 +648,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val baseReport = createReportForRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
 
-    val report = baseReport.copy {
-      cmmsMeasurementConsumerId = cmmsMeasurementConsumerId + "2"
-    }
+    val report = baseReport.copy { cmmsMeasurementConsumerId = cmmsMeasurementConsumerId + "2" }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -668,7 +666,8 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
       cmmsMeasurementConsumerId: String,
       reportingSetsService: ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase,
     ): Report {
-      val createdReportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+      val createdReportingSet =
+        createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
 
       return report {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
