@@ -81,8 +81,6 @@ import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
-import org.wfanet.measurement.common.identity.apiIdToExternalId
-import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
@@ -215,7 +213,7 @@ class MetricsService(
       val measurementConsumer: MeasurementConsumer = getMeasurementConsumer(principal)
 
       // Gets all external IDs of primitive reporting sets from the metric list.
-      val externalPrimitiveReportingSetIds: Flow<Long> =
+      val externalPrimitiveReportingSetIds: Flow<String> =
         internalMetricsList
           .flatMap { internalMetric ->
             internalMetric.weightedMeasurementsList.flatMap { weightedMeasurement ->
@@ -228,12 +226,12 @@ class MetricsService(
           .asFlow()
 
       val callBatchGetInternalReportingSetsRpc:
-        suspend (List<Long>) -> BatchGetReportingSetsResponse =
+        suspend (List<String>) -> BatchGetReportingSetsResponse =
         { items ->
           batchGetInternalReportingSets(principal.resourceKey.measurementConsumerId, items)
         }
 
-      val internalPrimitiveReportingSetMap: Map<Long, InternalReportingSet> =
+      val internalPrimitiveReportingSetMap: Map<String, InternalReportingSet> =
         submitBatchRequests(
             externalPrimitiveReportingSetIds,
             BATCH_GET_REPORTING_SETS_LIMIT,
@@ -315,7 +313,7 @@ class MetricsService(
     private suspend fun createCmmsMeasurement(
       internalMeasurement: InternalMeasurement,
       metricSpec: InternalMetricSpec,
-      internalPrimitiveReportingSetMap: Map<Long, InternalReportingSet>,
+      internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
       measurementConsumer: MeasurementConsumer,
       principal: MeasurementConsumerPrincipal,
     ): Measurement {
@@ -543,7 +541,7 @@ class MetricsService(
      */
     private fun groupEventGroupEntriesByDataProvider(
       measurement: InternalMeasurement,
-      internalPrimitiveReportingSetMap: Map<Long, InternalReportingSet>,
+      internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
     ): Map<DataProviderKey, List<EventGroupEntry>> {
       return measurement.primitiveReportingSetBasesList
         .flatMap { primitiveReportingSetBasis ->
@@ -614,7 +612,7 @@ class MetricsService(
     /** Gets a batch of [InternalReportingSet]s. */
     private suspend fun batchGetInternalReportingSets(
       cmmsMeasurementConsumerId: String,
-      externalReportingSetIds: List<Long>,
+      externalReportingSetIds: List<String>,
     ): BatchGetReportingSetsResponse {
       return try {
         internalReportingSetsStub.batchGetReportingSets(
@@ -994,7 +992,7 @@ class MetricsService(
     }
 
     val internalMetric: InternalMetric =
-      getInternalMetric(metricKey.cmmsMeasurementConsumerId, apiIdToExternalId(metricKey.metricId))
+      getInternalMetric(metricKey.cmmsMeasurementConsumerId, metricKey.metricId)
 
     // Early exit when the metric is at a terminal state.
     if (internalMetric.state != Metric.State.RUNNING) {
@@ -1017,23 +1015,23 @@ class MetricsService(
       )
 
     return if (anyMeasurementUpdated) {
-      getInternalMetric(metricKey.cmmsMeasurementConsumerId, apiIdToExternalId(metricKey.metricId))
-        .toMetric()
+      getInternalMetric(metricKey.cmmsMeasurementConsumerId, metricKey.metricId).toMetric()
     } else {
       internalMetric.toMetric()
     }
   }
 
   override suspend fun batchGetMetrics(request: BatchGetMetricsRequest): BatchGetMetricsResponse {
-    grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
-      "Parent is either unspecified or invalid."
-    }
+    val parentKey =
+      grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
+        "Parent is either unspecified or invalid."
+      }
 
     val principal: ReportingPrincipal = principalFromCurrentContext
 
     when (principal) {
       is MeasurementConsumerPrincipal -> {
-        if (request.parent != principal.resourceKey.toName()) {
+        if (parentKey != principal.resourceKey) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot get Metrics for another MeasurementConsumer."
           }
@@ -1046,17 +1044,17 @@ class MetricsService(
       "At most $MAX_BATCH_SIZE metrics can be supported in a batch."
     }
 
-    val externalMetricIds: List<Long> =
+    val metricIds: List<String> =
       request.namesList.map { metricName ->
         val metricKey =
           grpcRequireNotNull(MetricKey.fromName(metricName)) {
             "Metric name is either unspecified or invalid."
           }
-        apiIdToExternalId(metricKey.metricId)
+        metricKey.metricId
       }
 
     val internalMetrics: List<InternalMetric> =
-      batchGetInternalMetrics(principal.resourceKey.measurementConsumerId, externalMetricIds)
+      batchGetInternalMetrics(principal.resourceKey.measurementConsumerId, metricIds)
 
     // Only syncs pending measurements which can only be in metrics that are still running.
     val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
@@ -1082,26 +1080,32 @@ class MetricsService(
          *   measurements are updated. Re-evaluate when a load-test is ready after deployment.
          */
         if (anyMeasurementUpdated) {
-          batchGetInternalMetrics(principal.resourceKey.measurementConsumerId, externalMetricIds)
-            .map { it.toMetric() }
+          batchGetInternalMetrics(principal.resourceKey.measurementConsumerId, metricIds).map {
+            it.toMetric()
+          }
         } else {
           internalMetrics.map { it.toMetric() }
         }
     }
   }
   override suspend fun listMetrics(request: ListMetricsRequest): ListMetricsResponse {
-    val listMetricsPageToken: ListMetricsPageToken = request.toListMetricsPageToken()
+    val parentKey =
+      grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
+        "Parent is either unspecified or invalid."
+      }
 
     val principal: ReportingPrincipal = principalFromCurrentContext
     when (principal) {
       is MeasurementConsumerPrincipal -> {
-        if (request.parent != principal.resourceKey.toName()) {
+        if (parentKey != principal.resourceKey) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot list Metrics belonging to other MeasurementConsumers."
           }
         }
       }
     }
+    val listMetricsPageToken: ListMetricsPageToken = request.toListMetricsPageToken()
+
     val apiAuthenticationKey: String = principal.config.apiKey
 
     val streamInternalMetricRequest: StreamMetricsRequest =
@@ -1179,11 +1183,11 @@ class MetricsService(
   /** Gets a batch of [InternalMetric]s. */
   private suspend fun batchGetInternalMetrics(
     cmmsMeasurementConsumerId: String,
-    externalMetricIds: List<Long>,
+    metricIds: List<String>,
   ): List<InternalMetric> {
     val batchGetMetricsRequest = batchGetMetricsRequest {
       this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-      this.externalMetricIds += externalMetricIds
+      this.externalMetricIds += metricIds
     }
 
     return try {
@@ -1196,13 +1200,12 @@ class MetricsService(
   /** Gets an [InternalMetric]. */
   private suspend fun getInternalMetric(
     cmmsMeasurementConsumerId: String,
-    externalMetricId: Long,
+    metricId: String,
   ): InternalMetric {
     return try {
-      batchGetInternalMetrics(cmmsMeasurementConsumerId, listOf(externalMetricId)).first()
+      batchGetInternalMetrics(cmmsMeasurementConsumerId, listOf(metricId)).first()
     } catch (e: StatusException) {
-      val metricName =
-        MetricKey(cmmsMeasurementConsumerId, externalIdToApiId(externalMetricId)).toName()
+      val metricName = MetricKey(cmmsMeasurementConsumerId, metricId).toName()
       throw Exception(
         "Unable to get the metric with name = [${metricName}] from the reporting database.",
         e
@@ -1211,15 +1214,16 @@ class MetricsService(
   }
 
   override suspend fun createMetric(request: CreateMetricRequest): Metric {
-    grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
-      "Parent is either unspecified or invalid."
-    }
+    val parentKey =
+      grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
+        "Parent is either unspecified or invalid."
+      }
 
     val principal: ReportingPrincipal = principalFromCurrentContext
 
     when (principal) {
       is MeasurementConsumerPrincipal -> {
-        if (request.parent != principal.resourceKey.toName()) {
+        if (parentKey != principal.resourceKey) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot create a Metric for another MeasurementConsumer."
           }
@@ -1235,6 +1239,10 @@ class MetricsService(
         internalMetricsStub.createMetric(internalCreateMetricRequest)
       } catch (e: StatusException) {
         throw when (e.status.code) {
+            Status.Code.ALREADY_EXISTS ->
+              Status.ALREADY_EXISTS.withDescription(
+                "Metric with ID ${request.metricId} already exists under ${request.parent}"
+              )
             Status.Code.NOT_FOUND ->
               Status.NOT_FOUND.withDescription("Reporting set used in the metric not found.")
             Status.Code.FAILED_PRECONDITION ->
@@ -1261,15 +1269,16 @@ class MetricsService(
   override suspend fun batchCreateMetrics(
     request: BatchCreateMetricsRequest,
   ): BatchCreateMetricsResponse {
-    grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
-      "Parent is either unspecified or invalid."
-    }
+    val parentKey =
+      grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
+        "Parent is either unspecified or invalid."
+      }
 
     val principal: ReportingPrincipal = principalFromCurrentContext
 
     when (principal) {
       is MeasurementConsumerPrincipal -> {
-        if (request.parent != principal.resourceKey.toName()) {
+        if (parentKey != principal.resourceKey) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot create a Metric for another MeasurementConsumer."
           }
@@ -1282,12 +1291,14 @@ class MetricsService(
       "At most $MAX_BATCH_SIZE requests can be supported in a batch."
     }
 
+    val metricIds = request.requestsList.map { it.metricId }
+    grpcRequire(metricIds.size == metricIds.distinct().size) {
+      "Duplicate metric IDs in the request."
+    }
+
     val internalCreateMetricRequestsList: List<InternalCreateMetricRequest> =
       request.requestsList.map { createMetricRequest ->
-        buildInternalCreateMetricRequest(
-          principal.resourceKey.measurementConsumerId,
-          createMetricRequest
-        )
+        buildInternalCreateMetricRequest(parentKey.measurementConsumerId, createMetricRequest)
       }
 
     val internalMetrics =
@@ -1295,7 +1306,7 @@ class MetricsService(
         internalMetricsStub
           .batchCreateMetrics(
             internalBatchCreateMetricsRequest {
-              cmmsMeasurementConsumerId = principal.resourceKey.measurementConsumerId
+              cmmsMeasurementConsumerId = parentKey.measurementConsumerId
               requests += internalCreateMetricRequestsList
             }
           )
@@ -1328,6 +1339,10 @@ class MetricsService(
     request: CreateMetricRequest,
   ): InternalCreateMetricRequest {
     grpcRequire(request.hasMetric()) { "Metric is not specified." }
+
+    grpcRequire(request.metricId.matches(CREATE_RESOURCE_ID_CONSTRAINT_REGEX)) {
+      "Metric ID is invalid."
+    }
     grpcRequire(request.metric.reportingSet.isNotBlank()) {
       "Reporting set in metric is not specified."
     }
@@ -1357,6 +1372,7 @@ class MetricsService(
 
     return internalCreateMetricRequest {
       requestId = request.requestId
+      externalMetricId = request.metricId
       metric = internalMetric {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
         externalReportingSetId = internalReportingSet.externalReportingSetId
@@ -1423,7 +1439,7 @@ class MetricsService(
         .batchGetReportingSets(
           batchGetReportingSetsRequest {
             this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-            this.externalReportingSetIds += apiIdToExternalId(reportingSetKey.reportingSetId)
+            this.externalReportingSetIds += reportingSetKey.reportingSetId
           }
         )
         .reportingSetsList
@@ -1435,6 +1451,10 @@ class MetricsService(
         e
       )
     }
+  }
+
+  companion object {
+    private val CREATE_RESOURCE_ID_CONSTRAINT_REGEX = "^[a-zA-Z0-9-]{4,63}$".toRegex()
   }
 }
 
@@ -1480,15 +1500,11 @@ private fun InternalMetric.toMetric(): Metric {
     name =
       MetricKey(
           cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId,
-          metricId = externalIdToApiId(source.externalMetricId)
+          metricId = source.externalMetricId
         )
         .toName()
     reportingSet =
-      ReportingSetKey(
-          source.cmmsMeasurementConsumerId,
-          externalIdToApiId(source.externalReportingSetId)
-        )
-        .toName()
+      ReportingSetKey(source.cmmsMeasurementConsumerId, source.externalReportingSetId).toName()
     timeInterval = source.timeInterval.toTimeInterval()
     metricSpec = source.metricSpec.toMetricSpec()
     filters += source.details.filtersList

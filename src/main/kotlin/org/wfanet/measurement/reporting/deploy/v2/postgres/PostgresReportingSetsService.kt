@@ -25,9 +25,11 @@ import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.db.r2dbc.postgres.SerializableErrors.withSerializableErrorRetries
 import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsResponse
+import org.wfanet.measurement.internal.reporting.v2.CreateReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequest
@@ -35,6 +37,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRespons
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateReportingSet
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.reporting.service.internal.ReportingSetAlreadyExistsException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
 private const val MAX_BATCH_SIZE = 1000
@@ -43,13 +46,16 @@ class PostgresReportingSetsService(
   private val idGenerator: IdGenerator,
   private val client: DatabaseClient,
 ) : ReportingSetsCoroutineImplBase() {
-  override suspend fun createReportingSet(request: ReportingSet): ReportingSet {
+  override suspend fun createReportingSet(request: CreateReportingSetRequest): ReportingSet {
+    grpcRequire(request.externalReportingSetId.isNotBlank()) {
+      "External reporting set ID is not set."
+    }
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-    when (request.valueCase) {
+    when (request.reportingSet.valueCase) {
       ReportingSet.ValueCase.PRIMITIVE -> {}
       ReportingSet.ValueCase.COMPOSITE -> {
         if (
-          request.composite.lhs.operandCase ==
+          request.reportingSet.composite.lhs.operandCase ==
             ReportingSet.SetExpression.Operand.OperandCase.OPERAND_NOT_SET
         ) {
           failGrpc(Status.INVALID_ARGUMENT) { "lhs operand not specified" }
@@ -63,6 +69,8 @@ class PostgresReportingSetsService(
       CreateReportingSet(request).execute(client, idGenerator)
     } catch (e: ReportingSetNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Reporting Set not found")
+    } catch (e: ReportingSetAlreadyExistsException) {
+      throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS, "Reporting Set already exists")
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
