@@ -29,10 +29,9 @@ import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsContinuatio
 /**
  * [PostgresWriter] for setting continuation tokens.
  *
- * Throws a subclass of [DuchyInternalException] on [execute].
- *
- * @throws [ContinuationTokenMalformedException] when the new token is malformed
- * @throws [ContinuationTokenInvalidException] when the new token is invalid
+ * Throws a subclass of [DuchyInternalException] on [execute]:
+ * * [ContinuationTokenMalformedException] when the new token is malformed
+ * * [ContinuationTokenInvalidException] when the new token is invalid
  */
 class SetContinuationToken(private val continuationToken: String) : PostgresWriter<Unit>() {
   private fun decodeContinuationToken(token: String): StreamActiveComputationsContinuationToken =
