@@ -66,11 +66,11 @@ message Metric {
   // `MeasurementConsumer` ID from the CMMS public API.
   string cmms_measurement_consumer_id = 1;
 
-  fixed64 external_metric_id = 2;
+  string external_metric_id = 2;
 
   google.protobuf.Timestamp create_time = 3;
 
-  fixed64 external_reporting_set_id = 4;
+  string external_reporting_set_id = 4;
 
   TimeInterval time_interval = 5;
 

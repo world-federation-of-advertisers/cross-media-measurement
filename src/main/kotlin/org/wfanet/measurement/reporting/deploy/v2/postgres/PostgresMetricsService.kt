@@ -42,6 +42,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsResponse
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MetricReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateMetrics
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.reporting.service.internal.MetricAlreadyExistsException
 import org.wfanet.measurement.reporting.service.internal.MetricNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
@@ -52,6 +53,7 @@ class PostgresMetricsService(
   private val client: DatabaseClient,
 ) : MetricsCoroutineImplBase() {
   override suspend fun createMetric(request: CreateMetricRequest): Metric {
+    grpcRequire(request.externalMetricId.isNotBlank()) { "External metric ID is not set." }
     grpcRequire(request.metric.hasTimeInterval()) { "Metric missing time interval." }
 
     grpcRequire(!request.metric.metricSpec.typeCase.equals(MetricSpec.TypeCase.TYPE_NOT_SET)) {
@@ -75,6 +77,8 @@ class PostgresMetricsService(
         Status.Code.FAILED_PRECONDITION,
         "Measurement Consumer not found."
       )
+    } catch (e: MetricAlreadyExistsException) {
+      throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS, "Metric already exists")
     }
   }
 
@@ -84,6 +88,7 @@ class PostgresMetricsService(
     grpcRequire(request.requestsList.size <= MAX_BATCH_SIZE) { "Too many requests." }
 
     request.requestsList.forEach {
+      grpcRequire(it.externalMetricId.isNotBlank()) { "External metric ID is not set." }
       grpcRequire(it.metric.hasTimeInterval()) { "Metric missing time interval." }
 
       grpcRequire(!it.metric.metricSpec.typeCase.equals(MetricSpec.TypeCase.TYPE_NOT_SET)) {
@@ -114,6 +119,8 @@ class PostgresMetricsService(
         Status.Code.FAILED_PRECONDITION,
         "Measurement Consumer not found."
       )
+    } catch (e: MetricAlreadyExistsException) {
+      throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS, "Metric already exists")
     }
   }
 

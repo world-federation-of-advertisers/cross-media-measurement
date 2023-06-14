@@ -26,7 +26,6 @@ import org.wfanet.measurement.common.db.r2dbc.BoundStatement
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
-import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricsRequest
@@ -56,9 +55,9 @@ class MetricReader(private val readContext: ReadContext) {
     val measurementConsumerId: InternalId,
     val cmmsMeasurementConsumerId: String,
     val createMetricRequestId: String?,
-    val externalReportingSetId: ExternalId,
+    val externalReportingSetId: String,
     val metricId: InternalId,
-    val externalMetricId: ExternalId,
+    val externalMetricId: String,
     val createTime: Timestamp,
     val timeInterval: TimeInterval,
     val metricSpec: MetricSpec,
@@ -88,7 +87,7 @@ class MetricReader(private val readContext: ReadContext) {
   )
 
   private data class PrimitiveReportingSetBasisInfo(
-    val externalReportingSetId: ExternalId,
+    val externalReportingSetId: String,
     val filterSet: MutableSet<String>,
   )
 
@@ -222,7 +221,7 @@ class MetricReader(private val readContext: ReadContext) {
       )
 
     var i = 2
-    val bindingMap = mutableMapOf<Long, String>()
+    val bindingMap = mutableMapOf<String, String>()
     val inList =
       request.externalMetricIdsList.joinToString(separator = ",", prefix = "(", postfix = ")") {
         val index = "$$i"
@@ -241,9 +240,8 @@ class MetricReader(private val readContext: ReadContext) {
     return flow {
       val metricInfoMap = buildResultMap(statement)
 
-      for (externalMetricId in request.externalMetricIdsList) {
-        val metricInfo =
-          metricInfoMap[ExternalId(externalMetricId)] ?: throw MetricNotFoundException()
+      for (metricId in request.externalMetricIdsList) {
+        val metricInfo = metricInfoMap[metricId] ?: continue
 
         val metric = metricInfo.buildMetric()
 
@@ -316,8 +314,8 @@ class MetricReader(private val readContext: ReadContext) {
     val metricInfo = this
     return metric {
       cmmsMeasurementConsumerId = metricInfo.cmmsMeasurementConsumerId
-      externalMetricId = metricInfo.externalMetricId.value
-      externalReportingSetId = metricInfo.externalReportingSetId.value
+      externalMetricId = metricInfo.externalMetricId
+      externalReportingSetId = metricInfo.externalReportingSetId
       createTime = metricInfo.createTime
       timeInterval = metricInfo.timeInterval
       metricSpec = metricInfo.metricSpec
@@ -335,7 +333,7 @@ class MetricReader(private val readContext: ReadContext) {
               it.measurementInfo.primitiveReportingSetBasisInfoMap.values.forEach {
                 primitiveReportingSetBases +=
                   ReportingSetKt.primitiveReportingSetBasis {
-                    externalReportingSetId = it.externalReportingSetId.value
+                    externalReportingSetId = it.externalReportingSetId
                     filters += it.filterSet
                   }
               }
@@ -353,17 +351,17 @@ class MetricReader(private val readContext: ReadContext) {
   }
 
   /** Returns a map that maintains the order of the query result. */
-  private suspend fun buildResultMap(statement: BoundStatement): Map<ExternalId, MetricInfo> {
+  private suspend fun buildResultMap(statement: BoundStatement): Map<String, MetricInfo> {
     // Key is externalMetricId.
-    val metricInfoMap: MutableMap<ExternalId, MetricInfo> = linkedMapOf()
+    val metricInfoMap: MutableMap<String, MetricInfo> = linkedMapOf()
 
     val translate: (row: ResultRow) -> Unit = { row: ResultRow ->
       val measurementConsumerId: InternalId = row["MeasurementConsumerId"]
       val cmmsMeasurementConsumerId: String = row["CmmsMeasurementConsumerId"]
       val createMetricRequestId: String? = row["CreateMetricRequestId"]
-      val externalReportingSetId: ExternalId = row["MetricsExternalReportingSetId"]
+      val externalReportingSetId: String = row["MetricsExternalReportingSetId"]
       val metricId: InternalId = row["MetricId"]
-      val externalMetricId: ExternalId = row["ExternalMetricId"]
+      val externalMetricId: String = row["ExternalMetricId"]
       val metricTimeIntervalStart: Instant = row["MetricsTimeIntervalStart"]
       val metricTimeIntervalEnd: Instant = row["MetricsTimeIntervalEndExclusive"]
       val metricType: MetricSpec.TypeCase = MetricSpec.TypeCase.forNumber(row["MetricType"])
@@ -388,7 +386,7 @@ class MetricReader(private val readContext: ReadContext) {
       val measurementDetails: Measurement.Details =
         row.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
       val primitiveReportingSetBasisId: InternalId = row["PrimitiveReportingSetBasisId"]
-      val primitiveExternalReportingSetId: ExternalId = row["PrimitiveExternalReportingSetId"]
+      val primitiveExternalReportingSetId: String = row["PrimitiveExternalReportingSetId"]
       val primitiveReportingSetBasisFilter: String? = row["PrimitiveReportingSetBasisFilter"]
 
       val metricInfo =
