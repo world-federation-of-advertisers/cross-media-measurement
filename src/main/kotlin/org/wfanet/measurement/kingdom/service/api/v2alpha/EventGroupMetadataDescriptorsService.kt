@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.protobuf.Descriptors.DescriptorValidationException
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.math.min
@@ -41,6 +42,7 @@ import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsPageToken
 import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
@@ -133,6 +135,15 @@ class EventGroupMetadataDescriptorsService(
           "Caller does not have permission to create EventGroupMetadataDescriptors"
         }
       }
+    }
+
+    // Check if the FileDescriptorSet is valid by trying to build a list of Descriptors from it.
+    try {
+      ProtoReflection.buildDescriptors(listOf(request.eventGroupMetadataDescriptor.descriptorSet))
+    } catch (e: DescriptorValidationException) {
+      throw Status.INVALID_ARGUMENT.withCause(e)
+        .withDescription("descriptor_set is invalid")
+        .asRuntimeException()
     }
 
     val createRequest =
