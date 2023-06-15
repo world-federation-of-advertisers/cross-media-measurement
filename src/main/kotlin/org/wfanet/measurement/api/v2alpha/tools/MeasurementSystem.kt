@@ -20,6 +20,7 @@ import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.CleartextKeysetHandle
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
+import com.google.protobuf.timestamp
 import io.grpc.ManagedChannel
 import java.io.File
 import java.security.SecureRandom
@@ -60,18 +61,17 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelOutage
+import org.wfanet.measurement.api.v2alpha.ModelOutagesGrpcKt.ModelOutagesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelShard
+import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt.ModelShardsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PublicKey
 import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt.PublicKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt as EventGroupEntries
-import com.google.protobuf.timestamp
-import org.wfanet.measurement.api.v2alpha.ModelOutage
-import org.wfanet.measurement.api.v2alpha.ModelOutagesGrpcKt.ModelOutagesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ModelShard
-import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt.ModelShardsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.activateAccountRequest
@@ -1482,7 +1482,10 @@ private class ModelOutages {
     modelLineName: String,
     @Option(
       names = ["--outage-interval"],
-      description = ["Time interval in which the parent ModelLine cannot be used to generate sketches. Should be in the following format: start time,end time. Times should be written in Java Time-Scale"],
+      description =
+        [
+          "Time interval in which the parent ModelLine cannot be used to generate sketches. Should be in the following format: start time,end time. Times should be written in Java Time-Scale"
+        ],
       required = true,
     )
     modelOutageInterval: String,
@@ -1493,12 +1496,8 @@ private class ModelOutages {
       parent = modelLineName
       modelOutage = modelOutage {
         outageInterval = timeInterval {
-          startTime = timestamp {
-            seconds = Instant.parse(intervalList[0]).toProtoTime().seconds
-          }
-          endTime = timestamp {
-            seconds = Instant.parse(intervalList[1]).toProtoTime().seconds
-          }
+          startTime = timestamp { seconds = Instant.parse(intervalList[0]).toProtoTime().seconds }
+          endTime = timestamp { seconds = Instant.parse(intervalList[1]).toProtoTime().seconds }
         }
       }
     }
@@ -1527,9 +1526,9 @@ private class ModelOutages {
     @Option(
       names = ["--page-token"],
       description =
-      [
-        "A page token, received from a previous `ListModelOutagesRequest` call. Provide this to retrieve the subsequent page."
-      ],
+        [
+          "A page token, received from a previous `ListModelOutagesRequest` call. Provide this to retrieve the subsequent page."
+        ],
       required = false,
       defaultValue = ""
     )
@@ -1537,16 +1536,17 @@ private class ModelOutages {
     @Option(
       names = ["--show-deleted"],
       description =
-      [
-        "A flag to specify whether to include ModelOutage in the DELETED state or not."
-      ],
+        ["A flag to specify whether to include ModelOutage in the DELETED state or not."],
       required = false,
       defaultValue = "false"
     )
     showDeletedOutages: Boolean,
     @Option(
       names = ["--interval"],
-      description = ["The the overlapping time intervals used to filter the result. Should be in the following format: start time,end time. Times should be written in Java Time-Scale"],
+      description =
+        [
+          "The the overlapping time intervals used to filter the result. Should be in the following format: start time,end time. Times should be written in Java Time-Scale"
+        ],
       required = false,
       defaultValue = "",
     )
@@ -1557,17 +1557,15 @@ private class ModelOutages {
       pageSize = listPageSize
       pageToken = listPageToken
       showDeleted = showDeletedOutages
-      if(outageInterval.isNotEmpty()){
+      if (outageInterval.isNotEmpty()) {
         val intervalList = outageInterval.split(",").map { it.trim() }
 
-        filter = modelOutagesFilter { outageIntervalOverlapping = timeInterval {
-          startTime = timestamp {
-            seconds = Instant.parse(intervalList[0]).toProtoTime().seconds
+        filter = modelOutagesFilter {
+          outageIntervalOverlapping = timeInterval {
+            startTime = timestamp { seconds = Instant.parse(intervalList[0]).toProtoTime().seconds }
+            endTime = timestamp { seconds = Instant.parse(intervalList[1]).toProtoTime().seconds }
           }
-          endTime = timestamp {
-            seconds = Instant.parse(intervalList[1]).toProtoTime().seconds
-          }
-        }}
+        }
       }
     }
     val response =
@@ -1584,9 +1582,7 @@ private class ModelOutages {
     )
     modelOutageName: String,
   ) {
-    val request = deleteModelOutageRequest {
-      name = modelOutageName
-    }
+    val request = deleteModelOutageRequest { name = modelOutageName }
     val outputModelOutage =
       runBlocking(parentCommand.rpcDispatcher) { modelOutageStub.deleteModelOutage(request) }
 
@@ -1669,9 +1665,9 @@ private class ModelShards {
     @Option(
       names = ["--page-token"],
       description =
-      [
-        "A page token, received from a previous `ListModelShardsRequest` call. Provide this to retrieve the subsequent page."
-      ],
+        [
+          "A page token, received from a previous `ListModelShardsRequest` call. Provide this to retrieve the subsequent page."
+        ],
       required = false,
       defaultValue = ""
     )
@@ -1696,9 +1692,7 @@ private class ModelShards {
     )
     modelShardName: String,
   ) {
-    val request = deleteModelShardRequest {
-      name = modelShardName
-    }
+    val request = deleteModelShardRequest { name = modelShardName }
     val outputModelShard =
       runBlocking(parentCommand.rpcDispatcher) { modelShardStub.deleteModelShard(request) }
 

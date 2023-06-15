@@ -21,6 +21,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
 import com.google.protobuf.duration
+import com.google.protobuf.empty
 import com.google.protobuf.timestamp
 import com.google.protobuf.value
 import io.grpc.Server
@@ -54,8 +55,11 @@ import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelLineRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelOutageRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelReleaseRequest
+import org.wfanet.measurement.api.v2alpha.CreateModelShardRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
+import org.wfanet.measurement.api.v2alpha.DeleteModelOutageRequest
+import org.wfanet.measurement.api.v2alpha.DeleteModelShardRequest
 import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
@@ -66,10 +70,6 @@ import org.wfanet.measurement.api.v2alpha.ListModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.ListModelOutagesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelOutagesRequestKt.filter as modelOutagesFilter
-import com.google.protobuf.empty
-import org.wfanet.measurement.api.v2alpha.CreateModelShardRequest
-import org.wfanet.measurement.api.v2alpha.DeleteModelOutageRequest
-import org.wfanet.measurement.api.v2alpha.DeleteModelShardRequest
 import org.wfanet.measurement.api.v2alpha.ListModelReleasesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelShardsRequest
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesRequest
@@ -288,7 +288,7 @@ private val MODEL_OUTAGE = modelOutage {
 private val MODEL_SHARD = modelShard {
   name = MODEL_SHARD_NAME
   modelRelease = MODEL_RELEASE_NAME
-  modelBlob =  ModelShard.ModelBlob.getDefaultInstance()
+  modelBlob = ModelShard.ModelBlob.getDefaultInstance()
   createTime = timestamp { seconds = 3000 }
 }
 
@@ -382,13 +382,15 @@ class MeasurementSystemTest {
   }
   private val modelOutagesServiceMock: ModelOutagesCoroutineImplBase = mockService {
     onBlocking { createModelOutage(any()) }.thenReturn(MODEL_OUTAGE)
-    onBlocking { listModelOutages(any()) }.thenReturn(listModelOutagesResponse { modelOutages += listOf(MODEL_OUTAGE) })
-    onBlocking { deleteModelOutage(any())}.thenReturn(MODEL_OUTAGE)
+    onBlocking { listModelOutages(any()) }
+      .thenReturn(listModelOutagesResponse { modelOutages += listOf(MODEL_OUTAGE) })
+    onBlocking { deleteModelOutage(any()) }.thenReturn(MODEL_OUTAGE)
   }
   private val modelShardsServiceMock: ModelShardsCoroutineImplBase = mockService {
     onBlocking { createModelShard(any()) }.thenReturn(MODEL_SHARD)
-    onBlocking { listModelShards(any()) }.thenReturn(listModelShardsResponse { modelShards += listOf(MODEL_SHARD) })
-    onBlocking { deleteModelShard(any())}.thenReturn(empty {  })
+    onBlocking { listModelShards(any()) }
+      .thenReturn(listModelShardsResponse { modelShards += listOf(MODEL_SHARD) })
+    onBlocking { deleteModelShard(any()) }.thenReturn(empty {})
   }
   private val modelSuitesServiceMock: ModelSuitesCoroutineImplBase = mockService {
     onBlocking { createModelSuite(any()) }.thenReturn(MODEL_SUITE)
@@ -1378,19 +1380,21 @@ class MeasurementSystemTest {
       }
 
     assertThat(request)
-      .isEqualTo(createModelOutageRequest {
-        parent = MODEL_LINE_NAME
-        modelOutage = modelOutage {
-          outageInterval = timeInterval {
-            startTime = timestamp {
-              seconds = Instant.parse(MODEL_OUTAGE_ACTIVE_START_TIME).toProtoTime().seconds
-            }
-            endTime = timestamp {
-              seconds = Instant.parse(MODEL_OUTAGE_ACTIVE_END_TIME).toProtoTime().seconds
+      .isEqualTo(
+        createModelOutageRequest {
+          parent = MODEL_LINE_NAME
+          modelOutage = modelOutage {
+            outageInterval = timeInterval {
+              startTime = timestamp {
+                seconds = Instant.parse(MODEL_OUTAGE_ACTIVE_START_TIME).toProtoTime().seconds
+              }
+              endTime = timestamp {
+                seconds = Instant.parse(MODEL_OUTAGE_ACTIVE_END_TIME).toProtoTime().seconds
+              }
             }
           }
         }
-      })
+      )
   }
 
   @Test
@@ -1414,22 +1418,24 @@ class MeasurementSystemTest {
       }
 
     assertThat(request)
-      .isEqualTo(listModelOutagesRequest {
-        parent = MODEL_LINE_NAME
-        pageSize = 10
-        pageToken = "token"
-        showDeleted = true
-        filter = modelOutagesFilter {
-          outageIntervalOverlapping = timeInterval {
-            startTime = timestamp {
-              seconds = Instant.parse(MODEL_OUTAGE_ACTIVE_START_TIME).toProtoTime().seconds
-            }
-            endTime = timestamp {
-              seconds = Instant.parse(MODEL_OUTAGE_ACTIVE_END_TIME).toProtoTime().seconds
+      .isEqualTo(
+        listModelOutagesRequest {
+          parent = MODEL_LINE_NAME
+          pageSize = 10
+          pageToken = "token"
+          showDeleted = true
+          filter = modelOutagesFilter {
+            outageIntervalOverlapping = timeInterval {
+              startTime = timestamp {
+                seconds = Instant.parse(MODEL_OUTAGE_ACTIVE_START_TIME).toProtoTime().seconds
+              }
+              endTime = timestamp {
+                seconds = Instant.parse(MODEL_OUTAGE_ACTIVE_END_TIME).toProtoTime().seconds
+              }
             }
           }
         }
-      })
+      )
   }
   @Test
   fun `list model outages succeeds omitting optional params`() {
@@ -1447,8 +1453,7 @@ class MeasurementSystemTest {
         runBlocking { verify(modelOutagesServiceMock).listModelOutages(capture()) }
       }
 
-    assertThat(request)
-      .isEqualTo(listModelOutagesRequest { parent = MODEL_LINE_NAME })
+    assertThat(request).isEqualTo(listModelOutagesRequest { parent = MODEL_LINE_NAME })
   }
 
   @Test
@@ -1467,8 +1472,7 @@ class MeasurementSystemTest {
         runBlocking { verify(modelOutagesServiceMock).deleteModelOutage(capture()) }
       }
 
-    assertThat(request.name)
-      .isEqualTo(MODEL_OUTAGE_NAME)
+    assertThat(request.name).isEqualTo(MODEL_OUTAGE_NAME)
   }
 
   @Test
@@ -1490,13 +1494,15 @@ class MeasurementSystemTest {
       }
 
     assertThat(request)
-      .isEqualTo(createModelShardRequest {
-        parent = DATA_PROVIDER_NAME
-        modelShard = modelShard {
-          modelRelease = "release1"
-          modelBlob = ModelShard.ModelBlob.newBuilder().setModelBlobPath("path").build()
+      .isEqualTo(
+        createModelShardRequest {
+          parent = DATA_PROVIDER_NAME
+          modelShard = modelShard {
+            modelRelease = "release1"
+            modelBlob = ModelShard.ModelBlob.newBuilder().setModelBlobPath("path").build()
+          }
         }
-      })
+      )
   }
 
   @Test
@@ -1518,11 +1524,13 @@ class MeasurementSystemTest {
       }
 
     assertThat(request)
-      .isEqualTo(listModelShardsRequest {
-        parent = DATA_PROVIDER_NAME
-        pageSize = 10
-        pageToken = "token"
-      })
+      .isEqualTo(
+        listModelShardsRequest {
+          parent = DATA_PROVIDER_NAME
+          pageSize = 10
+          pageToken = "token"
+        }
+      )
   }
   @Test
   fun `list model shards succeeds omitting optional params`() {
@@ -1540,8 +1548,7 @@ class MeasurementSystemTest {
         runBlocking { verify(modelShardsServiceMock).listModelShards(capture()) }
       }
 
-    assertThat(request)
-      .isEqualTo(listModelShardsRequest { parent = DATA_PROVIDER_NAME })
+    assertThat(request).isEqualTo(listModelShardsRequest { parent = DATA_PROVIDER_NAME })
   }
 
   @Test
@@ -1560,8 +1567,7 @@ class MeasurementSystemTest {
         runBlocking { verify(modelShardsServiceMock).deleteModelShard(capture()) }
       }
 
-    assertThat(request.name)
-      .isEqualTo(MODEL_SHARD_NAME)
+    assertThat(request.name).isEqualTo(MODEL_SHARD_NAME)
   }
 
   @Test
