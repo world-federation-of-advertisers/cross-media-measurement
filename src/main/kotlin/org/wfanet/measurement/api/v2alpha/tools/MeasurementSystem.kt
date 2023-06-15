@@ -71,6 +71,8 @@ import com.google.protobuf.timestamp
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt
 import org.wfanet.measurement.api.v2alpha.ModelOutage
 import org.wfanet.measurement.api.v2alpha.ModelOutagesGrpcKt.ModelOutagesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelShard
+import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt.ModelShardsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.TimeInterval
@@ -85,8 +87,10 @@ import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.createModelLineRequest
 import org.wfanet.measurement.api.v2alpha.createModelOutageRequest
 import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
+import org.wfanet.measurement.api.v2alpha.createModelShardRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.deleteModelOutageRequest
+import org.wfanet.measurement.api.v2alpha.deleteModelShardRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
@@ -98,6 +102,7 @@ import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.listModelOutagesRequest
 import org.wfanet.measurement.api.v2alpha.listModelReleasesRequest
+import org.wfanet.measurement.api.v2alpha.listModelShardsRequest
 import org.wfanet.measurement.api.v2alpha.listModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
@@ -105,6 +110,7 @@ import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.modelOutage
 import org.wfanet.measurement.api.v2alpha.modelRelease
+import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.publicKey
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
@@ -166,6 +172,7 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = systemDuration.ofSeconds(30)
       ModelLines::class,
       ModelReleases::class,
       ModelOutages::class,
+      ModelShards::class,
       ModelSuites::class,
     ]
 )
@@ -1578,6 +1585,101 @@ private class ModelOutages {
     println("STATE - ${modelOutage.stateValue}")
     println("CREATE TIME - ${modelOutage.createTime}")
     println("DELETE TIME - ${modelOutage.deleteTime}")
+  }
+}
+
+@Command(
+  name = "model-shards",
+  subcommands = [CommandLine.HelpCommand::class],
+)
+private class ModelShards {
+  @ParentCommand
+  lateinit var parentCommand: MeasurementSystem
+    private set
+
+  val modelShardStub: ModelShardsCoroutineStub by lazy {
+    ModelShardsCoroutineStub(parentCommand.kingdomChannel)
+  }
+
+  @Command(description = ["Creates model shard."])
+  fun create(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent DataProvider."],
+      required = true,
+    )
+    dataProviderName: String,
+  ) {
+    val request = createModelShardRequest {
+      parent = dataProviderName
+      modelShard = modelShard {  }
+    }
+    val outputModelShard =
+      runBlocking(parentCommand.rpcDispatcher) { modelShardStub.createModelShard(request) }
+
+    println("Model shard ${outputModelShard.name} has been created.")
+    printModelShard(outputModelShard)
+  }
+
+  @Command(description = ["Lists model shards for a data provider."])
+  fun list(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent DataProvider."],
+      required = true,
+    )
+    dataProviderName: String,
+    @Option(
+      names = ["--page-size"],
+      description = ["The maximum number of ModelShards to return."],
+      required = false,
+      defaultValue = "0"
+    )
+    listPageSize: Int,
+    @Option(
+      names = ["--page-token"],
+      description =
+      [
+        "A page token, received from a previous `ListModelShardsRequest` call. Provide this to retrieve the subsequent page."
+      ],
+      required = false,
+      defaultValue = ""
+    )
+    listPageToken: String,
+  ) {
+    val request = listModelShardsRequest {
+      parent = dataProviderName
+      pageSize = listPageSize
+      pageToken = listPageToken
+    }
+    val response =
+      runBlocking(parentCommand.rpcDispatcher) { modelShardStub.listModelShards(request) }
+    response.modelShardsList.forEach { printModelShard(it) }
+  }
+
+  @Command(description = ["Deletes model shard."])
+  fun delete(
+    @Option(
+      names = ["--name"],
+      description = ["API resource name of the ModelShard."],
+      required = true,
+    )
+    modelShardName: String,
+  ) {
+    val request = deleteModelShardRequest {
+      name = modelShardName
+    }
+    val outputModelShard =
+      runBlocking(parentCommand.rpcDispatcher) { modelShardStub.deleteModelShard(request) }
+
+    println("Model shard $modelShardName has been deleted.")
+  }
+
+  private fun printModelShard(modelShard: ModelShard) {
+    println("NAME - ${modelShard.name}")
+    println("MODEL RELEASE- ${modelShard.modelRelease}")
+    println("MODEL BLOB - ${modelShard.modelBlob}")
+    println("CREATE TIME - ${modelShard.createTime}")
   }
 }
 

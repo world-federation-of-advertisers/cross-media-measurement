@@ -66,8 +66,12 @@ import org.wfanet.measurement.api.v2alpha.ListModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.ListModelOutagesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelOutagesRequestKt.filter as modelOutagesFilter
+import com.google.protobuf.empty
+import org.wfanet.measurement.api.v2alpha.CreateModelShardRequest
 import org.wfanet.measurement.api.v2alpha.DeleteModelOutageRequest
+import org.wfanet.measurement.api.v2alpha.DeleteModelShardRequest
 import org.wfanet.measurement.api.v2alpha.ListModelReleasesRequest
+import org.wfanet.measurement.api.v2alpha.ListModelShardsRequest
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
@@ -91,6 +95,9 @@ import org.wfanet.measurement.api.v2alpha.ModelOutage
 import org.wfanet.measurement.api.v2alpha.ModelOutagesGrpcKt.ModelOutagesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ModelShard
+import org.wfanet.measurement.api.v2alpha.ModelShard.ModelBlob
+import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt.ModelShardsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.PublicKey
@@ -124,6 +131,8 @@ import org.wfanet.measurement.api.v2alpha.listModelOutagesRequest
 import org.wfanet.measurement.api.v2alpha.listModelOutagesResponse
 import org.wfanet.measurement.api.v2alpha.listModelReleasesRequest
 import org.wfanet.measurement.api.v2alpha.listModelReleasesResponse
+import org.wfanet.measurement.api.v2alpha.listModelShardsRequest
+import org.wfanet.measurement.api.v2alpha.listModelShardsResponse
 import org.wfanet.measurement.api.v2alpha.listModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.listModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.measurement
@@ -132,6 +141,7 @@ import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.modelOutage
 import org.wfanet.measurement.api.v2alpha.modelRelease
+import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.publicKey
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
@@ -229,6 +239,7 @@ private const val MODEL_LINE_NAME = "$MODEL_SUITE_NAME/modelLines/1"
 private const val HOLDBACK_MODEL_LINE_NAME = "$MODEL_SUITE_NAME/modelLines/2"
 private const val MODEL_RELEASE_NAME = "$MODEL_SUITE_NAME/modelReleases/1"
 private const val MODEL_OUTAGE_NAME = "$MODEL_LINE_NAME/modelOutages/1"
+private const val MODEL_SHARD_NAME = "$DATA_PROVIDER_NAME/modelShards/1"
 
 private val MODEL_SUITE = modelSuite {
   name = MODEL_SUITE_NAME
@@ -269,6 +280,13 @@ private val MODEL_OUTAGE = modelOutage {
     }
   }
   state = ModelOutage.State.ACTIVE
+  createTime = timestamp { seconds = 3000 }
+}
+
+private val MODEL_SHARD = modelShard {
+  name = MODEL_SHARD_NAME
+  modelRelease = MODEL_RELEASE_NAME
+  modelBlob =  ModelShard.ModelBlob.getDefaultInstance()
   createTime = timestamp { seconds = 3000 }
 }
 
@@ -365,6 +383,11 @@ class MeasurementSystemTest {
     onBlocking { listModelOutages(any()) }.thenReturn(listModelOutagesResponse { modelOutages += listOf(MODEL_OUTAGE) })
     onBlocking { deleteModelOutage(any())}.thenReturn(MODEL_OUTAGE)
   }
+  private val modelShardsServiceMock: ModelShardsCoroutineImplBase = mockService {
+    onBlocking { createModelShard(any()) }.thenReturn(MODEL_SHARD)
+    onBlocking { listModelShards(any()) }.thenReturn(listModelShardsResponse { modelShards += listOf(MODEL_SHARD) })
+    onBlocking { deleteModelShard(any())}.thenReturn(empty {  })
+  }
   private val modelSuitesServiceMock: ModelSuitesCoroutineImplBase = mockService {
     onBlocking { createModelSuite(any()) }.thenReturn(MODEL_SUITE)
     onBlocking { getModelSuite(any()) }.thenReturn(MODEL_SUITE)
@@ -382,6 +405,7 @@ class MeasurementSystemTest {
       ServerInterceptors.intercept(certificatesServiceMock, headerInterceptor),
       ServerInterceptors.intercept(publicKeysServiceMock, headerInterceptor),
       ServerInterceptors.intercept(modelOutagesServiceMock, headerInterceptor),
+      ServerInterceptors.intercept(modelShardsServiceMock, headerInterceptor),
       ServerInterceptors.intercept(modelLinesServiceMock, headerInterceptor),
       ServerInterceptors.intercept(modelReleasesServiceMock, headerInterceptor),
       ServerInterceptors.intercept(modelSuitesServiceMock, headerInterceptor),
@@ -1430,6 +1454,91 @@ class MeasurementSystemTest {
 
     assertThat(request.name)
       .isEqualTo(MODEL_OUTAGE_NAME)
+  }
+
+  @Test
+  fun `create model shard succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-shards",
+          "create",
+          "--parent=$DATA_PROVIDER_NAME",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<CreateModelShardRequest> {
+        runBlocking { verify(modelShardsServiceMock).createModelShard(capture()) }
+      }
+
+    assertThat(request.parent)
+      .isEqualTo(DATA_PROVIDER_NAME)
+  }
+
+  @Test
+  fun `list model shards succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-shards",
+          "list",
+          "--parent=$DATA_PROVIDER_NAME",
+          "--page-size=10",
+          "--page-token=token",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<ListModelShardsRequest> {
+        runBlocking { verify(modelShardsServiceMock).listModelShards(capture()) }
+      }
+
+    assertThat(request)
+      .isEqualTo(listModelShardsRequest {
+        parent = DATA_PROVIDER_NAME
+        pageSize = 10
+        pageToken = "token"
+      })
+  }
+  @Test
+  fun `list model shards succeeds omitting optional params`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-shards",
+          "list",
+          "--parent=$DATA_PROVIDER_NAME",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<ListModelShardsRequest> {
+        runBlocking { verify(modelShardsServiceMock).listModelShards(capture()) }
+      }
+
+    assertThat(request)
+      .isEqualTo(listModelShardsRequest { parent = DATA_PROVIDER_NAME })
+  }
+
+  @Test
+  fun `delete model shard succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-shards",
+          "delete",
+          "--name=$MODEL_SHARD_NAME",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<DeleteModelShardRequest> {
+        runBlocking { verify(modelShardsServiceMock).deleteModelShard(capture()) }
+      }
+
+    assertThat(request.name)
+      .isEqualTo(MODEL_SHARD_NAME)
   }
 
   @Test
