@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
@@ -62,10 +63,10 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
       .singleOrNull()
   }
 
-  suspend fun readByExternalIds(
+  suspend fun readByDataProvider(
     readContext: AsyncDatabaseClient.ReadContext,
-    externalDataProviderId: Long,
-    externalEventGroupId: Long,
+    externalDataProviderId: ExternalId,
+    externalEventGroupId: ExternalId,
   ): Result? {
     return fillStatementBuilder {
         appendClause(
@@ -78,6 +79,28 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
         )
         bind(Params.EXTERNAL_EVENT_GROUP_ID to externalEventGroupId)
         bind(Params.EXTERNAL_DATA_PROVIDER_ID to externalDataProviderId)
+        appendClause("LIMIT 1")
+      }
+      .execute(readContext)
+      .singleOrNull()
+  }
+
+  suspend fun readByMeasurementConsumer(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalMeasurementConsumerId: ExternalId,
+    externalEventGroupId: ExternalId,
+  ): Result? {
+    return fillStatementBuilder {
+        appendClause(
+          """
+        WHERE
+          ExternalMeasurementConsumerId = @${Params.EXTERNAL_MEASUREMENT_CONSUMER_ID}
+          AND ExternalEventGroupId = @${Params.EXTERNAL_EVENT_GROUP_ID}
+        """
+            .trimIndent()
+        )
+        bind(Params.EXTERNAL_MEASUREMENT_CONSUMER_ID to externalMeasurementConsumerId)
+        bind(Params.EXTERNAL_EVENT_GROUP_ID to externalEventGroupId)
         appendClause("LIMIT 1")
       }
       .execute(readContext)
@@ -136,6 +159,7 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
 
     private object Params {
       const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
+      const val EXTERNAL_MEASUREMENT_CONSUMER_ID = "externalMeasurementConsumerId"
       const val EXTERNAL_EVENT_GROUP_ID = "externalEventGroupId"
       const val DATA_PROVIDER_ID = "dataProviderId"
       const val CREATE_REQUEST_ID = "createRequestId"

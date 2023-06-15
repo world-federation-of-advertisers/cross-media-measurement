@@ -51,3 +51,6 @@ databaseChangeLog:
 - include:
     file: update-vid-model-foreign-keys-and-indexes.sql
     relativeToChangeLogFile: true
+- include:
+    file: add-event-groups-by-mc.sql
+    relativeToChangeLogFile: true
