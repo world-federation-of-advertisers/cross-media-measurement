@@ -68,14 +68,12 @@ import org.wfanet.measurement.api.v2alpha.PublicKey
 import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt.PublicKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt as EventGroupEntries
 import com.google.protobuf.timestamp
-import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt
 import org.wfanet.measurement.api.v2alpha.ModelOutage
 import org.wfanet.measurement.api.v2alpha.ModelOutagesGrpcKt.ModelOutagesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelShard
 import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt.ModelShardsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
-import org.wfanet.measurement.api.v2alpha.TimeInterval
 import org.wfanet.measurement.api.v2alpha.activateAccountRequest
 import org.wfanet.measurement.api.v2alpha.apiKey
 import org.wfanet.measurement.api.v2alpha.authenticateRequest
@@ -1482,10 +1480,27 @@ private class ModelOutages {
       required = true,
     )
     modelLineName: String,
+    @Option(
+      names = ["--outage-interval"],
+      description = ["Time interval in which the parent ModelLine cannot be used to generate sketches. Should be in the following format: start time,end time. Times should be written in Java Time-Scale"],
+      required = true,
+    )
+    modelOutageInterval: String,
   ) {
+    val intervalList = modelOutageInterval.split(",").map { it.trim() }
+
     val request = createModelOutageRequest {
       parent = modelLineName
-      modelOutage = modelOutage {}
+      modelOutage = modelOutage {
+        outageInterval = timeInterval {
+          startTime = timestamp {
+            seconds = Instant.parse(intervalList[0]).toProtoTime().seconds
+          }
+          endTime = timestamp {
+            seconds = Instant.parse(intervalList[1]).toProtoTime().seconds
+          }
+        }
+      }
     }
     val outputModelOutage =
       runBlocking(parentCommand.rpcDispatcher) { modelOutageStub.createModelOutage(request) }
@@ -1609,10 +1624,25 @@ private class ModelShards {
       required = true,
     )
     dataProviderName: String,
+    @Option(
+      names = ["--model-release"],
+      description = ["API Resource name of the ModelRelease that this is a shard of."],
+      required = true,
+    )
+    shardModelRelease: String,
+    @Option(
+      names = ["--model-blob-path"],
+      description = ["The path the model blob can be downloaded from."],
+      required = true,
+    )
+    shardModelBlobPath: String,
   ) {
     val request = createModelShardRequest {
       parent = dataProviderName
-      modelShard = modelShard {  }
+      modelShard = modelShard {
+        modelRelease = shardModelRelease
+        modelBlob = ModelShard.ModelBlob.newBuilder().setModelBlobPath(shardModelBlobPath).build()
+      }
     }
     val outputModelShard =
       runBlocking(parentCommand.rpcDispatcher) { modelShardStub.createModelShard(request) }

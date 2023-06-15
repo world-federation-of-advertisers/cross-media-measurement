@@ -118,6 +118,8 @@ import org.wfanet.measurement.api.v2alpha.createApiKeyRequest
 import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.createModelOutageRequest
+import org.wfanet.measurement.api.v2alpha.createModelShardRequest
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
@@ -1366,6 +1368,7 @@ class MeasurementSystemTest {
           "model-outages",
           "create",
           "--parent=$MODEL_LINE_NAME",
+          "--outage-interval=2026-05-24T05:00:00.000Z,2026-05-29T05:00:00.000Z"
         )
     callCli(args)
 
@@ -1374,8 +1377,20 @@ class MeasurementSystemTest {
         runBlocking { verify(modelOutagesServiceMock).createModelOutage(capture()) }
       }
 
-    assertThat(request.parent)
-      .isEqualTo(MODEL_LINE_NAME)
+    assertThat(request)
+      .isEqualTo(createModelOutageRequest {
+        parent = MODEL_LINE_NAME
+        modelOutage = modelOutage {
+          outageInterval = timeInterval {
+            startTime = timestamp {
+              seconds = Instant.parse(MODEL_OUTAGE_ACTIVE_START_TIME).toProtoTime().seconds
+            }
+            endTime = timestamp {
+              seconds = Instant.parse(MODEL_OUTAGE_ACTIVE_END_TIME).toProtoTime().seconds
+            }
+          }
+        }
+      })
   }
 
   @Test
@@ -1464,6 +1479,8 @@ class MeasurementSystemTest {
           "model-shards",
           "create",
           "--parent=$DATA_PROVIDER_NAME",
+          "--model-release=release1",
+          "--model-blob-path=path",
         )
     callCli(args)
 
@@ -1472,8 +1489,14 @@ class MeasurementSystemTest {
         runBlocking { verify(modelShardsServiceMock).createModelShard(capture()) }
       }
 
-    assertThat(request.parent)
-      .isEqualTo(DATA_PROVIDER_NAME)
+    assertThat(request)
+      .isEqualTo(createModelShardRequest {
+        parent = DATA_PROVIDER_NAME
+        modelShard = modelShard {
+          modelRelease = "release1"
+          modelBlob = ModelShard.ModelBlob.newBuilder().setModelBlobPath("path").build()
+        }
+      })
   }
 
   @Test
