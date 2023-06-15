@@ -28,7 +28,7 @@ import ("strings")
 	_computation_control_targets: [Name=_]: string
 	_deletableComputationStates: [...#TerminalComputationState] | *[]
 	_computationsTimeToLive:     string | *"180d"
-	_duchyMillParallelism:       uint | *32
+	_duchyMillParallelism:       uint | *16
 	_kingdom_system_api_target:  string
 	_spannerConfig:              #SpannerConfig & {
 		database: "\(_duchy.name)_duchy_computations"
