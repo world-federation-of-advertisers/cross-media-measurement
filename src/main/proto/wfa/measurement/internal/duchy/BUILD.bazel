@@ -208,3 +208,19 @@ cc_proto_library(
     name = "differential_privacy_cc_proto",
     deps = [":differential_privacy_proto"],
 )
+
+proto_library(
+    name = "error_code_proto",
+    srcs = ["error_code.proto"],
+)
+
+java_proto_library(
+    name = "error_code_java_proto",
+    deps = [":error_code_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "error_code_kt_jvm_proto",
+    srcs = [":error_code_proto"],
+    deps = [":error_code_java_proto"],
+)
