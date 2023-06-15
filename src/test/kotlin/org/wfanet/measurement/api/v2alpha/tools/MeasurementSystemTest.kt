@@ -52,6 +52,7 @@ import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelLineRequest
+import org.wfanet.measurement.api.v2alpha.CreateModelOutageRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
@@ -63,6 +64,9 @@ import org.wfanet.measurement.api.v2alpha.GetModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt.filter
+import org.wfanet.measurement.api.v2alpha.ListModelOutagesRequest
+import org.wfanet.measurement.api.v2alpha.ListModelOutagesRequestKt.filter as modelOutagesFilter
+import org.wfanet.measurement.api.v2alpha.DeleteModelOutageRequest
 import org.wfanet.measurement.api.v2alpha.ListModelReleasesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
@@ -83,6 +87,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ModelOutage
+import org.wfanet.measurement.api.v2alpha.ModelOutagesGrpcKt.ModelOutagesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ModelSuite
@@ -114,6 +120,8 @@ import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.listModelLinesResponse
+import org.wfanet.measurement.api.v2alpha.listModelOutagesRequest
+import org.wfanet.measurement.api.v2alpha.listModelOutagesResponse
 import org.wfanet.measurement.api.v2alpha.listModelReleasesRequest
 import org.wfanet.measurement.api.v2alpha.listModelReleasesResponse
 import org.wfanet.measurement.api.v2alpha.listModelSuitesRequest
@@ -122,6 +130,7 @@ import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.modelLine
+import org.wfanet.measurement.api.v2alpha.modelOutage
 import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.publicKey
@@ -206,6 +215,9 @@ private val DUCHY_NAMES = listOf(DUCHY_KEY).map { it.toName() }
 private const val MODEL_LINE_ACTIVE_START_TIME = "2025-05-24T05:00:00.000Z"
 private const val MODEL_LINE_ACTIVE_END_TIME = "2030-05-24T05:00:00.000Z"
 
+private const val MODEL_OUTAGE_ACTIVE_START_TIME = "2026-05-24T05:00:00.000Z"
+private const val MODEL_OUTAGE_ACTIVE_END_TIME = "2026-05-29T05:00:00.000Z"
+
 private val DATA_PROVIDER = dataProvider {
   name = DATA_PROVIDER_NAME
   certificate = DATA_PROVIDER_CERTIFICATE_NAME
@@ -216,6 +228,7 @@ private const val MODEL_SUITE_NAME = "$MODEL_PROVIDER_NAME/modelSuites/1"
 private const val MODEL_LINE_NAME = "$MODEL_SUITE_NAME/modelLines/1"
 private const val HOLDBACK_MODEL_LINE_NAME = "$MODEL_SUITE_NAME/modelLines/2"
 private const val MODEL_RELEASE_NAME = "$MODEL_SUITE_NAME/modelReleases/1"
+private const val MODEL_OUTAGE_NAME = "$MODEL_LINE_NAME/modelOutages/1"
 
 private val MODEL_SUITE = modelSuite {
   name = MODEL_SUITE_NAME
@@ -242,6 +255,20 @@ private val MODEL_LINE = modelLine {
 
 private val MODEL_RELEASE = modelRelease {
   name = MODEL_RELEASE_NAME
+  createTime = timestamp { seconds = 3000 }
+}
+
+private val MODEL_OUTAGE = modelOutage {
+  name = MODEL_OUTAGE_NAME
+  outageInterval = timeInterval {
+    startTime = timestamp {
+      seconds = Instant.parse(MODEL_OUTAGE_ACTIVE_START_TIME).toProtoTime().seconds
+    }
+    endTime = timestamp {
+      seconds = Instant.parse(MODEL_OUTAGE_ACTIVE_END_TIME).toProtoTime().seconds
+    }
+  }
+  state = ModelOutage.State.ACTIVE
   createTime = timestamp { seconds = 3000 }
 }
 
@@ -333,6 +360,11 @@ class MeasurementSystemTest {
     onBlocking { listModelReleases(any()) }
       .thenReturn(listModelReleasesResponse { modelReleases += listOf(MODEL_RELEASE) })
   }
+  private val modelOutagesServiceMock: ModelOutagesCoroutineImplBase = mockService {
+    onBlocking { createModelOutage(any()) }.thenReturn(MODEL_OUTAGE)
+    onBlocking { listModelOutages(any()) }.thenReturn(listModelOutagesResponse { modelOutages += listOf(MODEL_OUTAGE) })
+    onBlocking { deleteModelOutage(any())}.thenReturn(MODEL_OUTAGE)
+  }
   private val modelSuitesServiceMock: ModelSuitesCoroutineImplBase = mockService {
     onBlocking { createModelSuite(any()) }.thenReturn(MODEL_SUITE)
     onBlocking { getModelSuite(any()) }.thenReturn(MODEL_SUITE)
@@ -349,6 +381,7 @@ class MeasurementSystemTest {
       dataProvidersServiceMock.bindService(),
       ServerInterceptors.intercept(certificatesServiceMock, headerInterceptor),
       ServerInterceptors.intercept(publicKeysServiceMock, headerInterceptor),
+      ServerInterceptors.intercept(modelOutagesServiceMock, headerInterceptor),
       ServerInterceptors.intercept(modelLinesServiceMock, headerInterceptor),
       ServerInterceptors.intercept(modelReleasesServiceMock, headerInterceptor),
       ServerInterceptors.intercept(modelSuitesServiceMock, headerInterceptor),
@@ -1299,6 +1332,104 @@ class MeasurementSystemTest {
       }
 
     assertThat(request).isEqualTo(listModelReleasesRequest { parent = MODEL_SUITE_NAME })
+  }
+
+  @Test
+  fun `create model outage succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-outages",
+          "create",
+          "--parent=$MODEL_LINE_NAME",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<CreateModelOutageRequest> {
+        runBlocking { verify(modelOutagesServiceMock).createModelOutage(capture()) }
+      }
+
+    assertThat(request.parent)
+      .isEqualTo(MODEL_LINE_NAME)
+  }
+
+  @Test
+  fun `list model outages succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-outages",
+          "list",
+          "--parent=$MODEL_LINE_NAME",
+          "--page-size=10",
+          "--page-token=token",
+          "--show-deleted=true",
+          "--interval=2026-05-24T05:00:00.000Z,2026-05-29T05:00:00.000Z"
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<ListModelOutagesRequest> {
+        runBlocking { verify(modelOutagesServiceMock).listModelOutages(capture()) }
+      }
+
+    assertThat(request)
+      .isEqualTo(listModelOutagesRequest {
+        parent = MODEL_LINE_NAME
+        pageSize = 10
+        pageToken = "token"
+        showDeleted = true
+        filter = modelOutagesFilter {
+          outageIntervalOverlapping = timeInterval {
+            startTime = timestamp {
+              seconds = Instant.parse(MODEL_OUTAGE_ACTIVE_START_TIME).toProtoTime().seconds
+            }
+            endTime = timestamp {
+              seconds = Instant.parse(MODEL_OUTAGE_ACTIVE_END_TIME).toProtoTime().seconds
+            }
+          }
+        }
+      })
+  }
+  @Test
+  fun `list model outages succeeds omitting optional params`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-outages",
+          "list",
+          "--parent=$MODEL_LINE_NAME",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<ListModelOutagesRequest> {
+        runBlocking { verify(modelOutagesServiceMock).listModelOutages(capture()) }
+      }
+
+    assertThat(request)
+      .isEqualTo(listModelOutagesRequest { parent = MODEL_LINE_NAME })
+  }
+
+  @Test
+  fun `delete model outage succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-outages",
+          "delete",
+          "--name=$MODEL_OUTAGE_NAME",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<DeleteModelOutageRequest> {
+        runBlocking { verify(modelOutagesServiceMock).deleteModelOutage(capture()) }
+      }
+
+    assertThat(request.name)
+      .isEqualTo(MODEL_OUTAGE_NAME)
   }
 
   @Test

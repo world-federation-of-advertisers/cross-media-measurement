@@ -42,6 +42,7 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt.filter
+import org.wfanet.measurement.api.v2alpha.ListModelOutagesRequestKt.filter as modelOutagesFilter
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
@@ -66,8 +67,13 @@ import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutine
 import org.wfanet.measurement.api.v2alpha.PublicKey
 import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt.PublicKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt as EventGroupEntries
+import com.google.protobuf.timestamp
+import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt
+import org.wfanet.measurement.api.v2alpha.ModelOutage
+import org.wfanet.measurement.api.v2alpha.ModelOutagesGrpcKt.ModelOutagesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
+import org.wfanet.measurement.api.v2alpha.TimeInterval
 import org.wfanet.measurement.api.v2alpha.activateAccountRequest
 import org.wfanet.measurement.api.v2alpha.apiKey
 import org.wfanet.measurement.api.v2alpha.authenticateRequest
@@ -77,8 +83,10 @@ import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.createModelLineRequest
+import org.wfanet.measurement.api.v2alpha.createModelOutageRequest
 import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
+import org.wfanet.measurement.api.v2alpha.deleteModelOutageRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
@@ -88,12 +96,14 @@ import org.wfanet.measurement.api.v2alpha.getModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
+import org.wfanet.measurement.api.v2alpha.listModelOutagesRequest
 import org.wfanet.measurement.api.v2alpha.listModelReleasesRequest
 import org.wfanet.measurement.api.v2alpha.listModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.modelLine
+import org.wfanet.measurement.api.v2alpha.modelOutage
 import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.publicKey
@@ -155,6 +165,7 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = systemDuration.ofSeconds(30)
       DataProviders::class,
       ModelLines::class,
       ModelReleases::class,
+      ModelOutages::class,
       ModelSuites::class,
     ]
 )
@@ -1440,6 +1451,133 @@ private class ModelReleases {
   private fun printModelRelease(modelRelease: ModelRelease) {
     println("NAME - ${modelRelease.name}")
     println("CREATE TIME - ${modelRelease.createTime}")
+  }
+}
+
+@Command(
+  name = "model-outages",
+  subcommands = [CommandLine.HelpCommand::class],
+)
+private class ModelOutages {
+  @ParentCommand
+  lateinit var parentCommand: MeasurementSystem
+    private set
+
+  val modelOutageStub: ModelOutagesCoroutineStub by lazy {
+    ModelOutagesCoroutineStub(parentCommand.kingdomChannel)
+  }
+
+  @Command(description = ["Creates model outage."])
+  fun create(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent ModelLine."],
+      required = true,
+    )
+    modelLineName: String,
+  ) {
+    val request = createModelOutageRequest {
+      parent = modelLineName
+      modelOutage = modelOutage {}
+    }
+    val outputModelOutage =
+      runBlocking(parentCommand.rpcDispatcher) { modelOutageStub.createModelOutage(request) }
+
+    println("Model outage ${outputModelOutage.name} has been created.")
+    printModelOutage(outputModelOutage)
+  }
+
+  @Command(description = ["Lists model outages for a model line."])
+  fun list(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent ModelLine."],
+      required = true,
+    )
+    modelLineName: String,
+    @Option(
+      names = ["--page-size"],
+      description = ["The maximum number of ModelOutages to return."],
+      required = false,
+      defaultValue = "0"
+    )
+    listPageSize: Int,
+    @Option(
+      names = ["--page-token"],
+      description =
+      [
+        "A page token, received from a previous `ListModelOutagesRequest` call. Provide this to retrieve the subsequent page."
+      ],
+      required = false,
+      defaultValue = ""
+    )
+    listPageToken: String,
+    @Option(
+      names = ["--show-deleted"],
+      description =
+      [
+        "A flag to specify whether to include ModelOutage in the DELETED state or not."
+      ],
+      required = false,
+      defaultValue = "false"
+    )
+    showDeletedOutages: Boolean,
+    @Option(
+      names = ["--interval"],
+      description = ["The the overlapping time intervals used to filter the result. Should be in the following format: start time,end time. Times should be written in Java Time-Scale"],
+      required = false,
+      defaultValue = "",
+    )
+    outageInterval: String
+  ) {
+    val request = listModelOutagesRequest {
+      parent = modelLineName
+      pageSize = listPageSize
+      pageToken = listPageToken
+      showDeleted = showDeletedOutages
+      if(outageInterval.isNotEmpty()){
+        val intervalList = outageInterval.split(",").map { it.trim() }
+
+        filter = modelOutagesFilter { outageIntervalOverlapping = timeInterval {
+          startTime = timestamp {
+            seconds = Instant.parse(intervalList[0]).toProtoTime().seconds
+          }
+          endTime = timestamp {
+            seconds = Instant.parse(intervalList[1]).toProtoTime().seconds
+          }
+        }}
+      }
+    }
+    val response =
+      runBlocking(parentCommand.rpcDispatcher) { modelOutageStub.listModelOutages(request) }
+    response.modelOutagesList.forEach { printModelOutage(it) }
+  }
+
+  @Command(description = ["Deletes model outage."])
+  fun delete(
+    @Option(
+      names = ["--name"],
+      description = ["API resource name of the ModelOutage."],
+      required = true,
+    )
+    modelOutageName: String,
+  ) {
+    val request = deleteModelOutageRequest {
+      name = modelOutageName
+    }
+    val outputModelOutage =
+      runBlocking(parentCommand.rpcDispatcher) { modelOutageStub.deleteModelOutage(request) }
+
+    println("Model outage ${outputModelOutage.name} has been deleted.")
+    printModelOutage(outputModelOutage)
+  }
+
+  private fun printModelOutage(modelOutage: ModelOutage) {
+    println("NAME - ${modelOutage.name}")
+    println("OUTAGE INTERVAL - ${modelOutage.outageInterval}")
+    println("STATE - ${modelOutage.stateValue}")
+    println("CREATE TIME - ${modelOutage.createTime}")
+    println("DELETE TIME - ${modelOutage.deleteTime}")
   }
 }
 
