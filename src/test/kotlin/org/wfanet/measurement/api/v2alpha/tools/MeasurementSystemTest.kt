@@ -1483,7 +1483,7 @@ class MeasurementSystemTest {
           "model-shards",
           "create",
           "--parent=$DATA_PROVIDER_NAME",
-          "--model-release=release1",
+          "--model-release=$MODEL_RELEASE_NAME",
           "--model-blob-path=path",
         )
     callCli(args)
@@ -1498,7 +1498,7 @@ class MeasurementSystemTest {
         createModelShardRequest {
           parent = DATA_PROVIDER_NAME
           modelShard = modelShard {
-            modelRelease = "release1"
+            modelRelease = MODEL_RELEASE_NAME
             modelBlob = ModelShard.ModelBlob.newBuilder().setModelBlobPath("path").build()
           }
         }

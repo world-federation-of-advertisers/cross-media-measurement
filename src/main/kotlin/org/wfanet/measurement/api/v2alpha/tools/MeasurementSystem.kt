@@ -66,6 +66,7 @@ import org.wfanet.measurement.api.v2alpha.ModelOutagesGrpcKt.ModelOutagesCorouti
 import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelShard
+import org.wfanet.measurement.api.v2alpha.ModelShardKt.modelBlob
 import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt.ModelShardsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineStub
@@ -1557,7 +1558,7 @@ private class ModelOutages {
       pageSize = listPageSize
       pageToken = listPageToken
       showDeleted = showDeletedOutages
-      if (outageInterval.isNotEmpty()) {
+      if (outageInterval.isNotBlank()) {
         val intervalList = outageInterval.split(",").map { it.trim() }
 
         filter = modelOutagesFilter {
@@ -1637,7 +1638,7 @@ private class ModelShards {
       parent = dataProviderName
       modelShard = modelShard {
         modelRelease = shardModelRelease
-        modelBlob = ModelShard.ModelBlob.newBuilder().setModelBlobPath(shardModelBlobPath).build()
+        modelBlob = modelBlob { modelBlobPath = shardModelBlobPath }
       }
     }
     val outputModelShard =
