@@ -243,6 +243,9 @@ private const val MODEL_OUTAGE_NAME = "$MODEL_LINE_NAME/modelOutages/1"
 private const val MODEL_SHARD_NAME = "$DATA_PROVIDER_NAME/modelShards/1"
 private const val MODEL_BLOB_PATH = "model_blob_path"
 
+private const val LIST_PAGE_TOKEN = "token"
+private const val LIST_PAGE_SIZE = 10
+
 private val MODEL_SUITE = modelSuite {
   name = MODEL_SUITE_NAME
   displayName = "Display name"
@@ -1234,8 +1237,8 @@ class MeasurementSystemTest {
           "model-lines",
           "list",
           "--parent=$MODEL_SUITE_NAME",
-          "--page-size=10",
-          "--page-token=token",
+          "--page-size=$LIST_PAGE_SIZE",
+          "--page-token=$LIST_PAGE_TOKEN",
           "--types=PROD"
         )
     callCli(args)
@@ -1249,8 +1252,8 @@ class MeasurementSystemTest {
       .isEqualTo(
         listModelLinesRequest {
           parent = MODEL_SUITE_NAME
-          pageSize = 10
-          pageToken = "token"
+          pageSize = LIST_PAGE_SIZE
+          pageToken = LIST_PAGE_TOKEN
           filter = filter { types += ModelLine.Type.PROD }
         }
       )
@@ -1323,8 +1326,8 @@ class MeasurementSystemTest {
           "model-releases",
           "list",
           "--parent=$MODEL_SUITE_NAME",
-          "--page-size=10",
-          "--page-token=token",
+          "--page-size=$LIST_PAGE_SIZE",
+          "--page-token=$LIST_PAGE_TOKEN",
         )
     callCli(args)
 
@@ -1337,8 +1340,8 @@ class MeasurementSystemTest {
       .isEqualTo(
         listModelReleasesRequest {
           parent = MODEL_SUITE_NAME
-          pageSize = 10
-          pageToken = "token"
+          pageSize = LIST_PAGE_SIZE
+          pageToken = LIST_PAGE_TOKEN
         }
       )
   }
@@ -1370,7 +1373,7 @@ class MeasurementSystemTest {
           "model-outages",
           "create",
           "--parent=$MODEL_LINE_NAME",
-          "--outage-interval=2026-05-24T05:00:00.000Z,2026-05-29T05:00:00.000Z"
+          "--outage-interval=$MODEL_OUTAGE_ACTIVE_START_TIME,$MODEL_OUTAGE_ACTIVE_END_TIME"
         )
     callCli(args)
 
@@ -1405,10 +1408,10 @@ class MeasurementSystemTest {
           "model-outages",
           "list",
           "--parent=$MODEL_LINE_NAME",
-          "--page-size=10",
-          "--page-token=token",
+          "--page-size=$LIST_PAGE_SIZE",
+          "--page-token=$LIST_PAGE_TOKEN",
           "--show-deleted=true",
-          "--interval=2026-05-24T05:00:00.000Z,2026-05-29T05:00:00.000Z"
+          "--interval=$MODEL_OUTAGE_ACTIVE_START_TIME,$MODEL_OUTAGE_ACTIVE_END_TIME"
         )
     callCli(args)
 
@@ -1421,8 +1424,8 @@ class MeasurementSystemTest {
       .isEqualTo(
         listModelOutagesRequest {
           parent = MODEL_LINE_NAME
-          pageSize = 10
-          pageToken = "token"
+          pageSize = LIST_PAGE_SIZE
+          pageToken = LIST_PAGE_TOKEN
           showDeleted = true
           filter = modelOutagesFilter {
             outageIntervalOverlapping = timeInterval {
@@ -1513,8 +1516,8 @@ class MeasurementSystemTest {
           "model-shards",
           "list",
           "--parent=$DATA_PROVIDER_NAME",
-          "--page-size=10",
-          "--page-token=token",
+          "--page-size=$LIST_PAGE_SIZE",
+          "--page-token=$LIST_PAGE_TOKEN",
         )
     callCli(args)
 
@@ -1527,11 +1530,12 @@ class MeasurementSystemTest {
       .isEqualTo(
         listModelShardsRequest {
           parent = DATA_PROVIDER_NAME
-          pageSize = 10
-          pageToken = "token"
+          pageSize = LIST_PAGE_SIZE
+          pageToken = LIST_PAGE_TOKEN
         }
       )
   }
+
   @Test
   fun `list model shards succeeds omitting optional params`() {
     val args =
