@@ -95,8 +95,7 @@ import org.wfanet.measurement.api.v2alpha.ModelOutage
 import org.wfanet.measurement.api.v2alpha.ModelOutagesGrpcKt.ModelOutagesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
-import org.wfanet.measurement.api.v2alpha.ModelShard
-import org.wfanet.measurement.api.v2alpha.ModelShard.ModelBlob
+import org.wfanet.measurement.api.v2alpha.ModelShardKt.modelBlob
 import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt.ModelShardsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
@@ -242,6 +241,7 @@ private const val HOLDBACK_MODEL_LINE_NAME = "$MODEL_SUITE_NAME/modelLines/2"
 private const val MODEL_RELEASE_NAME = "$MODEL_SUITE_NAME/modelReleases/1"
 private const val MODEL_OUTAGE_NAME = "$MODEL_LINE_NAME/modelOutages/1"
 private const val MODEL_SHARD_NAME = "$DATA_PROVIDER_NAME/modelShards/1"
+private const val MODEL_BLOB_PATH = "model_blob_path"
 
 private val MODEL_SUITE = modelSuite {
   name = MODEL_SUITE_NAME
@@ -288,7 +288,7 @@ private val MODEL_OUTAGE = modelOutage {
 private val MODEL_SHARD = modelShard {
   name = MODEL_SHARD_NAME
   modelRelease = MODEL_RELEASE_NAME
-  modelBlob = ModelShard.ModelBlob.getDefaultInstance()
+  modelBlob = modelBlob { modelBlobPath = MODEL_BLOB_PATH }
   createTime = timestamp { seconds = 3000 }
 }
 
@@ -1484,7 +1484,7 @@ class MeasurementSystemTest {
           "create",
           "--parent=$DATA_PROVIDER_NAME",
           "--model-release=$MODEL_RELEASE_NAME",
-          "--model-blob-path=path",
+          "--model-blob-path=$MODEL_BLOB_PATH",
         )
     callCli(args)
 
@@ -1499,7 +1499,7 @@ class MeasurementSystemTest {
           parent = DATA_PROVIDER_NAME
           modelShard = modelShard {
             modelRelease = MODEL_RELEASE_NAME
-            modelBlob = ModelShard.ModelBlob.newBuilder().setModelBlobPath("path").build()
+            modelBlob = modelBlob { modelBlobPath = MODEL_BLOB_PATH }
           }
         }
       )
