@@ -195,6 +195,7 @@ private val SKETCH_CONFIG = sketchConfig {
 private val MEASUREMENT_CONSUMER_CERTIFICATE_DER =
   SECRET_FILES_PATH.resolve("mc_cs_cert.der").toFile().readByteString()
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
+private const val MEASUREMENT_NAME = "measurementConsumers/$MC_NAME/measurements/BBBBBBBBBHs"
 private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
   "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
 private val MEASUREMENT_CONSUMER_CERTIFICATE = certificate {
@@ -884,6 +885,7 @@ class EdpSimulatorTest {
 
     private val REQUISITION_ONE = requisition {
       name = "requisition_one"
+      measurement = MEASUREMENT_NAME
       state = Requisition.State.UNFULFILLED
       measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
       measurementSpec = signMeasurementSpec(MEASUREMENT_SPEC, MC_SIGNING_KEY)

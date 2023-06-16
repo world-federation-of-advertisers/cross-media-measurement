@@ -71,6 +71,7 @@ import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.frequency
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
@@ -382,13 +383,18 @@ class EdpSimulator(
   /** Executes the requisition fulfillment workflow. */
   suspend fun executeRequisitionFulfillingWorkflow() {
     logger.info("Executing requisitionFulfillingWorkflow...")
-    val requisitions = getRequisitions()
+    val requisitions =
+      getRequisitions().filter {
+        MeasurementKey.fromName(it.measurement)!!.measurementConsumerId == measurementConsumerName
+      }
+    
     if (requisitions.isEmpty()) {
       logger.fine("No unfulfilled requisition. Polling again later...")
       return
     }
 
     for (requisition in requisitions) {
+      println("requisitionrequisitionrequisitionrequisitionrequisition ${requisition.measurement}")
       logger.info("Processing requisition ${requisition.name}...")
       val measurementConsumerCertificate: Certificate =
         getCertificate(requisition.measurementConsumerCertificate)
