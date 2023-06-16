@@ -70,6 +70,7 @@ import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
@@ -385,7 +386,8 @@ class EdpSimulator(
     logger.info("Executing requisitionFulfillingWorkflow...")
     val requisitions =
       getRequisitions().filter {
-        MeasurementKey.fromName(it.measurement)!!.measurementConsumerId == measurementConsumerName
+        MeasurementConsumerKey(MeasurementKey.fromName(it.measurement)!!.measurementConsumerId)
+          .toName() == measurementConsumerName
       }
 
     if (requisitions.isEmpty()) {

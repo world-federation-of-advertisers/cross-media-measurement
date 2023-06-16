@@ -151,7 +151,8 @@ import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 private const val TEMPLATE_PREFIX = "wfa.measurement.api.v2alpha.event_templates.testing"
-private const val MC_NAME = "mc"
+private const val MC_ID = "mc"
+private const val MC_NAME = "measurementConsumers/$MC_ID"
 private val EVENT_TEMPLATES =
   listOf("$TEMPLATE_PREFIX.Video", "$TEMPLATE_PREFIX.BannerAd", "$TEMPLATE_PREFIX.Person")
 private const val EDP_DISPLAY_NAME = "edp1"
@@ -194,7 +195,7 @@ private val SKETCH_CONFIG = sketchConfig {
 private val MEASUREMENT_CONSUMER_CERTIFICATE_DER =
   SECRET_FILES_PATH.resolve("mc_cs_cert.der").toFile().readByteString()
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
-private const val MEASUREMENT_NAME = "measurementConsumers/$MC_NAME/measurements/BBBBBBBBBHs"
+private const val MEASUREMENT_NAME = "$MC_NAME/measurements/BBBBBBBBBHs"
 private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
   "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
 private val MEASUREMENT_CONSUMER_CERTIFICATE = certificate {
@@ -204,7 +205,7 @@ private val MEASUREMENT_CONSUMER_CERTIFICATE = certificate {
 private val MEASUREMENT_PUBLIC_KEY =
   encryptionPublicKey {
       format = EncryptionPublicKey.Format.TINK_KEYSET
-      data = SECRET_FILES_PATH.resolve("${MC_NAME}_enc_public.tink").toFile().readByteString()
+      data = SECRET_FILES_PATH.resolve("${MC_ID}_enc_public.tink").toFile().readByteString()
     }
     .toByteString()
 
@@ -908,8 +909,7 @@ class EdpSimulatorTest {
   }
 
   companion object {
-    private val MC_SIGNING_KEY =
-      loadSigningKey("${MC_NAME}_cs_cert.der", "${MC_NAME}_cs_private.der")
+    private val MC_SIGNING_KEY = loadSigningKey("${MC_ID}_cs_cert.der", "${MC_ID}_cs_private.der")
     private val DUCHY_SIGNING_KEY =
       loadSigningKey("${DUCHY_ID}_cs_cert.der", "${DUCHY_ID}_cs_private.der")
 
