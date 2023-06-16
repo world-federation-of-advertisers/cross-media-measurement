@@ -135,8 +135,8 @@ private const val MAXIMUM_WATCH_DURATION_PER_USER = 4000
 
 private const val DIFFERENTIAL_PRIVACY_DELTA = 1e-12
 
-private const val MAX_BATCH_SIZE_FOR_BATCH_CREATE_METRICS = 1000
-private const val MAX_BATCH_SIZE_FOR_BATCH_GET_METRICS = 100
+private const val BATCH_CREATE_METRICS_LIMIT = 1000
+private const val BATCH_GET_METRICS_LIMIT = 100
 
 @RunWith(JUnit4::class)
 class ReportsServiceTest {
@@ -1305,7 +1305,7 @@ class ReportsServiceTest {
     runBlocking {
       val startSec = 10L
       val incrementSec = 1L
-      val intervalCount = MAX_BATCH_SIZE_FOR_BATCH_CREATE_METRICS + 1
+      val intervalCount = BATCH_CREATE_METRICS_LIMIT + 1
 
       val periodicTimeInterval = periodicTimeInterval {
         startTime = timestamp { seconds = startSec }
@@ -2193,7 +2193,7 @@ class ReportsServiceTest {
     Unit = runBlocking {
     val startSec = 10L
     val incrementSec = 1L
-    val intervalCount = MAX_BATCH_SIZE_FOR_BATCH_GET_METRICS + 1
+    val intervalCount = BATCH_GET_METRICS_LIMIT + 1
 
     val endTimesList: List<Long> =
       (startSec + incrementSec until startSec + incrementSec + intervalCount).toList()

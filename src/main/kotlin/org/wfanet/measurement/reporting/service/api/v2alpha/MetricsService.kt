@@ -36,6 +36,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.BlockingExecutor
@@ -88,8 +91,12 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurement
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
+import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsResponse
+import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequest.MeasurementIds
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequestKt.measurementIds
+import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsResponse
+import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequestKt.measurementFailure
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt.measurementResult
 import org.wfanet.measurement.internal.reporting.v2.CreateMetricRequest as InternalCreateMetricRequest
@@ -116,6 +123,7 @@ import org.wfanet.measurement.internal.reporting.v2.createMetricRequest as inter
 import org.wfanet.measurement.internal.reporting.v2.measurement as internalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.metric as internalMetric
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
+import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
@@ -148,6 +156,10 @@ private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 private const val NANOS_PER_SECOND = 1_000_000_000
+private const val BATCH_GET_REPORTING_SETS_LIMIT = 1000
+private const val BATCH_SET_CMMS_MEASUREMENT_IDS_LIMIT = 1000
+private const val BATCH_SET_MEASUREMENT_RESULTS_LIMIT = 1000
+private const val BATCH_SET_MEASUREMENT_FAILURES_LIMIT = 1000
 
 class MetricsService(
   private val metricSpecConfig: MetricSpecConfig,
@@ -203,7 +215,7 @@ class MetricsService(
       val measurementConsumer: MeasurementConsumer = getMeasurementConsumer(principal)
 
       // Gets all external IDs of primitive reporting sets from the metric list.
-      val externalPrimitiveReportingSetIds: Set<Long> =
+      val externalPrimitiveReportingSetIds: Flow<Long> =
         internalMetricsList
           .flatMap { internalMetric ->
             internalMetric.weightedMeasurementsList.flatMap { weightedMeasurement ->
@@ -212,55 +224,83 @@ class MetricsService(
               }
             }
           }
-          .toSet()
+          .distinct()
+          .asFlow()
+
+      val callBatchGetInternalReportingSetsRpc:
+        suspend (List<Long>) -> BatchGetReportingSetsResponse =
+        { items ->
+          batchGetInternalReportingSets(principal.resourceKey.measurementConsumerId, items)
+        }
 
       val internalPrimitiveReportingSetMap: Map<Long, InternalReportingSet> =
-        buildInternalReportingSetMap(
-          principal.resourceKey.measurementConsumerId,
-          externalPrimitiveReportingSetIds
-        )
-
-      val deferred = mutableListOf<Deferred<MeasurementIds>>()
-
-      for (internalMetric in internalMetricsList) {
-        for (weightedMeasurement in internalMetric.weightedMeasurementsList) {
-          // If the internal measurement has a CMMS measurement ID, the CMMS measurement has been
-          // created already.
-          if (weightedMeasurement.measurement.cmmsMeasurementId.isNotBlank()) {
-            continue
+        submitBatchRequests(
+            externalPrimitiveReportingSetIds,
+            BATCH_GET_REPORTING_SETS_LIMIT,
+            callBatchGetInternalReportingSetsRpc
+          ) { response: BatchGetReportingSetsResponse ->
+            response.reportingSetsList
           }
+          .toList()
+          .associateBy { it.externalReportingSetId }
 
-          deferred.add(
-            async {
-              measurementIds {
-                cmmsCreateMeasurementRequestId =
-                  weightedMeasurement.measurement.cmmsCreateMeasurementRequestId
-                val measurement =
-                  createCmmsMeasurement(
-                    weightedMeasurement.measurement,
-                    internalMetric.metricSpec,
-                    internalPrimitiveReportingSetMap,
-                    measurementConsumer,
-                    principal,
-                  )
-                cmmsMeasurementId = MeasurementKey.fromName(measurement.name)!!.measurementId
-              }
+      val measurementIdsList: Flow<Deferred<MeasurementIds>> = flow {
+        for (internalMetric in internalMetricsList) {
+          for (weightedMeasurement in internalMetric.weightedMeasurementsList) {
+            // If the internal measurement has a CMMS measurement ID, the CMMS measurement has been
+            // created already.
+            if (weightedMeasurement.measurement.cmmsMeasurementId.isNotBlank()) {
+              continue
             }
-          )
+
+            emit(
+              async {
+                measurementIds {
+                  cmmsCreateMeasurementRequestId =
+                    weightedMeasurement.measurement.cmmsCreateMeasurementRequestId
+                  val measurement =
+                    createCmmsMeasurement(
+                      weightedMeasurement.measurement,
+                      internalMetric.metricSpec,
+                      internalPrimitiveReportingSetMap,
+                      measurementConsumer,
+                      principal,
+                    )
+                  cmmsMeasurementId =
+                    checkNotNull(MeasurementKey.fromName(measurement.name)).measurementId
+                }
+              }
+            )
+          }
         }
       }
 
-      val measurementIdsList = deferred.awaitAll()
-      if (measurementIdsList.isEmpty()) {
-        return@coroutineScope
-      }
-
       // Set CMMS measurement IDs.
-      try {
+      val callBatchSetCmmsMeasurementIdsRpc:
+        suspend (List<Deferred<MeasurementIds>>) -> BatchSetCmmsMeasurementIdsResponse =
+        { items ->
+          batchSetCmmsMeasurementIds(principal.resourceKey.measurementConsumerId, items)
+        }
+      submitBatchRequests(
+          measurementIdsList,
+          BATCH_SET_CMMS_MEASUREMENT_IDS_LIMIT,
+          callBatchSetCmmsMeasurementIdsRpc
+        ) { response: BatchSetCmmsMeasurementIdsResponse ->
+          response.measurementsList
+        }
+        .toList()
+    }
+
+    /** Sets a batch of deferred CMMS [MeasurementIds] to the [InternalMeasurement] table. */
+    private suspend fun batchSetCmmsMeasurementIds(
+      cmmsMeasurementConsumerId: String,
+      measurementIds: List<Deferred<MeasurementIds>>
+    ): BatchSetCmmsMeasurementIdsResponse {
+      return try {
         internalMeasurementsStub.batchSetCmmsMeasurementIds(
           batchSetCmmsMeasurementIdsRequest {
-            this.cmmsMeasurementConsumerId = principal.resourceKey.measurementConsumerId
-            measurementIds += measurementIdsList
+            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+            this.measurementIds += measurementIds.awaitAll()
           }
         )
       } catch (e: StatusException) {
@@ -577,30 +617,29 @@ class MetricsService(
       }
     }
 
-    /**
-     * Builds a map of external reporting set IDs to [InternalReportingSet]s.
-     *
-     * This helps reduce the number of RPCs.
-     */
-    private suspend fun buildInternalReportingSetMap(
+    /** Gets a batch of [InternalReportingSet]s. */
+    private suspend fun batchGetInternalReportingSets(
       cmmsMeasurementConsumerId: String,
-      externalReportingSetIds: Set<Long>,
-    ): Map<Long, InternalReportingSet> {
-      val batchGetReportingSetsRequest = batchGetReportingSetsRequest {
-        this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-        externalReportingSetIds.forEach { this.externalReportingSetIds += it }
+      externalReportingSetIds: List<Long>,
+    ): BatchGetReportingSetsResponse {
+      return try {
+        internalReportingSetsStub.batchGetReportingSets(
+          batchGetReportingSetsRequest {
+            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+            this.externalReportingSetIds += externalReportingSetIds
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("Reporting Set not found.")
+            else ->
+              Status.UNKNOWN.withDescription(
+                "Unable to retrieve the reporting sets used in the requesting metric."
+              )
+          }
+          .withCause(e)
+          .asRuntimeException()
       }
-
-      val internalReportingSetsList =
-        try {
-          internalReportingSetsStub
-            .batchGetReportingSets(batchGetReportingSetsRequest)
-            .reportingSetsList
-        } catch (e: StatusException) {
-          throw Exception("Unable to get reporting sets from the reporting database.", e)
-        }
-
-      return internalReportingSetsList.associateBy { it.externalReportingSetId }
     }
 
     /** Gets a signing certificate x509Der in ByteString. */
@@ -652,17 +691,43 @@ class MetricsService(
       for ((newState, measurementsList) in newStateToCmmsMeasurements) {
         when (newState) {
           Measurement.State.SUCCEEDED -> {
-            syncSucceededInternalMeasurements(measurementsList, apiAuthenticationKey, principal)
+            val callBatchSetInternalMeasurementResultsRpc:
+              suspend (List<Measurement>) -> BatchSetCmmsMeasurementResultsResponse =
+              { items ->
+                batchSetInternalMeasurementResults(items, apiAuthenticationKey, principal)
+              }
+            submitBatchRequests(
+                measurementsList.asFlow(),
+                BATCH_SET_MEASUREMENT_RESULTS_LIMIT,
+                callBatchSetInternalMeasurementResultsRpc
+              ) { response: BatchSetCmmsMeasurementResultsResponse ->
+                response.measurementsList
+              }
+              .toList()
+
             anyUpdate = true
           }
           Measurement.State.AWAITING_REQUISITION_FULFILLMENT,
           Measurement.State.COMPUTING -> {} // Do nothing.
           Measurement.State.FAILED,
           Measurement.State.CANCELLED -> {
-            syncFailedInternalMeasurements(
-              measurementsList,
-              principal.resourceKey.measurementConsumerId
-            )
+            val callBatchSetInternalMeasurementFailuresRpc:
+              suspend (List<Measurement>) -> BatchSetCmmsMeasurementFailuresResponse =
+              { items ->
+                batchSetInternalMeasurementFailures(
+                  items,
+                  principal.resourceKey.measurementConsumerId
+                )
+              }
+            submitBatchRequests(
+                measurementsList.asFlow(),
+                BATCH_SET_MEASUREMENT_FAILURES_LIMIT,
+                callBatchSetInternalMeasurementFailuresRpc
+              ) { response: BatchSetCmmsMeasurementFailuresResponse ->
+                response.measurementsList
+              }
+              .toList()
+
             anyUpdate = true
           }
           Measurement.State.STATE_UNSPECIFIED ->
@@ -675,13 +740,13 @@ class MetricsService(
     }
 
     /**
-     * Syncs [InternalMeasurement]s by storing the failure states of the given failed or canceled
-     * CMMS [Measurement]s.
+     * Sets a batch of failed [InternalMeasurement]s and stores their failure states using the given
+     * failed or canceled CMMS [Measurement]s.
      */
-    private suspend fun syncFailedInternalMeasurements(
+    private suspend fun batchSetInternalMeasurementFailures(
       failedMeasurementsList: List<Measurement>,
       cmmsMeasurementConsumerId: String,
-    ) {
+    ): BatchSetCmmsMeasurementFailuresResponse {
       val batchSetInternalMeasurementFailuresRequest = batchSetMeasurementFailuresRequest {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
         measurementFailures +=
@@ -693,10 +758,10 @@ class MetricsService(
           }
       }
 
-      try {
-        internalMeasurementsStub
-          .batchSetMeasurementFailures(batchSetInternalMeasurementFailuresRequest)
-          .measurementsList
+      return try {
+        internalMeasurementsStub.batchSetMeasurementFailures(
+          batchSetInternalMeasurementFailuresRequest
+        )
       } catch (e: StatusException) {
         throw Exception(
           "Unable to set measurement failures for the measurements in the reporting database.",
@@ -706,14 +771,14 @@ class MetricsService(
     }
 
     /**
-     * Syncs [InternalMeasurement]s by storing the measurement results of the given succeeded CMMS
-     * [Measurement]s.
+     * Sets a batch of succeeded [InternalMeasurement]s and stores the measurement results of the
+     * given succeeded CMMS [Measurement]s.
      */
-    private suspend fun syncSucceededInternalMeasurements(
+    private suspend fun batchSetInternalMeasurementResults(
       succeededMeasurementsList: List<Measurement>,
       apiAuthenticationKey: String,
       principal: MeasurementConsumerPrincipal,
-    ) {
+    ): BatchSetCmmsMeasurementResultsResponse {
       val batchSetMeasurementResultsRequest = batchSetMeasurementResultsRequest {
         cmmsMeasurementConsumerId = principal.resourceKey.measurementConsumerId
         measurementResults +=
@@ -730,10 +795,8 @@ class MetricsService(
           }
       }
 
-      try {
-        internalMeasurementsStub
-          .batchSetMeasurementResults(batchSetMeasurementResultsRequest)
-          .measurementsList
+      return try {
+        internalMeasurementsStub.batchSetMeasurementResults(batchSetMeasurementResultsRequest)
       } catch (e: StatusException) {
         throw Exception(
           "Unable to set measurement results for the measurements in the reporting database.",
@@ -748,30 +811,34 @@ class MetricsService(
       apiAuthenticationKey: String,
       principal: MeasurementConsumerPrincipal,
     ): List<Measurement> = coroutineScope {
-      val deferred =
-        internalMeasurements.map { internalMeasurement ->
-          val measurementResourceName =
+      val measurementNames: List<String> =
+        internalMeasurements
+          .map { internalMeasurement ->
             MeasurementKey(
                 principal.resourceKey.measurementConsumerId,
                 internalMeasurement.cmmsMeasurementId
               )
               .toName()
+          }
+          .distinct()
+      val deferred: List<Deferred<Measurement>> =
+        measurementNames.map { measurementName ->
           async {
             try {
               measurementsStub
                 .withAuthenticationKey(apiAuthenticationKey)
-                .getMeasurement(getMeasurementRequest { name = measurementResourceName })
+                .getMeasurement(getMeasurementRequest { name = measurementName })
             } catch (e: StatusException) {
               throw when (e.status.code) {
                   Status.Code.NOT_FOUND ->
-                    Status.NOT_FOUND.withDescription("$measurementResourceName not found.")
+                    Status.NOT_FOUND.withDescription("$measurementName not found.")
                   Status.Code.PERMISSION_DENIED ->
                     Status.PERMISSION_DENIED.withDescription(
-                      "Doesn't have permission to get $measurementResourceName."
+                      "Doesn't have permission to get $measurementName."
                     )
                   else ->
                     Status.UNKNOWN.withDescription(
-                      "Unable to retrieve the measurement [$measurementResourceName]."
+                      "Unable to retrieve the measurement [$measurementName]."
                     )
                 }
                 .withCause(e)
