@@ -20,6 +20,7 @@ import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.CleartextKeysetHandle
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
+import com.google.protobuf.timestamp
 import io.grpc.ManagedChannel
 import java.io.File
 import java.security.SecureRandom
@@ -42,6 +43,7 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt.filter
+import org.wfanet.measurement.api.v2alpha.ListModelRolloutsRequestKt
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
@@ -61,6 +63,8 @@ import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelRollout
+import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PublicKey
@@ -78,7 +82,9 @@ import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.createModelLineRequest
 import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
+import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
+import org.wfanet.measurement.api.v2alpha.deleteModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
@@ -89,17 +95,20 @@ import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.listModelReleasesRequest
+import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
 import org.wfanet.measurement.api.v2alpha.listModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.modelRelease
+import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.publicKey
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.revokeCertificateRequest
+import org.wfanet.measurement.api.v2alpha.scheduleModelRolloutFreezeRequest
 import org.wfanet.measurement.api.v2alpha.setModelLineActiveEndTimeRequest
 import org.wfanet.measurement.api.v2alpha.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.api.v2alpha.signedData
@@ -155,6 +164,7 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = systemDuration.ofSeconds(30)
       DataProviders::class,
       ModelLines::class,
       ModelReleases::class,
+      ModelRollouts::class,
       ModelSuites::class,
     ]
 )
@@ -1440,6 +1450,184 @@ private class ModelReleases {
   private fun printModelRelease(modelRelease: ModelRelease) {
     println("NAME - ${modelRelease.name}")
     println("CREATE TIME - ${modelRelease.createTime}")
+  }
+}
+
+@Command(
+  name = "model-rollouts",
+  subcommands = [CommandLine.HelpCommand::class],
+)
+private class ModelRollouts {
+  @ParentCommand
+  lateinit var parentCommand: MeasurementSystem
+    private set
+
+  val modelRolloutStub: ModelRolloutsCoroutineStub by lazy {
+    ModelRolloutsCoroutineStub(parentCommand.kingdomChannel)
+  }
+
+  @Command(description = ["Creates model rollout."])
+  fun create(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent ModelLine."],
+      required = true,
+    )
+    modelLineName: String,
+    @Option(
+      names = ["--rollout-period"],
+      description =
+        [
+          "Time interval over which the rollout must be deployed. Should be in the following format: start time,end time. Times should be written in Java Time-Scale"
+        ],
+      required = true,
+    )
+    modelRolloutInterval: String,
+    @Option(
+      names = ["--rollout-freeze-time"],
+      description = ["The timestamp the rollout must stop expanding its release percentage."],
+      required = true,
+    )
+    modelRolloutFreezeTime: String,
+    @Option(
+      names = ["--model-release"],
+      description = ["The `ModelRelease` this model rollout refers to."],
+      required = true,
+    )
+    modelRolloutRelease: String,
+  ) {
+    val intervalList = modelRolloutInterval.split(",").map { it.trim() }
+    val request = createModelRolloutRequest {
+      parent = modelLineName
+      modelRollout = modelRollout {
+        rolloutPeriod = timeInterval {
+          startTime = timestamp { seconds = Instant.parse(intervalList[0]).toProtoTime().seconds }
+          endTime = timestamp { seconds = Instant.parse(intervalList[1]).toProtoTime().seconds }
+        }
+        rolloutFreezeTime = timestamp {
+          seconds = Instant.parse(modelRolloutFreezeTime).toProtoTime().seconds
+        }
+        modelRelease = modelRolloutRelease
+      }
+    }
+    val outputModelRollout =
+      runBlocking(parentCommand.rpcDispatcher) { modelRolloutStub.createModelRollout(request) }
+
+    println("Model rollout ${outputModelRollout.name} has been created.")
+    printModelRollout(outputModelRollout)
+  }
+
+  @Command(description = ["Lists model rollouts for a model line."])
+  fun list(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent ModelLine."],
+      required = true,
+    )
+    modelLineName: String,
+    @Option(
+      names = ["--page-size"],
+      description = ["The maximum number of ModelRollouts to return."],
+      required = false,
+      defaultValue = "0"
+    )
+    listPageSize: Int,
+    @Option(
+      names = ["--page-token"],
+      description =
+        [
+          "A page token, received from a previous ListModelRolloutsRequest call. Provide this to retrieve the subsequent page."
+        ],
+      required = false,
+      defaultValue = ""
+    )
+    listPageToken: String,
+    @Option(
+      names = ["--interval"],
+      description =
+        [
+          "The the overlapping time intervals used to filter the result. Should be in the following format: start time,end time. Times should be written in Java Time-Scale"
+        ],
+      required = false,
+      defaultValue = "",
+    )
+    rolloutInterval: String
+  ) {
+    val request = listModelRolloutsRequest {
+      parent = modelLineName
+      pageSize = listPageSize
+      pageToken = listPageToken
+      if (rolloutInterval.isNotEmpty()) {
+        val intervalList = rolloutInterval.split(",").map { it.trim() }
+
+        filter =
+          ListModelRolloutsRequestKt.filter {
+            rolloutPeriodOverlapping = timeInterval {
+              startTime = timestamp {
+                seconds = Instant.parse(intervalList[0]).toProtoTime().seconds
+              }
+              endTime = timestamp { seconds = Instant.parse(intervalList[1]).toProtoTime().seconds }
+            }
+          }
+      }
+    }
+    val response =
+      runBlocking(parentCommand.rpcDispatcher) { modelRolloutStub.listModelRollouts(request) }
+    response.modelRolloutsList.forEach { printModelRollout(it) }
+  }
+
+  @Command(description = ["Sets model rollout freeze time."])
+  fun schedule(
+    @Option(
+      names = ["--name"],
+      description = ["API resource name of the ModelRollout."],
+      required = true,
+    )
+    modelRolloutName: String,
+    @Option(
+      names = ["--freeze-time"],
+      description = ["The rollout freeze time to be set."],
+      required = true,
+    )
+    freezeTime: String,
+  ) {
+    val request = scheduleModelRolloutFreezeRequest {
+      name = modelRolloutName
+      rolloutFreezeTime = timestamp { seconds = Instant.parse(freezeTime).toProtoTime().seconds }
+    }
+    val outputModelRollout =
+      runBlocking(parentCommand.rpcDispatcher) {
+        modelRolloutStub.scheduleModelRolloutFreeze(request)
+      }
+
+    println(
+      "Freeze time ${outputModelRollout.rolloutFreezeTime} has been set for ${outputModelRollout.name}."
+    )
+  }
+
+  @Command(description = ["Deletes model rollout."])
+  fun delete(
+    @Option(
+      names = ["--name"],
+      description = ["API resource name of the ModelRollout."],
+      required = true,
+    )
+    modelRolloutName: String,
+  ) {
+    val request = deleteModelRolloutRequest { name = modelRolloutName }
+    runBlocking(parentCommand.rpcDispatcher) { modelRolloutStub.deleteModelRollout(request) }
+
+    println("Model rollout $modelRolloutName has been deleted.")
+  }
+
+  private fun printModelRollout(modelRollout: ModelRollout) {
+    println("NAME - ${modelRollout.name}")
+    println("ROLLOUT PERIOD- ${modelRollout.rolloutPeriod}")
+    println("ROLLOUT FREEZE TIME - ${modelRollout.rolloutFreezeTime}")
+    println("PREVIOUS MODEL ROLLOUT - ${modelRollout.previousModelRollout}")
+    println("MODEL RELEASE - ${modelRollout.modelRelease}")
+    println("CREATE TIME - ${modelRollout.createTime}")
+    println("UPDATE TIME - ${modelRollout.updateTime}")
   }
 }
 
