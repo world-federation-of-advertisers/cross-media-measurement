@@ -387,7 +387,7 @@ class EdpSimulator(
       getRequisitions().filter {
         MeasurementKey.fromName(it.measurement)!!.measurementConsumerId == measurementConsumerName
       }
-    
+
     if (requisitions.isEmpty()) {
       logger.fine("No unfulfilled requisition. Polling again later...")
       return

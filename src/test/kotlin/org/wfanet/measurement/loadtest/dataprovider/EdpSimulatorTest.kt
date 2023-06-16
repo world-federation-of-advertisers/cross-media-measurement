@@ -30,8 +30,7 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.random.Random
 import kotlinx.coroutines.runBlocking
-import org.junit.BeforeClass
-import org.junit.ClassRule
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -280,6 +279,10 @@ class EdpSimulatorTest {
   private val requisitionFulfillmentServiceMock: RequisitionFulfillmentCoroutineImplBase =
     mockService()
 
+  @get:Rule public val temporaryFolder: TemporaryFolder = TemporaryFolder()
+
+  private lateinit var sketchStore: SketchStore
+
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(measurementConsumersServiceMock)
@@ -288,6 +291,11 @@ class EdpSimulatorTest {
     addService(eventGroupMetadataDescriptorsServiceMock)
     addService(requisitionsServiceMock)
     addService(requisitionFulfillmentServiceMock)
+  }
+
+  @Before
+  fun setup() {
+    sketchStore = SketchStore(FileSystemStorageClient(temporaryFolder.root))
   }
 
   private val measurementConsumersStub by lazy {
@@ -353,6 +361,69 @@ class EdpSimulatorTest {
           }
         }
       )
+    }
+  }
+
+  @Test
+  fun `Does nothing for requisitions with different Measumrent Consumer Id`() {
+    runBlocking {
+      val allEvents =
+        generateEvents(
+          1L..10L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_18_TO_34,
+          Person.Gender.FEMALE
+        ) +
+          generateEvents(
+            11L..15L,
+            FIRST_EVENT_DATE,
+            Person.AgeGroup.YEARS_35_TO_54,
+            Person.Gender.FEMALE
+          ) +
+          generateEvents(
+            16L..20L,
+            FIRST_EVENT_DATE,
+            Person.AgeGroup.YEARS_55_PLUS,
+            Person.Gender.FEMALE
+          ) +
+          generateEvents(
+            21L..25L,
+            FIRST_EVENT_DATE,
+            Person.AgeGroup.YEARS_18_TO_34,
+            Person.Gender.MALE
+          ) +
+          generateEvents(
+            26L..30L,
+            FIRST_EVENT_DATE,
+            Person.AgeGroup.YEARS_35_TO_54,
+            Person.Gender.MALE
+          )
+
+      val random = java.util.Random()
+
+      val edpSimulator =
+        EdpSimulator(
+          EDP_DATA,
+          "differentMcName",
+          measurementConsumersStub,
+          certificatesStub,
+          eventGroupsStub,
+          eventGroupMetadataDescriptorsStub,
+          requisitionsStub,
+          requisitionFulfillmentStub,
+          sketchStore,
+          InMemoryEventQuery(allEvents),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          EVENT_TEMPLATES,
+          privacyBudgetManager,
+          TRUSTED_CERTIFICATES,
+          random,
+          DIRECT_NOISE_MECHANISM
+        )
+      edpSimulator.createEventGroup()
+      edpSimulator.executeRequisitionFulfillingWorkflow()
+      val storedSketch = sketchStore.get(REQUISITION_ONE)?.read()?.flatten()
+      assertThat(storedSketch).isNull()
     }
   }
 
@@ -921,8 +992,6 @@ class EdpSimulatorTest {
       readCertificateCollection(SECRET_FILES_PATH.resolve("edp_trusted_certs.pem").toFile())
         .associateBy { requireNotNull(it.authorityKeyIdentifier) }
 
-    @JvmField @ClassRule val temporaryFolder: TemporaryFolder = TemporaryFolder()
-
     private fun loadSigningKey(
       certDerFileName: String,
       privateKeyDerFileName: String
@@ -951,14 +1020,6 @@ class EdpSimulatorTest {
 
     private fun assertAnySketchEquals(sketch: AnySketch, other: AnySketch) {
       assertThat(sketch).comparingElementsUsing(EQUIVALENCE).containsExactlyElementsIn(other)
-    }
-
-    private lateinit var sketchStore: SketchStore
-
-    @JvmStatic
-    @BeforeClass
-    fun initSketchStore() {
-      sketchStore = SketchStore(FileSystemStorageClient(temporaryFolder.root))
     }
   }
 }
