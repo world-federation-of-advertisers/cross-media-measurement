@@ -386,8 +386,8 @@ class EdpSimulator(
     logger.info("Executing requisitionFulfillingWorkflow...")
     val requisitions =
       getRequisitions().filter {
-        MeasurementConsumerKey(MeasurementKey.fromName(it.measurement)!!.measurementConsumerId)
-          .toName() == measurementConsumerName
+        MeasurementKey.fromName(it.measurement)!!.measurementConsumerId ==
+          MeasurementConsumerKey.fromName(measurementConsumerName)!!.measurementConsumerId
       }
 
     if (requisitions.isEmpty()) {

@@ -405,7 +405,7 @@ class EdpSimulatorTest {
       val edpSimulator =
         EdpSimulator(
           EDP_DATA,
-          "differentMcName",
+          "measurementConsumers/differentMcId",
           measurementConsumersStub,
           certificatesStub,
           eventGroupsStub,
