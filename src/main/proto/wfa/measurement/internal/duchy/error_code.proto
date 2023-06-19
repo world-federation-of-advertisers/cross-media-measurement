@@ -27,4 +27,13 @@ enum ErrorCode {
 
   /** ContinuationToken is malformed. */
   CONTINUATION_TOKEN_MALFORMED = 2;
+
+  /** Computation could not be found. */
+  COMPUTATION_NOT_FOUND = 3;
+
+  /** ComputationDetails could not be found. */
+  COMPUTATION_DETAILS_NOT_FOUND = 4;
+
+  /** Computation initial stage is invalid. */
+  COMPUTATION_INITIAL_STAGE_INVALID = 5;
 }
