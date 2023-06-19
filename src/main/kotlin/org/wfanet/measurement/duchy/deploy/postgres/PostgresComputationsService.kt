@@ -164,10 +164,9 @@ class PostgresComputationsService(
           reader.readComputationToken(client.singleUse(), request.globalComputationId)
         KeyCase.REQUISITION_KEY ->
           reader.readComputationToken(client.singleUse(), request.requisitionKey)
-        KeyCase.KEY_NOT_SET ->
-          throw Status.INVALID_ARGUMENT.withDescription("key not set").asRuntimeException()
+        KeyCase.KEY_NOT_SET -> failGrpc(Status.INVALID_ARGUMENT) { "Key not set" }
       }
-        ?: throw Status.NOT_FOUND.asRuntimeException()
+        ?: failGrpc(Status.NOT_FOUND) { "Computation not found" }
 
     return result.computationToken.toGetComputationTokenResponse()
   }

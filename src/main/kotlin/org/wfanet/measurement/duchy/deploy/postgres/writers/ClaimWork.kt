@@ -62,8 +62,7 @@ class ClaimWork<ProtocolT, ComputationDT : Message, StageT, StageDT : Message>(
     ProtocolT, StageT, StageDT, ComputationDT
   > by computationProtocolStageDetailsHelper {
 
-  /** Result of listing unclaimed task sql query */
-  data class UnclaimedTaskQueryResult<StageT>(
+  private data class UnclaimedTaskQueryResult<StageT>(
     val computationId: Long,
     val globalId: String,
     val computationStage: StageT,
@@ -84,8 +83,7 @@ class ClaimWork<ProtocolT, ComputationDT : Message, StageT, StageDT : Message>(
       row["NextAttempt"]
     )
 
-  /** Result of get lock owner query */
-  data class LockOwnerQueryResult(val lockOwner: String?, val updateTime: Instant)
+  private data class LockOwnerQueryResult(val lockOwner: String?, val updateTime: Instant)
 
   private fun buildLockOwnerQueryResult(row: ResultRow): LockOwnerQueryResult =
     LockOwnerQueryResult(lockOwner = row["LockOwner"], updateTime = row["UpdateTime"])
@@ -134,39 +132,45 @@ class ClaimWork<ProtocolT, ComputationDT : Message, StageT, StageDT : Message>(
    * Tries to claim a specific computation for an owner, returning the result of the attempt. If a
    * lock is acquired a new row is written to the ComputationStageAttempts table.
    */
-  private suspend fun TransactionScope.claim(result: UnclaimedTaskQueryResult<StageT>): Boolean {
-    val currentLockOwner = readLockOwner(result.computationId)
+  private suspend fun TransactionScope.claim(
+    unclaimedTask: UnclaimedTaskQueryResult<StageT>
+  ): Boolean {
+    val currentLockOwner = readLockOwner(unclaimedTask.computationId)
     // Verify that the row hasn't been updated since the previous, non-transactional read.
     // If it has been updated since that time the lock should not be acquired.
-    if (currentLockOwner.updateTime != result.updateTime) return false
+    if (currentLockOwner.updateTime != unclaimedTask.updateTime) return false
 
     val writeTime = Instant.now()
-    setLock(result.computationId, ownerId, writeTime, lockDuration)
+    setLock(unclaimedTask.computationId, ownerId, writeTime, lockDuration)
 
     insertComputationStageAttempt(
-      result.computationId,
-      result.computationStage,
-      result.nextAttempt,
+      unclaimedTask.computationId,
+      unclaimedTask.computationStage,
+      unclaimedTask.nextAttempt,
       beginTime = writeTime,
       details = ComputationStageAttemptDetails.getDefaultInstance()
     )
 
     updateComputationStage(
-      result.computationId,
-      result.computationStage,
-      nextAttempt = result.nextAttempt + 1
+      unclaimedTask.computationId,
+      unclaimedTask.computationStage,
+      nextAttempt = unclaimedTask.nextAttempt + 1
     )
 
     if (currentLockOwner.lockOwner != null) {
       // The current attempt is the one before the nextAttempt
-      val currentAttempt = result.nextAttempt - 1
+      val currentAttempt = unclaimedTask.nextAttempt - 1
       val details =
-        readComputationStageDetails(result.computationId, result.computationStage, currentAttempt)
+        readComputationStageDetails(
+          unclaimedTask.computationId,
+          unclaimedTask.computationStage,
+          currentAttempt
+        )
       // If the computation was locked, but that lock was expired we need to finish off the
       // current attempt of the stage.
       updateComputationStageAttempt(
-        localId = result.computationId,
-        stage = result.computationStage,
+        localId = unclaimedTask.computationId,
+        stage = unclaimedTask.computationStage,
         attempt = currentAttempt,
         endTime = writeTime,
         details =
