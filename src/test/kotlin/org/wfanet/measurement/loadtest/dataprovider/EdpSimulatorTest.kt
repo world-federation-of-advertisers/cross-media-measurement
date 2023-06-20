@@ -295,7 +295,7 @@ class EdpSimulatorTest {
   }
 
   @Before
-  fun setup() {
+  fun initSketchStore() {
     sketchStore = SketchStore(FileSystemStorageClient(temporaryFolder.root))
   }
 
