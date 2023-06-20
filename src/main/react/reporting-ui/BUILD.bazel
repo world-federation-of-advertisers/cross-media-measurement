@@ -39,8 +39,8 @@ webpack.webpack_cli(
         ":build_node_deps",
         ":webpack_config",
         ":tsconfig",
-        "//src/main/react/reporting/public",
-        "//src/main/react/reporting/src:src_files",
+        "//src/main/react/reporting-ui/public",
+        "//src/main/react/reporting-ui/src:src_files",
     ],
     args = [
         "--config webpack.config.js",
@@ -62,8 +62,8 @@ webpack_server.webpack_dev_server_binary(
         ":build_node_deps",
         ":webpack_config",
         ":tsconfig",
-        "//src/main/react/reporting/public",
-        "//src/main/react/reporting/src:src_files",
+        "//src/main/react/reporting-ui/public",
+        "//src/main/react/reporting-ui/src:src_files",
     ],
     log_level = "debug",
 )

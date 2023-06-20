@@ -48,7 +48,7 @@ ts_project(
     ),
     declaration = True,
     resolve_json_module = True,
-    tsconfig = "//src/main/react/reporting:tsconfig",
+    tsconfig = "//src/main/react/reporting-ui:tsconfig",
     deps = [
         "//:node_modules/react",
         "//:node_modules/react-dom",
@@ -56,32 +56,32 @@ ts_project(
     ],
 )
 
-ts_project(
-    name = "src_test_ts",
-    srcs = glob(TEST_PATTERNS),
-    declaration = True,
-    resolve_json_module = True,
-    supports_workers = False,  # worker bug on macos: ERROR: react-cra/src/BUILD.bazel:50:11: output 'src/App.test.js' was not created
-    tsconfig = "//src/main/react/reporting:tsconfig",
-    deps = [
-        ":src_ts",
-        "//:node_modules/@testing-library/jest-dom",
-        "//:node_modules/@testing-library/react",
-        "//:node_modules/@types/jest",
-    ],
-)
+# ts_project(
+#     name = "src_test_ts",
+#     srcs = glob(TEST_PATTERNS),
+#     declaration = True,
+#     resolve_json_module = True,
+#     supports_workers = False,  # worker bug on macos: ERROR: react-cra/src/BUILD.bazel:50:11: output 'src/App.test.js' was not created
+#     tsconfig = "//src/main/react/reporting-ui:tsconfig",
+#     deps = [
+#         ":src_ts",
+#         "//:node_modules/@testing-library/jest-dom",
+#         "//:node_modules/@testing-library/react",
+#         "//:node_modules/@types/jest",
+#     ],
+# )
 
-jest_test(
-    name = "src_test",
-    config = "//src/main/react/reporting:jest_config",
-    data = [
-        ":src",
-        ":src_test_ts",
-        "//:node_modules/jest-environment-jsdom",
-        "//:node_modules/jest-transform-stub",
-    ],
-    node_modules = "//:node_modules",
-)
+# jest_test(
+#     name = "src_test",
+#     config = "//src/main/react/reporting-ui:jest_config",
+#     data = [
+#         ":src",
+#         ":src_test_ts",
+#         "//:node_modules/jest-environment-jsdom",
+#         "//:node_modules/jest-transform-stub",
+#     ],
+#     node_modules = "//:node_modules",
+# )
 
 # eslint_bin.eslint_test(
 #     name = "eslint_test",

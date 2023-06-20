@@ -57,7 +57,7 @@ importers:
       webpack-cli: 5.1.4_qja7rhhvvx77psgnnym3fqpora
       webpack-dev-server: 4.15.1_6siubn3d5imurtepr3jbtk2y5y
 
-  src/main/react/reporting:
+  src/main/react/reporting-ui:
     specifiers: {}
 
 packages:
