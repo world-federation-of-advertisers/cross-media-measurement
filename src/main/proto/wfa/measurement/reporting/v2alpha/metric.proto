@@ -128,23 +128,29 @@ message MetricSpec {
   VidSamplingInterval vid_sampling_interval = 5;
 }
 
+// Statistics of a scalar value
+message UnivariateStatistics {
+  // The standard deviation of the associated scalar variable value.
+  //
+  // Can be used to find different confidence intervals.
+  double standard_deviation = 1;
+}
+
 // The calculation result of a metric
 message MetricResult {
   // Reach result format.
-  //
-  // TODO(@riemanli): Add error bar.
   message ReachResult {
     // Reach value.
     int64 value = 1;
+    // Statistics of the reach value above
+    UnivariateStatistics statistics = 2;
   }
   // Histogram result format.
-  //
-  // TODO(@riemanli): Add error bar.
   message HistogramResult {
     // Bin result format.
     message BinResult {
       // The result value of a bin.
-      double value = 2;
+      double value = 1;
     }
     // The bin in a histogram.
     message Bin {
@@ -152,23 +158,36 @@ message MetricResult {
       string label = 1;
       // The result of the bin.
       BinResult bin_result = 2;
+
+      // Statistics of the result at this bin
+      UnivariateStatistics result_statistics = 3;
+      // Statistics of the relative result at this bin.
+      //
+      // Relative result = (bin value) / (sum of all bin values)
+      UnivariateStatistics relative_statistics = 4;
+      // Statistics of the result sum from the current bin (inclusive) to the
+      // last bin (inclusive).
+      UnivariateStatistics cumulative_after_statistics = 5;
+      // Statistics of the relative result sum from the current bin (inclusive)
+      // to the last bin (inclusive).
+      UnivariateStatistics relative_cumulative_after_statistics = 6;
     }
     // The bins that form a histogram. Ordering is not guaranteed.
     repeated Bin bins = 1;
   }
   // Impression count result format.
-  //
-  // TODO(@riemanli): Add error bar.
   message ImpressionCountResult {
     // Impression value.
     int64 value = 1;
+    // Statistics of the impression value above
+    UnivariateStatistics statistics = 2;
   }
   // Watch duration result format.
-  //
-  // TODO(@riemanli): Add error bar.
   message WatchDurationResult {
     // Watch duration value in second.
     double value = 1;
+    // Statistics of the watch duration value above
+    UnivariateStatistics statistics = 2;
   }
 
   // The metric result
