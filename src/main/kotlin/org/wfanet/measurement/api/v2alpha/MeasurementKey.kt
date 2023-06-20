@@ -15,14 +15,19 @@
 package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
+import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
 
 private val parser =
   ResourceNameParser("measurementConsumers/{measurement_consumer}/measurements/{measurement}")
 
 /** [ResourceKey] of a Measurement. */
-data class MeasurementKey(val measurementConsumerId: String, val measurementId: String) :
-  ResourceKey {
+data class MeasurementKey(
+  val measurementConsumerId: String,
+  val measurementId: String,
+) : ChildResourceKey {
+  override val parentKey = MeasurementConsumerKey(measurementConsumerId)
+
   override fun toName(): String {
     return parser.assembleName(
       mapOf(
