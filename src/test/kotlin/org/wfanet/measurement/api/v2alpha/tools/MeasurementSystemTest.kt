@@ -69,7 +69,7 @@ import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.ListModelOutagesRequest
-import org.wfanet.measurement.api.v2alpha.ListModelOutagesRequestKt.filter as modelOutagesFilter
+import org.wfanet.measurement.api.v2alpha.ListModelOutagesRequestKt
 import org.wfanet.measurement.api.v2alpha.ListModelReleasesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelShardsRequest
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesRequest
@@ -277,12 +277,8 @@ private val MODEL_RELEASE = modelRelease {
 private val MODEL_OUTAGE = modelOutage {
   name = MODEL_OUTAGE_NAME
   outageInterval = timeInterval {
-    startTime = timestamp {
-      seconds = Instant.parse(MODEL_OUTAGE_ACTIVE_START_TIME).toProtoTime().seconds
-    }
-    endTime = timestamp {
-      seconds = Instant.parse(MODEL_OUTAGE_ACTIVE_END_TIME).toProtoTime().seconds
-    }
+    startTime = Instant.parse(MODEL_OUTAGE_ACTIVE_START_TIME).toProtoTime()
+    endTime = Instant.parse(MODEL_OUTAGE_ACTIVE_END_TIME).toProtoTime()
   }
   state = ModelOutage.State.ACTIVE
   createTime = timestamp { seconds = 3000 }
@@ -1373,7 +1369,8 @@ class MeasurementSystemTest {
           "model-outages",
           "create",
           "--parent=$MODEL_LINE_NAME",
-          "--outage-interval=$MODEL_OUTAGE_ACTIVE_START_TIME,$MODEL_OUTAGE_ACTIVE_END_TIME"
+          "--outage-start-time=$MODEL_OUTAGE_ACTIVE_START_TIME",
+          "--outage-end-time=$MODEL_OUTAGE_ACTIVE_END_TIME"
         )
     callCli(args)
 
@@ -1388,12 +1385,8 @@ class MeasurementSystemTest {
           parent = MODEL_LINE_NAME
           modelOutage = modelOutage {
             outageInterval = timeInterval {
-              startTime = timestamp {
-                seconds = Instant.parse(MODEL_OUTAGE_ACTIVE_START_TIME).toProtoTime().seconds
-              }
-              endTime = timestamp {
-                seconds = Instant.parse(MODEL_OUTAGE_ACTIVE_END_TIME).toProtoTime().seconds
-              }
+              startTime = Instant.parse(MODEL_OUTAGE_ACTIVE_START_TIME).toProtoTime()
+              endTime = Instant.parse(MODEL_OUTAGE_ACTIVE_END_TIME).toProtoTime()
             }
           }
         }
@@ -1411,7 +1404,8 @@ class MeasurementSystemTest {
           "--page-size=$LIST_PAGE_SIZE",
           "--page-token=$LIST_PAGE_TOKEN",
           "--show-deleted=true",
-          "--interval=$MODEL_OUTAGE_ACTIVE_START_TIME,$MODEL_OUTAGE_ACTIVE_END_TIME"
+          "--interval-start-time=$MODEL_OUTAGE_ACTIVE_START_TIME",
+          "--interval-end-time=$MODEL_OUTAGE_ACTIVE_END_TIME"
         )
     callCli(args)
 
@@ -1427,16 +1421,13 @@ class MeasurementSystemTest {
           pageSize = LIST_PAGE_SIZE
           pageToken = LIST_PAGE_TOKEN
           showDeleted = true
-          filter = modelOutagesFilter {
-            outageIntervalOverlapping = timeInterval {
-              startTime = timestamp {
-                seconds = Instant.parse(MODEL_OUTAGE_ACTIVE_START_TIME).toProtoTime().seconds
-              }
-              endTime = timestamp {
-                seconds = Instant.parse(MODEL_OUTAGE_ACTIVE_END_TIME).toProtoTime().seconds
+          filter =
+            ListModelOutagesRequestKt.filter {
+              outageIntervalOverlapping = timeInterval {
+                startTime = Instant.parse(MODEL_OUTAGE_ACTIVE_START_TIME).toProtoTime()
+                endTime = Instant.parse(MODEL_OUTAGE_ACTIVE_END_TIME).toProtoTime()
               }
             }
-          }
         }
       )
   }

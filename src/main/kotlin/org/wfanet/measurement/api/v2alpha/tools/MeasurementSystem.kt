@@ -20,7 +20,6 @@ import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.CleartextKeysetHandle
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
-import com.google.protobuf.timestamp
 import io.grpc.ManagedChannel
 import java.io.File
 import java.security.SecureRandom
@@ -43,7 +42,7 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt.filter
-import org.wfanet.measurement.api.v2alpha.ListModelOutagesRequestKt.filter as modelOutagesFilter
+import org.wfanet.measurement.api.v2alpha.ListModelOutagesRequestKt
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
@@ -1482,23 +1481,24 @@ private class ModelOutages {
     )
     modelLineName: String,
     @Option(
-      names = ["--outage-interval"],
-      description =
-        [
-          "Time interval in which the parent ModelLine cannot be used to generate sketches. Should be in the following format: start time,end time. Times should be written in Java Time-Scale"
-        ],
+      names = ["--outage-start-time"],
+      description = ["Start time of model outage in ISO 8601 format of UTC"],
       required = true,
     )
-    modelOutageInterval: String,
+    outageStartTime: Instant,
+    @Option(
+      names = ["--outage-end-time"],
+      description = ["End time of model outage in ISO 8601 format of UTC"],
+      required = true,
+    )
+    outageEndTime: Instant,
   ) {
-    val intervalList = modelOutageInterval.split(",").map { it.trim() }
-
     val request = createModelOutageRequest {
       parent = modelLineName
       modelOutage = modelOutage {
         outageInterval = timeInterval {
-          startTime = timestamp { seconds = Instant.parse(intervalList[0]).toProtoTime().seconds }
-          endTime = timestamp { seconds = Instant.parse(intervalList[1]).toProtoTime().seconds }
+          startTime = outageStartTime.toProtoTime()
+          endTime = outageEndTime.toProtoTime()
         }
       }
     }
@@ -1543,30 +1543,33 @@ private class ModelOutages {
     )
     showDeletedOutages: Boolean,
     @Option(
-      names = ["--interval"],
+      names = ["--interval-start-time"],
       description =
-        [
-          "The the overlapping time intervals used to filter the result. Should be in the following format: start time,end time. Times should be written in Java Time-Scale"
-        ],
+        ["Start time of interval for desired overlapping model outages in ISO 8601 format of UTC"],
       required = false,
-      defaultValue = "",
     )
-    outageInterval: String
+    outageStartTime: Instant? = null,
+    @Option(
+      names = ["--interval-end-time"],
+      description =
+        ["End time of interval for desired overlapping model outages in ISO 8601 format of UTC"],
+      required = false,
+    )
+    outageEndTime: Instant? = null,
   ) {
     val request = listModelOutagesRequest {
       parent = modelLineName
       pageSize = listPageSize
       pageToken = listPageToken
       showDeleted = showDeletedOutages
-      if (outageInterval.isNotBlank()) {
-        val intervalList = outageInterval.split(",").map { it.trim() }
-
-        filter = modelOutagesFilter {
-          outageIntervalOverlapping = timeInterval {
-            startTime = timestamp { seconds = Instant.parse(intervalList[0]).toProtoTime().seconds }
-            endTime = timestamp { seconds = Instant.parse(intervalList[1]).toProtoTime().seconds }
+      if (outageStartTime != null && outageEndTime != null) {
+        filter =
+          ListModelOutagesRequestKt.filter {
+            outageIntervalOverlapping = timeInterval {
+              startTime = outageStartTime.toProtoTime()
+              endTime = outageEndTime.toProtoTime()
+            }
           }
-        }
       }
     }
     val response =
@@ -1694,8 +1697,8 @@ private class ModelShards {
     modelShardName: String,
   ) {
     val request = deleteModelShardRequest { name = modelShardName }
-    val outputModelShard =
-      runBlocking(parentCommand.rpcDispatcher) { modelShardStub.deleteModelShard(request) }
+
+    runBlocking(parentCommand.rpcDispatcher) { modelShardStub.deleteModelShard(request) }
 
     println("Model shard $modelShardName has been deleted.")
   }
