@@ -128,23 +128,26 @@ message MetricSpec {
   VidSamplingInterval vid_sampling_interval = 5;
 }
 
+// Error bar of a scalar value
+message ScalarErrorBar {
+  double std = 1;
+}
+
 // The calculation result of a metric
 message MetricResult {
   // Reach result format.
-  //
-  // TODO(@riemanli): Add error bar.
   message ReachResult {
     // Reach value.
     int64 value = 1;
+    // Error bar of the reach value above
+    ScalarErrorBar error_bar = 2;
   }
   // Histogram result format.
-  //
-  // TODO(@riemanli): Add error bar.
   message HistogramResult {
     // Bin result format.
     message BinResult {
       // The result value of a bin.
-      double value = 2;
+      double value = 1;
     }
     // The bin in a histogram.
     message Bin {
@@ -152,23 +155,33 @@ message MetricResult {
       string label = 1;
       // The result of the bin.
       BinResult bin_result = 2;
+      // Error bar of the result at this bin
+      ScalarErrorBar result_error_bar = 3;
+      // Error bar of the ratio at this bin.
+      //
+      // Ratio = (bin value) / (sum of all bin values)
+      ScalarErrorBar ratio_error_bar = 4;
+      // Error bar of the result sum from this bin to the last bin.
+      ScalarErrorBar cumulative_after_error_bar = 5;
+      // Error bar of the relative result sum from this bin to the last bin.
+      ScalarErrorBar relative_cumulative_after_error_bar = 6;
     }
     // The bins that form a histogram. Ordering is not guaranteed.
     repeated Bin bins = 1;
   }
   // Impression count result format.
-  //
-  // TODO(@riemanli): Add error bar.
   message ImpressionCountResult {
     // Impression value.
     int64 value = 1;
+    // Error bar of the impression value above
+    ScalarErrorBar error_bar = 2;
   }
   // Watch duration result format.
-  //
-  // TODO(@riemanli): Add error bar.
   message WatchDurationResult {
     // Watch duration value in second.
     double value = 1;
+    // Error bar of the watch duration value above
+    ScalarErrorBar error_bar = 2;
   }
 
   // The metric result
