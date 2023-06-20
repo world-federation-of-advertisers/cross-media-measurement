@@ -334,7 +334,7 @@ CREATE TABLE Reports (
   ReportId bigint NOT NULL,
 
   ExternalReportId bigint NOT NULL,
-  CreateReportRequestId text NOT NULL,
+  CreateReportRequestId text,
 
   CreateTime TIMESTAMP WITH TIME ZONE NOT NULL,
 

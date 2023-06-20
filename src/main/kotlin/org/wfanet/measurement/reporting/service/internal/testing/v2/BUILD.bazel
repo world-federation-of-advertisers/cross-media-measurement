@@ -11,6 +11,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/reporting/v2:measurements_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:metrics_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reports_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",

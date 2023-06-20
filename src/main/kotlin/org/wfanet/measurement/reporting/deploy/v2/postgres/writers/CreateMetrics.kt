@@ -41,7 +41,7 @@ import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotF
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
 /**
- * Inserts a Metric into the database.
+ * Inserts Metrics into the database.
  *
  * Throws the following on [execute]:
  * * [ReportingSetNotFoundException] ReportingSet not found
