@@ -16,6 +16,9 @@ BUILD_NODE_DEPS = [
     "//:node_modules/webpack",
     "//:node_modules/babel-loader",
     "//:node_modules/ts-loader",
+    "//:node_modules/css-loader",
+    "//:node_modules/style-loader",
+    "//:node_modules/svg-url-loader",
 ]
 
 js_library(
@@ -41,6 +44,7 @@ webpack.webpack_cli(
         ":tsconfig",
         "//src/main/react/reporting-ui/public",
         "//src/main/react/reporting-ui/src:src_files",
+        "//src/main/react/reporting-ui/src:types",
     ],
     args = [
         "--config webpack.config.js",

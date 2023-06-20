@@ -40,6 +40,12 @@ js_library(
     ],
 )
 
+js_library(
+    name = "types",
+    srcs = glob(["custom.d.ts"]),
+    visibility = ["//visibility:public"],
+)
+
 ts_project(
     name = "src_ts",
     srcs = glob(
