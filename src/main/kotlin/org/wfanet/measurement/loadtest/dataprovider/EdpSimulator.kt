@@ -386,8 +386,9 @@ class EdpSimulator(
     logger.info("Executing requisitionFulfillingWorkflow...")
     val requisitions =
       getRequisitions().filter {
-        MeasurementKey.fromName(it.measurement)!!.measurementConsumerId ==
-          MeasurementConsumerKey.fromName(measurementConsumerName)!!.measurementConsumerId
+        checkNotNull(MeasurementKey.fromName(it.measurement)).measurementConsumerId ==
+          checkNotNull(MeasurementConsumerKey.fromName(measurementConsumerName))
+            .measurementConsumerId
       }
 
     if (requisitions.isEmpty()) {
@@ -396,7 +397,6 @@ class EdpSimulator(
     }
 
     for (requisition in requisitions) {
-      println("requisitionrequisitionrequisitionrequisitionrequisition ${requisition.measurement}")
       logger.info("Processing requisition ${requisition.name}...")
       val measurementConsumerCertificate: Certificate =
         getCertificate(requisition.measurementConsumerCertificate)
