@@ -128,23 +128,27 @@ message MetricSpec {
   VidSamplingInterval vid_sampling_interval = 5;
 }
 
+// Confidence interval of a scalar value
+message ConfidenceInterval {
+  // Used to find different confidence intervals.
+  double standard_deviation = 1;
+}
+
 // The calculation result of a metric
 message MetricResult {
   // Reach result format.
-  //
-  // TODO(@riemanli): Add error bar.
   message ReachResult {
     // Reach value.
     int64 value = 1;
+    // Confidence interval of the reach value above
+    ConfidenceInterval confidence_interval = 2;
   }
   // Histogram result format.
-  //
-  // TODO(@riemanli): Add error bar.
   message HistogramResult {
     // Bin result format.
     message BinResult {
       // The result value of a bin.
-      double value = 2;
+      double value = 1;
     }
     // The bin in a histogram.
     message Bin {
@@ -152,23 +156,35 @@ message MetricResult {
       string label = 1;
       // The result of the bin.
       BinResult bin_result = 2;
+
+      // Confidence interval of the result at this bin
+      ConfidenceInterval result_confidence_interval = 3;
+      // Confidence interval of the relative result at this bin.
+      //
+      // Relative result = (bin value) / (sum of all bin values)
+      ConfidenceInterval relative_confidence_interval = 4;
+      // Confidence interval of the result sum from this bin to the last bin.
+      ConfidenceInterval cumulative_after_confidence_interval = 5;
+      // Confidence interval of the relative result sum from this bin to the
+      // last bin.
+      ConfidenceInterval relative_cumulative_after_confidence_interval = 6;
     }
     // The bins that form a histogram. Ordering is not guaranteed.
     repeated Bin bins = 1;
   }
   // Impression count result format.
-  //
-  // TODO(@riemanli): Add error bar.
   message ImpressionCountResult {
     // Impression value.
     int64 value = 1;
+    // Confidence interval of the impression value above
+    ConfidenceInterval confidence_interval = 2;
   }
   // Watch duration result format.
-  //
-  // TODO(@riemanli): Add error bar.
   message WatchDurationResult {
     // Watch duration value in second.
     double value = 1;
+    // Confidence interval of the watch duration value above
+    ConfidenceInterval confidence_interval = 2;
   }
 
   // The metric result
