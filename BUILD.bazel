@@ -1,7 +1,17 @@
 load("@bazel_gazelle//:def.bzl", "gazelle")
+load("@npm//:defs.bzl", "npm_link_all_packages")
+load("@aspect_rules_js//js:defs.bzl", "js_library", "js_run_devserver", "js_test")
 
 package(default_visibility = ["//:__subpackages__"])
 
 # This is completely unintuitive. The Bazel rules for Docker require this.
 # https://github.com/bazelbuild/bazel-gazelle/issues/609
 gazelle(name = "gazelle")
+
+npm_link_all_packages()
+
+js_library(
+    name = "package_json",
+    srcs = ["package.json"],
+    visibility = ["//visibility:public"],
+)

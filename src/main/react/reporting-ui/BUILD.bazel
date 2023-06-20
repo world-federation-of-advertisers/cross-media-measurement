@@ -1,28 +1,93 @@
-load("@aspect_rules_js//js:defs.bzl", "js_library", "js_run_devserver", "js_test")
+load("@aspect_rules_js//js:defs.bzl", "js_library", "js_test")
 load("@aspect_rules_ts//ts:defs.bzl", "ts_config")
-load("@npm//:react-scripts/package_json.bzl", cra_bin = "bin")
 load("@npm//:defs.bzl", "npm_link_all_packages")
+load("@npm//:webpack-dev-server/package_json.bzl", webpack_server = "bin")
+load("@npm//:webpack-cli/package_json.bzl", webpack = "bin")
 
 npm_link_all_packages()
 
-CRA_DEPS = [
-    "//src/main/react/reporting-ui/src",
-    "//src/main/react/reporting-ui/public",
-    "//src/main/react/reporting-ui/package.json",
-    ":node_modules/eslint-config-react-app",
-    ":node_modules/react-dom",
-    ":node_modules/react-scripts",
-    ":node_modules/react",
-    ":node_modules/typescript",
-    ":node_modules/web-vitals",
+BUILD_NODE_DEPS = [
+    "//:node_modules/html-webpack-plugin",
+    "//:node_modules/react-dom",
+    "//:node_modules/react",
+    "//:node_modules/typescript",
+    "//:node_modules/web-vitals",
+    "//:node_modules/mini-css-extract-plugin",
+    "//:node_modules/webpack",
+    "//:node_modules/babel-loader",
+    "//:node_modules/ts-loader",
 ]
 
-cra_bin.react_scripts(
-    # Note: If you want to change the name make sure you update BUILD_PATH below accordingly
-    # https://create-react-app.dev/docs/advanced-configuration/
-    name = "build",
-    args = ["build"],
-    srcs = CRA_DEPS,
-    env = {"BUILD_PATH": "./build"},
-    out_dirs = ["build"],
+js_library(
+    name = "build_node_deps",
+    deps = [
+        "//:node_modules/html-webpack-plugin",
+        "//:node_modules/react-dom",
+        "//:node_modules/react",
+        "//:node_modules/typescript",
+        "//:node_modules/web-vitals",
+        "//:node_modules/mini-css-extract-plugin",
+        "//:node_modules/webpack",
+        "//:node_modules/babel-loader",
+        "//:node_modules/ts-loader",
+    ],
+)
+
+webpack.webpack_cli(
+    name = "dev_bundle",
+    srcs = BUILD_NODE_DEPS + [
+        ":build_node_deps",
+        ":webpack_config",
+        ":tsconfig",
+        "//src/main/react/reporting/public",
+        "//src/main/react/reporting/src:src_files",
+    ],
+    args = [
+        "--config webpack.config.js",
+        "--mode development"
+    ],
+    chdir = package_name(),
+    log_level = "debug",
+    output_dir = True,
+)
+
+webpack_server.webpack_dev_server_binary(
+    name = "dev_serve",
+    args = [
+        "--config webpack.config.js",
+        "--mode development",
+    ],
+    chdir = package_name(),
+    data = BUILD_NODE_DEPS + [
+        ":build_node_deps",
+        ":webpack_config",
+        ":tsconfig",
+        "//src/main/react/reporting/public",
+        "//src/main/react/reporting/src:src_files",
+    ],
+    log_level = "debug",
+)
+
+# js_test(
+#     name = "build_smoke_test",
+#     data = [":build"],
+#     entry_point = "build_smoke_test.js",
+# )
+
+ts_config(
+    name = "tsconfig",
+    src = "tsconfig.json",
+    visibility = ["//visibility:public"],
+)
+
+js_library(
+    name = "jest_config",
+    srcs = ["jest.config.js"],
+    visibility = ["//visibility:public"],
+)
+
+js_library(
+    name = "webpack_config",
+    srcs = ["webpack.config.js"],
+    visibility = ["//visibility:public"],
 )

@@ -39,7 +39,7 @@ rules_js_dependencies()
 
 load("@aspect_rules_ts//ts:repositories.bzl", "rules_ts_dependencies")
 
-rules_ts_dependencies(ts_version_from = "//src/main/react/reporting:package.json")
+rules_ts_dependencies(ts_version_from = "//:package.json")
 
 load("@aspect_rules_jest//jest:dependencies.bzl", "rules_jest_dependencies")
 
@@ -56,18 +56,12 @@ load("@aspect_rules_js//npm:npm_import.bzl", "npm_translate_lock")
 
 npm_translate_lock(
     name = "npm",
-    # bins = {
-    #     # derived from "bin" attribute in node_modules/react-scripts/package.json
-    #     "react-scripts": {
-    #         "react-scripts": "./bin/react-scripts.js",
-    #     },
+    npmrc = "//:.npmrc",
+    pnpm_lock = "//:pnpm-lock.yaml",
+    # public_hoist_packages = {
+    #     "eslint-config-react-app": [""],
+    #     "eslint": [""],
     # },
-    npmrc = "//src/main/react/reporting:.npmrc",
-    pnpm_lock = "//src/main/react/reporting:pnpm-lock.yaml",
-    public_hoist_packages = {
-        "eslint-config-react-app": [""],
-        "eslint": [""],
-    },
     verify_node_modules_ignored = "//:.bazelignore",
 )
 
