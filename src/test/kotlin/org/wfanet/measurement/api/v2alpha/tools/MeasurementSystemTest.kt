@@ -221,6 +221,7 @@ private const val MODEL_LINE_ACTIVE_END_TIME = "2030-05-24T05:00:00.000Z"
 
 private const val MODEL_ROLLOUT_ACTIVE_START_TIME = "2026-05-24T05:00:00.000Z"
 private const val MODEL_ROLLOUT_ACTIVE_END_TIME = "2026-09-24T05:00:00.000Z"
+private const val MODEL_ROLLOUT_FREEZE_TIME = "2026-07-24T05:00:00.000Z"
 
 private val DATA_PROVIDER = dataProvider {
   name = DATA_PROVIDER_NAME
@@ -265,16 +266,22 @@ private val MODEL_RELEASE = modelRelease {
 private val MODEL_ROLLOUT = modelRollout {
   name = MODEL_ROLLOUT_NAME
   rolloutPeriod = timeInterval {
-    startTime = timestamp {
-      seconds = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime().seconds
-    }
-    endTime = timestamp {
-      seconds = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime().seconds
-    }
+    startTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime()
+    endTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime()
   }
-  rolloutFreezeTime = timestamp { seconds = Instant.parse(TIME_STRING_1).toProtoTime().seconds }
   previousModelRollout = "previous model"
-  modelRelease = "model 1"
+  modelRelease = MODEL_RELEASE_NAME
+}
+
+private val MODEL_ROLLOUT_WITH_FREEZE_TIME = modelRollout {
+  name = MODEL_ROLLOUT_NAME
+  rolloutPeriod = timeInterval {
+    startTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime()
+    endTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime()
+  }
+  rolloutFreezeTime = Instant.parse(MODEL_ROLLOUT_FREEZE_TIME).toProtoTime()
+  previousModelRollout = "previous model"
+  modelRelease = MODEL_RELEASE_NAME
 }
 
 private const val TIME_STRING_1 = "2022-05-22T01:00:00.000Z"
@@ -369,7 +376,7 @@ class MeasurementSystemTest {
     onBlocking { createModelRollout(any()) }.thenReturn(MODEL_ROLLOUT)
     onBlocking { listModelRollouts(any()) }
       .thenReturn(listModelRolloutsResponse { modelRollouts += listOf(MODEL_ROLLOUT) })
-    onBlocking { scheduleModelRolloutFreeze(any()) }.thenReturn(MODEL_ROLLOUT)
+    onBlocking { scheduleModelRolloutFreeze(any()) }.thenReturn(MODEL_ROLLOUT_WITH_FREEZE_TIME)
     onBlocking { deleteModelRollout(any()) }.thenReturn(empty {})
   }
   private val modelSuitesServiceMock: ModelSuitesCoroutineImplBase = mockService {
@@ -1349,8 +1356,8 @@ class MeasurementSystemTest {
           "model-rollouts",
           "create",
           "--parent=$MODEL_LINE_NAME",
-          "--rollout-period=$MODEL_ROLLOUT_ACTIVE_START_TIME,$MODEL_ROLLOUT_ACTIVE_END_TIME",
-          "--rollout-freeze-time=$TIME_STRING_1",
+          "--rollout-start-time=$MODEL_ROLLOUT_ACTIVE_START_TIME",
+          "--rollout-end-time=$MODEL_ROLLOUT_ACTIVE_END_TIME",
           "--model-release=$MODEL_RELEASE_NAME",
         )
     callCli(args)
@@ -1366,15 +1373,8 @@ class MeasurementSystemTest {
           parent = MODEL_LINE_NAME
           modelRollout = modelRollout {
             rolloutPeriod = timeInterval {
-              startTime = timestamp {
-                seconds = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime().seconds
-              }
-              endTime = timestamp {
-                seconds = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime().seconds
-              }
-            }
-            rolloutFreezeTime = timestamp {
-              seconds = Instant.parse(TIME_STRING_1).toProtoTime().seconds
+              startTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime()
+              endTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime()
             }
             modelRelease = MODEL_RELEASE_NAME
           }
@@ -1392,7 +1392,8 @@ class MeasurementSystemTest {
           "--parent=$MODEL_LINE_NAME",
           "--page-size=10",
           "--page-token=token",
-          "--interval=$MODEL_ROLLOUT_ACTIVE_START_TIME,$MODEL_ROLLOUT_ACTIVE_END_TIME"
+          "--rollout-period-overlapping-start-time=$MODEL_ROLLOUT_ACTIVE_START_TIME",
+          "--rollout-period-overlapping-end-time=$MODEL_ROLLOUT_ACTIVE_END_TIME"
         )
     callCli(args)
 
@@ -1410,12 +1411,8 @@ class MeasurementSystemTest {
           filter =
             ListModelRolloutsRequestKt.filter {
               rolloutPeriodOverlapping = timeInterval {
-                startTime = timestamp {
-                  seconds = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime().seconds
-                }
-                endTime = timestamp {
-                  seconds = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime().seconds
-                }
+                startTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime()
+                endTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime()
               }
             }
         }
@@ -1430,7 +1427,7 @@ class MeasurementSystemTest {
           "model-rollouts",
           "schedule",
           "--name=$MODEL_ROLLOUT_NAME",
-          "--freeze-time=$TIME_STRING_1",
+          "--freeze-time=$MODEL_ROLLOUT_FREEZE_TIME",
         )
     callCli(args)
 
@@ -1443,9 +1440,7 @@ class MeasurementSystemTest {
       .isEqualTo(
         scheduleModelRolloutFreezeRequest {
           name = MODEL_ROLLOUT_NAME
-          rolloutFreezeTime = timestamp {
-            seconds = Instant.parse(TIME_STRING_1).toProtoTime().seconds
-          }
+          rolloutFreezeTime = Instant.parse(MODEL_ROLLOUT_FREEZE_TIME).toProtoTime()
         }
       )
   }

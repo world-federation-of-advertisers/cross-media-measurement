@@ -20,7 +20,6 @@ import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.CleartextKeysetHandle
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
-import com.google.protobuf.timestamp
 import io.grpc.ManagedChannel
 import java.io.File
 import java.security.SecureRandom
@@ -1475,20 +1474,17 @@ private class ModelRollouts {
     )
     modelLineName: String,
     @Option(
-      names = ["--rollout-period"],
-      description =
-        [
-          "Time interval over which the rollout must be deployed. Should be in the following format: start time,end time. Times should be written in Java Time-Scale"
-        ],
+      names = ["--rollout-start-time"],
+      description = ["Start time of model rollout in ISO 8601 format of UTC"],
       required = true,
     )
-    modelRolloutInterval: String,
+    rolloutStartTime: Instant,
     @Option(
-      names = ["--rollout-freeze-time"],
-      description = ["The timestamp the rollout must stop expanding its release percentage."],
+      names = ["--rollout-end-time"],
+      description = ["End time of model rollout in ISO 8601 format of UTC"],
       required = true,
     )
-    modelRolloutFreezeTime: String,
+    rolloutEndTime: Instant,
     @Option(
       names = ["--model-release"],
       description = ["The `ModelRelease` this model rollout refers to."],
@@ -1496,16 +1492,12 @@ private class ModelRollouts {
     )
     modelRolloutRelease: String,
   ) {
-    val intervalList = modelRolloutInterval.split(",").map { it.trim() }
     val request = createModelRolloutRequest {
       parent = modelLineName
       modelRollout = modelRollout {
         rolloutPeriod = timeInterval {
-          startTime = timestamp { seconds = Instant.parse(intervalList[0]).toProtoTime().seconds }
-          endTime = timestamp { seconds = Instant.parse(intervalList[1]).toProtoTime().seconds }
-        }
-        rolloutFreezeTime = timestamp {
-          seconds = Instant.parse(modelRolloutFreezeTime).toProtoTime().seconds
+          startTime = rolloutStartTime.toProtoTime()
+          endTime = rolloutEndTime.toProtoTime()
         }
         modelRelease = modelRolloutRelease
       }
@@ -1543,30 +1535,30 @@ private class ModelRollouts {
     )
     listPageToken: String,
     @Option(
-      names = ["--interval"],
+      names = ["--rollout-period-overlapping-start-time"],
       description =
-        [
-          "The the overlapping time intervals used to filter the result. Should be in the following format: start time,end time. Times should be written in Java Time-Scale"
-        ],
+        ["Start time of overlapping period for desired model rollouts in ISO 8601 format of UTC"],
       required = false,
-      defaultValue = "",
     )
-    rolloutInterval: String
+    rolloutPeriodStartTime: Instant? = null,
+    @Option(
+      names = ["--rollout-period-overlapping-end-time"],
+      description =
+        ["End time of overlapping period for desired model rollouts in ISO 8601 format of UTC"],
+      required = false,
+    )
+    rolloutPeriodEndTime: Instant? = null,
   ) {
     val request = listModelRolloutsRequest {
       parent = modelLineName
       pageSize = listPageSize
       pageToken = listPageToken
-      if (rolloutInterval.isNotEmpty()) {
-        val intervalList = rolloutInterval.split(",").map { it.trim() }
-
+      if (rolloutPeriodStartTime != null && rolloutPeriodEndTime != null) {
         filter =
           ListModelRolloutsRequestKt.filter {
             rolloutPeriodOverlapping = timeInterval {
-              startTime = timestamp {
-                seconds = Instant.parse(intervalList[0]).toProtoTime().seconds
-              }
-              endTime = timestamp { seconds = Instant.parse(intervalList[1]).toProtoTime().seconds }
+              startTime = rolloutPeriodStartTime.toProtoTime()
+              endTime = rolloutPeriodEndTime.toProtoTime()
             }
           }
       }
@@ -1576,7 +1568,7 @@ private class ModelRollouts {
     response.modelRolloutsList.forEach { printModelRollout(it) }
   }
 
-  @Command(description = ["Sets model rollout freeze time."])
+  @Command(description = ["Schedule model rollout freeze time."])
   fun schedule(
     @Option(
       names = ["--name"],
@@ -1586,14 +1578,14 @@ private class ModelRollouts {
     modelRolloutName: String,
     @Option(
       names = ["--freeze-time"],
-      description = ["The rollout freeze time to be set."],
+      description = ["The rollout freeze time to be set in ISO 8601 format of UTC."],
       required = true,
     )
-    freezeTime: String,
+    freezeTime: Instant,
   ) {
     val request = scheduleModelRolloutFreezeRequest {
       name = modelRolloutName
-      rolloutFreezeTime = timestamp { seconds = Instant.parse(freezeTime).toProtoTime().seconds }
+      rolloutFreezeTime = freezeTime.toProtoTime()
     }
     val outputModelRollout =
       runBlocking(parentCommand.rpcDispatcher) {
