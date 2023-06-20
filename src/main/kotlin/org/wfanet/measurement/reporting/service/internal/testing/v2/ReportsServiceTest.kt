@@ -45,8 +45,8 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequestKt
-import org.wfanet.measurement.internal.reporting.v2.createMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
+import org.wfanet.measurement.internal.reporting.v2.createMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest
 import org.wfanet.measurement.internal.reporting.v2.measurement
@@ -668,12 +668,21 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
   @Test
   fun `getReport returns report with timeIntervals set`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-    val createdReport = createReport(CMMS_MEASUREMENT_CONSUMER_ID, service, reportingSetsService, usePeriodicTimeInterval = false)
+    val createdReport =
+      createReport(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        service,
+        reportingSetsService,
+        usePeriodicTimeInterval = false
+      )
 
-    val retrievedReport = service.getReport(getReportRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalReportId = createdReport.externalReportId
-    })
+    val retrievedReport =
+      service.getReport(
+        getReportRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportId = createdReport.externalReportId
+        }
+      )
 
     assertThat(createdReport).ignoringRepeatedFieldOrder().isEqualTo(retrievedReport)
   }
@@ -681,12 +690,21 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
   @Test
   fun `getReport returns report with periodicTimeInterval set`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-    val createdReport = createReport(CMMS_MEASUREMENT_CONSUMER_ID, service, reportingSetsService, usePeriodicTimeInterval = true)
+    val createdReport =
+      createReport(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        service,
+        reportingSetsService,
+        usePeriodicTimeInterval = true
+      )
 
-    val retrievedReport = service.getReport(getReportRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalReportId = createdReport.externalReportId
-    })
+    val retrievedReport =
+      service.getReport(
+        getReportRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportId = createdReport.externalReportId
+        }
+      )
 
     assertThat(createdReport).ignoringRepeatedFieldOrder().isEqualTo(retrievedReport)
   }
@@ -694,7 +712,13 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
   @Test
   fun `getReport returns report after report metrics have been created`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-    val createdReport = createReport(CMMS_MEASUREMENT_CONSUMER_ID, service, reportingSetsService, usePeriodicTimeInterval = true)
+    val createdReport =
+      createReport(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        service,
+        reportingSetsService,
+        usePeriodicTimeInterval = true
+      )
 
     createdReport.reportingMetricEntriesMap.values.forEach { reportingMetricCalculationSpec ->
       reportingMetricCalculationSpec.metricCalculationSpecsList.forEach { metricCalculationSpec ->
@@ -723,9 +747,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                       }
                   }
                 }
-              details = MetricKt.details {
-                filters += it.details.filtersList
-              }
+              details = MetricKt.details { filters += it.details.filtersList }
             }
           }
           metricsService.createMetric(request)
@@ -733,10 +755,13 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
       }
     }
 
-    val retrievedReport = service.getReport(getReportRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalReportId = createdReport.externalReportId
-    })
+    val retrievedReport =
+      service.getReport(
+        getReportRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportId = createdReport.externalReportId
+        }
+      )
 
     retrievedReport.reportingMetricEntriesMap.values.forEach { reportingMetricCalculationSpec ->
       reportingMetricCalculationSpec.metricCalculationSpecsList.forEach { metricCalculationSpec ->
@@ -750,14 +775,22 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
   @Test
   fun `getReport throw NOT_FOUND when report not found`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-    val createdReport = createReport(CMMS_MEASUREMENT_CONSUMER_ID, service, reportingSetsService, usePeriodicTimeInterval = false)
+    val createdReport =
+      createReport(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        service,
+        reportingSetsService,
+        usePeriodicTimeInterval = false
+      )
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.getReport(getReportRequest {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          externalReportId = createdReport.externalReportId + 1
-        })
+        service.getReport(
+          getReportRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalReportId = createdReport.externalReportId + 1
+          }
+        )
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
@@ -767,84 +800,171 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
   @Test
   fun `streamReports returns reports when limit not set`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-    val createdReport = createReport(CMMS_MEASUREMENT_CONSUMER_ID, service, reportingSetsService, usePeriodicTimeInterval = false)
-    val createdReport2 = createReport(CMMS_MEASUREMENT_CONSUMER_ID, service, reportingSetsService, usePeriodicTimeInterval = true)
+    val createdReport =
+      createReport(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        service,
+        reportingSetsService,
+        usePeriodicTimeInterval = false
+      )
+    val createdReport2 =
+      createReport(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        service,
+        reportingSetsService,
+        usePeriodicTimeInterval = true
+      )
 
-    val retrievedReports = service.streamReports(streamReportsRequest {
-      filter = StreamReportsRequestKt.filter {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      }
-    })
+    val retrievedReports =
+      service.streamReports(
+        streamReportsRequest {
+          filter =
+            StreamReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            }
+        }
+      )
 
-    assertThat(retrievedReports.toList()).ignoringRepeatedFieldOrder().containsExactly(createdReport, createdReport2).inOrder()
+    assertThat(retrievedReports.toList())
+      .ignoringRepeatedFieldOrder()
+      .containsExactly(createdReport, createdReport2)
+      .inOrder()
   }
 
   @Test
   fun `streamReports returns reports created after create time filter`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-    val createdReport = createReport(CMMS_MEASUREMENT_CONSUMER_ID, service, reportingSetsService, usePeriodicTimeInterval = false)
-    val createdReport2 = createReport(CMMS_MEASUREMENT_CONSUMER_ID, service, reportingSetsService, usePeriodicTimeInterval = false)
-    val createdReport3 = createReport(CMMS_MEASUREMENT_CONSUMER_ID, service, reportingSetsService, usePeriodicTimeInterval = false)
+    val createdReport =
+      createReport(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        service,
+        reportingSetsService,
+        usePeriodicTimeInterval = false
+      )
+    val createdReport2 =
+      createReport(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        service,
+        reportingSetsService,
+        usePeriodicTimeInterval = false
+      )
+    val createdReport3 =
+      createReport(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        service,
+        reportingSetsService,
+        usePeriodicTimeInterval = false
+      )
 
-    val retrievedReports = service.streamReports(streamReportsRequest {
-      filter = StreamReportsRequestKt.filter {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        after = StreamReportsRequestKt.afterFilter {
-          createTime = createdReport.createTime
+    val retrievedReports =
+      service.streamReports(
+        streamReportsRequest {
+          filter =
+            StreamReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              after = StreamReportsRequestKt.afterFilter { createTime = createdReport.createTime }
+            }
         }
-      }
-    })
+      )
 
-    assertThat(retrievedReports.toList()).ignoringRepeatedFieldOrder().containsExactly(createdReport2, createdReport3).inOrder()
+    assertThat(retrievedReports.toList())
+      .ignoringRepeatedFieldOrder()
+      .containsExactly(createdReport2, createdReport3)
+      .inOrder()
   }
 
   @Test
   fun `streamReports returns reports with id after id filter`(): Unit = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-    val createdReport = createReport(CMMS_MEASUREMENT_CONSUMER_ID, service, reportingSetsService, usePeriodicTimeInterval = false)
-    val createdReport2 = createReport(CMMS_MEASUREMENT_CONSUMER_ID, service, reportingSetsService, usePeriodicTimeInterval = false)
-    val createdReport3 = createReport(CMMS_MEASUREMENT_CONSUMER_ID, service, reportingSetsService, usePeriodicTimeInterval = false)
+    val createdReport =
+      createReport(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        service,
+        reportingSetsService,
+        usePeriodicTimeInterval = false
+      )
+    val createdReport2 =
+      createReport(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        service,
+        reportingSetsService,
+        usePeriodicTimeInterval = false
+      )
+    val createdReport3 =
+      createReport(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        service,
+        reportingSetsService,
+        usePeriodicTimeInterval = false
+      )
 
     val smallestId =
-      min(min(createdReport.externalReportId, createdReport2.externalReportId), createdReport3.externalReportId)
+      min(
+        min(createdReport.externalReportId, createdReport2.externalReportId),
+        createdReport3.externalReportId
+      )
 
-    val retrievedReports = service.streamReports(streamReportsRequest {
-      filter = StreamReportsRequestKt.filter {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        after = StreamReportsRequestKt.afterFilter {
-          externalReportId = smallestId
+    val retrievedReports =
+      service.streamReports(
+        streamReportsRequest {
+          filter =
+            StreamReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              after = StreamReportsRequestKt.afterFilter { externalReportId = smallestId }
+            }
         }
-      }
-    })
+      )
 
-    assertThat(retrievedReports.toList()).ignoringRepeatedFieldOrder().containsExactly(createdReport, createdReport2, createdReport3)
+    assertThat(retrievedReports.toList())
+      .ignoringRepeatedFieldOrder()
+      .containsExactly(createdReport, createdReport2, createdReport3)
   }
 
   @Test
   fun `streamReports returns number of reports based on limit`(): Unit = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-    val createdReport = createReport(CMMS_MEASUREMENT_CONSUMER_ID, service, reportingSetsService, usePeriodicTimeInterval = false)
-    createReport(CMMS_MEASUREMENT_CONSUMER_ID, service, reportingSetsService, usePeriodicTimeInterval = false)
+    val createdReport =
+      createReport(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        service,
+        reportingSetsService,
+        usePeriodicTimeInterval = false
+      )
+    createReport(
+      CMMS_MEASUREMENT_CONSUMER_ID,
+      service,
+      reportingSetsService,
+      usePeriodicTimeInterval = false
+    )
 
-    val retrievedReports = service.streamReports(streamReportsRequest {
-      filter = StreamReportsRequestKt.filter {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      }
-      limit = 1
-    })
+    val retrievedReports =
+      service.streamReports(
+        streamReportsRequest {
+          filter =
+            StreamReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            }
+          limit = 1
+        }
+      )
 
-    assertThat(retrievedReports.toList()).ignoringRepeatedFieldOrder().containsExactly(createdReport)
+    assertThat(retrievedReports.toList())
+      .ignoringRepeatedFieldOrder()
+      .containsExactly(createdReport)
   }
 
   @Test
   fun `streamReports throw INVALID_ARGUMENT when filter missing mc id`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-    createReport(CMMS_MEASUREMENT_CONSUMER_ID, service, reportingSetsService, usePeriodicTimeInterval = false)
+    createReport(
+      CMMS_MEASUREMENT_CONSUMER_ID,
+      service,
+      reportingSetsService,
+      usePeriodicTimeInterval = false
+    )
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.streamReports(streamReportsRequest { })
-      }
+      assertFailsWith<StatusRuntimeException> { service.streamReports(streamReportsRequest {}) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.message).contains("cmms_measurement_consumer_id")
@@ -935,118 +1055,120 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
       reportingSetsService: ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase,
       usePeriodicTimeInterval: Boolean,
     ): Report {
-      val createdReportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-      val createdReportingSet2 = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+      val createdReportingSet =
+        createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+      val createdReportingSet2 =
+        createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
 
-      val reportingMetricCalculationSpec = ReportKt.reportingMetricCalculationSpec {
-        metricCalculationSpecs += ReportKt.metricCalculationSpec {
-          reportingMetrics += ReportKt.reportingMetric {
-            details = ReportKt.ReportingMetricKt.details {
-              externalReportingSetId = createdReportingSet.externalReportingSetId
-              metricSpec = metricSpec {
-                reach =
-                  MetricSpecKt.reachParams {
-                    privacyParams =
-                      MetricSpecKt.differentialPrivacyParams {
-                        epsilon = 1.0
-                        delta = 2.0
+      val reportingMetricCalculationSpec =
+        ReportKt.reportingMetricCalculationSpec {
+          metricCalculationSpecs +=
+            ReportKt.metricCalculationSpec {
+              reportingMetrics +=
+                ReportKt.reportingMetric {
+                  details =
+                    ReportKt.ReportingMetricKt.details {
+                      externalReportingSetId = createdReportingSet.externalReportingSetId
+                      metricSpec = metricSpec {
+                        reach =
+                          MetricSpecKt.reachParams {
+                            privacyParams =
+                              MetricSpecKt.differentialPrivacyParams {
+                                epsilon = 1.0
+                                delta = 2.0
+                              }
+                          }
+                        vidSamplingInterval =
+                          MetricSpecKt.vidSamplingInterval {
+                            start = 0.1f
+                            width = 0.5f
+                          }
                       }
-                  }
-                vidSamplingInterval =
-                  MetricSpecKt.vidSamplingInterval {
-                    start = 0.1f
-                    width = 0.5f
-                  }
-              }
-              timeInterval = timeInterval {
-                startTime = timestamp {
-                  seconds = 100
-                }
-                endTime = timestamp {
-                  seconds = 200
-                }
-              }
-            }
-          }
-          details = ReportKt.MetricCalculationSpecKt.details {
-            displayName = "display"
-            metricSpecs += metricSpec {
-              reach =
-                MetricSpecKt.reachParams {
-                  privacyParams =
-                    MetricSpecKt.differentialPrivacyParams {
-                      epsilon = 1.0
-                      delta = 2.0
+                      timeInterval = timeInterval {
+                        startTime = timestamp { seconds = 100 }
+                        endTime = timestamp { seconds = 200 }
+                      }
                     }
                 }
-              vidSamplingInterval =
-                MetricSpecKt.vidSamplingInterval {
-                  start = 0.1f
-                  width = 0.5f
-                }
-            }
-            groupings += ReportKt.MetricCalculationSpecKt.grouping {
-              predicates += "age > 10"
-            }
-            cumulative = false
-          }
-        }
-      }
-
-      val reportingMetricCalculationSpec2 = ReportKt.reportingMetricCalculationSpec {
-        metricCalculationSpecs += ReportKt.metricCalculationSpec {
-          reportingMetrics += ReportKt.reportingMetric {
-            details = ReportKt.ReportingMetricKt.details {
-              externalReportingSetId = createdReportingSet2.externalReportingSetId
-              metricSpec = metricSpec {
-                reach =
-                  MetricSpecKt.reachParams {
-                    privacyParams =
-                      MetricSpecKt.differentialPrivacyParams {
-                        epsilon = 1.0
-                        delta = 2.0
+              details =
+                ReportKt.MetricCalculationSpecKt.details {
+                  displayName = "display"
+                  metricSpecs += metricSpec {
+                    reach =
+                      MetricSpecKt.reachParams {
+                        privacyParams =
+                          MetricSpecKt.differentialPrivacyParams {
+                            epsilon = 1.0
+                            delta = 2.0
+                          }
+                      }
+                    vidSamplingInterval =
+                      MetricSpecKt.vidSamplingInterval {
+                        start = 0.1f
+                        width = 0.5f
                       }
                   }
-                vidSamplingInterval =
-                  MetricSpecKt.vidSamplingInterval {
-                    start = 0.1f
-                    width = 0.5f
-                  }
-              }
-              timeInterval = timeInterval {
-                startTime = timestamp {
-                  seconds = 100
+                  groupings +=
+                    ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                  cumulative = false
                 }
-                endTime = timestamp {
-                  seconds = 200
-                }
-              }
             }
-          }
-          details = ReportKt.MetricCalculationSpecKt.details {
-            displayName = "display"
-            metricSpecs += metricSpec {
-              reach =
-                MetricSpecKt.reachParams {
-                  privacyParams =
-                    MetricSpecKt.differentialPrivacyParams {
-                      epsilon = 1.0
-                      delta = 2.0
+        }
+
+      val reportingMetricCalculationSpec2 =
+        ReportKt.reportingMetricCalculationSpec {
+          metricCalculationSpecs +=
+            ReportKt.metricCalculationSpec {
+              reportingMetrics +=
+                ReportKt.reportingMetric {
+                  details =
+                    ReportKt.ReportingMetricKt.details {
+                      externalReportingSetId = createdReportingSet2.externalReportingSetId
+                      metricSpec = metricSpec {
+                        reach =
+                          MetricSpecKt.reachParams {
+                            privacyParams =
+                              MetricSpecKt.differentialPrivacyParams {
+                                epsilon = 1.0
+                                delta = 2.0
+                              }
+                          }
+                        vidSamplingInterval =
+                          MetricSpecKt.vidSamplingInterval {
+                            start = 0.1f
+                            width = 0.5f
+                          }
+                      }
+                      timeInterval = timeInterval {
+                        startTime = timestamp { seconds = 100 }
+                        endTime = timestamp { seconds = 200 }
+                      }
                     }
                 }
-              vidSamplingInterval =
-                MetricSpecKt.vidSamplingInterval {
-                  start = 0.1f
-                  width = 0.5f
+              details =
+                ReportKt.MetricCalculationSpecKt.details {
+                  displayName = "display"
+                  metricSpecs += metricSpec {
+                    reach =
+                      MetricSpecKt.reachParams {
+                        privacyParams =
+                          MetricSpecKt.differentialPrivacyParams {
+                            epsilon = 1.0
+                            delta = 2.0
+                          }
+                      }
+                    vidSamplingInterval =
+                      MetricSpecKt.vidSamplingInterval {
+                        start = 0.1f
+                        width = 0.5f
+                      }
+                  }
+                  groupings +=
+                    ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                  cumulative = false
                 }
             }
-            groupings += ReportKt.MetricCalculationSpecKt.grouping {
-              predicates += "age > 10"
-            }
-            cumulative = false
-          }
         }
-      }
 
       val report = report {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
@@ -1056,31 +1178,19 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
           reportingMetricCalculationSpec2
         if (usePeriodicTimeInterval) {
           periodicTimeInterval = periodicTimeInterval {
-            startTime = timestamp {
-              seconds = 100
-            }
-            increment = duration {
-              seconds = 50
-            }
+            startTime = timestamp { seconds = 100 }
+            increment = duration { seconds = 50 }
             intervalCount = 3
           }
         } else {
           timeIntervals = timeIntervals {
             timeIntervals += timeInterval {
-              startTime = timestamp {
-                seconds = 100
-              }
-              endTime = timestamp {
-                seconds = 200
-              }
+              startTime = timestamp { seconds = 100 }
+              endTime = timestamp { seconds = 200 }
             }
             timeIntervals += timeInterval {
-              startTime = timestamp {
-                seconds = 300
-              }
-              endTime = timestamp {
-                seconds = 400
-              }
+              startTime = timestamp { seconds = 300 }
+              endTime = timestamp { seconds = 400 }
             }
           }
         }

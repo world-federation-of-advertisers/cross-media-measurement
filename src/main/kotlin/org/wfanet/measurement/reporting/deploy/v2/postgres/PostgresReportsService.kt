@@ -23,7 +23,6 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.db.r2dbc.postgres.SerializableErrors.withSerializableErrorRetries
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -81,8 +80,7 @@ class PostgresReportsService(
           ExternalId(request.externalReportId)
         )
         ?.report
-        ?: failGrpc(Status.NOT_FOUND) { "Report not found." }
-
+        ?: throw Status.NOT_FOUND.withDescription("Report not found.").asRuntimeException()
     } finally {
       readContext.close()
     }
