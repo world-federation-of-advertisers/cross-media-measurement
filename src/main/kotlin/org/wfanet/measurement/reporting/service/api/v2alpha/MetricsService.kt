@@ -553,9 +553,8 @@ class MetricsService(
             )
 
           internalPrimitiveReportingSet.primitive.eventGroupKeysList.map { internalEventGroupKey ->
-            val eventGroupKey =
-              EventGroupKey(
-                internalEventGroupKey.cmmsMeasurementConsumerId,
+            val cmmsEventGroupKey =
+              CmmsEventGroupKey(
                 internalEventGroupKey.cmmsDataProviderId,
                 internalEventGroupKey.cmmsEventGroupId
               )
@@ -564,14 +563,9 @@ class MetricsService(
                 .filter { !it.isNullOrBlank() }
             val filter: String? = if (filtersList.isEmpty()) null else buildConjunction(filtersList)
 
-            eventGroupKey to
+            cmmsEventGroupKey to
               RequisitionSpecKt.eventGroupEntry {
-                key =
-                  CmmsEventGroupKey(
-                      internalEventGroupKey.cmmsDataProviderId,
-                      internalEventGroupKey.cmmsEventGroupId
-                    )
-                    .toName()
+                key = cmmsEventGroupKey.toName()
                 value =
                   RequisitionSpecKt.EventGroupEntryKt.value {
                     collectionInterval = measurement.timeInterval.toCmmsTimeInterval()
@@ -583,7 +577,7 @@ class MetricsService(
           }
         }
         .groupBy(
-          { (eventGroupKey, _) -> DataProviderKey(eventGroupKey.cmmsDataProviderId) },
+          { (cmmsEventGroupKey, _) -> DataProviderKey(cmmsEventGroupKey.dataProviderId) },
           { (_, eventGroupEntry) -> eventGroupEntry }
         )
     }
