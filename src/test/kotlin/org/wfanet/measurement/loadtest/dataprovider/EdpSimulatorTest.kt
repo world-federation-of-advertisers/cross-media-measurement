@@ -30,8 +30,7 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.random.Random
 import kotlinx.coroutines.runBlocking
-import org.junit.BeforeClass
-import org.junit.ClassRule
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -152,7 +151,8 @@ import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 private const val TEMPLATE_PREFIX = "wfa.measurement.api.v2alpha.event_templates.testing"
-private const val MC_NAME = "mc"
+private const val MC_ID = "mc"
+private const val MC_NAME = "measurementConsumers/$MC_ID"
 private val EVENT_TEMPLATES =
   listOf("$TEMPLATE_PREFIX.Video", "$TEMPLATE_PREFIX.BannerAd", "$TEMPLATE_PREFIX.Person")
 private const val EDP_DISPLAY_NAME = "edp1"
@@ -195,6 +195,7 @@ private val SKETCH_CONFIG = sketchConfig {
 private val MEASUREMENT_CONSUMER_CERTIFICATE_DER =
   SECRET_FILES_PATH.resolve("mc_cs_cert.der").toFile().readByteString()
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
+private const val MEASUREMENT_NAME = "$MC_NAME/measurements/BBBBBBBBBHs"
 private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
   "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
 private val MEASUREMENT_CONSUMER_CERTIFICATE = certificate {
@@ -204,7 +205,7 @@ private val MEASUREMENT_CONSUMER_CERTIFICATE = certificate {
 private val MEASUREMENT_PUBLIC_KEY =
   encryptionPublicKey {
       format = EncryptionPublicKey.Format.TINK_KEYSET
-      data = SECRET_FILES_PATH.resolve("${MC_NAME}_enc_public.tink").toFile().readByteString()
+      data = SECRET_FILES_PATH.resolve("${MC_ID}_enc_public.tink").toFile().readByteString()
     }
     .toByteString()
 
@@ -279,6 +280,10 @@ class EdpSimulatorTest {
   private val requisitionFulfillmentServiceMock: RequisitionFulfillmentCoroutineImplBase =
     mockService()
 
+  @get:Rule public val temporaryFolder: TemporaryFolder = TemporaryFolder()
+
+  private lateinit var sketchStore: SketchStore
+
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(measurementConsumersServiceMock)
@@ -287,6 +292,11 @@ class EdpSimulatorTest {
     addService(eventGroupMetadataDescriptorsServiceMock)
     addService(requisitionsServiceMock)
     addService(requisitionFulfillmentServiceMock)
+  }
+
+  @Before
+  fun initSketchStore() {
+    sketchStore = SketchStore(FileSystemStorageClient(temporaryFolder.root))
   }
 
   private val measurementConsumersStub by lazy {
@@ -352,6 +362,69 @@ class EdpSimulatorTest {
           }
         }
       )
+    }
+  }
+
+  @Test
+  fun `Does nothing for requisitions with different Measumrent Consumer Id`() {
+    runBlocking {
+      val allEvents =
+        generateEvents(
+          1L..10L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_18_TO_34,
+          Person.Gender.FEMALE
+        ) +
+          generateEvents(
+            11L..15L,
+            FIRST_EVENT_DATE,
+            Person.AgeGroup.YEARS_35_TO_54,
+            Person.Gender.FEMALE
+          ) +
+          generateEvents(
+            16L..20L,
+            FIRST_EVENT_DATE,
+            Person.AgeGroup.YEARS_55_PLUS,
+            Person.Gender.FEMALE
+          ) +
+          generateEvents(
+            21L..25L,
+            FIRST_EVENT_DATE,
+            Person.AgeGroup.YEARS_18_TO_34,
+            Person.Gender.MALE
+          ) +
+          generateEvents(
+            26L..30L,
+            FIRST_EVENT_DATE,
+            Person.AgeGroup.YEARS_35_TO_54,
+            Person.Gender.MALE
+          )
+
+      val random = java.util.Random()
+
+      val edpSimulator =
+        EdpSimulator(
+          EDP_DATA,
+          "measurementConsumers/differentMcId",
+          measurementConsumersStub,
+          certificatesStub,
+          eventGroupsStub,
+          eventGroupMetadataDescriptorsStub,
+          requisitionsStub,
+          requisitionFulfillmentStub,
+          sketchStore,
+          InMemoryEventQuery(allEvents),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          EVENT_TEMPLATES,
+          privacyBudgetManager,
+          TRUSTED_CERTIFICATES,
+          random,
+          DIRECT_NOISE_MECHANISM
+        )
+      edpSimulator.createEventGroup()
+      edpSimulator.executeRequisitionFulfillingWorkflow()
+      val storedSketch = sketchStore.get(REQUISITION_ONE)?.read()?.flatten()
+      assertThat(storedSketch).isNull()
     }
   }
 
@@ -836,8 +909,7 @@ class EdpSimulatorTest {
   }
 
   companion object {
-    private val MC_SIGNING_KEY =
-      loadSigningKey("${MC_NAME}_cs_cert.der", "${MC_NAME}_cs_private.der")
+    private val MC_SIGNING_KEY = loadSigningKey("${MC_ID}_cs_cert.der", "${MC_ID}_cs_private.der")
     private val DUCHY_SIGNING_KEY =
       loadSigningKey("${DUCHY_ID}_cs_cert.der", "${DUCHY_ID}_cs_private.der")
 
@@ -884,6 +956,7 @@ class EdpSimulatorTest {
 
     private val REQUISITION_ONE = requisition {
       name = "requisition_one"
+      measurement = MEASUREMENT_NAME
       state = Requisition.State.UNFULFILLED
       measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
       measurementSpec = signMeasurementSpec(MEASUREMENT_SPEC, MC_SIGNING_KEY)
@@ -919,8 +992,6 @@ class EdpSimulatorTest {
       readCertificateCollection(SECRET_FILES_PATH.resolve("edp_trusted_certs.pem").toFile())
         .associateBy { requireNotNull(it.authorityKeyIdentifier) }
 
-    @JvmField @ClassRule val temporaryFolder: TemporaryFolder = TemporaryFolder()
-
     private fun loadSigningKey(
       certDerFileName: String,
       privateKeyDerFileName: String
@@ -949,14 +1020,6 @@ class EdpSimulatorTest {
 
     private fun assertAnySketchEquals(sketch: AnySketch, other: AnySketch) {
       assertThat(sketch).comparingElementsUsing(EQUIVALENCE).containsExactlyElementsIn(other)
-    }
-
-    private lateinit var sketchStore: SketchStore
-
-    @JvmStatic
-    @BeforeClass
-    fun initSketchStore() {
-      sketchStore = SketchStore(FileSystemStorageClient(temporaryFolder.root))
     }
   }
 }
