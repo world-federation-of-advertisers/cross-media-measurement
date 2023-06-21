@@ -169,13 +169,13 @@ class ReportReader(private val readContext: ReadContext) {
             AND ((CreateTime > $2) OR
             (CreateTime = $2
             AND ExternalReportId > $3))
-          ORDER BY CreateTime, ExternalReportId ASC
+          ORDER BY CreateTime ASC, ExternalReportId ASC
           LIMIT $4
         ) AS Reports
       """ +
           baseSqlJoins +
           """
-          ORDER BY CreateTime, ExternalReportId ASC
+          ORDER BY CreateTime ASC, ExternalReportId ASC
           """
       ) {
         bind("$1", request.filter.cmmsMeasurementConsumerId)

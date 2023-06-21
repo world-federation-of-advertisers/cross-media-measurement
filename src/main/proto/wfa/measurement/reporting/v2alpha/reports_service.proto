@@ -20,6 +20,7 @@ import "google/api/client.proto";
 import "google/api/field_behavior.proto";
 import "google/api/annotations.proto";
 import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
 import "wfa/measurement/reporting/v2alpha/report.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
@@ -80,17 +81,29 @@ message ListReportsRequest {
   // The maximum value is 1000; values above 1000 will be coerced to 1000.
   int32 page_size = 2;
 
+  // Filter criteria. Repeated fields are treated as logical ORs, and multiple
+  // fields specified as logical ANDs.
+  message Filter {
+    // Only reports with a `create_time` greater than this, exclusive, are
+    // returned.
+    google.protobuf.Timestamp create_time = 1;
+  }
+
+  // Filter criteria.
+  Filter filter = 3;
+
   // A page token, received from a previous `ListReports` call.
   // Provide this to retrieve the subsequent page.
   //
   // When paginating, all other parameters provided to `ListReports` must match
   // the call that provided the page token.
-  string page_token = 3;
+  string page_token = 4;
 }
 
 // Response message for `ListReports` method.
 message ListReportsResponse {
-  // The reports from the specified measurement consumer.
+  // The reports from the specified measurement consumer. Ordered by
+  // `create_time`, ascending.
   repeated Report reports = 1;
 
   // A token, which can be sent as `page_token` to retrieve the next page.
