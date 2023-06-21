@@ -55,6 +55,9 @@ import org.wfanet.measurement.internal.duchy.createComputationResponse
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
+import org.wfanet.measurement.system.v1alpha.computationLogEntry
+import org.wfanet.measurement.system.v1alpha.createComputationLogEntryRequest
+import org.wfanet.measurement.system.v1alpha.stageAttempt
 
 /** Implementation of the Computations service for Postgres database. */
 class PostgresComputationsService(
@@ -88,6 +91,7 @@ class PostgresComputationsService(
           request.stageDetails,
           request.computationDetails,
           request.requisitionsList,
+          clock,
           computationTypeEnumHelper,
           protocolStageEnumHelper,
           computationProtocolStageDetailsHelper
@@ -164,7 +168,7 @@ class PostgresComputationsService(
           reader.readComputationToken(client.singleUse(), request.globalComputationId)
         KeyCase.REQUISITION_KEY ->
           reader.readComputationToken(client.singleUse(), request.requisitionKey)
-        KeyCase.KEY_NOT_SET -> failGrpc(Status.INVALID_ARGUMENT) { "Key not set" }
+        KeyCase.KEY_NOT_SET -> failGrpc(Status.INVALID_ARGUMENT) { "key not set" }
       }
         ?: failGrpc(Status.NOT_FOUND) { "Computation not found" }
 
@@ -176,22 +180,20 @@ class PostgresComputationsService(
     computationStage: ComputationStage,
     attempt: Long = 0L
   ): CreateComputationLogEntryRequest {
-    return CreateComputationLogEntryRequest.newBuilder()
-      .apply {
-        parent = ComputationParticipantKey(globalId, duchyName).toName()
-        computationLogEntryBuilder.apply {
-          // TODO: maybe set participantChildReferenceId
-          logMessage =
-            "Computation $globalId at stage ${computationStage.name}, " + "attempt $attempt"
-          stageAttemptBuilder.apply {
-            stage = computationStage.number
-            stageName = computationStage.name
-            stageStartTime = clock.protoTimestamp()
-            attemptNumber = attempt
-          }
+    return createComputationLogEntryRequest {
+      parent = ComputationParticipantKey(globalId, duchyName).toName()
+      computationLogEntry {
+        // TODO: maybe set participantChildReferenceId
+        logMessage =
+          "Computation $globalId at stage ${computationStage.name}, " + "attempt $attempt"
+        stageAttempt {
+          stage = computationStage.number
+          stageName = computationStage.name
+          stageStartTime = clock.protoTimestamp()
+          attemptNumber = attempt
         }
       }
-      .build()
+    }
   }
 
   private suspend fun sendStatusUpdateToKingdom(request: CreateComputationLogEntryRequest) {

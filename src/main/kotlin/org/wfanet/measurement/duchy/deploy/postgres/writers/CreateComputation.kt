@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.deploy.postgres.writers
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
+import java.time.Clock
 import java.time.Instant
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
@@ -53,6 +54,7 @@ class CreateComputation<ProtocolT, ComputationDT : Message, StageT, StageDT : Me
   private val stageDetails: StageDT,
   private val computationDetails: ComputationDT,
   private val requisitions: List<RequisitionEntry>,
+  private val clock: Clock,
   computationTypeEnumHelper: ComputationTypeEnumHelper<ProtocolT>,
   computationProtocolStagesEnumHelper: ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
   computationProtocolStageDetailsHelper:
@@ -72,7 +74,7 @@ class CreateComputation<ProtocolT, ComputationDT : Message, StageT, StageDT : Me
 
     val lockOwner: String? = null
     val localId = idGenerator.generateInternalId()
-    val writeTimestamp = Instant.now()
+    val writeTimestamp = clock.instant()
 
     insertComputation(
       localId = localId.value,
@@ -103,7 +105,9 @@ class CreateComputation<ProtocolT, ComputationDT : Message, StageT, StageDT : Me
         requisitionId = requisitions.indexOf(it).toLong(),
         externalRequisitionId = it.key.externalRequisitionId,
         requisitionFingerprint = it.key.requisitionFingerprint,
-        requisitionDetails = it.value
+        requisitionDetails = it.value,
+        creationTime = writeTimestamp,
+        updateTime = writeTimestamp
       )
     }
   }
@@ -201,8 +205,10 @@ class CreateComputation<ProtocolT, ComputationDT : Message, StageT, StageDT : Me
     requisitionId: Long,
     externalRequisitionId: String,
     requisitionFingerprint: ByteString,
+    creationTime: Instant,
+    updateTime: Instant,
     pathToBlob: String? = null,
-    requisitionDetails: RequisitionDetails = RequisitionDetails.getDefaultInstance()
+    requisitionDetails: RequisitionDetails = RequisitionDetails.getDefaultInstance(),
   ) {
     val insertRequisitionStatement =
       boundStatement(
@@ -215,18 +221,22 @@ class CreateComputation<ProtocolT, ComputationDT : Message, StageT, StageDT : Me
           RequisitionFingerprint,
           PathToBlob,
           RequisitionDetails,
-          RequisitionDetailsJSON
+          RequisitionDetailsJSON,
+          CreationTime,
+          UpdateTime
         )
-      VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+      VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
       """
       ) {
         bind("$1", localComputationId)
         bind("$2", requisitionId)
         bind("$3", externalRequisitionId)
-        bind("$4", requisitionFingerprint)
+        bind("$4", requisitionFingerprint.toByteArray())
         bind("$5", pathToBlob)
         bind("$6", requisitionDetails.toByteArray())
         bind("$7", requisitionDetails.toJson())
+        bind("$8", creationTime)
+        bind("$9", updateTime)
       }
 
     transactionContext.executeStatement(insertRequisitionStatement)

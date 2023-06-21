@@ -66,13 +66,13 @@ class PostgresComputationStatsServiceTest :
 
   override fun newComputationsService(): ComputationsGrpcKt.ComputationsCoroutineImplBase {
     return PostgresComputationsService(
-      ComputationTypes,
-      ComputationProtocolStages,
-      ComputationProtocolStageDetails,
-      client,
-      idGenerator,
-      ALSACE,
-      systemComputationLogEntriesClient
+      computationTypeEnumHelper = ComputationTypes,
+      protocolStageEnumHelper = ComputationProtocolStages,
+      computationProtocolStageDetailsHelper = ComputationProtocolStageDetails,
+      client = client,
+      idGenerator = idGenerator,
+      duchyName = ALSACE,
+      computationLogEntriesClient = systemComputationLogEntriesClient
     )
   }
 }

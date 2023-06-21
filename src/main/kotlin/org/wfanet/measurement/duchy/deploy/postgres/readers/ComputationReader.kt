@@ -14,8 +14,12 @@
 
 package org.wfanet.measurement.duchy.deploy.postgres.readers
 
+import com.google.gson.JsonParser
+import com.google.gson.JsonPrimitive
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteString
 import java.time.Instant
+import java.util.Base64
 import kotlinx.coroutines.flow.firstOrNull
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
@@ -44,7 +48,7 @@ import org.wfanet.measurement.internal.duchy.requisitionMetadata
  */
 class ComputationReader(
   private val computationProtocolStagesEnumHelper:
-    ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
+  ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
 ) {
 
   /** A wrapper data class for ComputationToken query result */
@@ -55,30 +59,43 @@ class ComputationReader(
       computationToken {
         val blobs =
           row
-            .get<Array<Map<String, Any>>?>("Blobs")
+            .get<Array<String>?>("Blobs")
             ?.map {
+              val jsonObj = JsonParser.parseString(it).asJsonObject
               computationStageBlobMetadata {
-                blobId = it["BlobId"] as Long
-                val blobPath: String = it["PathToBlob"].toString()
+                blobId = jsonObj.getAsJsonPrimitive("BlobId").asLong
+                val blobPath: String = jsonObj.getAsJsonPrimitive("PathToBlob").asString
                 if (blobPath.isNotEmpty()) {
                   path = blobPath
                 }
-                dependencyType = ComputationBlobDependency.forNumber(it["DependencyType"] as Int)
+                dependencyType =
+                  ComputationBlobDependency.forNumber(
+                    jsonObj.getAsJsonPrimitive("DependencyType").asInt
+                  )
               }
             }
             ?.sortedBy { it.blobId }
         val requisitions =
           row
-            .get<Array<Map<String, Any>>?>("Requisitions")
+            .get<Array<String>?>("Requisitions")
             ?.map {
+              val jsonObj = JsonParser.parseString(it).asJsonObject
               requisitionMetadata {
                 externalKey = externalRequisitionKey {
-                  externalRequisitionId = it["ExternalRequisitionId"].toString()
-                  requisitionFingerprint = it["RequisitionFingerprint"] as ByteString
+                  externalRequisitionId =
+                    jsonObj.getAsJsonPrimitive("ExternalRequisitionId").asString
+                  requisitionFingerprint =
+                    jsonObj
+                      .getAsJsonPrimitive("RequisitionFingerprint")
+                      .decodePostgresBase64()
                 }
-                path = it["PathToBlob"].toString()
+                jsonObj.get("PathToBlob").let { jsonElem ->
+                  if (!jsonElem.isJsonNull) path = jsonElem.asString
+                }
                 details =
-                  RequisitionDetails.parser().parseFrom(it["RequisitionDetails"] as ByteArray)
+                  RequisitionDetails.parseFrom(
+                    jsonObj.getAsJsonPrimitive("RequisitionDetails").decodePostgresBase64()
+                  )
               }
             }
             ?.sortedBy { it.externalKey.externalRequisitionId }
@@ -139,7 +156,7 @@ class ComputationReader(
         cs.NextAttempt,
         cs.Details AS StageDetails,
         (
-          SELECT JSON_AGG(
+          SELECT ARRAY_AGG(
             JSON_BUILD_OBJECT(
               'BlobId', b.BlobId,
               'BlobPath', b.PathToBlob,
@@ -152,12 +169,12 @@ class ComputationReader(
             c.ComputationStage = b.ComputationStage
         ) AS Blobs,
         (
-          SELECT JSON_AGG(
+          SELECT ARRAY_AGG(
             JSON_BUILD_OBJECT(
               'ExternalRequisitionId', r2.ExternalRequisitionId,
-              'RequisitionFingerprint', r2.RequisitionFingerprint,
+              'RequisitionFingerprint', encode(r2.RequisitionFingerprint, 'base64'),
               'PathToBlob', r2.PathToBlob,
-              'RequisitionDetails', r2.RequisitionDetails
+              'RequisitionDetails', encode(r2.RequisitionDetails, 'base64')
             ))
           FROM Requisitions AS r2
           WHERE c.ComputationId = r2.ComputationId
@@ -236,5 +253,13 @@ class ComputationReader(
         bind("$2", externalRequisitionKey.requisitionFingerprint)
       }
     return readContext.executeQuery(statement).consume(::buildComputationToken).firstOrNull()
+  }
+
+  /**
+   * Postgres base64 encoding follows MIME encoding standards from RFC 2045 by adding \n to break up
+   * the text. The MIME decoder ignores the \n.
+   */
+  private fun JsonPrimitive.decodePostgresBase64(): ByteString {
+    return Base64.getMimeDecoder().decode(this.asString).toByteString()
   }
 }
