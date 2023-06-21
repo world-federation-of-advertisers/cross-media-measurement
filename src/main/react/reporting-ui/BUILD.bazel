@@ -29,14 +29,14 @@ webpack.webpack_cli(
     name = "dev_bundle",
     srcs = [
         ":build_node_deps",
-        ":webpack_config",
         ":tsconfig",
+        ":webpack_config",
         "//src/main/react/reporting-ui/public",
         "//src/main/react/reporting-ui/src:src_files",
     ],
     args = [
         "--config webpack.config.js",
-        "--mode development"
+        "--mode development",
     ],
     chdir = package_name(),
     log_level = "debug",
@@ -52,8 +52,8 @@ webpack_server.webpack_dev_server_binary(
     chdir = package_name(),
     data = [
         ":build_node_deps",
-        ":webpack_config",
         ":tsconfig",
+        ":webpack_config",
         "//src/main/react/reporting-ui/public",
         "//src/main/react/reporting-ui/src:src_files",
     ],
