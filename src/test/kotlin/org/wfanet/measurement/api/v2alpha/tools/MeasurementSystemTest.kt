@@ -21,6 +21,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
 import com.google.protobuf.duration
+import com.google.protobuf.empty
 import com.google.protobuf.timestamp
 import com.google.protobuf.value
 import io.grpc.Server
@@ -53,8 +54,10 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelLineRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelReleaseRequest
+import org.wfanet.measurement.api.v2alpha.CreateModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
+import org.wfanet.measurement.api.v2alpha.DeleteModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
@@ -64,6 +67,8 @@ import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.ListModelReleasesRequest
+import org.wfanet.measurement.api.v2alpha.ListModelRolloutsRequest
+import org.wfanet.measurement.api.v2alpha.ListModelRolloutsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
@@ -85,6 +90,7 @@ import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.PublicKey
@@ -92,6 +98,7 @@ import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.ReplaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
+import org.wfanet.measurement.api.v2alpha.ScheduleModelRolloutFreezeRequest
 import org.wfanet.measurement.api.v2alpha.SetModelLineActiveEndTimeRequest
 import org.wfanet.measurement.api.v2alpha.SetModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.api.v2alpha.account
@@ -105,7 +112,9 @@ import org.wfanet.measurement.api.v2alpha.createApiKeyRequest
 import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.dataProvider
+import org.wfanet.measurement.api.v2alpha.deleteModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.getModelReleaseRequest
@@ -116,6 +125,8 @@ import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.listModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.listModelReleasesRequest
 import org.wfanet.measurement.api.v2alpha.listModelReleasesResponse
+import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
+import org.wfanet.measurement.api.v2alpha.listModelRolloutsResponse
 import org.wfanet.measurement.api.v2alpha.listModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.listModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.measurement
@@ -123,11 +134,13 @@ import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.modelRelease
+import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.publicKey
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.revokeCertificateRequest
+import org.wfanet.measurement.api.v2alpha.scheduleModelRolloutFreezeRequest
 import org.wfanet.measurement.api.v2alpha.setModelLineActiveEndTimeRequest
 import org.wfanet.measurement.api.v2alpha.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.api.v2alpha.signedData
@@ -206,6 +219,10 @@ private val DUCHY_NAMES = listOf(DUCHY_KEY).map { it.toName() }
 private const val MODEL_LINE_ACTIVE_START_TIME = "2025-05-24T05:00:00.000Z"
 private const val MODEL_LINE_ACTIVE_END_TIME = "2030-05-24T05:00:00.000Z"
 
+private const val MODEL_ROLLOUT_ACTIVE_START_TIME = "2026-05-24T05:00:00.000Z"
+private const val MODEL_ROLLOUT_ACTIVE_END_TIME = "2026-09-24T05:00:00.000Z"
+private const val MODEL_ROLLOUT_FREEZE_TIME = "2026-07-24T05:00:00.000Z"
+
 private val DATA_PROVIDER = dataProvider {
   name = DATA_PROVIDER_NAME
   certificate = DATA_PROVIDER_CERTIFICATE_NAME
@@ -216,6 +233,7 @@ private const val MODEL_SUITE_NAME = "$MODEL_PROVIDER_NAME/modelSuites/1"
 private const val MODEL_LINE_NAME = "$MODEL_SUITE_NAME/modelLines/1"
 private const val HOLDBACK_MODEL_LINE_NAME = "$MODEL_SUITE_NAME/modelLines/2"
 private const val MODEL_RELEASE_NAME = "$MODEL_SUITE_NAME/modelReleases/1"
+private const val MODEL_ROLLOUT_NAME = "$MODEL_LINE_NAME/modelRollouts/1"
 
 private val MODEL_SUITE = modelSuite {
   name = MODEL_SUITE_NAME
@@ -243,6 +261,27 @@ private val MODEL_LINE = modelLine {
 private val MODEL_RELEASE = modelRelease {
   name = MODEL_RELEASE_NAME
   createTime = timestamp { seconds = 3000 }
+}
+
+private val MODEL_ROLLOUT = modelRollout {
+  name = MODEL_ROLLOUT_NAME
+  rolloutPeriod = timeInterval {
+    startTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime()
+    endTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime()
+  }
+  previousModelRollout = "previous model"
+  modelRelease = MODEL_RELEASE_NAME
+}
+
+private val MODEL_ROLLOUT_WITH_FREEZE_TIME = modelRollout {
+  name = MODEL_ROLLOUT_NAME
+  rolloutPeriod = timeInterval {
+    startTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime()
+    endTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime()
+  }
+  rolloutFreezeTime = Instant.parse(MODEL_ROLLOUT_FREEZE_TIME).toProtoTime()
+  previousModelRollout = "previous model"
+  modelRelease = MODEL_RELEASE_NAME
 }
 
 private const val TIME_STRING_1 = "2022-05-22T01:00:00.000Z"
@@ -333,6 +372,13 @@ class MeasurementSystemTest {
     onBlocking { listModelReleases(any()) }
       .thenReturn(listModelReleasesResponse { modelReleases += listOf(MODEL_RELEASE) })
   }
+  private val modelRolloutsServiceMock: ModelRolloutsCoroutineImplBase = mockService {
+    onBlocking { createModelRollout(any()) }.thenReturn(MODEL_ROLLOUT)
+    onBlocking { listModelRollouts(any()) }
+      .thenReturn(listModelRolloutsResponse { modelRollouts += listOf(MODEL_ROLLOUT) })
+    onBlocking { scheduleModelRolloutFreeze(any()) }.thenReturn(MODEL_ROLLOUT_WITH_FREEZE_TIME)
+    onBlocking { deleteModelRollout(any()) }.thenReturn(empty {})
+  }
   private val modelSuitesServiceMock: ModelSuitesCoroutineImplBase = mockService {
     onBlocking { createModelSuite(any()) }.thenReturn(MODEL_SUITE)
     onBlocking { getModelSuite(any()) }.thenReturn(MODEL_SUITE)
@@ -351,6 +397,7 @@ class MeasurementSystemTest {
       ServerInterceptors.intercept(publicKeysServiceMock, headerInterceptor),
       ServerInterceptors.intercept(modelLinesServiceMock, headerInterceptor),
       ServerInterceptors.intercept(modelReleasesServiceMock, headerInterceptor),
+      ServerInterceptors.intercept(modelRolloutsServiceMock, headerInterceptor),
       ServerInterceptors.intercept(modelSuitesServiceMock, headerInterceptor),
     )
 
@@ -1299,6 +1346,122 @@ class MeasurementSystemTest {
       }
 
     assertThat(request).isEqualTo(listModelReleasesRequest { parent = MODEL_SUITE_NAME })
+  }
+
+  @Test
+  fun `create model rollout succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-rollouts",
+          "create",
+          "--parent=$MODEL_LINE_NAME",
+          "--rollout-start-time=$MODEL_ROLLOUT_ACTIVE_START_TIME",
+          "--rollout-end-time=$MODEL_ROLLOUT_ACTIVE_END_TIME",
+          "--model-release=$MODEL_RELEASE_NAME",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<CreateModelRolloutRequest> {
+        runBlocking { verify(modelRolloutsServiceMock).createModelRollout(capture()) }
+      }
+
+    assertThat(request)
+      .isEqualTo(
+        createModelRolloutRequest {
+          parent = MODEL_LINE_NAME
+          modelRollout = modelRollout {
+            rolloutPeriod = timeInterval {
+              startTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime()
+              endTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime()
+            }
+            modelRelease = MODEL_RELEASE_NAME
+          }
+        }
+      )
+  }
+
+  @Test
+  fun `list model rollouts succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-rollouts",
+          "list",
+          "--parent=$MODEL_LINE_NAME",
+          "--page-size=10",
+          "--page-token=token",
+          "--rollout-period-overlapping-start-time=$MODEL_ROLLOUT_ACTIVE_START_TIME",
+          "--rollout-period-overlapping-end-time=$MODEL_ROLLOUT_ACTIVE_END_TIME"
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<ListModelRolloutsRequest> {
+        runBlocking { verify(modelRolloutsServiceMock).listModelRollouts(capture()) }
+      }
+
+    assertThat(request)
+      .isEqualTo(
+        listModelRolloutsRequest {
+          parent = MODEL_LINE_NAME
+          pageSize = 10
+          pageToken = "token"
+          filter =
+            ListModelRolloutsRequestKt.filter {
+              rolloutPeriodOverlapping = timeInterval {
+                startTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime()
+                endTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime()
+              }
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `schedule model rollouts freeze time succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-rollouts",
+          "schedule",
+          "--name=$MODEL_ROLLOUT_NAME",
+          "--freeze-time=$MODEL_ROLLOUT_FREEZE_TIME",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<ScheduleModelRolloutFreezeRequest> {
+        runBlocking { verify(modelRolloutsServiceMock).scheduleModelRolloutFreeze(capture()) }
+      }
+
+    assertThat(request)
+      .isEqualTo(
+        scheduleModelRolloutFreezeRequest {
+          name = MODEL_ROLLOUT_NAME
+          rolloutFreezeTime = Instant.parse(MODEL_ROLLOUT_FREEZE_TIME).toProtoTime()
+        }
+      )
+  }
+
+  @Test
+  fun `delete model rollouts succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-rollouts",
+          "delete",
+          "--name=$MODEL_ROLLOUT_NAME",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<DeleteModelRolloutRequest> {
+        runBlocking { verify(modelRolloutsServiceMock).deleteModelRollout(capture()) }
+      }
+
+    assertThat(request).isEqualTo(deleteModelRolloutRequest { name = MODEL_ROLLOUT_NAME })
   }
 
   @Test
