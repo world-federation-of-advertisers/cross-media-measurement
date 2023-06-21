@@ -390,9 +390,7 @@ class ReportReader {
             state = Measurement.State.forNumber(it.getAsJsonPrimitive("state").asInt)
             if (!it.get("failure").isJsonNull) {
               failure =
-                Measurement.Failure.parseFrom(
-                  it.getAsJsonPrimitive("failure").base64MimeDecode()
-                )
+                Measurement.Failure.parseFrom(it.getAsJsonPrimitive("failure").base64MimeDecode())
             }
             if (!it.get("result").isJsonNull) {
               result =
