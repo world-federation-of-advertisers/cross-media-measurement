@@ -48,7 +48,7 @@ import org.wfanet.measurement.internal.duchy.requisitionMetadata
  */
 class ComputationReader(
   private val computationProtocolStagesEnumHelper:
-  ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
+    ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
 ) {
 
   /** A wrapper data class for ComputationToken query result */
@@ -85,9 +85,7 @@ class ComputationReader(
                   externalRequisitionId =
                     jsonObj.getAsJsonPrimitive("ExternalRequisitionId").asString
                   requisitionFingerprint =
-                    jsonObj
-                      .getAsJsonPrimitive("RequisitionFingerprint")
-                      .decodePostgresBase64()
+                    jsonObj.getAsJsonPrimitive("RequisitionFingerprint").decodePostgresBase64()
                 }
                 jsonObj.get("PathToBlob").let { jsonElem ->
                   if (!jsonElem.isJsonNull) path = jsonElem.asString
