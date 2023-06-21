@@ -39,7 +39,8 @@ class V2PostgresInProcessLifeOfAReportIntegrationTest : InProcessLifeOfAReportIn
   }
 
   /** Provides a function from Duchy to the dependencies needed to start the Duchy to the test. */
-  override val duchyDependenciesRule: ProviderRule<(String) -> InProcessDuchy.DuchyDependencies> by lazy {
+  override val duchyDependenciesRule:
+    ProviderRule<(String) -> InProcessDuchy.DuchyDependencies> by lazy {
     DuchyDependencyProviderRule(ALL_DUCHY_NAMES)
   }
 

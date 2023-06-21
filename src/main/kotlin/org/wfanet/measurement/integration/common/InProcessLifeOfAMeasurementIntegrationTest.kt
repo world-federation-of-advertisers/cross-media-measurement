@@ -40,11 +40,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
 
   @get:Rule
   val inProcessComponents: InProcessComponents by lazy {
-    InProcessComponents(
-      kingdomDataServicesRule,
-      duchyDependenciesRule,
-      storageClient
-    )
+    InProcessComponents(kingdomDataServicesRule, duchyDependenciesRule, storageClient)
   }
 
   @Before

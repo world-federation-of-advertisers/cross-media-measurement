@@ -54,7 +54,7 @@ class InProcessComponents(
   private val kingdomDataServicesRule: ProviderRule<DataServices>,
   private val duchyDependenciesRule: ProviderRule<(String) -> InProcessDuchy.DuchyDependencies>,
   private val storageClient: StorageClient,
-): TestRule {
+) : TestRule {
   private val kingdomDataServices: DataServices
     get() = kingdomDataServicesRule.value
 
@@ -64,7 +64,6 @@ class InProcessComponents(
       verboseGrpcLogging = false,
       REDIRECT_URI,
     )
-
 
   private val duchies: List<InProcessDuchy> by lazy {
     ALL_DUCHY_NAMES.map {
@@ -120,8 +119,12 @@ class InProcessComponents(
   private val publicRequisitionsClient by lazy {
     RequisitionsGrpcKt.RequisitionsCoroutineStub(kingdom.publicApiChannel)
   }
-  private val publicAccountsClient by lazy { AccountsGrpcKt.AccountsCoroutineStub(kingdom.publicApiChannel) }
-  private val publicApiKeysClient by lazy { ApiKeysGrpcKt.ApiKeysCoroutineStub(kingdom.publicApiChannel) }
+  private val publicAccountsClient by lazy {
+    AccountsGrpcKt.AccountsCoroutineStub(kingdom.publicApiChannel)
+  }
+  private val publicApiKeysClient by lazy {
+    ApiKeysGrpcKt.ApiKeysCoroutineStub(kingdom.publicApiChannel)
+  }
 
   private lateinit var mcResourceName: String
   private lateinit var apiAuthenticationKey: String

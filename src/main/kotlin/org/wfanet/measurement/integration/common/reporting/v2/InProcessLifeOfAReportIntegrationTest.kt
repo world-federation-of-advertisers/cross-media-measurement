@@ -63,11 +63,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
   abstract val storageClient: StorageClient
 
   private val inProcessKingdomComponents: InProcessComponents by lazy {
-    InProcessComponents(
-      kingdomDataServicesRule,
-      duchyDependenciesRule,
-      storageClient
-    )
+    InProcessComponents(kingdomDataServicesRule, duchyDependenciesRule, storageClient)
   }
 
   private val inProcessKingdomComponentsStartup: TestRule by lazy {
@@ -89,15 +85,15 @@ abstract class InProcessLifeOfAReportIntegrationTest {
       val measurementConsumerData = inProcessKingdomComponents.getMeasurementConsumerData()
 
       encryptionKeyPairConfig {
-          principalKeyPairs += principalKeyPairs {
-            principal = measurementConsumerData.name
-            keyPairs += keyPair {
-              publicKeyFile = "mc_enc_public.tink"
-              privateKeyFile = "mc_enc_private.tink"
-            }
+        principalKeyPairs += principalKeyPairs {
+          principal = measurementConsumerData.name
+          keyPairs += keyPair {
+            publicKeyFile = "mc_enc_public.tink"
+            privateKeyFile = "mc_enc_private.tink"
           }
         }
       }
+    }
 
     val measurementConsumerConfigGenerator: () -> MeasurementConsumerConfig = {
       val measurementConsumerData = inProcessKingdomComponents.getMeasurementConsumerData()
@@ -105,9 +101,9 @@ abstract class InProcessLifeOfAReportIntegrationTest {
       val measurementConsumer = runBlocking {
         publicKingdomMeasurementConsumersClient
           .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-          .getMeasurementConsumer(getMeasurementConsumerRequest {
-            name = measurementConsumerData.name
-          })
+          .getMeasurementConsumer(
+            getMeasurementConsumerRequest { name = measurementConsumerData.name }
+          )
       }
 
       measurementConsumerConfig {
@@ -130,7 +126,11 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
   @get:Rule
   val ruleChain: TestRule by lazy {
-    chainRulesSequentially(inProcessKingdomComponents, inProcessKingdomComponentsStartup, reportingServer)
+    chainRulesSequentially(
+      inProcessKingdomComponents,
+      inProcessKingdomComponentsStartup,
+      reportingServer
+    )
   }
 
   private val publicKingdomMeasurementConsumersClient by lazy {
@@ -149,28 +149,27 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
   @Test
   fun `connection test`() = runBlocking {
-    //TODO(@tristanvuong2021): Add tests covering different scenarios
+    // TODO(@tristanvuong2021): Add tests covering different scenarios
     val measurementConsumerName = inProcessKingdomComponents.getMeasurementConsumerData().name
-    val reportingSets = publicReportingSetsClient
-      .withPrincipalName(measurementConsumerName)
-      .listReportingSets(listReportingSetsRequest {
-        parent = measurementConsumerName
-      })
+    val reportingSets =
+      publicReportingSetsClient
+        .withPrincipalName(measurementConsumerName)
+        .listReportingSets(listReportingSetsRequest { parent = measurementConsumerName })
     assertThat(reportingSets.reportingSetsList).isEmpty()
   }
 
   companion object {
     private val SECRETS_DIR: File =
       getRuntimePath(
-        Paths.get(
-          "wfa_measurement_system",
-          "src",
-          "main",
-          "k8s",
-          "testing",
-          "secretfiles",
-        )
-      )!!
+          Paths.get(
+            "wfa_measurement_system",
+            "src",
+            "main",
+            "k8s",
+            "testing",
+            "secretfiles",
+          )
+        )!!
         .toFile()
 
     private val TRUSTED_CERTIFICATES =
