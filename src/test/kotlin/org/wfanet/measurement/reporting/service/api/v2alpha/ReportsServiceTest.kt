@@ -2619,44 +2619,36 @@ class ReportsServiceTest {
   }
 
   @Test
-  fun `listReports with create_time filter calls the internal service with it`() =
-    runBlocking {
-      val request = listReportsRequest {
-        parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
-        filter = ListReportsRequestKt.filter {
-          createTime = timestamp {
-            seconds = 100
-          }
-        }
-      }
-
-      val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
-          runBlocking { service.listReports(request) }
-        }
-
-      val expected = listReportsResponse {
-        reports += PENDING_REACH_REPORT
-        reports += PENDING_WATCH_DURATION_REPORT
-      }
-
-      verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::streamReports)
-        .isEqualTo(
-          streamReportsRequest {
-            limit = DEFAULT_PAGE_SIZE + 1
-            this.filter =
-              StreamReportsRequestKt.filter {
-                cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-                after =
-                  StreamReportsRequestKt.afterFilter {
-                    createTime = request.filter.createTime
-                  }
-              }
-          }
-        )
-
-      assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  fun `listReports with create_time filter calls the internal service with it`() = runBlocking {
+    val request = listReportsRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      filter = ListReportsRequestKt.filter { createTime = timestamp { seconds = 100 } }
     }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        runBlocking { service.listReports(request) }
+      }
+
+    val expected = listReportsResponse {
+      reports += PENDING_REACH_REPORT
+      reports += PENDING_WATCH_DURATION_REPORT
+    }
+
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::streamReports)
+      .isEqualTo(
+        streamReportsRequest {
+          limit = DEFAULT_PAGE_SIZE + 1
+          this.filter =
+            StreamReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+              after = StreamReportsRequestKt.afterFilter { createTime = request.filter.createTime }
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
 
   @Test
   fun `listReports returns reports with SUCCEEDED states when metrics are SUCCEEDED`() =

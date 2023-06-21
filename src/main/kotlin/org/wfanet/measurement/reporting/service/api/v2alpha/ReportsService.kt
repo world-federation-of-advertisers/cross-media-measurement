@@ -730,9 +730,8 @@ private fun ListReportsRequest.toListReportsPageToken(): ListReportsPageToken {
         }
       this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
       if (source.filter.hasCreateTime()) {
-        lastReport = ListReportsPageTokenKt.previousPageEnd {
-          createTime = source.filter.createTime
-        }
+        lastReport =
+          ListReportsPageTokenKt.previousPageEnd { createTime = source.filter.createTime }
       }
     }
   }
