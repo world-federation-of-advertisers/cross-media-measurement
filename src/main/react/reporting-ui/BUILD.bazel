@@ -1,8 +1,7 @@
 load("@aspect_rules_js//js:defs.bzl", "js_library")
 load("@aspect_rules_ts//ts:defs.bzl", "ts_config")
 load("@npm//:defs.bzl", "npm_link_all_packages")
-load("@npm//:webpack-dev-server/package_json.bzl", webpack_server = "bin")
-load("@npm//:webpack-cli/package_json.bzl", webpack = "bin")
+load("@aspect_rules_webpack//webpack:defs.bzl", "webpack_bundle", "webpack_devserver")
 
 npm_link_all_packages()
 
@@ -25,39 +24,32 @@ js_library(
     srcs = BUILD_NODE_DEPS,
 )
 
-webpack.webpack_cli(
-    name = "dev_bundle",
+webpack_bundle(
+    name = "webpack_bundle",
+    node_modules = "//:node_modules",
     srcs = [
-        ":build_node_deps",
         ":tsconfig",
         ":webpack_config",
         "//src/main/react/reporting-ui/public",
         "//src/main/react/reporting-ui/src:src_files",
     ],
-    args = [
-        "--config webpack.config.js",
-        "--mode development",
+    deps = [
+        ":build_node_deps",
     ],
-    chdir = package_name(),
-    log_level = "debug",
     output_dir = True,
+    webpack_config = ":webpack_config",
 )
 
-webpack_server.webpack_dev_server_binary(
-    name = "dev_serve",
-    args = [
-        "--config webpack.config.js",
-        "--mode development",
-    ],
-    chdir = package_name(),
+webpack_devserver(
+    name = "webpack_devserver",
+    node_modules = "//:node_modules",
     data = [
-        ":build_node_deps",
         ":tsconfig",
-        ":webpack_config",
         "//src/main/react/reporting-ui/public",
         "//src/main/react/reporting-ui/src:src_files",
+        ":build_node_deps",
     ],
-    log_level = "debug",
+    webpack_config = ":webpack_config",
 )
 
 ts_config(
