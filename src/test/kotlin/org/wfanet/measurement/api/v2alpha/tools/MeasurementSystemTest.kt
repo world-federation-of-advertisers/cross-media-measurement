@@ -308,6 +308,8 @@ private val MODEL_SHARD = modelShard {
   modelRelease = MODEL_RELEASE_NAME
   modelBlob = modelBlob { modelBlobPath = MODEL_BLOB_PATH }
   createTime = timestamp { seconds = 3000 }
+}
+
 private val MODEL_ROLLOUT = modelRollout {
   name = MODEL_ROLLOUT_NAME
   rolloutPeriod = timeInterval {
@@ -428,6 +430,7 @@ class MeasurementSystemTest {
     onBlocking { listModelShards(any()) }
       .thenReturn(listModelShardsResponse { modelShards += listOf(MODEL_SHARD) })
     onBlocking { deleteModelShard(any()) }.thenReturn(empty {})
+  }
   private val modelRolloutsServiceMock: ModelRolloutsCoroutineImplBase = mockService {
     onBlocking { createModelRollout(any()) }.thenReturn(MODEL_ROLLOUT)
     onBlocking { listModelRollouts(any()) }
@@ -1405,7 +1408,7 @@ class MeasurementSystemTest {
 
     assertThat(request).isEqualTo(listModelReleasesRequest { parent = MODEL_SUITE_NAME })
   }
-  
+
   @Test
   fun `create model outage succeeds`() {
     val args =
@@ -1609,7 +1612,7 @@ class MeasurementSystemTest {
 
     assertThat(request.name).isEqualTo(MODEL_SHARD_NAME)
   }
-  
+
   @Test
   fun `create model rollout succeeds`() {
     val args =
