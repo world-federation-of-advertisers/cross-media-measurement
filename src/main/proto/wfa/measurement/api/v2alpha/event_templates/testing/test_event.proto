@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha.event_templates.testing;
 
+import "eventtemplates/common_template.proto";
+import "eventtemplates/video_event_template.proto";
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/api/v2alpha/event_templates/testing/banner_ad.proto";
 import "wfa/measurement/api/v2alpha/event_templates/testing/person.proto";
@@ -30,4 +32,7 @@ message TestEvent {
   Person person = 2;
   Video video_ad = 3;
   Banner banner_ad = 4;
+
+  eventtemplates.CommonTemplate common_template = 5;
+  eventtemplates.VideoEventTemplate video_event_template = 6;
 }
