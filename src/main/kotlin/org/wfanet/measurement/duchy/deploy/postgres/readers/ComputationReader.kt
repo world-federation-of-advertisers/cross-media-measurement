@@ -15,12 +15,9 @@
 package org.wfanet.measurement.duchy.deploy.postgres.readers
 
 import com.google.gson.JsonParser
-import com.google.gson.JsonPrimitive
-import com.google.protobuf.ByteString
-import com.google.protobuf.kotlin.toByteString
 import java.time.Instant
-import java.util.Base64
 import kotlinx.coroutines.flow.firstOrNull
+import org.wfanet.measurement.common.base64MimeDecode
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
@@ -85,14 +82,14 @@ class ComputationReader(
                   externalRequisitionId =
                     jsonObj.getAsJsonPrimitive("ExternalRequisitionId").asString
                   requisitionFingerprint =
-                    jsonObj.getAsJsonPrimitive("RequisitionFingerprint").decodePostgresBase64()
+                    jsonObj.getAsJsonPrimitive("RequisitionFingerprint").base64MimeDecode()
                 }
                 jsonObj.get("PathToBlob").let { jsonElem ->
                   if (!jsonElem.isJsonNull) path = jsonElem.asString
                 }
                 details =
                   RequisitionDetails.parseFrom(
-                    jsonObj.getAsJsonPrimitive("RequisitionDetails").decodePostgresBase64()
+                    jsonObj.getAsJsonPrimitive("RequisitionDetails").base64MimeDecode()
                   )
               }
             }
@@ -251,13 +248,5 @@ class ComputationReader(
         bind("$2", externalRequisitionKey.requisitionFingerprint)
       }
     return readContext.executeQuery(statement).consume(::buildComputationToken).firstOrNull()
-  }
-
-  /**
-   * Postgres base64 encoding follows MIME encoding standards from RFC 2045 by adding \n to break up
-   * the text. The MIME decoder ignores the \n.
-   */
-  private fun JsonPrimitive.decodePostgresBase64(): ByteString {
-    return Base64.getMimeDecoder().decode(this.asString).toByteString()
   }
 }
