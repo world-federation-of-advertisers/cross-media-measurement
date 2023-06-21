@@ -8,8 +8,6 @@ load(
     "OPEN_TELEMETRY_SDK_VERSION",
 )
 
-
-
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
@@ -58,20 +56,12 @@ npm_translate_lock(
     name = "npm",
     npmrc = "//:.npmrc",
     pnpm_lock = "//:pnpm-lock.yaml",
-    # public_hoist_packages = {
-    #     "eslint-config-react-app": [""],
-    #     "eslint": [""],
-    # },
     verify_node_modules_ignored = "//:.bazelignore",
 )
 
 load("@npm//:repositories.bzl", "npm_repositories")
 
 npm_repositories()
-
-
-
-
 
 load("//build:repositories.bzl", "wfa_measurement_system_repositories")
 
