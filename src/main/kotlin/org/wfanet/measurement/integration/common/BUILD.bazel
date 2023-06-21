@@ -118,9 +118,14 @@ kt_jvm_library(
 kt_jvm_library(
     name = "in_process_components",
     srcs = [
+        "InProcessComponents.kt",
         "InProcessDuchy.kt",
         "InProcessEdpSimulator.kt",
         "InProcessLifeOfAMeasurementIntegrationTest.kt",
+    ],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
     ],
     deps = [
         ":all_cmms_services",
