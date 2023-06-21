@@ -1,6 +1,4 @@
-load("@rules_java//java:defs.bzl", "java_binary")
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
-load("//src/main/docker:macros.bzl", "java_image")
 
 kt_jvm_library(
     name = "reporting_data_server",
