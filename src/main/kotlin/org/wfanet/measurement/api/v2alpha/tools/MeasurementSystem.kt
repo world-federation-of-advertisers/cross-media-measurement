@@ -42,6 +42,8 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt.filter
+import org.wfanet.measurement.api.v2alpha.ListModelOutagesRequestKt
+import org.wfanet.measurement.api.v2alpha.ListModelRolloutsRequestKt
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
@@ -59,8 +61,15 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelOutage
+import org.wfanet.measurement.api.v2alpha.ModelOutagesGrpcKt.ModelOutagesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelRollout
+import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelShard
+import org.wfanet.measurement.api.v2alpha.ModelShardKt.modelBlob
+import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt.ModelShardsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PublicKey
@@ -77,8 +86,14 @@ import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.createModelLineRequest
+import org.wfanet.measurement.api.v2alpha.createModelOutageRequest
 import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
+import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
+import org.wfanet.measurement.api.v2alpha.createModelShardRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
+import org.wfanet.measurement.api.v2alpha.deleteModelOutageRequest
+import org.wfanet.measurement.api.v2alpha.deleteModelRolloutRequest
+import org.wfanet.measurement.api.v2alpha.deleteModelShardRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
@@ -88,18 +103,25 @@ import org.wfanet.measurement.api.v2alpha.getModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
+import org.wfanet.measurement.api.v2alpha.listModelOutagesRequest
 import org.wfanet.measurement.api.v2alpha.listModelReleasesRequest
+import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
+import org.wfanet.measurement.api.v2alpha.listModelShardsRequest
 import org.wfanet.measurement.api.v2alpha.listModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.modelLine
+import org.wfanet.measurement.api.v2alpha.modelOutage
 import org.wfanet.measurement.api.v2alpha.modelRelease
+import org.wfanet.measurement.api.v2alpha.modelRollout
+import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.publicKey
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.revokeCertificateRequest
+import org.wfanet.measurement.api.v2alpha.scheduleModelRolloutFreezeRequest
 import org.wfanet.measurement.api.v2alpha.setModelLineActiveEndTimeRequest
 import org.wfanet.measurement.api.v2alpha.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.api.v2alpha.signedData
@@ -155,6 +177,9 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = systemDuration.ofSeconds(30)
       DataProviders::class,
       ModelLines::class,
       ModelReleases::class,
+      ModelOutages::class,
+      ModelShards::class,
+      ModelRollouts::class,
       ModelSuites::class,
     ]
 )
@@ -1440,6 +1465,429 @@ private class ModelReleases {
   private fun printModelRelease(modelRelease: ModelRelease) {
     println("NAME - ${modelRelease.name}")
     println("CREATE TIME - ${modelRelease.createTime}")
+  }
+}
+
+@Command(
+  name = "model-outages",
+  subcommands = [CommandLine.HelpCommand::class],
+)
+private class ModelOutages {
+  @ParentCommand
+  lateinit var parentCommand: MeasurementSystem
+    private set
+
+  val modelOutageStub: ModelOutagesCoroutineStub by lazy {
+    ModelOutagesCoroutineStub(parentCommand.kingdomChannel)
+  }
+
+  @Command(description = ["Creates model outage."])
+  fun create(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent ModelLine."],
+      required = true,
+    )
+    modelLineName: String,
+    @Option(
+      names = ["--outage-start-time"],
+      description = ["Start time of model outage in ISO 8601 format of UTC"],
+      required = true,
+    )
+    outageStartTime: Instant,
+    @Option(
+      names = ["--outage-end-time"],
+      description = ["End time of model outage in ISO 8601 format of UTC"],
+      required = true,
+    )
+    outageEndTime: Instant,
+  ) {
+    val request = createModelOutageRequest {
+      parent = modelLineName
+      modelOutage = modelOutage {
+        outageInterval = timeInterval {
+          startTime = outageStartTime.toProtoTime()
+          endTime = outageEndTime.toProtoTime()
+        }
+      }
+    }
+    val outputModelOutage =
+      runBlocking(parentCommand.rpcDispatcher) { modelOutageStub.createModelOutage(request) }
+
+    println("Model outage ${outputModelOutage.name} has been created.")
+    printModelOutage(outputModelOutage)
+  }
+
+  @Command(description = ["Lists model outages for a model line."])
+  fun list(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent ModelLine."],
+      required = true,
+    )
+    modelLineName: String,
+    @Option(
+      names = ["--page-size"],
+      description = ["The maximum number of ModelOutages to return."],
+      required = false,
+      defaultValue = "0"
+    )
+    listPageSize: Int,
+    @Option(
+      names = ["--page-token"],
+      description =
+        [
+          "A page token, received from a previous `ListModelOutagesRequest` call. Provide this to retrieve the subsequent page."
+        ],
+      required = false,
+      defaultValue = ""
+    )
+    listPageToken: String,
+    @Option(
+      names = ["--show-deleted"],
+      description =
+        ["A flag to specify whether to include ModelOutage in the DELETED state or not."],
+      required = false,
+      defaultValue = "false"
+    )
+    showDeletedOutages: Boolean,
+    @Option(
+      names = ["--interval-start-time"],
+      description =
+        ["Start time of interval for desired overlapping model outages in ISO 8601 format of UTC"],
+      required = false,
+    )
+    outageStartTime: Instant? = null,
+    @Option(
+      names = ["--interval-end-time"],
+      description =
+        ["End time of interval for desired overlapping model outages in ISO 8601 format of UTC"],
+      required = false,
+    )
+    outageEndTime: Instant? = null,
+  ) {
+    val request = listModelOutagesRequest {
+      parent = modelLineName
+      pageSize = listPageSize
+      pageToken = listPageToken
+      showDeleted = showDeletedOutages
+      if (outageStartTime != null && outageEndTime != null) {
+        filter =
+          ListModelOutagesRequestKt.filter {
+            outageIntervalOverlapping = timeInterval {
+              startTime = outageStartTime.toProtoTime()
+              endTime = outageEndTime.toProtoTime()
+            }
+          }
+      }
+    }
+    val response =
+      runBlocking(parentCommand.rpcDispatcher) { modelOutageStub.listModelOutages(request) }
+    response.modelOutagesList.forEach { printModelOutage(it) }
+  }
+
+  @Command(description = ["Deletes model outage."])
+  fun delete(
+    @Option(
+      names = ["--name"],
+      description = ["API resource name of the ModelOutage."],
+      required = true,
+    )
+    modelOutageName: String,
+  ) {
+    val request = deleteModelOutageRequest { name = modelOutageName }
+    val outputModelOutage =
+      runBlocking(parentCommand.rpcDispatcher) { modelOutageStub.deleteModelOutage(request) }
+
+    println("Model outage ${outputModelOutage.name} has been deleted.")
+    printModelOutage(outputModelOutage)
+  }
+
+  private fun printModelOutage(modelOutage: ModelOutage) {
+    println("NAME - ${modelOutage.name}")
+    println("OUTAGE INTERVAL - ${modelOutage.outageInterval}")
+    println("STATE - ${modelOutage.stateValue}")
+    println("CREATE TIME - ${modelOutage.createTime}")
+    println("DELETE TIME - ${modelOutage.deleteTime}")
+  }
+}
+
+@Command(
+  name = "model-shards",
+  subcommands = [CommandLine.HelpCommand::class],
+)
+private class ModelShards {
+  @ParentCommand
+  lateinit var parentCommand: MeasurementSystem
+    private set
+
+  val modelShardStub: ModelShardsCoroutineStub by lazy {
+    ModelShardsCoroutineStub(parentCommand.kingdomChannel)
+  }
+
+  @Command(description = ["Creates model shard."])
+  fun create(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent DataProvider."],
+      required = true,
+    )
+    dataProviderName: String,
+    @Option(
+      names = ["--model-release"],
+      description = ["API Resource name of the ModelRelease that this is a shard of."],
+      required = true,
+    )
+    shardModelRelease: String,
+    @Option(
+      names = ["--model-blob-path"],
+      description = ["The path the model blob can be downloaded from."],
+      required = true,
+    )
+    shardModelBlobPath: String,
+  ) {
+    val request = createModelShardRequest {
+      parent = dataProviderName
+      modelShard = modelShard {
+        modelRelease = shardModelRelease
+        modelBlob = modelBlob { modelBlobPath = shardModelBlobPath }
+      }
+    }
+    val outputModelShard =
+      runBlocking(parentCommand.rpcDispatcher) { modelShardStub.createModelShard(request) }
+
+    println("Model shard ${outputModelShard.name} has been created.")
+    printModelShard(outputModelShard)
+  }
+
+  @Command(description = ["Lists model shards for a data provider."])
+  fun list(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent DataProvider."],
+      required = true,
+    )
+    dataProviderName: String,
+    @Option(
+      names = ["--page-size"],
+      description = ["The maximum number of ModelShards to return."],
+      required = false,
+      defaultValue = "0"
+    )
+    listPageSize: Int,
+    @Option(
+      names = ["--page-token"],
+      description =
+        [
+          "A page token, received from a previous `ListModelShardsRequest` call. Provide this to retrieve the subsequent page."
+        ],
+      required = false,
+      defaultValue = ""
+    )
+    listPageToken: String,
+  ) {
+    val request = listModelShardsRequest {
+      parent = dataProviderName
+      pageSize = listPageSize
+      pageToken = listPageToken
+    }
+    val response =
+      runBlocking(parentCommand.rpcDispatcher) { modelShardStub.listModelShards(request) }
+    response.modelShardsList.forEach { printModelShard(it) }
+  }
+
+  @Command(description = ["Deletes model shard."])
+  fun delete(
+    @Option(
+      names = ["--name"],
+      description = ["API resource name of the ModelShard."],
+      required = true,
+    )
+    modelShardName: String,
+  ) {
+    val request = deleteModelShardRequest { name = modelShardName }
+
+    runBlocking(parentCommand.rpcDispatcher) { modelShardStub.deleteModelShard(request) }
+
+    println("Model shard $modelShardName has been deleted.")
+  }
+
+  private fun printModelShard(modelShard: ModelShard) {
+    println("NAME - ${modelShard.name}")
+    println("MODEL RELEASE- ${modelShard.modelRelease}")
+    println("MODEL BLOB - ${modelShard.modelBlob}")
+    println("CREATE TIME - ${modelShard.createTime}")
+  }
+}
+
+@Command(
+  name = "model-rollouts",
+  subcommands = [CommandLine.HelpCommand::class],
+)
+private class ModelRollouts {
+  @ParentCommand
+  lateinit var parentCommand: MeasurementSystem
+    private set
+
+  val modelRolloutStub: ModelRolloutsCoroutineStub by lazy {
+    ModelRolloutsCoroutineStub(parentCommand.kingdomChannel)
+  }
+
+  @Command(description = ["Creates model rollout."])
+  fun create(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent ModelLine."],
+      required = true,
+    )
+    modelLineName: String,
+    @Option(
+      names = ["--rollout-start-time"],
+      description = ["Start time of model rollout in ISO 8601 format of UTC"],
+      required = true,
+    )
+    rolloutStartTime: Instant,
+    @Option(
+      names = ["--rollout-end-time"],
+      description = ["End time of model rollout in ISO 8601 format of UTC"],
+      required = true,
+    )
+    rolloutEndTime: Instant,
+    @Option(
+      names = ["--model-release"],
+      description = ["The `ModelRelease` this model rollout refers to."],
+      required = true,
+    )
+    modelRolloutRelease: String,
+  ) {
+    val request = createModelRolloutRequest {
+      parent = modelLineName
+      modelRollout = modelRollout {
+        rolloutPeriod = timeInterval {
+          startTime = rolloutStartTime.toProtoTime()
+          endTime = rolloutEndTime.toProtoTime()
+        }
+        modelRelease = modelRolloutRelease
+      }
+    }
+    val outputModelRollout =
+      runBlocking(parentCommand.rpcDispatcher) { modelRolloutStub.createModelRollout(request) }
+
+    println("Model rollout ${outputModelRollout.name} has been created.")
+    printModelRollout(outputModelRollout)
+  }
+
+  @Command(description = ["Lists model rollouts for a model line."])
+  fun list(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent ModelLine."],
+      required = true,
+    )
+    modelLineName: String,
+    @Option(
+      names = ["--page-size"],
+      description = ["The maximum number of ModelRollouts to return."],
+      required = false,
+      defaultValue = "0"
+    )
+    listPageSize: Int,
+    @Option(
+      names = ["--page-token"],
+      description =
+        [
+          "A page token, received from a previous ListModelRolloutsRequest call. Provide this to retrieve the subsequent page."
+        ],
+      required = false,
+      defaultValue = ""
+    )
+    listPageToken: String,
+    @Option(
+      names = ["--rollout-period-overlapping-start-time"],
+      description =
+        ["Start time of overlapping period for desired model rollouts in ISO 8601 format of UTC"],
+      required = false,
+    )
+    rolloutPeriodStartTime: Instant? = null,
+    @Option(
+      names = ["--rollout-period-overlapping-end-time"],
+      description =
+        ["End time of overlapping period for desired model rollouts in ISO 8601 format of UTC"],
+      required = false,
+    )
+    rolloutPeriodEndTime: Instant? = null,
+  ) {
+    val request = listModelRolloutsRequest {
+      parent = modelLineName
+      pageSize = listPageSize
+      pageToken = listPageToken
+      if (rolloutPeriodStartTime != null && rolloutPeriodEndTime != null) {
+        filter =
+          ListModelRolloutsRequestKt.filter {
+            rolloutPeriodOverlapping = timeInterval {
+              startTime = rolloutPeriodStartTime.toProtoTime()
+              endTime = rolloutPeriodEndTime.toProtoTime()
+            }
+          }
+      }
+    }
+    val response =
+      runBlocking(parentCommand.rpcDispatcher) { modelRolloutStub.listModelRollouts(request) }
+    response.modelRolloutsList.forEach { printModelRollout(it) }
+  }
+
+  @Command(description = ["Schedule model rollout freeze time."])
+  fun schedule(
+    @Option(
+      names = ["--name"],
+      description = ["API resource name of the ModelRollout."],
+      required = true,
+    )
+    modelRolloutName: String,
+    @Option(
+      names = ["--freeze-time"],
+      description = ["The rollout freeze time to be set in ISO 8601 format of UTC."],
+      required = true,
+    )
+    freezeTime: Instant,
+  ) {
+    val request = scheduleModelRolloutFreezeRequest {
+      name = modelRolloutName
+      rolloutFreezeTime = freezeTime.toProtoTime()
+    }
+    val outputModelRollout =
+      runBlocking(parentCommand.rpcDispatcher) {
+        modelRolloutStub.scheduleModelRolloutFreeze(request)
+      }
+
+    println(
+      "Freeze time ${outputModelRollout.rolloutFreezeTime} has been set for ${outputModelRollout.name}."
+    )
+  }
+
+  @Command(description = ["Deletes model rollout."])
+  fun delete(
+    @Option(
+      names = ["--name"],
+      description = ["API resource name of the ModelRollout."],
+      required = true,
+    )
+    modelRolloutName: String,
+  ) {
+    val request = deleteModelRolloutRequest { name = modelRolloutName }
+    runBlocking(parentCommand.rpcDispatcher) { modelRolloutStub.deleteModelRollout(request) }
+
+    println("Model rollout $modelRolloutName has been deleted.")
+  }
+
+  private fun printModelRollout(modelRollout: ModelRollout) {
+    println("NAME - ${modelRollout.name}")
+    println("ROLLOUT PERIOD- ${modelRollout.rolloutPeriod}")
+    println("ROLLOUT FREEZE TIME - ${modelRollout.rolloutFreezeTime}")
+    println("PREVIOUS MODEL ROLLOUT - ${modelRollout.previousModelRollout}")
+    println("MODEL RELEASE - ${modelRollout.modelRelease}")
+    println("CREATE TIME - ${modelRollout.createTime}")
+    println("UPDATE TIME - ${modelRollout.updateTime}")
   }
 }
 
