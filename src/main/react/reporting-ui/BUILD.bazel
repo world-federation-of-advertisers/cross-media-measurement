@@ -18,33 +18,21 @@ BUILD_NODE_DEPS = [
     "//:node_modules/ts-loader",
     "//:node_modules/css-loader",
     "//:node_modules/style-loader",
-    "//:node_modules/svg-url-loader",
 ]
 
 js_library(
     name = "build_node_deps",
-    deps = [
-        "//:node_modules/html-webpack-plugin",
-        "//:node_modules/react-dom",
-        "//:node_modules/react",
-        "//:node_modules/typescript",
-        "//:node_modules/web-vitals",
-        "//:node_modules/mini-css-extract-plugin",
-        "//:node_modules/webpack",
-        "//:node_modules/babel-loader",
-        "//:node_modules/ts-loader",
-    ],
+    srcs = BUILD_NODE_DEPS,
 )
 
 webpack.webpack_cli(
     name = "dev_bundle",
-    srcs = BUILD_NODE_DEPS + [
+    srcs = [
         ":build_node_deps",
         ":webpack_config",
         ":tsconfig",
         "//src/main/react/reporting-ui/public",
         "//src/main/react/reporting-ui/src:src_files",
-        "//src/main/react/reporting-ui/src:types",
     ],
     args = [
         "--config webpack.config.js",
@@ -62,7 +50,7 @@ webpack_server.webpack_dev_server_binary(
         "--mode development",
     ],
     chdir = package_name(),
-    data = BUILD_NODE_DEPS + [
+    data = [
         ":build_node_deps",
         ":webpack_config",
         ":tsconfig",
@@ -72,11 +60,11 @@ webpack_server.webpack_dev_server_binary(
     log_level = "debug",
 )
 
-# js_test(
-#     name = "build_smoke_test",
-#     data = [":build"],
-#     entry_point = "build_smoke_test.js",
-# )
+js_test(
+    name = "build_smoke_test",
+    data = [":dev_bundle"],
+    entry_point = "build_smoke_test.js",
+)
 
 ts_config(
     name = "tsconfig",
@@ -93,5 +81,11 @@ js_library(
 js_library(
     name = "webpack_config",
     srcs = ["webpack.config.js"],
+    visibility = ["//visibility:public"],
+)
+
+js_library(
+    name = "package_json",
+    srcs = ["package.json"],
     visibility = ["//visibility:public"],
 )

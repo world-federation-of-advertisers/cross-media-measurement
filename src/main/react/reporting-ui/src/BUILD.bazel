@@ -1,7 +1,7 @@
 load("@aspect_rules_jest//jest:defs.bzl", "jest_test")
 load("@aspect_rules_js//js:defs.bzl", "js_library")
 load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
-# load("@npm//:eslint/package_json.bzl", eslint_bin = "bin")
+load("@npm//:eslint/package_json.bzl", eslint_bin = "bin")
 
 ASSET_PATTERNS = [
     "*.svg",
@@ -40,12 +40,6 @@ js_library(
     ],
 )
 
-js_library(
-    name = "types",
-    srcs = glob(["custom.d.ts"]),
-    visibility = ["//visibility:public"],
-)
-
 ts_project(
     name = "src_ts",
     srcs = glob(
@@ -62,41 +56,42 @@ ts_project(
     ],
 )
 
-# ts_project(
-#     name = "src_test_ts",
-#     srcs = glob(TEST_PATTERNS),
-#     declaration = True,
-#     resolve_json_module = True,
-#     supports_workers = False,  # worker bug on macos: ERROR: react-cra/src/BUILD.bazel:50:11: output 'src/App.test.js' was not created
-#     tsconfig = "//src/main/react/reporting-ui:tsconfig",
-#     deps = [
-#         ":src_ts",
-#         "//:node_modules/@testing-library/jest-dom",
-#         "//:node_modules/@testing-library/react",
-#         "//:node_modules/@types/jest",
-#     ],
-# )
+ts_project(
+    name = "src_test_ts",
+    srcs = glob(TEST_PATTERNS),
+    declaration = True,
+    resolve_json_module = True,
+    supports_workers = False,  # worker bug on macos: ERROR: react-cra/src/BUILD.bazel:50:11: output 'src/App.test.js' was not created
+    tsconfig = "//src/main/react/reporting-ui:tsconfig",
+    deps = [
+        ":src_ts",
+        "//:node_modules/@testing-library/jest-dom",
+        "//:node_modules/@testing-library/react",
+        "//:node_modules/@types/jest",
+        "//:node_modules/@types/testing-library__jest-dom",
+    ],
+)
 
-# jest_test(
-#     name = "src_test",
-#     config = "//src/main/react/reporting-ui:jest_config",
-#     data = [
-#         ":src",
-#         ":src_test_ts",
-#         "//:node_modules/jest-environment-jsdom",
-#         "//:node_modules/jest-transform-stub",
-#     ],
-#     node_modules = "//:node_modules",
-# )
+jest_test(
+    name = "src_test",
+    config = "//src/main/react/reporting-ui:jest_config",
+    data = [
+        ":src",
+        ":src_test_ts",
+        "//:node_modules/jest-environment-jsdom",
+        "//:node_modules/jest-transform-stub",
+    ],
+    node_modules = "//:node_modules",
+)
 
-# eslint_bin.eslint_test(
-#     name = "eslint_test",
-#     args = ["{}/{}".format(
-#         package_name(),
-#         p,
-#     ) for p in SRC_PATTERNS],
-#     data = [
-#         "//src/main/react/reporting:package_json",
-#         "//:node_modules/eslint-config-react-app",
-#     ] + glob(SRC_PATTERNS),
-# )
+eslint_bin.eslint_test(
+    name = "eslint_test",
+    args = ["{}/{}".format(
+        package_name(),
+        p,
+    ) for p in SRC_PATTERNS],
+    data = [
+        "//src/main/react/reporting-ui:package_json",
+        "//:node_modules/eslint-config-react-app",
+    ] + glob(SRC_PATTERNS),
+)

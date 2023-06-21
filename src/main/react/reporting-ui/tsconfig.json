@@ -16,6 +16,6 @@
     "declaration": true,
     "jsx": "react-jsx"
   },
-  "include": ["src", "src/custom.d.ts"],
+  "include": ["src"],
   "types": ["node", "jest", "@testing-library/jest-dom"],
 }

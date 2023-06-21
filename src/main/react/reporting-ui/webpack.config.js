@@ -8,10 +8,6 @@ module.exports = {
   module: {
     rules: [
       {
-        test: /\.svg$/,
-        type: 'asset/inline',
-      },
-      {
         test: /\.(js|jsx)$/,
         exclude: /node_modules/,
         use: ['babel-loader'],
@@ -28,7 +24,7 @@ module.exports = {
     ],
   },
   resolve: {
-    extensions: ['.svg', '.js', '.jsx', '.ts', '.tsx', '.css'],
+    extensions: ['.js', '.jsx', '.ts', '.tsx', '.css'],
     modules: [
       'node_modules'
     ],
