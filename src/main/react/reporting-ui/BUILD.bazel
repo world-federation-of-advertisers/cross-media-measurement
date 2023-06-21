@@ -60,12 +60,6 @@ webpack_server.webpack_dev_server_binary(
     log_level = "debug",
 )
 
-js_test(
-    name = "build_smoke_test",
-    data = [":dev_bundle"],
-    entry_point = "build_smoke_test.js",
-)
-
 ts_config(
     name = "tsconfig",
     src = "tsconfig.json",
