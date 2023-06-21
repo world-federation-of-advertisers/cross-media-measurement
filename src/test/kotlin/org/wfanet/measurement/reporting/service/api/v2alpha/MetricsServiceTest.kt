@@ -196,6 +196,10 @@ import org.wfanet.measurement.reporting.v2alpha.timeInterval
 private const val MAX_BATCH_SIZE = 1000
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
+private const val BATCH_GET_REPORTING_SETS_LIMIT = 1000
+private const val BATCH_SET_CMMS_MEASUREMENT_IDS_LIMIT = 1000
+private const val BATCH_SET_MEASUREMENT_RESULTS_LIMIT = 1000
+private const val BATCH_SET_MEASUREMENT_FAILURES_LIMIT = 1000
 
 private const val NUMBER_VID_BUCKETS = 300
 private const val REACH_ONLY_VID_SAMPLING_WIDTH = 3.0f / NUMBER_VID_BUCKETS
@@ -2089,6 +2093,119 @@ class MetricsServiceTest {
   }
 
   @Test
+  fun `createMetric calls batchGetReportingSets when request number is more than the limit`():
+    Unit = runBlocking {
+    val expectedNumberBatchGetReportingSetsRequests = 3
+    // BatchGetReportingSets is called one time in other place for retrieving a single reporting set
+    val numberBatchReportingSets = expectedNumberBatchGetReportingSetsRequests - 1
+    val numberInternalReportingSets = BATCH_GET_REPORTING_SETS_LIMIT * numberBatchReportingSets
+
+    whenever(internalMetricsMock.createMetric(any()))
+      .thenReturn(
+        INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC.copy {
+          weightedMeasurements.clear()
+          weightedMeasurements += weightedMeasurement {
+            weight = 1
+            measurement =
+              INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
+                clearCmmsMeasurementId()
+                primitiveReportingSetBases.clear()
+                (0 until numberInternalReportingSets).forEach {
+                  primitiveReportingSetBases += primitiveReportingSetBasis {
+                    externalReportingSetId = it.toLong()
+                  }
+                }
+              }
+          }
+        }
+      )
+
+    whenever(internalReportingSetsMock.batchGetReportingSets(any())).thenAnswer {
+      val batchGetReportingSetsRequest = it.arguments[0] as BatchGetReportingSetsRequest
+      batchGetReportingSetsResponse {
+        reportingSets +=
+          batchGetReportingSetsRequest.externalReportingSetIdsList.map { externalReportingSetId ->
+            INTERNAL_INCREMENTAL_REPORTING_SET.copy {
+              this.externalReportingSetId = externalReportingSetId
+            }
+          }
+      }
+    }
+
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = REQUESTING_INCREMENTAL_REACH_METRIC
+    }
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+      runBlocking { service.createMetric(request) }
+    }
+
+    // Verify proto argument of internal ReportingSetsCoroutineImplBase::batchGetReportingSets
+    val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
+      argumentCaptor()
+    verifyBlocking(internalReportingSetsMock, times(expectedNumberBatchGetReportingSetsRequests)) {
+      batchGetReportingSets(batchGetReportingSetsCaptor.capture())
+    }
+  }
+
+  @Test
+  fun `createMetric calls batchSetCmmsMeasurementIds when request number is more than the limit`():
+    Unit = runBlocking {
+    val weightedMeasurements =
+      (0..BATCH_SET_CMMS_MEASUREMENT_IDS_LIMIT).map { id ->
+        weightedMeasurement {
+          weight = 1
+          measurement =
+            INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
+              cmmsCreateMeasurementRequestId = "$id"
+              clearCmmsMeasurementId()
+            }
+        }
+      }
+    val measurementsMap: Map<String, Measurement> =
+      weightedMeasurements.associate { weightedMeasurement ->
+        weightedMeasurement.measurement.cmmsCreateMeasurementRequestId to
+          PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
+            name =
+              MeasurementKey(
+                  MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+                  externalIdToApiId(
+                    100L + weightedMeasurement.measurement.cmmsCreateMeasurementRequestId.toLong()
+                  )
+                )
+                .toName()
+          }
+      }
+
+    whenever(internalMetricsMock.createMetric(any()))
+      .thenReturn(
+        INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC.copy {
+          this.weightedMeasurements.clear()
+          this.weightedMeasurements += weightedMeasurements
+        }
+      )
+    whenever(measurementsMock.createMeasurement(any())).thenAnswer {
+      val request = it.arguments[0] as CreateMeasurementRequest
+      measurementsMap[request.requestId]
+    }
+
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = REQUESTING_INCREMENTAL_REACH_METRIC
+    }
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+      runBlocking { service.createMetric(request) }
+    }
+
+    // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
+    val batchSetCmmsMeasurementIdsCaptor: KArgumentCaptor<BatchSetCmmsMeasurementIdsRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMeasurementsMock, times(2)) {
+      batchSetCmmsMeasurementIds(batchSetCmmsMeasurementIdsCaptor.capture())
+    }
+  }
+
+  @Test
   fun `createMetric without request ID when the measurements are created already`() = runBlocking {
     whenever(internalMetricsMock.createMetric(any()))
       .thenReturn(INTERNAL_PENDING_INCREMENTAL_REACH_METRIC)
@@ -2121,10 +2238,10 @@ class MetricsServiceTest {
     verifyBlocking(measurementsMock, never()) { createMeasurement(measurementsCaptor.capture()) }
 
     // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
-    val internalMeasurementsCaptor: KArgumentCaptor<BatchSetCmmsMeasurementIdsRequest> =
+    val batchSetCmmsMeasurementIdsCaptor: KArgumentCaptor<BatchSetCmmsMeasurementIdsRequest> =
       argumentCaptor()
     verifyBlocking(internalMeasurementsMock, never()) {
-      batchSetCmmsMeasurementIds(internalMeasurementsCaptor.capture())
+      batchSetCmmsMeasurementIds(batchSetCmmsMeasurementIdsCaptor.capture())
     }
 
     assertThat(result).isEqualTo(expected)
@@ -2167,10 +2284,10 @@ class MetricsServiceTest {
     verifyBlocking(measurementsMock, never()) { createMeasurement(measurementsCaptor.capture()) }
 
     // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
-    val internalMeasurementsCaptor: KArgumentCaptor<BatchSetCmmsMeasurementIdsRequest> =
+    val batchSetCmmsMeasurementIdsCaptor: KArgumentCaptor<BatchSetCmmsMeasurementIdsRequest> =
       argumentCaptor()
     verifyBlocking(internalMeasurementsMock, never()) {
-      batchSetCmmsMeasurementIds(internalMeasurementsCaptor.capture())
+      batchSetCmmsMeasurementIds(batchSetCmmsMeasurementIdsCaptor.capture())
     }
 
     assertThat(result).isEqualTo(expected)
@@ -2227,10 +2344,10 @@ class MetricsServiceTest {
     verifyBlocking(measurementsMock, never()) { createMeasurement(measurementsCaptor.capture()) }
 
     // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
-    val internalMeasurementsCaptor: KArgumentCaptor<BatchSetCmmsMeasurementIdsRequest> =
+    val batchSetCmmsMeasurementIdsCaptor: KArgumentCaptor<BatchSetCmmsMeasurementIdsRequest> =
       argumentCaptor()
     verifyBlocking(internalMeasurementsMock, never()) {
-      batchSetCmmsMeasurementIds(internalMeasurementsCaptor.capture())
+      batchSetCmmsMeasurementIds(batchSetCmmsMeasurementIdsCaptor.capture())
     }
 
     assertThat(result).isEqualTo(expected)
@@ -3893,6 +4010,125 @@ class MetricsServiceTest {
       }
 
       assertThat(result).isEqualTo(SUCCEEDED_INCREMENTAL_REACH_METRIC)
+    }
+
+  @Test
+  fun `getMetric calls batchSetMeasurementResults when request number is more than the limit`() =
+    runBlocking {
+      val weightedMeasurements =
+        (0..BATCH_SET_MEASUREMENT_RESULTS_LIMIT).map { id ->
+          weightedMeasurement {
+            weight = 1
+            measurement =
+              INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
+                cmmsCreateMeasurementRequestId = "UNION_ALL_REACH_MEASUREMENT$id"
+                cmmsMeasurementId = externalIdToApiId(100L + id.toLong())
+              }
+          }
+        }
+      val measurementsMap: Map<String, Measurement> =
+        weightedMeasurements.associate { weightedMeasurement ->
+          val measurementName =
+            MeasurementKey(
+                MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+                weightedMeasurement.measurement.cmmsMeasurementId
+              )
+              .toName()
+
+          measurementName to SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.copy { name = measurementName }
+        }
+
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics +=
+              INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.copy {
+                this.weightedMeasurements.clear()
+                this.weightedMeasurements += weightedMeasurements
+              }
+          }
+        )
+      whenever(measurementsMock.getMeasurement(any())).thenAnswer {
+        val request = it.arguments[0] as GetMeasurementRequest
+        measurementsMap[request.name]
+      }
+
+      val request = getMetricRequest { name = PENDING_INCREMENTAL_REACH_METRIC.name }
+
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+        runBlocking { service.getMetric(request) }
+      }
+
+      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, times(2)) {
+        batchSetMeasurementResults(batchSetMeasurementResultsCaptor.capture())
+      }
+    }
+
+  @Test
+  fun `getMetric calls batchSetMeasurementFailures when request number is more than the limit`() =
+    runBlocking {
+      val weightedMeasurements =
+        (0..BATCH_SET_MEASUREMENT_FAILURES_LIMIT).map { id ->
+          weightedMeasurement {
+            weight = 1
+            measurement =
+              INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
+                cmmsCreateMeasurementRequestId = "UNION_ALL_REACH_MEASUREMENT$id"
+                cmmsMeasurementId = externalIdToApiId(100L + id.toLong())
+              }
+          }
+        }
+      val measurementsMap: Map<String, Measurement> =
+        weightedMeasurements.associate { weightedMeasurement ->
+          val measurementName =
+            MeasurementKey(
+                MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+                weightedMeasurement.measurement.cmmsMeasurementId
+              )
+              .toName()
+
+          measurementName to
+            PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
+              name = measurementName
+              state = Measurement.State.FAILED
+              failure = failure {
+                reason = Measurement.Failure.Reason.REQUISITION_REFUSED
+                message = "failed"
+              }
+            }
+        }
+
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics +=
+              INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.copy {
+                this.weightedMeasurements.clear()
+                this.weightedMeasurements += weightedMeasurements
+              }
+          }
+        )
+      whenever(measurementsMock.getMeasurement(any())).thenAnswer {
+        val request = it.arguments[0] as GetMeasurementRequest
+        measurementsMap[request.name]
+      }
+
+      val request = getMetricRequest { name = PENDING_INCREMENTAL_REACH_METRIC.name }
+
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+        runBlocking { service.getMetric(request) }
+      }
+
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementFailures
+      val batchSetMeasurementFailuresCaptor: KArgumentCaptor<BatchSetMeasurementFailuresRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, times(2)) {
+        batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
+      }
     }
 
   @Test
