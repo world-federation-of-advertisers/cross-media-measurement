@@ -137,8 +137,12 @@ abstract class InProcessLifeOfAReportIntegrationTest {
   }
 
   @After
-  fun stopComponents() {
+  fun stopEdpSimulators() {
     inProcessCmmsComponents.stopEdpSimulators()
+  }
+
+  @After
+  fun stopDuchyDaemons() {
     inProcessCmmsComponents.stopDuchyDaemons()
   }
 
