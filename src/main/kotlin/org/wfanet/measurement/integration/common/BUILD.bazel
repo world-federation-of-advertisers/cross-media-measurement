@@ -114,7 +114,7 @@ kt_jvm_library(
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
-    ],Add miss
+    ],
     deps = [
         ":configs",
         ":duchy_services",
@@ -125,7 +125,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/herald",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2:liquid_legions_v2_mill",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/io/grpc:core",
         "@wfa_common_jvm//imports/java/io/grpc/testing",
