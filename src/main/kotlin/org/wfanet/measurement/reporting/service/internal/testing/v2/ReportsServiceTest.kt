@@ -921,6 +921,45 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
   }
 
   @Test
+  fun `streamReports returns reports created after create filter when both fields in after set`() =
+    runBlocking {
+      createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+      val createdReport =
+        createReport(
+          CMMS_MEASUREMENT_CONSUMER_ID,
+          service,
+          reportingSetsService,
+          usePeriodicTimeInterval = false
+        )
+      val createdReport2 =
+        createReport(
+          CMMS_MEASUREMENT_CONSUMER_ID,
+          service,
+          reportingSetsService,
+          usePeriodicTimeInterval = false
+        )
+
+      val retrievedReports =
+        service.streamReports(
+          streamReportsRequest {
+            filter =
+              StreamReportsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                after = StreamReportsRequestKt.afterFilter {
+                  createTime = createdReport.createTime
+                  externalReportId = createdReport.externalReportId
+                }
+              }
+          }
+        )
+
+      assertThat(retrievedReports.toList())
+        .ignoringRepeatedFieldOrder()
+        .containsExactly(createdReport2)
+        .inOrder()
+    }
+
+  @Test
   fun `streamReports returns number of reports based on limit`(): Unit = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val createdReport =
