@@ -13,7 +13,7 @@
 // limitations under the License.
 
 const path = require('path');
-const MiniCssExtractPlugin = require("mini-css-extract-plugin")
+const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 
 module.exports = {
   entry: path.resolve(__dirname, './src/index.tsx'),
@@ -31,23 +31,19 @@ module.exports = {
       },
       {
         test: /\.css$/i,
-        use: ["style-loader", "css-loader"],
+        use: ['style-loader', 'css-loader'],
       },
     ],
   },
   resolve: {
     extensions: ['.js', '.jsx', '.ts', '.tsx', '.css'],
-    modules: [
-      'node_modules'
-    ],
+    modules: ['node_modules'],
   },
   output: {
     path: path.resolve(__dirname, './public'),
     filename: 'index.js',
   },
-  plugins: [
-    new MiniCssExtractPlugin(),
-  ],
+  plugins: [new MiniCssExtractPlugin()],
   devServer: {
     static: path.resolve(__dirname, './public'),
   },

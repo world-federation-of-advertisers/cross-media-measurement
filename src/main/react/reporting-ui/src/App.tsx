@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import React from 'react';
 import Logo from './logo';
 import './App.css';
 
@@ -19,7 +20,6 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        {/* <img src={logo} className="App-logo" alt="logo" /> */}
         <Logo />
         <p>
           Edit <code>src/App.js</code> and save to reload.

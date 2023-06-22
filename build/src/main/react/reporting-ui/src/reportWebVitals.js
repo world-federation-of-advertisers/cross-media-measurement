@@ -1,3 +1,4 @@
+"use strict";
 // Copyright 2021 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,17 +12,17 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-const reportWebVitals = (onPerfEntry: any) => {
-  if (onPerfEntry && onPerfEntry instanceof Function) {
-    import('web-vitals').then(({getCLS, getFID, getFCP, getLCP, getTTFB}) => {
-      getCLS(onPerfEntry);
-      getFID(onPerfEntry);
-      getFCP(onPerfEntry);
-      getLCP(onPerfEntry);
-      getTTFB(onPerfEntry);
-    });
-  }
+Object.defineProperty(exports, "__esModule", { value: true });
+const reportWebVitals = (onPerfEntry) => {
+    if (onPerfEntry && onPerfEntry instanceof Function) {
+        Promise.resolve().then(() => require('web-vitals')).then(({ getCLS, getFID, getFCP, getLCP, getTTFB }) => {
+            getCLS(onPerfEntry);
+            getFID(onPerfEntry);
+            getFCP(onPerfEntry);
+            getLCP(onPerfEntry);
+            getTTFB(onPerfEntry);
+        });
+    }
 };
-
-export default reportWebVitals;
+exports.default = reportWebVitals;
+//# sourceMappingURL=reportWebVitals.js.map
