@@ -99,7 +99,7 @@ class PostgresComputationsService(
           .execute(client, idGenerator)
 
         ComputationReader(protocolStageEnumHelper)
-          .readComputationToken(client.singleUse(), request.globalComputationId)
+          .readComputationToken(client, request.globalComputationId)
           ?: failGrpc(Status.INTERNAL) { "Created computation not found." }
       } catch (ex: ComputationInitialStageInvalidException) {
         throw ex.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -131,7 +131,7 @@ class PostgresComputationsService(
 
     return if (claimed != null) {
       val token =
-        ComputationReader(protocolStageEnumHelper).readComputationToken(client.singleUse(), claimed)
+        ComputationReader(protocolStageEnumHelper).readComputationToken(client, claimed)
           ?: failGrpc(Status.UNKNOWN) { "Claimed computation $claimed not found." }
 
       sendStatusUpdateToKingdom(
@@ -153,9 +153,8 @@ class PostgresComputationsService(
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (request.keyCase) {
         KeyCase.GLOBAL_COMPUTATION_ID ->
-          reader.readComputationToken(client.singleUse(), request.globalComputationId)
-        KeyCase.REQUISITION_KEY ->
-          reader.readComputationToken(client.singleUse(), request.requisitionKey)
+          reader.readComputationToken(client, request.globalComputationId)
+        KeyCase.REQUISITION_KEY -> reader.readComputationToken(client, request.requisitionKey)
         KeyCase.KEY_NOT_SET -> failGrpc(Status.INVALID_ARGUMENT) { "key not set" }
       }
         ?: failGrpc(Status.NOT_FOUND) { "Computation not found" }
