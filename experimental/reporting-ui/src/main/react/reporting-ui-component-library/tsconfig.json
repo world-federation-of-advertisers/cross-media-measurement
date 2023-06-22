@@ -14,8 +14,11 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "declaration": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "allowJs": true,
+    "outDir": "dist",
+    "sourceMap": true,
   },
-  "include": ["src", "experimental/reporting-ui"],
-  "types": ["node", "jest", "@testing-library/jest-dom"],
+  "include": ["src"],
+  "types": ["node"],
 }

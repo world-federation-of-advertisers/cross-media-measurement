@@ -1,4 +1,5 @@
 bazel-container-output
 
-src/main/react/reporting-ui/node_modules
+experimental/reporting-ui/src/main/react/reporting-ui/node_modules
+experimental/reporting-ui/src/main/react/reporting-ui-component-library/node_modules
 node_modules
