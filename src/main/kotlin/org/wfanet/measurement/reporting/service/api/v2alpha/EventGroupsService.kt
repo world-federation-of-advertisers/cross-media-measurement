@@ -17,11 +17,8 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
-import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequest
-import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
 
-class EventGroupsService : EventGroupsCoroutineImplBase() {
-  override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
-    return super.listEventGroups(request)
-  }
-}
+/**
+ * TODO(@tristanvuong2021): Implement methods.
+ */
+class EventGroupsService : EventGroupsCoroutineImplBase()
