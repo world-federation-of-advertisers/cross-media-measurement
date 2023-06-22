@@ -1168,8 +1168,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
       cmmsMeasurementConsumerId: String,
       reportingSetsService: ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase,
     ): Report {
-      val createdReportingSet =
-        createReportingSet(cmmsMeasurementConsumerId, reportingSetsService)
+      val createdReportingSet = createReportingSet(cmmsMeasurementConsumerId, reportingSetsService)
 
       return report {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
@@ -1246,8 +1245,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
       reportingSetsService: ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase,
       usePeriodicTimeInterval: Boolean,
     ): Report {
-      val createdReportingSet =
-        createReportingSet(cmmsMeasurementConsumerId, reportingSetsService)
+      val createdReportingSet = createReportingSet(cmmsMeasurementConsumerId, reportingSetsService)
 
       val reportingMetricCalculationSpec =
         ReportKt.reportingMetricCalculationSpec {
