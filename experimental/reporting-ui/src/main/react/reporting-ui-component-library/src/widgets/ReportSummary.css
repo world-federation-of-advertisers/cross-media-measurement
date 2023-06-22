@@ -1,0 +1,56 @@
+.SummaryCard {
+    overflow: hidden;
+    border-radius: 12px;
+    margin: 32px 32px 0px 32px;
+    box-shadow: 0px 2px 6px 2px rgba(0, 0, 0, 0.15), 0px 1px 2px 0px rgba(0, 0, 0, 0.30);
+
+    > .card-body {
+        padding: 0px;
+    }
+}
+
+.SummaryCard table {
+    margin: 0!important;
+}
+
+.SummaryCard table th {
+    color: #000000;
+    font-family: myFirstFont;
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: 16px;
+    letter-spacing: 0.1px;
+    padding: 16px;
+}
+
+.SummaryCard table td {
+    color: #000000;
+    font-family: myFirstFont;
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: 16px;
+    letter-spacing: 0.1px;
+    padding: 16px;
+}
+
+.SummaryCard table thead > tr > th:first-child {
+    padding-left: 32px;
+}
+
+.SummaryCard table thead > tr > th:last-child {
+    padding-right: 32px;
+}
+
+.SummaryCard table tbody > tr > td:first-child {
+    padding-left: 32px;
+}
+
+.SummaryCard table tbody > tr > td:last-child {
+    padding-right: 32px;
+}
+
+.SummaryCard table tbody > tr:last-child > td {
+    border-bottom: 0;
+}

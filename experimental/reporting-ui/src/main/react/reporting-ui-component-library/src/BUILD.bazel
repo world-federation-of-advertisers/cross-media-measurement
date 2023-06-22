@@ -1,0 +1,51 @@
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
+
+package(
+    default_visibility = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui-component-library:__pkg__",
+    ],
+)
+
+ASSET_PATTERNS = [
+    "**/*.svg", # vector icons
+    "**/*.css", # style sheets
+    "**/*.ttf", # fonts
+]
+
+SRC_PATTERNS = [
+    "**/*.tsx",
+    "**/*.ts",
+    "**/*.js",
+]
+
+js_library(
+    name = "src_files",
+    srcs = glob(
+        include = SRC_PATTERNS + ASSET_PATTERNS,
+    ),
+)
+
+# Don't really need these, webpack in the base will bundle them up
+# ts_project(
+#     name = "src_ts",
+#     srcs = glob(SRC_PATTERNS),
+#     tsconfig = "//experimental/reporting-ui/src/main/react/reporting-ui-component-library:tsconfig",
+#     resolve_json_module = True,
+#     source_map = True,
+#     declaration = True,
+#     allow_js = True,
+#     deps = [
+#         "//:node_modules/@types/react",
+#         "//:node_modules/@types/react-router-dom",
+#         "//:node_modules/react-bootstrap",
+#     ],
+# )
+
+# js_library(
+#     name = "src",
+#     srcs = glob(ASSET_PATTERNS),
+#     deps = [
+#         ":src_ts",
+#     ],
+# )

@@ -1,0 +1,26 @@
+#report-overview {
+    margin: 32px 16px 0px 16px;
+
+    .col {
+        margin: 0px 16px 0px 16px;
+        padding: 0px;
+    }
+}
+
+#report-overview .card-title {
+    color: #1F1F1F;
+    font-family: myFirstFont;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: 24px;
+}
+
+#report-overview .card-text {
+    color: #1F1F1F;
+    font-family: myFirstFont;
+    font-size: 45px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: 52px;
+}
