@@ -114,10 +114,10 @@ kt_jvm_library(
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
-    ],
+    ],Add miss
     deps = [
         ":configs",
-        "duchy_services",
+        ":duchy_services",
         "//imports/java/io/opentelemetry/api",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing:testing",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
