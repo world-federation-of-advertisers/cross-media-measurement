@@ -48,7 +48,7 @@ class V2PostgresInProcessLifeOfAReportIntegrationTest : InProcessLifeOfAReportIn
     GcsStorageClient(LocalStorageHelper.getOptions().service, "bucket-simulator")
   }
 
-  override val reportingServerDataServices by lazy {
+  override val internalReportingServerServices by lazy {
     PostgresServices.create(
       RandomIdGenerator(Clock.systemUTC()),
       EmbeddedPostgresDatabaseProvider(Schemata.REPORTING_CHANGELOG_PATH).createNewDatabase()

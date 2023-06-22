@@ -27,7 +27,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.Reportin
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineImplBase
 import picocli.CommandLine
 
-abstract class ReportingDataServer : Runnable {
+abstract class InternalReportingServer : Runnable {
   data class Services(
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
     val measurementsService: MeasurementsCoroutineImplBase,

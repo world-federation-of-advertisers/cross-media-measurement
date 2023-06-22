@@ -17,9 +17,9 @@ kt_jvm_library(
     ],
     deps = [
         ":in_process_reporting_server",
-        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_components",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_cmms_components",
         "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2/identity:reporting_principal_identity",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/server:reporting_data_server",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/server:internal_reporting_server",
         "//src/main/proto/wfa/measurement/config/reporting:encryption_key_pair_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:event_groups_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:metrics_service_kt_jvm_grpc_proto",
@@ -38,7 +38,7 @@ kt_jvm_library(
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2/identity:metadata_principal_interceptor",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/server:reporting_data_server",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/server:internal_reporting_server",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:cel_env_provider",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:event_groups_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:metrics_service",

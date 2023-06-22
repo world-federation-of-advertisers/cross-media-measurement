@@ -118,10 +118,8 @@ kt_jvm_library(
 kt_jvm_library(
     name = "in_process_components",
     srcs = [
-        "InProcessComponents.kt",
         "InProcessDuchy.kt",
         "InProcessEdpSimulator.kt",
-        "InProcessLifeOfAMeasurementIntegrationTest.kt",
     ],
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
@@ -130,27 +128,67 @@ kt_jvm_library(
     deps = [
         ":all_cmms_services",
         ":configs",
-        ":in_process_kingdom",
         "//imports/java/io/opentelemetry/api",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing:testing",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/common/identity:principal_identity",
         "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/herald",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2:liquid_legions_v2_mill",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/testing",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:duchy_ids",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:edp_simulator",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/frontend:frontend_simulator",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/storage:storage",
         "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
         "@any_sketch_java//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_java_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/io/grpc:core",
         "@wfa_common_jvm//imports/java/io/grpc/testing",
         "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
+
+kt_jvm_library(
+    name = "in_process_cmms_components",
+    srcs = [
+        "InProcessCmmsComponents.kt",
+    ],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
+    ],
+    deps = [
+        ":all_cmms_services",
+        ":configs",
+        ":in_process_components",
+        ":in_process_kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:duchy_ids",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/frontend:frontend_simulator",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
+
+kt_jvm_library(
+    name = "in_process_life_of_a_measurement_integration_test",
+    srcs = [
+        "InProcessLifeOfAMeasurementIntegrationTest.kt",
+    ],
+    deps = [
+        ":all_cmms_services",
+        ":in_process_cmms_components",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/frontend:frontend_simulator",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/storage:storage",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
     ],
 )

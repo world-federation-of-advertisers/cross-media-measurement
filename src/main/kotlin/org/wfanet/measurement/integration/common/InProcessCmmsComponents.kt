@@ -18,21 +18,14 @@ package org.wfanet.measurement.integration.common
 
 import com.google.protobuf.ByteString
 import java.security.cert.X509Certificate
-import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
-import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
-import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroup
-import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
-import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
-import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.identity.DuchyInfo
@@ -42,15 +35,13 @@ import org.wfanet.measurement.config.DuchyCertConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
-import org.wfanet.measurement.loadtest.frontend.FrontendSimulator
 import org.wfanet.measurement.loadtest.frontend.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.loadtest.resourcesetup.ResourceSetup
-import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.StorageClient
 
-class InProcessComponents(
+class InProcessCmmsComponents(
   private val kingdomDataServicesRule: ProviderRule<DataServices>,
   private val duchyDependenciesRule: ProviderRule<(String) -> InProcessDuchy.DuchyDependencies>,
   private val storageClient: StorageClient,
@@ -101,23 +92,8 @@ class InProcessComponents(
     )
   }
 
-  private val publicMeasurementsClient by lazy {
-    MeasurementsGrpcKt.MeasurementsCoroutineStub(kingdom.publicApiChannel)
-  }
   private val publicMeasurementConsumersClient by lazy {
     MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(kingdom.publicApiChannel)
-  }
-  private val publicCertificatesClient by lazy {
-    CertificatesGrpcKt.CertificatesCoroutineStub(kingdom.publicApiChannel)
-  }
-  private val publicEventGroupsClient by lazy {
-    EventGroupsGrpcKt.EventGroupsCoroutineStub(kingdom.publicApiChannel)
-  }
-  private val publicDataProvidersClient by lazy {
-    DataProvidersGrpcKt.DataProvidersCoroutineStub(kingdom.publicApiChannel)
-  }
-  private val publicRequisitionsClient by lazy {
-    RequisitionsGrpcKt.RequisitionsCoroutineStub(kingdom.publicApiChannel)
   }
   private val publicAccountsClient by lazy {
     AccountsGrpcKt.AccountsCoroutineStub(kingdom.publicApiChannel)
@@ -130,8 +106,6 @@ class InProcessComponents(
   private lateinit var apiAuthenticationKey: String
   private lateinit var edpDisplayNameToResourceNameMap: Map<String, String>
   private lateinit var duchyCertMap: Map<String, String>
-  lateinit var frontendSimulator: FrontendSimulator
-    private set
   private lateinit var eventGroups: List<EventGroup>
 
   private suspend fun createAllResources() {
@@ -167,27 +141,6 @@ class InProcessComponents(
           .createDuchyCertificate(DuchyCert(it, loadTestCertDerFile("${it}_cs_cert.der")))
           .name
       }
-
-    frontendSimulator =
-      FrontendSimulator(
-        MeasurementConsumerData(
-          mcResourceName,
-          MC_ENTITY_CONTENT.signingKey,
-          MC_ENCRYPTION_PRIVATE_KEY,
-          apiAuthenticationKey
-        ),
-        OUTPUT_DP_PARAMS,
-        publicDataProvidersClient,
-        publicEventGroupsClient,
-        publicMeasurementsClient,
-        publicRequisitionsClient,
-        publicMeasurementConsumersClient,
-        publicCertificatesClient,
-        SketchStore(storageClient),
-        RESULT_POLLING_DELAY,
-        TRUSTED_CERTIFICATES,
-        EVENT_TEMPLATES_TO_FILTERS_MAP
-      )
   }
 
   fun getMeasurementConsumerData(): MeasurementConsumerData {
@@ -227,17 +180,12 @@ class InProcessComponents(
   }
 
   companion object {
-    private val OUTPUT_DP_PARAMS = differentialPrivacyParams {
-      epsilon = 1.0
-      delta = 1.0
-    }
     private const val REDIRECT_URI = "https://localhost:2048"
-    private val RESULT_POLLING_DELAY = Duration.ofSeconds(10)
-    private val MC_ENTITY_CONTENT: EntityContent = createEntityContent(MC_DISPLAY_NAME)
-    private val MC_ENCRYPTION_PRIVATE_KEY: TinkPrivateKeyHandle =
+    val MC_ENTITY_CONTENT: EntityContent = createEntityContent(MC_DISPLAY_NAME)
+    val MC_ENCRYPTION_PRIVATE_KEY: TinkPrivateKeyHandle =
       loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink")
 
-    private val TRUSTED_CERTIFICATES: Map<ByteString, X509Certificate> =
+    val TRUSTED_CERTIFICATES: Map<ByteString, X509Certificate> =
       loadTestCertCollection("all_root_certs.pem").associateBy {
         checkNotNull(it.subjectKeyIdentifier)
       }

@@ -39,11 +39,11 @@ import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.princip
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
 import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
-import org.wfanet.measurement.integration.common.InProcessComponents
+import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.reporting.v2.identity.withPrincipalName
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
-import org.wfanet.measurement.reporting.deploy.v2.common.server.ReportingDataServer
+import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
 import org.wfanet.measurement.storage.StorageClient
@@ -62,27 +62,27 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
   abstract val storageClient: StorageClient
 
-  private val inProcessKingdomComponents: InProcessComponents by lazy {
-    InProcessComponents(kingdomDataServicesRule, duchyDependenciesRule, storageClient)
+  private val inProcessCmmsComponents: InProcessCmmsComponents by lazy {
+    InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule, storageClient)
   }
 
-  private val inProcessKingdomComponentsStartup: TestRule by lazy {
+  private val inProcessCmmsComponentsStartup: TestRule by lazy {
     TestRule { statement, _ ->
       object : Statement() {
         override fun evaluate() {
-          InProcessComponents.initConfig()
-          inProcessKingdomComponents.startDaemons()
+          InProcessCmmsComponents.initConfig()
+          inProcessCmmsComponents.startDaemons()
           statement.evaluate()
         }
       }
     }
   }
 
-  abstract val reportingServerDataServices: ReportingDataServer.Services
+  abstract val internalReportingServerServices: InternalReportingServer.Services
 
   private val reportingServer: InProcessReportingServer by lazy {
     val encryptionKeyPairConfigGenerator: () -> EncryptionKeyPairConfig = {
-      val measurementConsumerData = inProcessKingdomComponents.getMeasurementConsumerData()
+      val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
 
       encryptionKeyPairConfig {
         principalKeyPairs += principalKeyPairs {
@@ -95,16 +95,15 @@ abstract class InProcessLifeOfAReportIntegrationTest {
       }
     }
 
-    val measurementConsumerConfigGenerator: () -> MeasurementConsumerConfig = {
-      val measurementConsumerData = inProcessKingdomComponents.getMeasurementConsumerData()
+    val measurementConsumerConfigGenerator: suspend () -> MeasurementConsumerConfig = {
+      val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
 
-      val measurementConsumer = runBlocking {
+      val measurementConsumer =
         publicKingdomMeasurementConsumersClient
           .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
           .getMeasurementConsumer(
             getMeasurementConsumerRequest { name = measurementConsumerData.name }
           )
-      }
 
       measurementConsumerConfig {
         apiKey = measurementConsumerData.apiAuthenticationKey
@@ -114,8 +113,8 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     }
 
     InProcessReportingServer(
-      reportingServerDataServices,
-      { inProcessKingdomComponents.kingdom.publicApiChannel },
+      internalReportingServerServices,
+      { inProcessCmmsComponents.kingdom.publicApiChannel },
       encryptionKeyPairConfigGenerator,
       SECRETS_DIR,
       measurementConsumerConfigGenerator,
@@ -127,14 +126,14 @@ abstract class InProcessLifeOfAReportIntegrationTest {
   @get:Rule
   val ruleChain: TestRule by lazy {
     chainRulesSequentially(
-      inProcessKingdomComponents,
-      inProcessKingdomComponentsStartup,
+      inProcessCmmsComponents,
+      inProcessCmmsComponentsStartup,
       reportingServer
     )
   }
 
   private val publicKingdomMeasurementConsumersClient by lazy {
-    MeasurementConsumersCoroutineStub(inProcessKingdomComponents.kingdom.publicApiChannel)
+    MeasurementConsumersCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
   }
 
   private val publicReportingSetsClient by lazy {
@@ -143,14 +142,14 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
   @After
   fun stopComponents() {
-    inProcessKingdomComponents.stopEdpSimulators()
-    inProcessKingdomComponents.stopDuchyDaemons()
+    inProcessCmmsComponents.stopEdpSimulators()
+    inProcessCmmsComponents.stopDuchyDaemons()
   }
 
   @Test
   fun `connection test`() = runBlocking {
     // TODO(@tristanvuong2021): Add tests covering different scenarios
-    val measurementConsumerName = inProcessKingdomComponents.getMeasurementConsumerData().name
+    val measurementConsumerName = inProcessCmmsComponents.getMeasurementConsumerData().name
     val reportingSets =
       publicReportingSetsClient
         .withPrincipalName(measurementConsumerName)

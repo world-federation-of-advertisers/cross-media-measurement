@@ -9,7 +9,7 @@ kt_jvm_library(
         "//src/test/kotlin/org/wfanet/measurement/integration/postgres:__pkg__",
     ],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/server:reporting_data_server",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/server:internal_reporting_server",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres:services",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
