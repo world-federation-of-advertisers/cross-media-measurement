@@ -62,15 +62,6 @@ java_library(
     ],
 )
 
-java_library(
-    name = "all_cmms_services",
-    visibility = ["//visibility:private"],
-    exports = [
-        ":all_kingdom_services",
-        ":duchy_services",
-    ],
-)
-
 kt_jvm_library(
     name = "in_process_kingdom",
     srcs = [
@@ -116,18 +107,17 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "in_process_components",
+    name = "in_process_duchy",
     srcs = [
         "InProcessDuchy.kt",
-        "InProcessEdpSimulator.kt",
     ],
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
     ],
     deps = [
-        ":all_cmms_services",
         ":configs",
+        "duchy_services",
         "//imports/java/io/opentelemetry/api",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing:testing",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
@@ -135,12 +125,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/herald",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2:liquid_legions_v2_mill",
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/testing",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:edp_simulator",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/storage:storage",
-        "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
-        "@any_sketch_java//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_java_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/io/grpc:core",
         "@wfa_common_jvm//imports/java/io/grpc/testing",
@@ -153,6 +138,28 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "in_process_edp_simulator",
+    srcs = [
+        "InProcessEdpSimulator.kt",
+    ],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
+    ],
+    deps = [
+        ":all_kingdom_services",
+        ":configs",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/testing",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:edp_simulator",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/storage:storage",
+        "@wfa_common_jvm//imports/java/io/grpc:core",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
+    ],
+)
+
+kt_jvm_library(
     name = "in_process_cmms_components",
     srcs = [
         "InProcessCmmsComponents.kt",
@@ -161,9 +168,9 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
     ],
     deps = [
-        ":all_cmms_services",
         ":configs",
-        ":in_process_components",
+        ":in_process_duchy",
+        ":in_process_edp_simulator",
         ":in_process_kingdom",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:duchy_ids",
@@ -182,7 +189,7 @@ kt_jvm_library(
         "InProcessLifeOfAMeasurementIntegrationTest.kt",
     ],
     deps = [
-        ":all_cmms_services",
+        ":all_kingdom_services",
         ":in_process_cmms_components",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/frontend:frontend_simulator",

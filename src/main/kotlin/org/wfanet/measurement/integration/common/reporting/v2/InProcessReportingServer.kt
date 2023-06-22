@@ -134,8 +134,8 @@ class InProcessReportingServer(
             measurementConsumer {
               cmmsMeasurementConsumerId =
                 MeasurementConsumerCertificateKey.fromName(
-                  measurementConsumerConfig.signingCertificateName
-                )!!
+                    measurementConsumerConfig.signingCertificateName
+                  )!!
                   .measurementConsumerId
             }
           )
@@ -149,32 +149,32 @@ class InProcessReportingServer(
         }
 
         listOf(
-          EventGroupsService().withMetadataPrincipalIdentities(measurementConsumerConfig),
-          MetricsService(
-            METRIC_SPEC_CONFIG,
-            internalReportingSetsClient,
-            internalMetricsClient,
-            internalMeasurementsClient,
-            publicKingdomDataProvidersClient,
-            publicKingdomMeasurementsClient,
-            publicKingdomCertificatesClient,
-            publicKingdomMeasurementConsumersClient,
-            encryptionKeyPairStore,
-            SecureRandom(),
-            signingPrivateKeyDir,
-            trustedCertificates,
-            Dispatchers.IO
+            EventGroupsService().withMetadataPrincipalIdentities(measurementConsumerConfig),
+            MetricsService(
+                METRIC_SPEC_CONFIG,
+                internalReportingSetsClient,
+                internalMetricsClient,
+                internalMeasurementsClient,
+                publicKingdomDataProvidersClient,
+                publicKingdomMeasurementsClient,
+                publicKingdomCertificatesClient,
+                publicKingdomMeasurementConsumersClient,
+                encryptionKeyPairStore,
+                SecureRandom(),
+                signingPrivateKeyDir,
+                trustedCertificates,
+                Dispatchers.IO
+              )
+              .withMetadataPrincipalIdentities(measurementConsumerConfig),
+            ReportingSetsService(internalReportingSetsClient)
+              .withMetadataPrincipalIdentities(measurementConsumerConfig),
+            ReportsService(
+                internalReportsClient,
+                PublicMetricsCoroutineStub(this@GrpcTestServerRule.channel),
+                METRIC_SPEC_CONFIG,
+              )
+              .withMetadataPrincipalIdentities(measurementConsumerConfig)
           )
-            .withMetadataPrincipalIdentities(measurementConsumerConfig),
-          ReportingSetsService(internalReportingSetsClient)
-            .withMetadataPrincipalIdentities(measurementConsumerConfig),
-          ReportsService(
-            internalReportsClient,
-            PublicMetricsCoroutineStub(this@GrpcTestServerRule.channel),
-            METRIC_SPEC_CONFIG,
-          )
-            .withMetadataPrincipalIdentities(measurementConsumerConfig)
-        )
           .forEach { addService(it.withVerboseLogging(verboseGrpcLogging)) }
       }
     }
@@ -185,7 +185,8 @@ class InProcessReportingServer(
 
   override fun apply(statement: Statement, description: Description): Statement {
     publicApiServer = createPublicApiTestServerRule()
-    return chainRulesSequentially(internalReportingServer, publicApiServer).apply(statement, description)
+    return chainRulesSequentially(internalReportingServer, publicApiServer)
+      .apply(statement, description)
   }
 
   companion object {

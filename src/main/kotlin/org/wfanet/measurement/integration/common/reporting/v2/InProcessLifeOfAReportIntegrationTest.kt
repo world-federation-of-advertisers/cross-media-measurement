@@ -125,11 +125,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
   @get:Rule
   val ruleChain: TestRule by lazy {
-    chainRulesSequentially(
-      inProcessCmmsComponents,
-      inProcessCmmsComponentsStartup,
-      reportingServer
-    )
+    chainRulesSequentially(inProcessCmmsComponents, inProcessCmmsComponentsStartup, reportingServer)
   }
 
   private val publicKingdomMeasurementConsumersClient by lazy {
