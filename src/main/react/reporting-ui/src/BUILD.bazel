@@ -1,7 +1,11 @@
-load("@aspect_rules_jest//jest:defs.bzl", "jest_test")
 load("@aspect_rules_js//js:defs.bzl", "js_library")
 load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
-load("@npm//:eslint/package_json.bzl", eslint_bin = "bin")
+
+package(
+    default_visibility = [
+        "//src/main/react/reporting-ui:__pkg__",
+    ]
+)
 
 ASSET_PATTERNS = [
     "*.svg",
@@ -16,7 +20,6 @@ SRC_PATTERNS = [
 js_library(
     name = "entry_point",
     srcs = ["index.tsx"],
-    visibility = ["//visibility:public"],
 )
 
 js_library(
@@ -24,16 +27,6 @@ js_library(
     srcs = glob(
         include = SRC_PATTERNS + ASSET_PATTERNS,
     ),
-    visibility = ["//visibility:public"],
-)
-
-js_library(
-    name = "src",
-    srcs = glob(ASSET_PATTERNS),
-    visibility = ["//visibility:public"],
-    deps = [
-        ":src_ts",
-    ],
 )
 
 ts_project(
@@ -42,7 +35,6 @@ ts_project(
     declaration = True,
     resolve_json_module = True,
     tsconfig = "//src/main/react/reporting-ui:tsconfig",
-    visibility = ["//visibility:public"],
     deps = [
         "//:node_modules/react",
         "//:node_modules/react-dom",
@@ -50,14 +42,10 @@ ts_project(
     ],
 )
 
-eslint_bin.eslint_test(
-    name = "eslint_test",
-    args = ["{}/{}".format(
-        package_name(),
-        p,
-    ) for p in SRC_PATTERNS],
-    data = [
-        "//src/main/react/reporting-ui:package_json",
-        "//:node_modules/eslint-config-react-app",
-    ] + glob(SRC_PATTERNS),
+js_library(
+    name = "src",
+    srcs = glob(ASSET_PATTERNS),
+    deps = [
+        ":src_ts",
+    ],
 )

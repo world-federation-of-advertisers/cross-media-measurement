@@ -1,6 +1,5 @@
 load("@bazel_gazelle//:def.bzl", "gazelle")
-load("@npm//:defs.bzl", "npm_link_all_packages")
-load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("@npm//:defs.bzl", "npm_link_all_packages")\
 
 package(default_visibility = ["//:__subpackages__"])
 
@@ -9,9 +8,3 @@ package(default_visibility = ["//:__subpackages__"])
 gazelle(name = "gazelle")
 
 npm_link_all_packages()
-
-js_library(
-    name = "package_json",
-    srcs = ["package.json"],
-    visibility = ["//visibility:public"],
-)
