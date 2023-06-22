@@ -47,82 +47,77 @@ class ComputationReader(
   private val computationProtocolStagesEnumHelper:
     ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
 ) {
-
-  /** A wrapper data class for ComputationToken query result */
-  data class ReadComputationTokenResult(val computationToken: ComputationToken)
-
-  private fun buildComputationToken(row: ResultRow) =
-    ReadComputationTokenResult(
-      computationToken {
-        val blobs =
-          row
-            .get<Array<String>?>("Blobs")
-            ?.map {
-              val jsonObj = JsonParser.parseString(it).asJsonObject
-              computationStageBlobMetadata {
-                blobId = jsonObj.getAsJsonPrimitive("BlobId").asLong
-                val blobPath: String = jsonObj.getAsJsonPrimitive("PathToBlob").asString
-                if (blobPath.isNotEmpty()) {
-                  path = blobPath
-                }
-                dependencyType =
-                  ComputationBlobDependency.forNumber(
-                    jsonObj.getAsJsonPrimitive("DependencyType").asInt
-                  )
-              }
+  private fun buildComputationToken(row: ResultRow): ComputationToken {
+    val blobs =
+      row
+        .get<Array<String>?>("Blobs")
+        ?.map {
+          val jsonObj = JsonParser.parseString(it).asJsonObject
+          computationStageBlobMetadata {
+            blobId = jsonObj.getAsJsonPrimitive("BlobId").asLong
+            val blobPath: String = jsonObj.getAsJsonPrimitive("PathToBlob").asString
+            if (blobPath.isNotEmpty()) {
+              path = blobPath
             }
-            ?.sortedBy { it.blobId }
-        val requisitions =
-          row
-            .get<Array<String>?>("Requisitions")
-            ?.map {
-              val jsonObj = JsonParser.parseString(it).asJsonObject
-              requisitionMetadata {
-                externalKey = externalRequisitionKey {
-                  externalRequisitionId =
-                    jsonObj.getAsJsonPrimitive("ExternalRequisitionId").asString
-                  requisitionFingerprint =
-                    jsonObj.getAsJsonPrimitive("RequisitionFingerprint").base64MimeDecode()
-                }
-                jsonObj.get("PathToBlob").let { jsonElem ->
-                  if (!jsonElem.isJsonNull) path = jsonElem.asString
-                }
-                details =
-                  RequisitionDetails.parseFrom(
-                    jsonObj.getAsJsonPrimitive("RequisitionDetails").base64MimeDecode()
-                  )
-              }
+            dependencyType =
+              ComputationBlobDependency.forNumber(
+                jsonObj.getAsJsonPrimitive("DependencyType").asInt
+              )
+          }
+        }
+        ?.sortedBy { it.blobId }
+    val requisitions =
+      row
+        .get<Array<String>?>("Requisitions")
+        ?.map {
+          val jsonObj = JsonParser.parseString(it).asJsonObject
+          requisitionMetadata {
+            externalKey = externalRequisitionKey {
+              externalRequisitionId = jsonObj.getAsJsonPrimitive("ExternalRequisitionId").asString
+              requisitionFingerprint =
+                jsonObj.getAsJsonPrimitive("RequisitionFingerprint").base64MimeDecode()
             }
-            ?.sortedBy { it.externalKey.externalRequisitionId }
-
-        val computationDetailsProto =
-          row.getProtoMessage("ComputationDetails", ComputationDetails.parser())
-        val stageDetails = row.getProtoMessage("StageDetails", ComputationStageDetails.parser())
-        globalComputationId = row["GlobalComputationId"]
-        localComputationId = row["ComputationId"]
-        computationStage =
-          computationProtocolStagesEnumHelper.longValuesToComputationStageEnum(
-            ComputationStageLongValues(row["Protocol"], row["ComputationStage"])
-          )
-        attempt = row.get<Int>("NextAttempt") - 1
-        computationDetails = computationDetailsProto
-        version = row.get<Instant>("UpdateTime").toEpochMilli()
-        stageSpecificDetails = stageDetails
-
-        if (!row.get<String?>("LockOwner").isNullOrBlank()) {
-          lockOwner = row["LockOwner"]
+            jsonObj.get("PathToBlob").let { jsonElem ->
+              if (!jsonElem.isJsonNull) path = jsonElem.asString
+            }
+            details =
+              RequisitionDetails.parseFrom(
+                jsonObj.getAsJsonPrimitive("RequisitionDetails").base64MimeDecode()
+              )
+          }
         }
-        lockExpirationTime = row.get<Instant>("LockExpirationTime").toProtoTime()
+        ?.sortedBy { it.externalKey.externalRequisitionId }
 
-        if (!blobs.isNullOrEmpty()) {
-          this.blobs += blobs
-        }
+    val computationDetailsProto =
+      row.getProtoMessage("ComputationDetails", ComputationDetails.parser())
+    val stageDetails = row.getProtoMessage("StageDetails", ComputationStageDetails.parser())
 
-        if (!requisitions.isNullOrEmpty()) {
-          this.requisitions += requisitions
-        }
+    return computationToken {
+      globalComputationId = row["GlobalComputationId"]
+      localComputationId = row["ComputationId"]
+      computationStage =
+        computationProtocolStagesEnumHelper.longValuesToComputationStageEnum(
+          ComputationStageLongValues(row["Protocol"], row["ComputationStage"])
+        )
+      attempt = row.get<Int>("NextAttempt") - 1
+      computationDetails = computationDetailsProto
+      version = row.get<Instant>("UpdateTime").toEpochMilli()
+      stageSpecificDetails = stageDetails
+
+      if (!row.get<String?>("LockOwner").isNullOrBlank()) {
+        lockOwner = row["LockOwner"]
       }
-    )
+      lockExpirationTime = row.get<Instant>("LockExpirationTime").toProtoTime()
+
+      if (!blobs.isNullOrEmpty()) {
+        this.blobs += blobs
+      }
+
+      if (!requisitions.isNullOrEmpty()) {
+        this.requisitions += requisitions
+      }
+    }
+  }
 
   /**
    * Gets a [ComputationToken] by globalComputationId.
@@ -135,7 +130,7 @@ class ComputationReader(
   suspend fun readComputationToken(
     readContext: ReadContext,
     globalComputationId: String
-  ): ReadComputationTokenResult? {
+  ): ComputationToken? {
     val statement =
       boundStatement(
         """
@@ -196,7 +191,7 @@ class ComputationReader(
   suspend fun readComputationToken(
     readContext: ReadContext,
     externalRequisitionKey: ExternalRequisitionKey
-  ): ReadComputationTokenResult? {
+  ): ComputationToken? {
     val statement =
       boundStatement(
         """
@@ -212,7 +207,7 @@ class ComputationReader(
         cs.NextAttempt,
         cs.Details AS StageDetails,
         (
-          SELECT JSON_AGG(
+          SELECT ARRAY_AGG(
             JSON_BUILD_OBJECT(
               'BlobId', b.BlobId,
               'BlobPath', b.PathToBlob,
@@ -225,7 +220,7 @@ class ComputationReader(
             c.ComputationStage = b.ComputationStage
         ) AS Blobs,
         (
-          SELECT JSON_AGG(
+          SELECT ARRAY_AGG(
             JSON_BUILD_OBJECT(
               'ExternalRequisitionId', r2.ExternalRequisitionId,
               'RequisitionFingerprint', r2.RequisitionFingerprint,

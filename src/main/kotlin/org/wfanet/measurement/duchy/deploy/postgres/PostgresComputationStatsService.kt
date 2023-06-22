@@ -33,7 +33,7 @@ class PostgresComputationStatsService(
   ): CreateComputationStatResponse {
     val localComputationId = request.localComputationId
     val metricName = request.metricName
-    grpcRequire(localComputationId != 0L) { "Missing computation ID" }
+    grpcRequire(localComputationId != 0L) { "Missing local_computation_id" }
     grpcRequire(metricName.isNotEmpty()) { "Missing Metric name" }
 
     InsertComputationStat(

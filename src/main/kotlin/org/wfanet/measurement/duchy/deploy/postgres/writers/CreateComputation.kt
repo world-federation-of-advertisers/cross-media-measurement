@@ -55,20 +55,15 @@ class CreateComputation<ProtocolT, ComputationDT : Message, StageT, StageDT : Me
   private val computationDetails: ComputationDT,
   private val requisitions: List<RequisitionEntry>,
   private val clock: Clock,
-  computationTypeEnumHelper: ComputationTypeEnumHelper<ProtocolT>,
-  computationProtocolStagesEnumHelper: ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
-  computationProtocolStageDetailsHelper:
+  private val computationTypeEnumHelper: ComputationTypeEnumHelper<ProtocolT>,
+  private val computationProtocolStagesEnumHelper:
+    ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
+  private val computationProtocolStageDetailsHelper:
     ComputationProtocolStageDetailsHelper<ProtocolT, StageT, StageDT, ComputationDT>,
-) :
-  PostgresWriter<Unit>(),
-  ComputationTypeEnumHelper<ProtocolT> by computationTypeEnumHelper,
-  ComputationProtocolStagesEnumHelper<ProtocolT, StageT> by computationProtocolStagesEnumHelper,
-  ComputationProtocolStageDetailsHelper<
-    ProtocolT, StageT, StageDT, ComputationDT
-  > by computationProtocolStageDetailsHelper {
+) : PostgresWriter<Unit>() {
 
   override suspend fun TransactionScope.runTransaction() {
-    if (!validInitialStage(protocol, initialStage)) {
+    if (!computationProtocolStagesEnumHelper.validInitialStage(protocol, initialStage)) {
       throw ComputationInitialStageInvalidException(protocol.toString(), initialStage.toString())
     }
 
@@ -144,8 +139,13 @@ class CreateComputation<ProtocolT, ComputationDT : Message, StageT, StageDT : Me
       """
       ) {
         bind("$1", localId)
-        bind("$2", protocol?.let { protocolEnumToLong(it) })
-        bind("$3", stage?.let { computationStageEnumToLongValues(it).stage })
+        bind("$2", protocol?.let { computationTypeEnumHelper.protocolEnumToLong(it) })
+        bind(
+          "$3",
+          stage?.let {
+            computationProtocolStagesEnumHelper.computationStageEnumToLongValues(it).stage
+          }
+        )
         bind("$4", updateTime)
         bind("$5", globalId)
         bind("$6", lockOwner)
@@ -187,12 +187,25 @@ class CreateComputation<ProtocolT, ComputationDT : Message, StageT, StageDT : Me
       """
       ) {
         bind("$1", localId)
-        bind("$2", computationStageEnumToLongValues(stage).stage)
+        bind(
+          "$2",
+          computationProtocolStagesEnumHelper.computationStageEnumToLongValues(stage).stage
+        )
         bind("$3", creationTime)
         bind("$4", nextAttempt)
         bind("$5", endTime)
-        bind("$6", previousStage?.let { computationStageEnumToLongValues(it).stage })
-        bind("$7", followingStage?.let { computationStageEnumToLongValues(it).stage })
+        bind(
+          "$6",
+          previousStage?.let {
+            computationProtocolStagesEnumHelper.computationStageEnumToLongValues(it).stage
+          }
+        )
+        bind(
+          "$7",
+          followingStage?.let {
+            computationProtocolStagesEnumHelper.computationStageEnumToLongValues(it).stage
+          }
+        )
         bind("$8", details?.toByteArray())
         bind("$9", details?.toJson())
       }

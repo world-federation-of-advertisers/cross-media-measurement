@@ -28,9 +28,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetai
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationStageLongValues
 import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
-import org.wfanet.measurement.duchy.service.internal.ComputationDetailsNotFoundException
 import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
-import org.wfanet.measurement.duchy.service.internal.DuchyInternalException
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 import org.wfanet.measurement.internal.duchy.copy
 
@@ -42,9 +40,9 @@ import org.wfanet.measurement.internal.duchy.copy
  * @return [String] a global computation id of work that was claimed.
  * @return null when no task was claimed.
  *
- * Throws a subclass of [DuchyInternalException] on [execute]:
+ * Throws following exceptions on [execute]:
  * * [ComputationNotFoundException] when computation could not be found
- * * [ComputationDetailsNotFoundException] when computation details could not be found
+ * * [IllegalStateException] when computation details could not be found
  */
 class ClaimWork<ProtocolT, ComputationDT : Message, StageT, StageDT : Message>(
   private val protocol: ProtocolT,
@@ -166,6 +164,7 @@ class ClaimWork<ProtocolT, ComputationDT : Message, StageT, StageDT : Message>(
           unclaimedTask.computationStage,
           currentAttempt
         )
+          ?: throw IllegalStateException("Computation stage details is missing.")
       // If the computation was locked, but that lock was expired we need to finish off the
       // current attempt of the stage.
       updateComputationStageAttempt(
@@ -374,7 +373,7 @@ class ClaimWork<ProtocolT, ComputationDT : Message, StageT, StageDT : Message>(
     computationId: Long,
     stage: StageT,
     currentAttempt: Long
-  ): ComputationStageAttemptDetails {
+  ): ComputationStageAttemptDetails? {
     val readComputationStageDetailsSql =
       boundStatement(
         """
@@ -395,6 +394,5 @@ class ClaimWork<ProtocolT, ComputationDT : Message, StageT, StageDT : Message>(
       .executeQuery(readComputationStageDetailsSql)
       .consume { it.getProtoMessage("Details", ComputationStageAttemptDetails.parser()) }
       .firstOrNull()
-      ?: throw ComputationDetailsNotFoundException(computationId, stage.toString(), currentAttempt)
   }
 }
