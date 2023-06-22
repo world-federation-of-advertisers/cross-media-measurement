@@ -18,7 +18,5 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 
-/**
- * TODO(@tristanvuong2021): Implement methods.
- */
+/** TODO(@tristanvuong2021): Implement methods. */
 class EventGroupsService : EventGroupsCoroutineImplBase()
