@@ -19,14 +19,16 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
-import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Timestamps
 import java.time.Clock
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
+import org.wfanet.measurement.gcloud.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
@@ -52,7 +54,6 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
         "RolloutPeriodStartTime must be in the future."
       }
     }
-
     if (
       Timestamps.compare(modelRollout.rolloutPeriodStartTime, modelRollout.rolloutPeriodEndTime) > 0
     ) {
@@ -71,12 +72,25 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
           ExternalId(modelRollout.externalModelProviderId),
           ExternalId(modelRollout.externalModelSuiteId),
           ExternalId(modelRollout.externalModelLineId),
-          modelRollout.rolloutPeriodStartTime
         )
       } else {
         null
       }
 
+    val previousModelRolloutStartTime =
+      previousModelRolloutData?.getTimestamp("RolloutPeriodStartTime")
+    if (
+      previousModelRolloutStartTime != null &&
+        previousModelRolloutStartTime.toInstant() > modelRollout.rolloutPeriodStartTime.toInstant()
+    ) {
+      throw ModelRolloutInvalidArgsException(
+        ExternalId(modelRollout.externalModelProviderId),
+        ExternalId(modelRollout.externalModelSuiteId),
+        ExternalId(modelRollout.externalModelLineId)
+      ) {
+        "RolloutPeriodStartTime cannot precede that of previous ModelRollout."
+      }
+    }
     val modelLineData =
       readModelLineData(
         ExternalId(modelRollout.externalModelProviderId),
@@ -170,13 +184,13 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
     externalModelProviderId: ExternalId,
     externalModelSuiteId: ExternalId,
     externalModelLineId: ExternalId,
-    rolloutStartTime: Timestamp
   ): Struct? {
     val sql =
       """
     SELECT
     ModelRollouts.ModelRolloutId,
-    ModelRollouts.ExternalModelRolloutId
+    ModelRollouts.ExternalModelRolloutId,
+    ModelRollouts.RolloutPeriodStartTime
     FROM ModelRollouts JOIN ModelLines
     USING (ModelProviderId, ModelSuiteId, ModelLineId)
     JOIN ModelSuites
@@ -185,7 +199,6 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
     WHERE ModelProviders.ExternalModelProviderId = @externalModelProviderId AND
     ModelSuites.ExternalModelSuiteId = @externalModelSuiteId AND
     ModelLines.ExternalModelLineId = @externalModelLineId
-    AND ModelRollouts.RolloutPeriodStartTime < @rolloutPeriodStartTime
     ORDER BY ModelRollouts.RolloutPeriodStartTime DESC
     """
         .trimIndent()
@@ -195,10 +208,9 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
         bind("externalModelProviderId" to externalModelProviderId.value)
         bind("externalModelSuiteId" to externalModelSuiteId.value)
         bind("externalModelLineId" to externalModelLineId.value)
-        bind("rolloutPeriodStartTime" to rolloutStartTime.toGcloudTimestamp())
       }
 
-    return transactionContext.executeQuery(statement).singleOrNull()
+    return transactionContext.executeQuery(statement).firstOrNull()
   }
 
   override fun ResultScope<ModelRollout>.buildResult(): ModelRollout {

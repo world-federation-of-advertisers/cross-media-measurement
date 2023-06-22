@@ -826,11 +826,11 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
     }
     val modelRollout1 =
       modelRolloutsService.createModelRollout(
-        modelRollout.copy { rolloutPeriodStartTime = Instant.now().plusSeconds(150L).toProtoTime() }
+        modelRollout.copy { rolloutPeriodStartTime = Instant.now().plusSeconds(50L).toProtoTime() }
       )
     val modelRollout2 =
       modelRolloutsService.createModelRollout(
-        modelRollout.copy { rolloutPeriodStartTime = Instant.now().plusSeconds(50L).toProtoTime() }
+        modelRollout.copy { rolloutPeriodStartTime = Instant.now().plusSeconds(150L).toProtoTime() }
       )
 
     val modelRollouts: List<ModelRollout> =
@@ -848,7 +848,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
         .toList()
 
     assertThat(modelRollouts).hasSize(1)
-    assertThat(modelRollouts).contains(modelRollout2)
+    assertThat(modelRollouts).contains(modelRollout1)
 
     val modelRollouts2: List<ModelRollout> =
       modelRolloutsService
@@ -871,7 +871,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
         .toList()
 
     assertThat(modelRollouts2).hasSize(1)
-    assertThat(modelRollouts2).contains(modelRollout1)
+    assertThat(modelRollouts2).contains(modelRollout2)
   }
 
   @Test
@@ -1046,4 +1046,106 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception).hasMessageThat().contains("Missing RolloutPeriod fields")
   }
+
+  @Test
+  fun `createModelRollout succeeds with multiple model releases`() = runBlocking {
+    val modelLine =
+      population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+    val modelRelease =
+      population.createModelRelease(
+        modelSuite {
+          externalModelProviderId = modelLine.externalModelProviderId
+          externalModelSuiteId = modelLine.externalModelSuiteId
+        },
+        modelReleasesService
+      )
+
+    val modelRollout = modelRollout {
+      externalModelProviderId = modelLine.externalModelProviderId
+      externalModelSuiteId = modelLine.externalModelSuiteId
+      externalModelLineId = modelLine.externalModelLineId
+      rolloutPeriodStartTime = Instant.now().plusSeconds(100L).toProtoTime()
+      rolloutPeriodEndTime = Instant.now().plusSeconds(100L).toProtoTime()
+      externalModelReleaseId = modelRelease.externalModelReleaseId
+    }
+    modelRolloutsService.createModelRollout(modelRollout)
+
+    val modelRollout2 = modelRollout {
+      externalModelProviderId = modelLine.externalModelProviderId
+      externalModelSuiteId = modelLine.externalModelSuiteId
+      externalModelLineId = modelLine.externalModelLineId
+      rolloutPeriodStartTime = Instant.now().plusSeconds(200L).toProtoTime()
+      rolloutPeriodEndTime = Instant.now().plusSeconds(300L).toProtoTime()
+      externalModelReleaseId = modelRelease.externalModelReleaseId
+    }
+    val createdModelRollout2 = modelRolloutsService.createModelRollout(modelRollout2)
+
+    val modelRollout3 = modelRollout {
+      externalModelProviderId = modelLine.externalModelProviderId
+      externalModelSuiteId = modelLine.externalModelSuiteId
+      externalModelLineId = modelLine.externalModelLineId
+      rolloutPeriodStartTime = Instant.now().plusSeconds(900L).toProtoTime()
+      rolloutPeriodEndTime = Instant.now().plusSeconds(1100L).toProtoTime()
+      externalModelReleaseId = modelRelease.externalModelReleaseId
+    }
+    val createdModelRollout3 = modelRolloutsService.createModelRollout(modelRollout3)
+
+    assertThat(createdModelRollout3.externalPreviousModelRolloutId)
+      .isEqualTo(createdModelRollout2.externalModelRolloutId)
+  }
+
+  @Test
+  fun `createModelRollout fails when new model rollout start time precedes that of previous model rollout`() =
+    runBlocking {
+      val modelLine =
+        population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
+      val modelRelease =
+        population.createModelRelease(
+          modelSuite {
+            externalModelProviderId = modelLine.externalModelProviderId
+            externalModelSuiteId = modelLine.externalModelSuiteId
+          },
+          modelReleasesService
+        )
+
+      val modelRollout = modelRollout {
+        externalModelProviderId = modelLine.externalModelProviderId
+        externalModelSuiteId = modelLine.externalModelSuiteId
+        externalModelLineId = modelLine.externalModelLineId
+        rolloutPeriodStartTime = Instant.now().plusSeconds(100L).toProtoTime()
+        rolloutPeriodEndTime = Instant.now().plusSeconds(100L).toProtoTime()
+        externalModelReleaseId = modelRelease.externalModelReleaseId
+      }
+      modelRolloutsService.createModelRollout(modelRollout)
+
+      val modelRollout2 = modelRollout {
+        externalModelProviderId = modelLine.externalModelProviderId
+        externalModelSuiteId = modelLine.externalModelSuiteId
+        externalModelLineId = modelLine.externalModelLineId
+        rolloutPeriodStartTime = Instant.now().plusSeconds(300L).toProtoTime()
+        rolloutPeriodEndTime = Instant.now().plusSeconds(400L).toProtoTime()
+        externalModelReleaseId = modelRelease.externalModelReleaseId
+      }
+
+      modelRolloutsService.createModelRollout(modelRollout2)
+
+      val modelRollout3 = modelRollout {
+        externalModelProviderId = modelLine.externalModelProviderId
+        externalModelSuiteId = modelLine.externalModelSuiteId
+        externalModelLineId = modelLine.externalModelLineId
+        rolloutPeriodStartTime = Instant.now().plusSeconds(200L).toProtoTime()
+        rolloutPeriodEndTime = Instant.now().plusSeconds(300L).toProtoTime()
+        externalModelReleaseId = modelRelease.externalModelReleaseId
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          modelRolloutsService.createModelRollout(modelRollout3)
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .hasMessageThat()
+        .contains("RolloutPeriodStartTime cannot precede that of previous ModelRollout.")
+    }
 }
