@@ -41,7 +41,7 @@ module.exports = {
   },
   output: {
     path: path.resolve(__dirname, './public'),
-    filename: 'index.js',
+    filename: 'app.bundle.js',
   },
   plugins: [new MiniCssExtractPlugin()],
   devServer: {
