@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
@@ -43,6 +44,11 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelRelease
 class CreateModelRollout(private val modelRollout: ModelRollout, private val clock: Clock) :
   SpannerWriter<ModelRollout, ModelRollout>() {
 
+  private data class LatestModelRolloutResult(
+    val modelRolloutId: Long,
+    val externalModelRolloutId: Long,
+    val rolloutPeriodStartTime: Timestamp?
+  )
   override suspend fun TransactionScope.runTransaction(): ModelRollout {
     val now = clock.instant().toProtoTime()
     if (Timestamps.compare(now, modelRollout.rolloutPeriodStartTime) >= 0) {
@@ -66,9 +72,9 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
       }
     }
 
-    val previousModelRolloutData =
+    val latestModelRolloutData =
       if (modelRollout.rolloutPeriodStartTime != modelRollout.rolloutPeriodEndTime) {
-        readModelRolloutData(
+        readLatestModelRolloutData(
           ExternalId(modelRollout.externalModelProviderId),
           ExternalId(modelRollout.externalModelSuiteId),
           ExternalId(modelRollout.externalModelLineId),
@@ -77,11 +83,13 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
         null
       }
 
-    val previousModelRolloutStartTime =
-      previousModelRolloutData?.getTimestamp("RolloutPeriodStartTime")
+    val latestModelRolloutStartTime = latestModelRolloutData?.rolloutPeriodStartTime
+
+    // New ModelRollout cannot have a RolloutStartTime that precedes the RolloutStartTime of the
+    // current PreviousModelRollout
     if (
-      previousModelRolloutStartTime != null &&
-        previousModelRolloutStartTime.toInstant() > modelRollout.rolloutPeriodStartTime.toInstant()
+      latestModelRolloutStartTime != null &&
+        latestModelRolloutStartTime.toInstant() > modelRollout.rolloutPeriodStartTime.toInstant()
     ) {
       throw ModelRolloutInvalidArgsException(
         ExternalId(modelRollout.externalModelProviderId),
@@ -128,10 +136,8 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
       set("ExternalModelRolloutId" to externalModelRolloutId)
       set("RolloutPeriodStartTime" to modelRollout.rolloutPeriodStartTime.toGcloudTimestamp())
       set("RolloutPeriodEndTime" to modelRollout.rolloutPeriodEndTime.toGcloudTimestamp())
-      if (previousModelRolloutData != null) {
-        set(
-          "PreviousModelRolloutId" to InternalId(previousModelRolloutData.getLong("ModelRolloutId"))
-        )
+      if (latestModelRolloutData != null) {
+        set("PreviousModelRolloutId" to InternalId(latestModelRolloutData.modelRolloutId))
       }
       set("ModelReleaseId" to modelReleaseResult.modelReleaseId)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
@@ -140,9 +146,8 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
 
     return modelRollout.copy {
       this.externalModelRolloutId = externalModelRolloutId.value
-      if (previousModelRolloutData != null) {
-        this.externalPreviousModelRolloutId =
-          previousModelRolloutData.getLong("ExternalModelRolloutId")
+      if (latestModelRolloutData != null) {
+        this.externalPreviousModelRolloutId = latestModelRolloutData.externalModelRolloutId
       }
     }
   }
@@ -180,11 +185,12 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
     return transactionContext.executeQuery(statement).singleOrNull()
   }
 
-  private suspend fun TransactionScope.readModelRolloutData(
+  // Reads the ModelRollout for a given ModelLine with the latest RolloutPeriodStartTime.
+  private suspend fun TransactionScope.readLatestModelRolloutData(
     externalModelProviderId: ExternalId,
     externalModelSuiteId: ExternalId,
     externalModelLineId: ExternalId,
-  ): Struct? {
+  ): LatestModelRolloutResult? {
     val sql =
       """
     SELECT
@@ -210,7 +216,15 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
         bind("externalModelLineId" to externalModelLineId.value)
       }
 
-    return transactionContext.executeQuery(statement).firstOrNull()
+    val result = transactionContext.executeQuery(statement).firstOrNull()
+
+    return if (result == null) null
+    else
+      LatestModelRolloutResult(
+        result.getLong("ModelRolloutId"),
+        result.getLong("ExternalModelRolloutId"),
+        result.getTimestamp("RolloutPeriodStartTime")
+      )
   }
 
   override fun ResultScope<ModelRollout>.buildResult(): ModelRollout {

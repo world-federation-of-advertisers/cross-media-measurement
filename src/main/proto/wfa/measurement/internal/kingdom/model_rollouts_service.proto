@@ -24,7 +24,10 @@ option java_multiple_files = true;
 
 // Internal service for persistence of ModelRollout entities.
 service ModelRollouts {
+  // rollout_period_start_time of given `ModelRollout` must be later than that
+  // of the current previous `ModelRollout` if it is set.
   rpc CreateModelRollout(ModelRollout) returns (ModelRollout);
+
   // Streams `ModelRollout`s.
   rpc StreamModelRollouts(StreamModelRolloutsRequest)
       returns (stream ModelRollout);
