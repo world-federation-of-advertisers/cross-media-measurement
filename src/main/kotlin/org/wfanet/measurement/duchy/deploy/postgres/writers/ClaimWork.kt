@@ -24,7 +24,6 @@ import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.toJson
-import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationStageLongValues
 import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
@@ -48,17 +47,10 @@ class ClaimWork<ProtocolT, ComputationDT : Message, StageT, StageDT : Message>(
   private val protocol: ProtocolT,
   private val ownerId: String,
   private val lockDuration: Duration,
-  computationTypeEnumHelper: ComputationTypeEnumHelper<ProtocolT>,
-  computationProtocolStagesEnumHelper: ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
-  computationProtocolStageDetailsHelper:
-    ComputationProtocolStageDetailsHelper<ProtocolT, StageT, StageDT, ComputationDT>,
-) :
-  PostgresWriter<String?>(),
-  ComputationTypeEnumHelper<ProtocolT> by computationTypeEnumHelper,
-  ComputationProtocolStagesEnumHelper<ProtocolT, StageT> by computationProtocolStagesEnumHelper,
-  ComputationProtocolStageDetailsHelper<
-    ProtocolT, StageT, StageDT, ComputationDT
-  > by computationProtocolStageDetailsHelper {
+  private val computationTypeEnumHelper: ComputationTypeEnumHelper<ProtocolT>,
+  private val computationProtocolStagesEnumHelper:
+    ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
+) : PostgresWriter<String?>() {
 
   private data class UnclaimedTaskQueryResult<StageT>(
     val computationId: Long,
@@ -73,7 +65,7 @@ class ClaimWork<ProtocolT, ComputationDT : Message, StageT, StageDT : Message>(
     UnclaimedTaskQueryResult(
       row["ComputationId"],
       row["GlobalComputationId"],
-      longValuesToComputationStageEnum(
+      computationProtocolStagesEnumHelper.longValuesToComputationStageEnum(
         ComputationStageLongValues(row["Protocol"], row["ComputationStage"])
       ),
       row["CreationTime"],
@@ -117,7 +109,7 @@ class ClaimWork<ProtocolT, ComputationDT : Message, StageT, StageDT : Message>(
       LIMIT 50;
       """
       ) {
-        bind("$1", protocolEnumToLong(protocol))
+        bind("$1", computationTypeEnumHelper.protocolEnumToLong(protocol))
         bind("$2", timestamp)
       }
 
@@ -224,7 +216,10 @@ class ClaimWork<ProtocolT, ComputationDT : Message, StageT, StageDT : Message>(
       """
       ) {
         bind("$1", localId)
-        bind("$2", computationStageEnumToLongValues(stage).stage)
+        bind(
+          "$2",
+          computationProtocolStagesEnumHelper.computationStageEnumToLongValues(stage).stage
+        )
         bind("$3", attempt)
         bind("$4", beginTime)
         bind("$5", endTime)
@@ -268,8 +263,13 @@ class ClaimWork<ProtocolT, ComputationDT : Message, StageT, StageDT : Message>(
         bind("$2", creationTime)
         bind("$3", updateTime)
         bind("$4", globalId)
-        bind("$5", protocol?.let { protocolEnumToLong(it) })
-        bind("$6", stage?.let { computationStageEnumToLongValues(it).stage })
+        bind("$5", protocol?.let { computationTypeEnumHelper.protocolEnumToLong(it) })
+        bind(
+          "$6",
+          stage?.let {
+            computationProtocolStagesEnumHelper.computationStageEnumToLongValues(it).stage
+          }
+        )
         bind("$7", lockOwner)
         bind("$8", lockExpirationTime)
         bind("$9", details?.toByteArray())
@@ -307,12 +307,25 @@ class ClaimWork<ProtocolT, ComputationDT : Message, StageT, StageDT : Message>(
       """
       ) {
         bind("$1", localId)
-        bind("$2", computationStageEnumToLongValues(stage).stage)
+        bind(
+          "$2",
+          computationProtocolStagesEnumHelper.computationStageEnumToLongValues(stage).stage
+        )
         bind("$3", creationTime)
         bind("$4", nextAttempt)
         bind("$5", endTime)
-        bind("$6", previousStage?.let { computationStageEnumToLongValues(it).stage })
-        bind("$7", followingStage?.let { computationStageEnumToLongValues(it).stage })
+        bind(
+          "$6",
+          previousStage?.let {
+            computationProtocolStagesEnumHelper.computationStageEnumToLongValues(it).stage
+          }
+        )
+        bind(
+          "$7",
+          followingStage?.let {
+            computationProtocolStagesEnumHelper.computationStageEnumToLongValues(it).stage
+          }
+        )
         bind("$8", details?.toByteArray())
         bind("$9", details?.toJson())
       }
@@ -344,7 +357,10 @@ class ClaimWork<ProtocolT, ComputationDT : Message, StageT, StageDT : Message>(
       """
       ) {
         bind("$1", localId)
-        bind("$2", computationStageEnumToLongValues(stage).stage)
+        bind(
+          "$2",
+          computationProtocolStagesEnumHelper.computationStageEnumToLongValues(stage).stage
+        )
         bind("$3", attempt)
         bind("$4", beginTime)
         bind("$5", endTime)
@@ -386,7 +402,10 @@ class ClaimWork<ProtocolT, ComputationDT : Message, StageT, StageDT : Message>(
       """
       ) {
         bind("$1", computationId)
-        bind("$2", computationStageEnumToLongValues(stage).stage)
+        bind(
+          "$2",
+          computationProtocolStagesEnumHelper.computationStageEnumToLongValues(stage).stage
+        )
         bind("$3", currentAttempt)
       }
 

@@ -114,13 +114,12 @@ class PostgresComputationsService(
       if (request.hasLockDuration()) request.lockDuration.toDuration() else defaultLockDuration
     val claimed =
       try {
-        ClaimWork(
+        ClaimWork<ComputationType, ComputationStageDetails, ComputationStage, ComputationDetails>(
             request.computationType,
             request.owner,
             lockDuration,
             computationTypeEnumHelper,
             protocolStageEnumHelper,
-            computationProtocolStageDetailsHelper
           )
           .execute(client, idGenerator)
       } catch (e: ComputationNotFoundException) {
