@@ -56,7 +56,7 @@ class ReportReader(private val readContext: ReadContext) {
     val externalReportId: ExternalId,
     val createTime: Timestamp,
     val timeIntervals: MutableSet<TimeInterval>,
-    // Key is externalReportingSetId.
+    /** Key is externalReportingSetId. */
     val reportingSetReportingMetricCalculationSpecInfoMap:
       MutableMap<ExternalId, ReportingMetricCalculationSpecInfo>,
   )
@@ -110,12 +110,12 @@ class ReportReader(private val readContext: ReadContext) {
           """
         FROM MeasurementConsumers
           JOIN Reports USING(MeasurementConsumerId)
-        """ +
+        """.trimIndent() +
           baseSqlJoins +
           """
         WHERE Reports.MeasurementConsumerId = $1
           AND CreateReportRequestId = $2
-        """
+        """.trimIndent()
       )
 
     val statement =
@@ -137,12 +137,12 @@ class ReportReader(private val readContext: ReadContext) {
           """
         FROM MeasurementConsumers
           JOIN Reports USING(MeasurementConsumerId)
-        """ +
+        """.trimIndent() +
           baseSqlJoins +
           """
         WHERE CmmsMeasurementConsumerId = $1
           AND ExternalReportId = $2
-        """
+        """.trimIndent()
       )
 
     val statement =
@@ -172,11 +172,11 @@ class ReportReader(private val readContext: ReadContext) {
           ORDER BY CreateTime ASC, CmmsMeasurementConsumerId ASC, ExternalReportId ASC
           LIMIT $4
         ) AS Reports
-      """ +
+      """.trimIndent() +
           baseSqlJoins +
           """
           ORDER BY CreateTime ASC, CmmsMeasurementConsumerId ASC, ExternalReportId ASC
-          """
+          """.trimIndent()
       ) {
         bind("$1", request.filter.cmmsMeasurementConsumerId)
         bind("$2", request.filter.after.createTime.toInstant().atOffset((ZoneOffset.UTC)))
