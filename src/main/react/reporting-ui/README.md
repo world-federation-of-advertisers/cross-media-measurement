@@ -1,31 +1,25 @@
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app) and
 then Bazelified.
-## Available Scripts
+# Main Scripts
 
 Just like with stock create-react-app, we have the same developer workflow. In the project directory, you can run:
 
-### `yarn start`
+## Bundle the app
+`bazel build //src/main/react/reporting-ui:webpack_bundle`
 
-Runs the app in the development mode.<br />
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+This bundles the app into a `app.bundle.js` file to be used in deployment alongside the index.html file.
 
-The page will reload if you make edits.<br />
-You will also see any lint errors in the console.
+## Local deployment
+`bazel run //src/main/react/reporting-ui:webpack_devserver`
 
-### `yarn test`
+This runs the app locally. The previous bundling step is not necessary since webpack will manage the source code. This also makes it a little easier to debug since the app isn't minified (it is still converted to JS).
 
-Launches the test runner in the interactive watch mode.<br />
-Note that it restarts Jest on each change, so there's a large time penalty on each re-run.
-This can be solved by making Jest ibazel-aware as we did with Karma.
-See https://github.com/bazelbuild/rules_nodejs/issues/2028
+# Additional Tools
 
-### `yarn build`
+## Webpack
+We are using webpack to have more control over bundling the app. Other tools like `react-scripts` make some assumptions of the directory structure which don't work with this monorepo. We also have more control with Babel as a transpiler.
 
-Builds the app for production to the `build` folder.<br />
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Webpack also lets us add plugins to perform tasks like minification/uglification for bundling.
 
-The build is minified and the filenames include the hashes.<br />
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
+## Babel
+This gives us more control over transpiling React/Typescript (TSX) into browser supported JS (ECMA). Babel lets us configure specific loaders which is helpful since we have both React and Typescript in addition to CSS.
