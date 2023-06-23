@@ -110,12 +110,14 @@ class ReportReader(private val readContext: ReadContext) {
           """
         FROM MeasurementConsumers
           JOIN Reports USING(MeasurementConsumerId)
-        """.trimIndent() +
+        """
+            .trimIndent() +
           baseSqlJoins +
           """
         WHERE Reports.MeasurementConsumerId = $1
           AND CreateReportRequestId = $2
-        """.trimIndent()
+        """
+            .trimIndent()
       )
 
     val statement =
@@ -137,12 +139,14 @@ class ReportReader(private val readContext: ReadContext) {
           """
         FROM MeasurementConsumers
           JOIN Reports USING(MeasurementConsumerId)
-        """.trimIndent() +
+        """
+            .trimIndent() +
           baseSqlJoins +
           """
         WHERE CmmsMeasurementConsumerId = $1
           AND ExternalReportId = $2
-        """.trimIndent()
+        """
+            .trimIndent()
       )
 
     val statement =
@@ -172,11 +176,13 @@ class ReportReader(private val readContext: ReadContext) {
           ORDER BY CreateTime ASC, CmmsMeasurementConsumerId ASC, ExternalReportId ASC
           LIMIT $4
         ) AS Reports
-      """.trimIndent() +
+      """
+            .trimIndent() +
           baseSqlJoins +
           """
           ORDER BY CreateTime ASC, CmmsMeasurementConsumerId ASC, ExternalReportId ASC
-          """.trimIndent()
+          """
+            .trimIndent()
       ) {
         bind("$1", request.filter.cmmsMeasurementConsumerId)
         bind("$2", request.filter.after.createTime.toInstant().atOffset((ZoneOffset.UTC)))
