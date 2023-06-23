@@ -35,8 +35,8 @@ message ListReportsPageToken {
   int32 page_size = 1;
   string cmms_measurement_consumer_id = 2;
   message PreviousPageEnd {
-    string cmms_measurement_consumer_id = 1;
-    google.protobuf.Timestamp create_time = 2;
+    google.protobuf.Timestamp create_time = 1;
+    string cmms_measurement_consumer_id = 2;
     fixed64 external_report_id = 3;
   }
   PreviousPageEnd last_report = 3;
