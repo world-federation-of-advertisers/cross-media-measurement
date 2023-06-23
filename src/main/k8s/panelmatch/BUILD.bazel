@@ -4,5 +4,5 @@ package(default_visibility = ["//src/main/k8s/panelmatch:__subpackages__"])
 
 cue_library(
     name = "base",
-    srcs = ["panelmatch/base.cue"],
+    srcs = ["base.cue"],
 )
