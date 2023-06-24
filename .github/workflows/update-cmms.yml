@@ -38,7 +38,7 @@ on:
 
 jobs:
   publish-images:
-    uses: ./.github/workflows/create-cmm-images.yml
+    uses: ./.github/workflows/push-images.yml
 
   terraform:
     uses: ./.github/workflows/terraform-cmms.yml
