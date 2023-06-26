@@ -1,0 +1,55 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@rules_java//java:defs.bzl", "java_test")
+
+package(default_testonly = True)
+
+kt_jvm_library(
+    name = "panel_match_abstract_correctness_test",
+    srcs = ["PanelMatchAbstractCorrectnessTest.kt"],
+    data = [
+        "//src/main/k8s/testing/secretfiles:mc_trusted_certs.pem",
+        "//src/main/k8s/testing/secretfiles:secret_files",
+    ],
+    deps = [
+      "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+      "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_certs",
+      "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_library(
+    name = "panel_match_empty_cluster_correctness_test",
+    srcs = ["PanelMatchEmptyClusterCorrectnessTest.kt"],
+    deps = [
+        ":panel_match_abstract_correctness_test",
+        "//src/main/kotlin/org/wfanet/measurement/common/k8s",
+        "//src/main/kotlin/org/wfanet/measurement/common/k8s/testing:port_forwarder",
+        "//src/main/kotlin/org/wfanet/measurement/common/k8s/testing:processes",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/panelmatchresourcesetup:panelmatchresourcesetup",
+        "@wfa_common_jvm//imports/java/org/jetbrains/annotations",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
+
+java_test(
+    name = "PanelMatchEmptyClusterCorrectnessTest",
+    size = "enormous",
+    timeout = "long",
+    data = [
+        "//src/main/docker:push_all_local_images",
+        "//src/main/k8s/local:kingdom_setup.tar",
+        "//src/main/k8s/local/testing:panel_match.tar",
+    ],
+    env_inherit = [
+        "DOCKER_HOST",
+        "KUBECONFIG",
+    ],
+    tags = [
+        "cpu:8",
+        "manual",
+    ],
+    test_class = "org.wfanet.panelmatch.integration.k8s.PanelMatchEmptyClusterCorrectnessTest",
+    runtime_deps = [":panel_match_empty_cluster_correctness_test"],
+)

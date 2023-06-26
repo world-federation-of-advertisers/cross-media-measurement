@@ -6,6 +6,7 @@ package(
     default_testonly = True,
     default_visibility = [
         "//src/test/kotlin/org/wfanet/measurement/integration/k8s:__pkg__",
+        "//src/test/kotlin/org/wfanet/panelmatch/integration/k8s:__pkg__",
     ],
 )
 
@@ -50,6 +51,21 @@ cue_dump(
     ],
 )
 
+cue_dump(
+    name = "edp_simulator",
+    cue_tags = {
+        "secret_name": SECRET_NAME,
+        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
+        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+        "edp1_name": "{edp1_name}",
+    },
+    tags = ["manual"],
+    deps = [
+        "//src/main/k8s/local:edp_simulator_cue",
+    ],
+)
+
 kustomization_dir(
     name = "config_files",
     srcs = [
@@ -82,6 +98,22 @@ kustomization_dir(
     deps = [
         ":config_files",
         ":db_creds",
+        "//src/main/k8s/testing/secretfiles:kustomization",
+    ],
+)
+
+kustomization_dir(
+    name = "panel_match",
+    testonly = True,
+    srcs = [
+        ":edp_simulator",
+        "//src/main/k8s/local:emulators",
+        "//src/main/k8s/local:kingdom",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+    deps = [
+        ":config_files",
         "//src/main/k8s/testing/secretfiles:kustomization",
     ],
 )

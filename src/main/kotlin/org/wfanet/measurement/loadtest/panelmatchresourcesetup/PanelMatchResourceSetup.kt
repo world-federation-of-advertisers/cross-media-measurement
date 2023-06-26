@@ -15,11 +15,15 @@
 package org.wfanet.measurement.loadtest.panelmatchresourcesetup
 
 import com.google.protobuf.kotlin.toByteString
+import com.google.protobuf.TextFormat
 import com.google.type.Date
 import io.grpc.Channel
 import io.grpc.ManagedChannel
 import java.time.LocalDate
 import java.util.logging.Logger
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import org.jetbrains.annotations.Blocking
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
@@ -36,10 +40,18 @@ import org.wfanet.measurement.internal.kingdom.createRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.internal.kingdom.modelProvider as internalModelProvider
 import org.wfanet.measurement.internal.kingdom.recurringExchange as internalRecurringExchange
+import java.io.File
+import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
+import org.wfanet.measurement.config.AuthorityKeyToPrincipalMapKt
+import org.wfanet.measurement.config.authorityKeyToPrincipalMap
 import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.toInternal
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
+import org.wfanet.measurement.loadtest.resourcesetup.Resources
+import org.wfanet.measurement.loadtest.resourcesetup.ResourcesKt
+import org.wfanet.measurement.loadtest.resourcesetup.ResourcesKt.resource
+import org.wfanet.measurement.loadtest.resourcesetup.resources
 
 private val API_VERSION = Version.V2_ALPHA
 
@@ -52,7 +64,9 @@ private val API_VERSION = Version.V2_ALPHA
 class PanelMatchResourceSetup(
   private val dataProvidersStub: DataProvidersCoroutineStub,
   private val modelProvidersStub: ModelProvidersCoroutineStub,
-  private val recurringExchangesStub: RecurringExchangesCoroutineStub
+  private val recurringExchangesStub: RecurringExchangesCoroutineStub,
+  private val bazelConfigName: String = DEFAULT_BAZEL_CONFIG_NAME,
+  private val outputDir: File? = null,
 ) {
 
   /** The Channel can be used in the in-process integration test. */
@@ -106,6 +120,98 @@ class PanelMatchResourceSetup(
     val recurringExchangeName =
       RecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId)).toName()
     logger.info("Successfully created Recurring Exchange: $recurringExchangeName.")
+  }
+
+  suspend fun process(
+    dataProviderContent: EntityContent,
+    runId: String = LocalDate.now().toString(),
+  ): List<Resources.Resource> {
+    logger.info("Starting with RunID: $runId ...")
+    val resources = mutableListOf<Resources.Resource>()
+
+    // Step 2a: Create the MP.
+    /*val externalModelProviderId = createModelProvider()
+    val modelProviderName = ModelProviderKey(externalIdToApiId(externalModelProviderId)).toName()
+    logger.info("Successfully created model provider: $modelProviderName")*/
+
+    // Step 2b: Create the EDP.
+    val externalDataProviderId = createDataProvider(dataProviderContent)
+    val dataProviderName = DataProviderKey(externalIdToApiId(externalDataProviderId)).toName()
+    logger.info("Successfully created data provider: $dataProviderName")
+
+    logger.info("Successfully created data provider: $dataProviderName")
+    resources.add(
+      resource {
+        name = dataProviderName
+        dataProvider =
+          ResourcesKt.ResourceKt.dataProvider {
+            displayName = dataProviderContent.displayName
+
+            // Assume signing cert uses same issuer as TLS client cert.
+            authorityKeyIdentifier =
+              checkNotNull(dataProviderContent.signingKey.certificate.authorityKeyIdentifier)
+          }
+      }
+    )
+
+    withContext(Dispatchers.IO) { writeOutput(resources) }
+    logger.info("Resource setup was successful.")
+    return resources
+
+    /*val externalRecurringExchangeId =
+      createRecurringExchange(
+        externalDataProvider = externalDataProviderId,
+        externalModelProvider = externalModelProviderId,
+        exchangeDate = exchangeDate,
+        exchangeSchedule = exchangeSchedule,
+        publicApiVersion = apiVersion,
+        exchangeWorkflow = exchangeWorkflow
+      )
+    val recurringExchangeName =
+      RecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId)).toName()
+    logger.info("Successfully created Recurring Exchange: $recurringExchangeName.")*/
+  }
+
+  @Blocking
+  private fun writeOutput(resources: Iterable<Resources.Resource>) {
+    val output = outputDir?.let { FileOutput(it) } ?: ConsoleOutput
+
+    output.resolve(RESOURCES_OUTPUT_FILE).writer().use { writer ->
+      TextFormat.printer().print(resources { this.resources += resources }, writer)
+    }
+
+    val akidMap = authorityKeyToPrincipalMap {
+      for (resource in resources) {
+        val akid =
+          when (resource.resourceCase) {
+            Resources.Resource.ResourceCase.DATA_PROVIDER ->
+              resource.dataProvider.authorityKeyIdentifier
+            else -> continue
+          }
+        entries +=
+          AuthorityKeyToPrincipalMapKt.entry {
+            principalResourceName = resource.name
+            authorityKeyIdentifier = akid
+          }
+      }
+    }
+    output.resolve(AKID_PRINCIPAL_MAP_FILE).writer().use { writer ->
+      TextFormat.printer().print(akidMap, writer)
+    }
+
+    val configName = bazelConfigName
+    output.resolve(BAZEL_RC_FILE).writer().use { writer ->
+      for (resource in resources) {
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+        when (resource.resourceCase) {
+          Resources.Resource.ResourceCase.DATA_PROVIDER -> {
+            val displayName = resource.dataProvider.displayName
+            writer.appendLine("build:$configName --define=${displayName}_name=${resource.name}")
+          }
+          Resources.Resource.ResourceCase.RESOURCE_NOT_SET -> error("Bad resource case")
+        }
+      }
+    }
   }
 
   /** Process to create resources. */
@@ -198,6 +304,10 @@ class PanelMatchResourceSetup(
   }
 
   companion object {
+    const val RESOURCES_OUTPUT_FILE = "resources.textproto"
+    const val DEFAULT_BAZEL_CONFIG_NAME = "halo"
+    const val AKID_PRINCIPAL_MAP_FILE = "authority_key_identifier_to_principal_map.textproto"
+    const val BAZEL_RC_FILE = "resource-setup.bazelrc"
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

@@ -11,7 +11,12 @@ package(
 kt_jvm_library(
     name = "panelmatchresourcesetup",
     testonly = True,
-    srcs = glob(["*.kt"]),
+    srcs = [
+        "PanelMatchResourceSetup.kt",
+        "PanelMatchResourceSetupFlags.kt",
+        "PanelMatchResourceSetupRunner.kt",
+        "Output.kt"
+    ],
     deps = KINGDOM_INTERNAL_PROTOS + [
         "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
@@ -21,6 +26,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:model_provider_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/loadtest/resourcesetup:resources_kt_jvm_proto",
         "@wfa_common_jvm//src/main/proto/google/type:date_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
