@@ -7,13 +7,17 @@ kt_jvm_library(
     srcs = [
         "DuchyDependencyProviderRule.kt",
     ],
+    visibility = [
+        "//src/test/kotlin/org/wfanet/measurement/integration/gcloud:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/integration/postgres:__pkg__",
+    ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill:mill_base",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/continuationtoken:service",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/testing",
-        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_components",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_duchy",
         "@wfa_common_jvm//imports/java/com/google/cloud/storage/contrib/nio",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
@@ -25,6 +29,10 @@ kt_jvm_library(
     testonly = True,
     srcs = [
         "KingdomDataServicesProviderRule.kt",
+    ],
+    visibility = [
+        "//src/test/kotlin/org/wfanet/measurement/integration/gcloud:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/integration/postgres:__pkg__",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
@@ -55,7 +63,7 @@ spanner_emulator_test(
     deps = [
         ":duchy_provider_rule",
         ":kingdom_provider_rule",
-        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_components",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_life_of_a_measurement_integration_test",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/debug",
     ],
 )
