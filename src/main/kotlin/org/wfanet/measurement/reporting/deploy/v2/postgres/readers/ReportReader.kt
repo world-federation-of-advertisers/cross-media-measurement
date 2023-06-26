@@ -48,6 +48,10 @@ class ReportReader(private val readContext: ReadContext) {
     val report: Report
   )
 
+  private data class ResultWrapper(
+    val result: Result?
+  )
+
   private data class ReportInfo(
     val measurementConsumerId: InternalId,
     val cmmsMeasurementConsumerId: String,
@@ -106,13 +110,13 @@ class ReportReader(private val readContext: ReadContext) {
   ): Result? {
     val sql =
       StringBuilder(
-        baseSqlSelect +
+        baseSqlSelect + "\n" +
           """
         FROM MeasurementConsumers
           JOIN Reports USING(MeasurementConsumerId)
         """
-            .trimIndent() +
-          baseSqlJoins +
+            .trimIndent() + "\n" +
+          baseSqlJoins + "\n" +
           """
         WHERE Reports.MeasurementConsumerId = $1
           AND CreateReportRequestId = $2
@@ -135,13 +139,13 @@ class ReportReader(private val readContext: ReadContext) {
   ): Result? {
     val sql =
       StringBuilder(
-        baseSqlSelect +
+        baseSqlSelect + "\n" +
           """
         FROM MeasurementConsumers
           JOIN Reports USING(MeasurementConsumerId)
         """
-            .trimIndent() +
-          baseSqlJoins +
+            .trimIndent() + "\n" +
+          baseSqlJoins + "\n" +
           """
         WHERE CmmsMeasurementConsumerId = $1
           AND ExternalReportId = $2
@@ -161,9 +165,9 @@ class ReportReader(private val readContext: ReadContext) {
   fun readReports(
     request: StreamReportsRequest,
   ): Flow<Result> {
-    val statement =
-      boundStatement(
-        baseSqlSelect +
+    val sql =
+      StringBuilder(
+        baseSqlSelect + "\n" +
           """
         FROM (
           SELECT *
@@ -177,13 +181,15 @@ class ReportReader(private val readContext: ReadContext) {
           LIMIT $4
         ) AS Reports
       """
-            .trimIndent() +
-          baseSqlJoins +
+            .trimIndent() + "\n" +
+          baseSqlJoins + "\n" +
           """
           ORDER BY CreateTime ASC, CmmsMeasurementConsumerId ASC, ExternalReportId ASC
           """
             .trimIndent()
-      ) {
+      )
+    val statement =
+      boundStatement(sql.toString()) {
         bind("$1", request.filter.cmmsMeasurementConsumerId)
         bind("$2", request.filter.after.createTime.toInstant().atOffset((ZoneOffset.UTC)))
 
@@ -207,84 +213,8 @@ class ReportReader(private val readContext: ReadContext) {
   }
 
   private fun createResultFlow(statement: BoundStatement): Flow<Result> {
-    return flow {
-      val reportInfoCollection = buildResultMap(statement)
-
-      reportInfoCollection.forEach {
-        val report = report {
-          cmmsMeasurementConsumerId = it.cmmsMeasurementConsumerId
-          externalReportId = it.externalReportId.value
-          createTime = it.createTime
-
-          it.reportingSetReportingMetricCalculationSpecInfoMap.entries.forEach {
-            reportingMetricEntry ->
-            val reportingMetricCalculationSpec =
-              ReportKt.reportingMetricCalculationSpec {
-                reportingMetricEntry.value.metricCalculationSpecInfoMap.entries.forEach {
-                  metricCalculationSpecEntry ->
-                  metricCalculationSpecs +=
-                    ReportKt.metricCalculationSpec {
-                      reportingMetrics += metricCalculationSpecEntry.value.reportingMetricMap.values
-                      details = metricCalculationSpecEntry.key
-                    }
-                }
-              }
-
-            reportingMetricEntries.put(
-              reportingMetricEntry.key.value,
-              reportingMetricCalculationSpec
-            )
-          }
-
-          val sortedTimeIntervals =
-            it.timeIntervals.sortedWith { a, b -> Timestamps.compare(a.startTime, b.startTime) }
-
-          var isPeriodic = true
-          for (i in 0..sortedTimeIntervals.size - 2) {
-            if (sortedTimeIntervals[i].endTime != sortedTimeIntervals[i + 1].startTime) {
-              isPeriodic = false
-              break
-            }
-          }
-
-          if (isPeriodic) {
-            val firstTimeInterval = sortedTimeIntervals[0]
-            periodicTimeInterval = periodicTimeInterval {
-              startTime = firstTimeInterval.startTime
-              increment = Timestamps.between(firstTimeInterval.startTime, firstTimeInterval.endTime)
-              intervalCount = sortedTimeIntervals.size
-            }
-          } else {
-            timeIntervals = timeIntervals {
-              sortedTimeIntervals.forEach {
-                timeIntervals += timeInterval {
-                  startTime = it.startTime
-                  endTime = it.endTime
-                }
-              }
-            }
-          }
-        }
-
-        val createReportRequestId = it.createReportRequestId ?: ""
-        emit(
-          Result(
-            measurementConsumerId = it.measurementConsumerId,
-            reportId = it.reportId,
-            createReportRequestId = createReportRequestId,
-            report = report,
-          )
-        )
-      }
-    }
-  }
-
-  /** Returns a collection that maintains the order of the query result. */
-  private suspend fun buildResultMap(statement: BoundStatement): Collection<ReportInfo> {
-    // Key is externalReportId.
-    val reportInfoMap: MutableMap<ExternalId, ReportInfo> = linkedMapOf()
-
-    val translate: (row: ResultRow) -> Unit = { row: ResultRow ->
+    var reportInfo: ReportInfo? = null
+    val translate: (row: ResultRow) -> ResultWrapper = { row: ResultRow ->
       val measurementConsumerId: InternalId = row["MeasurementConsumerId"]
       val cmmsMeasurementConsumerId: String = row["CmmsMeasurementConsumerId"]
       val createReportRequestId: String? = row["CreateReportRequestId"]
@@ -304,21 +234,33 @@ class ReportReader(private val readContext: ReadContext) {
         row.getProtoMessage("ReportingMetricDetails", Report.ReportingMetric.Details.parser())
       val externalMetricId: ExternalId? = row["ExternalMetricId"]
 
-      val reportInfo =
-        reportInfoMap.computeIfAbsent(externalReportId) {
-          ReportInfo(
-            measurementConsumerId = measurementConsumerId,
-            cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
-            createReportRequestId = createReportRequestId,
-            reportId = reportId,
-            externalReportId = externalReportId,
-            createTime = createTime.toProtoTime(),
-            timeIntervals = mutableSetOf(),
-            reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf()
-          )
-        }
+      var result: Result? = null
+      if (reportInfo == null) {
+        reportInfo = ReportInfo(
+          measurementConsumerId = measurementConsumerId,
+          cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+          createReportRequestId = createReportRequestId,
+          reportId = reportId,
+          externalReportId = externalReportId,
+          createTime = createTime.toProtoTime(),
+          timeIntervals = mutableSetOf(),
+          reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf()
+        )
+      } else if (reportInfo!!.externalReportId != externalReportId || reportInfo!!.measurementConsumerId != measurementConsumerId) {
+        result = reportInfo!!.toResult()
+        reportInfo = ReportInfo(
+          measurementConsumerId = measurementConsumerId,
+          cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+          createReportRequestId = createReportRequestId,
+          reportId = reportId,
+          externalReportId = externalReportId,
+          createTime = createTime.toProtoTime(),
+          timeIntervals = mutableSetOf(),
+          reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf()
+        )
+      }
 
-      reportInfo.timeIntervals.add(
+      reportInfo!!.timeIntervals.add(
         timeInterval {
           startTime = timeIntervalStart.toProtoTime()
           endTime = timeIntervalEnd.toProtoTime()
@@ -326,7 +268,7 @@ class ReportReader(private val readContext: ReadContext) {
       )
 
       val reportingMetricCalculationSpecInfo =
-        reportInfo.reportingSetReportingMetricCalculationSpecInfoMap.computeIfAbsent(
+        reportInfo!!.reportingSetReportingMetricCalculationSpecInfoMap.computeIfAbsent(
           externalReportingSetId
         ) {
           ReportingMetricCalculationSpecInfo(
@@ -352,10 +294,85 @@ class ReportReader(private val readContext: ReadContext) {
           details = reportingMetricDetails
         }
       }
+
+      ResultWrapper(result)
     }
 
-    readContext.executeQuery(statement).consume(translate).collect {}
+    return flow {
+      readContext.executeQuery(statement).consume(translate).collect {
+        if (it.result != null) {
+          emit(it.result)
+        }
+      }
+      if (reportInfo != null) {
+        emit(reportInfo!!.toResult())
+      }
+    }
+  }
 
-    return reportInfoMap.values
+  private fun ReportInfo.toResult(): Result {
+    val source = this
+    val report = report {
+      cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId
+      externalReportId = source.externalReportId.value
+      createTime = source.createTime
+
+      source.reportingSetReportingMetricCalculationSpecInfoMap.entries.forEach {
+          reportingMetricEntry ->
+        val reportingMetricCalculationSpec =
+          ReportKt.reportingMetricCalculationSpec {
+            reportingMetricEntry.value.metricCalculationSpecInfoMap.entries.forEach {
+                metricCalculationSpecEntry ->
+              metricCalculationSpecs +=
+                ReportKt.metricCalculationSpec {
+                  reportingMetrics += metricCalculationSpecEntry.value.reportingMetricMap.values
+                  details = metricCalculationSpecEntry.key
+                }
+            }
+          }
+
+        reportingMetricEntries.put(
+          reportingMetricEntry.key.value,
+          reportingMetricCalculationSpec
+        )
+      }
+
+      val sortedTimeIntervals =
+        source.timeIntervals.sortedWith { a, b -> Timestamps.compare(a.startTime, b.startTime) }
+
+      var isPeriodic = true
+      for (i in 0..sortedTimeIntervals.size - 2) {
+        if (sortedTimeIntervals[i].endTime != sortedTimeIntervals[i + 1].startTime) {
+          isPeriodic = false
+          break
+        }
+      }
+
+      if (isPeriodic) {
+        val firstTimeInterval = sortedTimeIntervals[0]
+        periodicTimeInterval = periodicTimeInterval {
+          startTime = firstTimeInterval.startTime
+          increment = Timestamps.between(firstTimeInterval.startTime, firstTimeInterval.endTime)
+          intervalCount = sortedTimeIntervals.size
+        }
+      } else {
+        timeIntervals = timeIntervals {
+          sortedTimeIntervals.forEach {
+            timeIntervals += timeInterval {
+              startTime = it.startTime
+              endTime = it.endTime
+            }
+          }
+        }
+      }
+    }
+
+    val createReportRequestId = source.createReportRequestId ?: ""
+    return Result(
+      measurementConsumerId = source.measurementConsumerId,
+      reportId = source.reportId,
+      createReportRequestId = createReportRequestId,
+      report = report,
+    )
   }
 }
