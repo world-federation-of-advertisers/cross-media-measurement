@@ -32,3 +32,7 @@ interface ResourceKey {
     const val WILDCARD_ID = "-"
   }
 }
+
+interface ChildResourceKey : ResourceKey {
+  val parentKey: ResourceKey
+}
