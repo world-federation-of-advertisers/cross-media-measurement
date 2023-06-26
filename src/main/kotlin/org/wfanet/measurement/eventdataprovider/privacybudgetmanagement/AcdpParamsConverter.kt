@@ -85,7 +85,7 @@ object AcdpParamsConverter {
    */
   private fun getMpcDeltas(delta: Double): MpcDeltas = MpcDeltas(0.5 * delta, 0.5 * delta)
 
-  private fun computeSigmaDistributedDiscreteGaussian(
+  fun computeSigmaDistributedDiscreteGaussian(
     privacyParams: DpParams,
     contributorCount: Int
   ): Double {
