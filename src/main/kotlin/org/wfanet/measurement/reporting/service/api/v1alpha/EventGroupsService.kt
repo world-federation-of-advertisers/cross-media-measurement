@@ -26,9 +26,10 @@ import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.filter
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey as CmmsMeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.withAuthenticationKey
+import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptMetadata
@@ -68,8 +69,6 @@ class EventGroupsService(
     val parentKey =
       EventGroupParentKey.fromName(request.parent)
         ?: failGrpc(Status.INVALID_ARGUMENT) { "parent malformed or unspecified" }
-    val dataProviderKey = CmmsDataProviderKey(parentKey.dataProviderReferenceId)
-    val dataProviderName = dataProviderKey.toName()
     val pageSize =
       when {
         request.pageSize < MIN_PAGE_SIZE -> DEFAULT_PAGE_SIZE
@@ -83,10 +82,14 @@ class EventGroupsService(
           .withAuthenticationKey(apiAuthenticationKey)
           .listEventGroups(
             cmmsListEventGroupsRequest {
-              parent = dataProviderName
+              parent = CmmsMeasurementConsumerKey(parentKey.measurementConsumerId).toName()
               this.pageSize = pageSize
               pageToken = request.pageToken
-              filter = filter { measurementConsumers += principalName }
+              filter = filter {
+                if (parentKey.dataProviderReferenceId != ResourceKey.WILDCARD_ID) {
+                  dataProviders += CmmsDataProviderKey(parentKey.dataProviderReferenceId).toName()
+                }
+              }
             }
           )
       } catch (e: StatusException) {
@@ -112,25 +115,20 @@ class EventGroupsService(
         it.toEventGroup(cmmsMetadata)
       }
 
-    val filter: String = request.filter
-    if (filter.isEmpty()) {
-      return listEventGroupsResponse {
-        this.eventGroups += eventGroups
-        nextPageToken = cmmsListEventGroupResponse.nextPageToken
-      }
-    }
-
-    val filteredEventGroups = filterEventGroups(eventGroups, filter)
     return listEventGroupsResponse {
-      this.eventGroups += filteredEventGroups
+      this.eventGroups += filterEventGroups(eventGroups, request.filter)
       nextPageToken = cmmsListEventGroupResponse.nextPageToken
     }
   }
 
   private suspend fun filterEventGroups(
-    eventGroups: Iterable<EventGroup>,
+    eventGroups: List<EventGroup>,
     filter: String,
   ): List<EventGroup> {
+    if (filter.isEmpty()) {
+      return eventGroups
+    }
+
     val typeRegistryAndEnv = celEnvProvider.getTypeRegistryAndEnv()
     val env = typeRegistryAndEnv.env
     val typeRegistry = typeRegistryAndEnv.typeRegistry
@@ -215,7 +213,8 @@ class EventGroupsService(
 private fun CmmsEventGroup.toEventGroup(cmmsMetadata: CmmsEventGroup.Metadata?): EventGroup {
   val source = this
   val cmmsEventGroupKey = requireNotNull(CmmsEventGroupKey.fromName(name))
-  val measurementConsumerKey = requireNotNull(MeasurementConsumerKey.fromName(measurementConsumer))
+  val measurementConsumerKey =
+    requireNotNull(CmmsMeasurementConsumerKey.fromName(measurementConsumer))
   return eventGroup {
     name =
       EventGroupKey(

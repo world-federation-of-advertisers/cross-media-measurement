@@ -36,17 +36,31 @@ class StreamEventGroups(requestFilter: StreamEventGroupsRequest.Filter, limit: I
 
   private fun Statement.Builder.appendWhereClause(filter: StreamEventGroupsRequest.Filter) {
     val conjuncts = mutableListOf<String>()
+    if (filter.externalDataProviderId != 0L) {
+      conjuncts.add("ExternalDataProviderId = @$EXTERNAL_DATA_PROVIDER_ID")
+      bind(EXTERNAL_DATA_PROVIDER_ID).to(filter.externalDataProviderId)
+    }
+    if (filter.externalMeasurementConsumerId != 0L) {
+      conjuncts.add("ExternalMeasurementConsumerId = @$EXTERNAL_MEASUREMENT_CONSUMER_ID")
+      bind(EXTERNAL_MEASUREMENT_CONSUMER_ID).to(filter.externalMeasurementConsumerId)
+    }
     if (filter.externalMeasurementConsumerIdsList.isNotEmpty()) {
       conjuncts.add("ExternalMeasurementConsumerId IN UNNEST(@$EXTERNAL_MEASUREMENT_CONSUMER_IDS)")
       bind(EXTERNAL_MEASUREMENT_CONSUMER_IDS)
         .toInt64Array(filter.externalMeasurementConsumerIdsList.map { it.toLong() })
     }
-    if (filter.externalDataProviderId != 0L) {
-      conjuncts.add("ExternalDataProviderId = @$EXTERNAL_DATA_PROVIDER_ID")
-      bind(EXTERNAL_DATA_PROVIDER_ID to filter.externalDataProviderId)
+    if (filter.externalDataProviderIdsList.isNotEmpty()) {
+      conjuncts.add("ExternalDataProviderId IN UNNEST(@$EXTERNAL_DATA_PROVIDER_IDS)")
+      bind(EXTERNAL_DATA_PROVIDER_IDS)
+        .toInt64Array(filter.externalDataProviderIdsList.map { it.toLong() })
     }
 
-    if (filter.externalEventGroupIdAfter != 0L && filter.externalDataProviderIdAfter != 0L) {
+    if (!filter.showDeleted) {
+      conjuncts.add("State != @$DELETED_STATE")
+      bind(DELETED_STATE).toProtoEnum(EventGroup.State.DELETED)
+    }
+
+    if (filter.hasAfter()) {
       conjuncts.add(
         """
           ((ExternalDataProviderId > @$EXTERNAL_DATA_PROVIDER_ID_AFTER)
@@ -55,13 +69,8 @@ class StreamEventGroups(requestFilter: StreamEventGroupsRequest.Filter, limit: I
         """
           .trimIndent()
       )
-      bind(EXTERNAL_DATA_PROVIDER_ID_AFTER).to(filter.externalDataProviderIdAfter)
-      bind(EXTERNAL_EVENT_GROUP_ID_AFTER).to(filter.externalEventGroupIdAfter)
-    }
-
-    if (!filter.showDeleted) {
-      conjuncts.add("State != @$DELETED_STATE")
-      bind(DELETED_STATE).toProtoEnum(EventGroup.State.DELETED)
+      bind(EXTERNAL_DATA_PROVIDER_ID_AFTER).to(filter.after.externalDataProviderId)
+      bind(EXTERNAL_EVENT_GROUP_ID_AFTER).to(filter.after.externalEventGroupId)
     }
 
     if (conjuncts.isEmpty()) {
@@ -74,8 +83,10 @@ class StreamEventGroups(requestFilter: StreamEventGroupsRequest.Filter, limit: I
 
   companion object {
     const val LIMIT = "limit"
-    const val EXTERNAL_MEASUREMENT_CONSUMER_IDS = "externalMeasurementConsumerIds"
     const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
+    const val EXTERNAL_MEASUREMENT_CONSUMER_ID = "externalMeasurementConsumerId"
+    const val EXTERNAL_MEASUREMENT_CONSUMER_IDS = "externalMeasurementConsumerIds"
+    const val EXTERNAL_DATA_PROVIDER_IDS = "externalDataProviderIds"
     const val EXTERNAL_EVENT_GROUP_ID_AFTER = "externalEventGroupIdAfter"
     const val EXTERNAL_DATA_PROVIDER_ID_AFTER = "externalDataProviderIdAfter"
     const val DELETED_STATE = "deletedState"

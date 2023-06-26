@@ -17,8 +17,8 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest
@@ -32,6 +32,7 @@ import org.wfanet.measurement.internal.kingdom.eventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupInvalidArgsException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
@@ -114,42 +115,60 @@ class SpannerEventGroupsService(
   }
 
   override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup {
-    return EventGroupReader()
-      .readByExternalIds(
-        client.singleUse(),
-        request.externalDataProviderId,
-        request.externalEventGroupId,
-      )
-      ?.eventGroup
-      ?: failGrpc(Status.NOT_FOUND) { "EventGroup not found" }
+    grpcRequire(request.externalEventGroupId != 0L) { "external_event_group_id not specified" }
+    val externalEventGroupId = ExternalId(request.externalEventGroupId)
+    val reader = EventGroupReader()
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+    return when (request.externalParentIdCase) {
+      GetEventGroupRequest.ExternalParentIdCase.EXTERNAL_DATA_PROVIDER_ID -> {
+        val externalDataProviderId = ExternalId(request.externalDataProviderId)
+        reader.readByDataProvider(client.singleUse(), externalDataProviderId, externalEventGroupId)
+          ?: throw EventGroupNotFoundException(externalDataProviderId, externalEventGroupId)
+            .asStatusRuntimeException(Status.Code.NOT_FOUND)
+      }
+      GetEventGroupRequest.ExternalParentIdCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> {
+        val externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
+        reader.readByMeasurementConsumer(
+          client.singleUse(),
+          externalMeasurementConsumerId,
+          externalEventGroupId
+        )
+          ?: throw EventGroupNotFoundByMeasurementConsumerException(
+              externalMeasurementConsumerId,
+              externalEventGroupId
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND)
+      }
+      GetEventGroupRequest.ExternalParentIdCase.EXTERNALPARENTID_NOT_SET ->
+        throw Status.INVALID_ARGUMENT.withDescription("external_parent_id not specified")
+          .asRuntimeException()
+    }.eventGroup
   }
 
   override suspend fun deleteEventGroup(request: DeleteEventGroupRequest): EventGroup {
-    grpcRequire(request.externalDataProviderId > 0L) { "ExternalDataProviderId unspecified" }
-    grpcRequire(request.externalEventGroupId > 0L) { "ExternalEventGroupId unspecified" }
-
-    val eventGroup = eventGroup {
-      externalDataProviderId = request.externalDataProviderId
-      externalEventGroupId = request.externalEventGroupId
-    }
+    grpcRequire(request.externalDataProviderId != 0L) { "external_data_provider_id unspecified" }
+    grpcRequire(request.externalEventGroupId > 0L) { "external_event_group_id unspecified" }
 
     try {
-      return DeleteEventGroup(eventGroup).execute(client, idGenerator)
+      return DeleteEventGroup(request).execute(client, idGenerator)
     } catch (e: EventGroupNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "EventGroup not found.")
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: EventGroupNotFoundByMeasurementConsumerException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     } catch (e: EventGroupStateIllegalException) {
-      when (e.state) {
+      throw when (e.state) {
         EventGroup.State.DELETED -> {
-          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "EventGroup state is DELETED.")
+          e.asStatusRuntimeException(Status.Code.NOT_FOUND)
         }
         EventGroup.State.ACTIVE,
         EventGroup.State.STATE_UNSPECIFIED,
         EventGroup.State.UNRECOGNIZED -> {
-          throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
+          e.asStatusRuntimeException(Status.Code.INTERNAL)
         }
       }
     } catch (e: KingdomInternalException) {
-      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL)
     }
   }
 

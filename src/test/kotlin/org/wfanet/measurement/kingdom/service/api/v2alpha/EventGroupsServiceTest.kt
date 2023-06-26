@@ -38,9 +38,11 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKt
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.filter
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.copy
@@ -57,6 +59,7 @@ import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
+import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -75,6 +78,7 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest as internalCreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest as internalDeleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
+import org.wfanet.measurement.internal.kingdom.eventGroupKey
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest as internalGetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest as internalUpdateEventGroupRequest
@@ -82,8 +86,6 @@ import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest as intern
 private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 
 private const val DEFAULT_LIMIT = 50
-
-private const val WILDCARD_NAME = "dataProviders/-"
 
 private val DATA_PROVIDER_NAME = makeDataProvider(123L)
 private val DATA_PROVIDER_NAME_2 = makeDataProvider(124L)
@@ -651,42 +653,123 @@ class EventGroupsServiceTest {
   }
 
   @Test
-  fun `listEventGroups with parent uses filter with parent`() {
+  fun `listEventGroups requests EventGroups by DataProvider`() {
     val request = listEventGroupsRequest {
       parent = DATA_PROVIDER_NAME
-      filter = filter { measurementConsumers += MEASUREMENT_CONSUMER_NAME }
+      pageSize = 100
     }
 
-    val result =
+    val response: ListEventGroupsResponse =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.listEventGroups(request) }
+      }
+
+    assertThat(response)
+      .isEqualTo(
+        listEventGroupsResponse {
+          eventGroups += EVENT_GROUP
+          eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_2 }
+          eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_3 }
+        }
+      )
+    val internalRequest =
+      captureFirst<StreamEventGroupsRequest> {
+        verify(internalEventGroupsMock).streamEventGroups(capture())
+      }
+    assertThat(internalRequest)
+      .isEqualTo(
+        streamEventGroupsRequest {
+          filter =
+            StreamEventGroupsRequestKt.filter { externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID }
+          limit = request.pageSize + 1
+        }
+      )
+  }
+
+  @Test
+  fun `listEventGroups requests EventGroups by MeasurementConsumer`() {
+    val request = listEventGroupsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      pageSize = 100
+    }
+
+    val response: ListEventGroupsResponse =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
         runBlocking { service.listEventGroups(request) }
       }
 
-    val expected = listEventGroupsResponse {
-      eventGroups += EVENT_GROUP
-      eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_2 }
-      eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_3 }
-    }
-
-    val streamEventGroupsRequest =
+    assertThat(response)
+      .isEqualTo(
+        listEventGroupsResponse {
+          eventGroups += EVENT_GROUP
+          eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_2 }
+          eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_3 }
+        }
+      )
+    val internalRequest =
       captureFirst<StreamEventGroupsRequest> {
         verify(internalEventGroupsMock).streamEventGroups(capture())
       }
-
-    assertThat(streamEventGroupsRequest)
-      .ignoringRepeatedFieldOrder()
+    assertThat(internalRequest)
       .isEqualTo(
         streamEventGroupsRequest {
-          limit = DEFAULT_LIMIT + 1
+          filter =
+            StreamEventGroupsRequestKt.filter {
+              externalMeasurementConsumerId = MEASUREMENT_CONSUMER_EXTERNAL_ID
+            }
+          limit = request.pageSize + 1
+        }
+      )
+  }
+
+  @Test
+  fun `listEventGroups response includes next page token when there are more items`() {
+    val request = listEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      filter = filter { measurementConsumers += MEASUREMENT_CONSUMER_NAME }
+      pageSize = 2
+    }
+
+    val response: ListEventGroupsResponse =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.listEventGroups(request) }
+      }
+
+    assertThat(response)
+      .ignoringFields(ListEventGroupsResponse.NEXT_PAGE_TOKEN_FIELD_NUMBER)
+      .isEqualTo(
+        listEventGroupsResponse {
+          eventGroups += EVENT_GROUP
+          eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_2 }
+        }
+      )
+    val internalRequest =
+      captureFirst<StreamEventGroupsRequest> {
+        verify(internalEventGroupsMock).streamEventGroups(capture())
+      }
+    assertThat(internalRequest)
+      .isEqualTo(
+        streamEventGroupsRequest {
           filter =
             StreamEventGroupsRequestKt.filter {
               externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
               externalMeasurementConsumerIds += MEASUREMENT_CONSUMER_EXTERNAL_ID
             }
+          limit = request.pageSize + 1
         }
       )
-
-    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+    val nextPageToken = ListEventGroupsPageToken.parseFrom(response.nextPageToken.base64UrlDecode())
+    assertThat(nextPageToken)
+      .isEqualTo(
+        listEventGroupsPageToken {
+          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          externalMeasurementConsumerIds += MEASUREMENT_CONSUMER_EXTERNAL_ID
+          lastEventGroup = previousPageEnd {
+            externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+            externalEventGroupId = EVENT_GROUP_EXTERNAL_ID_2
+          }
+        }
+      )
   }
 
   @Test
@@ -695,7 +778,6 @@ class EventGroupsServiceTest {
       parent = DATA_PROVIDER_NAME
       pageSize = 2
       val listEventGroupsPageToken = listEventGroupsPageToken {
-        pageSize = 2
         externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
         externalMeasurementConsumerIds += MEASUREMENT_CONSUMER_EXTERNAL_ID
         lastEventGroup = previousPageEnd {
@@ -708,7 +790,7 @@ class EventGroupsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
         runBlocking { service.listEventGroups(request) }
       }
 
@@ -716,7 +798,6 @@ class EventGroupsServiceTest {
       eventGroups += EVENT_GROUP
       eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_2 }
       val listEventGroupsPageToken = listEventGroupsPageToken {
-        pageSize = request.pageSize
         externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
         externalMeasurementConsumerIds += MEASUREMENT_CONSUMER_EXTERNAL_ID
         lastEventGroup = previousPageEnd {
@@ -740,9 +821,11 @@ class EventGroupsServiceTest {
           filter =
             StreamEventGroupsRequestKt.filter {
               externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-              externalDataProviderIdAfter = DATA_PROVIDER_EXTERNAL_ID
-              externalEventGroupIdAfter = EVENT_GROUP_EXTERNAL_ID
               externalMeasurementConsumerIds += MEASUREMENT_CONSUMER_EXTERNAL_ID
+              after = eventGroupKey {
+                externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+                externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
+              }
             }
         }
       )
@@ -751,51 +834,8 @@ class EventGroupsServiceTest {
   }
 
   @Test
-  fun `listEventGroups with new page size replaces page size in page token`() {
-    val request = listEventGroupsRequest {
-      parent = DATA_PROVIDER_NAME
-      pageSize = 4
-      val listEventGroupsPageToken = listEventGroupsPageToken {
-        pageSize = 2
-        externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-        lastEventGroup = previousPageEnd {
-          externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
-          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-        }
-        externalMeasurementConsumerIds += MEASUREMENT_CONSUMER_EXTERNAL_ID
-      }
-      filter = filter { measurementConsumers += MEASUREMENT_CONSUMER_NAME }
-      pageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
-    }
-
-    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-      runBlocking { service.listEventGroups(request) }
-    }
-
-    val streamEventGroupsRequest =
-      captureFirst<StreamEventGroupsRequest> {
-        verify(internalEventGroupsMock).streamEventGroups(capture())
-      }
-
-    assertThat(streamEventGroupsRequest)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(streamEventGroupsRequest { limit = request.pageSize + 1 })
-  }
-
-  @Test
-  fun `listEventGroups with no page size uses page size in page token`() {
-    val request = listEventGroupsRequest {
-      parent = DATA_PROVIDER_NAME
-      val listEventGroupsPageToken = listEventGroupsPageToken {
-        pageSize = 2
-        externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-        lastEventGroup = previousPageEnd {
-          externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
-          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-        }
-      }
-      pageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
-    }
+  fun `listEventGroups uses default page size when unspecified`() {
+    val request = listEventGroupsRequest { parent = DATA_PROVIDER_NAME }
 
     withDataProviderPrincipal(DATA_PROVIDER_NAME) {
       runBlocking { service.listEventGroups(request) }
@@ -805,53 +845,39 @@ class EventGroupsServiceTest {
       captureFirst<StreamEventGroupsRequest> {
         verify(internalEventGroupsMock).streamEventGroups(capture())
       }
-
     assertThat(streamEventGroupsRequest)
       .comparingExpectedFieldsOnly()
-      .isEqualTo(streamEventGroupsRequest { limit = 3 })
+      .isEqualTo(streamEventGroupsRequest { limit = 51 })
   }
 
   @Test
-  fun `listEventGroups with parent and filter with measurement consumers uses filter with both`() {
-    val request = listEventGroupsRequest {
-      parent = DATA_PROVIDER_NAME
-      filter = filter {
-        measurementConsumers += MEASUREMENT_CONSUMER_NAME
-        measurementConsumers += MEASUREMENT_CONSUMER_NAME
-      }
+  fun `listEventGroups throws INVALID_ARGUMENT when subsequent request params mismatch page token`() {
+    val initialRequest = listEventGroupsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      filter = filter { dataProviders += DATA_PROVIDER_NAME }
+      pageSize = 2
     }
-
-    val result =
+    val initialResponse: ListEventGroupsResponse =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-        runBlocking { service.listEventGroups(request) }
+        runBlocking { service.listEventGroups(initialRequest) }
       }
 
-    val expected = listEventGroupsResponse {
-      eventGroups += EVENT_GROUP
-      eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_2 }
-      eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_3 }
-    }
-
-    val streamEventGroupsRequest =
-      captureFirst<StreamEventGroupsRequest> {
-        verify(internalEventGroupsMock).streamEventGroups(capture())
-      }
-
-    assertThat(streamEventGroupsRequest)
-      .ignoringRepeatedFieldOrder()
-      .isEqualTo(
-        streamEventGroupsRequest {
-          limit = DEFAULT_LIMIT + 1
-          filter =
-            StreamEventGroupsRequestKt.filter {
-              externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-              externalMeasurementConsumerIds += MEASUREMENT_CONSUMER_EXTERNAL_ID
-              externalMeasurementConsumerIds += MEASUREMENT_CONSUMER_EXTERNAL_ID
-            }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.listEventGroups(
+              initialRequest.copy {
+                showDeleted = true
+                pageToken = initialResponse.nextPageToken
+              }
+            )
+          }
         }
-      )
+      }
 
-    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("page")
   }
 
   @Test
@@ -867,7 +893,7 @@ class EventGroupsServiceTest {
   }
 
   @Test
-  fun `listEventGroups throws PERMISSION_DENIED when edp caller doesn't match`() {
+  fun `listEventGroups throws PERMISSION_DENIED when DataProvider principal mismatches`() {
     val request = listEventGroupsRequest { parent = DATA_PROVIDER_NAME }
 
     val exception =
@@ -880,18 +906,12 @@ class EventGroupsServiceTest {
   }
 
   @Test
-  fun `listEventGroups throws PERMISSION_DENIED when mc caller doesn't match filter MC`() {
-    val request = listEventGroupsRequest {
-      parent = DATA_PROVIDER_NAME
-      filter = filter {
-        measurementConsumers += MEASUREMENT_CONSUMER_NAME
-        measurementConsumers += "measurementConsumers/BBBAAAAAAHt"
-      }
-    }
+  fun `listEventGroups throws PERMISSION_DENIED when MeasurementConsumer principal mismatches`() {
+    val request = listEventGroupsRequest { parent = MEASUREMENT_CONSUMER_NAME }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME_2) {
           runBlocking { service.listEventGroups(request) }
         }
       }
@@ -899,7 +919,7 @@ class EventGroupsServiceTest {
   }
 
   @Test
-  fun `listEventGroups throws PERMISSION_DENIED when mc caller and missing mc filter`() {
+  fun `listEventGroups throws PERMISSION_DENIED parent type mismatches`() {
     val request = listEventGroupsRequest { parent = DATA_PROVIDER_NAME }
 
     val exception =
@@ -909,17 +929,6 @@ class EventGroupsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-  }
-
-  @Test
-  fun `listEventGroups throws INVALID_ARGUMENT when only wildcard parent`() {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking { service.listEventGroups(listEventGroupsRequest { parent = WILDCARD_NAME }) }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
@@ -937,7 +946,7 @@ class EventGroupsServiceTest {
   fun `listEventGroups throws INVALID_ARGUMENT when measurement consumer in filter is invalid`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
           runBlocking {
             service.listEventGroups(
               listEventGroupsRequest {
@@ -964,57 +973,6 @@ class EventGroupsServiceTest {
               }
             )
           }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  }
-
-  @Test
-  fun `listEventGroups throws invalid argument when parent doesn't match parent in page token`() {
-    val request = listEventGroupsRequest {
-      parent = DATA_PROVIDER_NAME
-      pageSize = 2
-      val listEventGroupsPageToken = listEventGroupsPageToken {
-        pageSize = 2
-        externalDataProviderId = 654
-        lastEventGroup = previousPageEnd {
-          externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
-          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-        }
-      }
-      pageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking { service.listEventGroups(request) }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  }
-
-  @Test
-  fun `listEventGroups throws invalid argument when mc ids don't match ids in page token`() {
-    val request = listEventGroupsRequest {
-      parent = DATA_PROVIDER_NAME
-      pageSize = 2
-      val listEventGroupsPageToken = listEventGroupsPageToken {
-        pageSize = 2
-        externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-        externalMeasurementConsumerIds += 123
-        lastEventGroup = previousPageEnd {
-          externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
-          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-        }
-      }
-      pageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking { service.listEventGroups(request) }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)

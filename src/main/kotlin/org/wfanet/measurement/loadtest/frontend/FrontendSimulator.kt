@@ -43,7 +43,6 @@ import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
-import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
@@ -616,10 +615,7 @@ class FrontendSimulator(
   }
 
   private suspend fun listEventGroups(measurementConsumer: String): List<EventGroup> {
-    val request = listEventGroupsRequest {
-      parent = DATA_PROVIDER_WILDCARD
-      filter = ListEventGroupsRequestKt.filter { measurementConsumers += measurementConsumer }
-    }
+    val request = listEventGroupsRequest { parent = measurementConsumer }
     try {
       return eventGroupsClient
         .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)

@@ -506,7 +506,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           withAuthenticationKey(apiKey)
             .listEventGroups(
               listEventGroupsRequest {
-                parent = "dataProviders/-"
+                parent = measurementConsumer
                 filter =
                   ListEventGroupsRequestKt.filter { measurementConsumers += measurementConsumer }
               }

@@ -38,21 +38,16 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.checkValidCe
 class UpdateEventGroup(private val eventGroup: EventGroup) :
   SpannerWriter<EventGroup, EventGroup>() {
   override suspend fun TransactionScope.runTransaction(): EventGroup {
+    val externalDataProviderId = ExternalId(eventGroup.externalDataProviderId)
+    val externalEventGroupId = ExternalId(eventGroup.externalEventGroupId)
     val internalEventGroupResult =
       EventGroupReader()
-        .readByExternalIds(
-          transactionContext,
-          eventGroup.externalDataProviderId,
-          eventGroup.externalEventGroupId
-        )
-        ?: throw EventGroupNotFoundException(
-          ExternalId(eventGroup.externalDataProviderId),
-          ExternalId(eventGroup.externalEventGroupId)
-        )
+        .readByDataProvider(transactionContext, externalDataProviderId, externalEventGroupId)
+        ?: throw EventGroupNotFoundException(externalDataProviderId, externalEventGroupId)
     if (internalEventGroupResult.eventGroup.state == EventGroup.State.DELETED) {
       throw EventGroupStateIllegalException(
-        ExternalId(eventGroup.externalEventGroupId),
-        ExternalId(eventGroup.externalEventGroupId),
+        externalEventGroupId,
+        externalEventGroupId,
         internalEventGroupResult.eventGroup.state
       )
     }
