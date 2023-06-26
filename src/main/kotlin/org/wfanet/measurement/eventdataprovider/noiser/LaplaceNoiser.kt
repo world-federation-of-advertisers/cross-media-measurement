@@ -15,6 +15,7 @@
 package org.wfanet.measurement.eventdataprovider.noiser
 
 import java.util.Random
+import kotlin.math.pow
 import org.apache.commons.math3.distribution.LaplaceDistribution
 import org.apache.commons.math3.random.RandomGeneratorFactory
 
@@ -25,4 +26,10 @@ class LaplaceNoiser(privacyParams: DpParams, random: Random) : AbstractNoiser() 
       0.0,
       1 / privacyParams.epsilon
     )
+
+  companion object {
+    fun computeVariance(privacyParams: DpParams): Double {
+      return 2.0 * (1 / privacyParams.epsilon).pow(2.0)
+    }
+  }
 }
