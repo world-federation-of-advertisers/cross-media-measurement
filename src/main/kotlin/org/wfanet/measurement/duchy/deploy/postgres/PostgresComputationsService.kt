@@ -141,7 +141,9 @@ class PostgresComputationsService(
         )
       )
       token.toClaimWorkResponse()
-    } else ClaimWorkResponse.getDefaultInstance()
+    } else {
+      ClaimWorkResponse.getDefaultInstance()
+    }
   }
 
   override suspend fun getComputationToken(

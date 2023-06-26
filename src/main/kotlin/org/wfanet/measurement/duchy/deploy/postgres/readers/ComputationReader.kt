@@ -103,7 +103,7 @@ class ComputationReader(
     requisitions: List<RequisitionMetadata>
   ): ComputationToken {
     return computationToken {
-      this.globalComputationId = computation.globalComputationId
+      globalComputationId = computation.globalComputationId
       localComputationId = computation.localComputationId
       computationStage =
         computationProtocolStagesEnumHelper.longValuesToComputationStageEnum(
@@ -246,7 +246,8 @@ class ComputationReader(
   ): ComputationToken? {
     val readContext = client.readTransaction()
     try {
-      val computation = readComputation(readContext, globalComputationId) ?: return null
+      val computation: Computation =
+        readComputation(readContext, globalComputationId) ?: return null
 
       val blobs =
         readBlobs(readContext, computation.localComputationId, computation.computationStage)
