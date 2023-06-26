@@ -293,14 +293,12 @@ class ReportReader(private val readContext: ReadContext) {
 
     val source = this
 
-    source
-      .timeIntervals
-      .add(
-        timeInterval {
-          startTime = timeIntervalStart.toProtoTime()
-          endTime = timeIntervalEnd.toProtoTime()
-        }
-      )
+    source.timeIntervals.add(
+      timeInterval {
+        startTime = timeIntervalStart.toProtoTime()
+        endTime = timeIntervalEnd.toProtoTime()
+      }
+    )
 
     val reportingMetricCalculationSpecInfo =
       source.reportingSetReportingMetricCalculationSpecInfoMap.computeIfAbsent(
