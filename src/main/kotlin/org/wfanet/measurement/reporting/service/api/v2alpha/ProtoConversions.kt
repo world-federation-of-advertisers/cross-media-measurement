@@ -672,7 +672,13 @@ fun ListReportsPageToken.toStreamReportsRequest(): StreamReportsRequest {
     filter =
       StreamReportsRequestKt.filter {
         cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId
-        externalReportIdAfter = source.lastReport.externalReportId
+        if (source.hasLastReport()) {
+          after =
+            StreamReportsRequestKt.afterFilter {
+              createTime = source.lastReport.createTime
+              externalReportId = source.lastReport.externalReportId
+            }
+        }
       }
   }
 }
