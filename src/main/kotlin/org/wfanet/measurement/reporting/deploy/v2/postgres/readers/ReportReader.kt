@@ -219,7 +219,7 @@ class ReportReader(private val readContext: ReadContext) {
   }
 
   private fun createResultFlow(statement: BoundStatement): Flow<Result> {
-    var reportInfo: ReportInfo? = null
+    var accumulator: ReportInfo? = null
     val translate: (row: ResultRow) -> Optional<Result> = { row: ResultRow ->
       val measurementConsumerId: InternalId = row["MeasurementConsumerId"]
       val cmmsMeasurementConsumerId: String = row["CmmsMeasurementConsumerId"]
@@ -227,22 +227,10 @@ class ReportReader(private val readContext: ReadContext) {
       val reportId: InternalId = row["ReportId"]
       val externalReportId: ExternalId = row["ExternalReportId"]
       val createTime: Instant = row["CreateTime"]
-      val timeIntervalStart: Instant = row["TimeIntervalStart"]
-      val timeIntervalEnd: Instant = row["TimeIntervalEndExclusive"]
-      val metricCalculationSpecDetails: Report.MetricCalculationSpec.Details =
-        row.getProtoMessage(
-          "MetricCalculationSpecDetails",
-          Report.MetricCalculationSpec.Details.parser()
-        )
-      val externalReportingSetId: ExternalId = row["ExternalReportingSetId"]
-      val createMetricRequestId: String = row["CreateMetricRequestId"]
-      val reportingMetricDetails: Report.ReportingMetric.Details =
-        row.getProtoMessage("ReportingMetricDetails", Report.ReportingMetric.Details.parser())
-      val externalMetricId: ExternalId? = row["ExternalMetricId"]
 
       var result: Result? = null
-      if (reportInfo == null) {
-        reportInfo =
+      if (accumulator == null) {
+        accumulator =
           ReportInfo(
             measurementConsumerId = measurementConsumerId,
             cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
@@ -254,11 +242,11 @@ class ReportReader(private val readContext: ReadContext) {
             reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf()
           )
       } else if (
-        reportInfo!!.externalReportId != externalReportId ||
-          reportInfo!!.measurementConsumerId != measurementConsumerId
+        accumulator!!.externalReportId != externalReportId ||
+          accumulator!!.measurementConsumerId != measurementConsumerId
       ) {
-        result = reportInfo!!.toResult()
-        reportInfo =
+        result = accumulator!!.toResult()
+        accumulator =
           ReportInfo(
             measurementConsumerId = measurementConsumerId,
             cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
@@ -271,55 +259,74 @@ class ReportReader(private val readContext: ReadContext) {
           )
       }
 
-      reportInfo!!
-        .timeIntervals
-        .add(
-          timeInterval {
-            startTime = timeIntervalStart.toProtoTime()
-            endTime = timeIntervalEnd.toProtoTime()
-          }
-        )
-
-      val reportingMetricCalculationSpecInfo =
-        reportInfo!!.reportingSetReportingMetricCalculationSpecInfoMap.computeIfAbsent(
-          externalReportingSetId
-        ) {
-          ReportingMetricCalculationSpecInfo(
-            metricCalculationSpecInfoMap = mutableMapOf(),
-          )
-        }
-
-      val metricCalculationSpecInfo =
-        reportingMetricCalculationSpecInfo.metricCalculationSpecInfoMap.computeIfAbsent(
-          metricCalculationSpecDetails
-        ) {
-          MetricCalculationSpecInfo(
-            reportingMetricMap = mutableMapOf(),
-          )
-        }
-
-      metricCalculationSpecInfo.reportingMetricMap.computeIfAbsent(createMetricRequestId) {
-        ReportKt.reportingMetric {
-          this.createMetricRequestId = createMetricRequestId
-          if (externalMetricId != null) {
-            this.externalMetricId = externalMetricId.value
-          }
-          details = reportingMetricDetails
-        }
-      }
+      accumulator!!.update(row)
 
       Optional.ofNullable(result)
     }
 
     return flow {
-      //TODO(@tristanvuong2021): add null support to consume
+      // TODO(@tristanvuong2021): add null support to consume
       readContext.executeQuery(statement).consume(translate).collect {
         if (it.isPresent) {
           emit(it.get())
         }
       }
-      if (reportInfo != null) {
-        emit(reportInfo!!.toResult())
+      if (accumulator != null) {
+        emit(accumulator!!.toResult())
+      }
+    }
+  }
+
+  private fun ReportInfo.update(row: ResultRow) {
+    val timeIntervalStart: Instant = row["TimeIntervalStart"]
+    val timeIntervalEnd: Instant = row["TimeIntervalEndExclusive"]
+    val metricCalculationSpecDetails: Report.MetricCalculationSpec.Details =
+      row.getProtoMessage(
+        "MetricCalculationSpecDetails",
+        Report.MetricCalculationSpec.Details.parser()
+      )
+    val externalReportingSetId: ExternalId = row["ExternalReportingSetId"]
+    val createMetricRequestId: String = row["CreateMetricRequestId"]
+    val reportingMetricDetails: Report.ReportingMetric.Details =
+      row.getProtoMessage("ReportingMetricDetails", Report.ReportingMetric.Details.parser())
+    val externalMetricId: ExternalId? = row["ExternalMetricId"]
+
+    val source = this
+
+    source
+      .timeIntervals
+      .add(
+        timeInterval {
+          startTime = timeIntervalStart.toProtoTime()
+          endTime = timeIntervalEnd.toProtoTime()
+        }
+      )
+
+    val reportingMetricCalculationSpecInfo =
+      source.reportingSetReportingMetricCalculationSpecInfoMap.computeIfAbsent(
+        externalReportingSetId
+      ) {
+        ReportingMetricCalculationSpecInfo(
+          metricCalculationSpecInfoMap = mutableMapOf(),
+        )
+      }
+
+    val metricCalculationSpecInfo =
+      reportingMetricCalculationSpecInfo.metricCalculationSpecInfoMap.computeIfAbsent(
+        metricCalculationSpecDetails
+      ) {
+        MetricCalculationSpecInfo(
+          reportingMetricMap = mutableMapOf(),
+        )
+      }
+
+    metricCalculationSpecInfo.reportingMetricMap.computeIfAbsent(createMetricRequestId) {
+      ReportKt.reportingMetric {
+        this.createMetricRequestId = createMetricRequestId
+        if (externalMetricId != null) {
+          this.externalMetricId = externalMetricId.value
+        }
+        details = reportingMetricDetails
       }
     }
   }
