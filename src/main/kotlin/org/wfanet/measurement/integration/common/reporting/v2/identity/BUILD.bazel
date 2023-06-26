@@ -13,9 +13,9 @@ kt_jvm_library(
     deps = [
         ":reporting_principal_identity",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:context_keys",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:context_keys",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:principal_server_interceptor",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:reporting_principal",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:context_keys",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:principal_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:reporting_principal",
         "//src/main/proto/wfa/measurement/config:duchy_cert_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/io/grpc/stub",

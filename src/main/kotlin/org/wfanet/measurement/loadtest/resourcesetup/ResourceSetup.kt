@@ -277,7 +277,7 @@ class ResourceSetup(
             if (it) {
               retryCount += 1
               logger.info(
-                "Try #$retryCount to communicate with Kindgdom failed.  " +
+                "Try #$retryCount to communicate with Kingdom failed.  " +
                   "Retrying in ${SLEEP_INTERVAL_MILLIS / 1000} seconds ..."
               )
               delay(SLEEP_INTERVAL_MILLIS)
