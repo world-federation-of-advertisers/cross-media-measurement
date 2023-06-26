@@ -103,6 +103,8 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
 
     val metrics = mutableListOf<Metric>()
 
+    val metricCalculationSpecReportingMetricsBinders =
+      mutableListOf<BoundStatement.Binder.() -> Unit>()
     val measurementsBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
     val metricMeasurementsBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
     val primitiveReportingSetBasesBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
@@ -209,6 +211,24 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
               bind("$19", it.metric.details.toJson())
             }
 
+            if (it.requestId.isNotBlank()) {
+              val createMetricRequestUuid: UUID? =
+                try {
+                  UUID.fromString(it.requestId)
+                } catch (_: IllegalArgumentException) {
+                  // Non-Report Metrics do not have to use a UUID.
+                  null
+                }
+
+              if (createMetricRequestUuid != null) {
+                metricCalculationSpecReportingMetricsBinders.add {
+                  bind("$1", metricId)
+                  bind("$2", measurementConsumerId)
+                  bind("$3", createMetricRequestUuid)
+                }
+              }
+            }
+
             val weightedMeasurementsAndBindings =
               createWeightedMeasurementsBindings(
                 measurementConsumerId = measurementConsumerId,
@@ -241,6 +261,16 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
             )
           }
         }
+      }
+
+    val metricCalculationSpecReportingMetricsStatement =
+      boundStatement(
+        """
+        UPDATE MetricCalculationSpecReportingMetrics SET MetricId = $1
+        WHERE MeasurementConsumerId = $2 AND CreateMetricRequestId = $3
+        """
+      ) {
+        metricCalculationSpecReportingMetricsBinders.forEach { addBinding(it) }
       }
 
     val measurementsStatement =
@@ -329,6 +359,9 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
     if (existingMetricsMap.size < requests.size) {
       transactionContext.run {
         executeStatement(statement)
+        if (metricCalculationSpecReportingMetricsBinders.size > 0) {
+          executeStatement(metricCalculationSpecReportingMetricsStatement)
+        }
         executeStatement(measurementsStatement)
         executeStatement(metricMeasurementsStatement)
         executeStatement(primitiveReportingSetBasesStatement)

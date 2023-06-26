@@ -2403,6 +2403,7 @@ class ReportsServiceTest {
             lastReport =
               ListReportsPageTokenKt.previousPageEnd {
                 cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+                createTime = PENDING_REACH_REPORT.createTime
                 externalReportId = PENDING_REACH_REPORT.externalId
               }
           }
@@ -2442,6 +2443,7 @@ class ReportsServiceTest {
                 ListReportsPageTokenKt.previousPageEnd {
                   cmmsMeasurementConsumerId =
                     MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+                  createTime = PENDING_REACH_REPORT.createTime
                   externalReportId = PENDING_REACH_REPORT.externalId
                 }
             }
@@ -2463,7 +2465,11 @@ class ReportsServiceTest {
             this.filter =
               StreamReportsRequestKt.filter {
                 cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-                externalReportIdAfter = PENDING_REACH_REPORT.externalId
+                after =
+                  StreamReportsRequestKt.afterFilter {
+                    createTime = PENDING_REACH_REPORT.createTime
+                    externalReportId = PENDING_REACH_REPORT.externalId
+                  }
               }
           }
         )
@@ -2523,6 +2529,7 @@ class ReportsServiceTest {
                 ListReportsPageTokenKt.previousPageEnd {
                   cmmsMeasurementConsumerId =
                     MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+                  createTime = PENDING_REACH_REPORT.createTime
                   externalReportId = PENDING_REACH_REPORT.externalId
                 }
             }
@@ -2544,7 +2551,11 @@ class ReportsServiceTest {
             this.filter =
               StreamReportsRequestKt.filter {
                 cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-                externalReportIdAfter = PENDING_REACH_REPORT.externalId
+                after =
+                  StreamReportsRequestKt.afterFilter {
+                    createTime = PENDING_REACH_REPORT.createTime
+                    externalReportId = PENDING_REACH_REPORT.externalId
+                  }
               }
           }
         )
@@ -2569,6 +2580,7 @@ class ReportsServiceTest {
             lastReport =
               ListReportsPageTokenKt.previousPageEnd {
                 cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+                createTime = PENDING_REACH_REPORT.createTime
                 externalReportId = PENDING_REACH_REPORT.externalId
               }
           }
@@ -2590,7 +2602,11 @@ class ReportsServiceTest {
           this.filter =
             StreamReportsRequestKt.filter {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-              externalReportIdAfter = PENDING_REACH_REPORT.externalId
+              after =
+                StreamReportsRequestKt.afterFilter {
+                  createTime = PENDING_REACH_REPORT.createTime
+                  externalReportId = PENDING_REACH_REPORT.externalId
+                }
             }
         }
       )
