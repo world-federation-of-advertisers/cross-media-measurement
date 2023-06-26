@@ -199,7 +199,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
   }
 
   @Test
-  fun `createModelRollout correctly leave previous model rollout unset when rollout start time is equal to rollout end time`() =
+  fun `createModelRollout correctly sets previous model rollout when rollout start time is equal to rollout end time`() =
     runBlocking {
       val modelLine =
         population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
@@ -234,7 +234,8 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
 
       val createdModelRollout2 = modelRolloutsService.createModelRollout(modelRollout2)
 
-      assertThat(createdModelRollout2.externalPreviousModelRolloutId).isEqualTo(0L)
+      assertThat(createdModelRollout2.externalPreviousModelRolloutId)
+        .isEqualTo(createdModelRollout.externalModelRolloutId)
     }
 
   @Test

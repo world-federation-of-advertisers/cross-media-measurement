@@ -73,15 +73,11 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
     }
 
     val latestModelRolloutData =
-      if (modelRollout.rolloutPeriodStartTime != modelRollout.rolloutPeriodEndTime) {
-        readLatestModelRolloutData(
-          ExternalId(modelRollout.externalModelProviderId),
-          ExternalId(modelRollout.externalModelSuiteId),
-          ExternalId(modelRollout.externalModelLineId),
-        )
-      } else {
-        null
-      }
+      readLatestModelRolloutData(
+        ExternalId(modelRollout.externalModelProviderId),
+        ExternalId(modelRollout.externalModelSuiteId),
+        ExternalId(modelRollout.externalModelLineId),
+      )
 
     val latestModelRolloutStartTime = latestModelRolloutData?.rolloutPeriodStartTime
 
