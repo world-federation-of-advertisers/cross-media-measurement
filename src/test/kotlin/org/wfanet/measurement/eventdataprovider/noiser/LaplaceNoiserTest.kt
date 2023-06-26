@@ -15,6 +15,8 @@ package org.wfanet.measurement.eventdataprovider.noiser
 
 import com.google.common.truth.Truth.assertThat
 import java.util.Random
+import org.apache.commons.math3.distribution.LaplaceDistribution
+import org.apache.commons.math3.random.RandomGeneratorFactory
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -36,6 +38,22 @@ class LaplaceNoiserTest {
       )
 
     assertThat(expectedSamples).isEqualTo(samples)
+  }
+
+  @Test
+  fun `Laplace noiser computes a variance based on DP params`() {
+    val random = Random(RANDOM_SEED)
+    val variance = LaplaceNoiser.computeVariance(DP_PARAMS)
+
+    val laplaceDistribution =
+      LaplaceDistribution(
+        RandomGeneratorFactory.createRandomGenerator(random),
+        0.0,
+        1 / DP_PARAMS.epsilon
+      )
+    val expected = laplaceDistribution.numericalVariance
+
+    assertThat(variance).isEqualTo(expected)
   }
 
   companion object {
