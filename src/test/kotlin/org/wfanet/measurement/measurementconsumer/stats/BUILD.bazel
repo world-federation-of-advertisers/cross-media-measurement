@@ -1,0 +1,31 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "direct_reach_measurement_statistics_test",
+    srcs = ["DirectReachMeasurementStatisticsTest.kt"],
+    associates = [
+        "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:direct_reach_measurement_statistics",
+    ],
+    test_class = "org.wfanet.measurement.measurementconsumer.stats.DirectReachMeasurementStatisticsTest",
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
+
+kt_jvm_test(
+    name = "direct_frequency_measurement_statistics_test",
+    srcs = ["DirectFrequencyMeasurementStatisticsTest.kt"],
+    associates = [
+        "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:direct_frequency_measurement_statistics",
+    ],
+    test_class = "org.wfanet.measurement.measurementconsumer.stats.DirectFrequencyMeasurementStatisticsTest",
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
