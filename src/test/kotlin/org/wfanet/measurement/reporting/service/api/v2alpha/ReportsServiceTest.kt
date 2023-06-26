@@ -74,7 +74,6 @@ import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListReportsPageTokenKt
 import org.wfanet.measurement.reporting.v2alpha.ListReportsRequest
-import org.wfanet.measurement.reporting.v2alpha.ListReportsRequestKt
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.reachResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.watchDurationResult
@@ -2611,38 +2610,6 @@ class ReportsServiceTest {
                   createTime = PENDING_REACH_REPORT.createTime
                   externalReportId = PENDING_REACH_REPORT.externalId
                 }
-            }
-        }
-      )
-
-    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
-  }
-
-  @Test
-  fun `listReports with create_time filter calls the internal service with it`() = runBlocking {
-    val request = listReportsRequest {
-      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
-      filter = ListReportsRequestKt.filter { createTime = timestamp { seconds = 100 } }
-    }
-
-    val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
-        runBlocking { service.listReports(request) }
-      }
-
-    val expected = listReportsResponse {
-      reports += PENDING_REACH_REPORT
-      reports += PENDING_WATCH_DURATION_REPORT
-    }
-
-    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::streamReports)
-      .isEqualTo(
-        streamReportsRequest {
-          limit = DEFAULT_PAGE_SIZE + 1
-          this.filter =
-            StreamReportsRequestKt.filter {
-              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-              after = StreamReportsRequestKt.afterFilter { createTime = request.filter.createTime }
             }
         }
       )

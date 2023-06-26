@@ -219,7 +219,10 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                   bind("$2", measurementConsumerId)
                   bind("$3", createMetricRequestUuid)
                 }
-              } catch (_: IllegalArgumentException) {}
+              } catch (_: IllegalArgumentException) {
+                // Request IDs for metrics generated for a report are UUIDs. If the request ID isn't
+                // a UUID, it is still a valid metric so the exception is caught instead of thrown.
+              }
             }
 
             val weightedMeasurementsAndBindings =

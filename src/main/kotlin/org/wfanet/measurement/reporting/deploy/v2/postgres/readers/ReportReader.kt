@@ -20,6 +20,7 @@ import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Timestamps
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.Optional
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flow
@@ -48,8 +49,6 @@ class ReportReader(private val readContext: ReadContext) {
     val report: Report
   )
 
-  private data class ResultWrapper(val result: Result?)
-
   private data class ReportInfo(
     val measurementConsumerId: InternalId,
     val cmmsMeasurementConsumerId: String,
@@ -58,7 +57,7 @@ class ReportReader(private val readContext: ReadContext) {
     val externalReportId: ExternalId,
     val createTime: Timestamp,
     val timeIntervals: MutableSet<TimeInterval>,
-    /** Key is externalReportingSetId. */
+    /** Map of external reporting set ID to [ReportingMetricCalculationSpecInfo]. */
     val reportingSetReportingMetricCalculationSpecInfoMap:
       MutableMap<ExternalId, ReportingMetricCalculationSpecInfo>,
   )
@@ -221,7 +220,7 @@ class ReportReader(private val readContext: ReadContext) {
 
   private fun createResultFlow(statement: BoundStatement): Flow<Result> {
     var reportInfo: ReportInfo? = null
-    val translate: (row: ResultRow) -> ResultWrapper = { row: ResultRow ->
+    val translate: (row: ResultRow) -> Optional<Result> = { row: ResultRow ->
       val measurementConsumerId: InternalId = row["MeasurementConsumerId"]
       val cmmsMeasurementConsumerId: String = row["CmmsMeasurementConsumerId"]
       val createReportRequestId: String? = row["CreateReportRequestId"]
@@ -309,13 +308,14 @@ class ReportReader(private val readContext: ReadContext) {
         }
       }
 
-      ResultWrapper(result)
+      Optional.ofNullable(result)
     }
 
     return flow {
+      //TODO(@tristanvuong2021): add null support to consume
       readContext.executeQuery(statement).consume(translate).collect {
-        if (it.result != null) {
-          emit(it.result)
+        if (it.isPresent) {
+          emit(it.get())
         }
       }
       if (reportInfo != null) {
