@@ -212,16 +212,19 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
             }
 
             if (it.requestId.isNotBlank()) {
-              try {
-                val createMetricRequestUuid = UUID.fromString(it.requestId)
+              val createMetricRequestUuid: UUID? = try {
+                UUID.fromString(it.requestId)
+              } catch (_: IllegalArgumentException) {
+                // Non-Report Metrics do not have to use a UUID.
+                null
+              }
+
+              if (createMetricRequestUuid != null) {
                 metricCalculationSpecReportingMetricsBinders.add {
                   bind("$1", metricId)
                   bind("$2", measurementConsumerId)
                   bind("$3", createMetricRequestUuid)
                 }
-              } catch (_: IllegalArgumentException) {
-                // Request IDs for metrics generated for a report are UUIDs. If the request ID isn't
-                // a UUID, it is still a valid metric so the exception is caught instead of thrown.
               }
             }
 

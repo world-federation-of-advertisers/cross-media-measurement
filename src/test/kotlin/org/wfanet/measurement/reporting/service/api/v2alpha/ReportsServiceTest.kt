@@ -2373,7 +2373,6 @@ class ReportsServiceTest {
           filter =
             StreamReportsRequestKt.filter {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-              after = StreamReportsRequestKt.afterFilter {}
             }
         }
       )
@@ -2419,7 +2418,6 @@ class ReportsServiceTest {
           this.filter =
             StreamReportsRequestKt.filter {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-              after = StreamReportsRequestKt.afterFilter {}
             }
         }
       )
@@ -2504,7 +2502,6 @@ class ReportsServiceTest {
           this.filter =
             StreamReportsRequestKt.filter {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-              after = StreamReportsRequestKt.afterFilter {}
             }
         }
       )
@@ -2666,7 +2663,6 @@ class ReportsServiceTest {
             this.filter =
               StreamReportsRequestKt.filter {
                 cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-                after = StreamReportsRequestKt.afterFilter {}
               }
           }
         )
@@ -2710,7 +2706,6 @@ class ReportsServiceTest {
           this.filter =
             StreamReportsRequestKt.filter {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-              after = StreamReportsRequestKt.afterFilter {}
             }
         }
       )
