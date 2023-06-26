@@ -212,12 +212,13 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
             }
 
             if (it.requestId.isNotBlank()) {
-              val createMetricRequestUuid: UUID? = try {
-                UUID.fromString(it.requestId)
-              } catch (_: IllegalArgumentException) {
-                // Non-Report Metrics do not have to use a UUID.
-                null
-              }
+              val createMetricRequestUuid: UUID? =
+                try {
+                  UUID.fromString(it.requestId)
+                } catch (_: IllegalArgumentException) {
+                  // Non-Report Metrics do not have to use a UUID.
+                  null
+                }
 
               if (createMetricRequestUuid != null) {
                 metricCalculationSpecReportingMetricsBinders.add {
