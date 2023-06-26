@@ -1,4 +1,5 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+load("@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
 
 kt_jvm_test(
     name = "PostgresInProcessLifeOfAReportIntegrationTest",
@@ -12,6 +13,29 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting:in_process_life_of_a_report_integration_test",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common/server/postgres:services",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/testing",
+        "@wfa_common_jvm//imports/java/com/opentable/db/postgres:pg_embedded",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:embedded_postgres",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+    ],
+)
+
+spanner_emulator_test(
+    name = "V2PostgresInProcessLifeOfAReportIntegrationTest",
+    size = "large",
+    srcs = ["V2PostgresInProcessLifeOfAReportIntegrationTest.kt"],
+    flaky = True,
+    tags = ["cpu:2"],
+    test_class = "org.wfanet.measurement.integration.postgres.V2PostgresInProcessLifeOfAReportIntegrationTest",
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_duchy",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_life_of_a_report_integration_test",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/server/postgres:services",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "//src/test/kotlin/org/wfanet/measurement/integration/gcloud:duchy_provider_rule",
+        "//src/test/kotlin/org/wfanet/measurement/integration/gcloud:kingdom_provider_rule",
         "@wfa_common_jvm//imports/java/com/opentable/db/postgres:pg_embedded",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:embedded_postgres",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
