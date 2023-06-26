@@ -1,0 +1,116 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//visibility:public"])
+
+kt_jvm_library(
+    name = "measurement_statistics",
+    srcs = ["MeasurementStatistics.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
+    ],
+)
+
+kt_jvm_library(
+    name = "direct_measurement_statistics",
+    srcs = ["DirectMeasurementStatistics.kt"],
+    deps = [
+        ":measurement_statistics",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
+        "@wfa_common_jvm//imports/java/org/apache/commons:math3",
+    ],
+)
+
+kt_jvm_library(
+    name = "reach_measurement_statistics",
+    srcs = ["ReachMeasurementStatistics.kt"],
+    deps = [
+        ":measurement_statistics",
+        "@wfa_common_jvm//imports/java/org/apache/commons:math3",
+    ],
+)
+
+kt_jvm_library(
+    name = "frequency_measurement_statistics",
+    srcs = ["FrequencyMeasurementStatistics.kt"],
+    deps = [
+        ":measurement_statistics",
+        ":reach_measurement_statistics",
+        "@wfa_common_jvm//imports/java/org/apache/commons:math3",
+    ],
+)
+
+kt_jvm_library(
+    name = "direct_reach_measurement_statistics",
+    srcs = ["DirectReachMeasurementStatistics.kt"],
+    deps = [
+        ":direct_measurement_statistics",
+        ":measurement_statistics",
+        ":reach_measurement_statistics",
+    ],
+)
+
+kt_jvm_library(
+    name = "direct_frequency_measurement_statistics",
+    srcs = ["DirectFrequencyMeasurementStatistics.kt"],
+    deps = [
+        ":direct_measurement_statistics",
+        ":direct_reach_measurement_statistics",
+        ":frequency_measurement_statistics",
+        ":measurement_statistics",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
+        "@wfa_common_jvm//imports/java/org/apache/commons:math3",
+    ],
+)
+
+kt_jvm_library(
+    name = "direct_impression_measurement_statistics",
+    srcs = ["DirectImpressionMeasurementStatistics.kt"],
+    deps = [
+        ":direct_measurement_statistics",
+        ":measurement_statistics",
+    ],
+)
+
+kt_jvm_library(
+    name = "direct_watch_duration_measurement_statistics",
+    srcs = ["DirectWatchDurationMeasurementStatistics.kt"],
+    deps = [
+        ":direct_measurement_statistics",
+        ":measurement_statistics",
+    ],
+)
+
+kt_jvm_library(
+    name = "mpc_measurement_statistics",
+    srcs = ["MpcMeasurementStatistics.kt"],
+    deps = [
+        ":measurement_statistics",
+        "@wfa_common_jvm//imports/java/org/apache/commons:math3",
+        "@wfa_common_jvm//imports/java/org/apache/commons/numbers/gamma",
+    ],
+)
+
+kt_jvm_library(
+    name = "mpc_reach_measurement_statistics",
+    srcs = ["MpcReachMeasurementStatistics.kt"],
+    deps = [
+        ":measurement_statistics",
+        ":mpc_measurement_statistics",
+        ":reach_measurement_statistics",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:acdp_params_converter",
+        "@wfa_common_jvm//imports/java/org/apache/commons:math3",
+    ],
+)
+
+kt_jvm_library(
+    name = "mpc_frequency_measurement_statistics",
+    srcs = ["MpcFrequencyMeasurementStatistics.kt"],
+    deps = [
+        ":frequency_measurement_statistics",
+        ":measurement_statistics",
+        ":mpc_measurement_statistics",
+        ":mpc_reach_measurement_statistics",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:acdp_params_converter",
+        "@wfa_common_jvm//imports/java/org/apache/commons:math3",
+    ],
+)
