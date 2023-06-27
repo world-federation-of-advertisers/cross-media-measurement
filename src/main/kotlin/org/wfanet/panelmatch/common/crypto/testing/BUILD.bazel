@@ -8,6 +8,9 @@ package(
 kt_jvm_library(
     name = "testing",
     srcs = glob(["*.kt"]),
+    runtime_deps = [
+        "@wfa_common_jvm//imports/kotlin/kotlin:stdlib_jdk7",
+    ],
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/common",
         "//src/main/kotlin/org/wfanet/panelmatch/common/crypto",
