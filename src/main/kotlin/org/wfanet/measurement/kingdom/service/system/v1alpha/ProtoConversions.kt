@@ -224,7 +224,7 @@ fun buildMpcProtocolConfig(
             blindedHistogramNoise =
               duchyProtocolConfig.liquidLegionsV2.mpcNoise.blindedHistogramNoise
                 .toSystemDifferentialPrivacyParams()
-            noiseForPublisherNoise =
+            publisherNoise =
               duchyProtocolConfig.liquidLegionsV2.mpcNoise.noiseForPublisherNoise
                 .toSystemDifferentialPrivacyParams()
           }
