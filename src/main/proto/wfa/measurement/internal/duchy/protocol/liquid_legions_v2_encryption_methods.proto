@@ -116,6 +116,8 @@ message CompleteSetupPhaseRequest {
   int32 maximum_frequency = 3;
   // The mechanism used to generate noise.
   LiquidLegionsV2NoiseConfig.NoiseMechanism noise_mechanism = 4;
+  // The maximum number of threads used by crypto actions.
+  int32 parallelism = 5;
 }
 
 // Response of the CompleteSetupPhase method.
@@ -142,6 +144,8 @@ message CompleteExecutionPhaseOneRequest {
   ElGamalPublicKey composite_el_gamal_public_key = 3;
   // The elliptical curve to work on.
   int64 curve_id = 4;
+  // The maximum number of threads used by crypto actions.
+  int32 parallelism = 5;
 }
 
 // Response of the CompleteExecutionPhaseOne method.
@@ -179,6 +183,8 @@ message CompleteExecutionPhaseOneAtAggregatorRequest {
   int32 total_sketches_count = 6;
   // The mechanism used to generate noise.
   LiquidLegionsV2NoiseConfig.NoiseMechanism noise_mechanism = 7;
+  // The maximum number of threads used by crypto actions.
+  int32 parallelism = 8;
 }
 
 // The response of the CompleteExecutionPhaseOneAtAggregator method.
@@ -213,6 +219,8 @@ message CompleteExecutionPhaseTwoRequest {
   FlagCountTupleNoiseGenerationParameters noise_parameters = 6;
   // The mechanism used to generate noise.
   LiquidLegionsV2NoiseConfig.NoiseMechanism noise_mechanism = 7;
+  // The maximum number of threads used by crypto actions.
+  int32 parallelism = 8;
 }
 
 // The response of the CompleteExecutionPhaseTwo method.
@@ -285,6 +293,8 @@ message CompleteExecutionPhaseThreeRequest {
   ElGamalKeyPair local_el_gamal_key_pair = 2;
   // The elliptical curve to work on.
   int64 curve_id = 3;
+  // The maximum number of threads used by crypto actions.
+  int32 parallelism = 4;
 }
 
 // The response of the CompleteExecutionPhaseThree method.
