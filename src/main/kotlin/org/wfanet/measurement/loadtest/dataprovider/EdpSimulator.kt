@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import org.apache.commons.math3.distribution.ConstantRealDistribution
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
@@ -69,7 +70,9 @@ import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.frequency
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
@@ -139,12 +142,14 @@ data class EdpData(
 )
 
 /**
- * Mechanism for generating noise for direct measurements.
+ * Noise mechanism for generating publisher noise for direct measurements.
  *
- * TODO(@iverson52000): Move this to public API if EDP needs to report back the noise mechanism for
- *   PBM tracking.
+ * TODO(@iverson52000): Move this to public API if EDP needs to report back the direct noise
+ *   mechanism for PBM tracking. NONE mechanism is testing only and should not move to public API.
  */
-enum class NoiseMechanism {
+enum class DirectNoiseMechanism {
+  /** NONE mechanism is testing only. */
+  NONE,
   LAPLACE,
   GAUSSIAN,
 }
@@ -166,7 +171,7 @@ class EdpSimulator(
   private val privacyBudgetManager: PrivacyBudgetManager,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   private val random: Random,
-  private val noiseMechanism: NoiseMechanism
+  private val directNoiseMechanism: DirectNoiseMechanism
 ) {
 
   /** A sequence of operations done in the simulator. */
@@ -379,7 +384,13 @@ class EdpSimulator(
   /** Executes the requisition fulfillment workflow. */
   suspend fun executeRequisitionFulfillingWorkflow() {
     logger.info("Executing requisitionFulfillingWorkflow...")
-    val requisitions = getRequisitions()
+    val requisitions =
+      getRequisitions().filter {
+        checkNotNull(MeasurementKey.fromName(it.measurement)).measurementConsumerId ==
+          checkNotNull(MeasurementConsumerKey.fromName(measurementConsumerName))
+            .measurementConsumerId
+      }
+
     if (requisitions.isEmpty()) {
       logger.fine("No unfulfilled requisition. Polling again later...")
       return
@@ -748,6 +759,20 @@ class EdpSimulator(
     fulfillDirectMeasurement(requisition, requisitionSpec, measurementSpec, measurementResult)
   }
 
+  private fun getPublisherNoiser(
+    privacyParams: DifferentialPrivacyParams,
+    directNoiseMechanism: DirectNoiseMechanism,
+    random: Random
+  ): AbstractNoiser =
+    when (directNoiseMechanism) {
+      DirectNoiseMechanism.NONE ->
+        object : AbstractNoiser() {
+          override val distribution = ConstantRealDistribution(0.0)
+        }
+      DirectNoiseMechanism.LAPLACE -> LaplaceNoiser(privacyParams, random)
+      DirectNoiseMechanism.GAUSSIAN -> GaussianNoiser(privacyParams, random)
+    }
+
   /**
    * Add publisher noise to calculated direct reach.
    *
@@ -760,10 +785,7 @@ class EdpSimulator(
     privacyParams: DifferentialPrivacyParams
   ): Long {
     val reachNoiser: AbstractNoiser =
-      when (noiseMechanism) {
-        NoiseMechanism.LAPLACE -> LaplaceNoiser(privacyParams, random)
-        NoiseMechanism.GAUSSIAN -> GaussianNoiser(privacyParams, random)
-      }
+      getPublisherNoiser(privacyParams, directNoiseMechanism, random)
 
     return reachValue + reachNoiser.sample().toInt()
   }
@@ -782,10 +804,7 @@ class EdpSimulator(
     privacyParams: DifferentialPrivacyParams,
   ): Map<Long, Double> {
     val frequencyNoiser: AbstractNoiser =
-      when (noiseMechanism) {
-        NoiseMechanism.LAPLACE -> LaplaceNoiser(privacyParams, random)
-        NoiseMechanism.GAUSSIAN -> GaussianNoiser(privacyParams, random)
-      }
+      getPublisherNoiser(privacyParams, directNoiseMechanism, random)
 
     return frequencyMap.mapValues { (_, percentage) ->
       (percentage * reachValue.toDouble() + frequencyNoiser.sample()) / reachValue.toDouble()
@@ -809,7 +828,7 @@ class EdpSimulator(
         val sampledReachValue = calculateDirectReach(vidList)
         val frequencyMap = calculateDirectFrequency(vidList, sampledReachValue)
 
-        logger.info("Adding $noiseMechanism publisher noise to direct reach and frequency...")
+        logger.info("Adding $directNoiseMechanism publisher noise to direct reach and frequency...")
         val sampledNoisedReachValue =
           addReachPublisherNoise(
             sampledReachValue,
@@ -836,7 +855,7 @@ class EdpSimulator(
       }
       MeasurementSpec.MeasurementTypeCase.REACH -> {
         val sampledReachValue = calculateDirectReach(vidList)
-        logger.info("Adding $noiseMechanism publisher noise to direct reach...")
+        logger.info("Adding $directNoiseMechanism publisher noise to direct reach...")
         val sampledNoisedReachValue =
           addReachPublisherNoise(sampledReachValue, measurementSpec.reach.privacyParams)
         val scaledNoisedReachValue =

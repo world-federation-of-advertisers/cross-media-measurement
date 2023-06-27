@@ -104,7 +104,7 @@ abstract class EdpSimulatorRunner : Runnable {
         createNoOpPrivacyBudgetManager(),
         clientCerts.trustedCertificates,
         random,
-        flags.noiseMechanism
+        flags.directNoiseMechanism
       )
     runBlocking {
       edpSimulator.createEventGroup()

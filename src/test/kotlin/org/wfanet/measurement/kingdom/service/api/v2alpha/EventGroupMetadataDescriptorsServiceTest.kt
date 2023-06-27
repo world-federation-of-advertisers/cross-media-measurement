@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.DescriptorProtos.FileDescriptorSet
+import com.google.protobuf.TextFormat
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
@@ -232,6 +233,47 @@ class EventGroupMetadataDescriptorsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `createEventGroupMetadataDescriptor throws INVALID_ARGUMENT when descriptorSet invalid`() {
+    val badFileDescriptorSetText =
+      """
+      file {
+        name: ""
+        package: ""
+        message_type {
+          name: ""
+          field {
+            name: "test"
+            number: 1
+            label: LABEL_OPTIONAL
+            type: TYPE_STRING
+          }
+        }
+      }
+      """
+        .trimIndent()
+
+    val badFileDescriptorSetBuilder = FileDescriptorSet.newBuilder()
+    TextFormat.getParser().merge(badFileDescriptorSetText, badFileDescriptorSetBuilder)
+
+    val request = createEventGroupMetadataDescriptorRequest {
+      parent = DATA_PROVIDER_NAME
+      eventGroupMetadataDescriptor =
+        EVENT_GROUP_METADATA_DESCRIPTOR.copy {
+          clearDescriptorSet()
+          descriptorSet = badFileDescriptorSetBuilder.build()
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.createEventGroupMetadataDescriptor(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test

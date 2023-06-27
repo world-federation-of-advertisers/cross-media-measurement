@@ -42,11 +42,11 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
-import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
+import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -122,9 +122,9 @@ abstract class InProcessLifeOfAReportIntegrationTest {
   private val publicKingdomEventGroupMetadataDescriptorsMock:
     EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase =
     mockService {
-      onBlocking { batchGetEventGroupMetadataDescriptors(any()) }
+      onBlocking { listEventGroupMetadataDescriptors(any()) }
         .thenReturn(
-          batchGetEventGroupMetadataDescriptorsResponse {
+          listEventGroupMetadataDescriptorsResponse {
             eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
           }
         )

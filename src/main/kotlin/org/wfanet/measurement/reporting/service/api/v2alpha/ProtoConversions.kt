@@ -39,17 +39,21 @@ import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
+import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequest
+import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.TimeInterval as InternalTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.TimeIntervals as InternalTimeIntervals
 import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.periodicTimeInterval as internalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
+import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeInterval as internalTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals as internalTimeIntervals
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageToken
+import org.wfanet.measurement.reporting.v2alpha.ListReportsPageToken
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.PeriodicTimeInterval
@@ -655,6 +659,26 @@ fun Map.Entry<Long, InternalReport.ReportingMetricCalculationSpec>.toReportingMe
       ReportKt.reportingMetricCalculationSpec {
         metricCalculationSpecs +=
           source.value.metricCalculationSpecsList.map { it.toMetricCalculationSpec() }
+      }
+  }
+}
+
+/** Converts a [ListReportsPageToken] to an internal [StreamReportsRequest]. */
+fun ListReportsPageToken.toStreamReportsRequest(): StreamReportsRequest {
+  val source = this
+  return streamReportsRequest {
+    // get one more than the actual page size for deciding whether to set page token
+    limit = pageSize + 1
+    filter =
+      StreamReportsRequestKt.filter {
+        cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId
+        if (source.hasLastReport()) {
+          after =
+            StreamReportsRequestKt.afterFilter {
+              createTime = source.lastReport.createTime
+              externalReportId = source.lastReport.externalReportId
+            }
+        }
       }
   }
 }
