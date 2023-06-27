@@ -1,6 +1,5 @@
 load("@bazel_gazelle//:def.bzl", "gazelle")
 load("@npm//:defs.bzl", "npm_link_all_packages")
-load("@aspect_rules_js//js:defs.bzl", "js_library")
 
 package(default_visibility = ["//:__subpackages__"])
 
@@ -9,13 +8,3 @@ package(default_visibility = ["//:__subpackages__"])
 gazelle(name = "gazelle")
 
 npm_link_all_packages()
-
-js_library(
-    name = "babel_config",
-    srcs = ["babel.config.js"],
-)
-
-js_library(
-    name = "tsconfig",
-    srcs = ["tsconfig.json"],
-)
