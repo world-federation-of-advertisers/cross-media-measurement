@@ -2924,7 +2924,7 @@ class ReportsServiceTest {
               .toName()
           filter = "AGE>18"
           displayName = "reporting-set-$index-display-name"
-          primitive = ReportingSetKt.primitive { eventGroups += "event-group-$index" }
+          primitive = ReportingSetKt.primitive { cmmsEventGroups += "event-group-$index" }
         }
       }
 
@@ -3295,8 +3295,6 @@ private val Metric.resourceKey: MetricKey
   get() = MetricKey.fromName(name)!!
 private val Metric.apiId: String
   get() = resourceKey.metricId
-private val Metric.externalId: Long
-  get() = apiIdToExternalId(apiId)
 
 private val InternalReport.resourceKey: ReportKey
   get() = ReportKey(cmmsMeasurementConsumerId, ExternalId(externalReportId).apiId.value)
