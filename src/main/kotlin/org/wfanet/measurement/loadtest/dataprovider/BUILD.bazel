@@ -28,6 +28,7 @@ kt_jvm_library(
         "LaplaceNoiser.kt",
         "Noiser.kt",
         "RandomEventQuery.kt",
+        "SimulatorSyntheticDataSpecEventQuery.kt",
     ],
     deps = [
         "//imports/java/com/google:cel-generated-pb",
@@ -53,6 +54,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_fulfillment_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:test_metadata_messages_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@any_sketch_java//src/main/java/org/wfanet/anysketch",
