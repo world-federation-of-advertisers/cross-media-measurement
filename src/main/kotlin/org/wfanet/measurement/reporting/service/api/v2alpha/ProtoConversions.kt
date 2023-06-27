@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.util.Timestamps
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -544,14 +545,9 @@ fun InternalReportingSet.SetExpression.Operand.toOperand(
 fun InternalReportingSet.Primitive.toPrimitive(): ReportingSet.Primitive {
   val source = this
   return ReportingSetKt.primitive {
-    eventGroups +=
+    cmmsEventGroups +=
       source.eventGroupKeysList.map { eventGroupKey ->
-        EventGroupKey(
-            eventGroupKey.cmmsMeasurementConsumerId,
-            eventGroupKey.cmmsDataProviderId,
-            eventGroupKey.cmmsEventGroupId
-          )
-          .toName()
+        CmmsEventGroupKey(eventGroupKey.cmmsDataProviderId, eventGroupKey.cmmsEventGroupId).toName()
       }
   }
 }
