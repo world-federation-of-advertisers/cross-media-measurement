@@ -250,16 +250,27 @@ class SimulatorSyntheticDataSpecEventQueryTest {
       videoAd = video { viewedFraction = VideoKt.viewedFractionField { value = 0.9 } }
     }
 
+    val numExpectedTestEvent = 50
+    val numExpectedTestEvent2 = 50
+    val numExpectedTestEvent3 = 25
+    val numExpectedTestEvent4 = 50
+
+    val expectedTestEvents = mutableListOf<TestEvent>()
+    for (i in 1..numExpectedTestEvent) {
+      expectedTestEvents.add(expectedTestEvent)
+    }
+    for (i in 1..numExpectedTestEvent2) {
+      expectedTestEvents.add(expectedTestEvent2)
+    }
+    for (i in 1..numExpectedTestEvent3) {
+      expectedTestEvents.add(expectedTestEvent3)
+    }
+    for (i in 1..numExpectedTestEvent4) {
+      expectedTestEvents.add(expectedTestEvent4)
+    }
+
     assertThat(testEventList)
-      .containsExactly(
-        expectedTestEvent,
-        expectedTestEvent,
-        expectedTestEvent2,
-        expectedTestEvent2,
-        expectedTestEvent3,
-        expectedTestEvent4,
-        expectedTestEvent4
-      )
+      .containsExactlyElementsIn(expectedTestEvents)
       .inOrder()
   }
 
