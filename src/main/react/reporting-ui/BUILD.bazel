@@ -19,12 +19,10 @@ js_library(
         "//:node_modules/typescript",
         "//:node_modules/web-vitals",
         "//:node_modules/webpack",
-<<<<<<< HEAD
-=======
-        "//:node_modules/react-bootstrap",
-        "//:node_modules/bootstrap",
-        "//:node_modules/react-router-dom",
->>>>>>> d97060e07 (tests)
+    ],
+    visibility = [
+        "//src/main/react/reporting-ui:__subpackages__",
+        "//src/test/react/reporting-ui:__subpackages__",
     ],
 )
 
@@ -40,6 +38,19 @@ ts_config(
 js_library(
     name = "webpack_config",
     srcs = ["webpack.config.js"],
+    visibility = [
+        "//src/main/react/reporting-ui:__subpackages__",
+        "//src/test/react/reporting-ui:__subpackages__",
+    ],
+)
+
+js_library(
+    name = "babel_config",
+    srcs = ["babel.config.js"],
+    visibility = [
+        "//src/main/react/reporting-ui:__subpackages__",
+        "//src/test/react/reporting-ui:__subpackages__",
+    ],
 )
 
 webpack_bundle(

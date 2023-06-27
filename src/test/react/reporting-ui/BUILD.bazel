@@ -1,4 +1,5 @@
-load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("@aspect_rules_jest//jest:defs.bzl", "jest_test")
 
 # Filename conventions described at
 # https://create-react-app.dev/docs/running-tests#filename-conventions
@@ -7,19 +8,52 @@ TEST_PATTERNS = [
     "*.test.ts",
     "*.spec.tsx",
     "*.spec.ts",
+    "**/*.js",
 ]
 
-ts_project(
-    name = "src_test_ts",
-    srcs = glob(TEST_PATTERNS),
-    declaration = True,
-    resolve_json_module = True,
-    supports_workers = False,  # worker bug on macos: ERROR: react-cra/src/BUILD.bazel:50:11: output 'src/App.test.js' was not created
-    tsconfig = "//src/main/react/reporting-ui:tsconfig",
-    deps = [
-        "//src/main/react/reporting-ui/src:src_ts",
+js_library(
+    name = "test_node_deps",
+    srcs = [
+        "//:node_modules/@babel/preset-env",
+        "//:node_modules/@babel/preset-react",
+        "//:node_modules/@babel/preset-typescript",
         "//:node_modules/@testing-library/jest-dom",
         "//:node_modules/@testing-library/react",
-        "//:node_modules/@types/jest",
+        "//:node_modules/@testing-library/user-event",
+        "//:node_modules/jest",
+        "//:node_modules/identity-obj-proxy",
+        "//:node_modules/jest-transform-css",
+        "//:node_modules/ts-jest",
+    ]
+)
+
+js_library(
+    name = "test_files",
+    srcs = glob(
+        include = TEST_PATTERNS,
+    ),
+)
+
+js_library(
+    name = "jest_config",
+    srcs = ["jest.config.js"],
+)
+
+js_library(
+    name = "babel_config",
+    srcs = ["babel.config.js"],
+)
+
+jest_test(
+    name = "test",
+    config = ":jest_config",
+    data = [
+        "//src/main/react/reporting-ui:build_node_deps",
+        "//src/main/react/reporting-ui/src:src_files",
+        "//src/test/react/jest:jest_files",
+        "//src/test/react/jest:jest_base_config",
+        ":test_files",
+        ":test_node_deps",
     ],
+    node_modules = "//:node_modules",
 )
