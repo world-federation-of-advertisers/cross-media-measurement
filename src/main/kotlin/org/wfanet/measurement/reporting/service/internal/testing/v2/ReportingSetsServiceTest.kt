@@ -83,14 +83,12 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
 
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "2235"
               cmmsEventGroupId = "2236"
             }
@@ -128,21 +126,18 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
 
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
 
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "2235"
               cmmsEventGroupId = "2236"
             }
@@ -180,7 +175,6 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
@@ -196,7 +190,6 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
@@ -224,7 +217,6 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
@@ -321,7 +313,6 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
@@ -463,14 +454,12 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
 
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "2235"
               cmmsEventGroupId = "2236"
             }
@@ -507,7 +496,6 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
@@ -616,7 +604,6 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
@@ -678,7 +665,6 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
@@ -824,14 +810,12 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
 
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "2235"
               cmmsEventGroupId = "2236"
             }
@@ -883,7 +867,6 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
@@ -997,7 +980,6 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
           ReportingSetKt.primitive {
             eventGroupKeys +=
               ReportingSetKt.PrimitiveKt.eventGroupKey {
-                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
                 cmmsDataProviderId = "1235"
                 cmmsEventGroupId = "1236"
               }
@@ -1125,7 +1107,6 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
@@ -1201,7 +1182,6 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
           ReportingSetKt.primitive {
             eventGroupKeys +=
               ReportingSetKt.PrimitiveKt.eventGroupKey {
-                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
                 cmmsDataProviderId = "1235"
                 cmmsEventGroupId = "1236"
               }
@@ -1244,7 +1224,6 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
@@ -1307,7 +1286,6 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
@@ -1323,7 +1301,6 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1237"
             }
@@ -1378,14 +1355,12 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
 
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "2235"
               cmmsEventGroupId = "2236"
             }
@@ -1401,14 +1376,12 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
 
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "2235"
               cmmsEventGroupId = "2236"
             }
@@ -1486,14 +1459,12 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
 
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "2235"
               cmmsEventGroupId = "2236"
             }
@@ -1509,14 +1480,12 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
 
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "2235"
               cmmsEventGroupId = "2236"
             }

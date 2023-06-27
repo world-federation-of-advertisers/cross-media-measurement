@@ -30,12 +30,10 @@ message ReportingSet {
 
   message Primitive {
     message EventGroupKey {
-      // `MeasurementConsumer` ID from the CMMS public API.
-      string cmms_measurement_consumer_id = 1;
       // `DataProvider` ID from the CMMS public API.
-      string cmms_data_provider_id = 2;
+      string cmms_data_provider_id = 1;
       // `EventGroup` ID from the CMMS public API.
-      string cmms_event_group_id = 3;
+      string cmms_event_group_id = 2;
     }
     repeated EventGroupKey event_group_keys = 1;
   }

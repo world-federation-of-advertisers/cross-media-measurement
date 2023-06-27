@@ -29,25 +29,27 @@ option java_outer_classname = "EventGroupProto";
 message EventGroup {
   option (google.api.resource) = {
     type: "reporting.halo-cmm.org/EventGroup"
-    pattern: "measurementConsumers/{measurement_consumer}/dataProviders/{data_provider}/eventGroups/{event_group}"
+    pattern: "measurementConsumers/{measurement_consumer}/eventGroups/{event_group}"
   };
 
   // Resource name.
   string name = 1;
 
-  // Kingdom resource name of the `DataProvider` associated with this
-  // `EventGroup`.
-  string data_provider = 2 [
-    (google.api.field_behavior) = IMMUTABLE,
-    (google.api.resource_reference).type = "halo.wfanet.org/DataProvider"
+  // Resource name of the corresponding `EventGroup` in the CMMS API.
+  string cmms_event_group = 2 [
+    (google.api.resource_reference).type = "halo.wfanet.org/EventGroup",
+    (google.api.field_behavior) = OUTPUT_ONLY
+  ];
+
+  // Resource name of the parent `DataProvider` in the CMMS API.
+  string cmms_data_provider = 3 [
+    (google.api.resource_reference).type = "halo.wfanet.org/DataProvider",
+    (google.api.field_behavior) = OUTPUT_ONLY
   ];
 
   // ID referencing the `EventGroup` in an external system, provided by the
   // `DataProvider`.
-  //
-  // If set, this value must be unique among `EventGroup`s for the parent
-  // `DataProvider`.
-  string event_group_reference_id = 3;
+  string event_group_reference_id = 4;
 
   // The template that events associated with this `EventGroup` conform to.
   message EventTemplate {
@@ -59,7 +61,7 @@ message EventGroup {
   }
   // The `EventTemplate`s that events associated with this `EventGroup` conform
   // to.
-  repeated EventTemplate event_templates = 4;
+  repeated EventTemplate event_templates = 5;
 
   // Wrapper for per-EDP Event Group metadata.
   message Metadata {
@@ -73,5 +75,5 @@ message EventGroup {
   }
 
   // The metadata of the event group.
-  Metadata metadata = 5;
+  Metadata metadata = 6;
 }

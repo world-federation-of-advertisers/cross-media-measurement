@@ -258,7 +258,6 @@ class ReportingSetReader(private val readContext: ReadContext) {
             reportingSetInfo.cmmsEventGroupIdsSet.forEach {
               eventGroupKeys +=
                 ReportingSetKt.PrimitiveKt.eventGroupKey {
-                  cmmsMeasurementConsumerId = reportingSetInfo.cmmsMeasurementConsumerId
                   cmmsDataProviderId = it.cmmsDataProviderId
                   cmmsEventGroupId = it.cmmsEventGroupId
                 }

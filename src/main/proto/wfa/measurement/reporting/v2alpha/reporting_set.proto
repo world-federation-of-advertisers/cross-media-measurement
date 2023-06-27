@@ -44,10 +44,9 @@ message ReportingSet {
   //
   // It's the minimum building block of a set expression.
   message Primitive {
-    // Set of EventGroup resource names.
-    repeated string event_groups = 1 [
-      (google.api.resource_reference).type =
-          "reporting.halo-cmm.org/EventGroup",
+    // Set of EventGroup resource names from the CMMS API.
+    repeated string cmms_event_groups = 1 [
+      (google.api.resource_reference).type = "halo.wfanet.org/EventGroup",
       (google.api.field_behavior) = REQUIRED,
       (google.api.field_behavior) = IMMUTABLE
     ];

@@ -20,6 +20,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
@@ -116,7 +117,7 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       when (reportingSet.valueCase) {
         ReportingSet.ValueCase.PRIMITIVE -> {
-          primitive = reportingSet.primitive.toInternal(cmmsMeasurementConsumerId)
+          primitive = reportingSet.primitive.toInternal()
         }
         ReportingSet.ValueCase.COMPOSITE -> {
           grpcRequire(reportingSet.composite.hasExpression()) {
@@ -506,30 +507,22 @@ private fun ReportingSet.SetExpression.Operand.toInternal():
 }
 
 /** Converts a [ReportingSet.Primitive] to an [InternalReportingSet.Primitive]. */
-private fun ReportingSet.Primitive.toInternal(
-  cmmsMeasurementConsumerId: String
-): InternalReportingSet.Primitive {
+private fun ReportingSet.Primitive.toInternal(): InternalReportingSet.Primitive {
   val source = this
 
-  grpcRequire(source.eventGroupsList.isNotEmpty()) { "No event group specified." }
+  grpcRequire(source.cmmsEventGroupsList.isNotEmpty()) { "No event group specified." }
 
   return InternalReportingSetKt.primitive {
     eventGroupKeys +=
-      source.eventGroupsList.map { eventGroup ->
-        val eventGroupKey =
-          grpcRequireNotNull(EventGroupKey.fromName(eventGroup)) {
-            "Invalid event group name $eventGroup."
+      source.cmmsEventGroupsList.map { cmmsEventGroup ->
+        val cmmsEventGroupKey =
+          grpcRequireNotNull(CmmsEventGroupKey.fromName(cmmsEventGroup)) {
+            "Invalid event group name $cmmsEventGroup."
           }
-        if (eventGroupKey.cmmsMeasurementConsumerId != cmmsMeasurementConsumerId) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Event group [$eventGroup] doesn't belong to the caller."
-          }
-        }
 
         InternalReportingSetKt.PrimitiveKt.eventGroupKey {
-          this.cmmsMeasurementConsumerId = eventGroupKey.cmmsMeasurementConsumerId
-          this.cmmsDataProviderId = eventGroupKey.cmmsDataProviderId
-          this.cmmsEventGroupId = eventGroupKey.cmmsEventGroupId
+          cmmsDataProviderId = cmmsEventGroupKey.dataProviderId
+          cmmsEventGroupId = cmmsEventGroupKey.eventGroupId
         }
       }
   }
