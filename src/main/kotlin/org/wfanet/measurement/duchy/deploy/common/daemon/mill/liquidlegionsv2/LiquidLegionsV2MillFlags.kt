@@ -109,6 +109,14 @@ class LiquidLegionsV2MillFlags {
   lateinit var csCertificateDerFile: File
     private set
 
+  @set:CommandLine.Option(
+    names = ["--parallelism"],
+    description = ["Maximum number of threads used in crypto actions"],
+    defaultValue = "1",
+  )
+  var parallelism by Delegates.notNull<Int>()
+    private set
+
   @CommandLine.ArgGroup(exclusive = false) var openTelemetryOptions: OpenTelemetryOptions? = null
   // All options here must be present or none of them must be present.
   class OpenTelemetryOptions {

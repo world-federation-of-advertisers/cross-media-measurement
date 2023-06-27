@@ -47,8 +47,10 @@ ProtocolCryptorOptions GetProtocolCryptorOptions() {
   ProtocolCryptorOptions options{
       .curve_id = kTestCurveId,
       .local_el_gamal_public_key = kGenerateWithNewElGamalPublicKey,
-      .local_el_gamal_private_key = kGenerateWithNewElGamalPrivateKey,
-      .local_pohlig_hellman_private_key = kGenerateWithNewPohligHellmanKey,
+      .local_el_gamal_private_key =
+          std::string(kGenerateWithNewElGamalPrivateKey),
+      .local_pohlig_hellman_private_key =
+          std::string(kGenerateWithNewPohligHellmanKey),
       .composite_el_gamal_public_key = el_gamal_ciphertext,
       .partial_composite_el_gamal_public_key =
           kGenerateWithNewElGamalPublicKey};
