@@ -100,7 +100,7 @@ deployments: {
 			// nodeSelector: "iam.gke.io/gke-metadata-server-enabled": "true"
 		}
 		_podSpec: _container: {
-			image:           _defaultAwsConfig.containerPrefix + "/example-panel-exchange-daemon"
+			image:           _defaultAwsConfig.containerPrefix + "panel-exchange/aws-example-daemon"
 			imagePullPolicy: "Always"
 			args:            _exchangeDaemonConfig.args + [
 						"--cert-collection-file=/var/run/secrets/files/trusted_certs.pem",

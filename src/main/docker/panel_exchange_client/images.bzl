@@ -12,24 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Container image specs."""
+"""Container image specs.
+
+TODO(@MarcoPremier): Merge this with images.bzl in cross-media-measurement repo
+"""
 
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
 
 _PREFIX = IMAGE_REPOSITORY_SETTINGS.repository_prefix
 
-# List of specs for all Docker containers to push to a container registry.
-# These are only used on GKE.
-# TODO(@MarcoPremier): Merge this with images.bzl in cross-media-measurement repo
-ALL_GKE_IMAGES = [
+GCLOUD_IMAGES = [
     struct(
         name = "google_cloud_example_daemon_image",
         image = "//src/main/kotlin/org/wfanet/panelmatch/client/deploy/example/gcloud:google_cloud_example_daemon_image",
-        repository = _PREFIX + "/example-panel-exchange-daemon",
+        repository = _PREFIX + "/panel-exchange/gcloud-example-daemon",
     ),
+]
+
+AWS_IMAGES = [
     struct(
         name = "aws_example_daemon_image",
         image = "//src/main/kotlin/org/wfanet/panelmatch/client/deploy/example/aws:aws_example_daemon_image",
-        repository = "example-panel-exchange-daemon",
+        repository = _PREFIX + "/panel-exchange/aws-example-daemon",
     ),
 ]

@@ -7,14 +7,14 @@ discusses which parts can or should be customized in each deployment.
 
 Each Model Provider or Event Data Provider that wishes to use the reference
 implementation of the Panel Exchange Client should implement a binary that runs
-[ExchangeWorkflowDaemon](https://github.com/world-federation-of-advertisers/panel-exchange-client/blob/main/src/main/kotlin/org/wfanet/panelmatch/client/deploy/ExchangeWorkflowDaemon.kt).
+[ExchangeWorkflowDaemon](../../src/main/kotlin/org/wfanet/panelmatch/client/deploy/ExchangeWorkflowDaemon.kt).
 
 For some examples, see:
 
-*   [ExampleDaemon](https://github.com/world-federation-of-advertisers/panel-exchange-client/blob/main/src/main/kotlin/org/wfanet/panelmatch/client/deploy/example/ExampleDaemon.kt)
-*   [FilesystemExampleDaemonMain](https://github.com/world-federation-of-advertisers/panel-exchange-client/blob/main/src/main/kotlin/org/wfanet/panelmatch/client/deploy/example/filesystem/FilesystemExampleDaemonMain.kt)
-*   [GoogleCloudExampleDaemonMain](https://github.com/world-federation-of-advertisers/panel-exchange-client/blob/main/src/main/kotlin/org/wfanet/panelmatch/client/deploy/example/gcloud/GoogleCloudExampleDaemonMain.kt)
-*   [ExchangeWorkflowDaemonForTest](https://github.com/world-federation-of-advertisers/panel-exchange-client/blob/main/src/main/kotlin/org/wfanet/panelmatch/integration/ExchangeWorkflowDaemonForTest.kt)
+*   [ExampleDaemon](../..//src/main/kotlin/org/wfanet/panelmatch/client/deploy/example/ExampleDaemon.kt)
+*   [FilesystemExampleDaemonMain](../..//src/main/kotlin/org/wfanet/panelmatch/client/deploy/example/filesystem/FilesystemExampleDaemonMain.kt)
+*   [GoogleCloudExampleDaemonMain](../..//src/main/kotlin/org/wfanet/panelmatch/client/deploy/example/gcloud/GoogleCloudExampleDaemonMain.kt)
+*   [ExchangeWorkflowDaemonForTest](../..//src/main/kotlin/org/wfanet/panelmatch/integration/ExchangeWorkflowDaemonForTest.kt)
 
 The differences between these examples should illustrate the difference
 components that need to be customized.
@@ -72,7 +72,7 @@ necessary. If there is already a process to generate certificates outside the
 reference implementation, that can be used instead.
 
 In this situation, implement a custom
-[CertificateAuthority](https://github.com/world-federation-of-advertisers/panel-exchange-client/blob/main/src/main/kotlin/org/wfanet/panelmatch/common/certificates/CertificateAuthority.kt)
+[CertificateAuthority](../..//src/main/kotlin/org/wfanet/panelmatch/common/certificates/CertificateAuthority.kt)
 subclass that picks the appropriate pre-generated certificate.
 
 ### Storage
