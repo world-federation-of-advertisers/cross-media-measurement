@@ -37,7 +37,10 @@ class SimulatorSyntheticDataSpecEventQuery : EventQuery {
    * * [IllegalArgumentException] when [SimulatorSyntheticDataSpec] is invalid, or incompatible
    * * with the [Descriptor].
    */
-  fun generateEvents(descriptor: Descriptor, simulatorSyntheticDataSpec: SimulatorSyntheticDataSpec): Sequence<DynamicMessage> {
+  fun generateEvents(
+    descriptor: Descriptor,
+    simulatorSyntheticDataSpec: SimulatorSyntheticDataSpec
+  ): Sequence<DynamicMessage> {
     val population = simulatorSyntheticDataSpec.population
     val subPopulations = population.subPopulationsList
 
@@ -105,7 +108,9 @@ class SimulatorSyntheticDataSpecEventQuery : EventQuery {
     val vidRange = this
     subPopulations.forEach {
       val vidSubRange = it.vidSubRange
-      if (vidRange.start >= vidSubRange.start && vidRange.endExclusive <= vidSubRange.endExclusive) {
+      if (
+        vidRange.start >= vidSubRange.start && vidRange.endExclusive <= vidSubRange.endExclusive
+      ) {
         return it
       }
     }
@@ -120,7 +125,11 @@ class SimulatorSyntheticDataSpecEventQuery : EventQuery {
    * * [IllegalArgumentException] if field is [FieldDescriptor.Type.MESSAGE].
    * * [NullPointerException] if field can't be found.
    */
-  private fun Message.Builder.setField(fieldPath: Collection<String>, value: String, curFieldDescriptor: FieldDescriptor) {
+  private fun Message.Builder.setField(
+    fieldPath: Collection<String>,
+    value: String,
+    curFieldDescriptor: FieldDescriptor
+  ) {
     val builder = this
 
     if (fieldPath.size == 1) {
@@ -130,9 +139,8 @@ class SimulatorSyntheticDataSpecEventQuery : EventQuery {
           FieldDescriptor.Type.STRING -> value
           FieldDescriptor.Type.BOOL -> value.toBoolean()
           FieldDescriptor.Type.BYTES -> value.toByteStringUtf8()
-          FieldDescriptor.Type.ENUM -> curFieldDescriptor.enumType.findValueByName(
-            value.uppercase(Locale.getDefault())
-          )
+          FieldDescriptor.Type.ENUM ->
+            curFieldDescriptor.enumType.findValueByName(value.uppercase(Locale.getDefault()))
           FieldDescriptor.Type.DOUBLE -> value.toDouble()
           FieldDescriptor.Type.FLOAT -> value.toFloat()
           FieldDescriptor.Type.FIXED32,
@@ -159,12 +167,13 @@ class SimulatorSyntheticDataSpecEventQuery : EventQuery {
 
     val fieldBuilder = builder.getFieldBuilder(curFieldDescriptor)
     val traversedFieldPath = fieldPath.drop(1)
-    fieldBuilder.setField(traversedFieldPath, value, curFieldDescriptor.messageType.findFieldByName(traversedFieldPath.first()))
+    fieldBuilder.setField(
+      traversedFieldPath,
+      value,
+      curFieldDescriptor.messageType.findFieldByName(traversedFieldPath.first())
+    )
     val oldMessage = builder.getField(curFieldDescriptor) as Message
-    val newMessage =
-      fieldBuilder
-        .mergeFrom(oldMessage)
-        .build()
+    val newMessage = fieldBuilder.mergeFrom(oldMessage).build()
     builder.setField(curFieldDescriptor, newMessage)
   }
 
