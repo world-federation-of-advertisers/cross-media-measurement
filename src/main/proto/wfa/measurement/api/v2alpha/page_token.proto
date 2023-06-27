@@ -65,7 +65,8 @@ message ListMeasurementsPageToken {
 }
 
 message ListRequisitionsPageToken {
-  int32 page_size = 1;
+  reserved 1;
+
   fixed64 external_measurement_consumer_id = 2;
   fixed64 external_measurement_id = 3;
   fixed64 external_data_provider_id = 4;
