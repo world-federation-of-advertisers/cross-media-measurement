@@ -36,6 +36,7 @@ kt_jvm_proto_library(
 
 proto_library(
     name = "simulator_synthetic_data_spec_proto",
+    testonly = False,
     srcs = ["simulator_synthetic_data_spec.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
@@ -45,11 +46,13 @@ proto_library(
 
 java_proto_library(
     name = "simulator_synthetic_data_spec_java_proto",
+    testonly = False,
     deps = [":simulator_synthetic_data_spec_proto"],
 )
 
 kt_jvm_proto_library(
     name = "simulator_synthetic_data_spec_kt_jvm_proto",
+    testonly = False,
     srcs = [":simulator_synthetic_data_spec_proto"],
     deps = [":simulator_synthetic_data_spec_java_proto"],
 )
