@@ -84,6 +84,7 @@ val ALL_DUCHIES =
     )
   }
 val ALL_EDP_DISPLAY_NAMES = listOf("edp1", "edp2", "edp3")
+const val DUCHY_MILL_PARALLELISM = 3
 
 /**
  * Values of this map are anded to create the event filter to be sent to the EDPs.

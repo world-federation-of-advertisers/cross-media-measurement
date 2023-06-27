@@ -131,13 +131,19 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig
 import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseOneAtAggregatorRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseOneAtAggregatorResponse
+import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseOneRequest
+import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseThreeRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseTwoAtAggregatorRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseTwoAtAggregatorResponse
 import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseTwoRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseTwoResponse
+import org.wfanet.measurement.internal.duchy.protocol.completeSetupPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.copy
+import org.wfanet.measurement.internal.duchy.protocol.flagCountTupleNoiseGenerationParameters
 import org.wfanet.measurement.internal.duchy.protocol.globalReachDpNoiseBaseline
 import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsSketchParameters
+import org.wfanet.measurement.internal.duchy.protocol.reachNoiseDifferentialPrivacyParams
+import org.wfanet.measurement.internal.duchy.protocol.registerNoiseGenerationParameters
 import org.wfanet.measurement.storage.Store.Blob
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
@@ -178,6 +184,7 @@ private const val MAX_REQUESTED_FREQUENCY = 15
 private const val DECAY_RATE = 12.0
 private const val SKETCH_SIZE = 100_000L
 private const val CURVE_ID = 415L // NID_X9_62_prime256v1
+private const val PARALLELISM = 2
 
 private const val LOCAL_ID = 1234L
 private const val GLOBAL_ID = LOCAL_ID.toString()
@@ -647,6 +654,7 @@ class LiquidLegionsV2MillTest {
         openTelemetry = GlobalOpenTelemetry.get(),
         requestChunkSizeBytes = 20,
         maximumAttempts = 2,
+        parallelism = PARALLELISM
       )
     nonAggregatorMill =
       LiquidLegionsV2Mill(
@@ -667,6 +675,7 @@ class LiquidLegionsV2MillTest {
         openTelemetry = GlobalOpenTelemetry.get(),
         requestChunkSizeBytes = 20,
         maximumAttempts = 2,
+        parallelism = PARALLELISM
       )
   }
 
@@ -1248,23 +1257,22 @@ class LiquidLegionsV2MillTest {
 
     assertThat(cryptoRequest)
       .isEqualTo(
-        CompleteSetupPhaseRequest.newBuilder()
-          .apply {
-            combinedRegisterVector = ByteString.copyFromUtf8("local_requisition")
-            noiseParametersBuilder.apply {
-              compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
-              curveId = CURVE_ID
-              contributorsCount = WORKER_COUNT
-              totalSketchesCount = REQUISITIONS.size
-              dpParamsBuilder.apply {
-                blindHistogram = TEST_NOISE_CONFIG.reachNoiseConfig.blindHistogramNoise
-                noiseForPublisherNoise = TEST_NOISE_CONFIG.reachNoiseConfig.noiseForPublisherNoise
-                globalReachDpNoise = TEST_NOISE_CONFIG.reachNoiseConfig.globalReachDpNoise
-              }
+        completeSetupPhaseRequest {
+          combinedRegisterVector = ByteString.copyFromUtf8("local_requisition")
+          noiseParameters = registerNoiseGenerationParameters {
+            compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
+            curveId = CURVE_ID
+            contributorsCount = WORKER_COUNT
+            totalSketchesCount = REQUISITIONS.size
+            dpParams = reachNoiseDifferentialPrivacyParams {
+              blindHistogram = TEST_NOISE_CONFIG.reachNoiseConfig.blindHistogramNoise
+              noiseForPublisherNoise = TEST_NOISE_CONFIG.reachNoiseConfig.noiseForPublisherNoise
+              globalReachDpNoise = TEST_NOISE_CONFIG.reachNoiseConfig.globalReachDpNoise
             }
-            maximumFrequency = MAX_REQUESTED_FREQUENCY
           }
-          .build()
+          maximumFrequency = MAX_REQUESTED_FREQUENCY
+          parallelism = PARALLELISM
+        }
       )
   }
 
@@ -1353,24 +1361,23 @@ class LiquidLegionsV2MillTest {
 
     assertThat(cryptoRequest)
       .isEqualTo(
-        CompleteSetupPhaseRequest.newBuilder()
-          .apply {
-            combinedRegisterVector =
-              ByteString.copyFromUtf8("local_requisition_duchy_two_sketch_duchy_three_sketch_")
-            noiseParametersBuilder.apply {
-              compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
-              curveId = CURVE_ID
-              contributorsCount = WORKER_COUNT
-              totalSketchesCount = REQUISITIONS.size
-              dpParamsBuilder.apply {
-                blindHistogram = TEST_NOISE_CONFIG.reachNoiseConfig.blindHistogramNoise
-                noiseForPublisherNoise = TEST_NOISE_CONFIG.reachNoiseConfig.noiseForPublisherNoise
-                globalReachDpNoise = TEST_NOISE_CONFIG.reachNoiseConfig.globalReachDpNoise
-              }
+        completeSetupPhaseRequest {
+          combinedRegisterVector =
+            ByteString.copyFromUtf8("local_requisition_duchy_two_sketch_duchy_three_sketch_")
+          noiseParameters = registerNoiseGenerationParameters {
+            compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
+            curveId = CURVE_ID
+            contributorsCount = WORKER_COUNT
+            totalSketchesCount = REQUISITIONS.size
+            dpParams = reachNoiseDifferentialPrivacyParams {
+              blindHistogram = TEST_NOISE_CONFIG.reachNoiseConfig.blindHistogramNoise
+              noiseForPublisherNoise = TEST_NOISE_CONFIG.reachNoiseConfig.noiseForPublisherNoise
+              globalReachDpNoise = TEST_NOISE_CONFIG.reachNoiseConfig.globalReachDpNoise
             }
-            maximumFrequency = MAX_REQUESTED_FREQUENCY
           }
-          .build()
+          maximumFrequency = MAX_REQUESTED_FREQUENCY
+          parallelism = PARALLELISM
+        }
       )
   }
 
@@ -1513,14 +1520,13 @@ class LiquidLegionsV2MillTest {
 
     assertThat(cryptoRequest)
       .isEqualTo(
-        CompleteExecutionPhaseOneRequest.newBuilder()
-          .apply {
-            combinedRegisterVector = ByteString.copyFromUtf8("data")
-            localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
-            compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
-            curveId = CURVE_ID
-          }
-          .build()
+        completeExecutionPhaseOneRequest {
+          combinedRegisterVector = ByteString.copyFromUtf8("data")
+          localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
+          compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
+          curveId = CURVE_ID
+          parallelism = PARALLELISM
+        }
       )
   }
 
@@ -1604,20 +1610,19 @@ class LiquidLegionsV2MillTest {
 
     assertThat(cryptoRequest)
       .isEqualTo(
-        CompleteExecutionPhaseOneAtAggregatorRequest.newBuilder()
-          .apply {
-            combinedRegisterVector = ByteString.copyFromUtf8("data")
-            localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
-            compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
-            curveId = CURVE_ID
-            noiseParametersBuilder.apply {
-              maximumFrequency = MAX_REQUESTED_FREQUENCY
-              contributorsCount = WORKER_COUNT
-              dpParams = TEST_NOISE_CONFIG.frequencyNoiseConfig
-            }
-            totalSketchesCount = REQUISITIONS.size
+        completeExecutionPhaseOneAtAggregatorRequest {
+          combinedRegisterVector = ByteString.copyFromUtf8("data")
+          localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
+          compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
+          curveId = CURVE_ID
+          parallelism = PARALLELISM
+          noiseParameters = flagCountTupleNoiseGenerationParameters {
+            maximumFrequency = MAX_REQUESTED_FREQUENCY
+            contributorsCount = WORKER_COUNT
+            dpParams = TEST_NOISE_CONFIG.frequencyNoiseConfig
           }
-          .build()
+          totalSketchesCount = REQUISITIONS.size
+        }
       )
   }
 
@@ -1663,15 +1668,14 @@ class LiquidLegionsV2MillTest {
     // Check that the request sent to the crypto worker was correct.
     assertThat(cryptoRequest)
       .isEqualTo(
-        CompleteExecutionPhaseOneAtAggregatorRequest.newBuilder()
-          .apply {
-            combinedRegisterVector = ByteString.copyFromUtf8("data")
-            localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
-            compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
-            curveId = CURVE_ID
-            totalSketchesCount = REQUISITIONS.size
-          }
-          .build()
+        completeExecutionPhaseOneAtAggregatorRequest {
+          combinedRegisterVector = ByteString.copyFromUtf8("data")
+          localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
+          compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
+          curveId = CURVE_ID
+          totalSketchesCount = REQUISITIONS.size
+          parallelism = PARALLELISM
+        }
       )
   }
 
@@ -1723,6 +1727,7 @@ class LiquidLegionsV2MillTest {
           compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
           curveId = CURVE_ID
           totalSketchesCount = REQUISITIONS.size
+          parallelism = PARALLELISM
         }
       )
   }
@@ -1806,20 +1811,19 @@ class LiquidLegionsV2MillTest {
 
     assertThat(cryptoRequest)
       .isEqualTo(
-        CompleteExecutionPhaseTwoRequest.newBuilder()
-          .apply {
-            flagCountTuples = ByteString.copyFromUtf8("data")
-            localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
-            compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
-            partialCompositeElGamalPublicKey = PARTIALLY_COMBINED_PUBLIC_KEY
-            curveId = CURVE_ID
-            noiseParametersBuilder.apply {
-              maximumFrequency = MAX_REQUESTED_FREQUENCY
-              contributorsCount = WORKER_COUNT
-              dpParams = TEST_NOISE_CONFIG.frequencyNoiseConfig
-            }
+        completeExecutionPhaseTwoRequest {
+          flagCountTuples = ByteString.copyFromUtf8("data")
+          localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
+          compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
+          partialCompositeElGamalPublicKey = PARTIALLY_COMBINED_PUBLIC_KEY
+          curveId = CURVE_ID
+          parallelism = PARALLELISM
+          noiseParameters = flagCountTupleNoiseGenerationParameters {
+            maximumFrequency = MAX_REQUESTED_FREQUENCY
+            contributorsCount = WORKER_COUNT
+            dpParams = TEST_NOISE_CONFIG.frequencyNoiseConfig
           }
-          .build()
+        }
       )
   }
 
@@ -1864,15 +1868,14 @@ class LiquidLegionsV2MillTest {
     // Check that the request sent to the crypto worker was correct.
     assertThat(cryptoRequest)
       .isEqualTo(
-        CompleteExecutionPhaseTwoRequest.newBuilder()
-          .apply {
-            flagCountTuples = ByteString.copyFromUtf8("data")
-            localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
-            compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
-            partialCompositeElGamalPublicKey = PARTIALLY_COMBINED_PUBLIC_KEY
-            curveId = CURVE_ID
-          }
-          .build()
+        completeExecutionPhaseTwoRequest {
+          flagCountTuples = ByteString.copyFromUtf8("data")
+          localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
+          compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
+          partialCompositeElGamalPublicKey = PARTIALLY_COMBINED_PUBLIC_KEY
+          curveId = CURVE_ID
+          parallelism = PARALLELISM
+        }
       )
   }
 
@@ -1923,6 +1926,7 @@ class LiquidLegionsV2MillTest {
           compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
           partialCompositeElGamalPublicKey = PARTIALLY_COMBINED_PUBLIC_KEY
           curveId = CURVE_ID
+          parallelism = PARALLELISM
         }
       )
   }
@@ -2351,13 +2355,12 @@ class LiquidLegionsV2MillTest {
 
     assertThat(cryptoRequest)
       .isEqualTo(
-        CompleteExecutionPhaseThreeRequest.newBuilder()
-          .apply {
-            sameKeyAggregatorMatrix = ByteString.copyFromUtf8("data")
-            localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
-            curveId = CURVE_ID
-          }
-          .build()
+        completeExecutionPhaseThreeRequest {
+          sameKeyAggregatorMatrix = ByteString.copyFromUtf8("data")
+          localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
+          curveId = CURVE_ID
+          parallelism = PARALLELISM
+        }
       )
   }
 

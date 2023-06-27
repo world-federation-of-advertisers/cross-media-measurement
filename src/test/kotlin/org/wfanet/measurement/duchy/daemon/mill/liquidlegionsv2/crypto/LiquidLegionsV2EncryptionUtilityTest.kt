@@ -31,22 +31,23 @@ import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.duchy.daemon.utils.toAnySketchElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toCmmsElGamalPublicKey
-import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorResponse
-import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneResponse
-import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseThreeAtAggregatorRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseThreeAtAggregatorResponse
-import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseThreeRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseThreeResponse
-import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoAtAggregatorRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoAtAggregatorResponse
-import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteInitializationPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteInitializationPhaseResponse
-import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseResponse
+import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseOneAtAggregatorRequest
+import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseOneRequest
+import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseThreeAtAggregatorRequest
+import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseThreeRequest
+import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseTwoAtAggregatorRequest
+import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseTwoRequest
+import org.wfanet.measurement.internal.duchy.protocol.completeSetupPhaseRequest
+import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsSketchParameters
 import org.wfanet.measurement.internal.duchy.protocol.liquidlegionsv2.LiquidLegionsV2EncryptionUtility
 
 @RunWith(JUnit4::class)
@@ -77,25 +78,23 @@ class LiquidLegionsV2EncryptionUtilityTest {
     // Setup phase at Duchy 1.
     // We assume all test data comes from duchy 1 in the test, so we ignore setup phase of Duchy 2
     // and 3.
-    val completeSetupPhaseRequest =
-      CompleteSetupPhaseRequest.newBuilder()
-        .apply { combinedRegisterVector = encrypted_sketch }
-        .build()
+    val completeSetupPhaseRequest = completeSetupPhaseRequest {
+      combinedRegisterVector = encrypted_sketch
+      parallelism = PARALLELISM
+    }
     val completeSetupPhaseResponse =
       CompleteSetupPhaseResponse.parseFrom(
         LiquidLegionsV2EncryptionUtility.completeSetupPhase(completeSetupPhaseRequest.toByteArray())
       )
 
     // Execution phase one at duchy 1 (non-aggregator).
-    val completeExecutionPhaseOneRequest1 =
-      CompleteExecutionPhaseOneRequest.newBuilder()
-        .apply {
-          localElGamalKeyPair = DUCHY_1_EL_GAMAL_KEYS
-          compositeElGamalPublicKey = CLIENT_EL_GAMAL_KEYS
-          curveId = CURVE_ID
-          combinedRegisterVector = completeSetupPhaseResponse.combinedRegisterVector
-        }
-        .build()
+    val completeExecutionPhaseOneRequest1 = completeExecutionPhaseOneRequest {
+      localElGamalKeyPair = DUCHY_1_EL_GAMAL_KEYS
+      compositeElGamalPublicKey = CLIENT_EL_GAMAL_KEYS
+      curveId = CURVE_ID
+      parallelism = PARALLELISM
+      combinedRegisterVector = completeSetupPhaseResponse.combinedRegisterVector
+    }
     val completeExecutionPhaseOneResponse1 =
       CompleteExecutionPhaseOneResponse.parseFrom(
         LiquidLegionsV2EncryptionUtility.completeExecutionPhaseOne(
@@ -104,15 +103,13 @@ class LiquidLegionsV2EncryptionUtilityTest {
       )
 
     // Execution phase one at duchy 2 (non-aggregator).
-    val completeExecutionPhaseOneRequest2 =
-      CompleteExecutionPhaseOneRequest.newBuilder()
-        .apply {
-          localElGamalKeyPair = DUCHY_2_EL_GAMAL_KEYS
-          compositeElGamalPublicKey = CLIENT_EL_GAMAL_KEYS
-          curveId = CURVE_ID
-          combinedRegisterVector = completeExecutionPhaseOneResponse1.combinedRegisterVector
-        }
-        .build()
+    val completeExecutionPhaseOneRequest2 = completeExecutionPhaseOneRequest {
+      localElGamalKeyPair = DUCHY_2_EL_GAMAL_KEYS
+      compositeElGamalPublicKey = CLIENT_EL_GAMAL_KEYS
+      curveId = CURVE_ID
+      parallelism = PARALLELISM
+      combinedRegisterVector = completeExecutionPhaseOneResponse1.combinedRegisterVector
+    }
     val completeExecutionPhaseOneResponse2 =
       CompleteExecutionPhaseOneResponse.parseFrom(
         LiquidLegionsV2EncryptionUtility.completeExecutionPhaseOne(
@@ -122,15 +119,14 @@ class LiquidLegionsV2EncryptionUtilityTest {
 
     // Execution phase one at duchy 3 (aggregator).
     val completeExecutionPhaseOneAtAggregatorRequest =
-      CompleteExecutionPhaseOneAtAggregatorRequest.newBuilder()
-        .apply {
-          localElGamalKeyPair = DUCHY_3_EL_GAMAL_KEYS
-          compositeElGamalPublicKey = CLIENT_EL_GAMAL_KEYS
-          curveId = CURVE_ID
-          combinedRegisterVector = completeExecutionPhaseOneResponse2.combinedRegisterVector
-          totalSketchesCount = 3
-        }
-        .build()
+      completeExecutionPhaseOneAtAggregatorRequest {
+        localElGamalKeyPair = DUCHY_3_EL_GAMAL_KEYS
+        compositeElGamalPublicKey = CLIENT_EL_GAMAL_KEYS
+        curveId = CURVE_ID
+        parallelism = PARALLELISM
+        combinedRegisterVector = completeExecutionPhaseOneResponse2.combinedRegisterVector
+        totalSketchesCount = 3
+      }
     val completeExecutionPhaseOneAtAggregatorResponse =
       CompleteExecutionPhaseOneAtAggregatorResponse.parseFrom(
         LiquidLegionsV2EncryptionUtility.completeExecutionPhaseOneAtAggregator(
@@ -139,16 +135,14 @@ class LiquidLegionsV2EncryptionUtilityTest {
       )
 
     // Execution phase two at duchy 1 (non-aggregator).
-    val completeExecutionPhaseTwoRequest1 =
-      CompleteExecutionPhaseTwoRequest.newBuilder()
-        .apply {
-          localElGamalKeyPair = DUCHY_1_EL_GAMAL_KEYS
-          compositeElGamalPublicKey = CLIENT_EL_GAMAL_KEYS
-          curveId = CURVE_ID
-          flagCountTuples = completeExecutionPhaseOneAtAggregatorResponse.flagCountTuples
-          partialCompositeElGamalPublicKey = DUCHY_2_3_COMBINED_EL_GAMAL_KEYS
-        }
-        .build()
+    val completeExecutionPhaseTwoRequest1 = completeExecutionPhaseTwoRequest {
+      localElGamalKeyPair = DUCHY_1_EL_GAMAL_KEYS
+      compositeElGamalPublicKey = CLIENT_EL_GAMAL_KEYS
+      curveId = CURVE_ID
+      parallelism = PARALLELISM
+      flagCountTuples = completeExecutionPhaseOneAtAggregatorResponse.flagCountTuples
+      partialCompositeElGamalPublicKey = DUCHY_2_3_COMBINED_EL_GAMAL_KEYS
+    }
     val completeExecutionPhaseTwoResponse1 =
       CompleteExecutionPhaseTwoResponse.parseFrom(
         LiquidLegionsV2EncryptionUtility.completeExecutionPhaseTwo(
@@ -157,16 +151,14 @@ class LiquidLegionsV2EncryptionUtilityTest {
       )
 
     // Execution phase two at duchy 2 (non-aggregator).
-    val completeExecutionPhaseTwoRequest2 =
-      CompleteExecutionPhaseTwoRequest.newBuilder()
-        .apply {
-          localElGamalKeyPair = DUCHY_2_EL_GAMAL_KEYS
-          compositeElGamalPublicKey = CLIENT_EL_GAMAL_KEYS
-          curveId = CURVE_ID
-          flagCountTuples = completeExecutionPhaseTwoResponse1.flagCountTuples
-          partialCompositeElGamalPublicKey = DUCHY_3_EL_GAMAL_KEYS.publicKey
-        }
-        .build()
+    val completeExecutionPhaseTwoRequest2 = completeExecutionPhaseTwoRequest {
+      localElGamalKeyPair = DUCHY_2_EL_GAMAL_KEYS
+      compositeElGamalPublicKey = CLIENT_EL_GAMAL_KEYS
+      curveId = CURVE_ID
+      parallelism = PARALLELISM
+      flagCountTuples = completeExecutionPhaseTwoResponse1.flagCountTuples
+      partialCompositeElGamalPublicKey = DUCHY_3_EL_GAMAL_KEYS.publicKey
+    }
     val completeExecutionPhaseTwoResponse2 =
       CompleteExecutionPhaseTwoResponse.parseFrom(
         LiquidLegionsV2EncryptionUtility.completeExecutionPhaseTwo(
@@ -176,20 +168,18 @@ class LiquidLegionsV2EncryptionUtilityTest {
 
     // Execution phase two at duchy 3 (aggregator).
     val completeExecutionPhaseTwoAtAggregatorRequest =
-      CompleteExecutionPhaseTwoAtAggregatorRequest.newBuilder()
-        .apply {
-          localElGamalKeyPair = DUCHY_3_EL_GAMAL_KEYS
-          compositeElGamalPublicKey = CLIENT_EL_GAMAL_KEYS
-          curveId = CURVE_ID
-          flagCountTuples = completeExecutionPhaseTwoResponse2.flagCountTuples
-          maximumFrequency = MAXIMUM_FREQUENCY
-          liquidLegionsParametersBuilder.apply {
-            decayRate = DECAY_RATE
-            size = LIQUID_LEGIONS_SIZE
-          }
-          vidSamplingIntervalWidth = VID_SAMPLING_INTERVAL_WIDTH
+      completeExecutionPhaseTwoAtAggregatorRequest {
+        localElGamalKeyPair = DUCHY_3_EL_GAMAL_KEYS
+        compositeElGamalPublicKey = CLIENT_EL_GAMAL_KEYS
+        curveId = CURVE_ID
+        flagCountTuples = completeExecutionPhaseTwoResponse2.flagCountTuples
+        maximumFrequency = MAXIMUM_FREQUENCY
+        liquidLegionsParameters = liquidLegionsSketchParameters {
+          decayRate = DECAY_RATE
+          size = LIQUID_LEGIONS_SIZE
         }
-        .build()
+        vidSamplingIntervalWidth = VID_SAMPLING_INTERVAL_WIDTH
+      }
     val completeExecutionPhaseTwoAtAggregatorResponse =
       CompleteExecutionPhaseTwoAtAggregatorResponse.parseFrom(
         LiquidLegionsV2EncryptionUtility.completeExecutionPhaseTwoAtAggregator(
@@ -198,15 +188,13 @@ class LiquidLegionsV2EncryptionUtilityTest {
       )
 
     // Execution phase three at duchy 1 (non-aggregator).
-    val completeExecutionPhaseThreeRequest1 =
-      CompleteExecutionPhaseThreeRequest.newBuilder()
-        .apply {
-          localElGamalKeyPair = DUCHY_1_EL_GAMAL_KEYS
-          curveId = CURVE_ID
-          sameKeyAggregatorMatrix =
-            completeExecutionPhaseTwoAtAggregatorResponse.sameKeyAggregatorMatrix
-        }
-        .build()
+    val completeExecutionPhaseThreeRequest1 = completeExecutionPhaseThreeRequest {
+      localElGamalKeyPair = DUCHY_1_EL_GAMAL_KEYS
+      curveId = CURVE_ID
+      parallelism = PARALLELISM
+      sameKeyAggregatorMatrix =
+        completeExecutionPhaseTwoAtAggregatorResponse.sameKeyAggregatorMatrix
+    }
     val completeExecutionPhaseThreeResponse1 =
       CompleteExecutionPhaseThreeResponse.parseFrom(
         LiquidLegionsV2EncryptionUtility.completeExecutionPhaseThree(
@@ -215,14 +203,12 @@ class LiquidLegionsV2EncryptionUtilityTest {
       )
 
     // Execution phase three at duchy 2 (non-aggregator).
-    val completeExecutionPhaseThreeRequest2 =
-      CompleteExecutionPhaseThreeRequest.newBuilder()
-        .apply {
-          localElGamalKeyPair = DUCHY_2_EL_GAMAL_KEYS
-          curveId = CURVE_ID
-          sameKeyAggregatorMatrix = completeExecutionPhaseThreeResponse1.sameKeyAggregatorMatrix
-        }
-        .build()
+    val completeExecutionPhaseThreeRequest2 = completeExecutionPhaseThreeRequest {
+      localElGamalKeyPair = DUCHY_2_EL_GAMAL_KEYS
+      curveId = CURVE_ID
+      parallelism = PARALLELISM
+      sameKeyAggregatorMatrix = completeExecutionPhaseThreeResponse1.sameKeyAggregatorMatrix
+    }
     val completeExecutionPhaseThreeResponse2 =
       CompleteExecutionPhaseThreeResponse.parseFrom(
         LiquidLegionsV2EncryptionUtility.completeExecutionPhaseThree(
@@ -232,14 +218,12 @@ class LiquidLegionsV2EncryptionUtilityTest {
 
     // Execution phase three at duchy 3 (aggregator).
     val completeExecutionPhaseThreeAtAggregatorRequest =
-      CompleteExecutionPhaseThreeAtAggregatorRequest.newBuilder()
-        .apply {
-          localElGamalKeyPair = DUCHY_3_EL_GAMAL_KEYS
-          curveId = CURVE_ID
-          maximumFrequency = MAXIMUM_FREQUENCY
-          sameKeyAggregatorMatrix = completeExecutionPhaseThreeResponse2.sameKeyAggregatorMatrix
-        }
-        .build()
+      completeExecutionPhaseThreeAtAggregatorRequest {
+        localElGamalKeyPair = DUCHY_3_EL_GAMAL_KEYS
+        curveId = CURVE_ID
+        maximumFrequency = MAXIMUM_FREQUENCY
+        sameKeyAggregatorMatrix = completeExecutionPhaseThreeResponse2.sameKeyAggregatorMatrix
+      }
     return CompleteExecutionPhaseThreeAtAggregatorResponse.parseFrom(
       LiquidLegionsV2EncryptionUtility.completeExecutionPhaseThreeAtAggregator(
         completeExecutionPhaseThreeAtAggregatorRequest.toByteArray()
@@ -377,6 +361,7 @@ class LiquidLegionsV2EncryptionUtilityTest {
     private const val VID_SAMPLING_INTERVAL_WIDTH = 0.5f
 
     private const val CURVE_ID = 415L // NID_X9_62_prime256v1
+    private const val PARALLELISM = 3
     private const val MAX_COUNTER_VALUE = 10
 
     private val COMPLETE_INITIALIZATION_REQUEST =

@@ -194,7 +194,8 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
         cryptoWorker = JniLiquidLegionsV2Encryption(),
         workLockDuration = flags.workLockDuration,
         openTelemetry = openTelemetry,
-        requestChunkSizeBytes = flags.requestChunkSizeBytes
+        requestChunkSizeBytes = flags.requestChunkSizeBytes,
+        parallelism = flags.parallelism
       )
 
     runBlocking { mill.continuallyProcessComputationQueue() }

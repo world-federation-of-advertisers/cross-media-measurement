@@ -14,6 +14,8 @@
 
 #include "wfa/measurement/common/crypto/encryption_utility_helper.h"
 
+#include <utility>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -100,6 +102,22 @@ absl::Status AppendEcPointPairToString(const ElGamalEcPointPair& ec_point_pair,
   result.append(temp);
   ASSIGN_OR_RETURN(temp, ec_point_pair.e.ToBytesCompressed());
   result.append(temp);
+  return absl::OkStatus();
+}
+
+absl::Status WriteEcPointPairToString(const ElGamalEcPointPair& ec_point_pair,
+                                      size_t pos, std::string& result) {
+  if (pos + kBytesPerCipherText > result.size()) {
+    return absl::InvalidArgumentError("result is not long enough to write.");
+  }
+
+  std::string temp;
+  ASSIGN_OR_RETURN(temp, ec_point_pair.u.ToBytesCompressed());
+  result.replace(pos, kBytesPerEcPoint, temp);
+
+  ASSIGN_OR_RETURN(temp, ec_point_pair.e.ToBytesCompressed());
+  result.replace(pos + kBytesPerEcPoint, kBytesPerEcPoint, temp);
+
   return absl::OkStatus();
 }
 

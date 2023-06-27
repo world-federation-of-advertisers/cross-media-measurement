@@ -19,6 +19,7 @@ cc_library(
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
+        ":multithreading_helper",
         ":noise_parameters_computation",
         "//src/main/cc/wfa/measurement/common/crypto:constants",
         "//src/main/cc/wfa/measurement/common/crypto:encryption_utility_helper",
@@ -84,5 +85,6 @@ cc_library(
         "//src/main/cc/wfa/measurement/common/crypto:protocol_cryptor",
         "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/synchronization",
+        "@wfa_common_cpp//src/main/cc/common_cpp/macros",
     ],
 )

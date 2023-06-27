@@ -64,6 +64,7 @@ constexpr int kWorkerCount = 3;
 constexpr int kPublisherCount = 3;
 constexpr int kMaxFrequency = 10;
 constexpr int kTestCurveId = NID_X9_62_prime256v1;
+constexpr int kParallelism = 3;
 constexpr int kBytesPerEcPoint = 33;
 constexpr int kBytesCipherText = kBytesPerEcPoint * 2;
 constexpr int kBytesPerEncryptedRegister = kBytesCipherText * 3;
@@ -337,6 +338,7 @@ class TestData {
           *reach_noise_parameters;
     }
     complete_setup_phase_request_1.set_noise_mechanism(noise_mechanism);
+    complete_setup_phase_request_1.set_parallelism(kParallelism);
 
     ASSIGN_OR_RETURN(CompleteSetupPhaseResponse complete_setup_phase_response_1,
                      CompleteSetupPhase(complete_setup_phase_request_1));
@@ -352,6 +354,7 @@ class TestData {
           *reach_noise_parameters;
     }
     complete_setup_phase_request_2.set_noise_mechanism(noise_mechanism);
+    complete_setup_phase_request_2.set_parallelism(kParallelism);
 
     ASSIGN_OR_RETURN(CompleteSetupPhaseResponse complete_setup_phase_response_2,
                      CompleteSetupPhase(complete_setup_phase_request_2));
@@ -367,6 +370,7 @@ class TestData {
           *reach_noise_parameters;
     }
     complete_setup_phase_request_3.set_noise_mechanism(noise_mechanism);
+    complete_setup_phase_request_3.set_parallelism(kParallelism);
 
     ASSIGN_OR_RETURN(CompleteSetupPhaseResponse complete_setup_phase_response_3,
                      CompleteSetupPhase(complete_setup_phase_request_3));
@@ -386,6 +390,7 @@ class TestData {
     *complete_execution_phase_one_request_1
          .mutable_composite_el_gamal_public_key() = client_el_gamal_public_key_;
     complete_execution_phase_one_request_1.set_curve_id(kTestCurveId);
+    complete_execution_phase_one_request_1.set_parallelism(kParallelism);
     complete_execution_phase_one_request_1.set_combined_register_vector(
         combine_data);
     ASSIGN_OR_RETURN(
@@ -403,6 +408,7 @@ class TestData {
     *complete_execution_phase_one_request_2
          .mutable_composite_el_gamal_public_key() = client_el_gamal_public_key_;
     complete_execution_phase_one_request_2.set_curve_id(kTestCurveId);
+    complete_execution_phase_one_request_2.set_parallelism(kParallelism);
     complete_execution_phase_one_request_2.set_combined_register_vector(
         complete_execution_phase_one_response_1.combined_register_vector());
     ASSIGN_OR_RETURN(
@@ -422,6 +428,8 @@ class TestData {
          .mutable_composite_el_gamal_public_key() = client_el_gamal_public_key_;
     complete_execution_phase_one_at_aggregator_request.set_curve_id(
         kTestCurveId);
+    complete_execution_phase_one_at_aggregator_request.set_parallelism(
+        kParallelism);
     complete_execution_phase_one_at_aggregator_request
         .set_combined_register_vector(
             complete_execution_phase_one_response_2.combined_register_vector());
@@ -449,6 +457,7 @@ class TestData {
     *complete_execution_phase_two_request_1
          .mutable_composite_el_gamal_public_key() = client_el_gamal_public_key_;
     complete_execution_phase_two_request_1.set_curve_id(kTestCurveId);
+    complete_execution_phase_two_request_1.set_parallelism(kParallelism);
     complete_execution_phase_two_request_1.set_flag_count_tuples(
         complete_execution_phase_one_at_aggregator_response
             .flag_count_tuples());
@@ -475,6 +484,7 @@ class TestData {
     *complete_execution_phase_two_request_2
          .mutable_composite_el_gamal_public_key() = client_el_gamal_public_key_;
     complete_execution_phase_two_request_2.set_curve_id(kTestCurveId);
+    complete_execution_phase_two_request_2.set_parallelism(kParallelism);
     complete_execution_phase_two_request_2.set_flag_count_tuples(
         complete_execution_phase_two_response_1.flag_count_tuples());
     *complete_execution_phase_two_request_2
@@ -540,6 +550,7 @@ class TestData {
     *complete_execution_phase_three_request_1
          .mutable_local_el_gamal_key_pair() = duchy_1_el_gamal_key_pair_;
     complete_execution_phase_three_request_1.set_curve_id(kTestCurveId);
+    complete_execution_phase_three_request_1.set_parallelism(kParallelism);
     complete_execution_phase_three_request_1.set_same_key_aggregator_matrix(
         complete_execution_phase_two_at_aggregator_response
             .same_key_aggregator_matrix());
@@ -554,6 +565,7 @@ class TestData {
     *complete_execution_phase_three_request_2
          .mutable_local_el_gamal_key_pair() = duchy_2_el_gamal_key_pair_;
     complete_execution_phase_three_request_2.set_curve_id(kTestCurveId);
+    complete_execution_phase_three_request_2.set_parallelism(kParallelism);
     complete_execution_phase_three_request_2.set_same_key_aggregator_matrix(
         complete_execution_phase_three_response_1.same_key_aggregator_matrix());
 
@@ -637,9 +649,11 @@ TEST(CompleteSetupPhase, GeometricNoiseSumAndMeanShouldBeCorrect) {
   *noise_parameters->mutable_dp_params()->mutable_global_reach_dp_noise() =
       MakeDifferentialPrivacyParams(40, std::exp(-80));
   request.set_noise_mechanism(LiquidLegionsV2NoiseConfig::GEOMETRIC);
+  request.set_parallelism(kParallelism);
 
   ASSERT_OK_AND_ASSIGN(CompleteSetupPhaseResponse response,
                        CompleteSetupPhase(request));
+
   // There was no data in the request, so all registers in the response are
   // noise.
   std::string noises = response.combined_register_vector();
@@ -728,6 +742,7 @@ TEST(CompleteSetupPhase, GaussianNoiseSumAndMeanShouldBeCorrect) {
   *noise_parameters->mutable_dp_params()->mutable_global_reach_dp_noise() =
       MakeDifferentialPrivacyParams(40, std::exp(-80));
   request.set_noise_mechanism(LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN);
+  request.set_parallelism(kParallelism);
 
   ASSERT_OK_AND_ASSIGN(CompleteSetupPhaseResponse response,
                        CompleteSetupPhase(request));
@@ -786,6 +801,7 @@ TEST(CompleteSetupPhase, GaussianNoiseSumAndMeanShouldBeCorrect) {
 TEST(CompleteSetupPhase, WrongInputSketchSizeShouldThrow) {
   CompleteSetupPhaseRequest request;
   request.set_combined_register_vector("1234");
+  request.set_parallelism(kParallelism);
 
   auto result = CompleteSetupPhase(request);
   ASSERT_FALSE(result.ok());
@@ -795,6 +811,7 @@ TEST(CompleteSetupPhase, WrongInputSketchSizeShouldThrow) {
 
 TEST(CompleteSetupPhase, FrequencyOneWorksAsExpectedWithoutNoise) {
   CompleteSetupPhaseRequest request;
+  request.set_parallelism(kParallelism);
 
   std::string register1 = "abc";
   std::string register2 = "def";
@@ -838,6 +855,7 @@ TEST(CompleteSetupPhase, FrequencyOneWorksAsExpectedWithGeometricNoise) {
   *request.mutable_noise_parameters() = reach_noise_parameters;
 
   request.set_noise_mechanism(LiquidLegionsV2NoiseConfig::GEOMETRIC);
+  request.set_parallelism(kParallelism);
 
   std::string register1 = "abc";
   std::string register2 = "def";
@@ -876,6 +894,7 @@ TEST(CompleteSetupPhase, FrequencyOneWorksAsExpectedWithGaussianNoise) {
   *request.mutable_noise_parameters() = reach_noise_parameters;
 
   request.set_noise_mechanism(LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN);
+  request.set_parallelism(kParallelism);
 
   std::string register1 = "abc";
   std::string register2 = "def";
@@ -896,6 +915,7 @@ TEST(CompleteSetupPhase, FrequencyOneWorksAsExpectedWithGaussianNoise) {
 TEST(CompleteExecutionPhaseOne, WrongInputSketchSizeShouldThrow) {
   CompleteExecutionPhaseOneRequest request;
   request.set_combined_register_vector("1234");
+  request.set_parallelism(kParallelism);
 
   auto result = CompleteExecutionPhaseOne(request);
   ASSERT_FALSE(result.ok());
@@ -906,6 +926,7 @@ TEST(CompleteExecutionPhaseOne, WrongInputSketchSizeShouldThrow) {
 TEST(CompleteExecutionPhaseOneAtAggregator, WrongInputSketchSizeShouldThrow) {
   CompleteExecutionPhaseOneAtAggregatorRequest request;
   request.set_combined_register_vector("1234");
+  request.set_parallelism(kParallelism);
 
   auto result = CompleteExecutionPhaseOneAtAggregator(request);
   ASSERT_FALSE(result.ok());
@@ -916,6 +937,7 @@ TEST(CompleteExecutionPhaseOneAtAggregator, WrongInputSketchSizeShouldThrow) {
 TEST(CompleteExecutionPhaseTwo, WrongInputSketchSizeShouldThrow) {
   CompleteExecutionPhaseTwoRequest request;
   request.set_flag_count_tuples("1234");
+  request.set_parallelism(kParallelism);
 
   auto result = CompleteExecutionPhaseTwo(request);
   ASSERT_FALSE(result.ok());
@@ -936,6 +958,7 @@ TEST(CompleteExecutionPhaseTwoAtAggregator, WrongInputSketchSizeShouldThrow) {
 TEST(CompleteExecutionPhaseThree, WrongInputSketchSizeShouldThrow) {
   CompleteExecutionPhaseThreeRequest request;
   request.set_same_key_aggregator_matrix("1234");
+  request.set_parallelism(kParallelism);
 
   auto result = CompleteExecutionPhaseThree(request);
   ASSERT_FALSE(result.ok());
@@ -1158,6 +1181,7 @@ TEST(FrequencyGeometricNoise, TotalNoiseBytesShouldBeCorrect) {
   *request.mutable_partial_composite_el_gamal_public_key() = public_key;
   *request.mutable_noise_parameters() = frequency_noise_params;
   request.set_noise_mechanism(LiquidLegionsV2NoiseConfig::GEOMETRIC);
+  request.set_parallelism(kParallelism);
 
   ASSERT_OK_AND_ASSIGN(CompleteExecutionPhaseTwoResponse Response,
                        CompleteExecutionPhaseTwo(request));
@@ -1238,6 +1262,7 @@ TEST(FrequencyGaussianNoise, TotalNoiseBytesShouldBeCorrect) {
   *request.mutable_partial_composite_el_gamal_public_key() = public_key;
   *request.mutable_noise_parameters() = frequency_noise_params;
   request.set_noise_mechanism(LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN);
+  request.set_parallelism(kParallelism);
 
   ASSERT_OK_AND_ASSIGN(CompleteExecutionPhaseTwoResponse Response,
                        CompleteExecutionPhaseTwo(request));
@@ -1311,6 +1336,7 @@ TEST(FrequencyGeomatricNoise, AllFrequencyBucketsShouldHaveNoise) {
 
   CompleteExecutionPhaseTwoRequest request;
   request.set_curve_id(kTestCurveId);
+  request.set_parallelism(kParallelism);
   *request.mutable_local_el_gamal_key_pair()->mutable_public_key() = public_key;
   *request.mutable_local_el_gamal_key_pair()->mutable_secret_key() =
       private_key;
@@ -1385,6 +1411,7 @@ TEST(FrequencyGaussianNoise, AllFrequencyBucketsShouldHaveNoise) {
 
   CompleteExecutionPhaseTwoRequest request;
   request.set_curve_id(kTestCurveId);
+  request.set_parallelism(kParallelism);
   *request.mutable_local_el_gamal_key_pair()->mutable_public_key() = public_key;
   *request.mutable_local_el_gamal_key_pair()->mutable_secret_key() =
       private_key;

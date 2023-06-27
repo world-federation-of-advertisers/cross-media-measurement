@@ -237,7 +237,8 @@ class InProcessDuchy(
             workerStubs = workerStubs,
             cryptoWorker = JniLiquidLegionsV2Encryption(),
             workLockDuration = Duration.ofSeconds(1),
-            openTelemetry = GlobalOpenTelemetry.get()
+            openTelemetry = GlobalOpenTelemetry.get(),
+            parallelism = DUCHY_MILL_PARALLELISM,
           )
         liquidLegionsV2mill.continuallyProcessComputationQueue()
       }

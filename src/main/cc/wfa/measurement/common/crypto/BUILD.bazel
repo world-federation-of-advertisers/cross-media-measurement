@@ -66,6 +66,5 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_private_join_and_compute//private_join_and_compute/crypto:commutative_elgamal",
         "@com_google_private_join_and_compute//private_join_and_compute/crypto:ec_commutative_cipher",
-        "@wfa_common_cpp//src/main/cc/common_cpp/macros",
     ],
 )
