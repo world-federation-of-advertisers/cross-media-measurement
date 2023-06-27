@@ -88,8 +88,9 @@ class SimulatorSyntheticDataSpecEventQuery : EventQuery {
               }
 
               val event: DynamicMessage = builder.build()
-              val numEvents = frequencySpec.frequency * (vidRangeSpec.vidRange.endExclusive -
-                vidRangeSpec.vidRange.start)
+              val numEvents =
+                frequencySpec.frequency *
+                  (vidRangeSpec.vidRange.endExclusive - vidRangeSpec.vidRange.start)
               for (i in 1..numEvents) {
                 yield(event)
               }
