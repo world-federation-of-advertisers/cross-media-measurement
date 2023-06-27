@@ -1339,7 +1339,6 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
           ReportingSetKt.primitive {
             eventGroupKeys +=
               ReportingSetKt.PrimitiveKt.eventGroupKey {
-                this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
                 cmmsDataProviderId = "1235"
                 cmmsEventGroupId = cmmsMeasurementConsumerId + "123"
               }

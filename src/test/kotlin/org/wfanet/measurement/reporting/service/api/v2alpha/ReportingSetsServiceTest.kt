@@ -30,6 +30,7 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
@@ -76,14 +77,9 @@ private val DATA_PROVIDER_KEYS: List<DataProviderKey> =
   (1L..3L).map { DataProviderKey(ExternalId(it + 220L).apiId.value) }
 
 // Event group IDs and names
-private val EVENT_GROUP_KEYS =
+private val CMMS_EVENT_GROUP_KEYS =
   DATA_PROVIDER_KEYS.mapIndexed { index, dataProviderKey ->
-    val measurementConsumerKey = MEASUREMENT_CONSUMER_KEYS.first()
-    EventGroupKey(
-      measurementConsumerKey.measurementConsumerId,
-      dataProviderKey.dataProviderId,
-      ExternalId(index + 330L).apiId.value
-    )
+    CmmsEventGroupKey(dataProviderKey.dataProviderId, ExternalId(index + 330L).apiId.value)
   }
 
 // Internal reporting sets
@@ -96,7 +92,7 @@ private val INTERNAL_PRIMITIVE_REPORTING_SETS: List<InternalReportingSet> =
       displayName = "primitive_reporting_set_display_name$it"
       primitive =
         InternalReportingSetKt.primitive {
-          eventGroupKeys += EVENT_GROUP_KEYS[it.toInt()].toInternal()
+          eventGroupKeys += CMMS_EVENT_GROUP_KEYS[it.toInt()].toInternal()
         }
       weightedSubsetUnions +=
         InternalReportingSetKt.weightedSubsetUnion {
@@ -225,9 +221,9 @@ private val PRIMITIVE_REPORTING_SETS: List<ReportingSet> =
       displayName = internalReportingSet.displayName
       primitive =
         ReportingSetKt.primitive {
-          eventGroups +=
-            internalReportingSet.primitive.eventGroupKeysList.map { internalEventGroupKey ->
-              internalEventGroupKey.resourceName
+          cmmsEventGroups +=
+            internalReportingSet.primitive.eventGroupKeysList.map {
+              CmmsEventGroupKey(it.cmmsDataProviderId, it.cmmsEventGroupId).toName()
             }
         }
     }
@@ -749,7 +745,7 @@ class ReportingSetsServiceTest {
       reportingSet =
         PRIMITIVE_REPORTING_SETS.first().copy {
           clearName()
-          primitive = ReportingSetKt.primitive { eventGroups += invalidEventGroupName }
+          primitive = ReportingSetKt.primitive { cmmsEventGroups += invalidEventGroupName }
         }
     }
     val exception =
@@ -760,33 +756,6 @@ class ReportingSetsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).contains(invalidEventGroupName)
-  }
-
-  @Test
-  fun `createReportingSet throws PERMISSION_DENIED when EventGroup doesn't belong to the caller`() {
-    val notAccessibleEventGroupKey =
-      EventGroupKey(
-        MEASUREMENT_CONSUMER_KEYS.last().measurementConsumerId,
-        DATA_PROVIDER_KEYS.first().dataProviderId,
-        ExternalId(+300L).apiId.value
-      )
-    val request = createReportingSetRequest {
-      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
-      reportingSet =
-        PRIMITIVE_REPORTING_SETS.first().copy {
-          clearName()
-          primitive =
-            ReportingSetKt.primitive { eventGroups += notAccessibleEventGroupKey.toName() }
-        }
-    }
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
-          runBlocking { service.createReportingSet(request) }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description).contains(notAccessibleEventGroupKey.toName())
   }
 
   @Test
@@ -1128,19 +1097,13 @@ class ReportingSetsServiceTest {
   }
 }
 
-private fun EventGroupKey.toInternal(): InternalReportingSet.Primitive.EventGroupKey {
+private fun CmmsEventGroupKey.toInternal(): InternalReportingSet.Primitive.EventGroupKey {
   val source = this
   return InternalReportingSetKt.PrimitiveKt.eventGroupKey {
-    cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId
-    cmmsDataProviderId = source.cmmsDataProviderId
-    cmmsEventGroupId = source.cmmsEventGroupId
+    cmmsDataProviderId = source.dataProviderId
+    cmmsEventGroupId = source.eventGroupId
   }
 }
-
-private val InternalReportingSet.Primitive.EventGroupKey.resourceKey: EventGroupKey
-  get() = EventGroupKey(cmmsMeasurementConsumerId, cmmsDataProviderId, cmmsEventGroupId)
-private val InternalReportingSet.Primitive.EventGroupKey.resourceName: String
-  get() = resourceKey.toName()
 
 private val InternalReportingSet.resourceKey: ReportingSetKey
   get() = ReportingSetKey(cmmsMeasurementConsumerId, ExternalId(externalReportingSetId).apiId.value)

@@ -410,14 +410,9 @@ private val DATA_PROVIDERS_LIST = DATA_PROVIDERS.values.toList()
 
 // Event group keys
 
-private val EVENT_GROUP_KEYS =
+private val CMMS_EVENT_GROUP_KEYS =
   DATA_PROVIDERS.keys.mapIndexed { index, dataProviderKey ->
-    val measurementConsumerKey = MEASUREMENT_CONSUMERS.keys.first()
-    EventGroupKey(
-      measurementConsumerKey.measurementConsumerId,
-      dataProviderKey.dataProviderId,
-      ExternalId(index + 660L).apiId.value
-    )
+    CmmsEventGroupKey(dataProviderKey.dataProviderId, ExternalId(index + 660L).apiId.value)
   }
 
 // Event filters
@@ -433,7 +428,9 @@ private val INTERNAL_UNION_ALL_REPORTING_SET = internalReportingSet {
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
   externalReportingSetId = 220L
   this.primitive =
-    InternalReportingSetKt.primitive { eventGroupKeys += EVENT_GROUP_KEYS.map { it.toInternal() } }
+    InternalReportingSetKt.primitive {
+      eventGroupKeys += CMMS_EVENT_GROUP_KEYS.map { it.toInternal() }
+    }
   filter = PRIMITIVE_REPORTING_SET_FILTER
   displayName = "$cmmsMeasurementConsumerId-$externalReportingSetId-$filter"
   weightedSubsetUnions += weightedSubsetUnion {
@@ -449,8 +446,8 @@ private val INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET = internalReport
   externalReportingSetId = INTERNAL_UNION_ALL_REPORTING_SET.externalReportingSetId + 1
   this.primitive =
     InternalReportingSetKt.primitive {
-      (0 until EVENT_GROUP_KEYS.size - 1).map { i ->
-        eventGroupKeys += EVENT_GROUP_KEYS[i].toInternal()
+      (0 until CMMS_EVENT_GROUP_KEYS.size - 1).map { i ->
+        eventGroupKeys += CMMS_EVENT_GROUP_KEYS[i].toInternal()
       }
     }
   filter = PRIMITIVE_REPORTING_SET_FILTER
@@ -472,9 +469,7 @@ private val INTERNAL_SINGLE_PUBLISHER_REPORTING_SET = internalReportingSet {
       eventGroupKeys +=
         (0L until 3L)
           .map { index ->
-            val measurementConsumerKey = MEASUREMENT_CONSUMERS.keys.first()
-            EventGroupKey(
-              measurementConsumerKey.measurementConsumerId,
+            CmmsEventGroupKey(
               DATA_PROVIDERS.keys.first().dataProviderId,
               ExternalId(index + 670L).apiId.value
             )
@@ -551,11 +546,11 @@ private val TIME_INTERVAL = timeInterval {
 
 // Requisition specs
 private val REQUISITION_SPECS: Map<DataProviderKey, RequisitionSpec> =
-  EVENT_GROUP_KEYS.groupBy(
-      { DataProviderKey(it.cmmsDataProviderId) },
+  CMMS_EVENT_GROUP_KEYS.groupBy(
+      { it.parentKey },
       {
         RequisitionSpecKt.eventGroupEntry {
-          key = CmmsEventGroupKey(it.cmmsDataProviderId, it.cmmsEventGroupId).toName()
+          key = it.toName()
           value =
             RequisitionSpecKt.EventGroupEntryKt.value {
               collectionInterval = MEASUREMENT_TIME_INTERVAL
@@ -4703,12 +4698,11 @@ private class RequestIdMatcher(private val expected: String) :
   }
 }
 
-private fun EventGroupKey.toInternal(): InternalReportingSet.Primitive.EventGroupKey {
+private fun CmmsEventGroupKey.toInternal(): InternalReportingSet.Primitive.EventGroupKey {
   val source = this
   return InternalReportingSetKt.PrimitiveKt.eventGroupKey {
-    cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId
-    cmmsDataProviderId = source.cmmsDataProviderId
-    cmmsEventGroupId = source.cmmsEventGroupId
+    cmmsDataProviderId = source.dataProviderId
+    cmmsEventGroupId = source.eventGroupId
   }
 }
 
