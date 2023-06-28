@@ -44,7 +44,7 @@ import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
-import org.wfanet.measurement.common.crypto.hashSha256
+import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.testing.TestData
@@ -142,7 +142,7 @@ class MeasurementConsumersServiceTest {
             }
           externalAccountId = ACCOUNT_ID
           measurementConsumerCreationTokenHash =
-            hashSha256(apiIdToExternalId(MEASUREMENT_CONSUMER_CREATION_TOKEN))
+            Hashing.hashSha256(apiIdToExternalId(MEASUREMENT_CONSUMER_CREATION_TOKEN))
         }
       )
   }

@@ -111,9 +111,9 @@ import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
-import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
@@ -929,7 +929,7 @@ class EdpSimulatorTest {
         start = 0.0f
         width = PRIVACY_BUCKET_VID_SAMPLE_WIDTH
       }
-      nonceHashes += hashSha256(REQUISITION_ONE_SPEC.nonce)
+      nonceHashes += Hashing.hashSha256(REQUISITION_ONE_SPEC.nonce)
     }
 
     private val MC_PUBLIC_KEY =
