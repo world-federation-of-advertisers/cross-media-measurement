@@ -1,5 +1,4 @@
 load("@aspect_rules_js//js:defs.bzl", "js_library")
-load("@aspect_rules_ts//ts:defs.bzl", "ts_config")
 load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@aspect_rules_webpack//webpack:defs.bzl", "webpack_bundle", "webpack_devserver")
 
@@ -26,15 +25,6 @@ js_library(
     ],
 )
 
-ts_config(
-    name = "tsconfig",
-    src = "tsconfig.json",
-    visibility = [
-        "//src/main/react/reporting-ui:__subpackages__",
-        "//src/test/react/reporting-ui:__subpackages__",
-    ],
-)
-
 js_library(
     name = "webpack_config",
     srcs = ["webpack.config.js"],
@@ -47,8 +37,8 @@ js_library(
 webpack_bundle(
     name = "webpack_bundle",
     srcs = [
-        ":tsconfig",
         ":webpack_config",
+        "//:tsconfig",
         "//src/main/react/reporting-ui/public",
         "//src/main/react/reporting-ui/src:src_files",
     ],
@@ -64,7 +54,7 @@ webpack_devserver(
     name = "webpack_devserver",
     data = [
         ":build_node_deps",
-        ":tsconfig",
+        "//:tsconfig",
         "//src/main/react/reporting-ui/public",
         "//src/main/react/reporting-ui/src:src_files",
     ],

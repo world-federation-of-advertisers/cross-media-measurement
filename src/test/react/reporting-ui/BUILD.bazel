@@ -19,11 +19,6 @@ js_library(
 )
 
 js_library(
-    name = "tsconfig",
-    srcs = ["tsconfig.json"],
-)
-
-js_library(
     name = "test_node_deps",
     srcs = [
         "//:node_modules/@types/jest",
@@ -46,7 +41,7 @@ jest_test(
     data = [
         ":test_files",
         ":test_node_deps",
-        ":tsconfig",
+        "//:tsconfig",
         "//src/main/react/reporting-ui:build_node_deps",
         "//src/main/react/reporting-ui/src:src_files",
         "//src/test/react/jest:jest_base_config",
