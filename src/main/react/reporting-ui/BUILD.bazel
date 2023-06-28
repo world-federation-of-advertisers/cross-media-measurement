@@ -44,15 +44,6 @@ js_library(
     ],
 )
 
-js_library(
-    name = "babel_config",
-    srcs = ["babel.config.js"],
-    visibility = [
-        "//src/main/react/reporting-ui:__subpackages__",
-        "//src/test/react/reporting-ui:__subpackages__",
-    ],
-)
-
 webpack_bundle(
     name = "webpack_bundle",
     srcs = [
