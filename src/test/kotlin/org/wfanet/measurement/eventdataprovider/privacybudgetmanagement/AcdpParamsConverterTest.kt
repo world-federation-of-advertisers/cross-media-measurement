@@ -19,7 +19,7 @@ import kotlin.test.assertFails
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.eventdataprovider.noisers.DpParams
+import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 
 @RunWith(JUnit4::class)
 class AcdpParamsConverterTest {

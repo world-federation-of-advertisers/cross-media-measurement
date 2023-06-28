@@ -12,9 +12,9 @@
  * the License.
  */
 
-package org.wfanet.measurement.eventdataprovider.noisers
+package org.wfanet.measurement.eventdataprovider.noiser
 
-/** Internal differential privacy parameters. */
+/** Internal Differential Privacy(DP) parameters. */
 data class DpParams(val epsilon: Double, val delta: Double)
 
 /**
