@@ -135,8 +135,8 @@ object Composition {
     acdpCharges: List<AcdpCharge>,
     targetEpsilon: Float
   ): Float {
-    val totalRho = acdpCharges.sumOf { it.rho }
-    val totalTheta = acdpCharges.sumOf { it.theta }
+    val totalRho: Double = acdpCharges.sumOf { it.rho }
+    val totalTheta: Double = acdpCharges.sumOf { it.theta }
 
     fun computeDeltaGivenAlpha(alpha: Double): Double {
       return (exp(targetEpsilon) + 1) * totalTheta +

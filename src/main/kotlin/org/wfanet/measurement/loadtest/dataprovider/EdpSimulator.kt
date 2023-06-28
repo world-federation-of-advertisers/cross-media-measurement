@@ -121,11 +121,11 @@ import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
 import org.wfanet.measurement.consent.client.duchy.signResult
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
-import org.wfanet.measurement.eventdataprovider.noisers.AbstractNoiser
-import org.wfanet.measurement.eventdataprovider.noisers.DirectNoiseMechanism
-import org.wfanet.measurement.eventdataprovider.noisers.DpParams
-import org.wfanet.measurement.eventdataprovider.noisers.GaussianNoiser
-import org.wfanet.measurement.eventdataprovider.noisers.LaplaceNoiser
+import org.wfanet.measurement.eventdataprovider.noiser.AbstractNoiser
+import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
+import org.wfanet.measurement.eventdataprovider.noiser.DpParams
+import org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiser
+import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType

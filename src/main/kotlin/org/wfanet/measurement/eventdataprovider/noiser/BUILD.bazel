@@ -6,7 +6,7 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "noisers",
+    name = "noiser",
     srcs = [
         "AbstractNoiser.kt",
         "GaussianNoiser.kt",
@@ -14,7 +14,6 @@ kt_jvm_library(
         "Noiser.kt",
     ],
     deps = [
-        "//src/main/proto/wfa/measurement/api/v2alpha:differential_privacy_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/org/apache/commons:math3",
     ],
 )
