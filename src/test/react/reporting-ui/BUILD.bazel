@@ -11,23 +11,6 @@ TEST_PATTERNS = [
 ]
 
 js_library(
-    name = "test_node_deps",
-    srcs = [
-        "//:node_modules/@babel/preset-env",
-        "//:node_modules/@babel/preset-react",
-        "//:node_modules/@babel/preset-typescript",
-        "//:node_modules/@testing-library/jest-dom",
-        "//:node_modules/@testing-library/react",
-        "//:node_modules/@testing-library/user-event",
-        "//:node_modules/@types/jest",
-        "//:node_modules/jest",
-        "//:node_modules/jest-environment-jsdom",
-        "//:node_modules/jest-transform-css",
-        "//:node_modules/ts-jest",
-    ]
-)
-
-js_library(
     name = "test_files",
     srcs = glob(
         include = TEST_PATTERNS,
@@ -40,11 +23,6 @@ js_library(
 )
 
 js_library(
-    name = "babel_config",
-    srcs = ["babel.config.js"],
-)
-
-js_library(
     name = "tsconfig",
     srcs = ["tsconfig.json"],
 )
@@ -53,12 +31,10 @@ jest_test(
     name = "test",
     config = ":jest_config",
     data = [
-        "//src/main/react/reporting-ui:build_node_deps",
         "//src/main/react/reporting-ui/src:src_files",
         "//src/test/react/jest:jest_files",
         "//src/test/react/jest:jest_base_config",
         ":test_files",
-        ":test_node_deps",
         ":tsconfig",
     ],
     node_modules = "//:node_modules",

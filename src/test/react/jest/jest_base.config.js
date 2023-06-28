@@ -8,9 +8,6 @@ module.exports = {
     moduleNameMapper: {
         "\\.(css|scss)$": "<rootDir>/../jest/__mocks__/styleMock.js"
     },
-    setupFilesAfterEnv: [
-        "<rootDir>/../jest/setupTests.ts"
-    ],
     testMatch: [
         '<rootDir>/**/*.test.(ts|tsx)'
     ],
