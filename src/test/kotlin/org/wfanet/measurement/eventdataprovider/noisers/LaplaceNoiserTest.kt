@@ -18,16 +18,13 @@ import java.util.Random
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
-import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.measurementSpec
 
 @RunWith(JUnit4::class)
 class LaplaceNoiserTest {
   @Test
   fun `Laplace noiser with random seed returns expected samples`() {
     val random = Random(RANDOM_SEED)
-    val laplaceNoiser = LaplaceNoiser(MEASUREMENT_SPEC.reachAndFrequency.reachPrivacyParams, random)
+    val laplaceNoiser = LaplaceNoiser(DP_PARAMS, random)
     val samples = List(5) { laplaceNoiser.sample() }
     val expectedSamples =
       listOf(
@@ -40,16 +37,9 @@ class LaplaceNoiserTest {
 
     assertThat(expectedSamples).isEqualTo(samples)
   }
+
   companion object {
-    private val MEASUREMENT_SPEC = measurementSpec {
-      reachAndFrequency =
-        MeasurementSpecKt.reachAndFrequency {
-          reachPrivacyParams = differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 1E-12
-          }
-        }
-    }
+    private val DP_PARAMS = DpParams(1.0, 1E-12)
     private const val RANDOM_SEED: Long = 1
   }
 }

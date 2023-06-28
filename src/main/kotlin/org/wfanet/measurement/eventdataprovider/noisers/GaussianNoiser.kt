@@ -20,15 +20,11 @@ import kotlin.math.exp
 import org.apache.commons.math3.analysis.solvers.BisectionSolver
 import org.apache.commons.math3.distribution.NormalDistribution
 import org.apache.commons.math3.random.RandomGeneratorFactory
-import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 
-class GaussianNoiser(privacyParams: DifferentialPrivacyParams, random: Random) : AbstractNoiser() {
+class GaussianNoiser(privacyParams: DpParams, random: Random) : AbstractNoiser() {
   override val distribution: NormalDistribution = getNormalDistribution(privacyParams, random)
 
-  private fun getNormalDistribution(
-    privacyParams: DifferentialPrivacyParams,
-    random: Random
-  ): NormalDistribution {
+  private fun getNormalDistribution(privacyParams: DpParams, random: Random): NormalDistribution {
     val sigma = getSigma(privacyParams)
 
     return NormalDistribution(RandomGeneratorFactory.createRandomGenerator(random), 0.0, sigma)
@@ -38,9 +34,9 @@ class GaussianNoiser(privacyParams: DifferentialPrivacyParams, random: Random) :
     private val standardNormalDistribution = NormalDistribution(0.0, 1.0)
     private const val MAX_EVAL = 10000
     /** Memoized computation of Gaussian sigma results. */
-    private val gaussianSigmaResults = ConcurrentHashMap<DifferentialPrivacyParams, Double>()
+    private val gaussianSigmaResults = ConcurrentHashMap<DpParams, Double>()
 
-    fun getSigma(privacyParams: DifferentialPrivacyParams): Double =
+    fun getSigma(privacyParams: DpParams): Double =
       gaussianSigmaResults.getOrPut(privacyParams) {
         solveSigma(privacyParams.epsilon, privacyParams.delta)
       }

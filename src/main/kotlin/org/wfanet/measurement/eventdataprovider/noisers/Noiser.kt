@@ -14,6 +14,9 @@
 
 package org.wfanet.measurement.eventdataprovider.noisers
 
+/** Internal differential privacy parameters. */
+data class DpParams(val epsilon: Double, val delta: Double)
+
 /**
  * Noise mechanism for generating publisher noise for direct measurements.
  *
@@ -27,7 +30,7 @@ enum class DirectNoiseMechanism {
   GAUSSIAN,
 }
 
-/** A base Noiser interface for direct measurements */
+/** A base Noiser interface for direct measurements. */
 interface Noiser {
 
   /** Returns a random value sampled from the distribution. */

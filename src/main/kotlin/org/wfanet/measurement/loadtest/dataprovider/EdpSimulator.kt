@@ -123,6 +123,7 @@ import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptio
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 import org.wfanet.measurement.eventdataprovider.noisers.AbstractNoiser
 import org.wfanet.measurement.eventdataprovider.noisers.DirectNoiseMechanism
+import org.wfanet.measurement.eventdataprovider.noisers.DpParams
 import org.wfanet.measurement.eventdataprovider.noisers.GaussianNoiser
 import org.wfanet.measurement.eventdataprovider.noisers.LaplaceNoiser
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
@@ -760,8 +761,10 @@ class EdpSimulator(
         object : AbstractNoiser() {
           override val distribution = ConstantRealDistribution(0.0)
         }
-      DirectNoiseMechanism.LAPLACE -> LaplaceNoiser(privacyParams, random)
-      DirectNoiseMechanism.GAUSSIAN -> GaussianNoiser(privacyParams, random)
+      DirectNoiseMechanism.LAPLACE ->
+        LaplaceNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random)
+      DirectNoiseMechanism.GAUSSIAN ->
+        GaussianNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random)
     }
 
   /**
