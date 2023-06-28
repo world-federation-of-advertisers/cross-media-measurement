@@ -95,9 +95,9 @@ import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.timeInterval as measurementTimeInterval
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
-import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
@@ -586,7 +586,7 @@ private val DATA_PROVIDER_ENTRIES =
               signRequisitionSpec(requisitionSpec, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE),
               EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
             )
-          nonceHash = hashSha256(requisitionSpec.nonce)
+          nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
         }
     }
   }
@@ -716,9 +716,9 @@ private val UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC = measurementSpe
 
   nonceHashes +=
     listOf(
-      hashSha256(SECURE_RANDOM_OUTPUT_LONG),
-      hashSha256(SECURE_RANDOM_OUTPUT_LONG),
-      hashSha256(SECURE_RANDOM_OUTPUT_LONG)
+      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
+      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
+      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG)
     )
 
   reach =
@@ -742,7 +742,7 @@ private val REQUESTING_UNION_ALL_REACH_MEASUREMENT =
     measurementSpec =
       signMeasurementSpec(
         UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
-          nonceHashes += hashSha256(SECURE_RANDOM_OUTPUT_LONG)
+          nonceHashes += Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG)
         },
         MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
       )
@@ -812,7 +812,7 @@ private val SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
 private val SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC = measurementSpec {
   measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.toByteString()
 
-  nonceHashes.add(hashSha256(SECURE_RANDOM_OUTPUT_LONG))
+  nonceHashes.add(Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG))
 
   impression =
     MeasurementSpecKt.impression {
@@ -857,9 +857,9 @@ private val UNION_ALL_WATCH_DURATION_MEASUREMENT_SPEC = measurementSpec {
 
   nonceHashes +=
     listOf(
-      hashSha256(SECURE_RANDOM_OUTPUT_LONG),
-      hashSha256(SECURE_RANDOM_OUTPUT_LONG),
-      hashSha256(SECURE_RANDOM_OUTPUT_LONG)
+      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
+      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
+      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG)
     )
 
   duration =
@@ -888,7 +888,7 @@ private val REQUESTING_UNION_ALL_WATCH_DURATION_MEASUREMENT =
     measurementSpec =
       signMeasurementSpec(
         UNION_ALL_WATCH_DURATION_MEASUREMENT_SPEC.copy {
-          nonceHashes += hashSha256(SECURE_RANDOM_OUTPUT_LONG)
+          nonceHashes += Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG)
         },
         MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
       )
@@ -1530,7 +1530,8 @@ class MetricsServiceTest {
         .isEqualTo(
           UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
             nonceHashes.clear()
-            nonceHashes += List(dataProvidersList.size) { hashSha256(SECURE_RANDOM_OUTPUT_LONG) }
+            nonceHashes +=
+              List(dataProvidersList.size) { Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG) }
           }
         )
 
@@ -1936,7 +1937,8 @@ class MetricsServiceTest {
         .isEqualTo(
           UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
             nonceHashes.clear()
-            nonceHashes += List(dataProvidersList.size) { hashSha256(SECURE_RANDOM_OUTPUT_LONG) }
+            nonceHashes +=
+              List(dataProvidersList.size) { Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG) }
           }
         )
 
@@ -2965,7 +2967,8 @@ class MetricsServiceTest {
           else
             UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
               nonceHashes.clear()
-              nonceHashes += List(dataProvidersList.size) { hashSha256(SECURE_RANDOM_OUTPUT_LONG) }
+              nonceHashes +=
+                List(dataProvidersList.size) { Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG) }
             }
         )
 
