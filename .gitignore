@@ -16,3 +16,5 @@
 
 # Terraform directories
 .terraform/
+
+**/node_modules
