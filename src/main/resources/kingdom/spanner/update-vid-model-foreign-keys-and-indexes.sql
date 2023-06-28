@@ -13,7 +13,11 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
+
 -- changeset marcopremier:10 dbms:cloudspanner
+-- validCheckSum: 8:e158dcf45f5d51fb712623c61e69de5f
+
+START BATCH DDL;
 
 DROP TABLE ModelRollouts;
 DROP TABLE ModelOutages;
@@ -94,3 +98,5 @@ CREATE UNIQUE INDEX ModelRolloutsByExternalId
 
 CREATE UNIQUE INDEX ModelShardsByExternalId
     ON ModelShards(DataProviderId, ExternalModelShardId);
+
+RUN BATCH;
