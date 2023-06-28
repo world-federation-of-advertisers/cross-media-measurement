@@ -196,9 +196,7 @@ class EventGroupsServiceTest {
   @Test
   fun `listEventGroups returns only event groups that match filter when filter has no metadata`() {
     val cmmsEventGroup2 =
-      CMMS_EVENT_GROUP.copy {
-        eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID + 2
-      }
+      CMMS_EVENT_GROUP.copy { eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID + 2 }
 
     runBlocking {
       whenever(publicKingdomEventGroupsMock.listEventGroups(any()))
