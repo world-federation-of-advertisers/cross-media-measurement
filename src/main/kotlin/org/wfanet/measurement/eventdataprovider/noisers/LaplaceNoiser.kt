@@ -17,9 +17,8 @@ package org.wfanet.measurement.eventdataprovider.noisers
 import java.util.Random
 import org.apache.commons.math3.distribution.LaplaceDistribution
 import org.apache.commons.math3.random.RandomGeneratorFactory
-import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 
-class LaplaceNoiser(privacyParams: DifferentialPrivacyParams, random: Random) : AbstractNoiser() {
+class LaplaceNoiser(privacyParams: DpParams, random: Random) : AbstractNoiser() {
   override val distribution: LaplaceDistribution =
     LaplaceDistribution(
       RandomGeneratorFactory.createRandomGenerator(random),

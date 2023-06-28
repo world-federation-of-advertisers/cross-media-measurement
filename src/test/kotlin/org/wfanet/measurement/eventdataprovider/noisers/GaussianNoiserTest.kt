@@ -21,9 +21,6 @@ import kotlin.math.sqrt
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
-import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.measurementSpec
 
 @RunWith(JUnit4::class)
 class GaussianNoiserTest {
@@ -31,8 +28,7 @@ class GaussianNoiserTest {
   @Test
   fun `Gaussian noiser with random seed returns expected samples`() {
     val random = Random(RANDOM_SEED)
-    val gaussianNoiser =
-      GaussianNoiser(MEASUREMENT_SPEC.reachAndFrequency.reachPrivacyParams, random)
+    val gaussianNoiser = GaussianNoiser(DP_PARAMS, random)
     val samples = List(5) { gaussianNoiser.sample() }
     val expectedSamples =
       listOf(
@@ -49,8 +45,7 @@ class GaussianNoiserTest {
   @Test
   fun `standard deviation from samples is close to the theoretical sigma`() {
     val random = Random(RANDOM_SEED)
-    val gaussianNoiser =
-      GaussianNoiser(MEASUREMENT_SPEC.reachAndFrequency.reachPrivacyParams, random)
+    val gaussianNoiser = GaussianNoiser(DP_PARAMS, random)
     val samples = List(1000) { gaussianNoiser.sample() }
 
     val sigma = calculateStandardDeviation(samples)
@@ -62,24 +57,17 @@ class GaussianNoiserTest {
   }
 
   @Test
-  fun `solveSigma returns expected value`() {
-    val sigma = GaussianNoiser.getSigma(MEASUREMENT_SPEC.reachAndFrequency.reachPrivacyParams)
+  fun `getSigma returns expected value`() {
+    val sigma = GaussianNoiser.getSigma(DpParams(1.0, 1E-12))
     val expectedSigma = 6.55780908203125
 
-    assertThat(sigma).isEqualTo(expectedSigma)
+    assertThat(sigma).isWithin(TOLERANCE).of(expectedSigma)
   }
 
   companion object {
-    private val MEASUREMENT_SPEC = measurementSpec {
-      reachAndFrequency =
-        MeasurementSpecKt.reachAndFrequency {
-          reachPrivacyParams = differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 1E-12
-          }
-        }
-    }
+    private val DP_PARAMS = DpParams(1.0, 1E-12)
     private const val RANDOM_SEED: Long = 1
+    private const val TOLERANCE = 1E-10
 
     private fun calculateStandardDeviation(nums: List<Double>): Double {
       val mean = nums.average()
