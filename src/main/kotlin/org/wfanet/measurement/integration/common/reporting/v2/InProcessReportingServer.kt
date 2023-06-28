@@ -31,6 +31,8 @@ import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as PublicKingdomCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as PublicKingdomDataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub as PublicKingdomEventGroupMetadataDescriptorsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as PublicKingdomEventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as PublicKingdomMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as PublicKingdomMeasurementsCoroutineStub
@@ -58,6 +60,9 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub as PublicMetricsCoroutineStub
+import java.time.Duration
+import org.wfanet.measurement.api.withAuthenticationKey
+import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 
 /** TestRule that starts and stops all Reporting Server gRPC services. */
 class InProcessReportingServer(
@@ -80,6 +85,12 @@ class InProcessReportingServer(
   }
   private val publicKingdomDataProvidersClient by lazy {
     PublicKingdomDataProvidersCoroutineStub(publicKingdomChannelGenerator())
+  }
+  private val publicKingdomEventGroupMetadataDescriptorsClient by lazy {
+    PublicKingdomEventGroupMetadataDescriptorsCoroutineStub(publicKingdomChannelGenerator())
+  }
+  private val publicKingdomEventGroupsClient by lazy {
+    PublicKingdomEventGroupsCoroutineStub(publicKingdomChannelGenerator())
   }
 
   private val internalApiChannel by lazy { internalReportingServer.channel }
@@ -148,8 +159,22 @@ class InProcessReportingServer(
           }
         }
 
+        val celEnvCacheProvider =
+          CelEnvCacheProvider(
+            publicKingdomEventGroupMetadataDescriptorsClient.withAuthenticationKey(
+              measurementConsumerConfig.apiKey
+            ),
+            Duration.ofSeconds(5),
+            Dispatchers.Default,
+          )
+
         listOf(
-            EventGroupsService().withMetadataPrincipalIdentities(measurementConsumerConfig),
+            EventGroupsService(
+              publicKingdomEventGroupsClient,
+              encryptionKeyPairStore,
+              celEnvCacheProvider
+            )
+              .withMetadataPrincipalIdentities(measurementConsumerConfig),
             MetricsService(
                 METRIC_SPEC_CONFIG,
                 internalReportingSetsClient,
