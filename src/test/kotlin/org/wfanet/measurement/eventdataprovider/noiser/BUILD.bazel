@@ -3,9 +3,9 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 kt_jvm_test(
     name = "LaplaceNoiserTest",
     srcs = ["LaplaceNoiserTest.kt"],
-    test_class = "org.wfanet.measurement.eventdataprovider.noisers.LaplaceNoiserTest",
+    test_class = "org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiserTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noisers",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
@@ -16,9 +16,9 @@ kt_jvm_test(
 kt_jvm_test(
     name = "GaussianNoiserTest",
     srcs = ["GaussianNoiserTest.kt"],
-    test_class = "org.wfanet.measurement.eventdataprovider.noisers.GaussianNoiserTest",
+    test_class = "org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiserTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noisers",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",

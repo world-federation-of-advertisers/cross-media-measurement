@@ -15,10 +15,16 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 import org.wfanet.measurement.common.OpenEndTimeRange
 
-/** Represents a charge that will be made to a privacy budget */
+/**
+ * Represents a Differential Privacy(DP) charge in epsilon and delta that will be made to a privacy
+ * budget.
+ */
 data class DpCharge(val epsilon: Float, val delta: Float)
 
-/** Represents a ACDP charge in rho and theta that will be made to a privacy budget */
+/**
+ * Represents an Almost Concentrated Differential Privacy(ACDP) charge in rho and theta that will be
+ * made to a privacy budget.
+ */
 data class AcdpCharge(val rho: Double, val theta: Double)
 
 /**

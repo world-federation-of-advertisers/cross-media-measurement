@@ -11,7 +11,7 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.wfanet.measurement.eventdataprovider.noisers
+package org.wfanet.measurement.eventdataprovider.noiser
 
 import com.google.common.truth.Truth.assertThat
 import java.util.Random

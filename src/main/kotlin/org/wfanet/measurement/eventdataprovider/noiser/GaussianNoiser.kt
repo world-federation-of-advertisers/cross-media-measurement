@@ -12,7 +12,7 @@
  * the License.
  */
 
-package org.wfanet.measurement.eventdataprovider.noisers
+package org.wfanet.measurement.eventdataprovider.noiser
 
 import java.util.Random
 import java.util.concurrent.ConcurrentHashMap

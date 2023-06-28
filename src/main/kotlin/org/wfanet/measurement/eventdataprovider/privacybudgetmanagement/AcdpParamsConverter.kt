@@ -21,8 +21,8 @@ import kotlin.math.ln
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sqrt
-import org.wfanet.measurement.eventdataprovider.noisers.DpParams
-import org.wfanet.measurement.eventdataprovider.noisers.GaussianNoiser
+import org.wfanet.measurement.eventdataprovider.noiser.DpParams
+import org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiser
 
 /**
  * A utility Object to convert per-query DP params(epsilon, delta) to ACDP params(rho, theta) for
