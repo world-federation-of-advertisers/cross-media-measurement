@@ -1,0 +1,62 @@
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("@aspect_rules_ts//ts:defs.bzl", "ts_config")
+load("@npm//:defs.bzl", "npm_link_all_packages")
+load("@aspect_rules_webpack//webpack:defs.bzl", "webpack_bundle", "webpack_devserver")
+
+npm_link_all_packages()
+
+js_library(
+    name = "build_node_deps",
+    srcs = [
+        "//:node_modules/babel-loader",
+        "//:node_modules/css-loader",
+        "//:node_modules/html-webpack-plugin",
+        "//:node_modules/mini-css-extract-plugin",
+        "//:node_modules/react",
+        "//:node_modules/react-dom",
+        "//:node_modules/style-loader",
+        "//:node_modules/ts-loader",
+        "//:node_modules/typescript",
+        "//:node_modules/web-vitals",
+        "//:node_modules/webpack",
+    ],
+)
+
+ts_config(
+    name = "tsconfig",
+    src = "tsconfig.json",
+    visibility = ["//src/main/react/reporting-ui:__subpackages__"],
+)
+
+js_library(
+    name = "webpack_config",
+    srcs = ["webpack.config.js"],
+)
+
+webpack_bundle(
+    name = "webpack_bundle",
+    srcs = [
+        ":tsconfig",
+        ":webpack_config",
+        "//src/main/react/reporting-ui/public",
+        "//src/main/react/reporting-ui/src:src_files",
+    ],
+    node_modules = "//:node_modules",
+    output_dir = True,
+    webpack_config = ":webpack_config",
+    deps = [
+        ":build_node_deps",
+    ],
+)
+
+webpack_devserver(
+    name = "webpack_devserver",
+    data = [
+        ":build_node_deps",
+        ":tsconfig",
+        "//src/main/react/reporting-ui/public",
+        "//src/main/react/reporting-ui/src:src_files",
+    ],
+    node_modules = "//:node_modules",
+    webpack_config = ":webpack_config",
+)
