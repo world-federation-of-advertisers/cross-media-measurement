@@ -8,7 +8,6 @@ TEST_PATTERNS = [
     "*.test.ts",
     "*.spec.tsx",
     "*.spec.ts",
-    "**/*.js",
 ]
 
 js_library(
@@ -20,8 +19,9 @@ js_library(
         "//:node_modules/@testing-library/jest-dom",
         "//:node_modules/@testing-library/react",
         "//:node_modules/@testing-library/user-event",
+        "//:node_modules/@types/jest",
         "//:node_modules/jest",
-        "//:node_modules/identity-obj-proxy",
+        "//:node_modules/jest-environment-jsdom",
         "//:node_modules/jest-transform-css",
         "//:node_modules/ts-jest",
     ]
@@ -44,6 +44,11 @@ js_library(
     srcs = ["babel.config.js"],
 )
 
+js_library(
+    name = "tsconfig",
+    srcs = ["tsconfig.json"],
+)
+
 jest_test(
     name = "test",
     config = ":jest_config",
@@ -54,6 +59,7 @@ jest_test(
         "//src/test/react/jest:jest_base_config",
         ":test_files",
         ":test_node_deps",
+        ":tsconfig",
     ],
     node_modules = "//:node_modules",
 )
