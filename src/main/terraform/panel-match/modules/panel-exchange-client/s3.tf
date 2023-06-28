@@ -59,7 +59,7 @@ resource "aws_s3_bucket_policy" "block_access_from_http" {
              "aws:SecureTransport" = "false"
            }
          }
-         "Principal": "*"
+         Principal : "*"
        },
      ]
    })

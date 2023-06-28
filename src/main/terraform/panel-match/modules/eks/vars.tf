@@ -30,14 +30,20 @@ variable "project" {
   default = "tftest"
 }
 
+variable "subnet_cidr_bits" {
+  description = "The number of subnet bits for the CIDR."
+  type = number
+  default = 8
+}
+
 variable "vpc_cidr" {
   description = "The CIDR block for the VPC. Default is valid, but should be overridden."
   type = string
   default = "10.0.0.0/16"
 }
 
-variable "subnet_cidr_bits" {
-  description = "The number of subnet bits for the CIDR."
-  type = number
-  default = 8
+variable "project_arn" {
+  description = "The ARN prefix of the project."
+  type = string
+  default = "arn:aws:iam::012345678901:role"
 }

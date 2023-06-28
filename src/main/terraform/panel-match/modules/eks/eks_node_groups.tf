@@ -15,13 +15,18 @@
 resource "aws_eks_node_group" "node_group" {
   cluster_name = aws_eks_cluster.cluster.name
   node_group_name = var.project
-  node_role_arn = aws_iam_role.node_role.arn
+  node_role_arn = "${var.project_arn}/tftest-Worker-Role"
   subnet_ids = aws_subnet.private_subnet[*].id
 
   scaling_config {
-    desired_size = 2
-    max_size = 5
-    min_size = 1
+    desired_size = 8
+    max_size     = 16
+    min_size     = 1
+  }
+
+  tags = {
+    groupName = "panel-binary"
+    "k8s.io/cluster-autoscaler/node-template/label/node-lifecycle" : "on-demand"
   }
 
   ami_type = "AL2_x86_64"
@@ -29,46 +34,86 @@ resource "aws_eks_node_group" "node_group" {
   disk_size = 20
   instance_types = ["c5.large"]
 
-  depends_on = [
-    aws_iam_role_policy_attachment.node_AmazonEKSWorkerNodePolicy,
-    aws_iam_role_policy_attachment.node_AmazonEKS_CNI_Policy,
-    aws_iam_role_policy_attachment.node_AmazonEC2ContainerRegistryReadOnly,
-  ]
+#  depends_on = [
+#    aws_iam_role_policy_attachment.node_AmazonEKSWorkerNodePolicy,
+#    aws_iam_role_policy_attachment.node_AmazonEKS_CNI_Policy,
+#    aws_iam_role_policy_attachment.node_AmazonEC2ContainerRegistryReadOnly,
+#  ]
 }
 
-resource "aws_iam_role" "node_role" {
-  name = "${var.project}-Worker-Role"
+resource "aws_eks_node_group" "spark_executor_node_group" {
+  cluster_name = aws_eks_cluster.cluster.name
+  node_group_name = "${var.project}-spark-spot"
+  node_role_arn = "${var.project_arn}/tftest-Worker-Role"
+  subnet_ids = aws_subnet.private_subnet[*].id
 
-  assume_role_policy = <<POLICY
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Service": "ec2.amazonaws.com"
-      },
-      "Action": "sts:AssumeRole"
-    }
-  ]
-}
-POLICY
+  scaling_config {
+    desired_size = 2
+    max_size     = 100
+    min_size     = 1
+  }
+
+  ami_type = "AL2_x86_64"
+  capacity_type = "SPOT"
+  disk_size = 20
+  instance_types = ["c5.large"]
+
+  tags = {
+    groupName = "worker-executor"
+    "k8s.io/cluster-autoscaler/enabled" : "true"
+    "k8s.io/cluster-autoscaler/spark" : "owned"
+    "k8s.io/cluster-autoscaler/node-template/label/arch" : "x86"
+    "k8s.io/cluster-autoscaler/node-template/label/kubernetes.io/os" : "linux"
+    "k8s.io/cluster-autoscaler/node-template/label/noderole" : "spark"
+    "k8s.io/cluster-autoscaler/node-template/label/node-lifecycle" : "spot"
+  }
+
+  taint {
+    effect = "NO_SCHEDULE"
+    key    = "spot"
+    value  = "true"
+  }
+
+#  depends_on = [
+#    aws_iam_role_policy_attachment.node_AmazonEKSWorkerNodePolicy,
+#    aws_iam_role_policy_attachment.node_AmazonEKS_CNI_Policy,
+#    aws_iam_role_policy_attachment.node_AmazonEC2ContainerRegistryReadOnly,
+#  ]
 }
 
-resource "aws_iam_role_policy_attachment" "node_AmazonEKSWorkerNodePolicy" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
-  role = aws_iam_role.node_role.name
-}
+#resource "aws_iam_role" "node_role" {
+#  name = "${var.project}-Worker-Role"
+#
+#  assume_role_policy = <<POLICY
+#{
+#  "Version": "2012-10-17",
+#  "Statement": [
+#    {
+#      "Effect": "Allow",
+#      "Principal": {
+#        "Service": "ec2.amazonaws.com"
+#      },
+#      "Action": "sts:AssumeRole"
+#    }
+#  ]
+#}
+#POLICY
+#}
 
-resource "aws_iam_role_policy_attachment" "node_AmazonEKS_CNI_Policy" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-  role = aws_iam_role.node_role.name
-}
-
-resource "aws_iam_role_policy_attachment" "node_AmazonEC2ContainerRegistryReadOnly" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-  role = aws_iam_role.node_role.name
-}
+#resource "aws_iam_role_policy_attachment" "node_AmazonEKSWorkerNodePolicy" {
+#  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+#  role = aws_iam_role.node_role.name
+#}
+#
+#resource "aws_iam_role_policy_attachment" "node_AmazonEKS_CNI_Policy" {
+#  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+#  role = aws_iam_role.node_role.name
+#}
+#
+#resource "aws_iam_role_policy_attachment" "node_AmazonEC2ContainerRegistryReadOnly" {
+#  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+#  role = aws_iam_role.node_role.name
+#}
 
 resource "aws_security_group" "eks_nodes" {
   name = "${var.project}-node-sg"

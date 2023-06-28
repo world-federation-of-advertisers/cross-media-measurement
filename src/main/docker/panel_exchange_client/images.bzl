@@ -33,6 +33,6 @@ AWS_IMAGES = [
     struct(
         name = "aws_example_daemon_image",
         image = "//src/main/kotlin/org/wfanet/panelmatch/client/deploy/example/aws:aws_example_daemon_image",
-        repository = _PREFIX + "/panel-exchange/aws-example-daemon",
+        repository = "panel-exchange/aws-example-daemon",
     ),
 ]

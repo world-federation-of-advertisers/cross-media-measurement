@@ -59,7 +59,7 @@ resource "aws_route_table_association" "internet_access" {
 }
 
 resource "aws_eip" "main" {
-  vpc = true
+  domain = "vpc"
 }
 
 resource "aws_nat_gateway" "main" {

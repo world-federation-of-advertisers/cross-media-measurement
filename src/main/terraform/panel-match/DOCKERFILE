@@ -41,10 +41,10 @@ RUN apt-get update && apt-get install -y ca-certificates curl gnupg lsb-release 
     $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null \
   && apt-get update && apt-get install -y  docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
-# get panel-exchange-client github project
+# get cross-media-measurement github project
 RUN mkdir Repos \
   && cd Repos \
-  && git clone https://github.com/world-federation-of-advertisers/panel-exchange-client.git
+  && git clone https://github.com/world-federation-of-advertisers/cross-media-measurement.git
 
 # install jq
 RUN apt-get install -y jq

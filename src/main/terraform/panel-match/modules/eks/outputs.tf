@@ -13,5 +13,5 @@
 # limitations under the License.
 
 output "cluster_name" {
-  value = "${aws_eks_cluster.cluster.name}"
+  value = aws_eks_cluster.cluster.name
 }

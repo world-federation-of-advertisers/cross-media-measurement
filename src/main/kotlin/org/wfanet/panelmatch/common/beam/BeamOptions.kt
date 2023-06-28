@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.common.beam
 
 import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions
+import org.apache.beam.sdk.options.PortablePipelineOptions
 import org.apache.beam.sdk.options.SdkHarnessOptions
 
 interface BeamOptions : DataflowPipelineOptions, SdkHarnessOptions {
@@ -22,3 +23,5 @@ interface BeamOptions : DataflowPipelineOptions, SdkHarnessOptions {
   var awsSecretAccessKey: String
   var awsSessionToken: String
 }
+
+interface AwsBeamOptions : PortablePipelineOptions, BeamOptions

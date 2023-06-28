@@ -111,6 +111,7 @@ MAVEN_ARTIFACTS_DICT = dict(common_jvm_maven_artifacts_dict().items() + {
     "com.google.cloud:google-cloud-security-private-ca": "2.3.1",
     "org.apache.beam:beam-runners-direct-java": APACHE_BEAM_VERSION,
     "org.apache.beam:beam-runners-google-cloud-dataflow-java": APACHE_BEAM_VERSION,
+    "org.apache.beam:beam-runners-portability-java": APACHE_BEAM_VERSION,
     "org.apache.beam:beam-sdks-java-io-google-cloud-platform": APACHE_BEAM_VERSION,
     "org.slf4j:slf4j-simple": "1.7.32",
     "software.amazon.awssdk:sts": AWS_SDK_VERSION,

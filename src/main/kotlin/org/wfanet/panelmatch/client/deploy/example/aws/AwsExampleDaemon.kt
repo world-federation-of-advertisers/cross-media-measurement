@@ -18,6 +18,7 @@ import com.google.crypto.tink.integration.awskms.AwsKmsClient
 import java.util.Optional
 import kotlin.properties.Delegates
 import org.apache.beam.runners.direct.DirectRunner
+import org.apache.beam.runners.portability.PortableRunner
 import org.apache.beam.sdk.options.PipelineOptions
 import org.apache.beam.sdk.options.PipelineOptionsFactory
 import org.apache.beam.sdk.options.SdkHarnessOptions
@@ -29,6 +30,7 @@ import org.wfanet.panelmatch.client.deploy.CertificateAuthorityFlags
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
 import org.wfanet.panelmatch.client.deploy.example.ExampleDaemon
 import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
+import org.wfanet.panelmatch.common.beam.AwsBeamOptions
 import org.wfanet.panelmatch.common.beam.BeamOptions
 import org.wfanet.panelmatch.common.certificates.aws.CertificateAuthority
 import org.wfanet.panelmatch.common.certificates.aws.PrivateCaClient
@@ -38,8 +40,6 @@ import picocli.CommandLine
 import picocli.CommandLine.Command
 import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
-import software.amazon.awssdk.auth.credentials.AwsSessionCredentials
-import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.s3.S3AsyncClient
 
@@ -60,14 +60,22 @@ private class AwsExampleDaemon : ExampleDaemon() {
   lateinit var certificateAuthorityArn: String
     private set
 
-  @CommandLine.Option(
+  @Option(
+    names = ["--beam-job-endpoint"],
+    description = ["The hostname:port of the Beam Job Service."],
+    required = true
+  )
+  lateinit var jobEndpointFlag: String
+    private set
+
+  @Option(
     names = ["--s3-storage-bucket"],
     description = ["The name of the s3 bucket used for default private storage."],
   )
   lateinit var s3Bucket: String
     private set
 
-  @CommandLine.Option(
+  @Option(
     names = ["--s3-region"],
     description = ["The region the s3 bucket is located in."],
   )
@@ -75,32 +83,26 @@ private class AwsExampleDaemon : ExampleDaemon() {
     private set
 
   @set:Option(
-    names = ["--s3-from-beam"],
-    description = ["Whether to configure s3 access from Apache Beam."],
+    names = ["--use-direct-runner"],
+    description = ["Whether to use the Apache Beam Direct Runner (for testing)."],
     defaultValue = "true"
   )
-  private var s3FromBeam by Delegates.notNull<Boolean>()
+  private var useDirectRunner by Delegates.notNull<Boolean>()
 
   override fun makePipelineOptions(): PipelineOptions {
-    // TODO(jmolle): replace usage of DirectRunner.
-    val baseOptions =
+
+    // Keep the old direct runner option behind a flag to be able to test small workflows without
+    // needing a working portable job runner.
+    return if (useDirectRunner) {
       PipelineOptionsFactory.`as`(BeamOptions::class.java).apply {
         runner = DirectRunner::class.java
-        defaultSdkHarnessLogLevel = SdkHarnessOptions.LogLevel.INFO
       }
-    return if (!s3FromBeam) {
-      baseOptions
     } else {
-      // aws-sdk-java-v2 casts responses to AwsSessionCredentials if its assumed you need a
-      // sessionToken
-      val awsCredentials =
-        DefaultCredentialsProvider.create().resolveCredentials() as AwsSessionCredentials
-      // TODO: Encrypt using KMS or store in Secrets
-      // Think about moving this logic to a CredentialsProvider
-      baseOptions.apply {
-        awsAccessKey = awsCredentials.accessKeyId()
-        awsSecretAccessKey = awsCredentials.secretAccessKey()
-        awsSessionToken = awsCredentials.sessionToken()
+      PipelineOptionsFactory.`as`(AwsBeamOptions::class.java).apply {
+        runner = PortableRunner::class.java
+        jobEndpoint = jobEndpointFlag
+        defaultEnvironmentType = "DOCKER"
+        defaultSdkHarnessLogLevel = SdkHarnessOptions.LogLevel.INFO
       }
     }
   }
