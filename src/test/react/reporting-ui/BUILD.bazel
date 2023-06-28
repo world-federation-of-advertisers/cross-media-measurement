@@ -49,12 +49,12 @@ jest_test(
     config = ":jest_config",
     data = [
         ":test_files",
+        ":test_node_deps",
         ":tsconfig",
         "//src/main/react/reporting-ui:build_node_deps",
         "//src/main/react/reporting-ui/src:src_files",
         "//src/test/react/jest:jest_base_config",
         "//src/test/react/jest:jest_files",
-        ":test_node_deps",
     ],
     node_modules = "//:node_modules",
 )
