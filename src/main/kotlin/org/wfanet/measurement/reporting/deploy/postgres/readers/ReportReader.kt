@@ -16,15 +16,14 @@ package org.wfanet.measurement.reporting.deploy.postgres.readers
 
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
-import com.google.gson.JsonPrimitive
 import com.google.protobuf.duration
 import com.google.protobuf.timestamp
 import java.time.Instant
-import java.util.Base64
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.base64MimeDecode
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
@@ -391,13 +390,11 @@ class ReportReader {
             state = Measurement.State.forNumber(it.getAsJsonPrimitive("state").asInt)
             if (!it.get("failure").isJsonNull) {
               failure =
-                Measurement.Failure.parseFrom(
-                  it.getAsJsonPrimitive("failure").decodePostgresBase64()
-                )
+                Measurement.Failure.parseFrom(it.getAsJsonPrimitive("failure").base64MimeDecode())
             }
             if (!it.get("result").isJsonNull) {
               result =
-                Measurement.Result.parseFrom(it.getAsJsonPrimitive("result").decodePostgresBase64())
+                Measurement.Result.parseFrom(it.getAsJsonPrimitive("result").base64MimeDecode())
             }
           }
         }
@@ -415,7 +412,7 @@ class ReportReader {
         metric {
           details =
             Metric.Details.parseFrom(
-              metricObject.getAsJsonPrimitive("metricDetails").decodePostgresBase64()
+              metricObject.getAsJsonPrimitive("metricDetails").base64MimeDecode()
             )
 
           val setOperationsArr = metricObject.getAsJsonArray("setOperations")
@@ -526,13 +523,5 @@ class ReportReader {
           }
         }
     }
-  }
-
-  /**
-   * Postgres base64 encoding follows MIME encoding standards from RFC 2045 by adding \n to break up
-   * the text. The MIME decoder ignores the \n.
-   */
-  private fun JsonPrimitive.decodePostgresBase64(): ByteArray {
-    return Base64.getMimeDecoder().decode(this.asString)
   }
 }

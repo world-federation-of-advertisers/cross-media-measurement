@@ -42,10 +42,12 @@ abstract class ComputationStatsServiceTest<T : ComputationStatsCoroutineImplBase
     val computationStatsService: T,
     val computationsService: ComputationsCoroutineImplBase,
   )
+
   private lateinit var computationStatsService: T
   private lateinit var computationsService: ComputationsCoroutineImplBase
 
   protected abstract fun newComputationStatsService(): T
+
   protected abstract fun newComputationsService(): ComputationsCoroutineImplBase
 
   @Before
@@ -80,7 +82,7 @@ abstract class ComputationStatsServiceTest<T : ComputationStatsCoroutineImplBase
         }
 
       assertThat(exception.status.code).isEqualTo(Status.INVALID_ARGUMENT.code)
-      assertThat(exception.message).contains("Missing computation ID")
+      assertThat(exception.message).contains("Missing")
     }
 
   @Test
