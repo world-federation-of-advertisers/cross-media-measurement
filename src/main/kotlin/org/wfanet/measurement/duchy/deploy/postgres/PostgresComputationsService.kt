@@ -131,7 +131,7 @@ class PostgresComputationsService(
     return if (claimed != null) {
       val token =
         ComputationReader(protocolStageEnumHelper).readComputationToken(client, claimed)
-          ?: failGrpc(Status.UNKNOWN) { "Claimed computation $claimed not found." }
+          ?: failGrpc(Status.INTERNAL) { "Claimed computation $claimed not found." }
 
       sendStatusUpdateToKingdom(
         newCreateComputationLogEntryRequest(
