@@ -19,39 +19,33 @@ import kotlin.test.assertFails
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.eventdataprovider.noisers.DpParams
 
 @RunWith(JUnit4::class)
 class AcdpParamsConverterTest {
 
   @Test
-  fun getMpcAcdpChargeThrowsExceptionWithInvalidEpsilon() {
+  fun `getMpcAcdpCharge throws exception with invalid epsilon`() {
     assertFails {
       AcdpParamsConverter.getMpcAcdpCharge(
-        differentialPrivacyParams {
-          epsilon = -0.1
-          delta = 0.1
-        },
+        DpParams(-0.1, 0.1),
         CONTRIBUTOR_COUNT,
       )
     }
   }
 
   @Test
-  fun getMpcAcdpChargeThrowsExceptionWithInvalidDelta() {
+  fun `getMpcAcdpCharge throws exception with invalid delta`() {
     assertFails {
       AcdpParamsConverter.getMpcAcdpCharge(
-        differentialPrivacyParams {
-          epsilon = 0.1
-          delta = -0.1
-        },
+        DpParams(0.1, -0.1),
         CONTRIBUTOR_COUNT,
       )
     }
   }
 
   @Test
-  fun getMpcAcdpChargeThrowsExceptionWithInvalidContributorCount() {
+  fun `getMpcAcdpCharge throws exception with invalid contributorCount`() {
     assertFails {
       AcdpParamsConverter.getMpcAcdpCharge(
         DP_PARAMS,
@@ -61,33 +55,27 @@ class AcdpParamsConverterTest {
   }
 
   @Test
-  fun getDirectAcdpChargeThrowsExceptionWithInvalidEpsilon() {
+  fun `getDirectAcdpCharge throws exception with invalid epsilon`() {
     assertFails {
       AcdpParamsConverter.getDirectAcdpCharge(
-        differentialPrivacyParams {
-          epsilon = -0.1
-          delta = 0.1
-        },
+        DpParams(-0.1, 0.1),
         SENSITIVITY,
       )
     }
   }
 
   @Test
-  fun getDirectAcdpChargeThrowsExceptionWithInvalidDelta() {
+  fun `getDirectAcdpCharge throws exception with invalid delta`() {
     assertFails {
       AcdpParamsConverter.getDirectAcdpCharge(
-        differentialPrivacyParams {
-          epsilon = 0.1
-          delta = -0.1
-        },
+        DpParams(0.1, -0.1),
         SENSITIVITY,
       )
     }
   }
 
   @Test
-  fun mpcRhoAndThetaShouldBeCorrectWithGivenDpParamsAndOneContributor() {
+  fun `mpc rho and theta should be correct with given dpParams and one contributor`() {
     // mu and sigmaDistributed with given DP params: mu = 261.0, sigma = 48.23177914088707
     val acdpCharge =
       AcdpParamsConverter.getMpcAcdpCharge(
@@ -96,23 +84,25 @@ class AcdpParamsConverterTest {
       )
     val expectedAcdpCharge = AcdpCharge(2.149331679905983E-4, 4.378180881551259E-7)
 
-    assertThat(acdpCharge).isEqualTo(expectedAcdpCharge)
+    assertThat(acdpCharge.rho).isWithin(TOLERANCE).of(expectedAcdpCharge.rho)
+    assertThat(acdpCharge.theta).isWithin(TOLERANCE).of(expectedAcdpCharge.theta)
   }
 
   @Test
-  fun mpcRhoAndThetaShouldBeCorrectWithGivenDpParamsAndThreeContributors() {
+  fun `mpc rho and theta should be correct with given dpParams and three contributors`() {
     val acdpCharge =
       AcdpParamsConverter.getMpcAcdpCharge(
         DP_PARAMS,
         3,
       )
-    val expectedAcdpCharge = AcdpCharge(5.000214933167991, 4.5945334251551807E-7)
+    val expectedAcdpCharge = AcdpCharge(2.149331679905983E-4, 4.5945334251551807E-7)
 
-    assertThat(acdpCharge).isEqualTo(expectedAcdpCharge)
+    assertThat(acdpCharge.rho).isWithin(TOLERANCE).of(expectedAcdpCharge.rho)
+    assertThat(acdpCharge.theta).isWithin(TOLERANCE).of(expectedAcdpCharge.theta)
   }
 
   @Test
-  fun directRhoAndThetaShouldBeCorrectWithGivenDpParams() {
+  fun `direct rho and theta should be correct with given dpParams`() {
     val acdpCharge =
       AcdpParamsConverter.getDirectAcdpCharge(
         DP_PARAMS,
@@ -120,15 +110,16 @@ class AcdpParamsConverterTest {
       )
     val expectedAcdpCharge = AcdpCharge(4.946819611450154E-4, 0.0)
 
-    assertThat(acdpCharge).isEqualTo(expectedAcdpCharge)
+    assertThat(acdpCharge.rho).isWithin(TOLERANCE).of(expectedAcdpCharge.rho)
+    assertThat(acdpCharge.theta).isWithin(TOLERANCE).of(expectedAcdpCharge.theta)
   }
 
   companion object {
-    private val DP_PARAMS = differentialPrivacyParams {
-      epsilon = ln(3.0) / 10 // 0.1098
-      delta = 0.2 / 100000
-    }
+    // ln(3.0) / 10 = 0.1098
+    private val DP_PARAMS = DpParams(ln(3.0) / 10, 0.2 / 100000)
+
     private const val CONTRIBUTOR_COUNT = 1
-    private const val SENSITIVITY = 1
+    private const val SENSITIVITY = 1.0
+    private const val TOLERANCE = 1E-10
   }
 }

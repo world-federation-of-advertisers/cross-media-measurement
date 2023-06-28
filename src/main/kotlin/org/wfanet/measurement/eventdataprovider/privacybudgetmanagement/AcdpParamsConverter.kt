@@ -21,7 +21,7 @@ import kotlin.math.ln
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sqrt
-import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
+import org.wfanet.measurement.eventdataprovider.noisers.DpParams
 import org.wfanet.measurement.eventdataprovider.noisers.GaussianNoiser
 
 /**
@@ -38,12 +38,12 @@ object AcdpParamsConverter {
    * Convert MPC per-query DP charge(epsilon, delta) to ACDP charge(rho, theta). The computation
    * result is memoized.
    *
-   * @param privacyParams DifferentialPrivacyParams.
+   * @param privacyParams Internal DifferentialPrivacyParams.
    * @param contributorCount Number of Duchies.
    * @return ACDP charge(rho, theta).
    */
   fun getMpcAcdpCharge(
-    privacyParams: DifferentialPrivacyParams,
+    privacyParams: DpParams,
     contributorCount: Int,
   ): AcdpCharge {
     require(privacyParams.epsilon > 0 && privacyParams.delta > 0 && contributorCount > 0) {
@@ -60,13 +60,13 @@ object AcdpParamsConverter {
   /**
    * Convert Direct per-query DP charge(epsilon, delta) to ACDP charge(rho, theta).
    *
-   * @param privacyParams DifferentialPrivacyParams.
+   * @param privacyParams Internal DifferentialPrivacyParams.
    * @param sensitivity Sensitivity parameter in ACDP conversion formulas.
    * @return ACDP charge(rho, theta).
    */
   fun getDirectAcdpCharge(
-    privacyParams: DifferentialPrivacyParams,
-    sensitivity: Int,
+    privacyParams: DpParams,
+    sensitivity: Double,
   ): AcdpCharge {
     require(privacyParams.epsilon > 0 && privacyParams.delta > 0) {
       "Epsilon and delta must be positive, but got: epsilon=${privacyParams.epsilon} delta=${privacyParams.delta}"
@@ -86,7 +86,7 @@ object AcdpParamsConverter {
   private fun getMpcDeltas(delta: Double): MpcDeltas = MpcDeltas(0.5 * delta, 0.5 * delta)
 
   private fun computeSigmaDistributedDiscreteGaussian(
-    privacyParams: DifferentialPrivacyParams,
+    privacyParams: DpParams,
     contributorCount: Int
   ): Double {
     // The sigma calculation formula is a closed-form formula from The Algorithmic
@@ -108,7 +108,7 @@ object AcdpParamsConverter {
   }
 
   private fun computeMuDiscreteGaussian(
-    privacyParams: DifferentialPrivacyParams,
+    privacyParams: DpParams,
     sigmaDistributed: Double,
     contributorCount: Int
   ): Double {
@@ -124,21 +124,22 @@ object AcdpParamsConverter {
     )
   }
 
-  private fun computeMpcRhoAndTheta(
-    privacyParams: DifferentialPrivacyParams,
-    contributorCount: Int
-  ): AcdpCharge {
+  private fun computeMpcRhoAndTheta(privacyParams: DpParams, contributorCount: Int): AcdpCharge {
     val sigmaDistributed = computeSigmaDistributedDiscreteGaussian(privacyParams, contributorCount)
     val mu = computeMuDiscreteGaussian(privacyParams, sigmaDistributed, contributorCount)
 
     // For reach and frequency, the sensitivity Delta should be 1.
-    val sensitivity = 1
+    val sensitivity = 1.0
     val sigma = sigmaDistributed * sqrt(contributorCount.toDouble())
     val eps = sensitivity / sigma
 
     var lambda = 0.0
     for (i in 1 until contributorCount) {
-      lambda += exp(-(2 * PI.pow(2) * sigma.pow(2) / contributorCount) * (i / (i + 1)))
+      lambda +=
+        exp(
+          -(2 * PI.pow(2) * sigma.pow(2) / contributorCount.toDouble()) *
+            (i.toDouble() / (i.toDouble() + 1))
+        )
     }
     val epsPrime = min(sqrt(eps.pow(2) + 5 * lambda), eps + 10 * lambda)
 
@@ -150,7 +151,7 @@ object AcdpParamsConverter {
 }
 
 private data class MpcAcdpParamsConversionKey(
-  val privacyParams: DifferentialPrivacyParams,
+  val privacyParams: DpParams,
   val contributorCount: Int,
 )
 
