@@ -33,6 +33,7 @@ import org.wfanet.measurement.api.v2alpha.RemoveMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -80,7 +81,7 @@ class MeasurementConsumersService(
       }
       externalAccountId = account.externalAccountId
       measurementConsumerCreationTokenHash =
-        hashSha256(apiIdToExternalId(measurementConsumer.measurementConsumerCreationToken))
+        Hashing.hashSha256(apiIdToExternalId(measurementConsumer.measurementConsumerCreationToken))
     }
 
     val internalMeasurementConsumer =

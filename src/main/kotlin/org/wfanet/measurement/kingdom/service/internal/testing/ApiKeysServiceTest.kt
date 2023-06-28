@@ -26,6 +26,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
@@ -227,7 +228,9 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
 
     val result =
       apiKeysService.authenticateApiKey(
-        authenticateApiKeyRequest { authenticationKeyHash = hashSha256(apiKey.authenticationKey) }
+        authenticateApiKeyRequest {
+          authenticationKeyHash = Hashing.hashSha256(apiKey.authenticationKey)
+        }
       )
 
     assertThat(result).comparingExpectedFieldsOnly().isEqualTo(measurementConsumer)
@@ -251,7 +254,7 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
       val exception =
         assertFailsWith<StatusRuntimeException> {
           apiKeysService.authenticateApiKey(
-            authenticateApiKeyRequest { authenticationKeyHash = hashSha256(1L) }
+            authenticateApiKeyRequest { authenticationKeyHash = Hashing.hashSha256(1L) }
           )
         }
 
@@ -281,7 +284,9 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         apiKeysService.authenticateApiKey(
-          authenticateApiKeyRequest { authenticationKeyHash = hashSha256(apiKey.authenticationKey) }
+          authenticateApiKeyRequest {
+            authenticationKeyHash = Hashing.hashSha256(apiKey.authenticationKey)
+          }
         )
       }
 

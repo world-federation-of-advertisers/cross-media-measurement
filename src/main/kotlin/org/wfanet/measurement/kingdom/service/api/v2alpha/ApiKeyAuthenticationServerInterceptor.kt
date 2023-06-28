@@ -30,6 +30,7 @@ import org.wfanet.measurement.api.ApiKeyConstants
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.withPrincipal
+import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.grpc.SuspendableServerInterceptor
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -84,7 +85,7 @@ class ApiKeyAuthenticationServerInterceptor(
   ): MeasurementConsumer =
     internalApiKeysClient.authenticateApiKey(
       authenticateApiKeyRequest {
-        authenticationKeyHash = hashSha256(apiIdToExternalId(authenticationKey))
+        authenticationKeyHash = Hashing.hashSha256(apiIdToExternalId(authenticationKey))
       }
     )
 }

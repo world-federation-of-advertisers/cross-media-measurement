@@ -72,6 +72,7 @@ import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
@@ -531,7 +532,7 @@ class MetricsService(
               dataProviderCertificate = certificate.name
               dataProviderPublicKey = dataProvider.publicKey
               this.encryptedRequisitionSpec = encryptRequisitionSpec
-              nonceHash = hashSha256(requisitionSpec.nonce)
+              nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
             }
         }
       }

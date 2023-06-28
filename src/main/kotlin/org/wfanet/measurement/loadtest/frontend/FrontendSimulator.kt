@@ -84,6 +84,7 @@ import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Compa
 import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
@@ -344,7 +345,7 @@ class FrontendSimulator(
         .take(maxDataProviders)
         .map { (dataProviderKey, eventGroups) ->
           val nonce = Random.Default.nextLong()
-          nonceHashes.add(hashSha256(nonce))
+          nonceHashes.add(Hashing.hashSha256(nonce))
           createDataProviderEntry(dataProviderKey, eventGroups, measurementConsumer, nonce)
         }
 
@@ -687,7 +688,7 @@ class FrontendSimulator(
     }
     val signedRequisitionSpec =
       signRequisitionSpec(requisitionSpec, measurementConsumerData.signingKey)
-    return dataProvider.toDataProviderEntry(signedRequisitionSpec, hashSha256(nonce))
+    return dataProvider.toDataProviderEntry(signedRequisitionSpec, Hashing.hashSha256(nonce))
   }
 
   private fun DataProvider.toDataProviderEntry(

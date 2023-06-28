@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Value
+import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -26,7 +27,8 @@ class CreateMeasurementConsumerCreationToken() : SimpleSpannerWriter<Long>() {
   override suspend fun TransactionScope.runTransaction(): Long {
     val internalMeasurementConsumerCreationTokenId = idGenerator.generateInternalId()
     val measurementConsumerCreationToken = idGenerator.generateExternalId()
-    val measurementConsumerCreationTokenHash = hashSha256(measurementConsumerCreationToken.value)
+    val measurementConsumerCreationTokenHash =
+      Hashing.hashSha256(measurementConsumerCreationToken.value)
 
     transactionContext.bufferInsertMutation("MeasurementConsumerCreationTokens") {
       set("MeasurementConsumerCreationTokenId" to internalMeasurementConsumerCreationTokenId)

@@ -25,6 +25,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import kotlin.random.Random
 import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.tink.PublicJwkHandle
 import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens
@@ -116,7 +117,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     val account = createAccount(accountsService)
     activateAccount(accountsService, account)
     val measurementConsumerCreationTokenHash =
-      hashSha256(createMeasurementConsumerCreationToken(accountsService))
+      Hashing.hashSha256(createMeasurementConsumerCreationToken(accountsService))
     return measurementConsumersService.createMeasurementConsumer(
       createMeasurementConsumerRequest {
         measurementConsumer = measurementConsumer {
@@ -441,7 +442,7 @@ fun DataProvider.toDataProviderValue(nonce: Long = Random.Default.nextLong()) = 
   dataProviderPublicKey = details.publicKey
   dataProviderPublicKeySignature = details.publicKeySignature
   encryptedRequisitionSpec = "Encrypted RequisitionSpec $nonce".toByteStringUtf8()
-  nonceHash = hashSha256(nonce)
+  nonceHash = Hashing.hashSha256(nonce)
 }
 
 /**

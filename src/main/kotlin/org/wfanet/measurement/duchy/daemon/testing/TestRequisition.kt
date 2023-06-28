@@ -19,6 +19,7 @@ package org.wfanet.measurement.duchy.daemon.testing
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import kotlin.random.Random
+import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.duchy.requisitionDetails
@@ -34,7 +35,7 @@ data class TestRequisition(
 ) {
   val requisitionSpecHash: ByteString = Random.Default.nextBytes(32).toByteString()
   val nonce: Long = Random.Default.nextLong()
-  val nonceHash = hashSha256(nonce)
+  val nonceHash = Hashing.hashSha256(nonce)
   val requisitionFingerprint
     get() = hashSha256(serializedMeasurementSpecProvider().concat(requisitionSpecHash))
 
