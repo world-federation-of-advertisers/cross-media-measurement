@@ -30,19 +30,19 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.withAuthenticationKey
-import org.wfanet.measurement.consent.client.measurementconsumer.decryptMetadata
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.consent.client.measurementconsumer.decryptMetadata
 import org.wfanet.measurement.reporting.service.api.CelEnvProvider
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
-import org.wfanet.measurement.reporting.v2alpha.EventGroupKt
-import org.wfanet.measurement.reporting.v2alpha.eventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
-import org.wfanet.measurement.reporting.v2alpha.listEventGroupsResponse
+import org.wfanet.measurement.reporting.v2alpha.EventGroupKt
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
+import org.wfanet.measurement.reporting.v2alpha.eventGroup
+import org.wfanet.measurement.reporting.v2alpha.listEventGroupsResponse
 
 class EventGroupsService(
   private val cmmsEventGroupsStub: CmmsEventGroupsCoroutineStub,
@@ -59,16 +59,17 @@ class EventGroupsService(
     when (principal) {
       is MeasurementConsumerPrincipal -> {
         if (request.parent != principal.resourceKey.toName()) {
-          throw Status.PERMISSION_DENIED.withDescription("Cannot list event groups for another MeasurementConsumer").asRuntimeException()
+          throw Status.PERMISSION_DENIED.withDescription(
+              "Cannot list event groups for another MeasurementConsumer"
+            )
+            .asRuntimeException()
         }
       }
     }
 
     val apiAuthenticationKey: String = principal.config.apiKey
 
-    grpcRequire(request.pageSize >= 0) {
-      "page_size cannot be negative"
-    }
+    grpcRequire(request.pageSize >= 0) { "page_size cannot be negative" }
 
     val pageSize =
       when {
@@ -90,10 +91,10 @@ class EventGroupsService(
           )
       } catch (e: StatusException) {
         throw when (e.status.code) {
-          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-          Status.Code.CANCELLED -> Status.CANCELLED
-          else -> Status.UNKNOWN
-        }
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            Status.Code.CANCELLED -> Status.CANCELLED
+            else -> Status.UNKNOWN
+          }
           .withCause(e)
           .asRuntimeException()
       }
@@ -133,15 +134,13 @@ class EventGroupsService(
       try {
         env.compile(filter)
       } catch (_: Exception) {
-        throw Status.INVALID_ARGUMENT.withDescription(
-          "filter is not a valid CEL expression"
-        )
+        throw Status.INVALID_ARGUMENT.withDescription("filter is not a valid CEL expression")
           .asRuntimeException()
       }
     if (astAndIssues.hasIssues()) {
       throw Status.INVALID_ARGUMENT.withDescription(
-        "filter is not a valid CEL expression: ${astAndIssues.issues}"
-      )
+          "filter is not a valid CEL expression: ${astAndIssues.issues}"
+        )
         .asRuntimeException()
     }
     val program = env.program(astAndIssues.ast)
@@ -153,8 +152,8 @@ class EventGroupsService(
         val typeUrl = it.metadata.metadata.typeUrl
         typeRegistry.getDescriptorForTypeUrl(typeUrl)
           ?: throw Status.FAILED_PRECONDITION.withDescription(
-            "${it.metadata.eventGroupMetadataDescriptor} does not contain descriptor for $typeUrl"
-          )
+              "${it.metadata.eventGroupMetadataDescriptor} does not contain descriptor for $typeUrl"
+            )
             .asRuntimeException()
       }
 
@@ -189,23 +188,22 @@ class EventGroupsService(
     principalName: String,
   ): CmmsEventGroup.Metadata {
     if (!cmmsEventGroup.hasMeasurementConsumerPublicKey()) {
-      throw Status.FAILED_PRECONDITION
-        .withDescription("EventGroup ${cmmsEventGroup.name} has encrypted metadata but no encryption public key")
+      throw Status.FAILED_PRECONDITION.withDescription(
+          "EventGroup ${cmmsEventGroup.name} has encrypted metadata but no encryption public key"
+        )
         .asRuntimeException()
     }
     val encryptionKey =
       EncryptionPublicKey.parseFrom(cmmsEventGroup.measurementConsumerPublicKey.data)
     val decryptionKeyHandle: PrivateKeyHandle =
       encryptionKeyPairStore.getPrivateKeyHandle(principalName, encryptionKey.data)
-        ?: throw Status.FAILED_PRECONDITION
-          .withDescription("Public key does not have corresponding private key")
+        ?: throw Status.FAILED_PRECONDITION.withDescription(
+            "Public key does not have corresponding private key"
+          )
           .asRuntimeException()
 
     return try {
-      decryptMetadata(
-        cmmsEventGroup.encryptedMetadata,
-        decryptionKeyHandle
-      )
+      decryptMetadata(cmmsEventGroup.encryptedMetadata, decryptionKeyHandle)
     } catch (e: GeneralSecurityException) {
       throw Status.FAILED_PRECONDITION.withCause(e)
         .withDescription("Metadata cannot be decrypted")
@@ -220,20 +218,19 @@ class EventGroupsService(
       requireNotNull(MeasurementConsumerKey.fromName(measurementConsumer))
     return eventGroup {
       name =
-        EventGroupKey(
-          measurementConsumerKey.measurementConsumerId,
-          cmmsEventGroupKey.eventGroupId
-        )
+        EventGroupKey(measurementConsumerKey.measurementConsumerId, cmmsEventGroupKey.eventGroupId)
           .toName()
       cmmsEventGroup = source.name
       cmmsDataProvider = DataProviderKey(cmmsEventGroupKey.dataProviderId).toName()
       eventGroupReferenceId = source.eventGroupReferenceId
-      eventTemplates += source.eventTemplatesList.map { EventGroupKt.eventTemplate { type = it.type } }
+      eventTemplates +=
+        source.eventTemplatesList.map { EventGroupKt.eventTemplate { type = it.type } }
       if (cmmsMetadata != null) {
-        metadata = EventGroupKt.metadata {
-          eventGroupMetadataDescriptor = cmmsMetadata.eventGroupMetadataDescriptor
-          metadata = cmmsMetadata.metadata
-        }
+        metadata =
+          EventGroupKt.metadata {
+            eventGroupMetadataDescriptor = cmmsMetadata.eventGroupMetadataDescriptor
+            metadata = cmmsMetadata.metadata
+          }
       }
     }
   }

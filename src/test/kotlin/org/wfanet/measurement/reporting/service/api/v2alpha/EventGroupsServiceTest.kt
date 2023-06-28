@@ -33,7 +33,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroupKt
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorKey
@@ -42,17 +44,20 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.Ev
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
-import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessageKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsResponse
+import org.wfanet.measurement.api.v2alpha.listEventGroupsPageToken
+import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.common.ProtoReflection
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
@@ -67,26 +72,21 @@ import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairSto
 import org.wfanet.measurement.reporting.v2alpha.EventGroupKt
 import org.wfanet.measurement.reporting.v2alpha.eventGroup
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
-import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
-import org.mockito.kotlin.whenever
-import org.wfanet.measurement.api.v2alpha.copy
-import org.wfanet.measurement.api.v2alpha.listEventGroupsPageToken
-import org.wfanet.measurement.common.base64UrlEncode
 
 @RunWith(JUnit4::class)
 class EventGroupsServiceTest {
-  private val publicKingdomEventGroupsMock: EventGroupsCoroutineImplBase =
-    mockService {
-      onBlocking { listEventGroups(any()) }
-        .thenReturn(
-          listEventGroupsResponse {
-            eventGroups += listOf(CMMS_EVENT_GROUP, CMMS_EVENT_GROUP)
-            nextPageToken = ""
-          }
-        )
-    }
+  private val publicKingdomEventGroupsMock: EventGroupsCoroutineImplBase = mockService {
+    onBlocking { listEventGroups(any()) }
+      .thenReturn(
+        listEventGroupsResponse {
+          eventGroups += listOf(CMMS_EVENT_GROUP, CMMS_EVENT_GROUP)
+          nextPageToken = ""
+        }
+      )
+  }
 
-  private val publicKingdomEventGroupMetadataDescriptorsMock: EventGroupMetadataDescriptorsCoroutineImplBase =
+  private val publicKingdomEventGroupMetadataDescriptorsMock:
+    EventGroupMetadataDescriptorsCoroutineImplBase =
     mockService {
       onBlocking { listEventGroupMetadataDescriptors(any()) }
         .thenReturn(
@@ -96,7 +96,8 @@ class EventGroupsServiceTest {
         )
     }
 
-  @get:Rule val grpcTestServerRule = GrpcTestServerRule {
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule {
     addService(publicKingdomEventGroupsMock)
     addService(publicKingdomEventGroupMetadataDescriptorsMock)
   }
@@ -134,13 +135,12 @@ class EventGroupsServiceTest {
       cmmsEventGroup = CMMS_EVENT_GROUP_NAME
       cmmsDataProvider = DATA_PROVIDER_NAME
       eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
-      eventTemplates += EventGroupKt.eventTemplate {
-        type = TestEvent.getDescriptor().fullName
-      }
-      metadata = EventGroupKt.metadata {
-        eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-        metadata = Any.pack(TEST_MESSAGE)
-      }
+      eventTemplates += EventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
+      metadata =
+        EventGroupKt.metadata {
+          eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+          metadata = Any.pack(TEST_MESSAGE)
+        }
     }
 
     assertThat(response.eventGroupsList).containsExactly(expectedEventGroup, expectedEventGroup)
@@ -163,33 +163,34 @@ class EventGroupsServiceTest {
       duration = TestMetadataMessageKt.duration { value = 20 }
     }
 
-    val cmmsEventGroup2 = CMMS_EVENT_GROUP.copy {
-      encryptedMetadata =
-        encryptMetadata(
-          CmmsEventGroupKt.metadata {
-            eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-            metadata = Any.pack(testMessage)
-          },
-          ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey()
-        )
-    }
+    val cmmsEventGroup2 =
+      CMMS_EVENT_GROUP.copy {
+        encryptedMetadata =
+          encryptMetadata(
+            CmmsEventGroupKt.metadata {
+              eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+              metadata = Any.pack(testMessage)
+            },
+            ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey()
+          )
+      }
 
     runBlocking {
       whenever(publicKingdomEventGroupsMock.listEventGroups(any()))
         .thenReturn(
-          listEventGroupsResponse {
-            eventGroups += listOf(CMMS_EVENT_GROUP, cmmsEventGroup2)
-          }
+          listEventGroupsResponse { eventGroups += listOf(CMMS_EVENT_GROUP, cmmsEventGroup2) }
         )
     }
 
     val response =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
         runBlocking {
-          service.listEventGroups(listEventGroupsRequest {
-            parent = MEASUREMENT_CONSUMER_NAME
-            filter = "metadata.metadata.age.value > 5"
-          })
+          service.listEventGroups(
+            listEventGroupsRequest {
+              parent = MEASUREMENT_CONSUMER_NAME
+              filter = "metadata.metadata.age.value > 5"
+            }
+          )
         }
       }
 
@@ -198,13 +199,12 @@ class EventGroupsServiceTest {
       cmmsEventGroup = CMMS_EVENT_GROUP_NAME
       cmmsDataProvider = DATA_PROVIDER_NAME
       eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
-      eventTemplates += EventGroupKt.eventTemplate {
-        type = TestEvent.getDescriptor().fullName
-      }
-      metadata = EventGroupKt.metadata {
-        eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-        metadata = Any.pack(TEST_MESSAGE)
-      }
+      eventTemplates += EventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
+      metadata =
+        EventGroupKt.metadata {
+          eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+          metadata = Any.pack(TEST_MESSAGE)
+        }
     }
 
     assertThat(response.eventGroupsList).containsExactly(expectedEventGroup)
@@ -221,19 +221,20 @@ class EventGroupsServiceTest {
 
   @Test
   fun `listEventGroups uses page token when page token present`() {
-    val pageToken = listEventGroupsPageToken {
-      externalMeasurementConsumerId = 1234
-    }
-      .toByteString()
-      .base64UrlEncode()
+    val pageToken =
+      listEventGroupsPageToken { externalMeasurementConsumerId = 1234 }
+        .toByteString()
+        .base64UrlEncode()
 
     val response =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
         runBlocking {
-          service.listEventGroups(listEventGroupsRequest {
-            parent = MEASUREMENT_CONSUMER_NAME
-            this.pageToken = pageToken
-          })
+          service.listEventGroups(
+            listEventGroupsRequest {
+              parent = MEASUREMENT_CONSUMER_NAME
+              this.pageToken = pageToken
+            }
+          )
         }
       }
 
@@ -242,13 +243,12 @@ class EventGroupsServiceTest {
       cmmsEventGroup = CMMS_EVENT_GROUP_NAME
       cmmsDataProvider = DATA_PROVIDER_NAME
       eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
-      eventTemplates += EventGroupKt.eventTemplate {
-        type = TestEvent.getDescriptor().fullName
-      }
-      metadata = EventGroupKt.metadata {
-        eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-        metadata = Any.pack(TEST_MESSAGE)
-      }
+      eventTemplates += EventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
+      metadata =
+        EventGroupKt.metadata {
+          eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+          metadata = Any.pack(TEST_MESSAGE)
+        }
     }
 
     assertThat(response.eventGroupsList).containsExactly(expectedEventGroup, expectedEventGroup)
@@ -266,11 +266,10 @@ class EventGroupsServiceTest {
 
   @Test
   fun `listEventGroups returns nextPageToken when it is present`() {
-    val nextPageToken = listEventGroupsPageToken {
-      externalMeasurementConsumerId = 1234
-    }
-      .toByteString()
-      .base64UrlEncode()
+    val nextPageToken =
+      listEventGroupsPageToken { externalMeasurementConsumerId = 1234 }
+        .toByteString()
+        .base64UrlEncode()
 
     runBlocking {
       whenever(publicKingdomEventGroupsMock.listEventGroups(any()))
@@ -285,9 +284,7 @@ class EventGroupsServiceTest {
     val response =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
         runBlocking {
-          service.listEventGroups(listEventGroupsRequest {
-            parent = MEASUREMENT_CONSUMER_NAME
-          })
+          service.listEventGroups(listEventGroupsRequest { parent = MEASUREMENT_CONSUMER_NAME })
         }
       }
 
@@ -296,13 +293,12 @@ class EventGroupsServiceTest {
       cmmsEventGroup = CMMS_EVENT_GROUP_NAME
       cmmsDataProvider = DATA_PROVIDER_NAME
       eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
-      eventTemplates += EventGroupKt.eventTemplate {
-        type = TestEvent.getDescriptor().fullName
-      }
-      metadata = EventGroupKt.metadata {
-        eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-        metadata = Any.pack(TEST_MESSAGE)
-      }
+      eventTemplates += EventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
+      metadata =
+        EventGroupKt.metadata {
+          eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+          metadata = Any.pack(TEST_MESSAGE)
+        }
     }
 
     assertThat(response.eventGroupsList).containsExactly(expectedEventGroup, expectedEventGroup)
@@ -323,10 +319,12 @@ class EventGroupsServiceTest {
     val response =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
         runBlocking {
-          service.listEventGroups(listEventGroupsRequest {
-            parent = MEASUREMENT_CONSUMER_NAME
-            pageSize = 0
-          })
+          service.listEventGroups(
+            listEventGroupsRequest {
+              parent = MEASUREMENT_CONSUMER_NAME
+              pageSize = 0
+            }
+          )
         }
       }
 
@@ -335,13 +333,12 @@ class EventGroupsServiceTest {
       cmmsEventGroup = CMMS_EVENT_GROUP_NAME
       cmmsDataProvider = DATA_PROVIDER_NAME
       eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
-      eventTemplates += EventGroupKt.eventTemplate {
-        type = TestEvent.getDescriptor().fullName
-      }
-      metadata = EventGroupKt.metadata {
-        eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-        metadata = Any.pack(TEST_MESSAGE)
-      }
+      eventTemplates += EventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
+      metadata =
+        EventGroupKt.metadata {
+          eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+          metadata = Any.pack(TEST_MESSAGE)
+        }
     }
 
     assertThat(response.eventGroupsList).containsExactly(expectedEventGroup, expectedEventGroup)
@@ -361,10 +358,12 @@ class EventGroupsServiceTest {
     val response =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
         runBlocking {
-          service.listEventGroups(listEventGroupsRequest {
-            parent = MEASUREMENT_CONSUMER_NAME
-            pageSize = MAX_PAGE_SIZE + 1
-          })
+          service.listEventGroups(
+            listEventGroupsRequest {
+              parent = MEASUREMENT_CONSUMER_NAME
+              pageSize = MAX_PAGE_SIZE + 1
+            }
+          )
         }
       }
 
@@ -373,13 +372,12 @@ class EventGroupsServiceTest {
       cmmsEventGroup = CMMS_EVENT_GROUP_NAME
       cmmsDataProvider = DATA_PROVIDER_NAME
       eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
-      eventTemplates += EventGroupKt.eventTemplate {
-        type = TestEvent.getDescriptor().fullName
-      }
-      metadata = EventGroupKt.metadata {
-        eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-        metadata = Any.pack(TEST_MESSAGE)
-      }
+      eventTemplates += EventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
+      metadata =
+        EventGroupKt.metadata {
+          eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+          metadata = Any.pack(TEST_MESSAGE)
+        }
     }
 
     assertThat(response.eventGroupsList).containsExactly(expectedEventGroup, expectedEventGroup)
@@ -396,15 +394,14 @@ class EventGroupsServiceTest {
 
   @Test
   fun `listEventGroups throws UNAUTHENTICATED when principal isn't reporting principal`() {
-    val exception = assertFailsWith<StatusRuntimeException> {
-      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-        runBlocking {
-          service.listEventGroups(listEventGroupsRequest {
-            parent = MEASUREMENT_CONSUMER_NAME
-          })
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.listEventGroups(listEventGroupsRequest { parent = MEASUREMENT_CONSUMER_NAME })
+          }
         }
       }
-    }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
     assertThat(exception.message).contains("No ReportingPrincipal")
@@ -412,13 +409,12 @@ class EventGroupsServiceTest {
 
   @Test
   fun `listEventGroups throws UNAUTHENTICATED when principal is missing`() {
-    val exception = assertFailsWith<StatusRuntimeException> {
-      runBlocking {
-        service.listEventGroups(listEventGroupsRequest {
-          parent = MEASUREMENT_CONSUMER_NAME
-        })
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.listEventGroups(listEventGroupsRequest { parent = MEASUREMENT_CONSUMER_NAME })
+        }
       }
-    }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
     assertThat(exception.message).contains("No ReportingPrincipal")
@@ -426,15 +422,16 @@ class EventGroupsServiceTest {
 
   @Test
   fun `listEventGroups throws PERMISSION_DENIED when principal doesn't match parent`() {
-    val exception = assertFailsWith<StatusRuntimeException> {
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
-        runBlocking {
-          service.listEventGroups(listEventGroupsRequest {
-            parent = MEASUREMENT_CONSUMER_NAME + 2
-          })
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking {
+            service.listEventGroups(
+              listEventGroupsRequest { parent = MEASUREMENT_CONSUMER_NAME + 2 }
+            )
+          }
         }
       }
-    }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
     assertThat(exception.message).contains("MeasurementConsumer")
@@ -442,16 +439,19 @@ class EventGroupsServiceTest {
 
   @Test
   fun `listEventGroups throws INVALID_ARGUMENT when page_size is negative`() {
-    val exception = assertFailsWith<StatusRuntimeException> {
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
-        runBlocking {
-          service.listEventGroups(listEventGroupsRequest {
-            parent = MEASUREMENT_CONSUMER_NAME
-            pageSize = -1
-          })
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking {
+            service.listEventGroups(
+              listEventGroupsRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                pageSize = -1
+              }
+            )
+          }
         }
       }
-    }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.message).contains("page_size")
@@ -459,13 +459,12 @@ class EventGroupsServiceTest {
 
   @Test
   fun `listEventGroups throws INVALID_ARGUMENT when parent is missing`() {
-    val exception = assertFailsWith<StatusRuntimeException> {
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
-        runBlocking {
-          service.listEventGroups(listEventGroupsRequest {})
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.listEventGroups(listEventGroupsRequest {}) }
         }
       }
-    }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.message).contains("unspecified")
@@ -473,16 +472,19 @@ class EventGroupsServiceTest {
 
   @Test
   fun `listEventGroups throws INVALID_ARGUMENT when parent is malformed`() {
-    val exception = assertFailsWith<StatusRuntimeException> {
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
-        runBlocking {
-          service.listEventGroups(listEventGroupsRequest {
-            parent = "$MEASUREMENT_CONSUMER_NAME//"
-            pageSize = -1
-          })
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking {
+            service.listEventGroups(
+              listEventGroupsRequest {
+                parent = "$MEASUREMENT_CONSUMER_NAME//"
+                pageSize = -1
+              }
+            )
+          }
         }
       }
-    }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.message).contains("unspecified")
@@ -490,16 +492,19 @@ class EventGroupsServiceTest {
 
   @Test
   fun `listEventGroups throws INVALID_ARGUMENT when operator overload in filter doesn't exist`() {
-    val exception = assertFailsWith<StatusRuntimeException> {
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
-        runBlocking {
-          service.listEventGroups(listEventGroupsRequest {
-            parent = MEASUREMENT_CONSUMER_NAME
-            filter = "name > 5"
-          })
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking {
+            service.listEventGroups(
+              listEventGroupsRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                filter = "name > 5"
+              }
+            )
+          }
         }
       }
-    }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.message).contains("not a valid CEL expression")
@@ -507,16 +512,19 @@ class EventGroupsServiceTest {
 
   @Test
   fun `listEventGroups throws INVALID_ARGUMENT when operator in filter doesn't exist`() {
-    val exception = assertFailsWith<StatusRuntimeException> {
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
-        runBlocking {
-          service.listEventGroups(listEventGroupsRequest {
-            parent = MEASUREMENT_CONSUMER_NAME
-            filter = "name >>> 5"
-          })
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking {
+            service.listEventGroups(
+              listEventGroupsRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                filter = "name >>> 5"
+              }
+            )
+          }
         }
       }
-    }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.message).contains("not a valid CEL expression")
@@ -538,15 +546,14 @@ class EventGroupsServiceTest {
         celEnvCacheProvider
       )
 
-    val exception = assertFailsWith<StatusRuntimeException> {
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
-        runBlocking {
-          service.listEventGroups(listEventGroupsRequest {
-            parent = MEASUREMENT_CONSUMER_NAME
-          })
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking {
+            service.listEventGroups(listEventGroupsRequest { parent = MEASUREMENT_CONSUMER_NAME })
+          }
         }
       }
-    }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception.message).contains("private key")
@@ -557,10 +564,12 @@ class EventGroupsServiceTest {
     assertFailsWith<RuntimeException> {
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
         runBlocking {
-          service.listEventGroups(listEventGroupsRequest {
-            parent = MEASUREMENT_CONSUMER_NAME
-            filter = "field_that_doesnt_exist = 10"
-          })
+          service.listEventGroups(
+            listEventGroupsRequest {
+              parent = MEASUREMENT_CONSUMER_NAME
+              filter = "field_that_doesnt_exist = 10"
+            }
+          )
         }
       }
     }
@@ -573,8 +582,7 @@ class EventGroupsServiceTest {
     private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
     private val CONFIG = measurementConsumerConfig { apiKey = API_AUTHENTICATION_KEY }
     private const val MEASUREMENT_CONSUMER_ID = "1234"
-    private val MEASUREMENT_CONSUMER_NAME =
-      MeasurementConsumerKey(MEASUREMENT_CONSUMER_ID).toName()
+    private val MEASUREMENT_CONSUMER_NAME = MeasurementConsumerKey(MEASUREMENT_CONSUMER_ID).toName()
 
     private val SECRET_FILES_PATH: Path =
       checkNotNull(
@@ -582,8 +590,10 @@ class EventGroupsServiceTest {
           Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
         )
       )
-    private val ENCRYPTION_PRIVATE_KEY = loadPrivateKey(SECRET_FILES_PATH.resolve("mc_enc_private.tink").toFile())
-    private val ENCRYPTION_PUBLIC_KEY = loadPublicKey(SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile())
+    private val ENCRYPTION_PRIVATE_KEY =
+      loadPrivateKey(SECRET_FILES_PATH.resolve("mc_enc_private.tink").toFile())
+    private val ENCRYPTION_PUBLIC_KEY =
+      loadPublicKey(SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile())
     private val ENCRYPTION_KEY_PAIR_STORE =
       InMemoryEncryptionKeyPairStore(
         mapOf(
@@ -600,7 +610,8 @@ class EventGroupsServiceTest {
       age = TestMetadataMessageKt.age { value = 15 }
       duration = TestMetadataMessageKt.duration { value = 20 }
     }
-    private val EVENT_GROUP_METADATA_DESCRIPTOR_NAME = EventGroupMetadataDescriptorKey(DATA_PROVIDER_ID, "1236").toName()
+    private val EVENT_GROUP_METADATA_DESCRIPTOR_NAME =
+      EventGroupMetadataDescriptorKey(DATA_PROVIDER_ID, "1236").toName()
     private val EVENT_GROUP_METADATA_DESCRIPTOR = eventGroupMetadataDescriptor {
       name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
       descriptorSet = ProtoReflection.buildFileDescriptorSet(TEST_MESSAGE.descriptorForType)
@@ -616,9 +627,7 @@ class EventGroupsServiceTest {
       measurementConsumerPublicKey = signedData {
         data = ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey().toByteString()
       }
-      eventTemplates += CmmsEventGroupKt.eventTemplate {
-        type = TestEvent.getDescriptor().fullName
-      }
+      eventTemplates += CmmsEventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
       encryptedMetadata =
         encryptMetadata(
           CmmsEventGroupKt.metadata {
