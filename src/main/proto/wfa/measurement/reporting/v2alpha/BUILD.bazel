@@ -113,7 +113,9 @@ proto_library(
 proto_library(
     name = "page_token_proto",
     srcs = ["page_token.proto"],
-    deps = [],
+    deps = [
+        "@com_google_protobuf//:timestamp_proto",
+    ],
 )
 
 java_proto_library(

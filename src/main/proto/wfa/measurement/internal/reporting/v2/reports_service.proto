@@ -43,13 +43,17 @@ message GetReportRequest {
 }
 
 message StreamReportsRequest {
-  message Filter {
-    // `MeasurementConsumer` ID from the CMMS public API.
-    string cmms_measurement_consumer_id = 1;
+  message AfterFilter {
     // Any `Report created after this time, exclusive, will be included.
-    google.protobuf.Timestamp create_time = 2;
-    // Skips to results with an external id greater than this.
-    fixed64 external_report_id_after = 3;
+    google.protobuf.Timestamp create_time = 1;
+    // Used for situations when two or more reports have the same create_time.
+    fixed64 external_report_id = 2;
+  }
+
+  message Filter {
+    // `MeasurementConsumer` ID from the CMMS public API. Required.
+    string cmms_measurement_consumer_id = 1;
+    AfterFilter after = 2;
   }
   Filter filter = 1;
 

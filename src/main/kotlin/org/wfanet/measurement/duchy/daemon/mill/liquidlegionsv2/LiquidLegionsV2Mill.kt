@@ -129,6 +129,7 @@ import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequ
  * @param workerStubs A map from other duchies' Ids to their corresponding
  *   computationControlClients, used for passing computation to other duchies.
  * @param cryptoWorker The cryptoWorker that performs the actual computation.
+ * @param parallelism The maximum number of threads used for crypto actions.
  */
 class LiquidLegionsV2Mill(
   millId: String,
@@ -149,6 +150,7 @@ class LiquidLegionsV2Mill(
   requestChunkSizeBytes: Int = 1024 * 32,
   maximumAttempts: Int = 10,
   clock: Clock = Clock.systemUTC(),
+  private val parallelism: Int = 1,
 ) :
   MillBase(
     millId,
@@ -559,6 +561,7 @@ class LiquidLegionsV2Mill(
           localElGamalKeyPair = llv2Details.localElgamalKey
           compositeElGamalPublicKey = llv2Details.combinedPublicKey
           curveId = llv2Details.parameters.ellipticCurveId.toLong()
+          parallelism = this@LiquidLegionsV2Mill.parallelism
           combinedRegisterVector = readAndCombineAllInputBlobs(token, 1)
           totalSketchesCount = token.requisitionsCount
           noiseMechanism = llv2Details.parameters.noise.noiseMechanism
@@ -612,6 +615,7 @@ class LiquidLegionsV2Mill(
                 localElGamalKeyPair = llv2Details.localElgamalKey
                 compositeElGamalPublicKey = llv2Details.combinedPublicKey
                 curveId = llv2Details.parameters.ellipticCurveId.toLong()
+                parallelism = this@LiquidLegionsV2Mill.parallelism
                 combinedRegisterVector = readAndCombineAllInputBlobs(token, 1)
               }
               .build()
@@ -760,6 +764,7 @@ class LiquidLegionsV2Mill(
           localElGamalKeyPair = llv2Details.localElgamalKey
           compositeElGamalPublicKey = llv2Details.combinedPublicKey
           curveId = llv2Parameters.ellipticCurveId.toLong()
+          parallelism = this@LiquidLegionsV2Mill.parallelism
           flagCountTuples = readAndCombineAllInputBlobs(token, 1)
           if (llv2Parameters.noise.hasFrequencyNoiseConfig()) {
             partialCompositeElGamalPublicKey = llv2Details.partiallyCombinedPublicKey
@@ -866,6 +871,7 @@ class LiquidLegionsV2Mill(
               .apply {
                 localElGamalKeyPair = llv2Details.localElgamalKey
                 curveId = llv2Parameters.ellipticCurveId.toLong()
+                parallelism = this@LiquidLegionsV2Mill.parallelism
                 sameKeyAggregatorMatrix = readAndCombineAllInputBlobs(token, 1)
               }
               .build()
@@ -961,6 +967,7 @@ class LiquidLegionsV2Mill(
           }
         }
         noiseMechanism = llv2Details.parameters.noise.noiseMechanism
+        parallelism = this@LiquidLegionsV2Mill.parallelism
       }
     }
   }
