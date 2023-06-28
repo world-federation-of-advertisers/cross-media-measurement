@@ -61,3 +61,35 @@ class ContinuationTokenMalformedException(
   override val context
     get() = mapOf("continuation_token" to continuationToken)
 }
+
+class ComputationNotFoundException(
+  val computationId: Long,
+  message: String = "Computation not found",
+) : DuchyInternalException(ErrorCode.COMPUTATION_NOT_FOUND, message) {
+  override val context
+    get() = mapOf("computation_id" to computationId.toString())
+}
+
+class ComputationDetailsNotFoundException(
+  val computationId: Long,
+  val computationStage: String,
+  val attempt: Long,
+  message: String = "ComputationDetails not found",
+) : DuchyInternalException(ErrorCode.COMPUTATION_DETAILS_NOT_FOUND, message) {
+  override val context
+    get() =
+      mapOf(
+        "computation_id" to computationId.toString(),
+        "computation_stage" to computationStage,
+        "attempt" to attempt.toString()
+      )
+}
+
+class ComputationInitialStageInvalidException(
+  val protocol: String,
+  val computationStage: String,
+  message: String = "Computation initial stage is invalid",
+) : DuchyInternalException(ErrorCode.COMPUTATION_DETAILS_NOT_FOUND, message) {
+  override val context
+    get() = mapOf("protocol" to protocol, "computation_stage" to computationStage)
+}
