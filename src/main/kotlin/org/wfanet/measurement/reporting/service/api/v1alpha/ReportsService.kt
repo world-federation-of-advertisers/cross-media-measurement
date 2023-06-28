@@ -72,10 +72,10 @@ import org.wfanet.measurement.api.v2alpha.timeInterval as measurementTimeInterva
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
-import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -1217,7 +1217,7 @@ class ReportsService(
             dataProviderCertificate = certificate.name
             dataProviderPublicKey = dataProvider.publicKey
             this.encryptedRequisitionSpec = encryptRequisitionSpec
-            nonceHash = hashSha256(requisitionSpec.nonce)
+            nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
           }
       }
     }

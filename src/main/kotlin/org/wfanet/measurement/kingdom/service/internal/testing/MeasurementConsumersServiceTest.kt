@@ -27,7 +27,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.crypto.hashSha256
+import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
@@ -135,7 +135,7 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
     val account = population.createAccount(accountsService)
     population.activateAccount(accountsService, account)
     val measurementConsumerCreationTokenHash =
-      hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
+      Hashing.hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
     measurementConsumersService.createMeasurementConsumer(
       createMeasurementConsumerRequest {
         this.measurementConsumer = MEASUREMENT_CONSUMER
@@ -163,7 +163,7 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
     runBlocking {
       val account = accountsService.createAccount(account {})
       val measurementConsumerCreationTokenHash =
-        hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
+        Hashing.hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
@@ -182,7 +182,7 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
   @Test
   fun `createMeasurementConsumer fails when account to be owner doesn't exist`() = runBlocking {
     val measurementConsumerCreationTokenHash =
-      hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
+      Hashing.hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -203,7 +203,7 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
     val account = population.createAccount(accountsService)
     population.activateAccount(accountsService, account)
     val measurementConsumerCreationTokenHash =
-      hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
+      Hashing.hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
 
     val createdMeasurementConsumer =
       measurementConsumersService.createMeasurementConsumer(
@@ -234,7 +234,7 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
     val account = population.createAccount(accountsService)
     population.activateAccount(accountsService, account)
     val measurementConsumerCreationHash =
-      hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
+      Hashing.hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
 
     val createdMeasurementConsumer =
       measurementConsumersService.createMeasurementConsumer(
@@ -285,7 +285,7 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
             measurementConsumer = MEASUREMENT_CONSUMER
             externalAccountId = account.externalAccountId
             measurementConsumerCreationTokenHash =
-              hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
+              Hashing.hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
           }
         )
 
@@ -312,7 +312,7 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
           measurementConsumer = MEASUREMENT_CONSUMER
           externalAccountId = account.externalAccountId
           measurementConsumerCreationTokenHash =
-            hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
+            Hashing.hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
         }
       )
 
@@ -367,7 +367,7 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
             measurementConsumer = MEASUREMENT_CONSUMER
             externalAccountId = account.externalAccountId
             measurementConsumerCreationTokenHash =
-              hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
+              Hashing.hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
           }
         )
 
@@ -395,7 +395,7 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
             measurementConsumer = MEASUREMENT_CONSUMER
             externalAccountId = account.externalAccountId
             measurementConsumerCreationTokenHash =
-              hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
+              Hashing.hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
           }
         )
 
@@ -428,7 +428,7 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
           measurementConsumer = MEASUREMENT_CONSUMER
           externalAccountId = account.externalAccountId
           measurementConsumerCreationTokenHash =
-            hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
+            Hashing.hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
         }
       )
 

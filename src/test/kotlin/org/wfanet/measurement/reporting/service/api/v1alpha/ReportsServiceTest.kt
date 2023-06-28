@@ -101,9 +101,9 @@ import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.timeInterval as measurementTimeInterval
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
-import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
@@ -573,7 +573,7 @@ private val DATA_PROVIDER_ENTRIES =
               signRequisitionSpec(requisitionSpec, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE),
               EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
             )
-          nonceHash = hashSha256(requisitionSpec.nonce)
+          nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
         }
     }
   }
@@ -604,7 +604,10 @@ private val REACH_ONLY_MEASUREMENT_SPEC = measurementSpec {
   measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.toByteString()
 
   nonceHashes.addAll(
-    listOf(hashSha256(SECURE_RANDOM_OUTPUT_LONG), hashSha256(SECURE_RANDOM_OUTPUT_LONG))
+    listOf(
+      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
+      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG)
+    )
   )
 
   reachAndFrequency =
@@ -687,7 +690,10 @@ private val REACH_FREQUENCY_MEASUREMENT_SPEC = measurementSpec {
   measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.toByteString()
 
   nonceHashes.addAll(
-    listOf(hashSha256(SECURE_RANDOM_OUTPUT_LONG), hashSha256(SECURE_RANDOM_OUTPUT_LONG))
+    listOf(
+      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
+      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG)
+    )
   )
 
   reachAndFrequency =
@@ -758,7 +764,10 @@ private val IMPRESSION_MEASUREMENT_SPEC = measurementSpec {
   measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.toByteString()
 
   nonceHashes.addAll(
-    listOf(hashSha256(SECURE_RANDOM_OUTPUT_LONG), hashSha256(SECURE_RANDOM_OUTPUT_LONG))
+    listOf(
+      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
+      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG)
+    )
   )
 
   impression =
@@ -829,7 +838,10 @@ private val WATCH_DURATION_MEASUREMENT_SPEC = measurementSpec {
   measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.toByteString()
 
   nonceHashes.addAll(
-    listOf(hashSha256(SECURE_RANDOM_OUTPUT_LONG), hashSha256(SECURE_RANDOM_OUTPUT_LONG))
+    listOf(
+      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG),
+      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG)
+    )
   )
 
   duration =
@@ -1557,7 +1569,7 @@ class ReportsServiceTest {
                   ),
                   EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
                 )
-              nonceHash = hashSha256(requisitionSpecWithNoFilter.nonce)
+              nonceHash = Hashing.hashSha256(requisitionSpecWithNoFilter.nonce)
             }
         }
       }

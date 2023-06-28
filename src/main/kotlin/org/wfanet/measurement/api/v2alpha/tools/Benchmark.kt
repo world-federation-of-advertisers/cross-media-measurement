@@ -90,10 +90,10 @@ import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
-import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
@@ -440,7 +440,7 @@ private fun getDataProviderEntry(
           signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
           EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
         )
-      nonceHash = hashSha256(requisitionSpec.nonce)
+      nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
     }
   }
 }
