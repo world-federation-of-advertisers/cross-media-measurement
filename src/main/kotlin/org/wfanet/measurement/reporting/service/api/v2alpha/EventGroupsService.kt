@@ -58,7 +58,7 @@ class EventGroupsService(
     val principal: ReportingPrincipal = principalFromCurrentContext
     when (principal) {
       is MeasurementConsumerPrincipal -> {
-        if (request.parent != principal.resourceKey.toName()) {
+        if (parentKey != principal.resourceKey) {
           throw Status.PERMISSION_DENIED.withDescription(
               "Cannot list event groups for another MeasurementConsumer"
             )
@@ -180,6 +180,12 @@ class EventGroupsService(
       if (result is Err) {
         throw result.toRuntimeException()
       }
+
+      if (result.value() !is Boolean) {
+        throw Status.INVALID_ARGUMENT.withDescription("filter does not evaluate to boolean")
+          .asRuntimeException()
+      }
+
       result.booleanValue()
     }
   }

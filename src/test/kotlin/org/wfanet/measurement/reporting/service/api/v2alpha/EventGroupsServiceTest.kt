@@ -489,6 +489,26 @@ class EventGroupsServiceTest {
   }
 
   @Test
+  fun `listEventGroups throws INVALID_ARGUMENT when filter eval doesn't result in boolean`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking {
+            service.listEventGroups(
+              listEventGroupsRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                filter = "name"
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("boolean")
+  }
+
+  @Test
   fun `listEventGroups throws FAILED_PRECONDITION when store doesn't have private key`() {
     val celEnvCacheProvider =
       CelEnvCacheProvider(
