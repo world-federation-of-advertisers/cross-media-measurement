@@ -26,7 +26,7 @@ jobs:
   push-images:
     runs-on: ubuntu-20.04
     outputs:
-      image-tag: ${{ steps.output-image-tag.outputs.image-tag }}
+      image-tag: ${{ steps.get-image-tag.outputs.image-tag }}
     env:
       CONTAINER_REGISTRY: ghcr.io
     steps:
