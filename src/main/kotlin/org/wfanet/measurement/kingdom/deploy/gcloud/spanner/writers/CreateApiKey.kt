@@ -14,7 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import org.wfanet.measurement.common.crypto.hashSha256
+import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.common.toGcloudByteArray
@@ -41,7 +41,7 @@ class CreateApiKey(
     val internalApiKeyId = idGenerator.generateInternalId()
     val externalApiKeyId = idGenerator.generateExternalId()
     val authenticationKey = idGenerator.generateExternalId()
-    val authenticationKeyHash = hashSha256(authenticationKey.value)
+    val authenticationKeyHash = Hashing.hashSha256(authenticationKey.value)
 
     val measurementConsumerId: InternalId =
       readInternalMeasurementConsumerId(ExternalId(apiKey.externalMeasurementConsumerId))
