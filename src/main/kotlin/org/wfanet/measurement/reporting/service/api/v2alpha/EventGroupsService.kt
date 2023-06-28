@@ -133,7 +133,8 @@ class EventGroupsService(
     val astAndIssues =
       try {
         env.compile(filter)
-      } catch (_: Exception) {
+      } catch (_: NullPointerException) {
+        // NullPointerException is thrown when an operator in the filter is not a CEL operator.
         throw Status.INVALID_ARGUMENT.withDescription("filter is not a valid CEL expression")
           .asRuntimeException()
       }

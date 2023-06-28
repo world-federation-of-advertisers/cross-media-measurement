@@ -130,20 +130,7 @@ class EventGroupsServiceTest {
         }
       }
 
-    val expectedEventGroup = eventGroup {
-      name = EventGroupKey(MEASUREMENT_CONSUMER_ID, EVENT_GROUP_ID).toName()
-      cmmsEventGroup = CMMS_EVENT_GROUP_NAME
-      cmmsDataProvider = DATA_PROVIDER_NAME
-      eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
-      eventTemplates += EventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
-      metadata =
-        EventGroupKt.metadata {
-          eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-          metadata = Any.pack(TEST_MESSAGE)
-        }
-    }
-
-    assertThat(response.eventGroupsList).containsExactly(expectedEventGroup, expectedEventGroup)
+    assertThat(response.eventGroupsList).containsExactly(EVENT_GROUP, EVENT_GROUP)
 
     verifyProtoArgument(publicKingdomEventGroupsMock, EventGroupsCoroutineImplBase::listEventGroups)
       .ignoringRepeatedFieldOrder()
@@ -194,20 +181,45 @@ class EventGroupsServiceTest {
         }
       }
 
-    val expectedEventGroup = eventGroup {
-      name = EventGroupKey(MEASUREMENT_CONSUMER_ID, EVENT_GROUP_ID).toName()
-      cmmsEventGroup = CMMS_EVENT_GROUP_NAME
-      cmmsDataProvider = DATA_PROVIDER_NAME
-      eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
-      eventTemplates += EventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
-      metadata =
-        EventGroupKt.metadata {
-          eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-          metadata = Any.pack(TEST_MESSAGE)
+    assertThat(response.eventGroupsList).containsExactly(EVENT_GROUP)
+
+    verifyProtoArgument(publicKingdomEventGroupsMock, EventGroupsCoroutineImplBase::listEventGroups)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        cmmsListEventGroupsRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          pageSize = DEFAULT_PAGE_SIZE
         }
+      )
+  }
+
+  @Test
+  fun `listEventGroups returns only event groups that match filter when filter has no metadata`() {
+    val cmmsEventGroup2 =
+      CMMS_EVENT_GROUP.copy {
+        eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID + 2
+      }
+
+    runBlocking {
+      whenever(publicKingdomEventGroupsMock.listEventGroups(any()))
+        .thenReturn(
+          listEventGroupsResponse { eventGroups += listOf(CMMS_EVENT_GROUP, cmmsEventGroup2) }
+        )
     }
 
-    assertThat(response.eventGroupsList).containsExactly(expectedEventGroup)
+    val response =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        runBlocking {
+          service.listEventGroups(
+            listEventGroupsRequest {
+              parent = MEASUREMENT_CONSUMER_NAME
+              filter = "event_group_reference_id == \"$EVENT_GROUP_REFERENCE_ID\""
+            }
+          )
+        }
+      }
+
+    assertThat(response.eventGroupsList).containsExactly(EVENT_GROUP)
 
     verifyProtoArgument(publicKingdomEventGroupsMock, EventGroupsCoroutineImplBase::listEventGroups)
       .ignoringRepeatedFieldOrder()
@@ -238,20 +250,7 @@ class EventGroupsServiceTest {
         }
       }
 
-    val expectedEventGroup = eventGroup {
-      name = EventGroupKey(MEASUREMENT_CONSUMER_ID, EVENT_GROUP_ID).toName()
-      cmmsEventGroup = CMMS_EVENT_GROUP_NAME
-      cmmsDataProvider = DATA_PROVIDER_NAME
-      eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
-      eventTemplates += EventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
-      metadata =
-        EventGroupKt.metadata {
-          eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-          metadata = Any.pack(TEST_MESSAGE)
-        }
-    }
-
-    assertThat(response.eventGroupsList).containsExactly(expectedEventGroup, expectedEventGroup)
+    assertThat(response.eventGroupsList).containsExactly(EVENT_GROUP, EVENT_GROUP)
 
     verifyProtoArgument(publicKingdomEventGroupsMock, EventGroupsCoroutineImplBase::listEventGroups)
       .ignoringRepeatedFieldOrder()
@@ -288,20 +287,7 @@ class EventGroupsServiceTest {
         }
       }
 
-    val expectedEventGroup = eventGroup {
-      name = EventGroupKey(MEASUREMENT_CONSUMER_ID, EVENT_GROUP_ID).toName()
-      cmmsEventGroup = CMMS_EVENT_GROUP_NAME
-      cmmsDataProvider = DATA_PROVIDER_NAME
-      eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
-      eventTemplates += EventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
-      metadata =
-        EventGroupKt.metadata {
-          eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-          metadata = Any.pack(TEST_MESSAGE)
-        }
-    }
-
-    assertThat(response.eventGroupsList).containsExactly(expectedEventGroup, expectedEventGroup)
+    assertThat(response.eventGroupsList).containsExactly(EVENT_GROUP, EVENT_GROUP)
     assertThat(response.nextPageToken).isEqualTo(nextPageToken)
 
     verifyProtoArgument(publicKingdomEventGroupsMock, EventGroupsCoroutineImplBase::listEventGroups)
@@ -328,20 +314,7 @@ class EventGroupsServiceTest {
         }
       }
 
-    val expectedEventGroup = eventGroup {
-      name = EventGroupKey(MEASUREMENT_CONSUMER_ID, EVENT_GROUP_ID).toName()
-      cmmsEventGroup = CMMS_EVENT_GROUP_NAME
-      cmmsDataProvider = DATA_PROVIDER_NAME
-      eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
-      eventTemplates += EventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
-      metadata =
-        EventGroupKt.metadata {
-          eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-          metadata = Any.pack(TEST_MESSAGE)
-        }
-    }
-
-    assertThat(response.eventGroupsList).containsExactly(expectedEventGroup, expectedEventGroup)
+    assertThat(response.eventGroupsList).containsExactly(EVENT_GROUP, EVENT_GROUP)
 
     verifyProtoArgument(publicKingdomEventGroupsMock, EventGroupsCoroutineImplBase::listEventGroups)
       .ignoringRepeatedFieldOrder()
@@ -367,20 +340,7 @@ class EventGroupsServiceTest {
         }
       }
 
-    val expectedEventGroup = eventGroup {
-      name = EventGroupKey(MEASUREMENT_CONSUMER_ID, EVENT_GROUP_ID).toName()
-      cmmsEventGroup = CMMS_EVENT_GROUP_NAME
-      cmmsDataProvider = DATA_PROVIDER_NAME
-      eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
-      eventTemplates += EventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
-      metadata =
-        EventGroupKt.metadata {
-          eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-          metadata = Any.pack(TEST_MESSAGE)
-        }
-    }
-
-    assertThat(response.eventGroupsList).containsExactly(expectedEventGroup, expectedEventGroup)
+    assertThat(response.eventGroupsList).containsExactly(EVENT_GROUP, EVENT_GROUP)
 
     verifyProtoArgument(publicKingdomEventGroupsMock, EventGroupsCoroutineImplBase::listEventGroups)
       .ignoringRepeatedFieldOrder()
@@ -637,6 +597,19 @@ class EventGroupsServiceTest {
           ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey()
         )
       state = CmmsEventGroup.State.ACTIVE
+    }
+
+    private val EVENT_GROUP = eventGroup {
+      name = EventGroupKey(MEASUREMENT_CONSUMER_ID, EVENT_GROUP_ID).toName()
+      cmmsEventGroup = CMMS_EVENT_GROUP_NAME
+      cmmsDataProvider = DATA_PROVIDER_NAME
+      eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
+      eventTemplates += EventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
+      metadata =
+        EventGroupKt.metadata {
+          eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+          metadata = Any.pack(TEST_MESSAGE)
+        }
     }
   }
 }
