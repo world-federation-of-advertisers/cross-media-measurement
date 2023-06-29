@@ -34,6 +34,19 @@ message VidRange {
   int64 end_exclusive = 2;
 }
 
+message FieldValue {
+  oneof value {
+    string string = 1;
+    bool bool = 2;
+    // The number value of the enum.
+    int32 enum = 3;
+    double double = 4;
+    float float = 5;
+    int32 int32 = 6;
+    int64 int64 = 7;
+  }
+}
+
 // The specification of a synthetic virtual population.
 message SyntheticPopulationSpec {
   VidRange vid_range = 1;
@@ -53,7 +66,7 @@ message SyntheticPopulationSpec {
     VidRange vid_sub_range = 1;
 
     // A map of `population_fields` to their values for each subpopulation.
-    map<string, string> population_fields_values = 2;
+    map<string, FieldValue> population_fields_values = 2;
   }
 
   // Subpopulations should describe non-overlapping VID ranges. The combinations
@@ -77,7 +90,7 @@ message SyntheticEventGroupSpec {
 
       // A map of `non_population_fields` from `SyntheticPopulationSpec` to
       // their values.
-      map<string, string> non_population_field_values = 2;
+      map<string, FieldValue> non_population_field_values = 2;
     }
     // The VID ranges should be non-overlapping sub-ranges of SubPopulations.
     repeated VidRangeSpec vid_range_specs = 2;
