@@ -45,8 +45,7 @@ object SyntheticDataGeneration {
     return sequence {
       for (syntheticEventGroupSpec: SyntheticEventGroupSpec in
         simulatorSyntheticDataSpec.eventGroupSpecList) {
-        for (dateSpec: SyntheticEventGroupSpec.DateSpec in
-          syntheticEventGroupSpec.dateSpecsList) {
+        for (dateSpec: SyntheticEventGroupSpec.DateSpec in syntheticEventGroupSpec.dateSpecsList) {
           for (frequencySpec: SyntheticEventGroupSpec.FrequencySpec in
             dateSpec.frequencySpecsList) {
             for (vidRangeSpec: SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec in
@@ -84,8 +83,8 @@ object SyntheticDataGeneration {
   }
 
   /**
-   * Returns the [SubPopulation] from a list of [SubPopulation] that contains the [VidRange] in
-   * its range.
+   * Returns the [SubPopulation] from a list of [SubPopulation] that contains the [VidRange] in its
+   * range.
    *
    * Returns null if no [SubPopulation] contains the range.
    */
@@ -110,14 +109,10 @@ object SyntheticDataGeneration {
    * * [IllegalArgumentException] if field is [FieldDescriptor.Type.MESSAGE].
    * * [NullPointerException] if field can't be found.
    */
-  private fun Message.Builder.setField(
-    fieldPath: Collection<String>,
-    fieldValue: FieldValue
-  ) {
+  private fun Message.Builder.setField(fieldPath: Collection<String>, fieldValue: FieldValue) {
     val builder = this
     val curFieldDescriptor: FieldDescriptor =
-      descriptorForType.findFieldByName(fieldPath.first())
-        ?: throw IllegalArgumentException()
+      descriptorForType.findFieldByName(fieldPath.first()) ?: throw IllegalArgumentException()
 
     if (fieldPath.size == 1) {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.

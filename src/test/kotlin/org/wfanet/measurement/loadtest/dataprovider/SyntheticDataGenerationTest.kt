@@ -228,10 +228,7 @@ class SyntheticDataGenerationTest {
     }
 
     val eventSequence =
-      SyntheticDataGeneration.generateEvents(
-        TEST_EVENT_DESCRIPTOR,
-        simulatorSyntheticDataSpec
-      )
+      SyntheticDataGeneration.generateEvents(TEST_EVENT_DESCRIPTOR, simulatorSyntheticDataSpec)
 
     val testEventList = eventSequence.map { TestEvent.parseFrom(it.toByteString()) }.toList()
 
@@ -350,10 +347,7 @@ class SyntheticDataGenerationTest {
     }
 
     assertFailsWith<IllegalArgumentException> {
-      SyntheticDataGeneration.generateEvents(
-          TEST_EVENT_DESCRIPTOR,
-          simulatorSyntheticDataSpec
-        )
+      SyntheticDataGeneration.generateEvents(TEST_EVENT_DESCRIPTOR, simulatorSyntheticDataSpec)
         .toList()
     }
   }
@@ -421,10 +415,7 @@ class SyntheticDataGenerationTest {
     }
 
     assertFailsWith<IllegalArgumentException> {
-      SyntheticDataGeneration.generateEvents(
-          TEST_EVENT_DESCRIPTOR,
-          simulatorSyntheticDataSpec
-        )
+      SyntheticDataGeneration.generateEvents(TEST_EVENT_DESCRIPTOR, simulatorSyntheticDataSpec)
         .toList()
     }
   }
@@ -484,7 +475,9 @@ class SyntheticDataGenerationTest {
                       endExclusive = 100L
                     }
 
-                    nonPopulationFieldValues["banner_ad.viewable.value"] = fieldValue { int32Value = 5 }
+                    nonPopulationFieldValues["banner_ad.viewable.value"] = fieldValue {
+                      int32Value = 5
+                    }
                   }
               }
           }
@@ -492,10 +485,7 @@ class SyntheticDataGenerationTest {
     }
 
     assertFailsWith<IllegalArgumentException> {
-      SyntheticDataGeneration.generateEvents(
-        TEST_EVENT_DESCRIPTOR,
-        simulatorSyntheticDataSpec
-      )
+      SyntheticDataGeneration.generateEvents(TEST_EVENT_DESCRIPTOR, simulatorSyntheticDataSpec)
         .toList()
     }
   }
@@ -563,10 +553,7 @@ class SyntheticDataGenerationTest {
     }
 
     assertFailsWith<IllegalArgumentException> {
-      SyntheticDataGeneration.generateEvents(
-          TEST_EVENT_DESCRIPTOR,
-          simulatorSyntheticDataSpec
-        )
+      SyntheticDataGeneration.generateEvents(TEST_EVENT_DESCRIPTOR, simulatorSyntheticDataSpec)
         .toList()
     }
   }
