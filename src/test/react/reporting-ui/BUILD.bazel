@@ -21,6 +21,11 @@ js_library(
 js_library(
     name = "test_node_deps",
     srcs = [
+        "//:node_modules/@types/jest",
+        "//:node_modules/@testing-library/dom",
+        "//:node_modules/@testing-library/jest-dom",
+        "//:node_modules/@testing-library/react",
+        "//:node_modules/@testing-library/user-event",
         "//:node_modules/jest",
         "//:node_modules/jest-environment-jsdom",
         "//:node_modules/jest-junit",
