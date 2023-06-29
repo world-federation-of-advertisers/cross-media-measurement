@@ -108,8 +108,12 @@ class SimulatorSyntheticDataSpecEventQueryTest {
                       endExclusive = 25L
                     }
 
-                    nonPopulationFieldValues["banner_ad.viewable.value"] = fieldValue { bool = true }
-                    nonPopulationFieldValues["video_ad.viewed_fraction.value"] = fieldValue { double = 0.5 }
+                    nonPopulationFieldValues["banner_ad.viewable.value"] = fieldValue {
+                      bool = true
+                    }
+                    nonPopulationFieldValues["video_ad.viewed_fraction.value"] = fieldValue {
+                      double = 0.5
+                    }
                   }
                 vidRangeSpecs +=
                   SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
@@ -118,8 +122,12 @@ class SimulatorSyntheticDataSpecEventQueryTest {
                       endExclusive = 50L
                     }
 
-                    nonPopulationFieldValues["banner_ad.viewable.value"] = fieldValue { bool = false }
-                    nonPopulationFieldValues["video_ad.viewed_fraction.value"] = fieldValue { double = 0.7 }
+                    nonPopulationFieldValues["banner_ad.viewable.value"] = fieldValue {
+                      bool = false
+                    }
+                    nonPopulationFieldValues["video_ad.viewed_fraction.value"] = fieldValue {
+                      double = 0.7
+                    }
                   }
               }
             frequencySpecs +=
@@ -133,8 +141,12 @@ class SimulatorSyntheticDataSpecEventQueryTest {
                       endExclusive = 75L
                     }
 
-                    nonPopulationFieldValues["banner_ad.viewable.value"] = fieldValue { bool = true }
-                    nonPopulationFieldValues["video_ad.viewed_fraction.value"] = fieldValue { double = 0.8 }
+                    nonPopulationFieldValues["banner_ad.viewable.value"] = fieldValue {
+                      bool = true
+                    }
+                    nonPopulationFieldValues["video_ad.viewed_fraction.value"] = fieldValue {
+                      double = 0.8
+                    }
                   }
               }
           }
@@ -164,8 +176,12 @@ class SimulatorSyntheticDataSpecEventQueryTest {
                       endExclusive = 100L
                     }
 
-                    nonPopulationFieldValues["banner_ad.viewable.value"] = fieldValue { bool = true }
-                    nonPopulationFieldValues["video_ad.viewed_fraction.value"] = fieldValue { double = 0.9 }
+                    nonPopulationFieldValues["banner_ad.viewable.value"] = fieldValue {
+                      bool = true
+                    }
+                    nonPopulationFieldValues["video_ad.viewed_fraction.value"] = fieldValue {
+                      double = 0.9
+                    }
                   }
               }
           }
@@ -199,14 +215,17 @@ class SimulatorSyntheticDataSpecEventQueryTest {
                       endExclusive = 100L
                     }
 
-                    nonPopulationFieldValues["banner_ad.viewable.value"] = fieldValue { bool = true }
-                    nonPopulationFieldValues["video_ad.viewed_fraction.value"] = fieldValue { double = 0.9 }
+                    nonPopulationFieldValues["banner_ad.viewable.value"] = fieldValue {
+                      bool = true
+                    }
+                    nonPopulationFieldValues["video_ad.viewed_fraction.value"] = fieldValue {
+                      double = 0.9
+                    }
                   }
               }
           }
       }
     }
-
 
     val eventSequence =
       SimulatorSyntheticDataSpecEventQuery.generateEvents(
@@ -330,10 +349,11 @@ class SimulatorSyntheticDataSpecEventQueryTest {
       }
     }
 
-
     assertFailsWith<IllegalArgumentException> {
-      SimulatorSyntheticDataSpecEventQuery
-        .generateEvents(TEST_EVENT_DESCRIPTOR, simulatorSyntheticDataSpec)
+      SimulatorSyntheticDataSpecEventQuery.generateEvents(
+          TEST_EVENT_DESCRIPTOR,
+          simulatorSyntheticDataSpec
+        )
         .toList()
     }
   }
@@ -401,8 +421,10 @@ class SimulatorSyntheticDataSpecEventQueryTest {
     }
 
     assertFailsWith<IllegalArgumentException> {
-      SimulatorSyntheticDataSpecEventQuery
-        .generateEvents(TEST_EVENT_DESCRIPTOR, simulatorSyntheticDataSpec)
+      SimulatorSyntheticDataSpecEventQuery.generateEvents(
+          TEST_EVENT_DESCRIPTOR,
+          simulatorSyntheticDataSpec
+        )
         .toList()
     }
   }
@@ -470,8 +492,10 @@ class SimulatorSyntheticDataSpecEventQueryTest {
     }
 
     assertFailsWith<IllegalArgumentException> {
-      SimulatorSyntheticDataSpecEventQuery
-        .generateEvents(TEST_EVENT_DESCRIPTOR, simulatorSyntheticDataSpec)
+      SimulatorSyntheticDataSpecEventQuery.generateEvents(
+          TEST_EVENT_DESCRIPTOR,
+          simulatorSyntheticDataSpec
+        )
         .toList()
     }
   }

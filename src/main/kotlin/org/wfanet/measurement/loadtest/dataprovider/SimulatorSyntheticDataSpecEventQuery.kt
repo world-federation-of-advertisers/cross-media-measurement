@@ -20,7 +20,6 @@ import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.Message
-import com.google.protobuf.kotlin.toByteStringUtf8
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.TimeInterval
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
@@ -55,10 +54,14 @@ class SimulatorSyntheticDataSpecEventQuery : EventQuery {
       val subPopulations = population.subPopulationsList
 
       return sequence {
-        for (syntheticEventGroupSpec: SyntheticEventGroupSpec in simulatorSyntheticDataSpec.eventGroupSpecList) {
-          for (dateSpec: SyntheticEventGroupSpec.DateSpec in syntheticEventGroupSpec.dateSpecsList) {
-            for (frequencySpec: SyntheticEventGroupSpec.FrequencySpec in dateSpec.frequencySpecsList) {
-              for (vidRangeSpec: SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec in frequencySpec.vidRangeSpecsList) {
+        for (syntheticEventGroupSpec: SyntheticEventGroupSpec in
+          simulatorSyntheticDataSpec.eventGroupSpecList) {
+          for (dateSpec: SyntheticEventGroupSpec.DateSpec in
+            syntheticEventGroupSpec.dateSpecsList) {
+            for (frequencySpec: SyntheticEventGroupSpec.FrequencySpec in
+              dateSpec.frequencySpecsList) {
+              for (vidRangeSpec: SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec in
+                frequencySpec.vidRangeSpecsList) {
                 val subPopulation: SubPopulation =
                   vidRangeSpec.vidRange.findSubPopulation(subPopulations)
                     ?: throw IllegalArgumentException()
@@ -66,36 +69,30 @@ class SimulatorSyntheticDataSpecEventQuery : EventQuery {
                 val builder = DynamicMessage.newBuilder(descriptor)
 
                 population.populationFieldsList.forEach {
-                  val subPopulationFieldValue: FieldValue = subPopulation.populationFieldsValuesMap.getValue(it)
+                  val subPopulationFieldValue: FieldValue =
+                    subPopulation.populationFieldsValuesMap.getValue(it)
                   val fieldPath = it.split('.')
-                  val fieldDescriptor: FieldDescriptor = descriptor.findFieldByName(fieldPath.first())
-                    ?: throw IllegalArgumentException()
-                  builder.setField(
-                      fieldPath,
-                      subPopulationFieldValue,
-                      fieldDescriptor
-                    )
+                  val fieldDescriptor: FieldDescriptor =
+                    descriptor.findFieldByName(fieldPath.first())
+                      ?: throw IllegalArgumentException()
+                  builder.setField(fieldPath, subPopulationFieldValue, fieldDescriptor)
                 }
 
                 population.nonPopulationFieldsList.forEach {
-                  val nonPopulationFieldValue: FieldValue = vidRangeSpec.nonPopulationFieldValuesMap.getValue(it)
+                  val nonPopulationFieldValue: FieldValue =
+                    vidRangeSpec.nonPopulationFieldValuesMap.getValue(it)
                   val fieldPath = it.split('.')
-                  val fieldDescriptor: FieldDescriptor = descriptor.findFieldByName(fieldPath.first())
-                    ?: throw IllegalArgumentException()
-                  builder.setField(
-                    fieldPath,
-                    nonPopulationFieldValue,
-                    fieldDescriptor
-                  )
+                  val fieldDescriptor: FieldDescriptor =
+                    descriptor.findFieldByName(fieldPath.first())
+                      ?: throw IllegalArgumentException()
+                  builder.setField(fieldPath, nonPopulationFieldValue, fieldDescriptor)
                 }
 
                 val event: DynamicMessage = builder.build()
                 val numEvents =
                   frequencySpec.frequency *
                     (vidRangeSpec.vidRange.endExclusive - vidRangeSpec.vidRange.start)
-                repeat(numEvents.toInt()) {
-                  yield(event)
-                }
+                repeat(numEvents.toInt()) { yield(event) }
               }
             }
           }
@@ -104,8 +101,8 @@ class SimulatorSyntheticDataSpecEventQuery : EventQuery {
     }
 
     /**
-     * Returns the [SubPopulation] from a list of [SubPopulation] that contains the [VidRange] in its
-     * range.
+     * Returns the [SubPopulation] from a list of [SubPopulation] that contains the [VidRange] in
+     * its range.
      *
      * Returns null if no [SubPopulation] contains the range.
      */
@@ -172,13 +169,10 @@ class SimulatorSyntheticDataSpecEventQuery : EventQuery {
 
       val fieldBuilder = builder.getFieldBuilder(curFieldDescriptor)
       val traversedFieldPath = fieldPath.drop(1)
-      val nextFieldDescriptor: FieldDescriptor =  curFieldDescriptor.messageType.findFieldByName(traversedFieldPath.first())
-        ?: throw IllegalArgumentException()
-      fieldBuilder.setField(
-        traversedFieldPath,
-        fieldValue,
-        nextFieldDescriptor
-      )
+      val nextFieldDescriptor: FieldDescriptor =
+        curFieldDescriptor.messageType.findFieldByName(traversedFieldPath.first())
+          ?: throw IllegalArgumentException()
+      fieldBuilder.setField(traversedFieldPath, fieldValue, nextFieldDescriptor)
       val oldMessage = builder.getField(curFieldDescriptor) as Message
       val newMessage = fieldBuilder.mergeFrom(oldMessage).build()
       builder.setField(curFieldDescriptor, newMessage)
