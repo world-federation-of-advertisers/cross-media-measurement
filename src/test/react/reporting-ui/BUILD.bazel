@@ -34,18 +34,3 @@ js_library(
         "//:node_modules/ts-jest",
     ],
 )
-
-jest_test(
-    name = "test",
-    config = ":jest_config",
-    data = [
-        ":test_files",
-        ":test_node_deps",
-        "//:tsconfig",
-        "//src/main/react/reporting-ui:build_node_deps",
-        "//src/main/react/reporting-ui/src:src_files",
-        "//src/test/react/jest:jest_base_config",
-        "//src/test/react/jest:jest_files",
-    ],
-    node_modules = "//:node_modules",
-)
