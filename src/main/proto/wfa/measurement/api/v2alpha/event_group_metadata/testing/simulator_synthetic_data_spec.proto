@@ -36,14 +36,14 @@ message VidRange {
 
 message FieldValue {
   oneof value {
-    string string = 1;
-    bool bool = 2;
+    string string_value = 1;
+    bool bool_value = 2;
     // The number value of the enum.
-    int32 enum = 3;
-    double double = 4;
-    float float = 5;
-    int32 int32 = 6;
-    int64 int64 = 7;
+    int32 enum_value = 3;
+    double double_value = 4;
+    float float_value = 5;
+    int32 int32_value = 6;
+    int64 int64_value = 7;
   }
 }
 

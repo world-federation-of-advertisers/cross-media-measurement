@@ -40,7 +40,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.video
 
 @RunWith(JUnit4::class)
-class SimulatorSyntheticDataSpecEventQueryTest {
+class SyntheticDataGenerationTest {
   @Test
   fun `generateEvents returns a sequence of dynamic event messages`() {
     val simulatorSyntheticDataSpec = simulatorSyntheticDataSpec {
@@ -63,8 +63,8 @@ class SimulatorSyntheticDataSpecEventQueryTest {
               endExclusive = 50L
             }
 
-            populationFieldsValues["person.gender.value"] = fieldValue { enum = 1 }
-            populationFieldsValues["person.age_group.value"] = fieldValue { enum = 1 }
+            populationFieldsValues["person.gender.value"] = fieldValue { enumValue = 1 }
+            populationFieldsValues["person.age_group.value"] = fieldValue { enumValue = 1 }
           }
         subPopulations +=
           SyntheticPopulationSpecKt.subPopulation {
@@ -73,8 +73,8 @@ class SimulatorSyntheticDataSpecEventQueryTest {
               endExclusive = 100L
             }
 
-            populationFieldsValues["person.gender.value"] = fieldValue { enum = 2 }
-            populationFieldsValues["person.age_group.value"] = fieldValue { enum = 1 }
+            populationFieldsValues["person.gender.value"] = fieldValue { enumValue = 2 }
+            populationFieldsValues["person.age_group.value"] = fieldValue { enumValue = 1 }
           }
       }
 
@@ -109,10 +109,10 @@ class SimulatorSyntheticDataSpecEventQueryTest {
                     }
 
                     nonPopulationFieldValues["banner_ad.viewable.value"] = fieldValue {
-                      bool = true
+                      boolValue = true
                     }
                     nonPopulationFieldValues["video_ad.viewed_fraction.value"] = fieldValue {
-                      double = 0.5
+                      doubleValue = 0.5
                     }
                   }
                 vidRangeSpecs +=
@@ -123,10 +123,10 @@ class SimulatorSyntheticDataSpecEventQueryTest {
                     }
 
                     nonPopulationFieldValues["banner_ad.viewable.value"] = fieldValue {
-                      bool = false
+                      boolValue = false
                     }
                     nonPopulationFieldValues["video_ad.viewed_fraction.value"] = fieldValue {
-                      double = 0.7
+                      doubleValue = 0.7
                     }
                   }
               }
@@ -142,10 +142,10 @@ class SimulatorSyntheticDataSpecEventQueryTest {
                     }
 
                     nonPopulationFieldValues["banner_ad.viewable.value"] = fieldValue {
-                      bool = true
+                      boolValue = true
                     }
                     nonPopulationFieldValues["video_ad.viewed_fraction.value"] = fieldValue {
-                      double = 0.8
+                      doubleValue = 0.8
                     }
                   }
               }
@@ -177,10 +177,10 @@ class SimulatorSyntheticDataSpecEventQueryTest {
                     }
 
                     nonPopulationFieldValues["banner_ad.viewable.value"] = fieldValue {
-                      bool = true
+                      boolValue = true
                     }
                     nonPopulationFieldValues["video_ad.viewed_fraction.value"] = fieldValue {
-                      double = 0.9
+                      doubleValue = 0.9
                     }
                   }
               }
@@ -216,10 +216,10 @@ class SimulatorSyntheticDataSpecEventQueryTest {
                     }
 
                     nonPopulationFieldValues["banner_ad.viewable.value"] = fieldValue {
-                      bool = true
+                      boolValue = true
                     }
                     nonPopulationFieldValues["video_ad.viewed_fraction.value"] = fieldValue {
-                      double = 0.9
+                      doubleValue = 0.9
                     }
                   }
               }
@@ -228,7 +228,7 @@ class SimulatorSyntheticDataSpecEventQueryTest {
     }
 
     val eventSequence =
-      SimulatorSyntheticDataSpecEventQuery.generateEvents(
+      SyntheticDataGeneration.generateEvents(
         TEST_EVENT_DESCRIPTOR,
         simulatorSyntheticDataSpec
       )
@@ -350,7 +350,7 @@ class SimulatorSyntheticDataSpecEventQueryTest {
     }
 
     assertFailsWith<IllegalArgumentException> {
-      SimulatorSyntheticDataSpecEventQuery.generateEvents(
+      SyntheticDataGeneration.generateEvents(
           TEST_EVENT_DESCRIPTOR,
           simulatorSyntheticDataSpec
         )
@@ -413,7 +413,7 @@ class SimulatorSyntheticDataSpecEventQueryTest {
                       endExclusive = 100L
                     }
 
-                    nonPopulationFieldValues["banner_ad"] = fieldValue { bool = true }
+                    nonPopulationFieldValues["banner_ad"] = fieldValue { boolValue = true }
                   }
               }
           }
@@ -421,10 +421,81 @@ class SimulatorSyntheticDataSpecEventQueryTest {
     }
 
     assertFailsWith<IllegalArgumentException> {
-      SimulatorSyntheticDataSpecEventQuery.generateEvents(
+      SyntheticDataGeneration.generateEvents(
           TEST_EVENT_DESCRIPTOR,
           simulatorSyntheticDataSpec
         )
+        .toList()
+    }
+  }
+
+  @Test
+  fun `sequence from generateEvents throws IllegalArgumentException when field type wrong`() {
+    val simulatorSyntheticDataSpec = simulatorSyntheticDataSpec {
+      population = syntheticPopulationSpec {
+        vidRange = vidRange {
+          start = 0L
+          endExclusive = 100L
+        }
+
+        nonPopulationFields += "banner_ad.viewable.value"
+
+        subPopulations +=
+          SyntheticPopulationSpecKt.subPopulation {
+            vidSubRange = vidRange {
+              start = 0L
+              endExclusive = 50L
+            }
+          }
+        subPopulations +=
+          SyntheticPopulationSpecKt.subPopulation {
+            vidSubRange = vidRange {
+              start = 50L
+              endExclusive = 100L
+            }
+          }
+      }
+      eventGroupSpec += syntheticEventGroupSpec {
+        description = "event group"
+
+        dateSpecs +=
+          SyntheticEventGroupSpecKt.dateSpec {
+            dateRange =
+              SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+                start = date {
+                  year = 2023
+                  month = 7
+                  day = 1
+                }
+                endExclusive = date {
+                  year = 2023
+                  month = 7
+                  day = 2
+                }
+              }
+            frequencySpecs +=
+              SyntheticEventGroupSpecKt.frequencySpec {
+                frequency = 1
+
+                vidRangeSpecs +=
+                  SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                    vidRange = vidRange {
+                      start = 50L
+                      endExclusive = 100L
+                    }
+
+                    nonPopulationFieldValues["banner_ad.viewable.value"] = fieldValue { int32Value = 5 }
+                  }
+              }
+          }
+      }
+    }
+
+    assertFailsWith<IllegalArgumentException> {
+      SyntheticDataGeneration.generateEvents(
+        TEST_EVENT_DESCRIPTOR,
+        simulatorSyntheticDataSpec
+      )
         .toList()
     }
   }
@@ -484,7 +555,7 @@ class SimulatorSyntheticDataSpecEventQueryTest {
                       endExclusive = 100L
                     }
 
-                    nonPopulationFieldValues["banner_ad.value"] = fieldValue { bool = true }
+                    nonPopulationFieldValues["banner_ad.value"] = fieldValue { boolValue = true }
                   }
               }
           }
@@ -492,7 +563,7 @@ class SimulatorSyntheticDataSpecEventQueryTest {
     }
 
     assertFailsWith<IllegalArgumentException> {
-      SimulatorSyntheticDataSpecEventQuery.generateEvents(
+      SyntheticDataGeneration.generateEvents(
           TEST_EVENT_DESCRIPTOR,
           simulatorSyntheticDataSpec
         )
