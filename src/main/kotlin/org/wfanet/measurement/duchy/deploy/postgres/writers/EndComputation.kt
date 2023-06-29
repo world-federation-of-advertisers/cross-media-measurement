@@ -14,20 +14,21 @@
 
 package org.wfanet.measurement.duchy.deploy.postgres.writers
 
+import com.google.protobuf.Message
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails.setEndingState
-import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
+import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
+import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
-import org.wfanet.measurement.duchy.deploy.postgres.readers.ComputationReader
-import org.wfanet.measurement.duchy.deploy.postgres.readers.ComputationReader.Computation
 import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 
@@ -36,58 +37,74 @@ import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
  *
  * @param localComputationId local identifier of a computation.
  */
-class EndComputation(
+class EndComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Message>(
   private val localComputationId: Long,
   private val editVersion: Long,
-  private val protocol: Long,
+  private val protocol: ProtocolT,
   private val currentAttempt: Long,
-  private val currentStage: Long,
-  private val endingStage: Long,
+  private val currentStage: StageT,
+  private val endingStage: StageT,
   private val endComputationReason: EndComputationReason,
-  private val endComputationDetails: ByteArray,
-  private val endComputationDetailsJson: String,
+  private val computationDetails: ComputationDT,
   private val clock: Clock,
+  private val protocolStagesEnumHelper: ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
+  private val protocolStageDetailsHelper:
+    ComputationProtocolStageDetailsHelper<ProtocolT, StageT, StageDT, ComputationDT>,
 ) : PostgresWriter<Unit>() {
 
   companion object {
-    private val reader = ComputationReader(ComputationProtocolStages)
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 
   override suspend fun TransactionScope.runTransaction() {
-    val computation: Computation =
-      reader.readComputation(transactionContext, localComputationId)
-        ?: throw ComputationNotFoundException(localComputationId)
+    require(protocolStagesEnumHelper.validTerminalStage(protocol, endingStage)) {
+      "Invalid terminal stage of computation $endingStage"
+    }
 
-    validateComputationEditVersion(computation.version, editVersion)
+    checkComputationUnmodified(localComputationId, editVersion)
+
+    //    val detailsBytes: ByteArray =
+    //      readComputationDetails(localComputationId)
+    //        ?: throw ComputationNotFoundException(localComputationId)
 
     val writeTime = clock.instant()
-    val details = computation.computationDetails
-    val endingComputationDetails = setEndingState(details, endComputationReason)
+    val endingStageLong =
+      protocolStagesEnumHelper.computationStageEnumToLongValues(endingStage).stage
+    val currentStageLong =
+      protocolStagesEnumHelper.computationStageEnumToLongValues(currentStage).stage
+    //    val details = protocolStageDetailsHelper.parseComputationDetails(detailsBytes)
+    val endingComputationDetails =
+      protocolStageDetailsHelper.setEndingState(computationDetails, endComputationReason)
+    val endingStageDetails = protocolStageDetailsHelper.detailsFor(endingStage, computationDetails)
 
     updateComputation(
       localId = localComputationId,
       updateTime = writeTime,
-      stage = endingStage,
+      stage = endingStageLong,
       details = endingComputationDetails.toByteArray(),
       detailsJson = endingComputationDetails.toJson()
     )
 
+    releaseComputationLock(
+      localComputationId = localComputationId,
+      updateTime = writeTime,
+    )
+
     updateComputationStage(
       localId = localComputationId,
-      stage = currentStage,
+      stage = currentStageLong,
       endTime = writeTime,
-      followingStage = endingStage
+      followingStage = endingStageLong
     )
 
     insertComputationStage(
       localId = localComputationId,
-      stage = endingStage,
+      stage = endingStageLong,
       creationTime = writeTime,
-      previousStage = currentStage,
+      previousStage = currentStageLong,
       nextAttempt = 1,
-      details = endComputationDetails,
-      detailsJson = endComputationDetailsJson
+      details = endingStageDetails.toByteArray(),
+      detailsJson = endingStageDetails.toJson()
     )
 
     readUnfinishedAttempts(localComputationId).collect { unfinished ->
@@ -95,7 +112,7 @@ class EndComputation(
       val reason =
         if (
           unfinished.protocol == protocol &&
-            unfinished.computationStage == currentStage &&
+            unfinished.computationStage == currentStageLong &&
             unfinished.attempt == currentAttempt
         ) {
           // The unfinished attempt is the current attempt of the current stage.
@@ -119,13 +136,7 @@ class EndComputation(
         stage = unfinished.computationStage,
         attempt = unfinished.attempt,
         endTime = writeTime,
-        details =
-          ComputationStageAttemptDetails.parser()
-            .parseFrom(unfinished.details)
-            .toBuilder()
-            .setReasonEnded(reason)
-            .build()
-            .toByteArray()
+        details = unfinished.details.toBuilder().setReasonEnded(reason).build().toByteArray()
       )
     }
   }
@@ -135,7 +146,7 @@ class EndComputation(
     val protocol: Long,
     val computationStage: Long,
     val attempt: Long,
-    val details: ByteArray
+    val details: ComputationStageAttemptDetails
   ) {
     constructor(
       row: ResultRow
@@ -144,7 +155,7 @@ class EndComputation(
       protocol = row["Protocol"],
       computationStage = row["ComputationStage"],
       attempt = row["Attempt"],
-      details = row["Details"]
+      details = row.getProtoMessage("Details", ComputationStageAttemptDetails.parser())
     )
   }
 
@@ -157,7 +168,7 @@ class EndComputation(
       SELECT s.ComputationStage, s.Attempt, s.Details, c.Protocol
       FROM ComputationStageAttempts as s
       JOIN Computations AS c
-        ON s.ComputationId = c.ComputationsId
+        ON s.ComputationId = c.ComputationId
       WHERE s.ComputationId = $1
         AND EndTime IS NULL
       """
@@ -167,19 +178,55 @@ class EndComputation(
     return transactionContext.executeQuery(sql).consume(::UnfinishedAttempt)
   }
 
-  private fun validateComputationEditVersion(
-    currentVersion: Long,
-    editVersion: Long,
+  private suspend fun TransactionScope.readComputationDetails(
+    localComputationId: Long
+  ): ByteArray? {
+    val sql =
+      boundStatement(
+        """
+      SELECT ComputationDetails
+      FROM Computations
+      WHERE ComputationId = $1
+      """
+      ) {
+        bind("$1", localComputationId)
+      }
+    return transactionContext
+      .executeQuery(sql)
+      .consume { row -> row.get<ByteArray>("ComputationDetails") }
+      .firstOrNull()
+  }
+
+  private suspend fun TransactionScope.checkComputationUnmodified(
+    localComputationId: Long,
+    editVersion: Long
   ) {
-    if (currentVersion != editVersion) {
-      val currentVersionTime = Instant.ofEpochMilli(currentVersion)
+    val sql =
+      boundStatement(
+        """
+          SELECT UpdateTime
+          FROM Computations
+          WHERE ComputationId = $1
+        """
+          .trimIndent()
+      ) {
+        bind("$1", localComputationId)
+      }
+    val updateTime: Instant =
+      transactionContext
+        .executeQuery(sql)
+        .consume { row -> row.get<Instant>("UpdateTime") }
+        .firstOrNull()
+        ?: throw ComputationNotFoundException(localComputationId)
+    val updateTimeMillis = updateTime.toEpochMilli()
+    if (editVersion != updateTimeMillis) {
       val editVersionTime = Instant.ofEpochMilli(editVersion)
       error(
         """
           Failed to update because of editVersion mismatch.
-            editVersion: $editVersion ($editVersionTime)
-            Computations table's version: $currentVersion ($currentVersionTime)
-            Difference: ${Duration.between(editVersionTime, currentVersionTime)}
+            Token's editVersion: $editVersion ($editVersionTime)
+            Computations table's UpdateTime: $updateTimeMillis ($updateTime)
+            Difference: ${Duration.between(editVersionTime, updateTime)}
           """
           .trimIndent()
       )

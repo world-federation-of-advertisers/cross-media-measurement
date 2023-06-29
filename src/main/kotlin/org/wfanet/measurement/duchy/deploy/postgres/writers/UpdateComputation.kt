@@ -16,55 +16,9 @@ package org.wfanet.measurement.duchy.deploy.postgres.writers
 
 import java.time.Duration
 import java.time.Instant
+import org.wfanet.measurement.common.db.r2dbc.ReadWriteContext
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
-
-
-//suspend fun <ProtocolT, StageT, ComputationDT : Message> PostgresWriter.TransactionScope.updateComputation(
-//  localId: Long,
-//  stage: StageT,
-//  updateTime: Instant,
-//  creationTime: Instant? = null,
-//  globalComputationId: String? = null,
-//  protocol: ProtocolT? = null,
-//  lockOwner: String? = null,
-//  lockExpirationTime: Instant? = null,
-//  details: ComputationDT? = null,
-//  computationTypeEnumHelper: ComputationTypeEnumHelper<ProtocolT>,
-//  computationProtocolStagesEnumHelper:
-//  ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
-//) {
-//
-//  val sql =
-//    boundStatement(
-//      """
-//      UPDATE Computations SET
-//        CreationTime = COALESCE($1, CreationTime),
-//        UpdateTime = COALESCE($2, UpdateTime),
-//        GlobalComputationId = COALESCE($3, GlobalComputationId),
-//        Protocol = COALESCE($4, Protocol),
-//        LockOwner = COALESCE($5, LockOwner),
-//        LockExpirationTime = COALESCE($6, LockExpirationTime),
-//        ComputationDetails = COALESCE($7, ComputationDetails),
-//        ComputationDetailsJson = COALESCE($8::jsonb, ComputationDetailsJson)
-//      WHERE
-//        ComputationId = $9 AND ComputationStage = $10
-//      """
-//    ) {
-//      bind("$1", creationTime)
-//      bind("$2", updateTime)
-//      bind("$3", globalComputationId)
-//      bind("$4", protocol?.let { computationTypeEnumHelper.protocolEnumToLong(it) })
-//      bind("$5", lockOwner)
-//      bind("$6", lockExpirationTime)
-//      bind("$7", details?.toByteArray())
-//      bind("$8", details?.toJson())
-//      bind("$9", localId)
-//      bind("$10", computationProtocolStagesEnumHelper.computationStageEnumToLongValues(stage).stage)
-//    }
-//
-//  transactionContext.executeStatement(sql)
-//}
 
 suspend fun PostgresWriter.TransactionScope.updateComputation(
   localId: Long,
@@ -78,7 +32,6 @@ suspend fun PostgresWriter.TransactionScope.updateComputation(
   details: ByteArray? = null,
   detailsJson: String? = null
 ) {
-
   val sql =
     boundStatement(
       """
@@ -90,9 +43,11 @@ suspend fun PostgresWriter.TransactionScope.updateComputation(
         LockOwner = COALESCE($5, LockOwner),
         LockExpirationTime = COALESCE($6, LockExpirationTime),
         ComputationDetails = COALESCE($7, ComputationDetails),
-        ComputationDetailsJson = COALESCE($8::jsonb, ComputationDetailsJson)
+        ComputationDetailsJson = COALESCE($8::jsonb, ComputationDetailsJson),
+        ComputationId = COALESCE($9, ComputationId),
+        ComputationStage = COALESCE($10, ComputationStage)
       WHERE
-        ComputationId = $9 AND ComputationStage = $10
+        ComputationId = $9
       """
     ) {
       bind("$1", creationTime)
@@ -110,11 +65,28 @@ suspend fun PostgresWriter.TransactionScope.updateComputation(
   transactionContext.executeStatement(sql)
 }
 
-suspend fun PostgresWriter.TransactionScope.setLock(
+suspend fun PostgresWriter.TransactionScope.releaseComputationLock(
   localComputationId: Long,
-  ownerId: String?,
-  writeTime: Instant?,
-  lockDuration: Duration?
+  updateTime: Instant
+) {
+  setLock(transactionContext, localComputationId, updateTime)
+}
+
+suspend fun PostgresWriter.TransactionScope.acquireComputationLock(
+  localComputationId: Long,
+  updateTime: Instant,
+  ownerId: String,
+  lockDuration: Duration
+) {
+  setLock(transactionContext, localComputationId, updateTime, ownerId, lockDuration)
+}
+
+private suspend fun setLock(
+  readWriteContext: ReadWriteContext,
+  localComputationId: Long,
+  updateTime: Instant,
+  ownerId: String? = null,
+  lockDuration: Duration? = null
 ) {
   val sql =
     boundStatement(
@@ -128,12 +100,12 @@ suspend fun PostgresWriter.TransactionScope.setLock(
     """
         .trimIndent()
     ) {
-      bind("$1", writeTime)
+      bind("$1", updateTime)
       bind("$2", ownerId)
-      bind("$3", writeTime?.plus(lockDuration))
+      bind("$3", lockDuration?.let { updateTime.plus(it) })
       bind("$4", localComputationId)
     }
-  transactionContext.executeStatement(sql)
+  readWriteContext.executeStatement(sql)
 }
 
 suspend fun PostgresWriter.TransactionScope.updateComputationStage(

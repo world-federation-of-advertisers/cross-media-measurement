@@ -75,7 +75,7 @@ class ComputationReader(
       version = row.get<Instant>("UpdateTime").toEpochMilli(),
       stageSpecificDetails = row.getProtoMessage("StageDetails", ComputationStageDetails.parser()),
       lockOwner = row["LockOwner"],
-      lockExpirationTime = row.get<Instant>("LockExpirationTime").toProtoTime()
+      lockExpirationTime = row.get<Instant?>("LockExpirationTime")?.toProtoTime()
     )
   }
 

@@ -28,7 +28,6 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.toDuration
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationStageLongValues
@@ -81,10 +80,10 @@ import org.wfanet.measurement.system.v1alpha.stageAttempt
 class PostgresComputationsService(
   private val computationTypeEnumHelper: ComputationTypeEnumHelper<ComputationType>,
   private val protocolStageEnumHelper:
-  ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>,
+    ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>,
   private val computationProtocolStageDetailsHelper:
-  ComputationProtocolStageDetailsHelper<
-    ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
+    ComputationProtocolStageDetailsHelper<
+      ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
     >,
   private val client: DatabaseClient,
   private val idGenerator: IdGenerator,
@@ -108,21 +107,20 @@ class PostgresComputationsService(
     val computationToken =
       try {
         CreateComputation(
-          request.globalComputationId,
-          request.computationType,
-          protocolStageEnumHelper.getValidInitialStage(request.computationType).first(),
-          request.stageDetails,
-          request.computationDetails,
-          request.requisitionsList,
-          clock,
-          computationTypeEnumHelper,
-          protocolStageEnumHelper,
-          computationProtocolStageDetailsHelper
-        )
+            request.globalComputationId,
+            request.computationType,
+            protocolStageEnumHelper.getValidInitialStage(request.computationType).first(),
+            request.stageDetails,
+            request.computationDetails,
+            request.requisitionsList,
+            clock,
+            computationTypeEnumHelper,
+            protocolStageEnumHelper,
+            computationProtocolStageDetailsHelper
+          )
           .execute(client, idGenerator)
 
-        computationReader
-          .readComputationToken(client, request.globalComputationId)
+        computationReader.readComputationToken(client, request.globalComputationId)
           ?: failGrpc(Status.INTERNAL) { "Created computation not found." }
       } catch (ex: ComputationInitialStageInvalidException) {
         throw ex.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -138,13 +136,13 @@ class PostgresComputationsService(
     val claimed =
       try {
         ClaimWork(
-          request.computationType,
-          request.owner,
-          lockDuration,
-          clock,
-          computationTypeEnumHelper,
-          protocolStageEnumHelper,
-        )
+            request.computationType,
+            request.owner,
+            lockDuration,
+            clock,
+            computationTypeEnumHelper,
+            protocolStageEnumHelper,
+          )
           .execute(client, idGenerator)
       } catch (e: ComputationNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
@@ -179,7 +177,6 @@ class PostgresComputationsService(
       when (request.keyCase) {
         KeyCase.GLOBAL_COMPUTATION_ID ->
           reader.readComputationToken(client, request.globalComputationId)
-
         KeyCase.REQUISITION_KEY -> reader.readComputationToken(client, request.requisitionKey)
         KeyCase.KEY_NOT_SET -> failGrpc(Status.INVALID_ARGUMENT) { "key not set" }
       }
@@ -247,32 +244,30 @@ class PostgresComputationsService(
         }
       }
       for (globalId in globalIds) {
+        // TODO: move this to a writer
         val computation: ComputationReader.Computation =
           reader.readComputation(client.singleUse(), globalId) ?: continue
         val computationStageEnum =
           protocolStageEnumHelper.longValuesToComputationStageEnum(
             ComputationStageLongValues(computation.protocol, computation.computationStage)
           )
+        val protocolEnum = computationTypeEnumHelper.longToProtocolEnum(computation.protocol)
         val endComputationStage = getEndingComputationStage(computationStageEnum)
-        val endComputationDetails =
-          computationProtocolStageDetailsHelper.detailsFor(
-            endComputationStage,
-            computation.computationDetails
-          )
+
         if (!isTerminated(computationStageEnum)) {
           EndComputation(
-            localComputationId = computation.localComputationId,
-            editVersion = computation.version,
-            protocol = computation.protocol,
-            currentAttempt = computation.nextAttempt.toLong(),
-            currentStage = computation.computationStage,
-            endingStage =
-            protocolStageEnumHelper.computationStageEnumToLongValues(endComputationStage).stage,
-            endComputationReason = EndComputationReason.FAILED,
-            endComputationDetails = endComputationDetails.toByteArray(),
-            endComputationDetailsJson = endComputationDetails.toJson(),
-            clock = clock
-          )
+              localComputationId = computation.localComputationId,
+              editVersion = computation.version,
+              protocol = protocolEnum,
+              currentAttempt = computation.nextAttempt.toLong(),
+              currentStage = computationStageEnum,
+              endingStage = endComputationStage,
+              endComputationReason = EndComputationReason.FAILED,
+              computationDetails = computation.computationDetails,
+              clock = clock,
+              protocolStagesEnumHelper = protocolStageEnumHelper,
+              protocolStageDetailsHelper = computationProtocolStageDetailsHelper,
+            )
             .execute(client, idGenerator)
           sendStatusUpdateToKingdom(
             newCreateComputationLogEntryRequest(
@@ -290,25 +285,29 @@ class PostgresComputationsService(
     return purgeComputationsResponse { this.purgeCount = deleted }
   }
 
-  override suspend fun finishComputation(request: FinishComputationRequest): FinishComputationResponse {
-    val stageLongValues = protocolStageEnumHelper.computationStageEnumToLongValues(request.token.computationStage)
+  override suspend fun finishComputation(
+    request: FinishComputationRequest
+  ): FinishComputationResponse {
     EndComputation(
-      localComputationId = request.token.localComputationId,
-      editVersion = request.token.version,
-      protocol = stageLongValues.protocol,
-      currentAttempt = request.token.attempt.toLong(),
-      currentStage = stageLongValues.stage,
-      endingStage = protocolStageEnumHelper.computationStageEnumToLongValues(request.endingComputationStage).stage,
-      endComputationReason = when (val it = request.reason) {
-        ComputationDetails.CompletedReason.SUCCEEDED -> EndComputationReason.SUCCEEDED
-        ComputationDetails.CompletedReason.FAILED -> EndComputationReason.FAILED
-        ComputationDetails.CompletedReason.CANCELED -> EndComputationReason.CANCELED
-        else -> error("Unknown CompletedReason $it")
-      },
-      endComputationDetails = request.token.computationDetails.toByteArray(),
-      endComputationDetailsJson = request.token.computationDetails.toJson(),
-      clock = clock
-    )
+        localComputationId = request.token.localComputationId,
+        editVersion = request.token.version,
+        protocol = protocolStageEnumHelper.stageToProtocol(request.token.computationStage),
+        currentAttempt = request.token.attempt.toLong(),
+        currentStage = request.token.computationStage,
+        endingStage = request.endingComputationStage,
+        endComputationReason =
+          when (val it = request.reason) {
+            ComputationDetails.CompletedReason.SUCCEEDED -> EndComputationReason.SUCCEEDED
+            ComputationDetails.CompletedReason.FAILED -> EndComputationReason.FAILED
+            ComputationDetails.CompletedReason.CANCELED -> EndComputationReason.CANCELED
+            else -> error("Unknown CompletedReason $it")
+          },
+        computationDetails = request.token.computationDetails,
+        clock = clock,
+        protocolStagesEnumHelper = protocolStageEnumHelper,
+        protocolStageDetailsHelper = computationProtocolStageDetailsHelper,
+      )
+      .execute(client, idGenerator)
 
     sendStatusUpdateToKingdom(
       newCreateComputationLogEntryRequest(
@@ -318,8 +317,11 @@ class PostgresComputationsService(
     )
 
     return computationReader
-      .readComputationToken(client, request.token.globalComputationId)!!
-      .toFinishComputationResponse()
+      .readComputationToken(client, request.token.globalComputationId)
+      ?.toFinishComputationResponse()
+      ?: failGrpc(Status.INTERNAL) {
+        "Finished computation ${request.token.globalComputationId} not found."
+      }
   }
 
   private fun newCreateComputationLogEntryRequest(
@@ -357,7 +359,6 @@ class PostgresComputationsService(
       ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         computationStage.liquidLegionsSketchAggregationV2 ==
           LiquidLegionsSketchAggregationV2.Stage.COMPLETE
-
       ComputationStage.StageCase.STAGE_NOT_SET -> false
     }
   }
@@ -367,7 +368,6 @@ class PostgresComputationsService(
     return when (computationStage.stageCase) {
       ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         LiquidLegionsSketchAggregationV2.Stage.COMPLETE.toProtocolStage()
-
       ComputationStage.StageCase.STAGE_NOT_SET -> error("protocol not set")
     }
   }

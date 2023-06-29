@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.deploy.postgres.writers
 
+import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
@@ -29,7 +30,6 @@ import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
 import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 import org.wfanet.measurement.internal.duchy.copy
-import java.time.Clock
 
 /**
  * [PostgresWriter] to claim one ready for processing task for an owner.
@@ -132,7 +132,7 @@ class ClaimWork<ProtocolT, StageT>(
     if (currentLockOwner.updateTime != unclaimedTask.updateTime) return false
 
     val writeTime = clock.instant()
-    setLock(unclaimedTask.computationId, ownerId, writeTime, lockDuration)
+    acquireComputationLock(unclaimedTask.computationId, writeTime, ownerId, lockDuration)
     val stageLongValue =
       computationProtocolStagesEnumHelper
         .computationStageEnumToLongValues(unclaimedTask.computationStage)
