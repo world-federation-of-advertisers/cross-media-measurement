@@ -1,6 +1,45 @@
 load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("@aspect_rules_jest//jest:defs.bzl", "jest_test")
+
+js_library(
+    name = "test_files",
+    srcs = glob(
+        include = [
+            "*.test.tsx",
+            "*.test.ts",
+            "*.spec.tsx",
+            "*.spec.ts",
+        ],
+    ),
+)
 
 js_library(
     name = "jest_config",
     srcs = ["jest.config.js"],
+)
+
+js_library(
+    name = "test_node_deps",
+    srcs = [
+        "//:node_modules/jest",
+        "//:node_modules/jest-environment-jsdom",
+        "//:node_modules/jest-junit",
+        "//:node_modules/jest-transform-stub",
+        "//:node_modules/ts-jest",
+    ],
+)
+
+jest_test(
+    name = "test",
+    config = ":jest_config",
+    data = [
+        ":test_files",
+        ":test_node_deps",
+        "//:tsconfig",
+        "//src/main/react/reporting-ui:build_node_deps",
+        "//src/main/react/reporting-ui/src:src_files",
+        "//src/test/react/jest:jest_base_config",
+        "//src/test/react/jest:jest_files",
+    ],
+    node_modules = "//:node_modules",
 )
