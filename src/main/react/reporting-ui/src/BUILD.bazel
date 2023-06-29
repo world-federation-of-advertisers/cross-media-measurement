@@ -35,7 +35,7 @@ ts_project(
     srcs = glob(SRC_PATTERNS),
     declaration = True,
     resolve_json_module = True,
-    tsconfig = "//src/main/react/reporting-ui:tsconfig",
+    tsconfig = "//:tsconfig",
     deps = [
         "//:node_modules/react",
         "//:node_modules/react-dom",
