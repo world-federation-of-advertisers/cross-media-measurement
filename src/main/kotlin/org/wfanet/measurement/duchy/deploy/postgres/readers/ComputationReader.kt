@@ -18,6 +18,7 @@ import com.google.protobuf.Timestamp
 import java.time.Instant
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.flow.toSet
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
@@ -40,7 +41,7 @@ import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.duchy.requisitionMetadata
 
 /**
- * Performs read operations on Computations tables
+ * Performs read operations on Computations, Requisitions, and ComputationBlobReferences tables
  *
  * @param computationProtocolStagesEnumHelper [ComputationProtocolStagesEnumHelper] a helper class
  *   to work with Enum representations of [ComputationType] and [ComputationStage].
@@ -50,7 +51,7 @@ class ComputationReader(
     ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
 ) {
 
-  private data class Computation(
+  data class Computation(
     val globalComputationId: String,
     val localComputationId: Long,
     val protocol: Long,
@@ -170,10 +171,7 @@ class ComputationReader(
     return readContext.executeQuery(statement).consume(::buildRequisition).toList()
   }
 
-  private suspend fun readComputation(
-    readContext: ReadContext,
-    globalComputationId: String
-  ): Computation? {
+  suspend fun readComputation(readContext: ReadContext, globalComputationId: String): Computation? {
     val statement =
       boundStatement(
         """
@@ -227,7 +225,7 @@ class ComputationReader(
       """
       ) {
         bind("$1", externalRequisitionKey.externalRequisitionId)
-        bind("$2", externalRequisitionKey.requisitionFingerprint)
+        bind("$2", externalRequisitionKey.requisitionFingerprint.toByteArray())
       }
     return readContext.executeQuery(statement).consume(::Computation).firstOrNull()
   }
@@ -235,7 +233,7 @@ class ComputationReader(
   /**
    * Gets a [ComputationToken] by globalComputationId.
    *
-   * @param readContext The transaction context for reading from the Postgres database.
+   * @param client The [DatabaseClient] to the Postgres database.
    * @param globalComputationId A global identifier for a computation.
    * @return [ReadComputationTokenResult] when a Computation with globalComputationId is found.
    * @return null otherwise.
@@ -262,7 +260,7 @@ class ComputationReader(
   /**
    * Gets a [ComputationToken] by externalRequisitionKey.
    *
-   * @param readContext The transaction context for reading from the Postgres database.
+   * @param client The [DatabaseClient] to the Postgres database.
    * @param externalRequisitionKey The [ExternalRequisitionKey] for a computation.
    * @return [ReadComputationTokenResult] when a Computation with externalRequisitionKey is found.
    * @return null otherwise.
@@ -283,5 +281,139 @@ class ComputationReader(
     } finally {
       readContext.close()
     }
+  }
+
+  /**
+   * Gets a [Computation] by localComputationId.
+   *
+   * @param readContext The transaction context for reading from the Postgres database.
+   * @param localComputationId The local ID for a computation.
+   * @return [Computation] when a Computation with localComputationId is found.
+   * @return null otherwise.
+   */
+  suspend fun readComputation(
+    readContext: ReadContext,
+    localComputationId: Long,
+  ): Computation? {
+    val statement =
+      boundStatement(
+        """
+        SELECT
+          ComputationId,
+          GlobalComputationId,
+          LockOwner,
+          LockExpirationTime,
+          ComputationStage,
+          ComputationDetails,
+          Protocol,
+          UpdateTime,
+        FROM Computations
+        WHERE ComputationId = $1
+      """
+      ) {
+        bind("$1", localComputationId)
+      }
+    return readContext.executeQuery(statement).consume(::Computation).firstOrNull()
+  }
+
+  /**
+   * Gets a list of computationBlobKeys by localComputationId
+   *
+   * @param readContext The transaction context for reading from the Postgres database.
+   * @param localComputationId A local identifier for a computation
+   * @return A list of computation blob keys
+   */
+  suspend fun readComputationBlobKeys(
+    readContext: ReadContext,
+    localComputationId: Long
+  ): List<String> {
+    val statement =
+      boundStatement(
+        """
+        SELECT PathToBlob
+        FROM ComputationBlobReferences
+        WHERE ComputationId = $1 AND PathToBlob IS NOT NULL
+      """
+          .trimIndent()
+      ) {
+        bind("$1", localComputationId)
+      }
+
+    return readContext
+      .executeQuery(statement)
+      .consume { row -> row.get<String>("PathToBlob") }
+      .toList()
+  }
+
+  /**
+   * Gets a list of requisitionBlobKeys by localComputationId
+   *
+   * @param readContext The transaction context for reading from the Postgres database.
+   * @param localComputationId A local identifier for a computation
+   * @return A list of requisition blob keys
+   */
+  suspend fun readRequisitionBlobKeys(
+    readContext: ReadContext,
+    localComputationId: Long
+  ): List<String> {
+    val statement =
+      boundStatement(
+        """
+        SELECT PathToBlob
+        FROM Requisitions
+        WHERE ComputationId = $1 AND PathToBlob IS NOT NULL
+      """
+          .trimIndent()
+      ) {
+        bind("$1", localComputationId)
+      }
+
+    return readContext
+      .executeQuery(statement)
+      .consume { row -> row.get<String>("PathToBlob") }
+      .toList()
+  }
+
+  /**
+   * Gets a set of globalComputationIds
+   *
+   * @param readContext The transaction context for reading from the Postgres database.
+   * @param stages A list of stage's long values
+   * @param computationType The long value of the computation type
+   * @param updatedBefore An [Instant] to filter for the computations that has been updated before
+   *   this
+   * @return A set of global computation Ids
+   */
+  suspend fun readGlobalComputationIds(
+    readContext: ReadContext,
+    stages: List<Long>,
+    computationType: Long,
+    updatedBefore: Instant? = null
+  ): Set<String> {
+    val baseSql =
+      """
+        SELECT GlobalComputationId
+        FROM Computations
+        WHERE
+          ComputationStage IN ($1)
+        AND
+          Protocol = $2
+      """
+
+    val sql =
+      boundStatement(
+        updatedBefore?.let { baseSql + """
+          AND UpdateTime <= $3
+          """ } ?: baseSql
+      ) {
+        bind("$1", stages.toLongArray())
+        bind("$2", computationType)
+        updatedBefore?.let { bind("$3", it) }
+      }
+
+    return readContext
+      .executeQuery(sql)
+      .consume { row -> row.get<String>("GlobalComputationId") }
+      .toSet()
   }
 }

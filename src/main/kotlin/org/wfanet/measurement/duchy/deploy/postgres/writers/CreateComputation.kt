@@ -70,6 +70,8 @@ class CreateComputation<ProtocolT, ComputationDT : Message, StageT, StageDT : Me
     val lockOwner: String? = null
     val localId = idGenerator.generateInternalId()
     val writeTimestamp = clock.instant()
+    val initialStageLongValue =
+      computationProtocolStagesEnumHelper.computationStageEnumToLongValues(initialStage).stage
 
     insertComputation(
       localId = localId.value,
@@ -85,13 +87,14 @@ class CreateComputation<ProtocolT, ComputationDT : Message, StageT, StageDT : Me
 
     insertComputationStage(
       localId = localId.value,
-      stage = initialStage,
+      stage = initialStageLongValue,
       nextAttempt = 1,
       creationTime = writeTimestamp,
       endTime = writeTimestamp,
       previousStage = null,
       followingStage = null,
-      details = stageDetails
+      details = stageDetails.toByteArray(),
+      detailsJson = stageDetails.toJson()
     )
 
     requisitions.map {
@@ -156,61 +159,6 @@ class CreateComputation<ProtocolT, ComputationDT : Message, StageT, StageDT : Me
       }
 
     transactionContext.executeStatement(insertComputationStatement)
-  }
-
-  private suspend fun TransactionScope.insertComputationStage(
-    localId: Long,
-    stage: StageT,
-    nextAttempt: Long? = null,
-    creationTime: Instant? = null,
-    endTime: Instant? = null,
-    previousStage: StageT? = null,
-    followingStage: StageT? = null,
-    details: StageDT? = null
-  ) {
-    val insertComputationStageStatement =
-      boundStatement(
-        """
-      INSERT INTO ComputationStages
-        (
-          ComputationId,
-          ComputationStage,
-          CreationTime,
-          NextAttempt,
-          EndTime,
-          PreviousStage,
-          FollowingStage,
-          Details,
-          DetailsJSON
-        )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
-      """
-      ) {
-        bind("$1", localId)
-        bind(
-          "$2",
-          computationProtocolStagesEnumHelper.computationStageEnumToLongValues(stage).stage
-        )
-        bind("$3", creationTime)
-        bind("$4", nextAttempt)
-        bind("$5", endTime)
-        bind(
-          "$6",
-          previousStage?.let {
-            computationProtocolStagesEnumHelper.computationStageEnumToLongValues(it).stage
-          }
-        )
-        bind(
-          "$7",
-          followingStage?.let {
-            computationProtocolStagesEnumHelper.computationStageEnumToLongValues(it).stage
-          }
-        )
-        bind("$8", details?.toByteArray())
-        bind("$9", details?.toJson())
-      }
-
-    transactionContext.executeStatement(insertComputationStageStatement)
   }
 
   private suspend fun TransactionScope.insertRequisition(

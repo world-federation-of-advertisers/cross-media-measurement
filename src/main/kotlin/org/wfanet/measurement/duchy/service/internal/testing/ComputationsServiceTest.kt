@@ -637,7 +637,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     service.claimWork(
       DEFAULT_CLAIM_WORK_REQUEST.copy { this.lockDuration = Durations.fromSeconds(1) }
     )
-    clock.tickSeconds("lock-expired", 1)
+    clock.tickSeconds("lock-expired", 2)
     val updateTime = clock.last()
     val lockDuration = Duration.ofMinutes(10)
 

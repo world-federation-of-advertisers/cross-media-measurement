@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.duchy.deploy.postgres.writers
 
-import com.google.protobuf.Message
 import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
@@ -30,6 +29,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
 import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 import org.wfanet.measurement.internal.duchy.copy
+import java.time.Clock
 
 /**
  * [PostgresWriter] to claim one ready for processing task for an owner.
@@ -43,10 +43,11 @@ import org.wfanet.measurement.internal.duchy.copy
  * * [ComputationNotFoundException] when computation could not be found
  * * [IllegalStateException] when computation details could not be found
  */
-class ClaimWork<ProtocolT, ComputationDT : Message, StageT, StageDT : Message>(
+class ClaimWork<ProtocolT, StageT>(
   private val protocol: ProtocolT,
   private val ownerId: String,
   private val lockDuration: Duration,
+  private val clock: Clock,
   private val computationTypeEnumHelper: ComputationTypeEnumHelper<ProtocolT>,
   private val computationProtocolStagesEnumHelper:
     ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
@@ -79,7 +80,7 @@ class ClaimWork<ProtocolT, ComputationDT : Message, StageT, StageDT : Message>(
     LockOwnerQueryResult(lockOwner = row["LockOwner"], updateTime = row["UpdateTime"])
 
   override suspend fun TransactionScope.runTransaction(): String? {
-    return listUnclaimedTasks(protocol, Instant.now())
+    return listUnclaimedTasks(protocol, clock.instant())
       // First the possible tasks to claim are selected from the computations table, then for each
       // item in the list we try to claim the lock in a transaction which will only succeed if the
       // lock is still available. This pattern means only the item which is being updated
@@ -130,8 +131,12 @@ class ClaimWork<ProtocolT, ComputationDT : Message, StageT, StageDT : Message>(
     // If it has been updated since that time the lock should not be acquired.
     if (currentLockOwner.updateTime != unclaimedTask.updateTime) return false
 
-    val writeTime = Instant.now()
+    val writeTime = clock.instant()
     setLock(unclaimedTask.computationId, ownerId, writeTime, lockDuration)
+    val stageLongValue =
+      computationProtocolStagesEnumHelper
+        .computationStageEnumToLongValues(unclaimedTask.computationStage)
+        .stage
 
     insertComputationStageAttempt(
       unclaimedTask.computationId,
@@ -143,7 +148,7 @@ class ClaimWork<ProtocolT, ComputationDT : Message, StageT, StageDT : Message>(
 
     updateComputationStage(
       unclaimedTask.computationId,
-      unclaimedTask.computationStage,
+      stageLongValue,
       nextAttempt = unclaimedTask.nextAttempt + 1
     )
 
@@ -161,11 +166,13 @@ class ClaimWork<ProtocolT, ComputationDT : Message, StageT, StageDT : Message>(
       // current attempt of the stage.
       updateComputationStageAttempt(
         localId = unclaimedTask.computationId,
-        stage = unclaimedTask.computationStage,
+        stage = stageLongValue,
         attempt = currentAttempt,
         endTime = writeTime,
         details =
-          details.copy { reasonEnded = ComputationStageAttemptDetails.EndReason.LOCK_OVERWRITTEN }
+          details
+            .copy { reasonEnded = ComputationStageAttemptDetails.EndReason.LOCK_OVERWRITTEN }
+            .toByteArray()
       )
     }
     // The lock was acquired.
@@ -230,161 +237,6 @@ class ClaimWork<ProtocolT, ComputationDT : Message, StageT, StageDT : Message>(
     transactionContext.executeStatement(insertComputationStageAttemptSql)
   }
 
-  private suspend fun TransactionScope.updateComputation(
-    localId: Long,
-    updateTime: Instant,
-    creationTime: Instant? = null,
-    globalId: String? = null,
-    protocol: ProtocolT? = null,
-    stage: StageT? = null,
-    lockOwner: String? = null,
-    lockExpirationTime: Instant? = null,
-    details: ComputationDT? = null
-  ) {
-    val updateComputationSql =
-      boundStatement(
-        """
-      UPDATE Computations SET
-        ComputationId = COALESCE($1, ComputationId),
-        CreationTime = COALESCE($2, CreationTime),
-        UpdateTime = COALESCE($3, UpdateTime),
-        GlobalComputationId = COALESCE($4, GlobalComputationId),
-        Protocol = COALESCE($5, Protocol),
-        ComputationStage = COALESCE($6, ComputationStage),
-        LockOwner = COALESCE($7, LockOwner),
-        LockExpirationTime = COALESCE($8, LockExpirationTime),
-        ComputationDetails = COALESCE($9, ComputationDetails),
-        ComputationDetailsJson = COALESCE($10::jsonb, ComputationDetailsJson)
-      WHERE
-        ComputationId = $1;
-      """
-      ) {
-        bind("$1", localId)
-        bind("$2", creationTime)
-        bind("$3", updateTime)
-        bind("$4", globalId)
-        bind("$5", protocol?.let { computationTypeEnumHelper.protocolEnumToLong(it) })
-        bind(
-          "$6",
-          stage?.let {
-            computationProtocolStagesEnumHelper.computationStageEnumToLongValues(it).stage
-          }
-        )
-        bind("$7", lockOwner)
-        bind("$8", lockExpirationTime)
-        bind("$9", details?.toByteArray())
-        bind("$10", details?.toJson())
-      }
-
-    transactionContext.executeStatement(updateComputationSql)
-  }
-
-  private suspend fun TransactionScope.updateComputationStage(
-    localId: Long,
-    stage: StageT,
-    nextAttempt: Long? = null,
-    creationTime: Instant? = null,
-    endTime: Instant? = null,
-    previousStage: StageT? = null,
-    followingStage: StageT? = null,
-    details: StageDT? = null
-  ) {
-    val updateComputationStageSql =
-      boundStatement(
-        """
-      UPDATE ComputationStages SET
-        ComputationId = COALESCE($1, ComputationId),
-        ComputationStage = COALESCE($2, ComputationStage),
-        CreationTime = COALESCE($3, CreationTime),
-        NextAttempt = COALESCE($4, NextAttempt),
-        EndTime = COALESCE($5, EndTime),
-        PreviousStage = COALESCE($6, PreviousStage),
-        FollowingStage = COALESCE($7, FollowingStage),
-        Details = COALESCE($8, Details),
-        DetailsJSON = COALESCE($9::jsonb, DetailsJSON)
-      WHERE
-        ComputationId = $1;
-      """
-      ) {
-        bind("$1", localId)
-        bind(
-          "$2",
-          computationProtocolStagesEnumHelper.computationStageEnumToLongValues(stage).stage
-        )
-        bind("$3", creationTime)
-        bind("$4", nextAttempt)
-        bind("$5", endTime)
-        bind(
-          "$6",
-          previousStage?.let {
-            computationProtocolStagesEnumHelper.computationStageEnumToLongValues(it).stage
-          }
-        )
-        bind(
-          "$7",
-          followingStage?.let {
-            computationProtocolStagesEnumHelper.computationStageEnumToLongValues(it).stage
-          }
-        )
-        bind("$8", details?.toByteArray())
-        bind("$9", details?.toJson())
-      }
-
-    transactionContext.executeStatement(updateComputationStageSql)
-  }
-
-  private suspend fun TransactionScope.updateComputationStageAttempt(
-    localId: Long,
-    stage: StageT,
-    attempt: Long,
-    beginTime: Instant? = null,
-    endTime: Instant? = null,
-    details: ComputationStageAttemptDetails? = null
-  ) {
-    val updateComputationStageAttemptsSql =
-      boundStatement(
-        """
-      UPDATE ComputationStageAttempts SET
-        ComputationId = COALESCE($1, ComputationId),
-        ComputationStage = COALESCE($2, ComputationStage),
-        Attempt = COALESCE($3, Attempt),
-        BeginTime = COALESCE($4, BeginTime),
-        EndTime = COALESCE($5, EndTime),
-        Details = COALESCE($6, Details),
-        DetailsJSON = COALESCE($7::jsonb, DetailsJSON)
-      WHERE
-        ComputationId = $1;
-      """
-      ) {
-        bind("$1", localId)
-        bind(
-          "$2",
-          computationProtocolStagesEnumHelper.computationStageEnumToLongValues(stage).stage
-        )
-        bind("$3", attempt)
-        bind("$4", beginTime)
-        bind("$5", endTime)
-        bind("$6", details?.toByteArray())
-        bind("$7", details?.toJson())
-      }
-
-    transactionContext.executeStatement(updateComputationStageAttemptsSql)
-  }
-
-  private suspend fun TransactionScope.setLock(
-    computationId: Long,
-    ownerId: String,
-    writeTime: Instant,
-    lockDuration: Duration
-  ) {
-    updateComputation(
-      localId = computationId,
-      updateTime = writeTime,
-      lockOwner = ownerId,
-      lockExpirationTime = writeTime.plus(lockDuration),
-    )
-  }
-
   private suspend fun TransactionScope.readComputationStageDetails(
     computationId: Long,
     stage: StageT,
@@ -396,8 +248,10 @@ class ClaimWork<ProtocolT, ComputationDT : Message, StageT, StageDT : Message>(
       SELECT Details
       FROM ComputationStageAttempts
       WHERE
-        ComputationId = $1,
-        ComputationStage = $2,
+        ComputationId = $1
+      AND
+        ComputationStage = $2
+      AND
         Attempt = $3
       """
       ) {

@@ -29,10 +29,9 @@ import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetai
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
 import org.wfanet.measurement.duchy.db.computation.ComputationTypes
 import org.wfanet.measurement.duchy.deploy.postgres.testing.Schemata.DUCHY_CHANGELOG_PATH
-import org.wfanet.measurement.duchy.service.internal.testing.ComputationStatsServiceTest
+import org.wfanet.measurement.duchy.service.internal.testing.ComputationsServiceTest
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.storage.RequisitionStore
-import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
@@ -40,8 +39,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.Computa
 private const val ALSACE = "Alsace"
 
 @RunWith(JUnit4::class)
-class PostgresComputationStatsServiceTest :
-  ComputationStatsServiceTest<PostgresComputationStatsService>() {
+class PostgresComputationsServiceTest : ComputationsServiceTest<PostgresComputationsService>() {
 
   private lateinit var storageClient: FileSystemStorageClient
   private lateinit var computationStore: ComputationStore
@@ -63,11 +61,7 @@ class PostgresComputationStatsServiceTest :
   private val systemComputationLogEntriesClient =
     ComputationLogEntriesCoroutineStub(grpcTestServerRule.channel)
 
-  override fun newComputationStatsService(): PostgresComputationStatsService {
-    return PostgresComputationStatsService(client, idGenerator)
-  }
-
-  override fun newComputationsService(): ComputationsGrpcKt.ComputationsCoroutineImplBase {
+  override fun newService(clock: Clock): PostgresComputationsService {
     return PostgresComputationsService(
       computationTypeEnumHelper = ComputationTypes,
       protocolStageEnumHelper = ComputationProtocolStages,
@@ -75,9 +69,10 @@ class PostgresComputationStatsServiceTest :
       client = client,
       idGenerator = idGenerator,
       duchyName = ALSACE,
-      computationStorageClient = ComputationStore(storageClient),
-      requisitionStorageClient = RequisitionStore(storageClient),
+      computationStorageClient = computationStore,
+      requisitionStorageClient = requisitionStore,
       computationLogEntriesClient = systemComputationLogEntriesClient,
+      clock = clock
     )
   }
 }
