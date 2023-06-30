@@ -619,7 +619,8 @@ class EventGroupsServiceTest {
 
     private const val EVENT_GROUP_REFERENCE_ID_2 = "ref2"
     private const val EVENT_GROUP_ID_2 = "2237"
-    private val CMMS_EVENT_GROUP_NAME_2 = CmmsEventGroupKey(DATA_PROVIDER_ID, EVENT_GROUP_ID_2).toName()
+    private val CMMS_EVENT_GROUP_NAME_2 =
+      CmmsEventGroupKey(DATA_PROVIDER_ID, EVENT_GROUP_ID_2).toName()
     private val CMMS_EVENT_GROUP_2 = cmmsEventGroup {
       name = CMMS_EVENT_GROUP_NAME_2
       measurementConsumer = MEASUREMENT_CONSUMER_NAME
