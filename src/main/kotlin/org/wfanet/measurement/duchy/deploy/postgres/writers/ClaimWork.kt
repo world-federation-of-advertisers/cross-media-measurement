@@ -23,7 +23,6 @@ import kotlinx.coroutines.flow.firstOrNull
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
-import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationStageLongValues
 import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
@@ -140,7 +139,7 @@ class ClaimWork<ProtocolT, StageT>(
 
     insertComputationStageAttempt(
       unclaimedTask.computationId,
-      unclaimedTask.computationStage,
+      stageLongValue,
       unclaimedTask.nextAttempt,
       beginTime = writeTime,
       details = ComputationStageAttemptDetails.getDefaultInstance()
@@ -170,9 +169,7 @@ class ClaimWork<ProtocolT, StageT>(
         attempt = currentAttempt,
         endTime = writeTime,
         details =
-          details
-            .copy { reasonEnded = ComputationStageAttemptDetails.EndReason.LOCK_OVERWRITTEN }
-            .toByteArray()
+          details.copy { reasonEnded = ComputationStageAttemptDetails.EndReason.LOCK_OVERWRITTEN }
       )
     }
     // The lock was acquired.
@@ -196,45 +193,6 @@ class ClaimWork<ProtocolT, StageT>(
       .consume(::buildLockOwnerQueryResult)
       .firstOrNull()
       ?: throw ComputationNotFoundException(computationId)
-  }
-
-  private suspend fun TransactionScope.insertComputationStageAttempt(
-    localId: Long,
-    stage: StageT,
-    attempt: Long,
-    beginTime: Instant,
-    endTime: Instant? = null,
-    details: ComputationStageAttemptDetails
-  ) {
-    val insertComputationStageAttemptSql =
-      boundStatement(
-        """
-      INSERT INTO ComputationStageAttempts
-        (
-          ComputationId,
-          ComputationStage,
-          Attempt,
-          BeginTime,
-          EndTime,
-          Details,
-          DetailsJson
-        )
-      VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb);
-      """
-      ) {
-        bind("$1", localId)
-        bind(
-          "$2",
-          computationProtocolStagesEnumHelper.computationStageEnumToLongValues(stage).stage
-        )
-        bind("$3", attempt)
-        bind("$4", beginTime)
-        bind("$5", endTime)
-        bind("$6", details.toByteArray())
-        bind("$7", details.toJson())
-      }
-
-    transactionContext.executeStatement(insertComputationStageAttemptSql)
   }
 
   private suspend fun TransactionScope.readComputationStageDetails(

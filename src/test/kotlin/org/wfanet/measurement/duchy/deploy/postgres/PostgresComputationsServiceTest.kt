@@ -64,7 +64,7 @@ class PostgresComputationsServiceTest : ComputationsServiceTest<PostgresComputat
   override fun newService(clock: Clock): PostgresComputationsService {
     return PostgresComputationsService(
       computationTypeEnumHelper = ComputationTypes,
-      protocolStageEnumHelper = ComputationProtocolStages,
+      protocolStagesEnumHelper = ComputationProtocolStages,
       computationProtocolStageDetailsHelper = ComputationProtocolStageDetails,
       client = client,
       idGenerator = idGenerator,

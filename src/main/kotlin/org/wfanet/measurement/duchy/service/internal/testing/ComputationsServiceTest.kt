@@ -414,6 +414,8 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
       .isEqualTo(response.token)
   }
 
+  @Test fun `updateComputationDetails updates RequisitionDetails`() = runBlocking { assert(false) }
+
   @Test
   fun `updateComputationDetails throws IllegalArgumentException when updating protocol`() =
     runBlocking {

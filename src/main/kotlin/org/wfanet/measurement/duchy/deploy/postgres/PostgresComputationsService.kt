@@ -28,27 +28,37 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.toDuration
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.duchy.db.computation.AfterTransition
+import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationStageLongValues
 import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.deploy.postgres.readers.ComputationReader
+import org.wfanet.measurement.duchy.deploy.postgres.writers.AdvanceComputationStage
 import org.wfanet.measurement.duchy.deploy.postgres.writers.ClaimWork
 import org.wfanet.measurement.duchy.deploy.postgres.writers.CreateComputation
 import org.wfanet.measurement.duchy.deploy.postgres.writers.DeleteComputation
 import org.wfanet.measurement.duchy.deploy.postgres.writers.EndComputation
+import org.wfanet.measurement.duchy.deploy.postgres.writers.RecordOutputBlobPath
+import org.wfanet.measurement.duchy.deploy.postgres.writers.UpdateComputationDetails
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
 import org.wfanet.measurement.duchy.service.internal.ComputationDetailsNotFoundException
 import org.wfanet.measurement.duchy.service.internal.ComputationInitialStageInvalidException
 import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
+import org.wfanet.measurement.duchy.service.internal.computations.toAdvanceComputationStageResponse
 import org.wfanet.measurement.duchy.service.internal.computations.toClaimWorkResponse
 import org.wfanet.measurement.duchy.service.internal.computations.toFinishComputationResponse
 import org.wfanet.measurement.duchy.service.internal.computations.toGetComputationTokenResponse
+import org.wfanet.measurement.duchy.service.internal.computations.toRecordOutputBlobPathResponse
+import org.wfanet.measurement.duchy.service.internal.computations.toUpdateComputationDetailsResponse
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.duchy.toProtocolStage
+import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
+import org.wfanet.measurement.internal.duchy.AdvanceComputationStageResponse
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
 import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
 import org.wfanet.measurement.internal.duchy.ComputationDetails
@@ -66,6 +76,10 @@ import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest.KeyCase
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.PurgeComputationsRequest
 import org.wfanet.measurement.internal.duchy.PurgeComputationsResponse
+import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
+import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
+import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
+import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsResponse
 import org.wfanet.measurement.internal.duchy.createComputationResponse
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.purgeComputationsResponse
@@ -79,7 +93,7 @@ import org.wfanet.measurement.system.v1alpha.stageAttempt
 /** Implementation of the Computations service for Postgres database. */
 class PostgresComputationsService(
   private val computationTypeEnumHelper: ComputationTypeEnumHelper<ComputationType>,
-  private val protocolStageEnumHelper:
+  private val protocolStagesEnumHelper:
     ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>,
   private val computationProtocolStageDetailsHelper:
     ComputationProtocolStageDetailsHelper<
@@ -95,7 +109,7 @@ class PostgresComputationsService(
   private val defaultLockDuration: Duration = Duration.ofMinutes(5),
 ) : ComputationsCoroutineImplBase() {
 
-  private val computationReader = ComputationReader(protocolStageEnumHelper)
+  private val computationReader = ComputationReader(protocolStagesEnumHelper)
 
   override suspend fun createComputation(
     request: CreateComputationRequest
@@ -109,13 +123,13 @@ class PostgresComputationsService(
         CreateComputation(
             request.globalComputationId,
             request.computationType,
-            protocolStageEnumHelper.getValidInitialStage(request.computationType).first(),
+            protocolStagesEnumHelper.getValidInitialStage(request.computationType).first(),
             request.stageDetails,
             request.computationDetails,
             request.requisitionsList,
             clock,
             computationTypeEnumHelper,
-            protocolStageEnumHelper,
+            protocolStagesEnumHelper,
             computationProtocolStageDetailsHelper
           )
           .execute(client, idGenerator)
@@ -141,7 +155,7 @@ class PostgresComputationsService(
             lockDuration,
             clock,
             computationTypeEnumHelper,
-            protocolStageEnumHelper,
+            protocolStagesEnumHelper,
           )
           .execute(client, idGenerator)
       } catch (e: ComputationNotFoundException) {
@@ -152,7 +166,7 @@ class PostgresComputationsService(
 
     return if (claimed != null) {
       val token =
-        ComputationReader(protocolStageEnumHelper).readComputationToken(client, claimed)
+        ComputationReader(protocolStagesEnumHelper).readComputationToken(client, claimed)
           ?: failGrpc(Status.INTERNAL) { "Claimed computation $claimed not found." }
 
       sendStatusUpdateToKingdom(
@@ -171,7 +185,7 @@ class PostgresComputationsService(
   override suspend fun getComputationToken(
     request: GetComputationTokenRequest
   ): GetComputationTokenResponse {
-    val reader = ComputationReader(protocolStageEnumHelper)
+    val reader = ComputationReader(protocolStagesEnumHelper)
     val token =
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (request.keyCase) {
@@ -186,7 +200,7 @@ class PostgresComputationsService(
   }
 
   override suspend fun deleteComputation(request: DeleteComputationRequest): Empty {
-    val reader = ComputationReader(protocolStageEnumHelper)
+    val reader = ComputationReader(protocolStagesEnumHelper)
 
     val computationBlobKeys =
       reader.readComputationBlobKeys(client.singleUse(), request.localComputationId)
@@ -219,10 +233,10 @@ class PostgresComputationsService(
   override suspend fun purgeComputations(
     request: PurgeComputationsRequest
   ): PurgeComputationsResponse {
-    val reader = ComputationReader(protocolStageEnumHelper)
+    val reader = ComputationReader(protocolStagesEnumHelper)
 
     val stages =
-      request.stagesList.map { protocolStageEnumHelper.computationStageEnumToLongValues(it) }
+      request.stagesList.map { protocolStagesEnumHelper.computationStageEnumToLongValues(it) }
     val computationTypes = stages.map { it.protocol }.distinct()
     grpcRequire(computationTypes.count() == 1) {
       "All stages should have the same ComputationType."
@@ -248,7 +262,7 @@ class PostgresComputationsService(
         val computation: ComputationReader.Computation =
           reader.readComputation(client.singleUse(), globalId) ?: continue
         val computationStageEnum =
-          protocolStageEnumHelper.longValuesToComputationStageEnum(
+          protocolStagesEnumHelper.longValuesToComputationStageEnum(
             ComputationStageLongValues(computation.protocol, computation.computationStage)
           )
         val protocolEnum = computationTypeEnumHelper.longToProtocolEnum(computation.protocol)
@@ -265,7 +279,7 @@ class PostgresComputationsService(
               endComputationReason = EndComputationReason.FAILED,
               computationDetails = computation.computationDetails,
               clock = clock,
-              protocolStagesEnumHelper = protocolStageEnumHelper,
+              protocolStagesEnumHelper = protocolStagesEnumHelper,
               protocolStageDetailsHelper = computationProtocolStageDetailsHelper,
             )
             .execute(client, idGenerator)
@@ -291,7 +305,7 @@ class PostgresComputationsService(
     EndComputation(
         localComputationId = request.token.localComputationId,
         editVersion = request.token.version,
-        protocol = protocolStageEnumHelper.stageToProtocol(request.token.computationStage),
+        protocol = protocolStagesEnumHelper.stageToProtocol(request.token.computationStage),
         currentAttempt = request.token.attempt.toLong(),
         currentStage = request.token.computationStage,
         endingStage = request.endingComputationStage,
@@ -304,7 +318,7 @@ class PostgresComputationsService(
           },
         computationDetails = request.token.computationDetails,
         clock = clock,
-        protocolStagesEnumHelper = protocolStageEnumHelper,
+        protocolStagesEnumHelper = protocolStagesEnumHelper,
         protocolStageDetailsHelper = computationProtocolStageDetailsHelper,
       )
       .execute(client, idGenerator)
@@ -316,12 +330,105 @@ class PostgresComputationsService(
       )
     )
 
-    return computationReader
-      .readComputationToken(client, request.token.globalComputationId)
-      ?.toFinishComputationResponse()
-      ?: failGrpc(Status.INTERNAL) {
-        "Finished computation ${request.token.globalComputationId} not found."
+    val token =
+      computationReader.readComputationToken(client, request.token.globalComputationId)
+        ?: failGrpc(Status.INTERNAL) {
+          "Finished computation ${request.token.globalComputationId} not found."
+        }
+
+    return token.toFinishComputationResponse()
+  }
+
+  override suspend fun updateComputationDetails(
+    request: UpdateComputationDetailsRequest
+  ): UpdateComputationDetailsResponse {
+    require(request.token.computationDetails.protocolCase == request.details.protocolCase) {
+      "The protocol type cannot change."
+    }
+    UpdateComputationDetails(
+      clock = clock,
+      localId = request.token.localComputationId,
+      editVersion = request.token.version,
+      computationDetails = request.details,
+      requisitionEntries = request.requisitionsList
+    )
+
+    val token =
+      computationReader.readComputationToken(client, request.token.globalComputationId)
+        ?: failGrpc(Status.INTERNAL) {
+          "Updated computation ${request.token.globalComputationId} not found."
+        }
+    return token.toUpdateComputationDetailsResponse()
+  }
+
+  override suspend fun recordOutputBlobPath(
+    request: RecordOutputBlobPathRequest
+  ): RecordOutputBlobPathResponse {
+
+    RecordOutputBlobPath(
+        clock = clock,
+        localId = request.token.localComputationId,
+        editVersion = request.token.version,
+        stage = request.token.computationStage,
+        blobRef = BlobRef(request.outputBlobId, request.blobPath),
+        protocolStagesEnumHelper = protocolStagesEnumHelper
+      )
+      .execute(client, idGenerator)
+
+    val token =
+      computationReader.readComputationToken(client, request.token.globalComputationId)
+        ?: failGrpc(Status.INTERNAL) {
+          "Computation ${request.token.globalComputationId} not found."
+        }
+    return token.toRecordOutputBlobPathResponse()
+  }
+
+  override suspend fun advanceComputationStage(
+    request: AdvanceComputationStageRequest
+  ): AdvanceComputationStageResponse {
+    val lockExtension: Duration =
+      if (request.hasLockExtension()) request.lockExtension.toDuration() else defaultLockDuration
+    val afterTransition =
+      when (val it = request.afterTransition) {
+        AdvanceComputationStageRequest.AfterTransition.ADD_UNCLAIMED_TO_QUEUE ->
+          AfterTransition.ADD_UNCLAIMED_TO_QUEUE
+        AdvanceComputationStageRequest.AfterTransition.DO_NOT_ADD_TO_QUEUE ->
+          AfterTransition.DO_NOT_ADD_TO_QUEUE
+        AdvanceComputationStageRequest.AfterTransition.RETAIN_AND_EXTEND_LOCK ->
+          AfterTransition.CONTINUE_WORKING
+        else -> error("Unsupported AdvanceComputationStageRequest.AfterTransition '$it'. ")
       }
+
+    AdvanceComputationStage(
+        clock,
+        localComputationId = request.token.localComputationId,
+        currentStage = request.token.computationStage,
+        attempt = request.token.attempt.toLong(),
+        editVersion = request.token.version,
+        nextStage = request.nextComputationStage,
+        inputBlobPaths = request.inputBlobsList,
+        passThroughBlobPaths = request.passThroughBlobsList,
+        outputBlobs = request.outputBlobs,
+        afterTransition = afterTransition,
+        nextStageDetails = request.stageDetails,
+        lockExtension = lockExtension,
+        protocolStagesEnumHelper = protocolStagesEnumHelper
+      )
+      .execute(client, idGenerator)
+
+    sendStatusUpdateToKingdom(
+      newCreateComputationLogEntryRequest(
+        request.token.globalComputationId,
+        request.nextComputationStage
+      )
+    )
+
+    val token =
+      computationReader.readComputationToken(client, request.token.globalComputationId)
+        ?: failGrpc(Status.INTERNAL) {
+          "Computation ${request.token.globalComputationId} not found."
+        }
+    return token.toAdvanceComputationStageResponse()
   }
 
   private fun newCreateComputationLogEntryRequest(

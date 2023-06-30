@@ -14,23 +14,26 @@
 
 package org.wfanet.measurement.duchy.deploy.postgres.writers
 
+import com.google.protobuf.Message
 import java.time.Duration
 import java.time.Instant
+import kotlinx.coroutines.flow.firstOrNull
 import org.wfanet.measurement.common.db.r2dbc.ReadWriteContext
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
+import org.wfanet.measurement.common.toJson
+import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
 
 suspend fun PostgresWriter.TransactionScope.updateComputation(
   localId: Long,
-  stage: Long,
   updateTime: Instant,
+  stage: Long? = null,
   creationTime: Instant? = null,
   globalComputationId: String? = null,
   protocol: Long? = null,
   lockOwner: String? = null,
   lockExpirationTime: Instant? = null,
-  details: ByteArray? = null,
-  detailsJson: String? = null
+  details: Message? = null,
 ) {
   val sql =
     boundStatement(
@@ -56,12 +59,35 @@ suspend fun PostgresWriter.TransactionScope.updateComputation(
       bind("$4", protocol)
       bind("$5", lockOwner)
       bind("$6", lockExpirationTime)
-      bind("$7", details)
-      bind("$8", detailsJson)
+      bind("$7", details?.toByteArray())
+      bind("$8", details?.toJson())
       bind("$9", localId)
       bind("$10", stage)
     }
 
+  transactionContext.executeStatement(sql)
+}
+
+suspend fun PostgresWriter.TransactionScope.extendComputationLock(
+  localComputationId: Long,
+  updateTime: Instant,
+  lockDuration: Duration
+) {
+  val sql =
+    boundStatement(
+      """
+    UPDATE Computations SET
+      UpdateTime = $1,
+      LockExpirationTime = $2
+    WHERE
+      ComputationId = $3;
+    """
+        .trimIndent()
+    ) {
+      bind("$1", updateTime)
+      bind("$2", updateTime.plus(lockDuration))
+      bind("$3", localComputationId)
+    }
   transactionContext.executeStatement(sql)
 }
 
@@ -73,17 +99,17 @@ suspend fun PostgresWriter.TransactionScope.releaseComputationLock(
 }
 
 suspend fun PostgresWriter.TransactionScope.acquireComputationLock(
-  localComputationId: Long,
+  localId: Long,
   updateTime: Instant,
   ownerId: String,
   lockDuration: Duration
 ) {
-  setLock(transactionContext, localComputationId, updateTime, ownerId, lockDuration)
+  setLock(transactionContext, localId, updateTime, ownerId, lockDuration)
 }
 
 private suspend fun setLock(
   readWriteContext: ReadWriteContext,
-  localComputationId: Long,
+  localId: Long,
   updateTime: Instant,
   ownerId: String? = null,
   lockDuration: Duration? = null
@@ -103,7 +129,7 @@ private suspend fun setLock(
       bind("$1", updateTime)
       bind("$2", ownerId)
       bind("$3", lockDuration?.let { updateTime.plus(it) })
-      bind("$4", localComputationId)
+      bind("$4", localId)
     }
   readWriteContext.executeStatement(sql)
 }
@@ -116,8 +142,7 @@ suspend fun PostgresWriter.TransactionScope.updateComputationStage(
   endTime: Instant? = null,
   previousStage: Long? = null,
   followingStage: Long? = null,
-  details: ByteArray? = null,
-  detailsJson: String? = null
+  details: Message? = null,
 ) {
   val sql =
     boundStatement(
@@ -143,8 +168,8 @@ suspend fun PostgresWriter.TransactionScope.updateComputationStage(
       bind("$5", endTime)
       bind("$6", previousStage)
       bind("$7", followingStage)
-      bind("$8", details)
-      bind("$9", detailsJson)
+      bind("$8", details?.toByteArray())
+      bind("$9", details?.toJson())
     }
 
   transactionContext.executeStatement(sql)
@@ -156,8 +181,7 @@ suspend fun PostgresWriter.TransactionScope.updateComputationStageAttempt(
   attempt: Long,
   beginTime: Instant? = null,
   endTime: Instant? = null,
-  details: ByteArray? = null,
-  detailsJson: String? = null
+  details: Message? = null
 ) {
   val sql =
     boundStatement(
@@ -180,8 +204,8 @@ suspend fun PostgresWriter.TransactionScope.updateComputationStageAttempt(
       bind("$3", attempt)
       bind("$4", beginTime)
       bind("$5", endTime)
-      bind("$6", details)
-      bind("$7", detailsJson)
+      bind("$6", details?.toByteArray())
+      bind("$7", details?.toJson())
     }
 
   transactionContext.executeStatement(sql)
@@ -195,8 +219,7 @@ suspend fun PostgresWriter.TransactionScope.insertComputationStage(
   endTime: Instant? = null,
   previousStage: Long? = null,
   followingStage: Long? = null,
-  details: ByteArray? = null,
-  detailsJson: String? = null
+  details: Message? = null,
 ) {
   val insertComputationStageStatement =
     boundStatement(
@@ -223,9 +246,45 @@ suspend fun PostgresWriter.TransactionScope.insertComputationStage(
       bind("$5", endTime)
       bind("$6", previousStage)
       bind("$7", followingStage)
-      bind("$8", details)
-      bind("$9", detailsJson)
+      bind("$8", details?.toByteArray())
+      bind("$9", details?.toJson())
     }
 
   transactionContext.executeStatement(insertComputationStageStatement)
+}
+
+suspend fun PostgresWriter.TransactionScope.checkComputationUnmodified(
+  localId: Long,
+  editVersion: Long
+) {
+  val sql =
+    boundStatement(
+      """
+          SELECT UpdateTime
+          FROM Computations
+          WHERE ComputationId = $1
+        """
+        .trimIndent()
+    ) {
+      bind("$1", localId)
+    }
+  val updateTime: Instant =
+    transactionContext
+      .executeQuery(sql)
+      .consume { row -> row.get<Instant>("UpdateTime") }
+      .firstOrNull()
+      ?: throw ComputationNotFoundException(localId)
+  val updateTimeMillis = updateTime.toEpochMilli()
+  if (editVersion != updateTimeMillis) {
+    val editVersionTime = Instant.ofEpochMilli(editVersion)
+    error(
+      """
+          Failed to update because of editVersion mismatch.
+            Token's editVersion: $editVersion ($editVersionTime)
+            Computations table's UpdateTime: $updateTimeMillis ($updateTime)
+            Difference: ${Duration.between(editVersionTime, updateTime)}
+          """
+        .trimIndent()
+    )
+  }
 }

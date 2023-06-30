@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.duchy.deploy.postgres.writers
 
-import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import java.time.Clock
 import java.time.Instant
@@ -28,7 +27,6 @@ import org.wfanet.measurement.duchy.service.internal.ComputationInitialStageInva
 import org.wfanet.measurement.duchy.service.internal.DuchyInternalException
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
-import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.RequisitionEntry
 
 /**
@@ -93,8 +91,7 @@ class CreateComputation<ProtocolT, ComputationDT : Message, StageT, StageDT : Me
       endTime = writeTimestamp,
       previousStage = null,
       followingStage = null,
-      details = stageDetails.toByteArray(),
-      detailsJson = stageDetails.toJson()
+      details = stageDetails
     )
 
     requisitions.map {
@@ -159,47 +156,5 @@ class CreateComputation<ProtocolT, ComputationDT : Message, StageT, StageDT : Me
       }
 
     transactionContext.executeStatement(insertComputationStatement)
-  }
-
-  private suspend fun TransactionScope.insertRequisition(
-    localComputationId: Long,
-    requisitionId: Long,
-    externalRequisitionId: String,
-    requisitionFingerprint: ByteString,
-    creationTime: Instant,
-    updateTime: Instant,
-    pathToBlob: String? = null,
-    requisitionDetails: RequisitionDetails = RequisitionDetails.getDefaultInstance(),
-  ) {
-    val insertRequisitionStatement =
-      boundStatement(
-        """
-      INSERT INTO Requisitions
-        (
-          ComputationId,
-          RequisitionId,
-          ExternalRequisitionId,
-          RequisitionFingerprint,
-          PathToBlob,
-          RequisitionDetails,
-          RequisitionDetailsJSON,
-          CreationTime,
-          UpdateTime
-        )
-      VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
-      """
-      ) {
-        bind("$1", localComputationId)
-        bind("$2", requisitionId)
-        bind("$3", externalRequisitionId)
-        bind("$4", requisitionFingerprint.toByteArray())
-        bind("$5", pathToBlob)
-        bind("$6", requisitionDetails.toByteArray())
-        bind("$7", requisitionDetails.toJson())
-        bind("$8", creationTime)
-        bind("$9", updateTime)
-      }
-
-    transactionContext.executeStatement(insertRequisitionStatement)
   }
 }

@@ -16,20 +16,15 @@ package org.wfanet.measurement.duchy.deploy.postgres.writers
 
 import com.google.protobuf.Message
 import java.time.Clock
-import java.time.Duration
-import java.time.Instant
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
-import org.wfanet.measurement.common.toJson
-import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails.setEndingState
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
-import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 
 /**
@@ -81,8 +76,7 @@ class EndComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Messa
       localId = localComputationId,
       updateTime = writeTime,
       stage = endingStageLong,
-      details = endingComputationDetails.toByteArray(),
-      detailsJson = endingComputationDetails.toJson()
+      details = endingComputationDetails
     )
 
     releaseComputationLock(
@@ -103,8 +97,7 @@ class EndComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Messa
       creationTime = writeTime,
       previousStage = currentStageLong,
       nextAttempt = 1,
-      details = endingStageDetails.toByteArray(),
-      detailsJson = endingStageDetails.toJson()
+      details = endingStageDetails
     )
 
     readUnfinishedAttempts(localComputationId).collect { unfinished ->
@@ -136,7 +129,7 @@ class EndComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Messa
         stage = unfinished.computationStage,
         attempt = unfinished.attempt,
         endTime = writeTime,
-        details = unfinished.details.toBuilder().setReasonEnded(reason).build().toByteArray()
+        details = unfinished.details.toBuilder().setReasonEnded(reason).build()
       )
     }
   }
@@ -195,41 +188,5 @@ class EndComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Messa
       .executeQuery(sql)
       .consume { row -> row.get<ByteArray>("ComputationDetails") }
       .firstOrNull()
-  }
-
-  private suspend fun TransactionScope.checkComputationUnmodified(
-    localComputationId: Long,
-    editVersion: Long
-  ) {
-    val sql =
-      boundStatement(
-        """
-          SELECT UpdateTime
-          FROM Computations
-          WHERE ComputationId = $1
-        """
-          .trimIndent()
-      ) {
-        bind("$1", localComputationId)
-      }
-    val updateTime: Instant =
-      transactionContext
-        .executeQuery(sql)
-        .consume { row -> row.get<Instant>("UpdateTime") }
-        .firstOrNull()
-        ?: throw ComputationNotFoundException(localComputationId)
-    val updateTimeMillis = updateTime.toEpochMilli()
-    if (editVersion != updateTimeMillis) {
-      val editVersionTime = Instant.ofEpochMilli(editVersion)
-      error(
-        """
-          Failed to update because of editVersion mismatch.
-            Token's editVersion: $editVersion ($editVersionTime)
-            Computations table's UpdateTime: $updateTimeMillis ($updateTime)
-            Difference: ${Duration.between(editVersionTime, updateTime)}
-          """
-          .trimIndent()
-      )
-    }
   }
 }

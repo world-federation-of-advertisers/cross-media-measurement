@@ -70,7 +70,7 @@ class PostgresComputationStatsServiceTest :
   override fun newComputationsService(): ComputationsGrpcKt.ComputationsCoroutineImplBase {
     return PostgresComputationsService(
       computationTypeEnumHelper = ComputationTypes,
-      protocolStageEnumHelper = ComputationProtocolStages,
+      protocolStagesEnumHelper = ComputationProtocolStages,
       computationProtocolStageDetailsHelper = ComputationProtocolStageDetails,
       client = client,
       idGenerator = idGenerator,

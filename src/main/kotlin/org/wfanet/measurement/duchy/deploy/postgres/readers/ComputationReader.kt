@@ -82,7 +82,7 @@ class ComputationReader(
   private fun buildBlob(row: ResultRow): ComputationStageBlobMetadata {
     return computationStageBlobMetadata {
       blobId = row["BlobId"]
-      path = row["PathToBlob"]
+      row.get<String?>("PathToBlob")?.let { path = it }
       dependencyType = row["DependencyType"]
     }
   }
