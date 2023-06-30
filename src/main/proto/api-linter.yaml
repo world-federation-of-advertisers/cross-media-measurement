@@ -14,5 +14,23 @@
 
 - included_paths:
   - 'wfa/measurement/reporting/**/*.proto'
+  - 'wfa/measurement/system/**/*.proto'
   disabled_rules:
   - 'core::0191::java-package'
+  - 'core::0146::any'
+
+- included_paths:
+  - 'wfa/measurement/system/**/*.proto'
+  disabled_rules:
+  - 'core::0127::http-annotation'
+  - 'core::0133::http-uri-parent'
+  - 'core::0133::request-id-field'
+  - 'core::0121::resource-must-support-get'
+  - 'core::0203::field-behavior-required'
+
+- included_paths:
+  - 'wfa/measurement/reporting/v1*/*.proto'
+  disabled_rules:
+  - 'core::0133::request-id-field'
+  - 'core::0121::resource-must-support-get'
+  - 'core::0203::field-behavior-required'
