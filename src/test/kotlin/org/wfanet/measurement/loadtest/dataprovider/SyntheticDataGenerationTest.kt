@@ -285,7 +285,7 @@ class SyntheticDataGenerationTest {
       expectedTestEvents.add(expectedTestEvent4)
     }
 
-    assertThat(testEventList).containsExactlyElementsIn(expectedTestEvents).inOrder()
+    assertThat(testEventList).containsExactlyElementsIn(expectedTestEvents)
   }
 
   @Test

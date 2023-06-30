@@ -105,9 +105,8 @@ object SyntheticDataGeneration {
   /**
    * Helper function for setting a field value in a [Message.Builder].
    *
-   * @throws
-   * * [IllegalArgumentException] if field is [FieldDescriptor.Type.MESSAGE].
-   * * [NullPointerException] if field can't be found.
+   * @throws [IllegalArgumentException] if field is [FieldDescriptor.Type.MESSAGE].
+   * @throws [NullPointerException] if field can't be found.
    */
   private fun Message.Builder.setField(fieldPath: Collection<String>, fieldValue: FieldValue) {
     val builder = this
@@ -137,6 +136,5 @@ object SyntheticDataGeneration {
     val nestedBuilder = builder.getFieldBuilder(curFieldDescriptor)
     val traversedFieldPath = fieldPath.drop(1)
     nestedBuilder.setField(traversedFieldPath, fieldValue)
-    builder.setField(curFieldDescriptor, nestedBuilder.build())
   }
 }
