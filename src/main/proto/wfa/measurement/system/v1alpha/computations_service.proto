@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.system.v1alpha;
 
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/system/v1alpha/computation.proto";
@@ -27,7 +29,9 @@ option java_outer_classname = "ComputationsServiceProto";
 // Kingdom service for Duchies to use to interact with `Computation` resources.
 service Computations {
   // Returns the `Computation` for the specified resource key.
-  rpc GetComputation(GetComputationRequest) returns (Computation);
+  rpc GetComputation(GetComputationRequest) returns (Computation) {
+    option (google.api.method_signature) = "name";
+  }
 
   // Streams `Computation`s in ascending update-time order. `Computation`s may
   // appear multiple times in the stream if they are updated during the life of
@@ -51,21 +55,26 @@ service Computations {
   // This is a [state transition method](https://google.aip.dev/216) that
   // transitions the `Computation` from the `PENDING_COMPUTATION` state to the
   // `SUCCEEDED` state.
+  //
+  // (-- api-linter: core::0134::synonyms=disabled
+  //     aip.dev/not-precedent: This is not a standard Update method. --)
   rpc SetComputationResult(SetComputationResultRequest) returns (Computation);
 }
 
 // Request message for `GetComputation` method.
 message GetComputationRequest {
-  // Resource name of the `Computation`. Required.
-  string name = 1 [(google.api.resource_reference).type =
-                       "halo-system.wfanet.org/Computation"];
+  // Resource name of the `Computation`.
+  string name = 1 [
+    (google.api.resource_reference).type = "halo-system.wfanet.org/Computation",
+    (google.api.field_behavior) = REQUIRED
+  ];
 }
 
 // Request message for `StreamActiveComputations` method.
 message StreamActiveComputationsRequest {
-  // TODO(@tristanvuong): Add duchy name as additional field
+  // (-- TODO(@tristanvuong): Add duchy name as additional field. --)
 
-  // If empty, streams from the least recently updated Computation.
+  // Continuation token indicating what `Computation` to start at.
   string continuation_token = 1;
 }
 
@@ -74,31 +83,43 @@ message StreamActiveComputationsResponse {
   // An active `Computation.`
   Computation computation = 1;
 
+  // Continuation token for subsequent requests.
   string continuation_token = 2;
 }
 
 // Request message for `SetComputationResult` method.
 message SetComputationResultRequest {
-  // Resource name of the `Computation`. Required.
-  string name = 1 [(google.api.resource_reference).type =
-                       "halo-system.wfanet.org/Computation"];
+  // Resource name of the `Computation`.
+  string name = 1 [
+    (google.api.resource_reference).type = "halo-system.wfanet.org/Computation",
+    (google.api.field_behavior) = REQUIRED
+  ];
 
   // Resource name of a `Certificate` belonging to the aggregator `Duchy`.
-  // Required.
-  string aggregator_certificate = 2
-      [(google.api.resource_reference).type = "halo.wfanet.org/Certificate"];
+  string aggregator_certificate = 2 [
+    (google.api.resource_reference).type = "halo.wfanet.org/Certificate",
+    (google.api.field_behavior) = REQUIRED
+  ];
 
-  // Serialized `EncryptionPublicKey` message from the public API. Required.
-  bytes result_public_key = 3;
+  // Serialized `EncryptionPublicKey` message from the public API.
+  bytes result_public_key = 3 [(google.api.field_behavior) = REQUIRED];
 
   // Encrypted `SignedData` message from the public API containing a serialized
   // `Result` message from the public API, which can be verified using
-  // `aggregator_certificate`. Required.
-  bytes encrypted_result = 4;
+  // `aggregator_certificate.
+  bytes encrypted_result = 4 [(google.api.field_behavior) = REQUIRED];
 }
 
 // Continuation token for the streaming active computations
 message StreamActiveComputationsContinuationToken {
-  google.protobuf.Timestamp update_time_since = 1;
-  fixed64 last_seen_external_computation_id = 2;
+  // Update time of the final `Computation` in the previous response.
+  google.protobuf.Timestamp last_seen_update_time = 1
+      [(google.api.field_behavior) = REQUIRED];
+
+  // External ID of the final `Computation` in the previous response.
+  //
+  // (-- api-linter: core::0141::forbidden-types=disabled
+  //     aip.dev/not-precedent: This message is only passed in encoded form. --)
+  fixed64 last_seen_external_computation_id = 2
+      [(google.api.field_behavior) = REQUIRED];
 }

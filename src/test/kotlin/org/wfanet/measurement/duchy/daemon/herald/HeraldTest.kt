@@ -187,7 +187,7 @@ private val MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
         epsilon = 3.1
         delta = 3.2
       }
-      noiseForPublisherNoise = systemDifferentialPrivacyParams {
+      publisherNoise = systemDifferentialPrivacyParams {
         epsilon = 4.1
         delta = 4.2
       }
