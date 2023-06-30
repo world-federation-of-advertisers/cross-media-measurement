@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.google.type.Interval
+import com.google.type.copy
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.math.min
@@ -36,8 +38,6 @@ import org.wfanet.measurement.internal.reporting.v2.Report as InternalReport
 import org.wfanet.measurement.internal.reporting.v2.ReportKt as InternalReportKt
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequest
-import org.wfanet.measurement.internal.reporting.v2.TimeInterval as InternalTimeInterval
-import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest as internalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
@@ -81,8 +81,8 @@ class ReportsService(
 
   private data class InternalTimeRange(
     val canBeCumulative: Boolean,
-    val timeIntervals: List<InternalTimeInterval>,
-    val cumulativeTimeIntervals: List<InternalTimeInterval>
+    val timeIntervals: List<Interval>,
+    val cumulativeTimeIntervals: List<Interval>
   )
 
   private data class CreateReportInfo(
@@ -464,7 +464,7 @@ class ReportsService(
 
         InternalTimeRange(
           false,
-          source.timeIntervals.timeIntervalsList.map { it.toInternal() },
+          source.timeIntervals.timeIntervalsList,
           listOf(),
         )
       }
@@ -485,8 +485,7 @@ class ReportsService(
           "PeriodicTimeInterval intervalCount is unspecified."
         }
 
-        val timeIntervals =
-          source.periodicTimeInterval.toTimeIntervalsList().map { it.toInternal() }
+        val timeIntervals = source.periodicTimeInterval.toTimeIntervalsList()
         val cumulativeTimeIntervals =
           timeIntervals.map { timeInterval ->
             timeInterval.copy { startTime = timeIntervals.first().startTime }
@@ -585,7 +584,7 @@ class ReportsService(
       "No metric spec in MetricCalculationSpec [${metricCalculationSpec.displayName}] is specified."
     }
 
-    val timeIntervals: List<InternalTimeInterval> =
+    val timeIntervals: List<Interval> =
       if (metricCalculationSpec.cumulative) {
         grpcRequire(createReportInfo.internalTimeRange.canBeCumulative) {
           "Cumulative can only be used with PeriodicTimeInterval."
