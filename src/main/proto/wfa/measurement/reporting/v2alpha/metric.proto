@@ -19,7 +19,7 @@ package wfa.measurement.reporting.v2alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
-import "wfa/measurement/reporting/v2alpha/time_interval.proto";
+import "google/type/interval.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
@@ -216,6 +216,7 @@ message Metric {
     type: "reporting.halo-cmm.org/Metric"
     pattern: "measurementConsumers/{measurement_consumer}/metrics/{metric}"
   };
+
   // Resource name
   string name = 1;
 
@@ -229,7 +230,7 @@ message Metric {
   ];
 
   // The time over which to calculate the metric cumulatively.
-  TimeInterval time_interval = 3 [
+  google.type.Interval time_interval = 3 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
