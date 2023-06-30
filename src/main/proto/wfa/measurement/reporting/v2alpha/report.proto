@@ -19,6 +19,7 @@ package wfa.measurement.reporting.v2alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
 import "wfa/measurement/reporting/v2alpha/metric.proto";
 import "wfa/measurement/reporting/v2alpha/time_interval.proto";
 
@@ -162,7 +163,7 @@ message Report {
       // is calculated cumulatively from the first start time defined in the
       // report to the end of this time interval. Otherwise, the result is
       // calculated cumulatively over this time interval.
-      TimeInterval time_interval = 3;
+      google.type.Interval time_interval = 3;
 
       // The metric result calculated on the reporting set with the setup in the
       // attribute.
