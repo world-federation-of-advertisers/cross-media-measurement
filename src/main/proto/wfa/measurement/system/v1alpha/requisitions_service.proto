@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.system.v1alpha;
 
+import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "wfa/measurement/system/v1alpha/requisition.proto";
 
@@ -33,10 +34,15 @@ service Requisitions {
 
 // Request message for the `FulfillRequisition` method.
 message FulfillRequisitionRequest {
-  // Resource name of the `Requisition` to mark as fulfilled. Required.
-  string name = 1 [(google.api.resource_reference).type =
-                       "halo-system.wfanet.org/Requisition"];
+  // Resource name of the `Requisition` to mark as fulfilled.
+  string name = 1 [
+    (google.api.resource_reference).type = "halo-system.wfanet.org/Requisition",
+    (google.api.field_behavior) = REQUIRED
+  ];
 
-  // `nonce` value received from the DataProvider. Required.
-  fixed64 nonce = 2;
+  // `nonce` value received from the DataProvider.
+  //
+  // (-- api-linter: core::0141::forbidden-types=disabled
+  //     aip.dev/not-precedent: This is a random 64-bit value. --)
+  fixed64 nonce = 2 [(google.api.field_behavior) = REQUIRED];
 }
