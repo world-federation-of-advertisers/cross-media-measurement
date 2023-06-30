@@ -106,7 +106,7 @@ abstract class ContinuationTokensServiceTest<T : ContinuationTokensCoroutineImpl
 
 private fun createContinuationTokenString(timeSince: Long, lastComputationId: Long): String {
   val token = streamActiveComputationsContinuationToken {
-    updateTimeSince = timestamp { seconds = timeSince }
+    lastSeenUpdateTime = timestamp { seconds = timeSince }
     lastSeenExternalComputationId = lastComputationId
   }
   return token.toByteArray().base64UrlEncode()

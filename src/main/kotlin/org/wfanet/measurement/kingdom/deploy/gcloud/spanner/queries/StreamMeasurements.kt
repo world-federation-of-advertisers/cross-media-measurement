@@ -35,8 +35,10 @@ class StreamMeasurements(
       when (view) {
         Measurement.View.COMPUTATION ->
           appendClause("ORDER BY UpdateTime ASC, ExternalComputationId ASC")
-        Measurement.View.DEFAULT ->
-          appendClause("ORDER BY UpdateTime ASC, ExternalMeasurementId ASC")
+        Measurement.View.DEFAULT -> {
+          appendClause("ORDER BY")
+          append("UpdateTime ASC, ExternalMeasurementConsumerId ASC, ExternalMeasurementId ASC")
+        }
         Measurement.View.UNRECOGNIZED -> error("Unrecognized View")
       }
       if (limit > 0) {
@@ -70,30 +72,8 @@ class StreamMeasurements(
     }
 
     if (filter.hasUpdatedAfter()) {
-      if (filter.hasExternalMeasurementIdAfter()) {
-        conjuncts.add(
-          """
-          ((UpdateTime > @$UPDATED_AFTER)
-          OR (UpdateTime = @$UPDATED_AFTER
-          AND ExternalMeasurementId > @$EXTERNAL_MEASUREMENT_ID_AFTER))
-        """
-            .trimIndent()
-        )
-        bind(EXTERNAL_MEASUREMENT_ID_AFTER).to(filter.externalMeasurementIdAfter)
-      } else if (filter.hasExternalComputationIdAfter()) {
-        conjuncts.add(
-          """
-          ((UpdateTime > @$UPDATED_AFTER)
-          OR (UpdateTime = @$UPDATED_AFTER
-          AND ExternalComputationId > @$EXTERNAL_COMPUTATION_ID_AFTER))
-        """
-            .trimIndent()
-        )
-        bind(EXTERNAL_COMPUTATION_ID_AFTER).to(filter.externalComputationIdAfter)
-      } else {
-        error("external_measurement_id_after or external_measurement_id_after required")
-      }
-      bind(UPDATED_AFTER to filter.updatedAfter.toGcloudTimestamp())
+      conjuncts.add("UPDATE_TIME > @$UPDATED_AFTER")
+      bind(UPDATED_AFTER).to(filter.updatedAfter.toGcloudTimestamp())
     }
 
     if (filter.hasUpdatedBefore()) {
@@ -104,6 +84,61 @@ class StreamMeasurements(
     if (filter.hasCreatedBefore()) {
       conjuncts.add("(CreateTime < @$CREATED_BEFORE)")
       bind(CREATED_BEFORE to filter.createdBefore.toGcloudTimestamp())
+    }
+
+    if (filter.hasAfter()) {
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf case fields cannot be null.
+      when (filter.after.keyCase) {
+        StreamMeasurementsRequest.Filter.After.KeyCase.MEASUREMENT -> {
+          conjuncts.add(
+            """
+              (
+                UpdateTime > @${AfterParams.UPDATE_TIME}
+                OR (
+                  UpdateTime = @${AfterParams.UPDATE_TIME}
+                  AND ExternalMeasurementConsumerId >
+                    @${AfterParams.EXTERNAL_MEASUREMENT_CONSUMER_ID}
+                )
+                OR (
+                  UpdateTime = @${AfterParams.UPDATE_TIME}
+                  AND ExternalMeasurementConsumerId =
+                    @${AfterParams.EXTERNAL_MEASUREMENT_CONSUMER_ID}
+                  AND ExternalMeasurementId > @${AfterParams.EXTERNAL_MEASUREMENT_ID}
+                )
+              )
+            """
+              .trimIndent()
+          )
+          bind(AfterParams.UPDATE_TIME).to(filter.after.updateTime.toGcloudTimestamp())
+          bind(
+            AfterParams.EXTERNAL_MEASUREMENT_CONSUMER_ID to
+              filter.after.measurement.externalMeasurementConsumerId
+          )
+          bind(
+            AfterParams.EXTERNAL_MEASUREMENT_ID to filter.after.measurement.externalMeasurementId
+          )
+        }
+        StreamMeasurementsRequest.Filter.After.KeyCase.COMPUTATION -> {
+          conjuncts.add(
+            """
+              (
+                UpdateTime > @${AfterParams.UPDATE_TIME}
+                OR (
+                  UpdateTime = @${AfterParams.UPDATE_TIME}
+                  AND ExternalComputationId > @${AfterParams.EXTERNAL_COMPUTATION_ID}
+                )
+              )
+            """
+              .trimIndent()
+          )
+          bind(AfterParams.UPDATE_TIME).to(filter.after.updateTime.toGcloudTimestamp())
+          bind(
+            AfterParams.EXTERNAL_COMPUTATION_ID to filter.after.computation.externalComputationId
+          )
+        }
+        StreamMeasurementsRequest.Filter.After.KeyCase.KEY_NOT_SET ->
+          throw IllegalArgumentException("key not set")
+      }
     }
 
     if (conjuncts.isEmpty()) {
@@ -134,8 +169,12 @@ class StreamMeasurements(
       "externalMeasurementConsumerCertificateId"
     const val UPDATED_AFTER = "updatedAfter"
     const val STATES_PARAM = "states"
-    const val EXTERNAL_MEASUREMENT_ID_AFTER = "externalMeasurementIdAfter"
-    const val EXTERNAL_COMPUTATION_ID_AFTER = "externalComputationIdAfter"
+    object AfterParams {
+      const val UPDATE_TIME = "after_updateTime"
+      const val EXTERNAL_MEASUREMENT_CONSUMER_ID = "after_externalMeasurementConsumerId"
+      const val EXTERNAL_MEASUREMENT_ID = "after_externalMeasurementId"
+      const val EXTERNAL_COMPUTATION_ID = "after_externalComputationId"
+    }
     const val UPDATED_BEFORE = "updatedBefore"
     const val CREATED_BEFORE = "createdBefore"
   }

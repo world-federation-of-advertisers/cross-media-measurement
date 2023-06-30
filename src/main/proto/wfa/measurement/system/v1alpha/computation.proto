@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.system.v1alpha;
 
+import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "wfa/measurement/system/v1alpha/computation_participant.proto";
 import "wfa/measurement/system/v1alpha/differential_privacy.proto";
@@ -25,23 +26,33 @@ option java_package = "org.wfanet.measurement.system.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ComputationProto";
 
+// Resource representing a single computation.
 message Computation {
   option (google.api.resource) = {
     type: "halo-system.wfanet.org/Computation"
     pattern: "computations/{computation}"
+    singular: "computation"
+    plural: "computations"
   };
 
-  // Resource name. Output-only. Immutable.
+  // Resource name.
   string name = 1;
 
-  // Public API version for serialized messages. Required. Immutable.
-  string public_api_version = 2;
+  // Public API version for serialized messages.
+  string public_api_version = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
 
-  // Serialized `MeasurementSpec` from public API. Required. Immutable.
-  bytes measurement_spec = 3;
+  // Serialized `MeasurementSpec` from public API. Required.
+  bytes measurement_spec = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
 
   // State of a `Computation`.
   enum State {
+    // Default value if state is omitted.
     STATE_UNSPECIFIED = 0;
 
     // Awaiting the necessary parameters from computation participants (Duchies)
@@ -72,8 +83,8 @@ message Computation {
     // Cancelled by Measurement Consumer. Terminal state.
     CANCELLED = 7;
   }
-  // State of this `Computation`. Output-only.
-  State state = 6;
+  // State of this `Computation`.
+  State state = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Resource name of a `Certificate` belonging to the aggregator `Duchy`. Must
   // be set if `state` is `SUCCEEDED`.
@@ -85,18 +96,23 @@ message Computation {
   // `aggregator_certificate`. Must be set if `state` is `SUCCEEDED`.
   bytes encrypted_result = 8;
 
-  // Denormalized child `ComputationParticipant` resources. Output-only.
-  repeated ComputationParticipant computation_participants = 9;
+  // Denormalized child `ComputationParticipant` resources.
+  repeated ComputationParticipant computation_participants = 9
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 
-  // Denormalized child `Requisition` resources. Output-only.
-  repeated Requisition requisitions = 10;
+  // Denormalized child `Requisition` resources.
+  repeated Requisition requisitions = 10
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // MPC Protocol configuration that need to be known by Duchies.
   message MpcProtocolConfig {
     // The mechanism used to generate noise in computations.
     enum NoiseMechanism {
+      // Default value if state is omitted.
       NOISE_MECHANISM_UNSPECIFIED = 0;
+      // Geometric.
       GEOMETRIC = 1;
+      // Discrete Gaussian.
       DISCRETE_GAUSSIAN = 2;
     }
 
@@ -105,12 +121,14 @@ message Computation {
       // Parameters for a Liquid Legions sketch.
       message LiquidLegionsSketchParams {
         // The decay rate of the Liquid Legions sketch.
-        double decay_rate = 1;
+        double decay_rate = 1 [(google.api.field_behavior) = REQUIRED];
 
         // The maximum size of the Liquid Legions sketch.
-        int64 max_size = 2;
+        int64 max_size = 2 [(google.api.field_behavior) = REQUIRED];
       }
-      LiquidLegionsSketchParams sketch_params = 1;
+      // Parameters for the sketch.
+      LiquidLegionsSketchParams sketch_params = 1
+          [(google.api.field_behavior) = REQUIRED];
 
       // Configuration for noises added by the MPC workers to protect
       // intermediate results. These noises don't affect the final output.
@@ -119,26 +137,30 @@ message Computation {
         // Each of these registers contains a random register id, the same
         // constant key indicating that the register is destroyed, and an
         // arbitrary count value.
-        DifferentialPrivacyParams blinded_histogram_noise = 1;
+        DifferentialPrivacyParams blinded_histogram_noise = 1
+            [(google.api.field_behavior) = REQUIRED];
         // DP params for the noise for the publisher noise registers.
         // Each of these registers contains a well-known constant register id,
         // and arbitrary key and count values.
-        DifferentialPrivacyParams noise_for_publisher_noise = 2;
+        DifferentialPrivacyParams publisher_noise = 2
+            [(google.api.field_behavior) = REQUIRED];
       }
-      MpcNoise mpc_noise = 2;
+      // MPC noise configuration.
+      MpcNoise mpc_noise = 2 [(google.api.field_behavior) = REQUIRED];
 
       // ID of the OpenSSL built-in elliptic curve. For example, 415 for the
-      // prime256v1 curve. Required. Immutable.
-      int32 elliptic_curve_id = 3;
+      // prime256v1 curve.
+      int32 elliptic_curve_id = 3 [(google.api.field_behavior) = REQUIRED];
 
       // The maximum frequency to reveal in the histogram.
-      int32 maximum_frequency = 4;
+      int32 maximum_frequency = 4 [(google.api.field_behavior) = REQUIRED];
 
       // The mechanism to generate noise during computation.
-      NoiseMechanism noise_mechanism = 5;
+      NoiseMechanism noise_mechanism = 5
+          [(google.api.field_behavior) = REQUIRED];
     }
 
-    // Configuration for the specific protocol.
+    // Configuration for the specific protocol. Required.
     oneof protocol {
       // Liquid Legions v2 config.
       //
@@ -146,5 +168,9 @@ message Computation {
       LiquidLegionsV2 liquid_legions_v2 = 1;
     }
   }
-  MpcProtocolConfig mpc_protocol_config = 11;
+  // MPC protocol configuration that need to be known by Duchies.
+  MpcProtocolConfig mpc_protocol_config = 11 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
 }

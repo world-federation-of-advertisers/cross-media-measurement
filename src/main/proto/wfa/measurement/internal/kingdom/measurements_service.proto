@@ -35,7 +35,10 @@ service Measurements {
   rpc GetMeasurementByComputationId(GetMeasurementByComputationIdRequest)
       returns (Measurement);
 
-  // Streams Measurements ordered by update time, ascending.
+  // Streams Measurements, ordered by (update_time, key) ascending.
+  //
+  // Which key is used for the ordering depends on which view is specified in
+  // the request.
   rpc StreamMeasurements(StreamMeasurementsRequest)
       returns (stream Measurement);
 
@@ -71,18 +74,26 @@ message StreamMeasurementsRequest {
   // Filter criteria as a conjunction of specified fields. Repeated fields are
   // disjunctions of their items.
   message Filter {
+    reserved 5, 6;
+
     int64 external_measurement_consumer_id = 1;
     int64 external_measurement_consumer_certificate_id = 2;
     repeated Measurement.State states = 3;
-    // for next page token, both after fields need to be set
     google.protobuf.Timestamp updated_after = 4;
-    oneof id_after {
-      fixed64 external_measurement_id_after = 5;
-      fixed64 external_computation_id_after = 6;
-    }
     string externalDuchyId = 7;
     google.protobuf.Timestamp updated_before = 8;
     google.protobuf.Timestamp created_before = 9;
+
+    message After {
+      google.protobuf.Timestamp update_time = 1;
+      oneof key {
+        // Key of the `Measurement`, used when view is DEFAULT.
+        MeasurementKey measurement = 2;
+        // Computation key of the `Measurement`, used when view is COMPUTATION.
+        ComputationKey computation = 3;
+      }
+    }
+    After after = 10;
   }
   Filter filter = 1;
 
@@ -90,6 +101,7 @@ message StreamMeasurementsRequest {
   // unlimited.
   int32 limit = 2;
 
+  // The view of the `Measurement` to return.
   Measurement.View measurement_view = 3;
 }
 
@@ -145,4 +157,13 @@ message BatchDeleteMeasurementsRequest {
   // The request message specifying the Measurements to permanently delete. A
   // maximum of 1000 Measurements can be deleted in a batch.
   repeated DeleteMeasurementRequest requests = 1;
+}
+
+message MeasurementKey {
+  fixed64 external_measurement_consumer_id = 1;
+  fixed64 external_measurement_id = 2;
+}
+
+message ComputationKey {
+  fixed64 external_computation_id = 1;
 }

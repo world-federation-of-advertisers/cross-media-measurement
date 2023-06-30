@@ -16,7 +16,7 @@ package org.wfanet.measurement.kingdom.service.system.v1alpha
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
-import com.google.protobuf.timestamp
+import com.google.protobuf.util.Timestamps
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
@@ -51,7 +51,9 @@ import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
+import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.computationKey
 import org.wfanet.measurement.internal.kingdom.differentialPrivacyParams
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.liquidLegionsSketchParams
@@ -259,7 +261,7 @@ class ComputationsServiceTest {
                   epsilon = 1.1
                   delta = 2.1
                 }
-                noiseForPublisherNoiseBuilder.apply {
+                publisherNoiseBuilder.apply {
                   epsilon = 3.1
                   delta = 4.1
                 }
@@ -362,7 +364,7 @@ class ComputationsServiceTest {
       .inOrder()
 
     fun expectedStreamMeasurementsRequest(
-      updatedAfterSeconds: Long,
+      lastSeenUpdateTimeSeconds: Long,
       lastSeenExternalComputationId: Long
     ): StreamMeasurementsRequest = streamMeasurementsRequest {
       measurementView = InternalMeasurement.View.COMPUTATION
@@ -376,9 +378,14 @@ class ComputationsServiceTest {
             InternalMeasurement.State.CANCELLED,
             InternalMeasurement.State.SUCCEEDED
           )
-        updatedAfter = timestamp { seconds = updatedAfterSeconds }
-        externalComputationIdAfter = lastSeenExternalComputationId
         externalDuchyId = DUCHY_ID
+        if (lastSeenExternalComputationId != 0L) {
+          after =
+            StreamMeasurementsRequestKt.FilterKt.after {
+              updateTime = Timestamps.fromSeconds(lastSeenUpdateTimeSeconds)
+              computation = computationKey { externalComputationId = lastSeenExternalComputationId }
+            }
+        }
       }
     }
 

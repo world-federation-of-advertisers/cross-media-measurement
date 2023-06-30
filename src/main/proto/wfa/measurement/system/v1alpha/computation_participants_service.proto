@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.system.v1alpha;
 
+import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "wfa/measurement/system/v1alpha/computation_participant.proto";
 
@@ -31,6 +32,9 @@ service ComputationParticipants {
   // This is a [state transition method](https://google.aip.dev/216) that
   // transitions the `ComputationParticipant` from the `CREATED` state to the
   // `REQUISITION_PARAMS_SET` state.
+  //
+  // (-- api-linter: core::0134::synonyms=disabled
+  //     aip.dev/not-precedent: This is not a standard Update method. --)
   rpc SetParticipantRequisitionParams(SetParticipantRequisitionParamsRequest)
       returns (ComputationParticipant);
 
@@ -50,27 +54,38 @@ service ComputationParticipants {
 
 // Request message for the `SetParticipantRequisitionParams` method.
 message SetParticipantRequisitionParamsRequest {
-  // Resource name of the `ComputationParticipant`. Required.
-  string name = 1 [(google.api.resource_reference).type =
-                       "halo-system.wfanet.org/ComputationParticipant"];
+  // Resource name of the `ComputationParticipant`.
+  string name = 1 [
+    (google.api.resource_reference).type =
+        "halo-system.wfanet.org/ComputationParticipant",
+    (google.api.field_behavior) = REQUIRED
+  ];
 
-  // The requisition params to set. Required.
-  ComputationParticipant.RequisitionParams requisition_params = 2;
+  // The requisition params to set.
+  ComputationParticipant.RequisitionParams requisition_params = 2
+      [(google.api.field_behavior) = REQUIRED];
 }
 
 // Request message for the `FailComputationParticipant` method.
 message FailComputationParticipantRequest {
-  // Resource name of the `ComputationParticipant`. Required.
-  string name = 1 [(google.api.resource_reference).type =
-                       "halo-system.wfanet.org/ComputationParticipant"];
+  // Resource name of the `ComputationParticipant`.
+  string name = 1 [
+    (google.api.resource_reference).type =
+        "halo-system.wfanet.org/ComputationParticipant",
+    (google.api.field_behavior) = REQUIRED
+  ];
 
-  // Failure information. Required.
-  ComputationParticipant.Failure failure = 2;
+  // Failure information.
+  ComputationParticipant.Failure failure = 2
+      [(google.api.field_behavior) = REQUIRED];
 }
 
 // Request message for the `ConfirmComputationParticipant` method.
 message ConfirmComputationParticipantRequest {
-  // Resource name of the `ComputationParticipant`. Required.
-  string name = 1 [(google.api.resource_reference).type =
-                       "halo-system.wfanet.org/ComputationParticipant"];
+  // Resource name of the `ComputationParticipant`.
+  string name = 1 [
+    (google.api.resource_reference).type =
+        "halo-system.wfanet.org/ComputationParticipant",
+    (google.api.field_behavior) = REQUIRED
+  ];
 }

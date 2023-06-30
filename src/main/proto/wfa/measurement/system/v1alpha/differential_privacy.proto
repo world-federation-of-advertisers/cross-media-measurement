@@ -18,6 +18,7 @@ package wfa.measurement.system.v1alpha;
 
 option java_package = "org.wfanet.measurement.system.v1alpha";
 option java_multiple_files = true;
+option java_outer_classname = "DifferentialPrivacyProto";
 
 // Parameters for differential privacy (DP).
 //
@@ -25,6 +26,8 @@ option java_multiple_files = true;
 // foundations of differential privacy. Foundations and Trends in Theoretical
 // Computer Science, 9(3-4), pp.211-407."
 message DifferentialPrivacyParams {
+  // ε. The privacy budget.
   double epsilon = 1;
+  // δ. The probability of information accidentally being leaked.
   double delta = 2;
 }

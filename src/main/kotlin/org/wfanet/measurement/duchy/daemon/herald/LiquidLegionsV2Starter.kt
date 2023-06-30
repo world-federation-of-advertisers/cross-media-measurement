@@ -308,8 +308,7 @@ object LiquidLegionsV2Starter {
         reachNoiseConfig = reachNoiseConfig {
           val mpcNoise = llv2Config.mpcNoise
           blindHistogramNoise = mpcNoise.blindedHistogramNoise.toDuchyDifferentialPrivacyParams()
-          noiseForPublisherNoise =
-            mpcNoise.noiseForPublisherNoise.toDuchyDifferentialPrivacyParams()
+          noiseForPublisherNoise = mpcNoise.publisherNoise.toDuchyDifferentialPrivacyParams()
 
           when (Version.fromString(publicApiVersion)) {
             Version.V2_ALPHA -> {

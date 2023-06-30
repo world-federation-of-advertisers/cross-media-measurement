@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.system.v1alpha;
 
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "wfa/measurement/system/v1alpha/computation_log_entry.proto";
 
@@ -31,16 +33,23 @@ service ComputationLogEntries {
   // Note that this cannot be used to log permanent errors. Instead, the
   // `FailComputationParticipant` method should be used to indicate a failure.
   rpc CreateComputationLogEntry(CreateComputationLogEntryRequest)
-      returns (ComputationLogEntry);
+      returns (ComputationLogEntry) {
+    option (google.api.method_signature) = "parent,computation_log_entry";
+  }
 }
 
 // Request message for the `CreateComputationLogEntry` method.
 message CreateComputationLogEntryRequest {
-  // Resource name of the parent `ComputationParticipant`. Required.
-  string parent = 1 [(google.api.resource_reference).type =
-                         "halo-system.wfanet.org/ComputationParticipant"];
+  // Resource name of the parent `ComputationParticipant`.
+  string parent = 1 [
+    (google.api.resource_reference).type =
+        "halo-system.wfanet.org/ComputationParticipant",
+    (google.api.field_behavior) = REQUIRED
+  ];
 
-  // The `ComputationLogEntry` to create. Required. The `name` field will be
-  // ignored, and the system will assign an ID.
-  ComputationLogEntry computation_log_entry = 2;
+  // The `ComputationLogEntry` to create.
+  //
+  // The `name` field will be ignored, and the system will assign an ID.
+  ComputationLogEntry computation_log_entry = 2
+      [(google.api.field_behavior) = REQUIRED];
 }
