@@ -107,6 +107,7 @@ import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest as internalGetMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.liquidLegionsSketchParams as internalLiquidLegionsSketchParams
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
+import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
@@ -1258,7 +1259,10 @@ class MeasurementsServiceTest {
         this.pageSize = pageSize
         externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
         states += publicStates
-        lastMeasurement = previousPageEnd { externalMeasurementId = EXTERNAL_MEASUREMENT_ID }
+        lastMeasurement = previousPageEnd {
+          updateTime = UPDATE_TIME
+          externalMeasurementId = EXTERNAL_MEASUREMENT_ID
+        }
       }
       pageToken = listMeasurementsPageToken.toByteArray().base64UrlEncode()
       filter = filter { states += publicStates }
@@ -1298,8 +1302,14 @@ class MeasurementsServiceTest {
             StreamMeasurementsRequestKt.filter {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
               states += internalStates
-              externalMeasurementIdAfter = EXTERNAL_MEASUREMENT_ID
-              updatedAfter = Timestamp.getDefaultInstance()
+              after =
+                StreamMeasurementsRequestKt.FilterKt.after {
+                  updateTime = UPDATE_TIME
+                  measurement = measurementKey {
+                    externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+                    externalMeasurementId = EXTERNAL_MEASUREMENT_ID
+                  }
+                }
             }
         }
       )
@@ -1316,7 +1326,10 @@ class MeasurementsServiceTest {
       val listMeasurementsPageToken = listMeasurementsPageToken {
         this.pageSize = 1
         externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
-        lastMeasurement = previousPageEnd { externalMeasurementId = EXTERNAL_MEASUREMENT_ID }
+        lastMeasurement = previousPageEnd {
+          updateTime = UPDATE_TIME
+          externalMeasurementId = EXTERNAL_MEASUREMENT_ID
+        }
       }
       pageToken = listMeasurementsPageToken.toByteArray().base64UrlEncode()
     }
@@ -1338,8 +1351,14 @@ class MeasurementsServiceTest {
           filter =
             StreamMeasurementsRequestKt.filter {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
-              externalMeasurementIdAfter = EXTERNAL_MEASUREMENT_ID
-              updatedAfter = Timestamp.getDefaultInstance()
+              after =
+                StreamMeasurementsRequestKt.FilterKt.after {
+                  updateTime = UPDATE_TIME
+                  measurement = measurementKey {
+                    externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+                    externalMeasurementId = EXTERNAL_MEASUREMENT_ID
+                  }
+                }
             }
         }
       )
@@ -1353,7 +1372,10 @@ class MeasurementsServiceTest {
       val listMeasurementsPageToken = listMeasurementsPageToken {
         this.pageSize = pageSize
         externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
-        lastMeasurement = previousPageEnd { externalMeasurementId = EXTERNAL_MEASUREMENT_ID }
+        lastMeasurement = previousPageEnd {
+          updateTime = UPDATE_TIME
+          externalMeasurementId = EXTERNAL_MEASUREMENT_ID
+        }
       }
       pageToken = listMeasurementsPageToken.toByteArray().base64UrlEncode()
     }
@@ -1375,8 +1397,14 @@ class MeasurementsServiceTest {
           filter =
             StreamMeasurementsRequestKt.filter {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
-              externalMeasurementIdAfter = EXTERNAL_MEASUREMENT_ID
-              updatedAfter = Timestamp.getDefaultInstance()
+              after =
+                StreamMeasurementsRequestKt.FilterKt.after {
+                  updateTime = UPDATE_TIME
+                  measurement = measurementKey {
+                    externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+                    externalMeasurementId = EXTERNAL_MEASUREMENT_ID
+                  }
+                }
             }
         }
       )

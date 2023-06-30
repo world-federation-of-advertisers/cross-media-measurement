@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.system.v1alpha;
 
+import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/system/v1alpha/stage_attempt.proto";
@@ -24,34 +25,42 @@ option java_package = "org.wfanet.measurement.system.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ComputationLogEntryProto";
 
-// Resource representing a log entry for a `ComputationParticipant`. Immutable.
+// Resource representing a log entry for a `ComputationParticipant`.
 message ComputationLogEntry {
   option (google.api.resource) = {
     type: "halo-system.wfanet.org/ComputationLogEntry"
+    singular: "computationLogEntry"
+    plural: "computationLogEntries"
 
     // `duchy` is the Duchy ID from the public API.
     pattern: "computations/{computation}/participants/{duchy}/logEntries/{computation_log_entry}"
   };
 
-  // Resource name. Output-only. Immutable.
+  // Resource name.
   string name = 1;
 
   // ID of some child of the `ComputationParticipant` from an external system.
   //
   // For example, this may identify a specific job or task.
-  string participant_child_reference_id = 2;
+  string participant_child_reference_id = 2
+      [(google.api.field_behavior) = IMMUTABLE];
 
   // Free-form human-readable log message. This should not include any sensitive
   // info.
-  string log_message = 3;
+  string log_message = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
 
   // Information about the stage attempt. Set if the log event occurred during
   // stage processing.
-  StageAttempt stage_attempt = 4;
+  StageAttempt stage_attempt = 4 [(google.api.field_behavior) = IMMUTABLE];
 
+  // Details for a `ComputationParticipant` error.
   message ErrorDetails {
     // Type of error for a `ComputationLogEntry`.
     enum Type {
+      // Default value used if the type is omitted.
       TYPE_UNSPECIFIED = 0;
 
       // Transient error.
@@ -65,13 +74,20 @@ message ComputationLogEntry {
       // The parent `Computation` will be in the `FAILED` state.
       PERMANENT = 2;
     }
-    // Type of error for this `ComputationLogEntry`. Required. Immutable.
-    Type type = 1;
+    // Type of error for this `ComputationLogEntry`.
+    Type type = 1 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.field_behavior) = IMMUTABLE
+    ];
 
     // Time that the error occurred.
-    google.protobuf.Timestamp error_time = 2;
+    google.protobuf.Timestamp error_time = 2 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.field_behavior) = IMMUTABLE
+    ];
   }
-  // Details for a computation error. Only set if this `ComputationLogEntry` is
-  // for an error event.
+  // Details for a `ComputationParticipant` error.
+  //
+  // Only set if this `ComputationLogEntry` is for an error event.
   ErrorDetails error_details = 5;
 }
