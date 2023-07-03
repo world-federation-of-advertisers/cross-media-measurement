@@ -6,6 +6,9 @@ load(
 )
 load("@wfa_rules_cue//cue:defs.bzl", "cue_export", "cue_library")
 
+load("//src/main/k8s:macros.bzl", "cue_dump")
+load("//build/k8s:defs.bzl", "kustomization_dir")
+
 cue_library(
     name = "base_gke",
     srcs = ["base_gke.cue"],
@@ -30,56 +33,140 @@ cue_library(
     deps = [":base_aws"],
 )
 
-cue_export(
+#cue_export(
+#    name = "example_edp_daemon_gke",
+#    srcs = ["example_edp_daemon_gke.cue"],
+#    cue_tags = {
+#        "party_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_name,
+#        "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_secret_name,
+#    },
+#    expression = "listObject",
+#    filetype = "yaml",
+#    tags = ["manual"],
+#    deps = [":example_daemon_gke"],
+#)
+
+cue_dump(
     name = "example_edp_daemon_gke",
     srcs = ["example_edp_daemon_gke.cue"],
     cue_tags = {
         "party_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_name,
         "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_secret_name,
     },
-    expression = "listObject",
-    filetype = "yaml",
     tags = ["manual"],
     deps = [":example_daemon_gke"],
 )
 
-cue_export(
+kustomization_dir(
+    name = "edp_daemon_gke",
+    srcs = [
+        "resource_requirements.yaml",
+        ":example_edp_daemon_gke",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+)
+
+#cue_export(
+#    name = "example_mp_daemon_gke",
+#    srcs = ["example_mp_daemon_gke.cue"],
+#    cue_tags = {
+#        "party_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_name,
+#        "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_secret_name,
+#    },
+#    expression = "listObject",
+#    filetype = "yaml",
+#    tags = ["manual"],
+#    deps = [":example_daemon_gke"],
+#)
+
+cue_dump(
     name = "example_mp_daemon_gke",
     srcs = ["example_mp_daemon_gke.cue"],
     cue_tags = {
         "party_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_name,
         "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_secret_name,
     },
-    expression = "listObject",
-    filetype = "yaml",
     tags = ["manual"],
     deps = [":example_daemon_gke"],
 )
 
-cue_export(
+kustomization_dir(
+    name = "mp_daemon_gke",
+    srcs = [
+        "resource_requirements.yaml",
+        ":example_mp_daemon_gke",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+)
+
+#cue_export(
+#    name = "example_edp_daemon_aws",
+#    srcs = ["example_edp_daemon_aws.cue"],
+#    cue_tags = {
+#        "party_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_name,
+#        "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_secret_name,
+#    },
+#    expression = "listObject",
+#    filetype = "yaml",
+#    tags = ["manual"],
+#    deps = [":example_daemon_aws"],
+#)
+
+cue_dump(
     name = "example_edp_daemon_aws",
     srcs = ["example_edp_daemon_aws.cue"],
     cue_tags = {
         "party_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_name,
         "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_secret_name,
     },
-    expression = "listObject",
-    filetype = "yaml",
     tags = ["manual"],
     deps = [":example_daemon_aws"],
 )
 
-cue_export(
+kustomization_dir(
+    name = "edp_daemon_aws",
+    srcs = [
+        "resource_requirements.yaml",
+        ":example_edp_daemon_aws",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+)
+
+#cue_export(
+#    name = "example_mp_daemon_aws",
+#    srcs = ["example_mp_daemon_aws.cue"],
+#    cue_tags = {
+#        "party_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_name,
+#        "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_secret_name,
+#    },
+#    expression = "listObject",
+#    filetype = "yaml",
+#    tags = ["manual"],
+#    deps = [":example_daemon_aws"],
+#)
+
+cue_dump(
     name = "example_mp_daemon_aws",
     srcs = ["example_mp_daemon_aws.cue"],
     cue_tags = {
         "party_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_name,
         "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_secret_name,
     },
-    expression = "listObject",
-    filetype = "yaml",
     tags = ["manual"],
     deps = [":example_daemon_aws"],
+)
+
+kustomization_dir(
+    name = "mp_daemon_aws",
+    srcs = [
+        "resource_requirements.yaml",
+        ":example_mp_daemon_aws",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
 )
 
 ALL_IMAGE_ARCHIVES = [
