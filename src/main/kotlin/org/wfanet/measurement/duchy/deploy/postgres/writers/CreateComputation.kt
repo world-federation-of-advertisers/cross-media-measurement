@@ -15,12 +15,8 @@
 package org.wfanet.measurement.duchy.deploy.postgres.writers
 
 import com.google.protobuf.Message
-import kotlinx.coroutines.flow.firstOrNull
 import java.time.Clock
-import java.time.Instant
-import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
-import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
@@ -40,13 +36,15 @@ import org.wfanet.measurement.internal.duchy.RequisitionEntry
  * @param stageDetails stage details of type [StageDT] e.g. [ComputationStageDetails].
  * @param computationDetails computation details of type [ComputationDT] e.g. [ComputationDetails].
  * @param requisitions list of [RequisitionEntry].
+ * @param clock [Clock] to get the write time to the database
  * @param computationTypeEnumHelper helper class to work with computation enums
  * @param computationProtocolStagesEnumHelper helper class to work with computation stage enums
  * @param computationProtocolStageDetailsHelper helper class to work with computation details
  *
  * Throws a subclass of [DuchyInternalException] on [execute]:
  * * [ComputationInitialStageInvalidException] when the new token is malformed
- * * [ComputationAlreadyExistsException] when there exists a computation with this globalComputationId
+ * * [ComputationAlreadyExistsException] when there exists a computation with this
+ *   globalComputationId
  */
 class CreateComputation<ProtocolT, ComputationDT : Message, StageT, StageDT : Message>(
   private val globalId: String,
@@ -58,15 +56,12 @@ class CreateComputation<ProtocolT, ComputationDT : Message, StageT, StageDT : Me
   private val clock: Clock,
   private val computationTypeEnumHelper: ComputationTypeEnumHelper<ProtocolT>,
   private val computationProtocolStagesEnumHelper:
-  ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
+    ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
   private val computationProtocolStageDetailsHelper:
-  ComputationProtocolStageDetailsHelper<ProtocolT, StageT, StageDT, ComputationDT>,
+    ComputationProtocolStageDetailsHelper<ProtocolT, StageT, StageDT, ComputationDT>,
 ) : PostgresWriter<Unit>() {
 
   override suspend fun TransactionScope.runTransaction() {
-
-    checkComputationExistence(globalId)
-
     if (!computationProtocolStagesEnumHelper.validInitialStage(protocol, initialStage)) {
       throw ComputationInitialStageInvalidException(protocol.toString(), initialStage.toString())
     }
@@ -82,8 +77,9 @@ class CreateComputation<ProtocolT, ComputationDT : Message, StageT, StageDT : Me
       creationTime = writeTimestamp,
       updateTime = writeTimestamp,
       globalId = globalId,
-      protocol = protocol,
-      stage = initialStage,
+      protocol = computationTypeEnumHelper.protocolEnumToLong(protocol),
+      stage =
+        computationProtocolStagesEnumHelper.computationStageEnumToLongValues(initialStage).stage,
       lockOwner = lockOwner,
       lockExpirationTime = writeTimestamp,
       details = computationDetails
@@ -112,74 +108,4 @@ class CreateComputation<ProtocolT, ComputationDT : Message, StageT, StageDT : Me
       )
     }
   }
-
-  private suspend fun TransactionScope.insertComputation(
-    localId: Long,
-    creationTime: Instant?,
-    updateTime: Instant,
-    globalId: String? = null,
-    protocol: ProtocolT? = null,
-    stage: StageT? = null,
-    lockOwner: String? = null,
-    lockExpirationTime: Instant? = null,
-    details: ComputationDT? = null
-  ) {
-
-    val insertComputationStatement =
-      boundStatement(
-        """
-      INSERT INTO Computations
-        (
-          ComputationId,
-          Protocol,
-          ComputationStage,
-          UpdateTime,
-          GlobalComputationId,
-          LockOwner,
-          LockExpirationTime,
-          ComputationDetails,
-          ComputationDetailsJSON,
-          CreationTime
-        )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)
-      """
-      ) {
-        bind("$1", localId)
-        bind("$2", protocol?.let { computationTypeEnumHelper.protocolEnumToLong(it) })
-        bind(
-          "$3",
-          stage?.let {
-            computationProtocolStagesEnumHelper.computationStageEnumToLongValues(it).stage
-          }
-        )
-        bind("$4", updateTime)
-        bind("$5", globalId)
-        bind("$6", lockOwner)
-        bind("$7", lockExpirationTime)
-        bind("$8", details?.toByteArray())
-        bind("$9", details?.toJson())
-        bind("$10", creationTime)
-      }
-
-    transactionContext.executeStatement(insertComputationStatement)
-  }
-
-  private suspend fun TransactionScope.checkComputationExistence(
-    globalComputationId: String
-  ) {
-    val sql = boundStatement(
-      """
-        SELECT GlobalComputationId
-        FROM Computations
-        WHERE GlobalComputationId = $1
-      """.trimIndent()
-    ) {
-      bind("$1", globalComputationId)
-    }
-
-    val result = transactionContext.executeQuery(sql).consume { row -> row }.firstOrNull()
-    if (result != null)
-      throw ComputationAlreadyExistsException(globalComputationId)
-  }
-
 }

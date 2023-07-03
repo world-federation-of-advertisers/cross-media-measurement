@@ -14,8 +14,8 @@
 
 package org.wfanet.measurement.duchy.deploy.postgres.writers
 
-import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import java.time.Clock
+import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 
 class EnqueueComputation(
   private val clock: Clock,

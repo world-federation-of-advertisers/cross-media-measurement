@@ -14,10 +14,10 @@
 
 package org.wfanet.measurement.duchy.deploy.postgres.writers
 
+import java.time.Clock
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.duchy.deploy.postgres.readers.RequisitionReader
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
-import java.time.Clock
 
 class RecordRequisitionBlobPath(
   private val clock: Clock,
@@ -26,7 +26,7 @@ class RecordRequisitionBlobPath(
   private val pathToBlob: String
 ) : PostgresWriter<Unit>() {
   override suspend fun TransactionScope.runTransaction() {
-    require(pathToBlob.isNotBlank()) {"Cannot insert blank path to blob. $externalRequisitionKey"}
+    require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
     val requisition: RequisitionReader.RequisitionResult =
       RequisitionReader().readRequisitionByExternalKey(transactionContext, externalRequisitionKey)
         ?: error("No Computation found row for this requisition: $externalRequisitionKey")
@@ -34,10 +34,7 @@ class RecordRequisitionBlobPath(
       "The token doesn't match the computation owns the requisition."
     }
     val writeTime = clock.instant()
-    updateComputation(
-      localId = localComputationId,
-      updateTime = writeTime
-    )
+    updateComputation(localId = localComputationId, updateTime = writeTime)
     updateRequisition(
       localComputationId = requisition.computationId,
       requisitionId = requisition.requisitionId,

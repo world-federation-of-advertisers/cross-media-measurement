@@ -50,7 +50,7 @@ import org.wfanet.measurement.internal.duchy.requisitionMetadata
  */
 class ComputationReader(
   private val computationProtocolStagesEnumHelper:
-  ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
+    ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
 ) {
 
   data class Computation(
@@ -391,7 +391,8 @@ class ComputationReader(
     stages: List<ComputationStage>,
     updatedBefore: Instant? = null
   ): Set<String> {
-    val computationTypes = stages.map { computationProtocolStagesEnumHelper.stageToProtocol(it) }.distinct()
+    val computationTypes =
+      stages.map { computationProtocolStagesEnumHelper.stageToProtocol(it) }.distinct()
     grpcRequire(computationTypes.count() == 1) {
       "All stages should have the same ComputationType."
     }
@@ -408,16 +409,16 @@ class ComputationReader(
 
     val sql =
       boundStatement(
-        updatedBefore?.let {
-          baseSql + """
+        updatedBefore?.let { baseSql + """
           AND UpdateTime <= $2
-          """
-        } ?: baseSql
+          """ } ?: baseSql
       ) {
-//        bind(
-//          "$1",
-//          stages.map { computationProtocolStagesEnumHelper.computationStageEnumToLongValues(it).stage }.toList().joinToString(",")
-//        )
+        //        bind(
+        //          "$1",
+        //          stages.map {
+        // computationProtocolStagesEnumHelper.computationStageEnumToLongValues(it).stage
+        // }.toList().joinToString(",")
+        //        )
         bind("$1", computationTypes[0])
         updatedBefore?.let { bind("$2", it) }
       }

@@ -15,6 +15,7 @@
 package org.wfanet.measurement.duchy.deploy.postgres.writers
 
 import com.google.protobuf.Message
+import io.r2dbc.spi.R2dbcDataIntegrityViolationException
 import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.flow.firstOrNull
@@ -22,8 +23,64 @@ import org.wfanet.measurement.common.db.r2dbc.ReadWriteContext
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.toJson
+import org.wfanet.measurement.duchy.service.internal.ComputationAlreadyExistsException
 import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
 
+/** Insert a new row to the Postgres Computations table. */
+suspend fun PostgresWriter.TransactionScope.insertComputation(
+  localId: Long,
+  creationTime: Instant?,
+  updateTime: Instant,
+  globalId: String,
+  protocol: Long? = null,
+  stage: Long? = null,
+  lockOwner: String? = null,
+  lockExpirationTime: Instant? = null,
+  details: Message? = null
+) {
+
+  val insertComputationStatement =
+    boundStatement(
+      """
+      INSERT INTO Computations
+        (
+          ComputationId,
+          Protocol,
+          ComputationStage,
+          UpdateTime,
+          GlobalComputationId,
+          LockOwner,
+          LockExpirationTime,
+          ComputationDetails,
+          ComputationDetailsJSON,
+          CreationTime
+        )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)
+      """
+    ) {
+      bind("$1", localId)
+      bind("$2", protocol)
+      bind("$3", stage)
+      bind("$4", updateTime)
+      bind("$5", globalId)
+      bind("$6", lockOwner)
+      bind("$7", lockExpirationTime)
+      bind("$8", details?.toByteArray())
+      bind("$9", details?.toJson())
+      bind("$10", creationTime)
+    }
+
+  try {
+    transactionContext.executeStatement(insertComputationStatement)
+  } catch (ex: R2dbcDataIntegrityViolationException) {
+    if (ex.message?.contains("duplicate key") == true) {
+      throw ComputationAlreadyExistsException(globalId)
+    }
+    throw ex
+  }
+}
+
+/** Creates an insertion to the Postgres Computations table. */
 suspend fun PostgresWriter.TransactionScope.updateComputation(
   localId: Long,
   updateTime: Instant,
@@ -132,125 +189,6 @@ private suspend fun setLock(
       bind("$4", localId)
     }
   readWriteContext.executeStatement(sql)
-}
-
-suspend fun PostgresWriter.TransactionScope.updateComputationStage(
-  localId: Long,
-  stage: Long,
-  nextAttempt: Long? = null,
-  creationTime: Instant? = null,
-  endTime: Instant? = null,
-  previousStage: Long? = null,
-  followingStage: Long? = null,
-  details: Message? = null,
-) {
-  val sql =
-    boundStatement(
-      """
-      UPDATE ComputationStages SET
-        CreationTime = COALESCE($3, CreationTime),
-        NextAttempt = COALESCE($4, NextAttempt),
-        EndTime = COALESCE($5, EndTime),
-        PreviousStage = COALESCE($6, PreviousStage),
-        FollowingStage = COALESCE($7, FollowingStage),
-        Details = COALESCE($8, Details),
-        DetailsJSON = COALESCE($9::jsonb, DetailsJSON)
-      WHERE
-        ComputationId = $1
-      AND
-        ComputationStage = $2;
-      """
-    ) {
-      bind("$1", localId)
-      bind("$2", stage)
-      bind("$3", creationTime)
-      bind("$4", nextAttempt)
-      bind("$5", endTime)
-      bind("$6", previousStage)
-      bind("$7", followingStage)
-      bind("$8", details?.toByteArray())
-      bind("$9", details?.toJson())
-    }
-
-  transactionContext.executeStatement(sql)
-}
-
-suspend fun PostgresWriter.TransactionScope.updateComputationStageAttempt(
-  localId: Long,
-  stage: Long,
-  attempt: Long,
-  beginTime: Instant? = null,
-  endTime: Instant? = null,
-  details: Message? = null
-) {
-  val sql =
-    boundStatement(
-      """
-      UPDATE ComputationStageAttempts SET
-        BeginTime = COALESCE($4, BeginTime),
-        EndTime = COALESCE($5, EndTime),
-        Details = COALESCE($6, Details),
-        DetailsJSON = COALESCE($7::jsonb, DetailsJSON)
-      WHERE
-        ComputationId = $1
-      AND
-        ComputationStage = $2
-      AND
-        Attempt = $3
-      """
-    ) {
-      bind("$1", localId)
-      bind("$2", stage)
-      bind("$3", attempt)
-      bind("$4", beginTime)
-      bind("$5", endTime)
-      bind("$6", details?.toByteArray())
-      bind("$7", details?.toJson())
-    }
-
-  transactionContext.executeStatement(sql)
-}
-
-suspend fun PostgresWriter.TransactionScope.insertComputationStage(
-  localId: Long,
-  stage: Long,
-  nextAttempt: Long? = null,
-  creationTime: Instant? = null,
-  endTime: Instant? = null,
-  previousStage: Long? = null,
-  followingStage: Long? = null,
-  details: Message? = null,
-) {
-  val insertComputationStageStatement =
-    boundStatement(
-      """
-      INSERT INTO ComputationStages
-        (
-          ComputationId,
-          ComputationStage,
-          CreationTime,
-          NextAttempt,
-          EndTime,
-          PreviousStage,
-          FollowingStage,
-          Details,
-          DetailsJSON
-        )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
-      """
-    ) {
-      bind("$1", localId)
-      bind("$2", stage)
-      bind("$3", creationTime)
-      bind("$4", nextAttempt)
-      bind("$5", endTime)
-      bind("$6", previousStage)
-      bind("$7", followingStage)
-      bind("$8", details?.toByteArray())
-      bind("$9", details?.toJson())
-    }
-
-  transactionContext.executeStatement(insertComputationStageStatement)
 }
 
 suspend fun PostgresWriter.TransactionScope.checkComputationUnmodified(
