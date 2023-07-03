@@ -71,7 +71,7 @@ suspend fun PostgresWriter.TransactionScope.updateComputation(
 suspend fun PostgresWriter.TransactionScope.extendComputationLock(
   localComputationId: Long,
   updateTime: Instant,
-  lockDuration: Duration
+  lockExpirationTime: Instant
 ) {
   val sql =
     boundStatement(
@@ -85,7 +85,7 @@ suspend fun PostgresWriter.TransactionScope.extendComputationLock(
         .trimIndent()
     ) {
       bind("$1", updateTime)
-      bind("$2", updateTime.plus(lockDuration))
+      bind("$2", lockExpirationTime)
       bind("$3", localComputationId)
     }
   transactionContext.executeStatement(sql)
@@ -101,10 +101,10 @@ suspend fun PostgresWriter.TransactionScope.releaseComputationLock(
 suspend fun PostgresWriter.TransactionScope.acquireComputationLock(
   localId: Long,
   updateTime: Instant,
-  ownerId: String,
-  lockDuration: Duration
+  ownerId: String?,
+  lockExpirationTime: Instant
 ) {
-  setLock(transactionContext, localId, updateTime, ownerId, lockDuration)
+  setLock(transactionContext, localId, updateTime, ownerId, lockExpirationTime)
 }
 
 private suspend fun setLock(
@@ -112,7 +112,7 @@ private suspend fun setLock(
   localId: Long,
   updateTime: Instant,
   ownerId: String? = null,
-  lockDuration: Duration? = null
+  lockExpirationTime: Instant? = null
 ) {
   val sql =
     boundStatement(
@@ -128,7 +128,7 @@ private suspend fun setLock(
     ) {
       bind("$1", updateTime)
       bind("$2", ownerId)
-      bind("$3", lockDuration?.let { updateTime.plus(it) })
+      bind("$3", lockExpirationTime)
       bind("$4", localId)
     }
   readWriteContext.executeStatement(sql)

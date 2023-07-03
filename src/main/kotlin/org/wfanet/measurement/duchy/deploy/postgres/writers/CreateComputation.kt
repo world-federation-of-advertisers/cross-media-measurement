@@ -15,6 +15,7 @@
 package org.wfanet.measurement.duchy.deploy.postgres.writers
 
 import com.google.protobuf.Message
+import kotlinx.coroutines.flow.firstOrNull
 import java.time.Clock
 import java.time.Instant
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
@@ -23,6 +24,7 @@ import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
+import org.wfanet.measurement.duchy.service.internal.ComputationAlreadyExistsException
 import org.wfanet.measurement.duchy.service.internal.ComputationInitialStageInvalidException
 import org.wfanet.measurement.duchy.service.internal.DuchyInternalException
 import org.wfanet.measurement.internal.duchy.ComputationDetails
@@ -44,6 +46,7 @@ import org.wfanet.measurement.internal.duchy.RequisitionEntry
  *
  * Throws a subclass of [DuchyInternalException] on [execute]:
  * * [ComputationInitialStageInvalidException] when the new token is malformed
+ * * [ComputationAlreadyExistsException] when there exists a computation with this globalComputationId
  */
 class CreateComputation<ProtocolT, ComputationDT : Message, StageT, StageDT : Message>(
   private val globalId: String,
@@ -55,12 +58,15 @@ class CreateComputation<ProtocolT, ComputationDT : Message, StageT, StageDT : Me
   private val clock: Clock,
   private val computationTypeEnumHelper: ComputationTypeEnumHelper<ProtocolT>,
   private val computationProtocolStagesEnumHelper:
-    ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
+  ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
   private val computationProtocolStageDetailsHelper:
-    ComputationProtocolStageDetailsHelper<ProtocolT, StageT, StageDT, ComputationDT>,
+  ComputationProtocolStageDetailsHelper<ProtocolT, StageT, StageDT, ComputationDT>,
 ) : PostgresWriter<Unit>() {
 
   override suspend fun TransactionScope.runTransaction() {
+
+    checkComputationExistence(globalId)
+
     if (!computationProtocolStagesEnumHelper.validInitialStage(protocol, initialStage)) {
       throw ComputationInitialStageInvalidException(protocol.toString(), initialStage.toString())
     }
@@ -157,4 +163,23 @@ class CreateComputation<ProtocolT, ComputationDT : Message, StageT, StageDT : Me
 
     transactionContext.executeStatement(insertComputationStatement)
   }
+
+  private suspend fun TransactionScope.checkComputationExistence(
+    globalComputationId: String
+  ) {
+    val sql = boundStatement(
+      """
+        SELECT GlobalComputationId
+        FROM Computations
+        WHERE GlobalComputationId = $1
+      """.trimIndent()
+    ) {
+      bind("$1", globalComputationId)
+    }
+
+    val result = transactionContext.executeQuery(sql).consume { row -> row }.firstOrNull()
+    if (result != null)
+      throw ComputationAlreadyExistsException(globalComputationId)
+  }
+
 }

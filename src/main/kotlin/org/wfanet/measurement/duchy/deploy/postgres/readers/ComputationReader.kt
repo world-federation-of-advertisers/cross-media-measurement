@@ -23,9 +23,11 @@ import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationStageLongValues
+import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
@@ -48,7 +50,7 @@ import org.wfanet.measurement.internal.duchy.requisitionMetadata
  */
 class ComputationReader(
   private val computationProtocolStagesEnumHelper:
-    ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
+  ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
 ) {
 
   data class Computation(
@@ -83,7 +85,7 @@ class ComputationReader(
     return computationStageBlobMetadata {
       blobId = row["BlobId"]
       row.get<String?>("PathToBlob")?.let { path = it }
-      dependencyType = row["DependencyType"]
+      dependencyType = row.getProtoEnum("DependencyType", ComputationBlobDependency::forNumber)
     }
   }
 
@@ -386,29 +388,38 @@ class ComputationReader(
    */
   suspend fun readGlobalComputationIds(
     readContext: ReadContext,
-    stages: List<Long>,
-    computationType: Long,
+    stages: List<ComputationStage>,
     updatedBefore: Instant? = null
   ): Set<String> {
+    val computationTypes = stages.map { computationProtocolStagesEnumHelper.stageToProtocol(it) }.distinct()
+    grpcRequire(computationTypes.count() == 1) {
+      "All stages should have the same ComputationType."
+    }
+
     val baseSql =
       """
         SELECT GlobalComputationId
         FROM Computations
         WHERE
-          ComputationStage IN ($1)
+          ComputationStage IN (${stages.map { computationProtocolStagesEnumHelper.computationStageEnumToLongValues(it).stage }.toList().joinToString(",")})
         AND
-          Protocol = $2
+          Protocol = $1
       """
 
     val sql =
       boundStatement(
-        updatedBefore?.let { baseSql + """
-          AND UpdateTime <= $3
-          """ } ?: baseSql
+        updatedBefore?.let {
+          baseSql + """
+          AND UpdateTime <= $2
+          """
+        } ?: baseSql
       ) {
-        bind("$1", stages.toLongArray())
-        bind("$2", computationType)
-        updatedBefore?.let { bind("$3", it) }
+//        bind(
+//          "$1",
+//          stages.map { computationProtocolStagesEnumHelper.computationStageEnumToLongValues(it).stage }.toList().joinToString(",")
+//        )
+        bind("$1", computationTypes[0])
+        updatedBefore?.let { bind("$2", it) }
       }
 
     return readContext

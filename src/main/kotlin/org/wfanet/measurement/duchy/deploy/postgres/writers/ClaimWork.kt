@@ -131,7 +131,7 @@ class ClaimWork<ProtocolT, StageT>(
     if (currentLockOwner.updateTime != unclaimedTask.updateTime) return false
 
     val writeTime = clock.instant()
-    acquireComputationLock(unclaimedTask.computationId, writeTime, ownerId, lockDuration)
+    acquireComputationLock(unclaimedTask.computationId, writeTime, ownerId, writeTime.plus(lockDuration))
     val stageLongValue =
       computationProtocolStagesEnumHelper
         .computationStageEnumToLongValues(unclaimedTask.computationStage)

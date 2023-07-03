@@ -42,12 +42,12 @@ class RequisitionReader {
         WHERE
           ExternalRequisitionId = $1
         AND
-         RequisitionFingerprint = $2
+          RequisitionFingerprint = $2
       """
           .trimIndent()
       ) {
         bind("$1", key.externalRequisitionId)
-        bind("$2", key.externalRequisitionIdBytes.toByteArray())
+        bind("$2", key.requisitionFingerprint.toByteArray())
       }
     return readContext.executeQuery(sql).consume(::RequisitionResult).firstOrNull()
   }

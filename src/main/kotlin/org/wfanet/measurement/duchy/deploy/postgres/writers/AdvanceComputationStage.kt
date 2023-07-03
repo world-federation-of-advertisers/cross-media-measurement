@@ -82,7 +82,7 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
         releaseComputationLock(localComputationId, writeTime)
       // Do not change the owner
       AfterTransition.CONTINUE_WORKING ->
-        extendComputationLock(localComputationId, writeTime, lockExtension)
+        extendComputationLock(localComputationId, writeTime, writeTime.plus(lockExtension))
     }
 
     updateComputationStage(
