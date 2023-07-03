@@ -50,7 +50,7 @@ import org.wfanet.measurement.internal.duchy.requisitionMetadata
  */
 class ComputationReader(
   private val computationProtocolStagesEnumHelper:
-  ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
+    ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
 ) {
 
   data class Computation(
@@ -237,8 +237,8 @@ class ComputationReader(
    *
    * @param client The [DatabaseClient] to the Postgres database.
    * @param globalComputationId A global identifier for a computation.
-   * @return [ComputationToken] when a Computation with globalComputationId is found.
-   *  or null otherwise.
+   * @return [ComputationToken] when a Computation with globalComputationId is found. or null
+   *   otherwise.
    */
   suspend fun readComputationToken(
     client: DatabaseClient,
@@ -264,8 +264,8 @@ class ComputationReader(
    *
    * @param client The [DatabaseClient] to the Postgres database.
    * @param externalRequisitionKey The [ExternalRequisitionKey] for a computation.
-   * @return [ComputationToken] when a Computation with externalRequisitionKey is found,
-   *  or null otherwise.
+   * @return [ComputationToken] when a Computation with externalRequisitionKey is found, or null
+   *   otherwise.
    */
   suspend fun readComputationToken(
     client: DatabaseClient,
@@ -365,10 +365,13 @@ class ComputationReader(
 
     /**
      * Binding list of String into the IN clause does not work as expected with r2dbc library.
-     * Hence, manually joining targeting stages into a comma separated string and stub it into the query.
+     * Hence, manually joining targeting stages into a comma separated string and stub it into the
+     * query.
      */
     val stagesString =
-      stages.map { computationProtocolStagesEnumHelper.computationStageEnumToLongValues(it).stage }.toList()
+      stages
+        .map { computationProtocolStagesEnumHelper.computationStageEnumToLongValues(it).stage }
+        .toList()
         .joinToString(",")
     val baseSql =
       """
@@ -382,11 +385,9 @@ class ComputationReader(
 
     val sql =
       boundStatement(
-        updatedBefore?.let {
-          baseSql + """
+        updatedBefore?.let { baseSql + """
           AND UpdateTime <= $2
-          """
-        } ?: baseSql
+          """ } ?: baseSql
       ) {
         bind("$1", computationTypes[0])
         updatedBefore?.let { bind("$2", it) }

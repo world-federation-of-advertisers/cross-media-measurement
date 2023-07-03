@@ -414,35 +414,35 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
       .isEqualTo(response.token)
   }
 
-    @Test fun `updateComputationDetails updates RequisitionDetails`() = runBlocking {
-      val createdToken = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST).token
+  @Test
+  fun `updateComputationDetails updates RequisitionDetails`() = runBlocking {
+    val createdToken = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST).token
 
-      val newNonce = 9527L
-      val updatedRequisitionDetails =
-        createdToken.requisitionsList[0].details.copy {
-          nonce = newNonce
-          nonceHash = newNonce.toByteString()
+    val newNonce = 9527L
+    val updatedRequisitionDetails =
+      createdToken.requisitionsList[0].details.copy {
+        nonce = newNonce
+        nonceHash = newNonce.toByteString()
+      }
+    val response =
+      service.updateComputationDetails(
+        updateComputationDetailsRequest {
+          token = createdToken
+          details = createdToken.computationDetails
+          requisitions += DEFAULT_REQUISITION_ENTRY.copy { value = updatedRequisitionDetails }
         }
-      val response =
-        service.updateComputationDetails(
-          updateComputationDetailsRequest {
-            token = createdToken
-            details = createdToken.computationDetails
-            requisitions += DEFAULT_REQUISITION_ENTRY.copy { value = updatedRequisitionDetails }
-          }
-        )
+      )
 
-      assertThat(response.token.requisitionsList[0].details)
-        .isEqualTo(updatedRequisitionDetails)
-      assertThat(
+    assertThat(response.token.requisitionsList[0].details).isEqualTo(updatedRequisitionDetails)
+    assertThat(
         service
           .getComputationToken(
             getComputationTokenRequest { globalComputationId = createdToken.globalComputationId }
           )
           .token
       )
-        .isEqualTo(response.token)
-    }
+      .isEqualTo(response.token)
+  }
 
   @Test
   fun `updateComputationDetails throws IllegalStateException when requisition could not be found`() =
