@@ -414,19 +414,70 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
       .isEqualTo(response.token)
   }
 
-  //  @Test fun `updateComputationDetails updates RequisitionDetails`() = runBlocking {
-  // assert(false) }
+    @Test fun `updateComputationDetails updates RequisitionDetails`() = runBlocking {
+      val createdToken = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST).token
+
+      val newNonce = 9527L
+      val updatedRequisitionDetails =
+        createdToken.requisitionsList[0].details.copy {
+          nonce = newNonce
+          nonceHash = newNonce.toByteString()
+        }
+      val response =
+        service.updateComputationDetails(
+          updateComputationDetailsRequest {
+            token = createdToken
+            details = createdToken.computationDetails
+            requisitions += DEFAULT_REQUISITION_ENTRY.copy { value = updatedRequisitionDetails }
+          }
+        )
+
+      assertThat(response.token.requisitionsList[0].details)
+        .isEqualTo(updatedRequisitionDetails)
+      assertThat(
+        service
+          .getComputationToken(
+            getComputationTokenRequest { globalComputationId = createdToken.globalComputationId }
+          )
+          .token
+      )
+        .isEqualTo(response.token)
+    }
+
+  @Test
+  fun `updateComputationDetails throws IllegalStateException when requisition could not be found`() =
+    runBlocking {
+      val createdToken = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST).token
+
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          service.updateComputationDetails(
+            updateComputationDetailsRequest {
+              token = createdToken
+              details = createdToken.computationDetails
+              requisitions += requisitionEntry {
+                key = externalRequisitionKey {
+                  externalRequisitionId = "DoesNotExist"
+                  requisitionFingerprint = "DoesNotExist".toByteStringUtf8()
+                }
+              }
+            }
+          )
+        }
+
+      assertThat(exception.message).contains("found")
+    }
 
   @Test
   fun `updateComputationDetails throws IllegalArgumentException when updating protocol`() =
     runBlocking {
-      val createComputationResp = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+      val response = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
 
       val exception =
         assertFailsWith<IllegalArgumentException> {
           service.updateComputationDetails(
             updateComputationDetailsRequest {
-              token = createComputationResp.token
+              token = response.token
               details = ComputationDetails.getDefaultInstance()
             }
           )
@@ -895,6 +946,6 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
         service.recordRequisitionBlobPath(recordRequisitionBlobPathRequest)
       }
 
-    assertThat(exception.message).contains("No Computation found")
+    assertThat(exception.message).contains("found")
   }
 }

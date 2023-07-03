@@ -18,11 +18,11 @@ import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 
 /**
- * [PostgresWriter] delete a computation by its localComputationId.
+ * [PostgresWriter] to delete a computation by its localComputationId.
  *
- * @param localComputationId local identifier of a computation.
+ * @param localId local identifier of a computation.
  */
-class DeleteComputation(private val localComputationId: Long) : PostgresWriter<Unit>() {
+class DeleteComputation(private val localId: Long) : PostgresWriter<Unit>() {
 
   override suspend fun TransactionScope.runTransaction() {
     val statement =
@@ -33,7 +33,7 @@ class DeleteComputation(private val localComputationId: Long) : PostgresWriter<U
       """
           .trimIndent()
       ) {
-        bind("$1", localComputationId)
+        bind("$1", localId)
       }
     transactionContext.executeStatement(statement)
   }

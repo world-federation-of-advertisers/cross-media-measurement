@@ -26,7 +26,7 @@ import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.duchy.service.internal.ComputationAlreadyExistsException
 import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
 
-/** Insert a new row to the Postgres Computations table. */
+/** Insert a new row into the Postgres Computations table. */
 suspend fun PostgresWriter.TransactionScope.insertComputation(
   localId: Long,
   creationTime: Instant?,
@@ -80,7 +80,11 @@ suspend fun PostgresWriter.TransactionScope.insertComputation(
   }
 }
 
-/** Creates an insertion to the Postgres Computations table. */
+/**
+ * Updates a row in the Postgres Computations table.
+ *
+ * If an argument is null, its corresponding field in the database will not be updated.
+ */
 suspend fun PostgresWriter.TransactionScope.updateComputation(
   localId: Long,
   updateTime: Instant,
@@ -104,10 +108,9 @@ suspend fun PostgresWriter.TransactionScope.updateComputation(
         LockExpirationTime = COALESCE($6, LockExpirationTime),
         ComputationDetails = COALESCE($7, ComputationDetails),
         ComputationDetailsJson = COALESCE($8::jsonb, ComputationDetailsJson),
-        ComputationId = COALESCE($9, ComputationId),
-        ComputationStage = COALESCE($10, ComputationStage)
+        ComputationStage = COALESCE($9, ComputationStage)
       WHERE
-        ComputationId = $9
+        ComputationId = $10
       """
     ) {
       bind("$1", creationTime)
@@ -118,13 +121,14 @@ suspend fun PostgresWriter.TransactionScope.updateComputation(
       bind("$6", lockExpirationTime)
       bind("$7", details?.toByteArray())
       bind("$8", details?.toJson())
-      bind("$9", localId)
-      bind("$10", stage)
+      bind("$9", stage)
+      bind("$10", localId)
     }
 
   transactionContext.executeStatement(sql)
 }
 
+/** Extends an existing lock to [lockExpirationTime], without changing the lock owner. */
 suspend fun PostgresWriter.TransactionScope.extendComputationLock(
   localComputationId: Long,
   updateTime: Instant,
@@ -148,6 +152,7 @@ suspend fun PostgresWriter.TransactionScope.extendComputationLock(
   transactionContext.executeStatement(sql)
 }
 
+/** Release a lock by setting the owner and expiration to null. */
 suspend fun PostgresWriter.TransactionScope.releaseComputationLock(
   localComputationId: Long,
   updateTime: Instant
@@ -155,6 +160,7 @@ suspend fun PostgresWriter.TransactionScope.releaseComputationLock(
   setLock(transactionContext, localComputationId, updateTime)
 }
 
+/** Acquire a lock by setting the owner and expiration. */
 suspend fun PostgresWriter.TransactionScope.acquireComputationLock(
   localId: Long,
   updateTime: Instant,
@@ -191,6 +197,11 @@ private suspend fun setLock(
   readWriteContext.executeStatement(sql)
 }
 
+/**
+ * Checks if the version of local computation matches with the version in database.
+ *
+ * @throws [IllegalStateException] if versions mismatched.
+ */
 suspend fun PostgresWriter.TransactionScope.checkComputationUnmodified(
   localId: Long,
   editVersion: Long
@@ -218,8 +229,8 @@ suspend fun PostgresWriter.TransactionScope.checkComputationUnmodified(
     error(
       """
           Failed to update because of editVersion mismatch.
-            Token's editVersion: $editVersion ($editVersionTime)
-            Computations table's UpdateTime: $updateTimeMillis ($updateTime)
+            Local computation's version: $editVersion ($editVersionTime)
+            Computations table's version: $updateTimeMillis ($updateTime)
             Difference: ${Duration.between(editVersionTime, updateTime)}
           """
         .trimIndent()

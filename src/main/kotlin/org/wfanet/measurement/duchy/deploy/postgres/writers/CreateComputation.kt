@@ -28,7 +28,7 @@ import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.RequisitionEntry
 
 /**
- * [PostgresWriter] to inserts a new computation for the global identifier.
+ * [PostgresWriter] to insert a new computation for the global identifier.
  *
  * @param globalId global identifier of this new computation.
  * @param protocol protocol of this new computation.

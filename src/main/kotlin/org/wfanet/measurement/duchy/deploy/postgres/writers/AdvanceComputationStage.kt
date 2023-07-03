@@ -17,49 +17,64 @@ package org.wfanet.measurement.duchy.deploy.postgres.writers
 import com.google.protobuf.Message
 import java.time.Clock
 import java.time.Duration
-import java.time.Instant
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.flow.toList
-import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.numberAsLong
-import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
+import org.wfanet.measurement.duchy.deploy.postgres.readers.ComputationStageAttemptReader
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 
+/**
+ * [PostgresWriter] to advance a computation to next stage.
+ *
+ * @param localId local identifier of the computation.
+ * @param editVersion the version of the computation.
+ * @param attempt current attempt number.
+ * @param currentStage current stage enum.
+ * @param nextStage next stage enum.
+ * @param nextStageDetails stageDetails of the next stage.
+ * @param inputBlobPaths list of inputBlobPaths.
+ * @param passThroughBlobPaths list of passThroughBlobPaths.
+ * @param outputBlobs number of outputBlobs
+ * @param afterTransition See [AfterTransition]
+ * @param lockExtension the duration to extend the expiration time.
+ * @param clock See [Clock].
+ * @param protocolStagesEnumHelper See [ComputationProtocolStagesEnumHelper].
+ */
 class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
-  private val clock: Clock,
-  private val localComputationId: Long,
-  private val currentStage: StageT,
-  private val attempt: Long,
+  private val localId: Long,
   private val editVersion: Long,
+  private val attempt: Long,
+  private val currentStage: StageT,
   private val nextStage: StageT,
+  private val nextStageDetails: StageDT,
   private val inputBlobPaths: List<String>,
   private val passThroughBlobPaths: List<String>,
   private val outputBlobs: Int,
   private val afterTransition: AfterTransition,
-  private val nextStageDetails: StageDT,
   private val lockExtension: Duration,
+  private val clock: Clock,
   private val protocolStagesEnumHelper: ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
 ) : PostgresWriter<Unit>() {
   override suspend fun TransactionScope.runTransaction() {
     require(protocolStagesEnumHelper.validTransition(currentStage, nextStage)) {
       "Invalid stage transition $currentStage -> $nextStage"
     }
+    checkComputationUnmodified(localId, editVersion)
 
-    checkComputationUnmodified(localComputationId, editVersion)
     val unwrittenOutputs =
-      outputBlobIdToPathMap(
-          localComputationId,
-          protocolStagesEnumHelper.computationStageEnumToLongValues(currentStage).stage
+      ComputationStageAttemptReader()
+        .blobIdToPathMapByDepType(
+          transactionContext,
+          localId,
+          protocolStagesEnumHelper.computationStageEnumToLongValues(currentStage).stage,
+          ComputationBlobDependency.OUTPUT.numberAsLong
         )
         .filterValues { it == null }
     check(unwrittenOutputs.isEmpty()) {
       """
-        Cannot transition computation for $localComputationId to stage $nextStage, all outputs have not been written.
+        Cannot transition computation for $localId to stage $nextStage, all outputs have not been written.
         Outputs not written for blob ids (${unwrittenOutputs.keys})
         """
         .trimIndent()
@@ -70,7 +85,7 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
     val currentStageLong =
       protocolStagesEnumHelper.computationStageEnumToLongValues(currentStage).stage
     updateComputation(
-      localId = localComputationId,
+      localId = localId,
       updateTime = writeTime,
       stage = nextStageLong,
     )
@@ -78,26 +93,26 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
     when (afterTransition) {
       // Write the NULL value to the lockOwner column to release the lock.
       AfterTransition.DO_NOT_ADD_TO_QUEUE,
-      AfterTransition.ADD_UNCLAIMED_TO_QUEUE ->
-        releaseComputationLock(localComputationId, writeTime)
+      AfterTransition.ADD_UNCLAIMED_TO_QUEUE -> releaseComputationLock(localId, writeTime)
       // Do not change the owner
       AfterTransition.CONTINUE_WORKING ->
-        extendComputationLock(localComputationId, writeTime, writeTime.plus(lockExtension))
+        extendComputationLock(localId, writeTime, writeTime.plus(lockExtension))
     }
 
     updateComputationStage(
-      localId = localComputationId,
+      localId = localId,
       stage = currentStageLong,
       followingStage = nextStageLong,
       endTime = writeTime
     )
 
     val attemptDetails =
-      readAttemptDetails(localComputationId, currentStageLong, attempt)
-        ?: error("No ComputationStageAttempt ($localComputationId, $currentStage, $attempt)")
+      ComputationStageAttemptReader()
+        .readComputationStageDetails(transactionContext, localId, currentStageLong, attempt)
+        ?: error("No ComputationStageAttempt ($localId, $currentStage, $attempt)")
 
     updateComputationStageAttempt(
-      localId = localComputationId,
+      localId = localId,
       stage = currentStageLong,
       attempt = attempt,
       endTime = writeTime,
@@ -118,7 +133,7 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
       }
 
     insertComputationStage(
-      localId = localComputationId,
+      localId = localId,
       stage = nextStageLong,
       previousStage = currentStageLong,
       creationTime = writeTime,
@@ -135,7 +150,7 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
 
     if (startAttempt) {
       insertComputationStageAttempt(
-        localComputationId = localComputationId,
+        localComputationId = localId,
         stage = nextStageLong,
         attempt = 1,
         beginTime = writeTime,
@@ -145,7 +160,7 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
 
     inputBlobPaths.forEachIndexed { index, path ->
       insertComputationBlobReference(
-        localId = localComputationId,
+        localId = localId,
         stage = nextStageLong,
         blobId = index.toLong(),
         pathToBlob = path,
@@ -155,7 +170,7 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
 
     passThroughBlobPaths.forEachIndexed { index, path ->
       insertComputationBlobReference(
-        localId = localComputationId,
+        localId = localId,
         stage = nextStageLong,
         blobId = index.toLong(),
         pathToBlob = path,
@@ -165,7 +180,7 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
 
     (0 until outputBlobs).forEach { index ->
       insertComputationBlobReference(
-        localId = localComputationId,
+        localId = localId,
         stage = nextStageLong,
         blobId = index.toLong() + inputBlobPaths.size + passThroughBlobPaths.size,
         pathToBlob = null,
@@ -173,134 +188,4 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
       )
     }
   }
-
-  private suspend fun TransactionScope.outputBlobIdToPathMap(
-    localComputationId: Long,
-    stage: Long
-  ): Map<Long, String?> {
-    val sql =
-      boundStatement(
-        """
-        SELECT BlobId, PathToBlob, DependencyType
-        FROM ComputationBlobReferences
-        WHERE
-          ComputationId = $1
-        AND
-          ComputationStage = $2
-      """
-          .trimIndent()
-      ) {
-        bind("$1", localComputationId)
-        bind("$2", stage)
-      }
-
-    return transactionContext
-      .executeQuery(sql)
-      .consume { row -> row }
-      .filter {
-        val dependencyType = it.getProtoEnum("DependencyType", ComputationBlobDependency::forNumber)
-        dependencyType == ComputationBlobDependency.OUTPUT
-      }
-      .toList()
-      .associate { it.get<Long>("BlobId") to it.get<String?>("PathToBlob") }
-  }
-
-  private suspend fun TransactionScope.readAttemptDetails(
-    localId: Long,
-    stage: Long,
-    attempt: Long,
-  ): ComputationStageAttemptDetails? {
-    val sql =
-      boundStatement(
-        """
-      SELECT Details
-      FROM ComputationStageAttempts
-      WHERE
-        ComputationId = $1
-      AND
-        ComputationStage = $2
-      AND
-        Attempt = $3
-      """
-          .trimIndent()
-      ) {
-        bind("$1", localId)
-        bind("$2", stage)
-        bind("$3", attempt)
-      }
-    return transactionContext
-      .executeQuery(sql)
-      .consume { row -> row.getProtoMessage("Details", ComputationStageAttemptDetails.parser()) }
-      .firstOrNull()
-  }
-
-  private suspend fun TransactionScope.insertComputationBlobReference(
-    localId: Long,
-    stage: Long,
-    blobId: Long,
-    pathToBlob: String?,
-    dependencyType: ComputationBlobDependency
-  ): ComputationStageAttemptDetails? {
-    val sql =
-      boundStatement(
-        """
-        INSERT INTO ComputationBlobReferences
-        (
-          ComputationId,
-          ComputationStage,
-          BlobId,
-          PathToBlob,
-          DependencyType
-        )
-        VALUES ($1, $2, $3, $4, $5)
-      """
-          .trimIndent()
-      ) {
-        bind("$1", localId)
-        bind("$2", stage)
-        bind("$3", blobId)
-        bind("$4", pathToBlob)
-        bind("$5", dependencyType.numberAsLong)
-      }
-    return transactionContext
-      .executeQuery(sql)
-      .consume { row -> row.getProtoMessage("Details", ComputationStageAttemptDetails.parser()) }
-      .firstOrNull()
-  }
-}
-
-suspend fun PostgresWriter.TransactionScope.insertComputationStageAttempt(
-  localComputationId: Long,
-  stage: Long,
-  attempt: Long,
-  beginTime: Instant,
-  endTime: Instant? = null,
-  details: ComputationStageAttemptDetails
-) {
-  val sql =
-    boundStatement(
-      """
-      INSERT INTO ComputationStageAttempts
-        (
-          ComputationId,
-          ComputationStage,
-          Attempt,
-          BeginTime,
-          EndTime,
-          Details,
-          DetailsJson
-        )
-      VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb);
-      """
-    ) {
-      bind("$1", localComputationId)
-      bind("$2", stage)
-      bind("$3", attempt)
-      bind("$4", beginTime)
-      bind("$5", endTime)
-      bind("$6", details.toByteArray())
-      bind("$7", details.toJson())
-    }
-
-  transactionContext.executeStatement(sql)
 }

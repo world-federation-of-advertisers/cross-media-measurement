@@ -19,7 +19,46 @@ import java.time.Instant
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.toJson
+import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 
+/** Inserts a new row in the Postgres ComputationStageAttempt table. */
+suspend fun PostgresWriter.TransactionScope.insertComputationStageAttempt(
+  localComputationId: Long,
+  stage: Long,
+  attempt: Long,
+  beginTime: Instant,
+  endTime: Instant? = null,
+  details: ComputationStageAttemptDetails
+) {
+  val sql =
+    boundStatement(
+      """
+      INSERT INTO ComputationStageAttempts
+        (
+          ComputationId,
+          ComputationStage,
+          Attempt,
+          BeginTime,
+          EndTime,
+          Details,
+          DetailsJson
+        )
+      VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb);
+      """
+    ) {
+      bind("$1", localComputationId)
+      bind("$2", stage)
+      bind("$3", attempt)
+      bind("$4", beginTime)
+      bind("$5", endTime)
+      bind("$6", details.toByteArray())
+      bind("$7", details.toJson())
+    }
+
+  transactionContext.executeStatement(sql)
+}
+
+/** Updates a row in the Postgres ComputationStageAttempt table. */
 suspend fun PostgresWriter.TransactionScope.updateComputationStageAttempt(
   localId: Long,
   stage: Long,

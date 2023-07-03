@@ -1,20 +1,42 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package org.wfanet.measurement.duchy.deploy.postgres.writers
 
 import java.time.Clock
-import kotlinx.coroutines.flow.firstOrNull
-import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
-import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
+import org.wfanet.measurement.duchy.deploy.postgres.readers.ComputationBlobReferenceReader
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 
+/**
+ * [PostgresWriter] to record the path for a new output blob.
+ *
+ * @param localId local identifier of the computation.
+ * @param editVersion the version of the computation.
+ * @param stage stage enum of the computation.
+ * @param blobRef See [BlobRef].
+ * @param clock See [Clock].
+ * @param protocolStagesEnumHelper See [ComputationProtocolStagesEnumHelper].
+ */
 class RecordOutputBlobPath<ProtocolT, StageT>(
-  private val clock: Clock,
   private val localId: Long,
   private val editVersion: Long,
   private val stage: StageT,
   private val blobRef: BlobRef,
+  private val clock: Clock,
   private val protocolStagesEnumHelper: ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
 ) : PostgresWriter<Unit>() {
   override suspend fun TransactionScope.runTransaction() {
@@ -24,7 +46,13 @@ class RecordOutputBlobPath<ProtocolT, StageT>(
 
     val stageLongValue = protocolStagesEnumHelper.computationStageEnumToLongValues(stage).stage
     val type: ComputationBlobDependency =
-      readBlobDependency(localId, stageLongValue, blobRef.idInRelationalDatabase)
+      ComputationBlobReferenceReader()
+        .readBlobDependency(
+          transactionContext,
+          localId,
+          stageLongValue,
+          blobRef.idInRelationalDatabase
+        )
         ?: error(
           "No ComputationBlobReferences row for " +
             "($localId, $stage, ${blobRef.idInRelationalDatabase})"
@@ -39,67 +67,5 @@ class RecordOutputBlobPath<ProtocolT, StageT>(
       blobId = blobRef.idInRelationalDatabase,
       pathToBlob = blobRef.key
     )
-  }
-
-  private suspend fun TransactionScope.readBlobDependency(
-    localId: Long,
-    stage: Long,
-    blobId: Long,
-  ): ComputationBlobDependency? {
-    val sql =
-      boundStatement(
-        """
-        SELECT DependencyType
-        FROM ComputationBlobReferences
-        WHERE
-          ComputationId = $1
-        AND
-          ComputationStage = $2
-        AND
-          BlobId = $3
-      """
-          .trimIndent()
-      ) {
-        bind("$1", localId)
-        bind("$2", stage)
-        bind("$3", blobId)
-      }
-
-    return transactionContext
-      .executeQuery(sql)
-      .consume { row -> row.getProtoEnum("DependencyType", ComputationBlobDependency::forNumber) }
-      .firstOrNull()
-  }
-
-  private suspend fun TransactionScope.updateComputationBlobReference(
-    localId: Long,
-    stage: Long,
-    blobId: Long,
-    pathToBlob: String? = null,
-    dependencyType: ComputationBlobDependency? = null
-  ) {
-    val sql =
-      boundStatement(
-        """
-        UPDATE ComputationBlobReferences SET
-          PathToBlob = COALESCE($4, PathToBlob),
-          DependencyType = COALESCE($5, DependencyType)
-        WHERE
-          ComputationId = $1
-        AND
-          ComputationStage = $2
-        AND
-          BlobId = $3
-      """
-          .trimIndent()
-      ) {
-        bind("$1", localId)
-        bind("$2", stage)
-        bind("$3", blobId)
-        bind("$4", pathToBlob)
-        bind("$5", dependencyType?.numberAsLong)
-      }
-
-    transactionContext.executeStatement(sql)
   }
 }

@@ -50,7 +50,7 @@ import org.wfanet.measurement.internal.duchy.requisitionMetadata
  */
 class ComputationReader(
   private val computationProtocolStagesEnumHelper:
-    ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
+  ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
 ) {
 
   data class Computation(
@@ -237,8 +237,8 @@ class ComputationReader(
    *
    * @param client The [DatabaseClient] to the Postgres database.
    * @param globalComputationId A global identifier for a computation.
-   * @return [ReadComputationTokenResult] when a Computation with globalComputationId is found.
-   * @return null otherwise.
+   * @return [ComputationToken] when a Computation with globalComputationId is found.
+   *  or null otherwise.
    */
   suspend fun readComputationToken(
     client: DatabaseClient,
@@ -264,8 +264,8 @@ class ComputationReader(
    *
    * @param client The [DatabaseClient] to the Postgres database.
    * @param externalRequisitionKey The [ExternalRequisitionKey] for a computation.
-   * @return [ReadComputationTokenResult] when a Computation with externalRequisitionKey is found.
-   * @return null otherwise.
+   * @return [ComputationToken] when a Computation with externalRequisitionKey is found,
+   *  or null otherwise.
    */
   suspend fun readComputationToken(
     client: DatabaseClient,
@@ -283,39 +283,6 @@ class ComputationReader(
     } finally {
       readContext.close()
     }
-  }
-
-  /**
-   * Gets a [Computation] by localComputationId.
-   *
-   * @param readContext The transaction context for reading from the Postgres database.
-   * @param localComputationId The local ID for a computation.
-   * @return [Computation] when a Computation with localComputationId is found.
-   * @return null otherwise.
-   */
-  suspend fun readComputation(
-    readContext: ReadContext,
-    localComputationId: Long,
-  ): Computation? {
-    val statement =
-      boundStatement(
-        """
-        SELECT
-          ComputationId,
-          GlobalComputationId,
-          LockOwner,
-          LockExpirationTime,
-          ComputationStage,
-          ComputationDetails,
-          Protocol,
-          UpdateTime,
-        FROM Computations
-        WHERE ComputationId = $1
-      """
-      ) {
-        bind("$1", localComputationId)
-      }
-    return readContext.executeQuery(statement).consume(::Computation).firstOrNull()
   }
 
   /**
@@ -381,7 +348,6 @@ class ComputationReader(
    *
    * @param readContext The transaction context for reading from the Postgres database.
    * @param stages A list of stage's long values
-   * @param computationType The long value of the computation type
    * @param updatedBefore An [Instant] to filter for the computations that has been updated before
    *   this
    * @return A set of global computation Ids
@@ -397,28 +363,31 @@ class ComputationReader(
       "All stages should have the same ComputationType."
     }
 
+    /**
+     * Binding list of String into the IN clause does not work as expected with r2dbc library.
+     * Hence, manually joining targeting stages into a comma separated string and stub it into the query.
+     */
+    val stagesString =
+      stages.map { computationProtocolStagesEnumHelper.computationStageEnumToLongValues(it).stage }.toList()
+        .joinToString(",")
     val baseSql =
       """
         SELECT GlobalComputationId
         FROM Computations
         WHERE
-          ComputationStage IN (${stages.map { computationProtocolStagesEnumHelper.computationStageEnumToLongValues(it).stage }.toList().joinToString(",")})
+          ComputationStage IN ($stagesString)
         AND
           Protocol = $1
       """
 
     val sql =
       boundStatement(
-        updatedBefore?.let { baseSql + """
+        updatedBefore?.let {
+          baseSql + """
           AND UpdateTime <= $2
-          """ } ?: baseSql
+          """
+        } ?: baseSql
       ) {
-        //        bind(
-        //          "$1",
-        //          stages.map {
-        // computationProtocolStagesEnumHelper.computationStageEnumToLongValues(it).stage
-        // }.toList().joinToString(",")
-        //        )
         bind("$1", computationTypes[0])
         updatedBefore?.let { bind("$2", it) }
       }

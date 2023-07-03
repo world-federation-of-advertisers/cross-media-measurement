@@ -21,47 +21,7 @@ import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
 
-suspend fun PostgresWriter.TransactionScope.updateRequisition(
-  localComputationId: Long,
-  requisitionId: Long,
-  externalRequisitionId: String,
-  requisitionFingerprint: ByteString,
-  updateTime: Instant,
-  pathToBlob: String? = null,
-  requisitionDetails: RequisitionDetails? = null,
-) {
-  val sql =
-    boundStatement(
-      """
-      UPDATE Requisitions SET
-        PathToBlob = COALESCE($1, PathToBlob),
-        RequisitionDetails = COALESCE($2, RequisitionDetails),
-        RequisitionDetailsJSON = COALESCE($3::jsonb, RequisitionDetailsJSON),
-        UpdateTime = $4
-      WHERE
-        ComputationId = $5
-      AND
-        RequisitionId = $6
-      AND
-        ExternalRequisitionId = $7
-      AND
-        RequisitionFingerprint = $8
-    """
-        .trimIndent()
-    ) {
-      bind("$1", pathToBlob)
-      bind("$2", requisitionDetails?.toByteArray())
-      bind("$3", requisitionDetails?.toJson())
-      bind("$4", updateTime)
-      bind("$5", localComputationId)
-      bind("$6", requisitionId)
-      bind("$7", externalRequisitionId)
-      bind("$8", requisitionFingerprint.toByteArray())
-    }
-
-  transactionContext.executeStatement(sql)
-}
-
+/** Inserts a new row into the Postgres Requisitions table. */
 suspend fun PostgresWriter.TransactionScope.insertRequisition(
   localComputationId: Long,
   requisitionId: Long,
@@ -99,6 +59,52 @@ suspend fun PostgresWriter.TransactionScope.insertRequisition(
       bind("$7", requisitionDetails.toJson())
       bind("$8", creationTime)
       bind("$9", updateTime)
+    }
+
+  transactionContext.executeStatement(sql)
+}
+
+/**
+ * Updates a row in the Postgres Requisitions table.
+ *
+ * If an argument is null, its corresponding field in the database will not be updated.
+ */
+suspend fun PostgresWriter.TransactionScope.updateRequisition(
+  localComputationId: Long,
+  requisitionId: Long,
+  externalRequisitionId: String,
+  requisitionFingerprint: ByteString,
+  updateTime: Instant,
+  pathToBlob: String? = null,
+  requisitionDetails: RequisitionDetails? = null,
+) {
+  val sql =
+    boundStatement(
+      """
+      UPDATE Requisitions SET
+        PathToBlob = COALESCE($1, PathToBlob),
+        RequisitionDetails = COALESCE($2, RequisitionDetails),
+        RequisitionDetailsJSON = COALESCE($3::jsonb, RequisitionDetailsJSON),
+        UpdateTime = $4
+      WHERE
+        ComputationId = $5
+      AND
+        RequisitionId = $6
+      AND
+        ExternalRequisitionId = $7
+      AND
+        RequisitionFingerprint = $8
+    """
+        .trimIndent()
+    ) {
+      bind("$1", pathToBlob)
+      bind("$2", requisitionDetails?.toByteArray())
+      bind("$3", requisitionDetails?.toJson())
+      bind("$4", updateTime)
+      bind("$5", localComputationId)
+      bind("$6", requisitionId)
+      bind("$7", externalRequisitionId)
+      bind("$8", requisitionFingerprint.toByteArray())
     }
 
   transactionContext.executeStatement(sql)

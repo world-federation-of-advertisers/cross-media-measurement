@@ -26,6 +26,7 @@ import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationStageLongValues
 import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
+import org.wfanet.measurement.duchy.deploy.postgres.readers.ComputationStageAttemptReader
 import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 import org.wfanet.measurement.internal.duchy.copy
@@ -35,6 +36,10 @@ import org.wfanet.measurement.internal.duchy.copy
  *
  * @param protocol The protocol of the task to claim
  * @param ownerId The identifier of the worker process that will own the lock.
+ * @param lockDuration The [Duration] that a worker holds the computation lock.
+ * @param clock See [Clock].
+ * @param computationTypeEnumHelper See [ComputationTypeEnumHelper].
+ * @param protocolStagesEnumHelper See [ComputationProtocolStagesEnumHelper].
  * @return [String] a global computation id of work that was claimed.
  * @return null when no task was claimed.
  *
@@ -48,8 +53,7 @@ class ClaimWork<ProtocolT, StageT>(
   private val lockDuration: Duration,
   private val clock: Clock,
   private val computationTypeEnumHelper: ComputationTypeEnumHelper<ProtocolT>,
-  private val computationProtocolStagesEnumHelper:
-    ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
+  private val protocolStagesEnumHelper: ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
 ) : PostgresWriter<String?>() {
 
   private data class UnclaimedTaskQueryResult<StageT>(
@@ -65,7 +69,7 @@ class ClaimWork<ProtocolT, StageT>(
     UnclaimedTaskQueryResult(
       row["ComputationId"],
       row["GlobalComputationId"],
-      computationProtocolStagesEnumHelper.longValuesToComputationStageEnum(
+      protocolStagesEnumHelper.longValuesToComputationStageEnum(
         ComputationStageLongValues(row["Protocol"], row["ComputationStage"])
       ),
       row["CreationTime"],
@@ -138,7 +142,7 @@ class ClaimWork<ProtocolT, StageT>(
       writeTime.plus(lockDuration)
     )
     val stageLongValue =
-      computationProtocolStagesEnumHelper
+      protocolStagesEnumHelper
         .computationStageEnumToLongValues(unclaimedTask.computationStage)
         .stage
 
@@ -160,11 +164,13 @@ class ClaimWork<ProtocolT, StageT>(
       // The current attempt is the one before the nextAttempt
       val currentAttempt = unclaimedTask.nextAttempt - 1
       val details =
-        readComputationStageDetails(
-          unclaimedTask.computationId,
-          unclaimedTask.computationStage,
-          currentAttempt
-        )
+        ComputationStageAttemptReader()
+          .readComputationStageDetails(
+            transactionContext,
+            unclaimedTask.computationId,
+            stageLongValue,
+            currentAttempt
+          )
           ?: throw IllegalStateException("Computation stage details is missing.")
       // If the computation was locked, but that lock was expired we need to finish off the
       // current attempt of the stage.
@@ -198,37 +204,5 @@ class ClaimWork<ProtocolT, StageT>(
       .consume(::buildLockOwnerQueryResult)
       .firstOrNull()
       ?: throw ComputationNotFoundException(computationId)
-  }
-
-  private suspend fun TransactionScope.readComputationStageDetails(
-    computationId: Long,
-    stage: StageT,
-    currentAttempt: Long
-  ): ComputationStageAttemptDetails? {
-    val readComputationStageDetailsSql =
-      boundStatement(
-        """
-      SELECT Details
-      FROM ComputationStageAttempts
-      WHERE
-        ComputationId = $1
-      AND
-        ComputationStage = $2
-      AND
-        Attempt = $3
-      """
-      ) {
-        bind("$1", computationId)
-        bind(
-          "$2",
-          computationProtocolStagesEnumHelper.computationStageEnumToLongValues(stage).stage
-        )
-        bind("$3", currentAttempt)
-      }
-
-    return transactionContext
-      .executeQuery(readComputationStageDetailsSql)
-      .consume { it.getProtoMessage("Details", ComputationStageAttemptDetails.parser()) }
-      .firstOrNull()
   }
 }

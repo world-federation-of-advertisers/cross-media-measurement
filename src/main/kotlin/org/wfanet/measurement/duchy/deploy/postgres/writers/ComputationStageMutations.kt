@@ -20,47 +20,7 @@ import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.toJson
 
-suspend fun PostgresWriter.TransactionScope.updateComputationStage(
-  localId: Long,
-  stage: Long,
-  nextAttempt: Long? = null,
-  creationTime: Instant? = null,
-  endTime: Instant? = null,
-  previousStage: Long? = null,
-  followingStage: Long? = null,
-  details: Message? = null,
-) {
-  val sql =
-    boundStatement(
-      """
-      UPDATE ComputationStages SET
-        CreationTime = COALESCE($3, CreationTime),
-        NextAttempt = COALESCE($4, NextAttempt),
-        EndTime = COALESCE($5, EndTime),
-        PreviousStage = COALESCE($6, PreviousStage),
-        FollowingStage = COALESCE($7, FollowingStage),
-        Details = COALESCE($8, Details),
-        DetailsJSON = COALESCE($9::jsonb, DetailsJSON)
-      WHERE
-        ComputationId = $1
-      AND
-        ComputationStage = $2;
-      """
-    ) {
-      bind("$1", localId)
-      bind("$2", stage)
-      bind("$3", creationTime)
-      bind("$4", nextAttempt)
-      bind("$5", endTime)
-      bind("$6", previousStage)
-      bind("$7", followingStage)
-      bind("$8", details?.toByteArray())
-      bind("$9", details?.toJson())
-    }
-
-  transactionContext.executeStatement(sql)
-}
-
+/** Inserts a new row into the Postgres ComputationStages table. */
 suspend fun PostgresWriter.TransactionScope.insertComputationStage(
   localId: Long,
   stage: Long,
@@ -101,4 +61,50 @@ suspend fun PostgresWriter.TransactionScope.insertComputationStage(
     }
 
   transactionContext.executeStatement(insertComputationStageStatement)
+}
+
+/**
+ * Updates a row in the Postgres ComputationStages table.
+ *
+ * If an argument is null, its corresponding field in the database will not be updated.
+ */
+suspend fun PostgresWriter.TransactionScope.updateComputationStage(
+  localId: Long,
+  stage: Long,
+  nextAttempt: Long? = null,
+  creationTime: Instant? = null,
+  endTime: Instant? = null,
+  previousStage: Long? = null,
+  followingStage: Long? = null,
+  details: Message? = null,
+) {
+  val sql =
+    boundStatement(
+      """
+      UPDATE ComputationStages SET
+        CreationTime = COALESCE($3, CreationTime),
+        NextAttempt = COALESCE($4, NextAttempt),
+        EndTime = COALESCE($5, EndTime),
+        PreviousStage = COALESCE($6, PreviousStage),
+        FollowingStage = COALESCE($7, FollowingStage),
+        Details = COALESCE($8, Details),
+        DetailsJSON = COALESCE($9::jsonb, DetailsJSON)
+      WHERE
+        ComputationId = $1
+      AND
+        ComputationStage = $2;
+      """
+    ) {
+      bind("$1", localId)
+      bind("$2", stage)
+      bind("$3", creationTime)
+      bind("$4", nextAttempt)
+      bind("$5", endTime)
+      bind("$6", previousStage)
+      bind("$7", followingStage)
+      bind("$8", details?.toByteArray())
+      bind("$9", details?.toJson())
+    }
+
+  transactionContext.executeStatement(sql)
 }

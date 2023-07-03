@@ -17,11 +17,20 @@ package org.wfanet.measurement.duchy.deploy.postgres.writers
 import java.time.Clock
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 
+/**
+ * [PostgresWriter] to enqueue a computation by its localComputationId for workers to pickup.
+ *
+ * @param localId local identifier of the computation.
+ * @param editVersion the version of the computation.
+ * @param delaySeconds a short delay time. The computation will be available in queue after this
+ *   time.
+ * @param clock See [Clock].
+ */
 class EnqueueComputation(
-  private val clock: Clock,
   private val localId: Long,
   private val editVersion: Long,
   private val delaySeconds: Long,
+  private val clock: Clock,
 ) : PostgresWriter<Unit>() {
   override suspend fun TransactionScope.runTransaction() {
     checkComputationUnmodified(localId, editVersion)

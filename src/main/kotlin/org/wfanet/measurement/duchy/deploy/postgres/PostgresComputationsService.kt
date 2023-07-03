@@ -40,8 +40,8 @@ import org.wfanet.measurement.duchy.deploy.postgres.writers.AdvanceComputationSt
 import org.wfanet.measurement.duchy.deploy.postgres.writers.ClaimWork
 import org.wfanet.measurement.duchy.deploy.postgres.writers.CreateComputation
 import org.wfanet.measurement.duchy.deploy.postgres.writers.DeleteComputation
-import org.wfanet.measurement.duchy.deploy.postgres.writers.EndComputation
 import org.wfanet.measurement.duchy.deploy.postgres.writers.EnqueueComputation
+import org.wfanet.measurement.duchy.deploy.postgres.writers.FinishComputation
 import org.wfanet.measurement.duchy.deploy.postgres.writers.RecordOutputBlobPath
 import org.wfanet.measurement.duchy.deploy.postgres.writers.RecordRequisitionBlobPath
 import org.wfanet.measurement.duchy.deploy.postgres.writers.UpdateComputationDetails
@@ -176,9 +176,9 @@ class PostgresComputationsService(
         throw e.asStatusRuntimeException(Status.Code.INTERNAL)
       }
 
-    return if (claimed != null) {
+    return claimed?.let {
       val token =
-        ComputationReader(protocolStagesEnumHelper).readComputationToken(client, claimed)
+        ComputationReader(protocolStagesEnumHelper).readComputationToken(client, it)
           ?: failGrpc(Status.INTERNAL) { "Claimed computation $claimed not found." }
 
       sendStatusUpdateToKingdom(
@@ -189,21 +189,20 @@ class PostgresComputationsService(
         )
       )
       token.toClaimWorkResponse()
-    } else {
-      ClaimWorkResponse.getDefaultInstance()
     }
+      ?: ClaimWorkResponse.getDefaultInstance()
   }
 
   override suspend fun getComputationToken(
     request: GetComputationTokenRequest
   ): GetComputationTokenResponse {
-    val reader = ComputationReader(protocolStagesEnumHelper)
     val token =
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (request.keyCase) {
         KeyCase.GLOBAL_COMPUTATION_ID ->
-          reader.readComputationToken(client, request.globalComputationId)
-        KeyCase.REQUISITION_KEY -> reader.readComputationToken(client, request.requisitionKey)
+          computationReader.readComputationToken(client, request.globalComputationId)
+        KeyCase.REQUISITION_KEY ->
+          computationReader.readComputationToken(client, request.requisitionKey)
         KeyCase.KEY_NOT_SET -> failGrpc(Status.INVALID_ARGUMENT) { "key not set" }
       }
         ?: failGrpc(Status.NOT_FOUND) { "Computation not found" }
@@ -212,10 +211,8 @@ class PostgresComputationsService(
   }
 
   override suspend fun deleteComputation(request: DeleteComputationRequest): Empty {
-    val reader = ComputationReader(protocolStagesEnumHelper)
-
     val computationBlobKeys =
-      reader.readComputationBlobKeys(client.singleUse(), request.localComputationId)
+      computationReader.readComputationBlobKeys(client.singleUse(), request.localComputationId)
     for (blobKey in computationBlobKeys) {
       try {
         computationStorageClient.get(blobKey)?.delete()
@@ -227,7 +224,7 @@ class PostgresComputationsService(
     }
 
     val requisitionBlobKeys =
-      reader.readRequisitionBlobKeys(client.singleUse(), request.localComputationId)
+      computationReader.readRequisitionBlobKeys(client.singleUse(), request.localComputationId)
     for (blobKey in requisitionBlobKeys) {
       try {
         requisitionStorageClient.get(blobKey)?.delete()
@@ -238,7 +235,7 @@ class PostgresComputationsService(
       }
     }
 
-    DeleteComputation(localComputationId = request.localComputationId).execute(client, idGenerator)
+    DeleteComputation(request.localComputationId).execute(client, idGenerator)
     return Empty.getDefaultInstance()
   }
 
@@ -260,7 +257,6 @@ class PostgresComputationsService(
         }
       }
       for (globalId in globalIds) {
-        // TODO: move this to a writer
         val computation: ComputationReader.Computation =
           computationReader.readComputation(client.singleUse(), globalId) ?: continue
         val computationStageEnum =
@@ -271,8 +267,8 @@ class PostgresComputationsService(
         val endComputationStage = getEndingComputationStage(computationStageEnum)
 
         if (!isTerminated(computationStageEnum)) {
-          EndComputation(
-              localComputationId = computation.localComputationId,
+          FinishComputation(
+              localId = computation.localComputationId,
               editVersion = computation.version,
               protocol = protocolEnum,
               currentAttempt = computation.nextAttempt.toLong(),
@@ -304,8 +300,8 @@ class PostgresComputationsService(
   override suspend fun finishComputation(
     request: FinishComputationRequest
   ): FinishComputationResponse {
-    EndComputation(
-        localComputationId = request.token.localComputationId,
+    FinishComputation(
+        localId = request.token.localComputationId,
         editVersion = request.token.version,
         protocol = protocolStagesEnumHelper.stageToProtocol(request.token.computationStage),
         currentAttempt = request.token.attempt.toLong(),
@@ -403,18 +399,18 @@ class PostgresComputationsService(
       }
 
     AdvanceComputationStage(
-        clock,
-        localComputationId = request.token.localComputationId,
-        currentStage = request.token.computationStage,
-        attempt = request.token.attempt.toLong(),
+        localId = request.token.localComputationId,
         editVersion = request.token.version,
+        attempt = request.token.attempt.toLong(),
+        currentStage = request.token.computationStage,
         nextStage = request.nextComputationStage,
+        nextStageDetails = request.stageDetails,
         inputBlobPaths = request.inputBlobsList,
         passThroughBlobPaths = request.passThroughBlobsList,
         outputBlobs = request.outputBlobs,
         afterTransition = afterTransition,
-        nextStageDetails = request.stageDetails,
         lockExtension = lockExtension,
+        clock = clock,
         protocolStagesEnumHelper = protocolStagesEnumHelper
       )
       .execute(client, idGenerator)
@@ -448,10 +444,10 @@ class PostgresComputationsService(
       "DelaySecond ${request.delaySecond} should be non-negative."
     }
     EnqueueComputation(
-        clock,
         request.token.localComputationId,
         request.token.version,
-        request.delaySecond.toLong()
+        request.delaySecond.toLong(),
+        clock,
       )
       .execute(client, idGenerator)
     return EnqueueComputationResponse.getDefaultInstance()
@@ -462,7 +458,7 @@ class PostgresComputationsService(
   ): RecordRequisitionBlobPathResponse {
     RecordRequisitionBlobPath(
         clock = clock,
-        localComputationId = request.token.localComputationId,
+        localId = request.token.localComputationId,
         externalRequisitionKey = request.key,
         pathToBlob = request.blobPath
       )

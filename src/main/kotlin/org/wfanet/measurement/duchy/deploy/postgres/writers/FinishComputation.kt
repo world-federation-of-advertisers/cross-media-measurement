@@ -18,7 +18,6 @@ import com.google.protobuf.Message
 import java.time.Clock
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.firstOrNull
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
@@ -28,12 +27,22 @@ import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 
 /**
- * [PostgresWriter] delete a computation by its localComputationId.
+ * [PostgresWriter] to finish a computation.
  *
- * @param localComputationId local identifier of a computation.
+ * @param localId local identifier of the computation.
+ * @param editVersion the version of the computation.
+ * @param protocol the protocol of the computation.
+ * @param currentAttempt current attempt number.
+ * @param currentStage current stage enum.
+ * @param endingStage ending stage enum.
+ * @param endComputationReason the reason to end this computation.
+ * @param computationDetails the details of the computation.
+ * @param clock See [Clock].
+ * @param protocolStagesEnumHelper See [ComputationProtocolStagesEnumHelper].
+ * @param protocolStageDetailsHelper See [ComputationProtocolStageDetailsHelper].
  */
-class EndComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Message>(
-  private val localComputationId: Long,
+class FinishComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Message>(
+  private val localId: Long,
   private val editVersion: Long,
   private val protocol: ProtocolT,
   private val currentAttempt: Long,
@@ -56,11 +65,7 @@ class EndComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Messa
       "Invalid terminal stage of computation $endingStage"
     }
 
-    checkComputationUnmodified(localComputationId, editVersion)
-
-    //    val detailsBytes: ByteArray =
-    //      readComputationDetails(localComputationId)
-    //        ?: throw ComputationNotFoundException(localComputationId)
+    checkComputationUnmodified(localId, editVersion)
 
     val writeTime = clock.instant()
     val endingStageLong =
@@ -73,26 +78,26 @@ class EndComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Messa
     val endingStageDetails = protocolStageDetailsHelper.detailsFor(endingStage, computationDetails)
 
     updateComputation(
-      localId = localComputationId,
+      localId = localId,
       updateTime = writeTime,
       stage = endingStageLong,
       details = endingComputationDetails
     )
 
     releaseComputationLock(
-      localComputationId = localComputationId,
+      localComputationId = localId,
       updateTime = writeTime,
     )
 
     updateComputationStage(
-      localId = localComputationId,
+      localId = localId,
       stage = currentStageLong,
       endTime = writeTime,
       followingStage = endingStageLong
     )
 
     insertComputationStage(
-      localId = localComputationId,
+      localId = localId,
       stage = endingStageLong,
       creationTime = writeTime,
       previousStage = currentStageLong,
@@ -100,7 +105,7 @@ class EndComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Messa
       details = endingStageDetails
     )
 
-    readUnfinishedAttempts(localComputationId).collect { unfinished ->
+    readUnfinishedAttempts(localId).collect { unfinished ->
       // Determine the reason the unfinished computation stage attempt is ending.
       val reason =
         if (
@@ -169,24 +174,5 @@ class EndComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Messa
         bind("$1", localComputationId)
       }
     return transactionContext.executeQuery(sql).consume(::UnfinishedAttempt)
-  }
-
-  private suspend fun TransactionScope.readComputationDetails(
-    localComputationId: Long
-  ): ByteArray? {
-    val sql =
-      boundStatement(
-        """
-      SELECT ComputationDetails
-      FROM Computations
-      WHERE ComputationId = $1
-      """
-      ) {
-        bind("$1", localComputationId)
-      }
-    return transactionContext
-      .executeQuery(sql)
-      .consume { row -> row.get<ByteArray>("ComputationDetails") }
-      .firstOrNull()
   }
 }

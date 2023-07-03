@@ -19,22 +19,33 @@ import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.duchy.deploy.postgres.readers.RequisitionReader
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 
+/**
+ * [PostgresWriter] to record the path for a new requisition blob.
+ *
+ * @param localId local identifier of the computation.
+ * @param externalRequisitionKey [ExternalRequisitionKey] of the computation.
+ * @param pathToBlob requisition blob path.
+ * @param clock See [Clock].
+ *
+ * Throws following exceptions on [execute]:
+ * * [IllegalStateException] when arguments does not meet requirement
+ */
 class RecordRequisitionBlobPath(
-  private val clock: Clock,
-  private val localComputationId: Long,
+  private val localId: Long,
   private val externalRequisitionKey: ExternalRequisitionKey,
-  private val pathToBlob: String
+  private val pathToBlob: String,
+  private val clock: Clock,
 ) : PostgresWriter<Unit>() {
   override suspend fun TransactionScope.runTransaction() {
     require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
     val requisition: RequisitionReader.RequisitionResult =
       RequisitionReader().readRequisitionByExternalKey(transactionContext, externalRequisitionKey)
-        ?: error("No Computation found row for this requisition: $externalRequisitionKey")
-    require(localComputationId == requisition.computationId) {
+        ?: error("Requisition not found for external_key: $externalRequisitionKey")
+    require(localId == requisition.computationId) {
       "The token doesn't match the computation owns the requisition."
     }
     val writeTime = clock.instant()
-    updateComputation(localId = localComputationId, updateTime = writeTime)
+    updateComputation(localId = localId, updateTime = writeTime)
     updateRequisition(
       localComputationId = requisition.computationId,
       requisitionId = requisition.requisitionId,
