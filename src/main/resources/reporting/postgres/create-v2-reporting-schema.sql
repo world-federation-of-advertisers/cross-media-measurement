@@ -79,7 +79,7 @@ CREATE TABLE ReportingSets (
   MeasurementConsumerId bigint NOT NULL,
   ReportingSetId bigint NOT NULL,
 
-  ExternalReportingSetId bigint NOT NULL,
+  ExternalReportingSetId varchar(63) NOT NULL,
 
   DisplayName text,
   Filter text,
@@ -222,7 +222,7 @@ CREATE TABLE Metrics (
   CreateMetricRequestId text,
   ReportingSetId bigint NOT NULL,
 
-  ExternalMetricId bigint NOT NULL,
+  ExternalMetricId varchar(63) NOT NULL,
 
   TimeIntervalStart TIMESTAMP WITH TIME ZONE NOT NULL,
   TimeIntervalEndExclusive TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -333,7 +333,7 @@ CREATE TABLE Reports (
   MeasurementConsumerId bigint NOT NULL,
   ReportId bigint NOT NULL,
 
-  ExternalReportId bigint NOT NULL,
+  ExternalReportId varchar(63) NOT NULL,
   CreateReportRequestId text,
 
   CreateTime TIMESTAMP WITH TIME ZONE NOT NULL,

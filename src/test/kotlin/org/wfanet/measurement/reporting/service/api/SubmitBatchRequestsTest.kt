@@ -171,7 +171,7 @@ class SubmitBatchRequestsTest {
   }
 
   private suspend fun batchGetReportingSets(
-    externalReportingSetIds: List<Long>
+    externalReportingSetIds: List<String>
   ): BatchGetReportingSetsResponse {
     return try {
       internalReportingSetsMock.batchGetReportingSets(
@@ -198,7 +198,7 @@ class SubmitBatchRequestsTest {
       (0L..100L).map {
         internalReportingSet {
           cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-          externalReportingSetId = it
+          externalReportingSetId = it.toString()
         }
       }
   }

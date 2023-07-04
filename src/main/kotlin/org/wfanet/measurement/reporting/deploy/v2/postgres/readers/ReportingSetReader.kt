@@ -23,7 +23,6 @@ import org.wfanet.measurement.common.db.r2dbc.BoundStatement
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
-import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
@@ -31,7 +30,6 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSet.SetExpression
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
-import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
 private typealias Translate = (row: ResultRow) -> Unit
 
@@ -39,7 +37,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
   data class ReportingSetIds(
     val measurementConsumerId: InternalId,
     val reportingSetId: InternalId,
-    val externalReportingSetId: ExternalId,
+    val externalReportingSetId: String,
   )
 
   data class Result(
@@ -52,7 +50,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
     val measurementConsumerId: InternalId,
     val cmmsMeasurementConsumerId: String,
     val reportingSetId: InternalId,
-    val externalReportingSetId: ExternalId,
+    val externalReportingSetId: String,
     val displayName: String?,
     val filter: String?,
     val setExpressionId: InternalId?,
@@ -66,9 +64,9 @@ class ReportingSetReader(private val readContext: ReadContext) {
   private data class SetExpressionInfo(
     val operation: SetExpression.Operation,
     val leftHandSetExpressionId: InternalId?,
-    val leftHandExternalReportingSetId: ExternalId?,
+    val leftHandExternalReportingSetId: String?,
     val rightHandSetExpressionId: InternalId?,
-    val rightHandExternalReportingSetId: ExternalId?,
+    val rightHandExternalReportingSetId: String?,
   )
 
   private data class WeightedSubsetUnionInfo(
@@ -78,7 +76,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
   )
 
   private data class PrimitiveReportingSetBasisInfo(
-    val primitiveExternalReportingSetId: ExternalId,
+    val primitiveExternalReportingSetId: String,
     val filterSet: MutableSet<String>,
   )
 
@@ -131,7 +129,6 @@ class ReportingSetReader(private val readContext: ReadContext) {
     """
       .trimIndent()
 
-  /** Throws [ReportingSetNotFoundException] if any ReportingSet not found. */
   fun batchGetReportingSets(
     request: BatchGetReportingSetsRequest,
   ): Flow<Result> {
@@ -150,7 +147,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
       )
 
     var i = 2
-    val bindingMap = mutableMapOf<Long, String>()
+    val bindingMap = mutableMapOf<String, String>()
     val inList =
       request.externalReportingSetIdsList.joinToString(
         separator = ",",
@@ -173,10 +170,8 @@ class ReportingSetReader(private val readContext: ReadContext) {
     return flow {
       val reportingSetInfoMap = buildResultMap(statement)
 
-      for (externalReportingSetId in request.externalReportingSetIdsList) {
-        val reportingSetInfo =
-          reportingSetInfoMap[ExternalId(externalReportingSetId)]
-            ?: throw ReportingSetNotFoundException()
+      for (reportingSetId in request.externalReportingSetIdsList) {
+        val reportingSetInfo = reportingSetInfoMap[reportingSetId] ?: continue
 
         val reportingSet = reportingSetInfo.buildReportingSet()
 
@@ -244,7 +239,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
     val reportingSetInfo = this
     return reportingSet {
       cmmsMeasurementConsumerId = reportingSetInfo.cmmsMeasurementConsumerId
-      externalReportingSetId = reportingSetInfo.externalReportingSetId.value
+      externalReportingSetId = reportingSetInfo.externalReportingSetId
       if (reportingSetInfo.displayName != null) {
         displayName = reportingSetInfo.displayName
       }
@@ -269,7 +264,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
             weight = 1
             primitiveReportingSetBases +=
               ReportingSetKt.primitiveReportingSetBasis {
-                this.externalReportingSetId = reportingSetInfo.externalReportingSetId.value
+                this.externalReportingSetId = reportingSetInfo.externalReportingSetId
                 if (!reportingSetInfo.filter.isNullOrBlank()) {
                   filters += reportingSetInfo.filter
                 }
@@ -289,7 +284,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
               it.primitiveReportingSetBasisInfoMap.values.forEach {
                 primitiveReportingSetBases +=
                   ReportingSetKt.primitiveReportingSetBasis {
-                    externalReportingSetId = it.primitiveExternalReportingSetId.value
+                    externalReportingSetId = it.primitiveExternalReportingSetId
                     filters += it.filterSet
                   }
               }
@@ -300,31 +295,31 @@ class ReportingSetReader(private val readContext: ReadContext) {
   }
 
   /** Returns a map that maintains the order of the query result. */
-  private suspend fun buildResultMap(statement: BoundStatement): Map<ExternalId, ReportingSetInfo> {
+  private suspend fun buildResultMap(statement: BoundStatement): Map<String, ReportingSetInfo> {
     // Key is externalReportingSetId.
-    val reportingSetInfoMap: MutableMap<ExternalId, ReportingSetInfo> = linkedMapOf()
+    val reportingSetInfoMap: MutableMap<String, ReportingSetInfo> = linkedMapOf()
 
     val translate: Translate = { row: ResultRow ->
       val measurementConsumerId: InternalId = row["ReportingSetsMeasurementConsumerId"]
       val cmmsMeasurementConsumerId: String = row["CmmsMeasurementConsumerId"]
       val reportingSetId: InternalId = row["ReportingSetId"]
-      val externalReportingSetId: ExternalId = row["RootExternalReportingSetId"]
+      val externalReportingSetId: String = row["RootExternalReportingSetId"]
       val rootSetExpressionId: InternalId? = row["RootSetExpressionId"]
       val displayName: String? = row["DisplayName"]
       val reportingSetFilter: String? = row["ReportingSetFilter"]
       val weightedSubsetUnionId: InternalId? = row["WeightedSubsetUnionId"]
       val weight: Int? = row["Weight"]
       val primitiveReportingSetBasisId: InternalId? = row["PrimitiveReportingSetBasisId"]
-      val primitiveExternalReportingSetId: ExternalId? = row["PrimitiveExternalReportingSetId"]
+      val primitiveExternalReportingSetId: String? = row["PrimitiveExternalReportingSetId"]
       val primitiveReportingSetBasisFilter: String? = row["PrimitiveReportingSetBasisFilter"]
       val cmmsDataProviderId: String? = row["CmmsDataProviderId"]
       val cmmsEventGroupId: String? = row["CmmsEventGroupId"]
       val setExpressionId: InternalId? = row["SetExpressionId"]
       val operation: Int? = row["Operation"]
       val leftHandSetExpressionId: InternalId? = row["LeftHandSetExpressionId"]
-      val leftHandExternalReportingSetId: ExternalId? = row["LeftHandExternalReportingSetId"]
+      val leftHandExternalReportingSetId: String? = row["LeftHandExternalReportingSetId"]
       val rightHandSetExpressionId: InternalId? = row["RightHandSetExpressionId"]
-      val rightHandExternalReportingSetId: ExternalId? = row["RightHandExternalReportingSetId"]
+      val rightHandExternalReportingSetId: String? = row["RightHandExternalReportingSetId"]
 
       val reportingSetInfo =
         reportingSetInfoMap.computeIfAbsent(externalReportingSetId) {
@@ -408,7 +403,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
       if (setExpressionInfo.leftHandExternalReportingSetId != null) {
         lhs =
           ReportingSetKt.SetExpressionKt.operand {
-            externalReportingSetId = setExpressionInfo.leftHandExternalReportingSetId.value
+            externalReportingSetId = setExpressionInfo.leftHandExternalReportingSetId
           }
       } else if (setExpressionInfo.leftHandSetExpressionId != null) {
         setExpressionInfoMap[setExpressionInfo.leftHandSetExpressionId]?.let {
@@ -422,7 +417,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
       if (setExpressionInfo.rightHandExternalReportingSetId != null) {
         rhs =
           ReportingSetKt.SetExpressionKt.operand {
-            externalReportingSetId = setExpressionInfo.rightHandExternalReportingSetId.value
+            externalReportingSetId = setExpressionInfo.rightHandExternalReportingSetId
           }
       } else if (setExpressionInfo.rightHandSetExpressionId != null) {
         setExpressionInfoMap[setExpressionInfo.rightHandSetExpressionId]?.let {
@@ -437,7 +432,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
 
   suspend fun readIds(
     measurementConsumerId: InternalId,
-    externalReportingSetIds: Collection<ExternalId>
+    externalReportingSetIds: Collection<String>
   ): Flow<ReportingSetIds> {
     if (externalReportingSetIds.isEmpty()) {
       return emptyFlow()
@@ -457,7 +452,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
       )
 
     var i = 2
-    val bindingMap = mutableMapOf<ExternalId, String>()
+    val bindingMap = mutableMapOf<String, String>()
     val inList =
       externalReportingSetIds.joinToString(separator = ",", prefix = "(", postfix = ")") {
         val index = "$$i"

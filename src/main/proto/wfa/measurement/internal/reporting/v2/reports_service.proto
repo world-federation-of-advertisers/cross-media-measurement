@@ -33,13 +33,14 @@ service Reports {
 
 message CreateReportRequest {
   Report report = 1;
-  string request_id = 2;
+  string external_report_id = 2;
+  string request_id = 3;
 }
 
 message GetReportRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
   string cmms_measurement_consumer_id = 1;
-  fixed64 external_report_id = 2;
+  string external_report_id = 2;
 }
 
 message StreamReportsRequest {
@@ -47,7 +48,7 @@ message StreamReportsRequest {
     // Any `Report created after this time, exclusive, will be included.
     google.protobuf.Timestamp create_time = 1;
     // Used for situations when two or more reports have the same create_time.
-    fixed64 external_report_id = 2;
+    string external_report_id = 2;
   }
 
   message Filter {

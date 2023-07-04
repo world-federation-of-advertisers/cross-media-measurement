@@ -62,6 +62,18 @@ class ReportingSetAlreadyExistsException(
     get() = emptyMap<String, String>()
 }
 
+class MetricAlreadyExistsException(provideDescription: () -> String = { "Metric already exists" }) :
+  ReportingInternalException(ErrorCode.METRIC_ALREADY_EXISTS, provideDescription) {
+  override val context
+    get() = emptyMap<String, String>()
+}
+
+class ReportAlreadyExistsException(provideDescription: () -> String = { "Report already exists" }) :
+  ReportingInternalException(ErrorCode.REPORT_ALREADY_EXISTS, provideDescription) {
+  override val context
+    get() = emptyMap<String, String>()
+}
+
 class MeasurementAlreadyExistsException(
   provideDescription: () -> String = { "Measurement already exists" }
 ) : ReportingInternalException(ErrorCode.MEASUREMENT_ALREADY_EXISTS, provideDescription) {
