@@ -25,7 +25,11 @@ source "${RUNFILES_DIR:-/dev/null}/$f" 2>/dev/null || \
   { echo>&2 "ERROR: cannot find $f"; exit 1; }; f=; set -e
 # --- end runfiles.bash initialization v2 ---
 
-secretfiles_archive="$(rlocation panel_exchange_client/src/main/k8s/testing/secretfiles/secretfiles.tar)"
+#secretfiles_archive="$(rlocation cross_media_measurement/src/main/k8s/testing/secretfiles/secretfiles.tar)"
+current_path="$(pwd)"
+archive_path="src/main/k8s/panelmatch/testing/secretfiles/secretfiles.tar"
+secretfiles_archive="$current_path/$archive_path"
+echo "The secretfiles_archive path is: ${secretfiles_archive}"
 
 tar -xf "${secretfiles_archive}"
 kubectl apply -k . "$@"

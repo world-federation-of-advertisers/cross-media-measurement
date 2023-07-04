@@ -1,3 +1,5 @@
+package(default_visibility = ["//src/main/k8s:__subpackages__"])
+
 load("//build:variables.bzl", "EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG")
 load(
     "//src/main/docker/panel_exchange_client:images.bzl",
@@ -54,7 +56,10 @@ cue_dump(
         "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_secret_name,
     },
     tags = ["manual"],
-    deps = [":example_daemon_gke"],
+    deps = [
+        "//src/main/k8s:config",
+        ":example_daemon_gke"
+    ],
 )
 
 kustomization_dir(
