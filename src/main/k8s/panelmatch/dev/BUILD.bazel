@@ -1,3 +1,5 @@
+package(default_visibility = ["//src/main/k8s:__subpackages__"])
+
 load("//build:variables.bzl", "EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG")
 load("@wfa_rules_cue//cue:defs.bzl", "cue_library")
 load("//src/main/k8s:macros.bzl", "cue_dump")

@@ -1,4 +1,4 @@
-// Copyright 2022 The Cross-Media Measurement Authors
+// Copyright 2023 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,12 +15,13 @@
 package k8s
 
 #ContainerRegistryConfig: {
-	registry:   "gcr.io/"
-	repoPrefix: "halo-cmm-dev"
+	repoPrefix: "halo"
+	registry:   "localhost:5000"
 }
 
 _imageConfig: {
-    repoSuffix: "/panel-exchange/gcloud-example-daemon"
+    repoSuffix: "panel-exchange/gcloud-example-daemon"
+    tag:        "latest"
 }
 
 _exchangeDaemonConfig: {
@@ -28,7 +29,6 @@ _exchangeDaemonConfig: {
 	partyName:          string @tag("party_name")
 	partyType:          "DATA_PROVIDER"
 	cloudStorageBucket: "halo-edp-test-bucket"
-	serviceAccountName: "edp-workflow"
 	clientTls: {
 		certFile: "/var/run/secrets/files/edp1_tls.pem"
 		keyFile:  "/var/run/secrets/files/edp1_tls.key"

@@ -105,10 +105,6 @@ deployments: {
 	"example-panel-exchange-daemon": {
 		_jvmFlags:   "-Xmx3584m" // 4GiB - 512MiB overhead.
 		_secretName: _exchangeDaemonConfig.secretName
-		_podSpec: {
-			serviceAccountName: _exchangeDaemonConfig.serviceAccountName
-			nodeSelector: "iam.gke.io/gke-metadata-server-enabled": "true"
-		}
 		_podSpec: _container: {
             image:           _imageConfig.image
 			imagePullPolicy: "Always"

@@ -57,7 +57,7 @@ kubectl delete all --namespace=default --all
 ```shell
 bazel run //src/main/docker:push_all_local_images \
   --define container_registry=registry.dev.svc.cluster.local:5000 \
-  --define image_repo_prefix=halo --define image_tag=latest
+  `--define image_repo_prefix=halo --define image_tag=latest`
 ```
 
 ## Cluster Population
