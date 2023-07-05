@@ -121,6 +121,11 @@ import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
 import org.wfanet.measurement.consent.client.duchy.signResult
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
+import org.wfanet.measurement.eventdataprovider.noiser.AbstractNoiser
+import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
+import org.wfanet.measurement.eventdataprovider.noiser.DpParams
+import org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiser
+import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
@@ -140,19 +145,6 @@ data class EdpData(
   /** The EDP's consent signaling signing key. */
   val signingKey: SigningKeyHandle
 )
-
-/**
- * Noise mechanism for generating publisher noise for direct measurements.
- *
- * TODO(@iverson52000): Move this to public API if EDP needs to report back the direct noise
- *   mechanism for PBM tracking. NONE mechanism is testing only and should not move to public API.
- */
-enum class DirectNoiseMechanism {
-  /** NONE mechanism is testing only. */
-  NONE,
-  LAPLACE,
-  GAUSSIAN,
-}
 
 /** A simulator handling EDP businesses. */
 class EdpSimulator(
@@ -769,8 +761,10 @@ class EdpSimulator(
         object : AbstractNoiser() {
           override val distribution = ConstantRealDistribution(0.0)
         }
-      DirectNoiseMechanism.LAPLACE -> LaplaceNoiser(privacyParams, random)
-      DirectNoiseMechanism.GAUSSIAN -> GaussianNoiser(privacyParams, random)
+      DirectNoiseMechanism.LAPLACE ->
+        LaplaceNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random)
+      DirectNoiseMechanism.GAUSSIAN ->
+        GaussianNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random)
     }
 
   /**

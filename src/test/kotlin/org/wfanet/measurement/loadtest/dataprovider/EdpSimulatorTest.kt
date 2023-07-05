@@ -136,8 +136,9 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
+import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup as PrivacyLandscapeAge
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Charge
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.DpCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender as PrivacyLandscapeGender
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
@@ -501,7 +502,7 @@ class EdpSimulatorTest {
         getExpectedResult((1L..10L), vidSamplingIntervalStart, vidSamplingIntervalWidth)
       )
 
-      val balanceLedger: Map<PrivacyBucketGroup, MutableMap<Charge, PrivacyBudgetBalanceEntry>> =
+      val balanceLedger: Map<PrivacyBucketGroup, MutableMap<DpCharge, PrivacyBudgetBalanceEntry>> =
         backingStore.getBalancesMap()
 
       // Verify that each bucket is only charged once.

@@ -20,28 +20,40 @@ class CompositionTest {
   @Test
   fun `advanced composition computation works as expected`() {
     assertThat(
-        Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(Charge(1.0f, 0.0f), 30, 0.0f)
+        Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(DpCharge(1.0f, 0.0f), 30, 0.0f)
       )
       .isEqualTo(30.0f)
     assertThat(
-        Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(Charge(1.0f, 0.001f), 30, 0.06f)
+        Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
+          DpCharge(1.0f, 0.001f),
+          30,
+          0.06f
+        )
       )
       .isEqualTo(22.0f)
     assertThat(
-        Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(Charge(1.0f, 0.001f), 30, 0.1f)
+        Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
+          DpCharge(1.0f, 0.001f),
+          30,
+          0.1f
+        )
       )
       .isEqualTo(20.0f)
     assertThat(
-        Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(Charge(1.0f, 0.2f), 1, 0.1f)
-      )
-      .isEqualTo(Float.MAX_VALUE)
-    assertThat(
-        Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(Charge(1.0f, 0.01f), 30, 0.26f)
+        Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(DpCharge(1.0f, 0.2f), 1, 0.1f)
       )
       .isEqualTo(Float.MAX_VALUE)
     assertThat(
         Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
-          Charge(0.01f, 1.0e-12.toFloat()),
+          DpCharge(1.0f, 0.01f),
+          30,
+          0.26f
+        )
+      )
+      .isEqualTo(Float.MAX_VALUE)
+    assertThat(
+        Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
+          DpCharge(0.01f, 1.0e-12.toFloat()),
           200,
           1.0e-9.toFloat()
         )
@@ -50,12 +62,43 @@ class CompositionTest {
       .of(0.78f)
     assertThat(
         Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
-          Charge(0.0042f, 0.0f),
+          DpCharge(0.0042f, 0.0f),
           1880,
           1.0e-9.toFloat()
         )
       )
       .isWithin(0.001f)
       .of(1.0f)
+  }
+
+  @Test
+  fun acdpCompositionComputationWorksAsExpectedForSingleAcdpCharge() {
+    val acdpCharges = listOf(AcdpCharge(0.1, 1E-5))
+    val targetEpsilon = 3.0f
+    val delta = Composition.totalPrivacyBudgetUsageUnderAcdpComposition(acdpCharges, targetEpsilon)
+    val expectedDelta = 2.1085539E-4f
+
+    assertThat(delta).isEqualTo(expectedDelta)
+  }
+
+  @Test
+  fun acdpCompositionComputationWorksAsExpectedForSingleAcdpChargeAndSmallerEpsilonAndTheta() {
+    val acdpCharges = listOf(AcdpCharge(0.3, 1E-12))
+    val targetEpsilon = 0.5f
+    // (exp(epsilon) + 1) * theta  = 2.6487212181091307E-12
+    val delta = Composition.totalPrivacyBudgetUsageUnderAcdpComposition(acdpCharges, targetEpsilon)
+    val expectedDelta = 0.26509577f
+
+    assertThat(delta).isEqualTo(expectedDelta)
+  }
+
+  @Test
+  fun acdpCompositionComputationWorksAsExpectedForMultipleAcdpCharges() {
+    val acdpCharges = listOf(AcdpCharge(0.04, 0.5E-5), AcdpCharge(0.06, 0.5E-5))
+    val targetEpsilon = 3.0f
+    val delta = Composition.totalPrivacyBudgetUsageUnderAcdpComposition(acdpCharges, targetEpsilon)
+    val expectedDelta = 2.1085539E-4f
+
+    assertThat(delta).isEqualTo(expectedDelta)
   }
 }

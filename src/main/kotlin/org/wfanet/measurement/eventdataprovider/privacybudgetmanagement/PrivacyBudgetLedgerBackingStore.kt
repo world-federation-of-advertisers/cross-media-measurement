@@ -25,7 +25,7 @@ import java.time.Instant
  */
 data class PrivacyBudgetBalanceEntry(
   val privacyBucketGroup: PrivacyBucketGroup,
-  val charge: Charge,
+  val dpCharge: DpCharge,
   val repetitionCount: Int
 )
 /**
@@ -79,7 +79,7 @@ interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
    */
   suspend fun addLedgerEntries(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
-    charges: Set<Charge>,
+    dpCharges: Set<DpCharge>,
     reference: Reference
   )
 

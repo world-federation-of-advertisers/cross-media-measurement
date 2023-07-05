@@ -50,7 +50,7 @@ class PrivacyBudgetManager(
   suspend fun chargingWillExceedPrivacyBudget(query: Query) =
     ledger.chargingWillExceedPrivacyBudget(
       filter.getPrivacyBucketGroups(query.reference.measurementConsumerId, query.landscapeMask),
-      setOf(query.charge)
+      setOf(query.dpCharge)
     )
 
   /**
@@ -70,6 +70,6 @@ class PrivacyBudgetManager(
     ledger.charge(
       query.reference,
       filter.getPrivacyBucketGroups(query.reference.measurementConsumerId, query.landscapeMask),
-      setOf(query.charge)
+      setOf(query.dpCharge)
     )
 }

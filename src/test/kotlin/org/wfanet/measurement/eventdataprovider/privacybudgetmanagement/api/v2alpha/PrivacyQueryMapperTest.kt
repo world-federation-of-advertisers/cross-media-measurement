@@ -29,7 +29,7 @@ import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Charge
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.DpCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.EventGroupSpec
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.LandscapeMask
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Query
@@ -122,7 +122,7 @@ class PrivacyQueryMapperTest {
         Query(
           Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
           LandscapeMask(listOf(EventGroupSpec(FILTER_EXPRESSION, TIME_RANGE)), 0.01f, 0.02f),
-          Charge(0.6f, 0.02f)
+          DpCharge(0.6f, 0.02f)
         )
       )
   }
@@ -142,7 +142,7 @@ class PrivacyQueryMapperTest {
         Query(
           Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
           LandscapeMask(listOf(EventGroupSpec(FILTER_EXPRESSION, TIME_RANGE)), 0.0f, 0.0f),
-          Charge(0.3f, 0.02f)
+          DpCharge(0.3f, 0.02f)
         )
       )
   }
@@ -162,7 +162,7 @@ class PrivacyQueryMapperTest {
         Query(
           Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
           LandscapeMask(listOf(EventGroupSpec(FILTER_EXPRESSION, TIME_RANGE)), 0.0f, 0.0f),
-          Charge(0.4f, 0.02f)
+          DpCharge(0.4f, 0.02f)
         )
       )
   }
@@ -186,7 +186,7 @@ class PrivacyQueryMapperTest {
             REACH_MEASUREMENT_SPEC.vidSamplingInterval.start,
             REACH_MEASUREMENT_SPEC.vidSamplingInterval.width
           ),
-          Charge(
+          DpCharge(
             REACH_MEASUREMENT_SPEC.reach.privacyParams.epsilon.toFloat(),
             REACH_MEASUREMENT_SPEC.reach.privacyParams.delta.toFloat()
           )

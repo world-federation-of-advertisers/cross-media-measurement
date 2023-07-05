@@ -15,8 +15,17 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 import org.wfanet.measurement.common.OpenEndTimeRange
 
-/** Represents a charge that will be made to a privacy budget */
-data class Charge(val epsilon: Float, val delta: Float)
+/**
+ * Represents a Differential Privacy(DP) charge in epsilon and delta that will be made to a privacy
+ * budget.
+ */
+data class DpCharge(val epsilon: Float, val delta: Float)
+
+/**
+ * Represents an Almost Concentrated Differential Privacy(ACDP) charge in rho and theta that will be
+ * made to a privacy budget.
+ */
+data class AcdpCharge(val rho: Double, val theta: Double)
 
 /**
  * Represents an element that caused charges to the manager and wheter or not if those charges were
@@ -40,4 +49,8 @@ data class LandscapeMask(
 )
 
 /** Represents multiple charges to the multiple buckets in the PrivacyLandscape. */
-data class Query(val reference: Reference, val landscapeMask: LandscapeMask, val charge: Charge)
+data class Query(
+  val reference: Reference,
+  val landscapeMask: LandscapeMask,
+  val dpCharge: DpCharge
+)
