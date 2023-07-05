@@ -31,4 +31,31 @@ kustomization_dir(
     ],
     generate_kustomization = True,
     tags = ["manual"],
+    deps = [
+        "//src/main/k8s/panelmatch/testing/secretfiles:kustomization",
+    ],
+)
+
+cue_dump(
+    name = "local_mp_daemon_gke",
+    srcs = ["local_mp_daemon_gke.cue"],
+    cue_tags = {
+        "party_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_name,
+        "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_secret_name,
+    },
+    tags = ["manual"],
+    deps = [
+        "//src/main/k8s:config",
+        ":local_daemon_gke"
+    ],
+)
+
+kustomization_dir(
+    name = "mp_daemon_gke",
+    srcs = [
+        "resource_requirements.yaml",
+        ":local_mp_daemon_gke",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
 )
