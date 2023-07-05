@@ -1,4 +1,4 @@
-// Copyright 2023 The Cross-Media Measurement Authors
+// Copyright 2022 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,20 +22,20 @@ _imageConfig: {
 _exchangeDaemonConfig: {
 	secretName:         string @tag("secret_name")
 	partyName:          string @tag("party_name")
-	partyType:          "DATA_PROVIDER"
-	cloudStorageBucket: "halo-edp-test-bucket"
+	partyType:          "MODEL_PROVIDER"
+	cloudStorageBucket: "halo-mp-test-bucket"
 	clientTls: {
-		certFile: "/var/run/secrets/files/edp1_tls.pem"
-		keyFile:  "/var/run/secrets/files/edp1_tls.key"
+		certFile: "/var/run/secrets/files/mp1_tls.pem"
+		keyFile:  "/var/run/secrets/files/mp1_tls.key"
 	}
-	tinkKeyUri: "gcp-kms://projects/halo-cmm-dev/locations/us-central1/keyRings/edp-test-key-ring/cryptoKeys/edp-test-key"
+	tinkKeyUri: "gcp-kms://projects/halo-cmm-dev/locations/us-central1/keyRings/mp-test-key-ring/cryptoKeys/mp-test-key"
 	privateCa: {
-		name:     "20220302-51i-yj4"
-		poolId:   "EdpTestPool"
+		name:     "20220302-o2a-1xh"
+		poolId:   "MpTestPool"
 		location: "us-central1"
 	}
 	dataflow: {
 		region:         "us-central1"
-		serviceAccount: "edp-test-service-account@halo-cmm-dev.iam.gserviceaccount.com"
+		serviceAccount: "mp-test-service-account@halo-cmm-dev.iam.gserviceaccount.com"
 	}
 }

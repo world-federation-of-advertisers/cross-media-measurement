@@ -34,6 +34,11 @@ import "strings"
 }
 #DebugVerboseGrpcLogging: true
 
+#ContainerRegistryConfig: {
+	repoPrefix: "halo"
+	registry:   "localhost:5000"
+}
+
 #ExchangeDaemonConfig: {
 	secretName:         string
 	partyType:          "DATA_PROVIDER" | "MODEL_PROVIDER"
