@@ -23,6 +23,7 @@ import io.grpc.StatusException
 import java.io.File
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
+import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -31,9 +32,12 @@ import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as PublicKingdomCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as PublicKingdomDataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub as PublicKingdomEventGroupMetadataDescriptorsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as PublicKingdomEventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as PublicKingdomMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as PublicKingdomMeasurementsCoroutineStub
+import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
@@ -52,6 +56,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCorouti
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer
 import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer.Companion.toList
+import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
@@ -80,6 +85,12 @@ class InProcessReportingServer(
   }
   private val publicKingdomDataProvidersClient by lazy {
     PublicKingdomDataProvidersCoroutineStub(publicKingdomChannelGenerator())
+  }
+  private val publicKingdomEventGroupMetadataDescriptorsClient by lazy {
+    PublicKingdomEventGroupMetadataDescriptorsCoroutineStub(publicKingdomChannelGenerator())
+  }
+  private val publicKingdomEventGroupsClient by lazy {
+    PublicKingdomEventGroupsCoroutineStub(publicKingdomChannelGenerator())
   }
 
   private val internalApiChannel by lazy { internalReportingServer.channel }
@@ -148,8 +159,22 @@ class InProcessReportingServer(
           }
         }
 
+        val celEnvCacheProvider =
+          CelEnvCacheProvider(
+            publicKingdomEventGroupMetadataDescriptorsClient.withAuthenticationKey(
+              measurementConsumerConfig.apiKey
+            ),
+            Duration.ofSeconds(5),
+            Dispatchers.Default,
+          )
+
         listOf(
-            EventGroupsService().withMetadataPrincipalIdentities(measurementConsumerConfig),
+            EventGroupsService(
+                publicKingdomEventGroupsClient,
+                encryptionKeyPairStore,
+                celEnvCacheProvider
+              )
+              .withMetadataPrincipalIdentities(measurementConsumerConfig),
             MetricsService(
                 METRIC_SPEC_CONFIG,
                 internalReportingSetsClient,
