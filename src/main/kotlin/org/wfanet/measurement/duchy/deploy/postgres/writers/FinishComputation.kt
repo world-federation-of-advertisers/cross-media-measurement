@@ -72,7 +72,6 @@ class FinishComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Me
       protocolStagesEnumHelper.computationStageEnumToLongValues(endingStage).stage
     val currentStageLong =
       protocolStagesEnumHelper.computationStageEnumToLongValues(currentStage).stage
-    //    val details = protocolStageDetailsHelper.parseComputationDetails(detailsBytes)
     val endingComputationDetails =
       protocolStageDetailsHelper.setEndingState(computationDetails, endComputationReason)
     val endingStageDetails = protocolStageDetailsHelper.detailsFor(endingStage, computationDetails)
