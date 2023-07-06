@@ -1390,6 +1390,7 @@ class MetricsService(
     return internalReportingSet.weightedSubsetUnionsList.map { weightedSubsetUnion ->
       weightedMeasurement {
         weight = weightedSubsetUnion.weight
+        binaryRepresentation = weightedSubsetUnion.binaryRepresentation
         measurement = internalMeasurement {
           this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
           timeInterval = metric.timeInterval.toInternal()

@@ -122,6 +122,7 @@ CREATE TABLE WeightedSubsetUnions (
   WeightedSubsetUnionId bigint NOT NULL,
 
   Weight integer NOT NULL,
+  BinaryRepresentation integer NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, ReportingSetId, WeightedSubsetUnionId),
   FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
@@ -318,6 +319,7 @@ CREATE TABLE MetricMeasurements (
   MetricId bigint NOT NULL,
   MeasurementId bigint NOT NULL,
   Coefficient integer NOT NULL,
+  BinaryRepresentation integer NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, MetricId, MeasurementId),
   FOREIGN KEY(MeasurementConsumerId, MetricId)

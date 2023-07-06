@@ -114,6 +114,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = timeInterval {
@@ -137,6 +138,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 3
+          binaryRepresentation = 2
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = timeInterval {
@@ -215,6 +217,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = timeInterval {
@@ -238,6 +241,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 3
+          binaryRepresentation = 2
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = timeInterval {
@@ -311,6 +315,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = timeInterval {
@@ -334,6 +339,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 3
+          binaryRepresentation = 2
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = timeInterval {
@@ -407,6 +413,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = timeInterval {
@@ -430,6 +437,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 3
+          binaryRepresentation = 2
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = timeInterval {
@@ -503,6 +511,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = timeInterval {
@@ -573,6 +582,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = timeInterval {
@@ -596,6 +606,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 3
+          binaryRepresentation = 2
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = timeInterval {
@@ -684,6 +695,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 2
+            binaryRepresentation = 1
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               timeInterval = timeInterval {
@@ -707,6 +719,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 3
+            binaryRepresentation = 2
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               timeInterval = timeInterval {
@@ -794,6 +807,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = timeInterval {
@@ -865,6 +879,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = timeInterval {
@@ -939,6 +954,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = timeInterval {
@@ -996,6 +1012,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = timeInterval {
@@ -1058,6 +1075,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 2
+            binaryRepresentation = 1
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               timeInterval = timeInterval {
@@ -1179,6 +1197,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = timeInterval {
@@ -1250,6 +1269,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = timeInterval {
@@ -1327,6 +1347,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = timeInterval {
@@ -1415,6 +1436,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 2
+            binaryRepresentation = 1
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               timeInterval = timeInterval {
@@ -1512,6 +1534,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 2
+            binaryRepresentation = 1
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               timeInterval = timeInterval {
@@ -1602,6 +1625,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 2
+            binaryRepresentation = 1
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               timeInterval = timeInterval {
@@ -1681,6 +1705,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 2
+            binaryRepresentation = 1
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               timeInterval = timeInterval {
@@ -1759,6 +1784,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = timeInterval {
@@ -1839,6 +1865,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 2
+            binaryRepresentation = 1
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               timeInterval = timeInterval {
@@ -1920,6 +1947,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 2
+            binaryRepresentation = 1
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               timeInterval = timeInterval {
@@ -2000,6 +2028,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 2
+            binaryRepresentation = 1
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               timeInterval = timeInterval {
@@ -2079,6 +2108,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = timeInterval {
@@ -2340,6 +2370,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
             weightedMeasurements +=
               MetricKt.weightedMeasurement {
                 weight = 2
+                binaryRepresentation = 1
                 measurement = measurement {
                   cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
                   timeInterval = timeInterval {
@@ -2654,6 +2685,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 2
+            binaryRepresentation = 1
             measurement = measurement {
               this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
               timeInterval = timeInterval {
@@ -2677,6 +2709,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 3
+            binaryRepresentation = 2
             measurement = measurement {
               this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
               timeInterval = timeInterval {
