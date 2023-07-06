@@ -75,10 +75,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     // return Already Exists exception.
     if (
       ReportReader(transactionContext)
-        .readReportByExternalId(
-          report.cmmsMeasurementConsumerId,
-          request.externalReportId
-        ) != null
+        .readReportByExternalId(report.cmmsMeasurementConsumerId, request.externalReportId) != null
     ) {
       throw ReportAlreadyExistsException()
     }

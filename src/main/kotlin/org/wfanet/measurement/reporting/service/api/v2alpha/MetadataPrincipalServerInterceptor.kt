@@ -28,7 +28,6 @@ import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import io.grpc.stub.AbstractStub
 import io.grpc.stub.MetadataUtils
-import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 
 /**
@@ -48,7 +47,7 @@ import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
  */
 class MetadataPrincipalServerInterceptor(
   private val measurementConsumerConfigs: MeasurementConsumerConfigs
-): ServerInterceptor {
+) : ServerInterceptor {
   override fun <ReqT, RespT> interceptCall(
     call: ServerCall<ReqT, RespT>,
     headers: Metadata,
@@ -69,10 +68,7 @@ class MetadataPrincipalServerInterceptor(
 
     val config = measurementConsumerConfigs.configsMap[principalName]
     if (config == null) {
-      call.close(
-        Status.UNAUTHENTICATED.withDescription("No valid Principal found"),
-        Metadata()
-      )
+      call.close(Status.UNAUTHENTICATED.withDescription("No valid Principal found"), Metadata())
       return object : ServerCall.Listener<ReqT>() {}
     }
 
@@ -104,7 +100,9 @@ class MetadataPrincipalServerInterceptor(
     fun BindableService.withMetadataPrincipalIdentities(
       measurementConsumerConfigs: MeasurementConsumerConfigs
     ): ServerServiceDefinition =
-      ServerInterceptors.interceptForward(this, MetadataPrincipalServerInterceptor(measurementConsumerConfigs))
+      ServerInterceptors.interceptForward(
+        this,
+        MetadataPrincipalServerInterceptor(measurementConsumerConfigs)
+      )
   }
 }
-
