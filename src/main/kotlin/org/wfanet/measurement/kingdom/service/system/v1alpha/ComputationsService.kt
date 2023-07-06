@@ -39,7 +39,9 @@ import org.wfanet.measurement.common.identity.duchyIdentityFromContext
 import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.computationKey
 import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.system.v1alpha.Computation
@@ -86,7 +88,12 @@ class ComputationsService(
     request: StreamActiveComputationsRequest
   ): Flow<StreamActiveComputationsResponse> {
     val streamingDeadline: TimeMark = TimeSource.Monotonic.markNow() + streamingTimeout
-    var currentContinuationToken = ContinuationTokenConverter.decode(request.continuationToken)
+    var currentContinuationToken: StreamActiveComputationsContinuationToken? =
+      if (request.continuationToken.isEmpty()) {
+        null
+      } else {
+        ContinuationTokenConverter.decode(request.continuationToken)
+      }
     return flow {
       // Continually request measurements from internal service until cancelled or streamingDeadline
       // is reached.
@@ -106,14 +113,15 @@ class ComputationsService(
               .asRuntimeException()
           }
           .collect { measurement ->
-            currentContinuationToken = streamActiveComputationsContinuationToken {
-              updateTimeSince = measurement.updateTime
+            val continuationToken = streamActiveComputationsContinuationToken {
+              lastSeenUpdateTime = measurement.updateTime
               lastSeenExternalComputationId = measurement.externalComputationId
             }
             val response = streamActiveComputationsResponse {
-              continuationToken = ContinuationTokenConverter.encode(currentContinuationToken)
+              this.continuationToken = ContinuationTokenConverter.encode(continuationToken)
               computation = measurement.toSystemComputation()
             }
+            currentContinuationToken = continuationToken
             emit(response)
           }
 
@@ -163,12 +171,20 @@ class ComputationsService(
   }
 
   private fun streamMeasurements(
-    continuationToken: StreamActiveComputationsContinuationToken
+    continuationToken: StreamActiveComputationsContinuationToken?
   ): Flow<Measurement> {
     val request = streamMeasurementsRequest {
       filter = filter {
-        updatedAfter = continuationToken.updateTimeSince
-        externalComputationIdAfter = continuationToken.lastSeenExternalComputationId
+        if (continuationToken != null) {
+          after =
+            StreamMeasurementsRequestKt.FilterKt.after {
+              updateTime = continuationToken.lastSeenUpdateTime
+              computation = computationKey {
+                externalComputationId = continuationToken.lastSeenExternalComputationId
+              }
+            }
+        }
+
         states += STATES_SUBSCRIBED
         externalDuchyId = duchyIdentityProvider().id
       }

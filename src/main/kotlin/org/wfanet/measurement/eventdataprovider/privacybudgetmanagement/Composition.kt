@@ -16,10 +16,17 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.exp
 import kotlin.math.ln
+import kotlin.math.max
 import kotlin.math.pow
+import org.apache.commons.math3.optim.MaxEval
+import org.apache.commons.math3.optim.MaxIter
+import org.apache.commons.math3.optim.nonlinear.scalar.GoalType
+import org.apache.commons.math3.optim.univariate.BrentOptimizer
+import org.apache.commons.math3.optim.univariate.SearchInterval
+import org.apache.commons.math3.optim.univariate.UnivariateObjectiveFunction
 
 data class AdvancedCompositionKey(
-  val charge: Charge,
+  val dpCharge: DpCharge,
   val repetitionCount: Int,
   val totalDelta: Float
 )
@@ -27,6 +34,8 @@ data class AdvancedCompositionKey(
 object Composition {
   /** Memoized computation of log-factorials. */
   private val logFactorials = ConcurrentHashMap<Int, Double>()
+  private const val THRESHOLD = 1E-3
+  private const val MAX_ITER_EVAL = 10000
 
   init {
     logFactorials.put(0, 0.0)
@@ -58,12 +67,12 @@ object Composition {
   }
 
   private fun calculateAdvancedComposition(
-    charge: Charge,
+    dpCharge: DpCharge,
     repetitionCount: Int,
     totalDelta: Float
   ): Float {
-    val epsilon = charge.epsilon.toDouble()
-    val delta = charge.delta.toDouble()
+    val epsilon = dpCharge.epsilon.toDouble()
+    val delta = dpCharge.delta.toDouble()
     val k = repetitionCount
     val logDeltaIDivisor = -k.toDouble() * ln(1.0 + exp(epsilon))
     // The calculation follows Theorem 3.3 of https://arxiv.org/pdf/1311.0776.pdf
@@ -94,7 +103,7 @@ object Composition {
    * differential privacy accounting library, located at
    * https://github.com/google/differential-privacy.git
    *
-   * @param charge The privacy charge of a single query.
+   * @param dpCharge The privacy charge of a single query.
    * @param repetitionCount Number of times the algorithm is invoked.
    * @param totalDelta The target value of total delta of the privacy parameters for the multiple
    *   runs of the algorithm.
@@ -104,13 +113,49 @@ object Composition {
    *   possible for any value of totalEpsilon.
    */
   fun totalPrivacyBudgetUsageUnderAdvancedComposition(
-    charge: Charge,
+    dpCharge: DpCharge,
     repetitionCount: Int,
     totalDelta: Float
   ): Float =
     advancedCompositionResults.getOrPut(
-      AdvancedCompositionKey(charge, repetitionCount, totalDelta)
+      AdvancedCompositionKey(dpCharge, repetitionCount, totalDelta)
     ) {
-      calculateAdvancedComposition(charge, repetitionCount, totalDelta)
+      calculateAdvancedComposition(dpCharge, repetitionCount, totalDelta)
     }
+
+  /**
+   * Computes total DP delta parameter after applying ACDP composition with given target Epsilon
+   *
+   * @param acdpCharges The privacy ACDP charge(rho, theta) of queries.
+   * @param targetEpsilon The maximum total Epsilon.
+   * @return totalDelta such that, under ACDP composition, the result is still (totalEpsilon,
+   *   totalDelta)-DP.
+   */
+  fun totalPrivacyBudgetUsageUnderAcdpComposition(
+    acdpCharges: List<AcdpCharge>,
+    targetEpsilon: Float
+  ): Float {
+    val totalRho: Double = acdpCharges.sumOf { it.rho }
+    val totalTheta: Double = acdpCharges.sumOf { it.theta }
+
+    fun computeDeltaGivenAlpha(alpha: Double): Double {
+      return (exp(targetEpsilon) + 1) * totalTheta +
+        (exp((alpha - 1) * (alpha * totalRho - targetEpsilon)) / (alpha - 1)) *
+          (1 - 1 / alpha).pow(alpha)
+    }
+
+    val minAlpha = max(1 + THRESHOLD, (targetEpsilon + totalRho) / (2 * totalRho))
+    val maxAlpha = max((targetEpsilon + totalRho + 1) / (2 * totalRho), 2.0)
+    val optimizer = BrentOptimizer(THRESHOLD, THRESHOLD)
+    val res =
+      optimizer.optimize(
+        MaxIter(MAX_ITER_EVAL),
+        MaxEval(MAX_ITER_EVAL),
+        SearchInterval(minAlpha, maxAlpha),
+        UnivariateObjectiveFunction { alpha: Double -> computeDeltaGivenAlpha(alpha) },
+        GoalType.MINIMIZE
+      )
+
+    return res.value.toFloat()
+  }
 }

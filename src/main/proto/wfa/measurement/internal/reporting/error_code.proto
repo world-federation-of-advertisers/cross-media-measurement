@@ -52,4 +52,10 @@ enum ErrorCode {
 
   /** Metric with the provided IDs does not exist. */
   METRIC_NOT_FOUND = 10;
+
+  /** Metric with the same IDs already exists. */
+  METRIC_ALREADY_EXISTS = 11;
+
+  /** Report with the same IDs already exists. */
+  REPORT_ALREADY_EXISTS = 12;
 }

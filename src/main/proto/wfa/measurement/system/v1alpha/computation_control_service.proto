@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.system.v1alpha;
 
+import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 
 option java_package = "org.wfanet.measurement.system.v1alpha";
@@ -32,10 +33,17 @@ service ComputationControl {
 
 // Request to advance the computation at the receiver.
 message AdvanceComputationRequest {
+  // Header of the streaming request.
+  //
+  // (-- api-linter: core::0123::resource-annotation=disabled
+  //     aip.dev/not-precedent: This is not a resource message. --)
   message Header {
-    // Resource name of the `Computation`. Required.
-    string name = 1 [(google.api.resource_reference).type =
-                         "halo-system.wfanet.org/Computation"];
+    // Resource name of the `Computation`.
+    string name = 1 [
+      (google.api.resource_reference).type =
+          "halo-system.wfanet.org/Computation",
+      (google.api.field_behavior) = REQUIRED
+    ];
     // The protocol of the computation.
     oneof protocol {
       // The LiquidLegionsV2 (three-round) protocol.
@@ -43,6 +51,7 @@ message AdvanceComputationRequest {
     }
   }
 
+  // Body chunk of the streaming request.
   message BodyChunk {
     // A chunk of the data bytes.
     bytes partial_data = 1;
@@ -56,6 +65,10 @@ message AdvanceComputationRequest {
   }
 }
 
+// Parameters for the Liquid Legions v2 protocol.
+//
+// (-- api-linter: core::0123::resource-annotation=disabled
+//     aip.dev/not-precedent: This is not a resource message. --)
 message LiquidLegionsV2 {
   // The description of the data in the payload.
   enum Description {
@@ -74,6 +87,7 @@ message LiquidLegionsV2 {
   Description description = 1;
 }
 
+// Response message for the `AdvanceComputation` method.
 message AdvanceComputationResponse {
-  // Deliberately empty
+  // (-- Deliberately empty. --)
 }
