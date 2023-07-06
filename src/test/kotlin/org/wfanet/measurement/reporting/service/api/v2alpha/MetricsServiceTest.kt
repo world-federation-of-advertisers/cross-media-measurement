@@ -439,6 +439,7 @@ private val INTERNAL_UNION_ALL_REPORTING_SET = internalReportingSet {
       filters += this@internalReportingSet.filter
     }
     weight = 1
+    binaryRepresentation = 1
   }
 }
 private val INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET = internalReportingSet {
@@ -458,6 +459,7 @@ private val INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET = internalReport
       filters += this@internalReportingSet.filter
     }
     weight = 1
+    binaryRepresentation = 1
   }
 }
 private val INTERNAL_SINGLE_PUBLISHER_REPORTING_SET = internalReportingSet {
@@ -484,6 +486,7 @@ private val INTERNAL_SINGLE_PUBLISHER_REPORTING_SET = internalReportingSet {
       filters += this@internalReportingSet.filter
     }
     weight = 1
+    binaryRepresentation = 1
   }
 }
 
@@ -512,6 +515,7 @@ private val INTERNAL_INCREMENTAL_REPORTING_SET = internalReportingSet {
       filters += INTERNAL_UNION_ALL_REPORTING_SET.filter
     }
     weight = 1
+    binaryRepresentation = 1
   }
   weightedSubsetUnions += weightedSubsetUnion {
     primitiveReportingSetBases += primitiveReportingSetBasis {
@@ -521,6 +525,7 @@ private val INTERNAL_INCREMENTAL_REPORTING_SET = internalReportingSet {
       filters += INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET.filter
     }
     weight = -1
+    binaryRepresentation = 2
   }
 }
 
@@ -934,6 +939,7 @@ private val INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC = internalMetric {
   }
   weightedMeasurements += weightedMeasurement {
     weight = 1
+    binaryRepresentation = 1
     measurement =
       INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
         clearCmmsCreateMeasurementRequestId()
@@ -943,6 +949,7 @@ private val INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC = internalMetric {
   }
   weightedMeasurements += weightedMeasurement {
     weight = -1
+    binaryRepresentation = 2
     measurement =
       INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
         clearCmmsCreateMeasurementRequestId()
@@ -960,10 +967,12 @@ private val INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC =
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
+      binaryRepresentation = 1
       measurement = INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.copy { clearCmmsMeasurementId() }
     }
     weightedMeasurements += weightedMeasurement {
       weight = -1
+      binaryRepresentation = 2
       measurement =
         INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
           clearCmmsMeasurementId()
@@ -976,10 +985,12 @@ private val INTERNAL_PENDING_INCREMENTAL_REACH_METRIC =
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
+      binaryRepresentation = 1
       measurement = INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT
     }
     weightedMeasurements += weightedMeasurement {
       weight = -1
+      binaryRepresentation = 2
       measurement = INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
     }
   }
@@ -989,10 +1000,12 @@ private val INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC =
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
+      binaryRepresentation = 1
       measurement = INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT
     }
     weightedMeasurements += weightedMeasurement {
       weight = -1
+      binaryRepresentation = 2
       measurement =
         INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
           state = InternalMeasurement.State.SUCCEEDED
@@ -1033,6 +1046,7 @@ private val INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC = internalMet
   }
   weightedMeasurements += weightedMeasurement {
     weight = 1
+    binaryRepresentation = 1
     measurement =
       INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
         clearCmmsCreateMeasurementRequestId()
@@ -1050,6 +1064,7 @@ private val INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC =
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
+      binaryRepresentation = 1
       measurement =
         INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy { clearCmmsMeasurementId() }
     }
@@ -1060,6 +1075,7 @@ private val INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC =
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
+      binaryRepresentation = 1
       measurement = INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
     }
   }
@@ -1069,6 +1085,7 @@ private val INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC =
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
+      binaryRepresentation = 1
       measurement = INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
     }
   }
@@ -1995,6 +2012,7 @@ class MetricsServiceTest {
             externalReportingSetId = this@copy.externalReportingSetId
           }
           weight = 1
+          binaryRepresentation = 1
         }
       }
     val internalCreateMetricRequest = internalCreateMetricRequest {
@@ -2003,6 +2021,7 @@ class MetricsServiceTest {
           weightedMeasurements.clear()
           weightedMeasurements += weightedMeasurement {
             weight = 1
+            binaryRepresentation = 1
             measurement = internalMeasurement {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
               timeInterval = TIME_INTERVAL
@@ -2021,6 +2040,7 @@ class MetricsServiceTest {
         weightedMeasurements.clear()
         weightedMeasurements += weightedMeasurement {
           weight = 1
+          binaryRepresentation = 1
           measurement =
             INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
               clearCmmsMeasurementId()
@@ -2103,6 +2123,7 @@ class MetricsServiceTest {
           weightedMeasurements.clear()
           weightedMeasurements += weightedMeasurement {
             weight = 1
+            binaryRepresentation = 1
             measurement =
               INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
                 clearCmmsMeasurementId()
@@ -2153,6 +2174,7 @@ class MetricsServiceTest {
       (0..BATCH_SET_CMMS_MEASUREMENT_IDS_LIMIT).map { id ->
         weightedMeasurement {
           weight = 1
+          binaryRepresentation = 1
           measurement =
             INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
               cmmsCreateMeasurementRequestId = "$id"
@@ -3628,10 +3650,12 @@ class MetricsServiceTest {
               weightedMeasurements.clear()
               weightedMeasurements += weightedMeasurement {
                 weight = 1
+                binaryRepresentation = 1
                 measurement = INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT
               }
               weightedMeasurements += weightedMeasurement {
                 weight = -1
+                binaryRepresentation = 2
                 measurement = internalSucceededUnionAllButLastPublisherReachMeasurement
               }
             }
@@ -3801,6 +3825,7 @@ class MetricsServiceTest {
               weightedMeasurements.clear()
               weightedMeasurements += weightedMeasurement {
                 weight = 1
+                binaryRepresentation = 1
                 measurement = INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
               }
             }
@@ -4156,6 +4181,7 @@ class MetricsServiceTest {
         (0..BATCH_SET_MEASUREMENT_RESULTS_LIMIT).map { id ->
           weightedMeasurement {
             weight = 1
+            binaryRepresentation = 1
             measurement =
               INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
                 cmmsCreateMeasurementRequestId = "UNION_ALL_REACH_MEASUREMENT$id"
@@ -4211,6 +4237,7 @@ class MetricsServiceTest {
         (0..BATCH_SET_MEASUREMENT_FAILURES_LIMIT).map { id ->
           weightedMeasurement {
             weight = 1
+            binaryRepresentation = 1
             measurement =
               INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
                 cmmsCreateMeasurementRequestId = "UNION_ALL_REACH_MEASUREMENT$id"

@@ -72,6 +72,7 @@ class MetricReader(private val readContext: ReadContext) {
 
   private data class WeightedMeasurementInfo(
     val weight: Int,
+    val binaryRepresentation: Int,
     val measurementInfo: MeasurementInfo,
   )
 
@@ -113,6 +114,7 @@ class MetricReader(private val readContext: ReadContext) {
       Metrics.CreateTime,
       Metrics.MetricDetails,
       MetricMeasurements.Coefficient,
+      MetricMeasurements.BinaryRepresentation,
       Measurements.MeasurementId,
       Measurements.CmmsCreateMeasurementRequestId,
       Measurements.CmmsMeasurementId,
@@ -321,6 +323,7 @@ class MetricReader(private val readContext: ReadContext) {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = it.weight
+            binaryRepresentation = it.binaryRepresentation
             measurement = measurement {
               cmmsMeasurementConsumerId = metricInfo.cmmsMeasurementConsumerId
               if (it.measurementInfo.cmmsMeasurementId != null) {
@@ -375,6 +378,7 @@ class MetricReader(private val readContext: ReadContext) {
       val metricDetails: Metric.Details =
         row.getProtoMessage("MetricDetails", Metric.Details.parser())
       val weight: Int = row["Coefficient"]
+      val binaryRepresentation: Int = row["BinaryRepresentation"]
       val measurementId: InternalId = row["MeasurementId"]
       val cmmsCreateMeasurementRequestId: UUID = row["CmmsCreateMeasurementRequestId"]
       val cmmsMeasurementId: String? = row["CmmsMeasurementId"]
@@ -510,6 +514,7 @@ class MetricReader(private val readContext: ReadContext) {
 
           WeightedMeasurementInfo(
             weight = weight,
+            binaryRepresentation = binaryRepresentation,
             measurementInfo = measurementInfo,
           )
         }
