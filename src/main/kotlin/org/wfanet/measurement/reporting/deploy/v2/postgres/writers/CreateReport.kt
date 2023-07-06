@@ -76,7 +76,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     if (
       ReportReader(transactionContext)
         .readReportByExternalId(
-          request.report.cmmsMeasurementConsumerId,
+          report.cmmsMeasurementConsumerId,
           request.externalReportId
         ) != null
     ) {
@@ -84,7 +84,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     }
 
     val externalReportingSetIds = mutableListOf<String>()
-    request.report.reportingMetricEntriesMap.entries.forEach { externalReportingSetIds += it.key }
+    report.reportingMetricEntriesMap.entries.forEach { externalReportingSetIds += it.key }
 
     val reportingSetMap: Map<String, InternalId> =
       ReportingSetReader(transactionContext)
@@ -109,9 +109,10 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
           ReportId,
           ExternalReportId,
           CreateReportRequestId,
-          CreateTime
+          CreateTime,
+          IsPeriodic
         )
-        VALUES ($1, $2, $3, $4, $5)
+        VALUES ($1, $2, $3, $4, $5, $6)
       """
       ) {
         bind("$1", measurementConsumerId)
@@ -123,6 +124,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
           bind<String?>("$4", null)
         }
         bind("$5", createTime)
+        bind("$6", report.timeCase == Report.TimeCase.PERIODIC_TIME_INTERVAL)
       }
 
     val reportTimeIntervalsStatement =
@@ -261,9 +263,9 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
           bind("$6", metricCalculationSpec.details.toJson())
         }
 
-        val createMetricRequestId = UUID.randomUUID()
         val updatedReportingMetricsList = mutableListOf<Report.ReportingMetric>()
         metricCalculationSpec.reportingMetricsList.forEach {
+          val createMetricRequestId = UUID.randomUUID()
           metricCalculationSpecReportingMetricsBinders.add {
             bind("$1", measurementConsumerId)
             bind("$2", reportId)

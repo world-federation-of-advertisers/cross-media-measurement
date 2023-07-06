@@ -338,6 +338,8 @@ CREATE TABLE Reports (
 
   CreateTime TIMESTAMP WITH TIME ZONE NOT NULL,
 
+  IsPeriodic bool NOT NULL,
+
   PRIMARY KEY(MeasurementConsumerId, ReportId),
   UNIQUE (MeasurementConsumerId, CreateReportRequestId),
   UNIQUE (MeasurementConsumerId, ExternalReportId),

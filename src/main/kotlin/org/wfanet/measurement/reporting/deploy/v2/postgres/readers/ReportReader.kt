@@ -58,6 +58,7 @@ class ReportReader(private val readContext: ReadContext) {
     val externalReportId: String,
     val createTime: Timestamp,
     val timeIntervals: MutableSet<TimeInterval>,
+    val isPeriodic: Boolean,
     /** Map of external reporting set ID to [ReportingMetricCalculationSpecInfo]. */
     val reportingSetReportingMetricCalculationSpecInfoMap:
       MutableMap<String, ReportingMetricCalculationSpecInfo>,
@@ -82,6 +83,7 @@ class ReportReader(private val readContext: ReadContext) {
       Reports.ExternalReportId,
       Reports.CreateReportRequestId,
       Reports.CreateTime,
+      Reports.IsPeriodic,
       ReportTimeIntervals.TimeIntervalStart,
       ReportTimeIntervals.TimeIntervalEndExclusive,
       MetricCalculationSpecs.MetricCalculationSpecDetails,
@@ -234,6 +236,7 @@ class ReportReader(private val readContext: ReadContext) {
       val reportId: InternalId = row["ReportId"]
       val externalReportId: String = row["ExternalReportId"]
       val createTime: Instant = row["CreateTime"]
+      val isPeriodic: Boolean = row["IsPeriodic"]
 
       var result: Result? = null
       if (accumulator == null) {
@@ -246,6 +249,7 @@ class ReportReader(private val readContext: ReadContext) {
             externalReportId = externalReportId,
             createTime = createTime.toProtoTime(),
             timeIntervals = mutableSetOf(),
+            isPeriodic = isPeriodic,
             reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf()
           )
       } else if (
@@ -262,6 +266,7 @@ class ReportReader(private val readContext: ReadContext) {
             externalReportId = externalReportId,
             createTime = createTime.toProtoTime(),
             timeIntervals = mutableSetOf(),
+            isPeriodic = isPeriodic,
             reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf()
           )
       }
@@ -363,15 +368,7 @@ class ReportReader(private val readContext: ReadContext) {
       val sortedTimeIntervals =
         source.timeIntervals.sortedWith { a, b -> Timestamps.compare(a.startTime, b.startTime) }
 
-      var isPeriodic = true
-      for (i in 0..sortedTimeIntervals.size - 2) {
-        if (sortedTimeIntervals[i].endTime != sortedTimeIntervals[i + 1].startTime) {
-          isPeriodic = false
-          break
-        }
-      }
-
-      if (isPeriodic) {
+      if (source.isPeriodic) {
         val firstTimeInterval = sortedTimeIntervals[0]
         periodicTimeInterval = periodicTimeInterval {
           startTime = firstTimeInterval.startTime

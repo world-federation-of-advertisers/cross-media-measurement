@@ -632,7 +632,7 @@ fun InternalReport.ReportingMetric.toCreateMetricRequest(
       filters += source.details.filtersList
     }
     requestId = source.createMetricRequestId
-    metricId = source.createMetricRequestId
+    metricId = "a" + source.createMetricRequestId
   }
 }
 
