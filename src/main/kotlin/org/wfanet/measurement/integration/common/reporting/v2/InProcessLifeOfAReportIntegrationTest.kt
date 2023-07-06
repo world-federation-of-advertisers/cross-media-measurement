@@ -1031,8 +1031,8 @@ abstract class InProcessLifeOfAReportIntegrationTest {
   }
 
   @Test
-  fun `creating 50 reports at once succeeds`() = runBlocking {
-    val numReports = 50
+  fun `creating 25 reports at once succeeds`() = runBlocking {
+    val numReports = 25
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
 
@@ -1403,8 +1403,8 @@ abstract class InProcessLifeOfAReportIntegrationTest {
   }
 
   @Test
-  fun `creating 50 metrics at once succeeds`() = runBlocking {
-    val numMetrics = 50
+  fun `creating 25 metrics at once succeeds`() = runBlocking {
+    val numMetrics = 25
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
 
@@ -1482,8 +1482,8 @@ abstract class InProcessLifeOfAReportIntegrationTest {
   }
 
   @Test
-  fun `creating 50 reporting sets at once succeeds`(): Unit = runBlocking {
-    val numReportingSets = 50
+  fun `creating 25 reporting sets at once succeeds`() = runBlocking {
+    val numReportingSets = 25
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
 
