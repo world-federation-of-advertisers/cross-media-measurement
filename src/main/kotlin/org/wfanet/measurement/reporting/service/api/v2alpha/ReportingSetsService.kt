@@ -151,7 +151,6 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
     idToPrimitiveReportingSetBasis: Map<Int, PrimitiveReportingSetBasis>,
   ): InternalReportingSet.WeightedSubsetUnion {
     return InternalReportingSetKt.weightedSubsetUnion {
-      weight = weightedSubsetUnion.coefficient
       primitiveReportingSetBases +=
         weightedSubsetUnion.reportingSetIds.map { reportingSetId ->
           InternalReportingSetKt.primitiveReportingSetBasis {
@@ -160,6 +159,8 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
             filters += primitiveReportingSetBasis.filters.toList()
           }
         }
+      weight = weightedSubsetUnion.coefficient
+      binaryRepresentation = weightedSubsetUnion.reportingSetIds.sumOf { 1 shl it }
     }
   }
 
