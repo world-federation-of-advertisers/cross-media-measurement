@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.protobuf.util.Timestamps
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -110,7 +111,6 @@ import org.wfanet.measurement.internal.kingdom.modelRollout as internalModelRoll
 import org.wfanet.measurement.internal.kingdom.modelShard as internalModelShard
 import org.wfanet.measurement.internal.kingdom.modelSuite as internalModelSuite
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
-import com.google.protobuf.util.Timestamps
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 
 /** Converts an internal [InternalMeasurement.State] to a public [State]. */
@@ -444,8 +444,10 @@ fun InternalModelRollout.toModelRollout(): ModelRollout {
     if (Timestamps.compare(source.rolloutPeriodStartTime, source.rolloutPeriodEndTime) == 0) {
       instantRolloutTime = source.rolloutPeriodStartTime
     } else {
-      gradualRolloutPeriod.startTime = source.rolloutPeriodStartTime
-      gradualRolloutPeriod.endTime = source.rolloutPeriodEndTime
+      gradualRolloutPeriod = timeInterval {
+        startTime = source.rolloutPeriodStartTime
+        endTime = source.rolloutPeriodEndTime
+      }
     }
 
     rolloutFreezeTime = source.rolloutFreezeTime
