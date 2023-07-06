@@ -67,6 +67,7 @@ private class FileSystemExampleDaemon : ExampleDaemon() {
   /** This can be customized per deployment. */
   override val sharedStorageInfo: StorageDetailsProvider
     get() = defaults.sharedStorageInfo
+
 }
 
 /** Example implementation of a daemon for executing Exchange Workflows. */

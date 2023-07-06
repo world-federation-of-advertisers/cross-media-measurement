@@ -4,6 +4,39 @@ load("//build/k8s:defs.bzl", "kustomization_dir")
 load("@wfa_rules_cue//cue:defs.bzl", "cue_library")
 
 cue_library(
+    name = "local_daemon_filesystem",
+    srcs = ["local_daemon_filesystem.cue"],
+    deps = ["//src/main/k8s/panelmatch/dev:base_gke"],
+)
+
+cue_dump(
+    name = "local_edp_daemon_filesystem",
+    srcs = ["local_edp_daemon_filesystem.cue"],
+    cue_tags = {
+        "party_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_name,
+        "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_secret_name,
+    },
+    tags = ["manual"],
+    deps = [
+        #"//src/main/k8s:config",
+        ":local_daemon_filesystem"
+    ],
+)
+
+kustomization_dir(
+    name = "edp_daemon_filesystem",
+    srcs = [
+        "resource_requirements.yaml",
+        ":local_edp_daemon_filesystem",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+    deps = [
+        "//src/main/k8s/panelmatch/testing/secretfiles:kustomization",
+    ],
+)
+
+cue_library(
     name = "local_daemon_gke",
     srcs = ["local_daemon_gke.cue"],
     deps = ["//src/main/k8s/panelmatch/dev:base_gke"],

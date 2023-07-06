@@ -124,6 +124,6 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
   private fun createThrottler(): Throttler = MinimumIntervalThrottler(clock, flags.pollingInterval)
 
   companion object {
-    private val logger by loggerFor()
+    public val logger by loggerFor()
   }
 }

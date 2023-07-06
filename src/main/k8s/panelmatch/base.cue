@@ -42,12 +42,20 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	name:       string
 	secretName: string
 	mountPath:  string | *"/var/run/secrets/files"
+	readOnly:   bool | *true
 }
 
 #ConfigMapMount: {
 	name:          string
 	configMapName: string | *name
 	mountPath:     string | *"/etc/\(#AppName)/\(name)"
+	readOnly:   bool | *true
+}
+
+#StorageMount: {
+	name:           string
+	mountPath:  string | *"/var/run/storage"
+	readOnly:   bool | *false
 }
 
 #ResourceQuantity: {
@@ -63,14 +71,15 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #Container: {
 	_secretMounts: [...#SecretMount]
 	_configMapMounts: [...#ConfigMapMount]
+	_storageMounts: [...#StorageMount]
 
 	image:           string
 	imagePullPolicy: "IfNotPresent" | "Never" | "Always"
 	args: [...string]
-	volumeMounts: [ for mount in _configMapMounts + _secretMounts {
+	volumeMounts: [ for mount in _configMapMounts + _secretMounts + _storageMounts {
 		name:      mount.name
 		mountPath: mount.mountPath
-		readOnly:  true
+		readOnly:  mount.readOnly
 	}]
 	resources?: #ResourceRequirements
 	readinessProbe?: {
@@ -83,6 +92,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #PodSpec: PodSpec={
 	_secretMounts: [...#SecretMount]
 	_configMapMounts: [...#ConfigMapMount]
+	_storageMounts: [...#StorageMount]
 	_container: #Container & {
 		_secretMounts:    PodSpec._secretMounts
 		_configMapMounts: PodSpec._configMapMounts
@@ -96,7 +106,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}] + [ for configVolume in _configMapMounts {
 		name: configVolume.name
 		configMap: name: configVolume.configMapName
-	}]
+	}] + [ for storageVolume in _storageMounts {
+        name: storageVolume.name
+    }]
 	serviceAccountName?: string
 	nodeSelector?: [_=string]: string
 	...
