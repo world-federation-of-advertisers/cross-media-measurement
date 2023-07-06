@@ -8,6 +8,8 @@ load("@wfa_rules_cue//cue:defs.bzl", "cue_library")
 load("//src/main/k8s:macros.bzl", "cue_dump")
 load("//build/k8s:defs.bzl", "kustomization_dir")
 
+SECRET_NAME = "certs-and-configs"
+
 cue_library(
     name = "base_gke",
     srcs = ["base_gke.cue"],
@@ -37,7 +39,7 @@ cue_dump(
     srcs = ["example_edp_daemon_gke.cue"],
     cue_tags = {
         "party_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_name,
-        "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_secret_name,
+        "secret_name": SECRET_NAME,
     },
     tags = ["manual"],
     deps = [
@@ -61,7 +63,7 @@ cue_dump(
     srcs = ["example_mp_daemon_gke.cue"],
     cue_tags = {
         "party_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_name,
-        "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_secret_name,
+        "secret_name": SECRET_NAME,
     },
     tags = ["manual"],
     deps = [":example_daemon_gke"],
@@ -82,7 +84,7 @@ cue_dump(
     srcs = ["example_edp_daemon_aws.cue"],
     cue_tags = {
         "party_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_name,
-        "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_secret_name,
+        "secret_name": SECRET_NAME,
     },
     tags = ["manual"],
     deps = [":example_daemon_aws"],
@@ -103,7 +105,7 @@ cue_dump(
     srcs = ["example_mp_daemon_aws.cue"],
     cue_tags = {
         "party_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_name,
-        "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_secret_name,
+        "secret_name": SECRET_NAME,
     },
     tags = ["manual"],
     deps = [":example_daemon_aws"],
@@ -117,28 +119,4 @@ kustomization_dir(
     ],
     generate_kustomization = True,
     tags = ["manual"],
-)
-
-ALL_IMAGE_ARCHIVES = [
-    image_spec.image + ".tar"
-    for image_spec in GCLOUD_IMAGES + AWS_IMAGES
-]
-
-filegroup(
-    name = "all_archives",
-    srcs = ALL_IMAGE_ARCHIVES,
-    tags = ["manual"],
-)
-
-filegroup(
-    name = "k8s_deployment_config",
-    srcs = [":example_daemon_from_cue_gke.yaml"],
-    data = [":all_archives"],
-    tags = ["manual"],
-    visibility = [":k8s_deployer"],
-)
-
-package_group(
-    name = "k8s_deployer",
-    packages = ["//src/main/kotlin/org/wfanet/panelmatch/tools/..."],
 )
