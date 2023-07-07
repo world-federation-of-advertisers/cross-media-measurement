@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Build and Push CMM Images
+name: Build and push container images
 
 on:
   workflow_dispatch:
@@ -26,20 +26,26 @@ jobs:
   push-images:
     runs-on: ubuntu-20.04
     outputs:
-      image-tag: ${{ steps.output-image-tag.outputs.image-tag }}
+      image-tag: ${{ steps.get-image-tag.outputs.image-tag }}
     env:
       CONTAINER_REGISTRY: ghcr.io
     steps:
       - uses: actions/checkout@v3
 
-      - name: Export image tag
-        run: ./.github/workflows/export-image-tag.sh
-
-      - name: Output image tag
-        id: output-image-tag
-        run: echo "image-tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+      - id: get-image-tag
+        name: Get image tag
+        run: |
+          declare image_tag
+          if [[ "$GITHUB_REF_TYPE" == 'tag' ]]; then
+            image_tag="${GITHUB_REF_NAME#v}"
+          else
+            image_tag="$GITHUB_SHA"
+          fi
+          echo "image-tag=${image_tag}" >> "$GITHUB_OUTPUT"
 
       - name: Write ~/.bazelrc
+        env:
+          IMAGE_TAG: ${{ steps.get-image-tag.outputs.image-tag }}
         run: |
           cat << EOF > ~/.bazelrc
           build -c opt 
@@ -70,5 +76,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
+      - name: Build images
+        run: >
+          bazelisk build
+          //src/main/docker:push_all_gke_images 
+          //src/main/docker/panel_exchange_client:push_all_images
+
       - name: Push images
-        run: bazelisk run //src/main/docker:push_all_gke_images
+        run: |
+          bazelisk run //src/main/docker:push_all_gke_images 
+          bazelisk run //src/main/docker/panel_exchange_client:push_all_images

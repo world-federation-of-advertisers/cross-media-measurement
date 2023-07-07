@@ -22,7 +22,6 @@
 #include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/synchronization/mutex.h"
 #include "wfa/measurement/common/crypto/ec_point_util.h"
 #include "wfa/measurement/common/crypto/protocol_cryptor.h"
 
@@ -39,20 +38,16 @@ class MultithreadingHelper {
       int num_threads, std::vector<std::unique_ptr<ProtocolCryptor>> cryptors)
       : num_threads_(num_threads), cryptors_(std::move(cryptors)) {}
 
-  // Create [ProtocolCryptor] for threads.
-  //
-  // [ProtocolCryptor] is not thread-safe as the underlying crypto library
-  // `private_join_and_compute` is not thread-safe. The mutex in
-  // [ProtocolCrytpor] is a precaution and will dramatically impact the
-  // parallelism. Per advise from team `private_join_and_compute`, using a
-  // vector of [ProtocolCryptor] is a suggested way. Note that, the
-  // ProtocolCryptors are only almost identical. Each of them has a different
-  // context that is initialized with a different random generator.
   static absl::StatusOr<std::vector<std::unique_ptr<ProtocolCryptor>>>
   CreateCryptors(int num, const ProtocolCryptorOptions& options);
 
   const int num_threads_;
   const std::vector<std::unique_ptr<ProtocolCryptor>> cryptors_;
+
+  void ExecuteCryptorTask(
+      size_t thread_index, size_t start_index, size_t count,
+      std::optional<absl::Status>& failure,
+      absl::AnyInvocable<absl::Status(ProtocolCryptor&, size_t)>& f);
 
  public:
   static absl::StatusOr<std::unique_ptr<MultithreadingHelper>>
@@ -78,10 +73,8 @@ class MultithreadingHelper {
       int num_iterations,
       absl::AnyInvocable<absl::Status(ProtocolCryptor&, size_t)>& f);
 
-  void ExecuteCryptorTask(
-      size_t thread_index, size_t start_index, size_t count,
-      std::optional<absl::Status>& failure,
-      absl::AnyInvocable<absl::Status(ProtocolCryptor&, size_t)>& f);
+  // Returns a reference to a protocol cryptor.
+  ProtocolCryptor& GetProtocolCryptor();
 };
 
 }  // namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2

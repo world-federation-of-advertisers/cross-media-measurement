@@ -53,6 +53,7 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.details
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
 import org.wfanet.measurement.internal.kingdom.batchCancelMeasurementsRequest
@@ -66,6 +67,7 @@ import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.measurement
+import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
@@ -1200,8 +1202,14 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           streamMeasurementsRequest.copy {
             filter =
               filter.copy {
-                updatedAfter = measurements[0].updateTime
-                externalMeasurementIdAfter = measurements[0].externalMeasurementId
+                after =
+                  StreamMeasurementsRequestKt.FilterKt.after {
+                    updateTime = measurements[0].updateTime
+                    measurement = measurementKey {
+                      externalMeasurementConsumerId = measurements[0].externalMeasurementConsumerId
+                      externalMeasurementId = measurements[0].externalMeasurementId
+                    }
+                  }
               }
           }
         )

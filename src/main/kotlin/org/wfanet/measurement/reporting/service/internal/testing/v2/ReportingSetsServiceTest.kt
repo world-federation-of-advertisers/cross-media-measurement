@@ -38,6 +38,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.Reportin
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
+import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
@@ -83,21 +84,25 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
 
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "2235"
               cmmsEventGroupId = "2236"
             }
         }
     }
 
-    val createdReportingSet = service.createReportingSet(reportingSet)
+    val createdReportingSet =
+      service.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = reportingSet
+          externalReportingSetId = "external-reporting-set-id"
+        }
+      )
 
     assertThat(createdReportingSet.weightedSubsetUnionsList)
       .containsExactly(
@@ -128,28 +133,31 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
 
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
 
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "2235"
               cmmsEventGroupId = "2236"
             }
         }
     }
 
-    val createdReportingSet = service.createReportingSet(reportingSet)
+    val createdReportingSet =
+      service.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = reportingSet
+          externalReportingSetId = "reporting-set-id"
+        }
+      )
 
     assertThat(createdReportingSet.weightedSubsetUnionsList)
       .containsExactly(
@@ -180,7 +188,6 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
@@ -196,15 +203,25 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
         }
     }
 
-    service.createReportingSet(reportingSet)
-    val createdReportingSet2 = service.createReportingSet(reportingSet2)
+    service.createReportingSet(
+      createReportingSetRequest {
+        this.reportingSet = reportingSet
+        externalReportingSetId = "reporting-set-id"
+      }
+    )
+    val createdReportingSet2 =
+      service.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = reportingSet2
+          externalReportingSetId = "reportingSetId2"
+        }
+      )
 
     assertThat(createdReportingSet2.externalReportingSetId).isNotEqualTo(0L)
   }
@@ -224,14 +241,19 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
         }
     }
 
-    val createdPrimitiveReportingSet = service.createReportingSet(primitiveReportingSet)
+    val createdPrimitiveReportingSet =
+      service.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = primitiveReportingSet
+          externalReportingSetId = "primitive-reporting-set-id"
+        }
+      )
 
     val compositeReportingSet = reportingSet {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -301,13 +323,19 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         }
     }
 
-    val createdReportingSet = service.createReportingSet(compositeReportingSet)
+    val createdReportingSet =
+      service.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = compositeReportingSet
+          externalReportingSetId = "composite-reporting-set-id"
+        }
+      )
 
     assertThat(createdReportingSet.externalReportingSetId).isNotEqualTo(0L)
   }
 
   @Test
-  fun `createReportingSet succeeds when ReportingSet contains another composite `() = runBlocking {
+  fun `createReportingSet succeeds when ReportingSet contains another composite`() = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
@@ -321,14 +349,19 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
         }
     }
 
-    val createdPrimitiveReportingSet = service.createReportingSet(primitiveReportingSet)
+    val createdPrimitiveReportingSet =
+      service.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = primitiveReportingSet
+          externalReportingSetId = "primitive-reporting-set-id"
+        }
+      )
 
     val innerCompositeReportingSet = reportingSet {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -362,7 +395,13 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         }
     }
 
-    val createdInnerCompositeReportingSet = service.createReportingSet(innerCompositeReportingSet)
+    val createdInnerCompositeReportingSet =
+      service.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = innerCompositeReportingSet
+          externalReportingSetId = "innerComposite-reporting-set-id"
+        }
+      )
 
     val innerCompositeReportingSet2 = reportingSet {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -396,7 +435,13 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         }
     }
 
-    val createdInnerCompositeReportingSet2 = service.createReportingSet(innerCompositeReportingSet2)
+    val createdInnerCompositeReportingSet2 =
+      service.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = innerCompositeReportingSet2
+          externalReportingSetId = "innerCompositeReportingSet2"
+        }
+      )
 
     val outerCompositeReportingSet = reportingSet {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -444,7 +489,13 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         }
     }
 
-    val createdOuterCompositeReportingSet = service.createReportingSet(outerCompositeReportingSet)
+    val createdOuterCompositeReportingSet =
+      service.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = outerCompositeReportingSet
+          externalReportingSetId = "outerComposite-reporting-set-id"
+        }
+      )
 
     assertThat(createdOuterCompositeReportingSet.externalReportingSetId).isNotEqualTo(0L)
   }
@@ -463,21 +514,25 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
 
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "2235"
               cmmsEventGroupId = "2236"
             }
         }
     }
 
-    val createdReportingSet = service.createReportingSet(reportingSet)
+    val createdReportingSet =
+      service.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = reportingSet
+          externalReportingSetId = "reporting-set-id"
+        }
+      )
 
     assertThat(createdReportingSet.weightedSubsetUnionsList)
       .containsExactly(
@@ -507,14 +562,19 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
         }
     }
 
-    val createdPrimitiveReportingSet = service.createReportingSet(primitiveReportingSet)
+    val createdPrimitiveReportingSet =
+      service.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = primitiveReportingSet
+          externalReportingSetId = "primitive-reporting-set-id"
+        }
+      )
 
     val compositeReportingSet = reportingSet {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -567,9 +627,91 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         }
     }
 
-    val createdReportingSet = service.createReportingSet(compositeReportingSet)
+    val createdReportingSet =
+      service.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = compositeReportingSet
+          externalReportingSetId = "composite-reporting-set-id"
+        }
+      )
 
     assertThat(createdReportingSet.externalReportingSetId).isNotEqualTo(0L)
+  }
+
+  @Test
+  fun `createReportingSet throws INVALID_ARGUMENT when request missing external ID`() =
+    runBlocking {
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+      )
+
+      val reportingSet = reportingSet {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        displayName = "displayName"
+        filter = "filter"
+
+        primitive =
+          ReportingSetKt.primitive {
+            eventGroupKeys +=
+              ReportingSetKt.PrimitiveKt.eventGroupKey {
+                cmmsDataProviderId = "1235"
+                cmmsEventGroupId = "1236"
+              }
+
+            eventGroupKeys +=
+              ReportingSetKt.PrimitiveKt.eventGroupKey {
+                cmmsDataProviderId = "2235"
+                cmmsEventGroupId = "2236"
+              }
+          }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createReportingSet(createReportingSetRequest { this.reportingSet = reportingSet })
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `createReportingSet throws ALREADY_EXISTS when the external ID exists`() = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    val reportingSet = reportingSet {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      displayName = "displayName"
+      filter = "filter"
+
+      primitive =
+        ReportingSetKt.primitive {
+          eventGroupKeys +=
+            ReportingSetKt.PrimitiveKt.eventGroupKey {
+              cmmsDataProviderId = "1235"
+              cmmsEventGroupId = "1236"
+            }
+        }
+    }
+
+    service.createReportingSet(
+      createReportingSetRequest {
+        this.reportingSet = reportingSet
+        externalReportingSetId = "reporting-set-id"
+      }
+    )
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.createReportingSet(
+          createReportingSetRequest {
+            this.reportingSet = reportingSet
+            externalReportingSetId = "reporting-set-id"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
   }
 
   @Test
@@ -587,7 +729,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.weightedSubsetUnion {
           primitiveReportingSetBases +=
             ReportingSetKt.primitiveReportingSetBasis {
-              externalReportingSetId = 123
+              externalReportingSetId = "123"
               filters += "filter1"
               filters += "filter2"
             }
@@ -596,7 +738,14 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> { service.createReportingSet(reportingSet) }
+      assertFailsWith<StatusRuntimeException> {
+        service.createReportingSet(
+          createReportingSetRequest {
+            this.reportingSet = reportingSet
+            externalReportingSetId = "reporting-set-id"
+          }
+        )
+      }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
@@ -616,14 +765,19 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
         }
     }
 
-    val createdPrimitiveReportingSet = service.createReportingSet(primitiveReportingSet)
+    val createdPrimitiveReportingSet =
+      service.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = primitiveReportingSet
+          externalReportingSetId = "primitive-reporting-set-id"
+        }
+      )
 
     val compositeReportingSet = reportingSet {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -658,7 +812,14 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> { service.createReportingSet(compositeReportingSet) }
+      assertFailsWith<StatusRuntimeException> {
+        service.createReportingSet(
+          createReportingSetRequest {
+            this.reportingSet = compositeReportingSet
+            externalReportingSetId = "composite-reporting-set-id"
+          }
+        )
+      }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
@@ -678,14 +839,19 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
         }
     }
 
-    val createdPrimitiveReportingSet = service.createReportingSet(primitiveReportingSet)
+    val createdPrimitiveReportingSet =
+      service.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = primitiveReportingSet
+          externalReportingSetId = "primitive-reporting-set-id"
+        }
+      )
 
     val compositeReportingSet = reportingSet {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -712,7 +878,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.weightedSubsetUnion {
           primitiveReportingSetBases +=
             ReportingSetKt.primitiveReportingSetBasis {
-              externalReportingSetId = 123
+              externalReportingSetId = "123"
               filters += "filter1"
               filters += "filter2"
             }
@@ -721,7 +887,14 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> { service.createReportingSet(compositeReportingSet) }
+      assertFailsWith<StatusRuntimeException> {
+        service.createReportingSet(
+          createReportingSetRequest {
+            this.reportingSet = compositeReportingSet
+            externalReportingSetId = "composite-reporting-set-id"
+          }
+        )
+      }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.message).contains("Reporting Set")
@@ -746,7 +919,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
               expression =
                 ReportingSetKt.setExpression {
                   operation = ReportingSet.SetExpression.Operation.DIFFERENCE
-                  lhs = ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = 123 }
+                  lhs = ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = "123" }
                 }
             }
         }
@@ -755,7 +928,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.weightedSubsetUnion {
           primitiveReportingSetBases +=
             ReportingSetKt.primitiveReportingSetBasis {
-              externalReportingSetId = 123
+              externalReportingSetId = "123"
               filters += "filter1"
               filters += "filter2"
             }
@@ -764,7 +937,14 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> { service.createReportingSet(compositeReportingSet) }
+      assertFailsWith<StatusRuntimeException> {
+        service.createReportingSet(
+          createReportingSetRequest {
+            this.reportingSet = compositeReportingSet
+            externalReportingSetId = "composite-reporting-set-id"
+          }
+        )
+      }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.message).contains("Reporting Set")
@@ -785,7 +965,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
               expression =
                 ReportingSetKt.setExpression {
                   operation = ReportingSet.SetExpression.Operation.DIFFERENCE
-                  lhs = ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = 123 }
+                  lhs = ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = "123" }
                 }
             }
         }
@@ -794,7 +974,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.weightedSubsetUnion {
           primitiveReportingSetBases +=
             ReportingSetKt.primitiveReportingSetBasis {
-              externalReportingSetId = 123
+              externalReportingSetId = "123"
               filters += "filter1"
               filters += "filter2"
             }
@@ -803,7 +983,14 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> { service.createReportingSet(compositeReportingSet) }
+      assertFailsWith<StatusRuntimeException> {
+        service.createReportingSet(
+          createReportingSetRequest {
+            this.reportingSet = compositeReportingSet
+            externalReportingSetId = "composite-reporting-set-id"
+          }
+        )
+      }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception.message).contains("Measurement Consumer")
@@ -824,21 +1011,25 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
 
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "2235"
               cmmsEventGroupId = "2236"
             }
         }
     }
 
-    val createdReportingSet = service.createReportingSet(reportingSet)
+    val createdReportingSet =
+      service.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = reportingSet
+          externalReportingSetId = "reporting-set-id"
+        }
+      )
 
     val retrievedReportingSets =
       service
@@ -883,14 +1074,19 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
         }
     }
 
-    val createdPrimitiveReportingSet = service.createReportingSet(primitiveReportingSet)
+    val createdPrimitiveReportingSet =
+      service.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = primitiveReportingSet
+          externalReportingSetId = "primitive-reporting-set-id"
+        }
+      )
 
     val compositeReportingSet = reportingSet {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -960,7 +1156,13 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         }
     }
 
-    val createdReportingSet = service.createReportingSet(compositeReportingSet)
+    val createdReportingSet =
+      service.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = compositeReportingSet
+          externalReportingSetId = "composite-reporting-set-id"
+        }
+      )
 
     val retrievedReportingSets =
       service
@@ -997,14 +1199,19 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
           ReportingSetKt.primitive {
             eventGroupKeys +=
               ReportingSetKt.PrimitiveKt.eventGroupKey {
-                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
                 cmmsDataProviderId = "1235"
                 cmmsEventGroupId = "1236"
               }
           }
       }
 
-      val createdPrimitiveReportingSet = service.createReportingSet(primitiveReportingSet)
+      val createdPrimitiveReportingSet =
+        service.createReportingSet(
+          createReportingSetRequest {
+            this.reportingSet = primitiveReportingSet
+            externalReportingSetId = "primitive-reporting-set-id"
+          }
+        )
 
       val compositeReportingSet = reportingSet {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -1074,7 +1281,13 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
           }
       }
 
-      val createdReportingSet = service.createReportingSet(compositeReportingSet)
+      val createdReportingSet =
+        service.createReportingSet(
+          createReportingSetRequest {
+            this.reportingSet = compositeReportingSet
+            externalReportingSetId = "composite-reporting-set-id"
+          }
+        )
 
       val retrievedReportingSets =
         service
@@ -1125,14 +1338,19 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
         }
     }
 
-    val createdPrimitiveReportingSet = service.createReportingSet(primitiveReportingSet)
+    val createdPrimitiveReportingSet =
+      service.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = primitiveReportingSet
+          externalReportingSetId = "primitive-reporting-set-id"
+        }
+      )
 
     val compositeReportingSet = reportingSet {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -1165,7 +1383,13 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         }
     }
 
-    val createdReportingSet = service.createReportingSet(compositeReportingSet)
+    val createdReportingSet =
+      service.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = compositeReportingSet
+          externalReportingSetId = "composite-reporting-set-id"
+        }
+      )
 
     val retrievedReportingSets =
       service
@@ -1201,14 +1425,19 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
           ReportingSetKt.primitive {
             eventGroupKeys +=
               ReportingSetKt.PrimitiveKt.eventGroupKey {
-                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
                 cmmsDataProviderId = "1235"
                 cmmsEventGroupId = "1236"
               }
           }
       }
 
-      val createdReportingSet = service.createReportingSet(primitiveReportingSet)
+      val createdReportingSet =
+        service.createReportingSet(
+          createReportingSetRequest {
+            this.reportingSet = primitiveReportingSet
+            externalReportingSetId = "primitive-reporting-set-id"
+          }
+        )
 
       val retrievedReportingSets =
         service
@@ -1244,14 +1473,19 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
         }
     }
 
-    val createdReportingSet = service.createReportingSet(reportingSet)
+    val createdReportingSet =
+      service.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = reportingSet
+          externalReportingSetId = "reporting-set-id"
+        }
+      )
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -1259,7 +1493,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
           batchGetReportingSetsRequest {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             externalReportingSetIds += createdReportingSet.externalReportingSetId
-            externalReportingSetIds += 1L
+            externalReportingSetIds += "1L"
           }
         )
       }
@@ -1279,7 +1513,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
           batchGetReportingSetsRequest {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             for (i in 1L..10000L) {
-              externalReportingSetIds += i
+              externalReportingSetIds += i.toString()
             }
           }
         )
@@ -1307,7 +1541,6 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
@@ -1323,15 +1556,25 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1237"
             }
         }
     }
 
-    val createdReportingSet = service.createReportingSet(reportingSet)
-    service.createReportingSet(reportingSet2)
+    val createdReportingSet =
+      service.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = reportingSet
+          externalReportingSetId = "reporting-set-id"
+        }
+      )
+    service.createReportingSet(
+      createReportingSetRequest {
+        this.reportingSet = reportingSet2
+        externalReportingSetId = "reportingSet2"
+      }
+    )
 
     val retrievedReportingSets =
       service
@@ -1378,14 +1621,12 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
 
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "2235"
               cmmsEventGroupId = "2236"
             }
@@ -1401,22 +1642,32 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
 
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "2235"
               cmmsEventGroupId = "2236"
             }
         }
     }
 
-    val createdReportingSet = service.createReportingSet(reportingSet)
-    val createdReportingSet2 = service.createReportingSet(reportingSet2)
+    val createdReportingSet =
+      service.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = reportingSet
+          externalReportingSetId = "reporting-set-id"
+        }
+      )
+    val createdReportingSet2 =
+      service.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = reportingSet2
+          externalReportingSetId = "reportingSet2"
+        }
+      )
 
     val afterId =
       minOf(createdReportingSet.externalReportingSetId, createdReportingSet2.externalReportingSetId)
@@ -1486,14 +1737,12 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
 
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "2235"
               cmmsEventGroupId = "2236"
             }
@@ -1509,22 +1758,32 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         ReportingSetKt.primitive {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
 
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "2235"
               cmmsEventGroupId = "2236"
             }
         }
     }
 
-    val createdReportingSet = service.createReportingSet(reportingSet)
-    val createdReportingSet2 = service.createReportingSet(reportingSet2)
+    val createdReportingSet =
+      service.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = reportingSet
+          externalReportingSetId = "reporting-set-id"
+        }
+      )
+    val createdReportingSet2 =
+      service.createReportingSet(
+        createReportingSetRequest {
+          this.reportingSet = reportingSet2
+          externalReportingSetId = "reportingSet2"
+        }
+      )
 
     val retrievedReportingSets =
       service

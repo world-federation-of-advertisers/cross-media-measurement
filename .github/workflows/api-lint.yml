@@ -1,0 +1,39 @@
+# Copyright 2023 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: API lint
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, edited]
+
+jobs:
+  lint:
+    name: API lint
+    runs-on: ubuntu-20.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: world-federation-of-advertisers/actions/setup-api-linter@v2
+      with:
+        version: 1.52.0
+        sha256: 89ec88aa07974e4476f1d5a1bb626b05a65cdc76b64c7e73e15ebb77ebdb9aaf
+
+    - env:
+        BAZEL: bazelisk
+      run: tools/api-lint wfa/measurement/system

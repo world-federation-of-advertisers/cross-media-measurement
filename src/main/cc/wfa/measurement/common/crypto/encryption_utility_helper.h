@@ -58,6 +58,14 @@ absl::StatusOr<KeyCountPairCipherText> ExtractKeyCountPairFromRegisters(
 absl::Status AppendEcPointPairToString(const ElGamalEcPointPair& ec_point_pair,
                                        std::string& result);
 
+// Writes bytes of a pair of EcPoint to a target string at a certain position.
+// Bytes are written by replacing content of the string starting at pos. The
+// length of bytes written is kBytesPerCipherText = kBytesPerEcPoint * 2.
+// Returns a Status with code `INVALID_ARGUMENT` when the result string is not
+// long enough.
+absl::Status WriteEcPointPairToString(const ElGamalEcPointPair& ec_point_pair,
+                                      size_t pos, std::string& result);
+
 // Returns the vector of ECPoints for count values from 1 to maximum_value.
 absl::StatusOr<std::vector<std::string>> GetCountValuesPlaintext(
     int maximum_value, int curve_id);

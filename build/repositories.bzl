@@ -27,8 +27,8 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_common_jvm",
         repo = "common-jvm",
-        sha256 = "79835398bc2a1365ecb6584066766fa8590a543cd13f9cecd969afe4e9b5c1da",
-        version = "0.56.0",
+        sha256 = "5c6e7fed4295aeda87bbe8b9bc85a2c0ab4190fc71a6596a7babd6880b730bec",
+        version = "0.59.0",
     )
 
     wfa_repo_archive(
@@ -41,8 +41,8 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_measurement_proto",
         repo = "cross-media-measurement-api",
-        sha256 = "e1738d74028be874e2ea4a3a7c9c2696f5aea60eb82c473771e8962cad838826",
-        version = "0.34.0",
+        sha256 = "8cb0e25bb0bcc2dae6d175613b6b8b827f6a48e15592399c9a5534a7b18b4d07",
+        version = "0.36.0",
     )
 
     wfa_repo_archive(
@@ -132,4 +132,32 @@ def wfa_measurement_system_repositories():
         sha256 = "0675f7f8300f659a23e7ea4b8be5b38726c173b506a4d25c4309e93b4f1616ae",
         strip_prefix = "grpc-gateway-2.15.2",
         urls = ["https://github.com/grpc-ecosystem/grpc-gateway/archive/refs/tags/v2.15.2.tar.gz"],
+    )
+
+    http_archive(
+        name = "aspect_rules_js",
+        sha256 = "dcd1567d4a93a8634ec0b888b371a60b93c18d980f77dace02eb176531a71fcf",
+        strip_prefix = "rules_js-1.26.0",
+        url = "https://github.com/aspect-build/rules_js/releases/download/v1.26.0/rules_js-v1.26.0.tar.gz",
+    )
+
+    http_archive(
+        name = "aspect_rules_ts",
+        sha256 = "ace5b609603d9b5b875d56c9c07182357c4ee495030f40dcefb10d443ba8c208",
+        strip_prefix = "rules_ts-1.4.0",
+        url = "https://github.com/aspect-build/rules_ts/releases/download/v1.4.0/rules_ts-v1.4.0.tar.gz",
+    )
+
+    http_archive(
+        name = "aspect_rules_jest",
+        sha256 = "d3bb833f74b8ad054e6bff5e41606ff10a62880cc99e4d480f4bdfa70add1ba7",
+        strip_prefix = "rules_jest-0.18.4",
+        url = "https://github.com/aspect-build/rules_jest/releases/download/v0.18.4/rules_jest-v0.18.4.tar.gz",
+    )
+
+    http_archive(
+        name = "aspect_rules_webpack",
+        sha256 = "78d05d9e87ee804accca80a4fec98a66f146b6058e915eae3d97190397ad12df",
+        strip_prefix = "rules_webpack-0.12.0",
+        url = "https://github.com/aspect-build/rules_webpack/releases/download/v0.12.0/rules_webpack-v0.12.0.tar.gz",
     )

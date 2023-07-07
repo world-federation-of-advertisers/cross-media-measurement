@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.system.v1alpha;
 
+import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/system/v1alpha/stage_attempt.proto";
@@ -24,19 +25,23 @@ option java_package = "org.wfanet.measurement.system.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ComputationParticipantProto";
 
+// A participant in a `Computation`.
 message ComputationParticipant {
   option (google.api.resource) = {
     type: "halo-system.wfanet.org/ComputationParticipant"
+    singular: "computationParticipant"
+    plural: "computationParticipants"
 
     // `duchy` is the Duchy ID from the public API.
     pattern: "computations/{computation}/participants/{duchy}"
   };
 
-  // Resource name. Output-only. Immutable.
+  // Resource name.
   string name = 1;
 
   // State that a `ComputationParticipant` can be in.
   enum State {
+    // Default value if state is omitted.
     STATE_UNSPECIFIED = 0;
 
     // The `ComputationParticipant` has been created.
@@ -47,6 +52,9 @@ message ComputationParticipant {
     REQUISITION_PARAMS_SET = 2;
 
     // The `ComputationParticipant` is ready to participate.
+    //
+    // (-- api-linter: core::0216::value-synonyms=disabled
+    //     aip.dev/not-precedent: This is not a synonym for ACTIVE. --)
     READY = 3;
 
     // A permanent error occurred in the `ComputationParticipant`. Terminal
@@ -55,37 +63,46 @@ message ComputationParticipant {
     // The parent `Computation` will be in the `FAILED` state.
     FAILED = 4;
   }
-  // State of this `ComputationParticipant`. Output-only.
-  State state = 2;
+  // State of this `ComputationParticipant`.
+  State state = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-  // Time this resource was last updated. Output-only.
-  google.protobuf.Timestamp update_time = 3;
+  // Time this resource was last updated.
+  google.protobuf.Timestamp update_time = 3
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 
+  // Participant parameters for a `Requisition`.
   message RequisitionParams {
     // Public API Resource name of the `DuchyCertificate`.
-    string duchy_certificate = 1
-        [(google.api.resource_reference).type = "halo.wfanet.org/Certificate"];
+    string duchy_certificate = 1 [
+      (google.api.resource_reference).type = "halo.wfanet.org/Certificate",
+      (google.api.field_behavior) = REQUIRED
+    ];
 
     // X.509 certificate in DER format which can be verified using the
-    // Duchy's root certificate. Output-only.
-    bytes duchy_certificate_der = 2;
+    // Duchy's root certificate.
+    bytes duchy_certificate_der = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
 
+    // Parameters for the Liquid Legions v2 protocol.
     message LiquidLegionsV2 {
       // Serialized `ElGamalPublicKey` message from public API.
-      bytes el_gamal_public_key = 1;
+      bytes el_gamal_public_key = 1 [(google.api.field_behavior) = REQUIRED];
       // Digital signature of `el_gamal_public_key` which can be verified using
       // `duchy_certificate`.
-      bytes el_gamal_public_key_signature = 2;
+      bytes el_gamal_public_key_signature = 2
+          [(google.api.field_behavior) = REQUIRED];
     }
 
+    // Protocol. Required.
     oneof protocol {
       // Requisition parameters for the Liquid Legions v2 protocol.
       LiquidLegionsV2 liquid_legions_v2 = 3;
     }
   }
   // Parameters needed for `Requisition` to be made available in public API.
-  RequisitionParams requisition_params = 4;
+  RequisitionParams requisition_params = 4
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 
+  // Information about a failure.
   message Failure {
     // ID of some child of the `ComputationParticipant` from an external system.
     //
@@ -102,6 +119,6 @@ message ComputationParticipant {
     // stage processing.
     StageAttempt stage_attempt = 4;
   }
-  // Information about a failure. Set when state is `FAILED`.
-  Failure failure = 5;
+  // Information about this participant's failure. Set when state is `FAILED`.
+  Failure failure = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
 }

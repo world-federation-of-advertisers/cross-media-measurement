@@ -3,7 +3,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 package(
     default_testonly = True,
     default_visibility = [
-        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting:__pkg__",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting:__subpackages__",
     ],
 )
 

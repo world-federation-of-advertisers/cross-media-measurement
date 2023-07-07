@@ -109,7 +109,7 @@ deployments: {
 			nodeSelector: "iam.gke.io/gke-metadata-server-enabled": "true"
 		}
 		_podSpec: _container: {
-			image:           #ContainerRegistryPrefix + "/example-panel-exchange-daemon"
+			image:           #ContainerRegistryPrefix + "/panel-exchange/gcloud-example-daemon"
 			imagePullPolicy: "Always"
 			args:            _exchangeDaemonConfig.args + [
 						"--cert-collection-file=/var/run/secrets/files/trusted_certs.pem",

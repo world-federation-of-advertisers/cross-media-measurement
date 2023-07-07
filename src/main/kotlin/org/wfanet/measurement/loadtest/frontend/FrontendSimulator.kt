@@ -43,8 +43,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
-import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
-import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
+import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
 import org.wfanet.measurement.api.v2alpha.Measurement.Failure
@@ -85,10 +84,10 @@ import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Compa
 import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
-import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -345,7 +344,7 @@ class FrontendSimulator(
         .take(maxDataProviders)
         .map { (dataProviderKey, eventGroups) ->
           val nonce = Random.Default.nextLong()
-          nonceHashes.add(hashSha256(nonce))
+          nonceHashes.add(Hashing.hashSha256(nonce))
           createDataProviderEntry(dataProviderKey, eventGroups, measurementConsumer, nonce)
         }
 
@@ -616,10 +615,7 @@ class FrontendSimulator(
   }
 
   private suspend fun listEventGroups(measurementConsumer: String): List<EventGroup> {
-    val request = listEventGroupsRequest {
-      parent = DATA_PROVIDER_WILDCARD
-      filter = ListEventGroupsRequestKt.filter { measurementConsumers += measurementConsumer }
-    }
+    val request = listEventGroupsRequest { parent = measurementConsumer }
     try {
       return eventGroupsClient
         .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
@@ -631,18 +627,17 @@ class FrontendSimulator(
   }
 
   private suspend fun listRequisitions(measurement: String): List<Requisition> {
-    val request = listRequisitionsRequest {
-      parent = DATA_PROVIDER_WILDCARD
-      filter = ListRequisitionsRequestKt.filter { this.measurement = measurement }
-    }
-    try {
-      return requisitionsClient
-        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-        .listRequisitions(request)
-        .requisitionsList
-    } catch (e: StatusException) {
-      throw Exception("Error listing requisitions for measurement $measurement", e)
-    }
+    val request = listRequisitionsRequest { parent = measurement }
+    val response: ListRequisitionsResponse =
+      try {
+        requisitionsClient
+          .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+          .listRequisitions(request)
+      } catch (e: StatusException) {
+        throw Exception("Error listing requisitions for measurement $measurement", e)
+      }
+
+    return response.requisitionsList
   }
 
   private fun extractDataProviderKey(eventGroupName: String): DataProviderKey {
@@ -692,7 +687,7 @@ class FrontendSimulator(
     }
     val signedRequisitionSpec =
       signRequisitionSpec(requisitionSpec, measurementConsumerData.signingKey)
-    return dataProvider.toDataProviderEntry(signedRequisitionSpec, hashSha256(nonce))
+    return dataProvider.toDataProviderEntry(signedRequisitionSpec, Hashing.hashSha256(nonce))
   }
 
   private fun DataProvider.toDataProviderEntry(
@@ -741,8 +736,6 @@ class FrontendSimulator(
   }
 
   companion object {
-    private const val DATA_PROVIDER_WILDCARD = "dataProviders/-"
-
     /**
      * Date range for events.
      *
