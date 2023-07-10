@@ -57,10 +57,12 @@ import org.wfanet.measurement.internal.kingdom.Measurement.View as InternalMeasu
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
+import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.createMeasurementRequest as internalCreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
+import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 
 private const val DEFAULT_PAGE_SIZE = 50
@@ -412,8 +414,14 @@ private fun ListMeasurementsPageToken.toStreamMeasurementsRequest(): StreamMeasu
       externalMeasurementConsumerId = source.externalMeasurementConsumerId
       states += source.statesList.map { it.toInternalState() }.flatten()
       if (source.hasLastMeasurement()) {
-        externalMeasurementIdAfter = source.lastMeasurement.externalMeasurementId
-        updatedAfter = source.lastMeasurement.updateTime
+        after =
+          StreamMeasurementsRequestKt.FilterKt.after {
+            updateTime = source.lastMeasurement.updateTime
+            measurement = measurementKey {
+              externalMeasurementConsumerId = source.externalMeasurementConsumerId
+              externalMeasurementId = source.lastMeasurement.externalMeasurementId
+            }
+          }
       }
     }
   }

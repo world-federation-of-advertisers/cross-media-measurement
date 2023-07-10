@@ -49,23 +49,13 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "LaplaceNoiserTest",
-    srcs = ["LaplaceNoiserTest.kt"],
-    test_class = "org.wfanet.measurement.loadtest.dataprovider.LaplaceNoiserTest",
+    name = "SyntheticDataGenerationTest",
+    srcs = ["SyntheticDataGenerationTest.kt"],
+    test_class = "org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGenerationTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:edp_simulator",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
-        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
-        "@wfa_common_jvm//imports/java/org/junit",
-    ],
-)
-
-kt_jvm_test(
-    name = "GaussianNoiserTest",
-    srcs = ["GaussianNoiserTest.kt"],
-    test_class = "org.wfanet.measurement.loadtest.dataprovider.GaussianNoiserTest",
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:edp_simulator",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_data_generation",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/junit",

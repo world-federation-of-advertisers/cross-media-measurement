@@ -16,28 +16,37 @@ syntax = "proto3";
 
 package wfa.measurement.system.v1alpha;
 
+import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 
 option java_package = "org.wfanet.measurement.system.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "RequisitionProto";
 
+// A requisition for data from a `DataProvider`.
 message Requisition {
   option (google.api.resource) = {
     type: "halo-system.wfanet.org/Requisition"
+    singular: "requisition"
+    plural: "requisitions"
     pattern: "computations/{computation}/requisitions/{requisition}"
   };
 
-  // Resource name. Output-only. Immutable.
+  // Resource name.
   string name = 1;
 
-  // SHA256 hash of encrypted `RequisitionSpec` from public API. Required.
-  // Immutable.
-  bytes requisition_spec_hash = 2;
+  // SHA256 hash of encrypted `RequisitionSpec` from public API.
+  bytes requisition_spec_hash = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
 
   // SHA256 hash of the `nonce` from the encrypted `RequisitionSpec` from the
-  // public API. Required. Immutable.
-  bytes nonce_hash = 3;
+  // public API.
+  bytes nonce_hash = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
 
   // State of a `Requisition`.
   enum State {
@@ -53,17 +62,21 @@ message Requisition {
     REFUSED = 3;
   }
   // The state of this `Requisition`.
-  State state = 4;
+  State state = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Resource name of the `ComputationParticipant` that marked this
-  // `Requisition` as `FULFILLED`. Output-only.
-  string fulfilling_computation_participant = 5
-      [(google.api.resource_reference).type =
-           "halo-system.wfanet.org/ComputationParticipant"];
+  // `Requisition` as `FULFILLED`.
+  string fulfilling_computation_participant = 5 [
+    (google.api.resource_reference).type =
+        "halo-system.wfanet.org/ComputationParticipant",
+    (google.api.field_behavior) = OUTPUT_ONLY
+  ];
 
   // `nonce` value from the encrypted `RequisitionSpec` from the public API.
-  // Output-only.
   //
   // Set when `state` is `FULFILLED`.
-  fixed64 nonce = 6;
+  //
+  // (-- api-linter: core::0141::forbidden-types=disabled
+  //     aip.dev/not-precedent: This is a random 64-bit value. --)
+  fixed64 nonce = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
 }

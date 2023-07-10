@@ -16,7 +16,7 @@ package org.wfanet.measurement.kingdom.service.system.v1alpha
 
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
-import org.wfanet.measurement.common.crypto.hashSha256
+import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant as InternalComputationParticipant
 import org.wfanet.measurement.internal.kingdom.DifferentialPrivacyParams as InternalDifferentialPrivacyParams
@@ -55,7 +55,7 @@ fun InternalRequisition.toSystemRequisition(): Requisition {
             externalIdToApiId(externalRequisitionId)
           )
           .toName()
-      it.requisitionSpecHash = hashSha256(details.encryptedRequisitionSpec)
+      it.requisitionSpecHash = Hashing.hashSha256(details.encryptedRequisitionSpec)
       it.nonceHash = details.nonceHash
       it.state = state.toSystemRequisitionState()
       it.nonce = details.nonce
@@ -224,7 +224,7 @@ fun buildMpcProtocolConfig(
             blindedHistogramNoise =
               duchyProtocolConfig.liquidLegionsV2.mpcNoise.blindedHistogramNoise
                 .toSystemDifferentialPrivacyParams()
-            noiseForPublisherNoise =
+            publisherNoise =
               duchyProtocolConfig.liquidLegionsV2.mpcNoise.noiseForPublisherNoise
                 .toSystemDifferentialPrivacyParams()
           }
