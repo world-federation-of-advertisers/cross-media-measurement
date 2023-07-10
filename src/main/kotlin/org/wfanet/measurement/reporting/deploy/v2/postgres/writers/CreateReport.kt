@@ -107,7 +107,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
           ExternalReportId,
           CreateReportRequestId,
           CreateTime,
-          IsPeriodic
+          Periodic
         )
         VALUES ($1, $2, $3, $4, $5, $6)
       """
