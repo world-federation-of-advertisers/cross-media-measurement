@@ -107,7 +107,7 @@ proto_library(
     strip_import_prefix = "/src/main/proto",
     deps = [
         ":liquid_legions_sketch_parameter_proto",
-	":liquid_legions_v2_encryption_methods_proto",
+        ":liquid_legions_v2_encryption_methods_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:crypto_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_noise_config_proto",
