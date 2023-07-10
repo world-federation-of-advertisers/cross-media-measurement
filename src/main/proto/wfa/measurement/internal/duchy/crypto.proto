@@ -59,3 +59,23 @@ message EncryptionPublicKey {
   // decrypt messages given a private key.
   bytes data = 2;
 }
+
+// Holds a Paillier Public Key.
+message PaillierPublicKey {
+  // Contains a serialized BigNum encoding the Paillier modulus n.
+  optional bytes n = 1;
+  // Contains the Damgard-Jurik exponent corresponding to this key. The Paillier
+  // modulus will be n^(s+1), and the message space will be n^s.
+  optional int32 s = 2;
+}
+
+// Holds a Paillier Private Key.
+message PaillierPrivateKey {
+  // p and q contain serialized BigNums, such that the Paillier modulus n=pq.
+  optional bytes p = 1;
+  optional bytes q = 2;
+
+  // Contains the Damgard-Jurik exponent corresponding to this key. The Paillier
+  // modulus will be n^(s+1), and the message space will be n^s.
+  optional int32 s = 3;
+}

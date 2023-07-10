@@ -1,0 +1,188 @@
+// Copyright 2020 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.duchy.protocol;
+
+import "wfa/measurement/internal/duchy/config/protocols_setup_config.proto";
+import "wfa/measurement/internal/duchy/crypto.proto";
+import "wfa/measurement/internal/duchy/protocol/liquid_legions_sketch_parameter.proto";
+import "wfa/measurement/internal/duchy/protocol/liquid_legions_v2_noise_config.proto";
+
+option java_package = "org.wfanet.measurement.internal.duchy.protocol";
+option java_multiple_files = true;
+
+// ReachOnlyLiquidLegionsSketchAggregationV2 (1-round MPC) protocol.
+message ReachOnlyLiquidLegionsSketchAggregationV2 {
+  enum Stage {
+    // The computation stage is unknown. This is never set intentionally.
+    STAGE_UNKNOWN = 0;
+
+    // The worker is in the initialization phase.
+    // More specifically, each worker will create a new ElGamal key pair solely
+    // used in this computation, and report the public key to the Kingdom.
+    INITIALIZATION_PHASE = 1;
+
+    // The computation is initialized locally. The worker is waiting for the
+    // list of local requisitions and the public ElGamal key set used in this
+    // computation from the Kingdom.
+    WAIT_REQUISITIONS_AND_KEY_SET = 2;
+
+    // The worker is in the confirmation phase.
+    // More specifically, the worker should confirm
+    //   1. All data providers' participation_signatures are valid.
+    //   2. All duchies' ElGamal public keys are valid.
+    //   3. All local fulfilled requisitions are available.
+    // After confirmation, the computation enters WAIT_SETUP_PHASE_INPUTS at the
+    // aggregator worker and WAIT_TO_START at non-aggregator workers.
+    CONFIRMATION_PHASE = 3;
+
+    // The computation is confirmed locally, and the non-aggregator worker is
+    // waiting for the signal from the kingdom to start the MPC protocol.
+    WAIT_TO_START = 4;
+
+    // The aggregator worker is waiting for other MPC workers' local combined
+    // register vector (CRV) to start working on the setup phase.
+    WAIT_SETUP_PHASE_INPUTS = 5;
+
+    // The worker is in the setup phase.
+    // More specifically, a non-aggregator worker will add noise to its local
+    // CRV, write the amount of noise that can be removed later to the database,
+    // and send the noised CRV to the aggregator. The aggregator worker
+    // will add noise to its local CRV, and then combine it together with CRVs
+    // received from all other non-aggregator workers and create a global CRV.
+    // The aggregator also samples a Paillier keypair, encrypts the amount of
+    // noise it can remove, appends the ciphertext and the public key to the
+    // global CRV.
+    SETUP_PHASE = 6;
+
+    // The worker is waiting to receive a copy of global CRV from the previous
+    // worker in the ring of workers to start working on the execution phase.
+    WAIT_EXECUTION_PHASE_INPUTS = 7;
+
+    // The worker is in the execution phase.
+    // More specifically, a non-aggregator worker will parse the input message
+    // to get the CRV, the Paillier ciphertext and the Paillier public key. It
+    // then re-encrypts its positional values, re-randomized all other field,
+    // shuffle the CRV. It retrieves the excessive noise from the database and
+    // adds it to the Paillier ciphertext, appends the new ciphertext and the
+    // public key to the CRV, and then passes the CRV to the next worker. The
+    // aggregator worker will parse the input message for the CRV and the
+    // ciphertext. It will re-encrypt the position values of the sketch and
+    // joins them based on their re-encrypted positional values. It then
+    // decrypts the ciphertext to get the amount of execessive noise to be
+    // removed from the register count obtained from the join.
+    EXECUTION_PHASE = 8;
+
+    // The computation is done the worker can remove BLOBs that are no longer
+    // needed.
+    COMPLETE = 9;
+  }
+
+  // Computation details specific to the Reach Only LiquidLegions V2 protocol.
+  message ComputationDetails {
+    // The duchy's role in the computation.
+    org.wfa.measurement.config.LiquidLegionsV2SetupConfig.RoleInComputation
+        role = 1;
+
+    // Parameters used in this computation.
+    message Parameters {
+      // Parameters used for liquidLegions sketch creation and estimation.
+      LiquidLegionsSketchParameters liquid_legions_sketch = 1;
+      // Noise parameters selected for the LiquidLegionV2 MPC protocol.
+      LiquidLegionsV2NoiseConfig noise = 2;
+      // ID of the OpenSSL built-in elliptic curve. For example, 415 for the
+      // prime256v1 curve. Required. Immutable.
+      int32 elliptic_curve_id = 3;
+    }
+    Parameters parameters = 2;
+
+    message ComputationParticipant {
+      // Name of the duchy who owns the key.
+      string duchy_id = 1;
+      // The ElGamal public key.
+      ElGamalPublicKey public_key = 2;
+      // Serialized `ElGamalPublicKey` message from public API.
+      // For consent signaling verification only.
+      bytes el_gamal_public_key = 3;
+      // Cryptographic digital signature of `el_gamal_public_key`.
+      // For consent signaling verification only.
+      bytes el_gamal_public_key_signature = 4;
+      // The duchy's X.509 certificate in DER format which can used to verify
+      // the above el_gamal_public_key_signature
+      bytes duchy_certificate_der = 5;
+    }
+    // The list of duchies participating in this computation.
+    // The list is sorted by the duchy order in the MPC ring, with the first
+    // element being the first non-aggregator and the last element being the
+    // aggregator.
+    repeated ComputationParticipant participant = 3;
+
+    message ReachEstimate {
+      int64 reach = 1;
+    }
+    // The cached reach estimation result.
+    // The reach value is calculated as part of the reach estimation phase by
+    // the aggregator. It is only set at the aggregator and is not shared with
+    // non-aggregator nodes. The value will be included in the result for the
+    // computation.
+    ReachEstimate reach_estimate = 4;
+
+    // The Elgamal public key combined from all duchy participants' public keys.
+    ElGamalPublicKey combined_public_key = 5;
+
+    // The Elgamal public key combined from the public keys of the duchies after
+    // this duchy in the ring and the aggregator duchy.
+    ElGamalPublicKey partially_combined_public_key = 6;
+
+    // The local elgamal key used in this computation.
+    // TODO(wangyaopw): delete this field when we switch to use a secure key
+    // store for duchy private keys.
+    ElGamalKeyPair local_elgamal_key = 7;
+
+    // Paillier Private Key used to decrypt the total excessive noise to be
+    // removed from the register count in the execution phase.
+    // TODO(lephi): delete this field when we switch to use a secure key
+    // store for duchy private keys. Only the aggregator samples and stores this
+    // key.
+    PaillierPrivateKey local_paillier_key = 8;
+
+    // Noise to be removed.
+    int64 excess_noise = 9;
+  }
+
+  // Details about a particular attempt of running a stage of the LiquidLegionV2
+  // Protocol.
+  message StageDetails {
+    oneof detail {
+      // Details specific to the WAIT_SETUP_PHASE_INPUTS stage.
+      WaitSetupPhaseInputsDetails wait_setup_phase_inputs_details = 1;
+    }
+  }
+
+  // The WAIT_SETUP_PHASE_INPUTS stage has a bootstrapping step where it
+  // requires input from all other duchies before it can move forward. The
+  // bookkeeping of which duchy has provided is stored in this message.
+  message WaitSetupPhaseInputsDetails {
+    // A mapping of the name of a duchy to the BlobId corresponding to the
+    // ComputationBlobDependency.OUTPUT BLOB where it will be written.
+    //
+    // Upon receiving a sketch from a duchy the OUTPUT reference with the id
+    // found in this map is updated with the local copy of the blob. When all
+    // the output references have a path the worker can move onto the next
+    // stage.
+    map<string, int64> external_duchy_local_blob_id = 1;
+  }
+}
