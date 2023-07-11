@@ -1,4 +1,4 @@
-// Copyright 2020 The Cross-Media Measurement Authors
+// Copyright 2023 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ option java_multiple_files = true;
 message ReachOnlyLiquidLegionsSketchAggregationV2 {
   enum Stage {
     // The computation stage is unknown. This is never set intentionally.
-    STAGE_UNKNOWN = 0;
+    STAGE_UNSPECIFIED = 0;
 
     // The worker is in the initialization phase.
     // More specifically, each worker will create a new ElGamal key pair solely
@@ -87,7 +87,7 @@ message ReachOnlyLiquidLegionsSketchAggregationV2 {
     EXECUTION_PHASE = 8;
 
     // The computation is done the worker can remove BLOBs that are no longer
-    // needed.
+    // needed and zero out the excessive noise stored in the database.
     COMPLETE = 9;
   }
 

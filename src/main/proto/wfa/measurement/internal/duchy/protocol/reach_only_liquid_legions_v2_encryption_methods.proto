@@ -1,4 +1,4 @@
-// Copyright 2020 The Cross-Media Measurement Authors
+// Copyright 2023 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -124,13 +124,11 @@ message CompleteReachOnlyExecutionPhaseResponse {
   // bytes ElGamal ciphertext. In other words, the CRV size should be divisible
   // by 66.
   bytes combined_register_vector = 1;
-  // The Paillier public key.
-  PaillierPublicKey paillier_public_key = 2;
   // The serialized Paillier ciphertext that encrypts the aggregated excessive
   // noise.
-  bytes serialized_aggregated_noise_ciphertext = 3;
+  bytes serialized_aggregated_noise_ciphertext = 2;
   // The CPU time of processing the request.
-  int64 elapsed_cpu_time_millis = 4;
+  int64 elapsed_cpu_time_millis = 3;
 }
 
 // The request to complete work in the execution phase one at the aggregator
