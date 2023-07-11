@@ -56,12 +56,11 @@ import org.wfanet.measurement.api.v2alpha.ModelShardKt.modelBlob
 import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
-import org.wfanet.measurement.api.v2alpha.ProtocolConfig.Direct
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
-import org.wfanet.measurement.api.v2alpha.ProtocolConfigKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.protocol
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.exchange
 import org.wfanet.measurement.api.v2alpha.exchangeStep
@@ -80,7 +79,6 @@ import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toLocalDate
-import org.wfanet.measurement.config.MeasurementTypeToProtocolMap
 import org.wfanet.measurement.internal.kingdom.DifferentialPrivacyParams as InternalDifferentialPrivacyParams
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
 import org.wfanet.measurement.internal.kingdom.Exchange as InternalExchange
@@ -111,10 +109,7 @@ import org.wfanet.measurement.internal.kingdom.modelRollout as internalModelRoll
 import org.wfanet.measurement.internal.kingdom.modelShard as internalModelShard
 import org.wfanet.measurement.internal.kingdom.modelSuite as internalModelSuite
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
-import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.reachOnlyLiquidLegionsV2
-import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
-import org.wfanet.measurement.kingdom.deploy.common.MeasurementTypeToProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Rollv2ProtocolConfig
 
 /** Converts an internal [InternalMeasurement.State] to a public [State]. */
@@ -255,14 +250,15 @@ fun InternalProtocolConfig.toProtocolConfig(
                   }
                   if (source.reachOnlyLiquidLegionsV2.hasDataProviderNoise()) {
                     dataProviderNoise =
-                      source.reachOnlyLiquidLegionsV2.dataProviderNoise.toDifferentialPrivacyParams()
+                      source.reachOnlyLiquidLegionsV2.dataProviderNoise
+                        .toDifferentialPrivacyParams()
                   }
                   ellipticCurveId = source.reachOnlyLiquidLegionsV2.ellipticCurveId
                   // Use `GEOMETRIC` for unspecified InternalNoiseMechanism for old Measurements.
                   noiseMechanism =
                     if (
                       source.reachOnlyLiquidLegionsV2.noiseMechanism ==
-                      InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED
+                        InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED
                     ) {
                       NoiseMechanism.GEOMETRIC
                     } else {
@@ -646,57 +642,6 @@ fun Map.Entry<Long, DataProviderValue>.toDataProviderEntry(): DataProviderEntry 
 }
 
 /**
- * Converts a [MeasurementSpec.MeasurementTypeCase] into
- * [MeasurementTypeToProtocolMap.MeasurementType].
- */
-fun MeasurementSpec.MeasurementTypeCase.toConfigMeasurementType(): MeasurementTypeToProtocolMap.MeasurementType {
-  return when (this) {
-    MeasurementSpec.MeasurementTypeCase.REACH -> MeasurementTypeToProtocolMap.MeasurementType.REACH
-    MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> MeasurementTypeToProtocolMap.MeasurementType.REACH_AND_FREQUENCY
-    MeasurementSpec.MeasurementTypeCase.DURATION,
-    MeasurementSpec.MeasurementTypeCase.IMPRESSION,
-    MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
-      error("Measurement type is not supported by protocols.")
-  }
-}
-
-/** Converts a [MeasurementTypeToProtocolMap.Protocol] to a internal [InternalProtocolConfig]. */
-fun MeasurementTypeToProtocolMap.Protocol.toInternalProtocolConfig(): InternalProtocolConfig {
-  return when (this) {
-    MeasurementTypeToProtocolMap.Protocol.LIQUID_LEGIONS_V2 ->
-      internalProtocolConfig {
-        externalProtocolConfigId = Llv2ProtocolConfig.name
-        liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
-      }
-    MeasurementTypeToProtocolMap.Protocol.REACH_ONLY_LIQUID_LEGIONS_V2 ->
-      internalProtocolConfig {
-        externalProtocolConfigId = Rollv2ProtocolConfig.name
-        reachOnlyLiquidLegionsV2 = Rollv2ProtocolConfig.protocolConfig
-      }
-    MeasurementTypeToProtocolMap.Protocol.PROTOCOL_UNSPECIFIED,
-    MeasurementTypeToProtocolMap.Protocol.UNRECOGNIZED ->
-      error("MeasurementType not set.")
-  }
-}
-
-/** Converts a [MeasurementTypeToProtocolMap.Protocol] to a [DuchyProtocolConfig]. */
-fun MeasurementTypeToProtocolMap.Protocol.toDuchyProtocolConfig(): DuchyProtocolConfig {
-  return when (this) {
-    MeasurementTypeToProtocolMap.Protocol.LIQUID_LEGIONS_V2 ->
-      duchyProtocolConfig {
-        liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig
-      }
-    MeasurementTypeToProtocolMap.Protocol.REACH_ONLY_LIQUID_LEGIONS_V2 ->
-      duchyProtocolConfig {
-         reachOnlyLiquidLegionsV2 = Rollv2ProtocolConfig.duchyProtocolConfig
-      }
-    MeasurementTypeToProtocolMap.Protocol.PROTOCOL_UNSPECIFIED,
-    MeasurementTypeToProtocolMap.Protocol.UNRECOGNIZED ->
-      error("MeasurementType not set.")
-  }
-}
-
-/**
  * Converts a public [Measurement] to an internal [InternalMeasurement] for creation.
  *
  * @throws [IllegalStateException] if MeasurementType not specified
@@ -722,15 +667,36 @@ fun Measurement.toInternal(
 
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (measurementSpecProto.measurementTypeCase) {
-        MeasurementSpec.MeasurementTypeCase.REACH,
+        MeasurementSpec.MeasurementTypeCase.REACH -> {
+          if (dataProvidersCount > 1) {
+            if (Rollv2ProtocolConfig.enabled) {
+              protocolConfig = internalProtocolConfig {
+                externalProtocolConfigId = Rollv2ProtocolConfig.name
+                reachOnlyLiquidLegionsV2 = Rollv2ProtocolConfig.protocolConfig
+              }
+              duchyProtocolConfig = duchyProtocolConfig {
+                reachOnlyLiquidLegionsV2 = Rollv2ProtocolConfig.duchyProtocolConfig
+              }
+            } else {
+              protocolConfig = internalProtocolConfig {
+                externalProtocolConfigId = Llv2ProtocolConfig.name
+                liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
+              }
+              duchyProtocolConfig = duchyProtocolConfig {
+                liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig
+              }
+            }
+          }
+        }
         MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
           if (dataProvidersCount > 1) {
-            val protocol =
-              MeasurementTypeToProtocolConfig.getProtocol(
-                measurementSpecProto.measurementTypeCase.toConfigMeasurementType()
-              )
-            protocolConfig = protocol.toInternalProtocolConfig()
-            duchyProtocolConfig = protocol.toDuchyProtocolConfig()
+            protocolConfig = internalProtocolConfig {
+              externalProtocolConfigId = Llv2ProtocolConfig.name
+              liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
+            }
+            duchyProtocolConfig = duchyProtocolConfig {
+              liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig
+            }
           }
         }
         MeasurementSpec.MeasurementTypeCase.IMPRESSION,

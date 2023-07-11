@@ -17,9 +17,6 @@ package org.wfanet.measurement.kingdom.deploy.common
 import java.io.File
 import kotlin.properties.Delegates
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.config.MeasurementTypeToProtocolMap
-import org.wfanet.measurement.config.MeasurementTypeToProtocolMap.MeasurementType
-import org.wfanet.measurement.config.MeasurementTypeToProtocolMap.Protocol
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigs
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
@@ -77,6 +74,9 @@ class Llv2ProtocolConfigFlags {
 }
 
 object Rollv2ProtocolConfig {
+  var enabled: Boolean by Delegates.notNull()
+    private set
+
   const val name = "rollv2"
   lateinit var protocolConfig: ProtocolConfig.LiquidLegionsV2
     private set
@@ -98,14 +98,18 @@ object Rollv2ProtocolConfig {
     duchyProtocolConfig = configMessage.duchyProtocolConfig
     requiredExternalDuchyIds = configMessage.requiredExternalDuchyIdsList.toSet()
     minimumNumberOfRequiredDuchies = configMessage.minimumDuchyParticipantCount
+    enabled = flags.enableRollv2Protocol
   }
 
   fun setForTest(
     protocolConfig: ProtocolConfig.LiquidLegionsV2,
     duchyProtocolConfig: DuchyProtocolConfig.LiquidLegionsV2,
     requiredExternalDuchyIds: Set<String>,
-    minimumNumberOfRequiredDuchies: Int
+    minimumNumberOfRequiredDuchies: Int,
+    enabled: Boolean,
   ) {
+    Rollv2ProtocolConfig.enabled = enabled
+
     require(!Rollv2ProtocolConfig::protocolConfig.isInitialized)
     require(!Rollv2ProtocolConfig::duchyProtocolConfig.isInitialized)
     require(!Rollv2ProtocolConfig::requiredExternalDuchyIds.isInitialized)
@@ -124,39 +128,12 @@ class Rollv2ProtocolConfigFlags {
   )
   lateinit var config: File
     private set
-}
 
-object MeasurementTypeToProtocolConfig {
-  private lateinit var measurementTypeToProtocolMap: Map<MeasurementType, Protocol>
-
-  fun initializeFromFlags(flags: MeasurementTypeToProtocolConfigFlags) {
-    require(!MeasurementTypeToProtocolConfig::measurementTypeToProtocolMap.isInitialized)
-
-    val configMessage =
-      flags.config.reader().use {
-        parseTextProto(it, MeasurementTypeToProtocolMap.getDefaultInstance())
-      }
-
-    measurementTypeToProtocolMap =
-      configMessage.entriesList.associate { it.measurementType to it.protocol }
-  }
-
-  fun getProtocol(measurementType: MeasurementType): Protocol {
-    return measurementTypeToProtocolMap[measurementType] ?: Protocol.PROTOCOL_UNSPECIFIED
-  }
-
-  fun setForTest(measurementTypeToProtocolMap: Map<MeasurementType, Protocol>) {
-    require(!MeasurementTypeToProtocolConfig::measurementTypeToProtocolMap.isInitialized)
-    MeasurementTypeToProtocolConfig.measurementTypeToProtocolMap = measurementTypeToProtocolMap
-  }
-}
-
-class MeasurementTypeToProtocolConfigFlags {
   @CommandLine.Option(
-    names = ["--measurement-type-to-protocol-config"],
-    description = [""],
-    required = true
+    names = ["--enable-rollv2-protocol"],
+    description = ["Determine whether enable reach-only liquid legions v2 protocol."],
+    required = false
   )
-  lateinit var config: File
+  var enableRollv2Protocol: Boolean = false
     private set
 }

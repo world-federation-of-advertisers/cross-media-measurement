@@ -39,23 +39,3 @@ kt_jvm_proto_library(
     srcs = [":authority_key_to_principal_map_proto"],
     deps = [":authority_key_to_principal_map_java_proto"],
 )
-
-proto_library(
-    name = "measurement_type_to_protocol_map_proto",
-    srcs = ["measurement_type_to_protocol_map.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_proto",
-    ],
-)
-
-java_proto_library(
-    name = "measurement_type_to_protocol_map_java_proto",
-    deps = [":measurement_type_to_protocol_map_proto"],
-)
-
-kt_jvm_proto_library(
-    name = "measurement_type_to_protocol_map_kt_jvm_proto",
-    srcs = [":measurement_type_to_protocol_map_proto"],
-    deps = [":measurement_type_to_protocol_map_java_proto"],
-)

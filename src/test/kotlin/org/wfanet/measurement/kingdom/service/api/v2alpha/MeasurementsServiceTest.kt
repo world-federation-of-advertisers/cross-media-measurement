@@ -89,8 +89,6 @@ import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.config.MeasurementTypeToProtocolMap.MeasurementType as ConfigMeasurementType
-import org.wfanet.measurement.config.MeasurementTypeToProtocolMap.Protocol as ConfigProtocol
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.State as InternalState
@@ -113,7 +111,6 @@ import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
-import org.wfanet.measurement.kingdom.deploy.common.MeasurementTypeToProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Rollv2ProtocolConfig
 
 private const val DEFAULT_LIMIT = 50
@@ -1667,13 +1664,8 @@ class MeasurementsServiceTest {
         ROLLV2_INTERNAL_PROTOCOL_CONFIG.reachOnlyLiquidLegionsV2,
         ROLLV2_DUCHY_PROTOCOL_CONFIG.reachOnlyLiquidLegionsV2,
         setOf("aggregator"),
-        2
-      )
-      MeasurementTypeToProtocolConfig.setForTest(
-        mapOf(
-          ConfigMeasurementType.REACH_AND_FREQUENCY to ConfigProtocol.LIQUID_LEGIONS_V2,
-          ConfigMeasurementType.REACH to ConfigProtocol.REACH_ONLY_LIQUID_LEGIONS_V2
-        )
+        2,
+        true
       )
     }
 
