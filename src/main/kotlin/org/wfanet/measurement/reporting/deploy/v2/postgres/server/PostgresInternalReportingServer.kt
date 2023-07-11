@@ -28,7 +28,7 @@ import picocli.CommandLine
 
 /** Implementation of [InternalReportingServer] using Postgres. */
 @CommandLine.Command(
-  name = "PostgresReportingDataServer",
+  name = "PostgresInternalReportingServer",
   description = ["Start the internal Reporting data-layer services in a single blocking server."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
