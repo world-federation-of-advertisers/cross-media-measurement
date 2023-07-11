@@ -29,12 +29,12 @@ import picocli.CommandLine
 
 /** Implementation of [InternalReportingServer] using Google Cloud Postgres. */
 @CommandLine.Command(
-  name = "GCloudPostgresReportingDataServer",
+  name = "GCloudPostgresInternalReportingServer",
   description = ["Start the internal Reporting data-layer services in a single blocking server."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-class GCloudPostgresReportingDataServer : InternalReportingServer() {
+class GCloudPostgresInternalReportingServer : InternalReportingServer() {
   @CommandLine.Mixin private lateinit var gCloudPostgresFlags: GCloudPostgresFlags
 
   override fun run() = runBlocking {
@@ -48,4 +48,4 @@ class GCloudPostgresReportingDataServer : InternalReportingServer() {
   }
 }
 
-fun main(args: Array<String>) = commandLineMain(GCloudPostgresReportingDataServer(), args)
+fun main(args: Array<String>) = commandLineMain(GCloudPostgresInternalReportingServer(), args)
