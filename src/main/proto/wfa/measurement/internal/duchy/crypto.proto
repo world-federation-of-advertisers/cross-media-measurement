@@ -62,7 +62,8 @@ message EncryptionPublicKey {
 
 // Holds a Paillier Public Key.
 message PaillierPublicKey {
-  // Contains a serialized BigNum encoding the Paillier modulus n.
+  // Contains a serialized private_join_and_compute::BigNum encoding the
+  // Paillier modulus n.
   optional bytes n = 1;
   // Contains the Damgard-Jurik exponent corresponding to this key. The Paillier
   // modulus will be n^(s+1), and the message space will be n^s.
@@ -71,8 +72,12 @@ message PaillierPublicKey {
 
 // Holds a Paillier Private Key.
 message PaillierPrivateKey {
-  // p and q contain serialized BigNums, such that the Paillier modulus n=pq.
+  // Contains a serialized private_join_and_compute::BigNum encoding of one of
+  // the two large prime factors of the Paillier modulus n.
   optional bytes p = 1;
+
+  // Contains a serialized private_join_and_compute::BigNum encoding of one of
+  // the two large prime factors of the Paillier modulus n.
   optional bytes q = 2;
 
   // Contains the Damgard-Jurik exponent corresponding to this key. The Paillier
