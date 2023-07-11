@@ -16,17 +16,12 @@ package org.wfanet.measurement.duchy.deploy.postgres.server
 
 import java.time.Clock
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.db.postgres.PostgresFlags
+
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
-import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
-import org.wfanet.measurement.duchy.db.computation.ComputationTypes
 import org.wfanet.measurement.duchy.deploy.common.server.DuchyDataServer
-import org.wfanet.measurement.duchy.deploy.common.server.postgres.PostgresServices
-import org.wfanet.measurement.duchy.storage.ComputationStore
-import org.wfanet.measurement.duchy.storage.RequisitionStore
+import org.wfanet.measurement.duchy.deploy.common.service.PostgresDuchyDataServices
+import org.wfanet.measurement.common.db.postgres.PostgresFlags
 import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
 
@@ -48,16 +43,12 @@ abstract class PostgresDuchyDataServer : DuchyDataServer() {
     val client = PostgresDatabaseClient.fromFlags(postgresFlags)
 
     run(
-      PostgresServices.create(
-        computationTypeEnumHelper = ComputationTypes,
-        protocolStagesEnumHelper = ComputationProtocolStages,
-        computationProtocolStageDetailsHelper = ComputationProtocolStageDetails,
-        computationStorageClient = ComputationStore(storageClient),
-        requisitionStorageClient = RequisitionStore(storageClient),
-        computationLogEntriesClient = computationLogEntriesClient,
-        duchyName = "PostgresDuchy",
-        client = client,
-        idGenerator = idGenerator,
+      PostgresDuchyDataServices.create(
+        storageClient,
+        computationLogEntriesClient,
+        duchyFlags.duchyName,
+        idGenerator,
+        client
       )
     )
   }
