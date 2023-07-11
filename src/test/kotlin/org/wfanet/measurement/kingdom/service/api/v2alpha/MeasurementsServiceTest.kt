@@ -19,7 +19,6 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
-import com.google.protobuf.Descriptors
 import com.google.protobuf.Timestamp
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -63,6 +62,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
@@ -89,6 +89,8 @@ import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.config.MeasurementTypeToProtocolMap.MeasurementType as ConfigMeasurementType
+import org.wfanet.measurement.config.MeasurementTypeToProtocolMap.Protocol as ConfigProtocol
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.State as InternalState
@@ -111,6 +113,8 @@ import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.MeasurementTypeToProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.Rollv2ProtocolConfig
 
 private const val DEFAULT_LIMIT = 50
 private const val DATA_PROVIDERS_CERTIFICATE_NAME =
@@ -243,16 +247,16 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `createMeasurement returns created measurement`() {
+  fun `createMeasurement with REACH_AND_FREQUENCY type and multiple EDPs`() {
+    val measurement =
+      MEASUREMENT.copy {
+        clearFailure()
+        results.clear()
+        clearProtocolConfig()
+      }
     val request = createMeasurementRequest {
       parent = MEASUREMENT_CONSUMER_NAME
-      measurement =
-        MEASUREMENT.copy {
-          // This should be ignored.
-          protocolConfig = protocolConfig {
-            measurementType = ProtocolConfig.MeasurementType.IMPRESSION
-          }
-        }
+      this.measurement = measurement
       requestId = "foo"
     }
     val internalMeasurement =
@@ -283,12 +287,62 @@ class MeasurementsServiceTest {
       )
       .isEqualTo(
         internalCreateMeasurementRequest {
-          measurement =
+          this.measurement =
             internalMeasurement.copy {
               clearExternalMeasurementId()
               clearUpdateTime()
             }
           requestId = request.requestId
+        }
+      )
+  }
+
+  @Test
+  fun `createMeasurement with REACH type and multiple EDPs`() {
+    val measurement =
+      REACH_ONLY_MEASUREMENT.copy {
+        clearFailure()
+        results.clear()
+        clearProtocolConfig()
+      }
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      this.measurement = measurement
+    }
+    val internalMeasurement =
+      REACH_ONLY_INTERNAL_MEASUREMENT.copy {
+        results.clear()
+        details = details.copy { clearFailure() }
+      }
+    internalMeasurementsMock.stub {
+      onBlocking { createMeasurement(any()) }.thenReturn(internalMeasurement)
+    }
+
+    val response: Measurement =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.createMeasurement(request) }
+      }
+
+    assertThat(response)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        REACH_ONLY_MEASUREMENT.copy {
+          clearFailure()
+          results.clear()
+        }
+      )
+
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
+      )
+      .isEqualTo(
+        internalCreateMeasurementRequest {
+          this.measurement =
+            internalMeasurement.copy {
+              clearExternalMeasurementId()
+              clearUpdateTime()
+            }
         }
       )
   }
@@ -356,10 +410,7 @@ class MeasurementsServiceTest {
         runBlocking { service.createMeasurement(request) }
       }
 
-    assertThat(response)
-      .ignoringRepeatedFieldOrder()
-      .ignoringFieldDescriptors(PROTOCOL_CONFIG_NAME_FIELD_DESCRIPTOR)
-      .isEqualTo(measurement)
+    assertThat(response).ignoringRepeatedFieldOrder().isEqualTo(measurement)
     verifyProtoArgument(
         internalMeasurementsMock,
         MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
@@ -436,10 +487,7 @@ class MeasurementsServiceTest {
         runBlocking { service.createMeasurement(request) }
       }
 
-    assertThat(response)
-      .ignoringRepeatedFieldOrder()
-      .ignoringFieldDescriptors(PROTOCOL_CONFIG_NAME_FIELD_DESCRIPTOR)
-      .isEqualTo(measurement)
+    assertThat(response).ignoringRepeatedFieldOrder().isEqualTo(measurement)
     verifyProtoArgument(
         internalMeasurementsMock,
         MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
@@ -516,10 +564,7 @@ class MeasurementsServiceTest {
         runBlocking { service.createMeasurement(request) }
       }
 
-    assertThat(response)
-      .ignoringRepeatedFieldOrder()
-      .ignoringFieldDescriptors(PROTOCOL_CONFIG_NAME_FIELD_DESCRIPTOR)
-      .isEqualTo(measurement)
+    assertThat(response).ignoringRepeatedFieldOrder().isEqualTo(measurement)
     verifyProtoArgument(
         internalMeasurementsMock,
         MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
@@ -1613,17 +1658,31 @@ class MeasurementsServiceTest {
     @JvmStatic
     fun initConfig() {
       Llv2ProtocolConfig.setForTest(
-        INTERNAL_PROTOCOL_CONFIG.liquidLegionsV2,
-        DUCHY_PROTOCOL_CONFIG.liquidLegionsV2,
+        LLV2_INTERNAL_PROTOCOL_CONFIG.liquidLegionsV2,
+        LLV2_DUCHY_PROTOCOL_CONFIG.liquidLegionsV2,
         setOf("aggregator"),
         2
       )
+      Rollv2ProtocolConfig.setForTest(
+        ROLLV2_INTERNAL_PROTOCOL_CONFIG.reachOnlyLiquidLegionsV2,
+        ROLLV2_DUCHY_PROTOCOL_CONFIG.reachOnlyLiquidLegionsV2,
+        setOf("aggregator"),
+        2
+      )
+      MeasurementTypeToProtocolConfig.setForTest(
+        mapOf(
+          ConfigMeasurementType.REACH_AND_FREQUENCY to ConfigProtocol.LIQUID_LEGIONS_V2,
+          ConfigMeasurementType.REACH to ConfigProtocol.REACH_ONLY_LIQUID_LEGIONS_V2
+        )
+      )
     }
 
-    private val PROTOCOL_CONFIG_NAME_FIELD_DESCRIPTOR: Descriptors.FieldDescriptor =
-      ProtocolConfig.getDescriptor().findFieldByNumber(ProtocolConfig.NAME_FIELD_NUMBER)
+    private val DIFFERENTIAL_PRIVACY_PARAMS = differentialPrivacyParams {
+      epsilon = 1.0
+      delta = 1.0
+    }
 
-    private val INTERNAL_PROTOCOL_CONFIG = internalProtocolConfig {
+    private val LLV2_INTERNAL_PROTOCOL_CONFIG = internalProtocolConfig {
       externalProtocolConfigId = "llv2"
       liquidLegionsV2 =
         InternalProtocolConfigKt.liquidLegionsV2 {
@@ -1640,8 +1699,7 @@ class MeasurementsServiceTest {
         }
     }
 
-    private val PUBLIC_PROTOCOL_CONFIG = protocolConfig {
-      name = "protocolConfigs/llv2"
+    private val LLV2_PUBLIC_PROTOCOL_CONFIG = protocolConfig {
       measurementType = ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
       protocols +=
         ProtocolConfigKt.protocol {
@@ -1660,8 +1718,48 @@ class MeasurementsServiceTest {
         }
     }
 
-    private val DUCHY_PROTOCOL_CONFIG = duchyProtocolConfig {
+    private val LLV2_DUCHY_PROTOCOL_CONFIG = duchyProtocolConfig {
       liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+    }
+
+    private val ROLLV2_INTERNAL_PROTOCOL_CONFIG = internalProtocolConfig {
+      externalProtocolConfigId = "rollv2"
+      reachOnlyLiquidLegionsV2 =
+        InternalProtocolConfigKt.liquidLegionsV2 {
+          sketchParams = internalLiquidLegionsSketchParams {
+            decayRate = 1.1
+            maxSize = 100
+            samplingIndicatorSize = 1000
+          }
+          dataProviderNoise = internalDifferentialPrivacyParams {
+            epsilon = 2.1
+            delta = 3.3
+          }
+          noiseMechanism = InternalProtocolConfig.NoiseMechanism.GEOMETRIC
+        }
+    }
+
+    private val ROLLV2_PUBLIC_PROTOCOL_CONFIG = protocolConfig {
+      measurementType = ProtocolConfig.MeasurementType.REACH
+      protocols +=
+        ProtocolConfigKt.protocol {
+          reachOnlyLiquidLegionsV2 = reachOnlyLiquidLegionsV2 {
+            sketchParams = liquidLegionsSketchParams {
+              decayRate = 1.1
+              maxSize = 100
+              samplingIndicatorSize = 1000
+            }
+            dataProviderNoise = differentialPrivacyParams {
+              epsilon = 2.1
+              delta = 3.3
+            }
+            noiseMechanism = ProtocolConfig.NoiseMechanism.GEOMETRIC
+          }
+        }
+    }
+
+    private val ROLLV2_DUCHY_PROTOCOL_CONFIG = duchyProtocolConfig {
+      reachOnlyLiquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
     }
 
     private val MEASUREMENT_SPEC = measurementSpec {
@@ -1705,7 +1803,7 @@ class MeasurementsServiceTest {
             }
           }
         }
-      protocolConfig = PUBLIC_PROTOCOL_CONFIG
+      protocolConfig = LLV2_PUBLIC_PROTOCOL_CONFIG
       measurementReferenceId = "ref_id"
       failure = failure {
         reason = Failure.Reason.CERTIFICATE_REVOKED
@@ -1754,8 +1852,8 @@ class MeasurementsServiceTest {
           apiVersion = Version.V2_ALPHA.string
           measurementSpec = MEASUREMENT.measurementSpec.data
           measurementSpecSignature = MEASUREMENT.measurementSpec.signature
-          protocolConfig = INTERNAL_PROTOCOL_CONFIG
-          duchyProtocolConfig = DUCHY_PROTOCOL_CONFIG
+          protocolConfig = LLV2_INTERNAL_PROTOCOL_CONFIG
+          duchyProtocolConfig = LLV2_DUCHY_PROTOCOL_CONFIG
           failure =
             InternalMeasurementKt.failure {
               reason = InternalMeasurement.Failure.Reason.CERTIFICATE_REVOKED
@@ -1780,5 +1878,37 @@ class MeasurementsServiceTest {
         encryptedResult = ENCRYPTED_DATA
       }
     }
+
+    private val REACH_ONLY_MEASUREMENT_SPEC =
+      MEASUREMENT_SPEC.copy {
+        clearReachAndFrequency()
+        reach = reach { privacyParams = DIFFERENTIAL_PRIVACY_PARAMS }
+      }
+
+    private val REACH_ONLY_MEASUREMENT =
+      MEASUREMENT.copy {
+        measurementSpec = signedData {
+          data = REACH_ONLY_MEASUREMENT_SPEC.toByteString()
+          signature = UPDATE_TIME.toByteString()
+        }
+        protocolConfig = ROLLV2_PUBLIC_PROTOCOL_CONFIG
+      }
+
+    private val REACH_ONLY_INTERNAL_MEASUREMENT =
+      INTERNAL_MEASUREMENT.copy {
+        details =
+          InternalMeasurementKt.details {
+            apiVersion = Version.V2_ALPHA.string
+            measurementSpec = REACH_ONLY_MEASUREMENT.measurementSpec.data
+            measurementSpecSignature = REACH_ONLY_MEASUREMENT.measurementSpec.signature
+            protocolConfig = ROLLV2_INTERNAL_PROTOCOL_CONFIG
+            duchyProtocolConfig = ROLLV2_DUCHY_PROTOCOL_CONFIG
+            failure =
+              InternalMeasurementKt.failure {
+                reason = InternalMeasurement.Failure.Reason.CERTIFICATE_REVOKED
+                message = MEASUREMENT.failure.message
+              }
+          }
+      }
   }
 }

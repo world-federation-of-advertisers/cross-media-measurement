@@ -32,8 +32,11 @@ import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.DuchyCertConfig
+import org.wfanet.measurement.config.MeasurementTypeToProtocolMap
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.MeasurementTypeToProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.Rollv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.frontend.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
@@ -194,10 +197,25 @@ class InProcessCmmsComponents(
     fun initConfig() {
       DuchyIds.setForTest(ALL_DUCHIES)
       Llv2ProtocolConfig.setForTest(
-        LLV2_PROTOCOL_CONFIG_CONFIG.protocolConfig,
-        LLV2_PROTOCOL_CONFIG_CONFIG.duchyProtocolConfig,
+        LLV2_PROTOCOL_CONFIGS.protocolConfig,
+        LLV2_PROTOCOL_CONFIGS.duchyProtocolConfig,
         setOf("aggregator"),
         2
+      )
+      Rollv2ProtocolConfig.setForTest(
+        LLV2_PROTOCOL_CONFIGS.protocolConfig,
+        LLV2_PROTOCOL_CONFIGS.duchyProtocolConfig,
+        setOf("aggregator"),
+        2
+      )
+      // TODO(renjiez): Use rollv2 for REACH when rollv2 is ready.
+      MeasurementTypeToProtocolConfig.setForTest(
+        mapOf(
+          MeasurementTypeToProtocolMap.MeasurementType.REACH_AND_FREQUENCY to
+            MeasurementTypeToProtocolMap.Protocol.LIQUID_LEGIONS_V2,
+          MeasurementTypeToProtocolMap.MeasurementType.REACH to
+            MeasurementTypeToProtocolMap.Protocol.LIQUID_LEGIONS_V2
+        )
       )
       DuchyInfo.initializeFromConfig(
         loadTextProto("duchy_cert_config.textproto", DuchyCertConfig.getDefaultInstance())

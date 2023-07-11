@@ -51,7 +51,8 @@ message ProtocolConfig {
     // prime256v1 curve. Required. Immutable.
     int32 elliptic_curve_id = 3;
 
-    // The maximum frequency to reveal in the histogram.
+    // The maximum frequency to reveal in the histogram. For reach-only liquid
+    // legions protocol, this field should be ignored.
     int32 maximum_frequency = 4;
 
     // The mechanism to generate noise during computation.
@@ -66,6 +67,11 @@ message ProtocolConfig {
     //
     // May only be set when the measurement type is REACH_AND_FREQUENCY.
     LiquidLegionsV2 liquid_legions_v2 = 3;
+
+    // Reach-only Liquid Legions v2 config.
+    //
+    // Must only be set when the measurement type is REACH.
+    LiquidLegionsV2 reach_only_liquid_legions_v2 = 4;
   }
 }
 

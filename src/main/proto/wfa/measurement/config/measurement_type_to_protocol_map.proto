@@ -1,0 +1,42 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.config;
+
+import "wfa/measurement/api/v2alpha/measurement_spec.proto";
+
+option java_package = "org.wfanet.measurement.config";
+option java_multiple_files = true;
+
+message MeasurementTypeToProtocolMap {
+  enum MeasurementType {
+    MEASUREMENT_TYPE_UNSPECIFIED = 0;
+    REACH = 1;
+    REACH_AND_FREQUENCY = 2;
+  }
+
+  enum Protocol {
+    PROTOCOL_UNSPECIFIED = 0;
+    LIQUID_LEGIONS_V2 = 1;
+    REACH_ONLY_LIQUID_LEGIONS_V2 = 2;
+  }
+
+  message Entry {
+    MeasurementType measurement_type = 1;
+    Protocol protocol = 2;
+  }
+  repeated Entry entries = 1;
+}

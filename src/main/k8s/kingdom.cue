@@ -56,7 +56,7 @@ import ("strings")
 
 	_duchy_info_config_flag:                 "--duchy-info-config=/var/run/secrets/files/duchy_cert_config.textproto"
 	_duchy_id_config_flag:                   "--duchy-id-config=/var/run/secrets/files/duchy_id_config.textproto"
-	_llv2_protocol_config_config:            "--llv2-protocol-config-config=/var/run/secrets/files/llv2_protocol_config_config.textproto"
+	_llv2_protocol_configs:            "--llv2-protocol-config-config=/var/run/secrets/files/llv2_protocol_configs.textproto"
 	_kingdom_tls_cert_file_flag:             "--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem"
 	_kingdom_tls_key_file_flag:              "--tls-key-file=/var/run/secrets/files/kingdom_tls.key"
 	_kingdom_cert_collection_file_flag:      "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
@@ -115,7 +115,7 @@ import ("strings")
 				args: [
 					_duchy_info_config_flag,
 					_duchy_id_config_flag,
-					_llv2_protocol_config_config,
+					_llv2_protocol_configs,
 					_kingdom_tls_cert_file_flag,
 					_kingdom_tls_key_file_flag,
 					// Internal Kingdom API server should only trust Kingdom certs.
@@ -156,7 +156,7 @@ import ("strings")
 				args: [
 					_debug_verbose_grpc_client_logging_flag,
 					_debug_verbose_grpc_server_logging_flag,
-					_llv2_protocol_config_config,
+					_llv2_protocol_configs,
 					_kingdom_tls_cert_file_flag,
 					_kingdom_tls_key_file_flag,
 					_kingdom_cert_collection_file_flag,

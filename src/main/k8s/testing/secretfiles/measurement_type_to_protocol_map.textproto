@@ -1,0 +1,10 @@
+# proto-file: src/main/proto/wfa/measurement/config/measurement_type_to_protocol_map.proto
+# proto-message: MeasurementTypeToProtocolMap
+entires {
+  measurement_type: REACH
+  Protocol: LIQUID_LEGIONS_V2
+}
+entires {
+  measurement_type: REACH_AND_FREQUENCY
+  Protocol: LIQUID_LEGIONS_V2
+}
