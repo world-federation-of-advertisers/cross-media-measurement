@@ -479,11 +479,11 @@ class PostgresComputationsService(
   ): CreateComputationLogEntryRequest {
     return createComputationLogEntryRequest {
       parent = ComputationParticipantKey(globalId, duchyName).toName()
-      computationLogEntry {
+      computationLogEntry = computationLogEntry {
         // TODO: maybe set participantChildReferenceId
         logMessage =
           "Computation $globalId at stage ${computationStage.name}, " + "attempt $attempt"
-        stageAttempt {
+        stageAttempt = stageAttempt {
           stage = computationStage.number
           stageName = computationStage.name
           stageStartTime = clock.protoTimestamp()

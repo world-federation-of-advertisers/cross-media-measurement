@@ -125,6 +125,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/herald",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2:liquid_legions_v2_mill",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:duchy_data_server",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/io/grpc:core",
         "@wfa_common_jvm//imports/java/io/grpc/testing",
@@ -190,6 +191,7 @@ kt_jvm_library(
     deps = [
         ":all_kingdom_services",
         ":in_process_cmms_components",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:duchy_data_server",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/frontend:frontend_simulator",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/storage",

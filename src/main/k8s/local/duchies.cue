@@ -20,6 +20,7 @@ _worker1_cert_name:    string @tag("worker1_cert_name")
 _worker2_cert_name:    string @tag("worker2_cert_name")
 
 #KingdomSystemApiTarget: (#Target & {name: "system-api-server"}).target
+// TODO move
 #SpannerEmulatorHost:    (#Target & {name: "spanner-emulator"}).target
 #DuchyConfig: {
 	let duchyName = name
@@ -55,7 +56,7 @@ _computationControlTargets: {
 }
 
 duchies: [ for duchyConfig in _duchyConfigs {
-	#Duchy & {
+	#SpannerDuchy & {
 		_imageSuffixes: {
 			"computation-control-server":     "duchy/local-computation-control"
 			"liquid-legions-v2-mill-daemon":  "duchy/local-liquid-legions-v2-mill"

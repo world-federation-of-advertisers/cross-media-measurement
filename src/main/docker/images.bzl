@@ -37,6 +37,11 @@ COMMON_IMAGES = [
         repository = _PREFIX + "/duchy/spanner-update-schema",
     ),
     struct(
+        name = "duchy_postgres_update_schema_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/postgres/tools:update_schema_image",
+        repository = _PREFIX + "/duchy/postgres-update-schema",
+    ),
+    struct(
         name = "duchy_computations_cleaner_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/job:computations_cleaner_image",
         repository = _PREFIX + "/duchy/computations-cleaner",

@@ -15,6 +15,7 @@
 package org.wfanet.measurement.duchy.deploy.postgres.writers
 
 import java.time.Clock
+import java.time.Instant
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 
 /**
@@ -36,19 +37,34 @@ class EnqueueComputation(
     checkComputationUnmodified(localId, editVersion)
 
     val writeTime = clock.instant()
-    acquireComputationLock(
-      localId = localId,
-      updateTime = writeTime,
-      // Set a lock expiration time to be the current time + a delay with no owner. This will
-      // prevent anyone from claiming it until the delay has passed.
-      //
-      // TODO(@renjiezh): Determine if we even need this delay behavior now that the FIFO queue
-      // is based on creation time and not lock expiration time.
-      //
-      // TODO(@renjiezh): Check to make sure the lock isn't actively held by someone other than
-      // the caller.
-      ownerId = null,
-      lockExpirationTime = writeTime.plusSeconds(delaySeconds)
-    )
+    enqueueComputation(localId, writeTime, delaySeconds)
   }
+}
+
+/**
+ * Enqueue the computation by acquire the computation lock with null ownerId
+ *
+ * @param localId the local identifier for a computation.
+ * @param writeTime the timestamp that this entry is updated.
+ * @param delaySeconds the delayed time for a computation to be available in queue for workers to claim.
+ */
+suspend fun PostgresWriter.TransactionScope.enqueueComputation(
+  localId: Long,
+  writeTime: Instant,
+  delaySeconds: Long,
+) {
+  acquireComputationLock(
+    localId = localId,
+    updateTime = writeTime,
+    // Set a lock expiration time to be the current time + a delay with no owner. This will
+    // prevent anyone from claiming it until the delay has passed.
+    //
+    // TODO(@renjiezh): Determine if we even need this delay behavior now that the FIFO queue
+    // is based on creation time and not lock expiration time.
+    //
+    // TODO(@renjiezh): Check to make sure the lock isn't actively held by someone other than
+    // the caller.
+    ownerId = null,
+    lockExpirationTime = writeTime.plusSeconds(delaySeconds)
+  )
 }

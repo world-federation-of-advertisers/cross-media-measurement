@@ -91,9 +91,8 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
     )
 
     when (afterTransition) {
-      // Write the NULL value to the lockOwner column to release the lock.
-      AfterTransition.DO_NOT_ADD_TO_QUEUE,
-      AfterTransition.ADD_UNCLAIMED_TO_QUEUE -> releaseComputationLock(localId, writeTime)
+      AfterTransition.DO_NOT_ADD_TO_QUEUE -> releaseComputationLock(localId, writeTime)
+      AfterTransition.ADD_UNCLAIMED_TO_QUEUE -> enqueueComputation(localId, writeTime, delaySeconds = 0)
       // Do not change the owner
       AfterTransition.CONTINUE_WORKING ->
         extendComputationLock(localId, writeTime, writeTime.plus(lockExtension))
