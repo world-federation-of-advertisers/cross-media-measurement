@@ -17,7 +17,7 @@ import java.sql.Connection
 import java.sql.PreparedStatement
 import java.sql.ResultSet
 import java.sql.Statement
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Charge
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.DpCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetBalanceEntry
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerBackingStore
@@ -153,7 +153,7 @@ class PostgresBackingStoreTransactionContext(
           entries.add(
             PrivacyBudgetBalanceEntry(
               privacyBucketGroup,
-              Charge(rs.getFloat("Epsilon"), rs.getFloat("Delta")),
+              DpCharge(rs.getFloat("Epsilon"), rs.getFloat("Delta")),
               rs.getInt("RepetitionCount"),
             )
           )
@@ -232,8 +232,8 @@ class PostgresBackingStoreTransactionContext(
       statement.setString(3, privacyBudgetBalanceEntry.privacyBucketGroup.ageGroup.string)
       statement.setString(4, privacyBudgetBalanceEntry.privacyBucketGroup.gender.string)
       statement.setFloat(5, privacyBudgetBalanceEntry.privacyBucketGroup.vidSampleStart)
-      statement.setFloat(6, privacyBudgetBalanceEntry.charge.delta)
-      statement.setFloat(7, privacyBudgetBalanceEntry.charge.epsilon)
+      statement.setFloat(6, privacyBudgetBalanceEntry.dpCharge.delta)
+      statement.setFloat(7, privacyBudgetBalanceEntry.dpCharge.epsilon)
       statement.setInt(8, if (refundCharge) -1 else 1) // update RepetitionCount
       statement.addBatch()
       // execute every 1000 rows or less
@@ -245,12 +245,12 @@ class PostgresBackingStoreTransactionContext(
 
   override suspend fun addLedgerEntries(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
-    charges: Set<Charge>,
+    dpCharges: Set<DpCharge>,
     reference: Reference
   ) {
     addBalanceEntries(
       privacyBucketGroups.flatMap { privacyBucketGroup ->
-        charges.map { charge -> PrivacyBudgetBalanceEntry(privacyBucketGroup, charge, 1) }
+        dpCharges.map { dpCharge -> PrivacyBudgetBalanceEntry(privacyBucketGroup, dpCharge, 1) }
       },
       reference.isRefund
     )
