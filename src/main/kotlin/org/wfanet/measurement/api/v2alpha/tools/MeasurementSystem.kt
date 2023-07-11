@@ -1744,15 +1744,21 @@ private class ModelRollouts {
     @Option(
       names = ["--rollout-start-time"],
       description = ["Start time of model rollout in ISO 8601 format of UTC"],
-      required = true,
+      required = false,
     )
-    rolloutStartTime: Instant,
+    rolloutStartTime: Instant? = null,
     @Option(
       names = ["--rollout-end-time"],
       description = ["End time of model rollout in ISO 8601 format of UTC"],
-      required = true,
+      required = false,
     )
-    rolloutEndTime: Instant,
+    rolloutEndTime: Instant? = null,
+    @Option(
+      names = ["--instant-rollout-time"],
+      description = ["Instant rollout time of model rollout in ISO 8601 format of UTC"],
+      required = false,
+    )
+    instantRolloutTime: Instant? = null,
     @Option(
       names = ["--model-release"],
       description = ["The `ModelRelease` this model rollout refers to."],
@@ -1760,12 +1766,24 @@ private class ModelRollouts {
     )
     modelRolloutRelease: String,
   ) {
+
+    if (instantRolloutTime == null && (rolloutStartTime == null || rolloutEndTime == null)) {
+      throw ParameterException(
+        parentCommand.commandLine,
+        "Both `rolloutStartTime` and `rolloutEndTime` must be set when `instantRolloutTime` is not."
+      )
+    }
+
     val request = createModelRolloutRequest {
       parent = modelLineName
       modelRollout = modelRollout {
-        rolloutPeriod = timeInterval {
-          startTime = rolloutStartTime.toProtoTime()
-          endTime = rolloutEndTime.toProtoTime()
+        if (instantRolloutTime != null) {
+          this.instantRolloutTime = instantRolloutTime.toProtoTime()
+        } else {
+          gradualRolloutPeriod = timeInterval {
+            startTime = rolloutStartTime!!.toProtoTime()
+            endTime = rolloutEndTime!!.toProtoTime()
+          }
         }
         modelRelease = modelRolloutRelease
       }
@@ -1882,7 +1900,11 @@ private class ModelRollouts {
 
   private fun printModelRollout(modelRollout: ModelRollout) {
     println("NAME - ${modelRollout.name}")
-    println("ROLLOUT PERIOD- ${modelRollout.rolloutPeriod}")
+    if (modelRollout.hasInstantRolloutTime()) {
+      println("INSTANT ROLLOUT TIME- ${modelRollout.instantRolloutTime}")
+    } else {
+      println("GRADUAL ROLLOUT PERIOD- ${modelRollout.gradualRolloutPeriod}")
+    }
     println("ROLLOUT FREEZE TIME - ${modelRollout.rolloutFreezeTime}")
     println("PREVIOUS MODEL ROLLOUT - ${modelRollout.previousModelRollout}")
     println("MODEL RELEASE - ${modelRollout.modelRelease}")
