@@ -1,4 +1,4 @@
-# proto-file: protocol_configs.proto
+# proto-file: src/main/proto/wfa/measurement/internal/kingdom/protocol_configs.proto
 # proto-message: Rollv2ProtocolConfigs
 protocol_config {
   sketch_params {
