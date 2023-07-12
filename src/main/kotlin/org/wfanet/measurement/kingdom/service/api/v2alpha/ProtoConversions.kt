@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.protobuf.util.Timestamps
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -465,10 +466,16 @@ fun InternalModelRollout.toModelRollout(): ModelRollout {
           externalIdToApiId(source.externalModelRolloutId)
         )
         .toName()
-    rolloutPeriod = timeInterval {
-      startTime = source.rolloutPeriodStartTime
-      endTime = source.rolloutPeriodEndTime
+
+    if (Timestamps.compare(source.rolloutPeriodStartTime, source.rolloutPeriodEndTime) == 0) {
+      instantRolloutTime = source.rolloutPeriodStartTime
+    } else {
+      gradualRolloutPeriod = timeInterval {
+        startTime = source.rolloutPeriodStartTime
+        endTime = source.rolloutPeriodEndTime
+      }
     }
+
     rolloutFreezeTime = source.rolloutFreezeTime
     if (source.externalPreviousModelRolloutId != 0L) {
       previousModelRollout =
@@ -503,8 +510,22 @@ fun ModelRollout.toInternal(
     externalModelProviderId = apiIdToExternalId(modelLineKey.modelProviderId)
     externalModelSuiteId = apiIdToExternalId(modelLineKey.modelSuiteId)
     externalModelLineId = apiIdToExternalId(modelLineKey.modelLineId)
-    rolloutPeriodStartTime = publicModelRollout.rolloutPeriod.startTime
-    rolloutPeriodEndTime = publicModelRollout.rolloutPeriod.endTime
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+    when (publicModelRollout.rolloutDeployPeriodCase) {
+      ModelRollout.RolloutDeployPeriodCase.GRADUAL_ROLLOUT_PERIOD -> {
+        rolloutPeriodStartTime = publicModelRollout.gradualRolloutPeriod.startTime
+        rolloutPeriodEndTime = publicModelRollout.gradualRolloutPeriod.endTime
+      }
+      ModelRollout.RolloutDeployPeriodCase.INSTANT_ROLLOUT_TIME -> {
+        rolloutPeriodStartTime = publicModelRollout.instantRolloutTime
+        rolloutPeriodEndTime = publicModelRollout.instantRolloutTime
+      }
+      ModelRollout.RolloutDeployPeriodCase.ROLLOUTDEPLOYPERIOD_NOT_SET -> {
+        error("RolloutDeployPeriod not set.")
+      }
+    }
+
     rolloutFreezeTime = publicModelRollout.rolloutFreezeTime
     externalModelReleaseId = apiIdToExternalId(modelReleaseKey.modelReleaseId)
   }
