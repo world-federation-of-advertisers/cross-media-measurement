@@ -220,7 +220,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       val resourceSetupOutput =
         runResourceSetup(duchyCerts, edpEntityContents, measurementConsumerContent)
       val resourceInfo = ResourceInfo.from(resourceSetupOutput.resources)
-      loadFullCmms(resourceInfo, resourceSetupOutput.akidPrincipalMap, use_postgres_duchy = false)
+      loadFullCmms(resourceInfo, resourceSetupOutput.akidPrincipalMap, usePostgresDuchy = true)
 
       val encryptionPrivateKey: TinkPrivateKeyHandle =
         withContext(Dispatchers.IO) {
@@ -307,7 +307,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       }
     }
 
-    private suspend fun loadFullCmms(resourceInfo: ResourceInfo, akidPrincipalMap: File, use_postgres_duchy: Boolean) {
+    private suspend fun loadFullCmms(resourceInfo: ResourceInfo, akidPrincipalMap: File, usePostgresDuchy: Boolean) {
       val appliedObjects: List<KubernetesObject> =
         withContext(Dispatchers.IO) {
           val outputDir = tempDir.newFolder("cmms")
@@ -330,7 +330,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
               .replace("{worker1_cert_name}", resourceInfo.worker1Cert)
               .replace("{worker2_cert_name}", resourceInfo.worker2Cert)
               .replace("{mc_name}", resourceInfo.measurementConsumer)
-              .replace("{use_postgres_duchy}", use_postgres_duchy.toString())
+              .replace("{use_postgres_duchy}", usePostgresDuchy.toString())
               .let {
                 var config = it
                 for ((displayName, resourceName) in resourceInfo.dataProviders) {
