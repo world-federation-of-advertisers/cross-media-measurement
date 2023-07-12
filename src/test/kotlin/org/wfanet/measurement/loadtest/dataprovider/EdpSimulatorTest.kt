@@ -21,6 +21,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
+import com.google.type.interval
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
@@ -108,7 +109,6 @@ import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
-import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.Hashing
@@ -225,7 +225,7 @@ private val REQUISITION_ONE_SPEC = requisitionSpec {
     key = "eventGroup/name"
     value =
       RequisitionSpecKt.EventGroupEntryKt.value {
-        collectionInterval = timeInterval {
+        collectionInterval = interval {
           startTime = TIME_RANGE.start.toProtoTime()
           endTime = TIME_RANGE.endExclusive.toProtoTime()
         }
@@ -281,7 +281,7 @@ class EdpSimulatorTest {
   private val requisitionFulfillmentServiceMock: RequisitionFulfillmentCoroutineImplBase =
     mockService()
 
-  @get:Rule public val temporaryFolder: TemporaryFolder = TemporaryFolder()
+  @get:Rule val temporaryFolder: TemporaryFolder = TemporaryFolder()
 
   private lateinit var sketchStore: SketchStore
 

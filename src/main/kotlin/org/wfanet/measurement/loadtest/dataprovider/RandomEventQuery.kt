@@ -14,10 +14,10 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.type.Interval
 import java.util.logging.Logger
 import kotlin.random.Random
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
-import org.wfanet.measurement.api.v2alpha.TimeInterval
 
 data class SketchGenerationParams(
   val reach: Int,
@@ -28,10 +28,7 @@ data class SketchGenerationParams(
 class RandomEventQuery(private val sketchGenerationParams: SketchGenerationParams) : EventQuery {
 
   /** Returns VIDs generated from random values, ignoring [timeInterval] and [eventFilter]. */
-  override fun getUserVirtualIds(
-    timeInterval: TimeInterval,
-    eventFilter: EventFilter
-  ): Sequence<Long> {
+  override fun getUserVirtualIds(timeInterval: Interval, eventFilter: EventFilter): Sequence<Long> {
     // TODO(@alberthsuu): Generate eventId, deduplicate the list of (eventId, vid), and
     // return the vids in case eventGroups overlap in some way
 

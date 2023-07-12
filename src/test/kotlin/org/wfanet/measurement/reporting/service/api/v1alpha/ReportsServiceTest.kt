@@ -23,6 +23,7 @@ import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.Timestamps
+import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
@@ -98,7 +99,6 @@ import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
-import org.wfanet.measurement.api.v2alpha.timeInterval as measurementTimeInterval
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.Hashing
@@ -435,7 +435,7 @@ private val START_TIME = START_INSTANT.toProtoTime()
 private val TIME_INTERVAL_INCREMENT = Duration.ofDays(1).toProtoDuration()
 private const val INTERVAL_COUNT = 1
 private val END_TIME = END_INSTANT.toProtoTime()
-private val MEASUREMENT_TIME_INTERVAL = measurementTimeInterval {
+private val MEASUREMENT_TIME_INTERVAL = interval {
   startTime = START_TIME
   endTime = END_TIME
 }

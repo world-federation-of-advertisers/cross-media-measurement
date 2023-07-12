@@ -24,6 +24,7 @@ import com.google.protobuf.duration
 import com.google.protobuf.empty
 import com.google.protobuf.timestamp
 import com.google.protobuf.value
+import com.google.type.interval
 import io.grpc.Server
 import io.grpc.ServerInterceptors
 import io.grpc.ServerServiceDefinition
@@ -163,7 +164,6 @@ import org.wfanet.measurement.api.v2alpha.scheduleModelRolloutFreezeRequest
 import org.wfanet.measurement.api.v2alpha.setModelLineActiveEndTimeRequest
 import org.wfanet.measurement.api.v2alpha.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.api.v2alpha.signedData
-import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.api.v2alpha.updatePublicKeyRequest
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -295,7 +295,7 @@ private val MODEL_RELEASE = modelRelease {
 
 private val MODEL_OUTAGE = modelOutage {
   name = MODEL_OUTAGE_NAME
-  outageInterval = timeInterval {
+  outageInterval = interval {
     startTime = Instant.parse(MODEL_OUTAGE_ACTIVE_START_TIME).toProtoTime()
     endTime = Instant.parse(MODEL_OUTAGE_ACTIVE_END_TIME).toProtoTime()
   }
@@ -312,7 +312,7 @@ private val MODEL_SHARD = modelShard {
 
 private val MODEL_ROLLOUT = modelRollout {
   name = MODEL_ROLLOUT_NAME
-  gradualRolloutPeriod = timeInterval {
+  gradualRolloutPeriod = interval {
     startTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime()
     endTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime()
   }
@@ -322,7 +322,7 @@ private val MODEL_ROLLOUT = modelRollout {
 
 private val MODEL_ROLLOUT_WITH_FREEZE_TIME = modelRollout {
   name = MODEL_ROLLOUT_NAME
-  gradualRolloutPeriod = timeInterval {
+  gradualRolloutPeriod = interval {
     startTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime()
     endTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime()
   }
@@ -903,7 +903,7 @@ class MeasurementSystemTest {
               key = "dataProviders/1/eventGroups/1"
               value =
                 RequisitionSpecKt.EventGroupEntryKt.value {
-                  collectionInterval = timeInterval {
+                  collectionInterval = interval {
                     startTime = Instant.parse(TIME_STRING_1).toProtoTime()
                     endTime = Instant.parse(TIME_STRING_2).toProtoTime()
                   }
@@ -915,7 +915,7 @@ class MeasurementSystemTest {
               key = "dataProviders/1/eventGroups/2"
               value =
                 RequisitionSpecKt.EventGroupEntryKt.value {
-                  collectionInterval = timeInterval {
+                  collectionInterval = interval {
                     startTime = Instant.parse(TIME_STRING_3).toProtoTime()
                     endTime = Instant.parse(TIME_STRING_4).toProtoTime()
                   }
@@ -950,7 +950,7 @@ class MeasurementSystemTest {
               key = "dataProviders/2/eventGroups/1"
               value =
                 RequisitionSpecKt.EventGroupEntryKt.value {
-                  collectionInterval = timeInterval {
+                  collectionInterval = interval {
                     startTime = Instant.parse(TIME_STRING_5).toProtoTime()
                     endTime = Instant.parse(TIME_STRING_6).toProtoTime()
                   }
@@ -1432,7 +1432,7 @@ class MeasurementSystemTest {
         createModelOutageRequest {
           parent = MODEL_LINE_NAME
           modelOutage = modelOutage {
-            outageInterval = timeInterval {
+            outageInterval = interval {
               startTime = Instant.parse(MODEL_OUTAGE_ACTIVE_START_TIME).toProtoTime()
               endTime = Instant.parse(MODEL_OUTAGE_ACTIVE_END_TIME).toProtoTime()
             }
@@ -1471,7 +1471,7 @@ class MeasurementSystemTest {
           showDeleted = true
           filter =
             ListModelOutagesRequestKt.filter {
-              outageIntervalOverlapping = timeInterval {
+              outageIntervalOverlapping = interval {
                 startTime = Instant.parse(MODEL_OUTAGE_ACTIVE_START_TIME).toProtoTime()
                 endTime = Instant.parse(MODEL_OUTAGE_ACTIVE_END_TIME).toProtoTime()
               }
@@ -1637,7 +1637,7 @@ class MeasurementSystemTest {
         createModelRolloutRequest {
           parent = MODEL_LINE_NAME
           modelRollout = modelRollout {
-            gradualRolloutPeriod = timeInterval {
+            gradualRolloutPeriod = interval {
               startTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime()
               endTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime()
             }
@@ -1675,7 +1675,7 @@ class MeasurementSystemTest {
           pageToken = "token"
           filter =
             ListModelRolloutsRequestKt.filter {
-              rolloutPeriodOverlapping = timeInterval {
+              rolloutPeriodOverlapping = interval {
                 startTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime()
                 endTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime()
               }

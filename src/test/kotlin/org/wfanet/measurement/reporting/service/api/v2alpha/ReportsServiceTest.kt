@@ -20,6 +20,8 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.duration
 import com.google.protobuf.timestamp
+import com.google.type.Interval
+import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Duration
@@ -58,7 +60,6 @@ import org.wfanet.measurement.internal.reporting.v2.ReportKt as InternalReportKt
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequestKt
-import org.wfanet.measurement.internal.reporting.v2.TimeInterval as InternalTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest as internalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
@@ -66,8 +67,7 @@ import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.periodicTimeInterval as internalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
-import org.wfanet.measurement.internal.reporting.v2.timeInterval as internalTimeInterval
-import org.wfanet.measurement.internal.reporting.v2.timeIntervals as internalTimeIntervals
+import org.wfanet.measurement.internal.reporting.v2.timeIntervals as Intervals
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListReportsPageTokenKt
@@ -82,7 +82,6 @@ import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
-import org.wfanet.measurement.reporting.v2alpha.TimeInterval
 import org.wfanet.measurement.reporting.v2alpha.batchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.batchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.batchGetMetricsRequest
@@ -100,7 +99,6 @@ import org.wfanet.measurement.reporting.v2alpha.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.periodicTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
-import org.wfanet.measurement.reporting.v2alpha.timeInterval
 import org.wfanet.measurement.reporting.v2alpha.timeIntervals
 
 private const val DEFAULT_PAGE_SIZE = 50
@@ -291,30 +289,30 @@ class ReportsServiceTest {
       val targetReportingSet = PRIMITIVE_REPORTING_SETS.first()
       val timeIntervalsList =
         listOf(
-          timeInterval {
+          interval {
             startTime = START_TIME
             endTime = END_TIME
           },
-          timeInterval {
+          interval {
             startTime = END_TIME
             endTime = END_INSTANT.plus(Duration.ofDays(1)).toProtoTime()
           }
         )
 
-      val internalTimeIntervals =
+      val intervals =
         listOf(
-          internalTimeInterval {
+          interval {
             startTime = START_TIME
             endTime = END_TIME
           },
-          internalTimeInterval {
+          interval {
             startTime = END_TIME
             endTime = END_INSTANT.plus(Duration.ofDays(1)).toProtoTime()
           }
         )
 
       val initialReportingMetrics: List<InternalReport.ReportingMetric> =
-        internalTimeIntervals.map { timeInterval ->
+        intervals.map { timeInterval ->
           buildInitialReportingMetric(
             targetReportingSet.resourceId,
             timeInterval,
@@ -326,7 +324,7 @@ class ReportsServiceTest {
       val (internalRequestingReport, internalInitialReport, internalPendingReport) =
         buildInternalReports(
           MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-          internalTimeIntervals,
+          intervals,
           targetReportingSet.resourceId,
           initialReportingMetrics,
           listOf(),
@@ -452,12 +450,12 @@ class ReportsServiceTest {
     val groupingsCartesianProduct: List<List<String>> =
       predicates1.flatMap { filter1 -> predicates2.map { filter2 -> listOf(filter1, filter2) } }
 
-    val timeInterval = timeInterval {
+    val timeInterval = interval {
       startTime = START_TIME
       endTime = END_TIME
     }
 
-    val internalTimeInterval = internalTimeInterval {
+    val interval = interval {
       startTime = START_TIME
       endTime = END_TIME
     }
@@ -466,7 +464,7 @@ class ReportsServiceTest {
       groupingsCartesianProduct.map { filters ->
         buildInitialReportingMetric(
           targetReportingSet.resourceId,
-          internalTimeInterval,
+          interval,
           INTERNAL_REACH_METRIC_SPEC,
           filters
         )
@@ -475,7 +473,7 @@ class ReportsServiceTest {
     val (internalRequestingReport, internalInitialReport, internalPendingReport) =
       buildInternalReports(
         MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-        listOf(internalTimeInterval),
+        listOf(interval),
         targetReportingSet.resourceId,
         initialReportingMetrics,
         internalGroupings,
@@ -600,29 +598,24 @@ class ReportsServiceTest {
       val metricSpecs = listOf(REACH_METRIC_SPEC, FREQUENCY_HISTOGRAM_METRIC_SPEC)
       val internalMetricSpecs =
         listOf(INTERNAL_REACH_METRIC_SPEC, INTERNAL_FREQUENCY_HISTOGRAM_METRIC_SPEC)
-      val timeInterval = timeInterval {
+      val timeInterval = interval {
         startTime = START_TIME
         endTime = END_TIME
       }
-      val internalTimeInterval = internalTimeInterval {
+      val interval = interval {
         startTime = START_TIME
         endTime = END_TIME
       }
 
       val initialReportingMetrics: List<InternalReport.ReportingMetric> =
         internalMetricSpecs.map { metricSpec ->
-          buildInitialReportingMetric(
-            targetReportingSet.resourceId,
-            internalTimeInterval,
-            metricSpec,
-            listOf()
-          )
+          buildInitialReportingMetric(targetReportingSet.resourceId, interval, metricSpec, listOf())
         }
 
       val (internalRequestingReport, internalInitialReport, internalPendingReport) =
         buildInternalReports(
           MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-          listOf(internalTimeInterval),
+          listOf(interval),
           targetReportingSet.resourceId,
           initialReportingMetrics,
           listOf(),
@@ -747,22 +740,22 @@ class ReportsServiceTest {
       // Time intervals
       val timeIntervalsList =
         listOf(
-          timeInterval {
+          interval {
             startTime = START_TIME
             endTime = END_TIME
           },
-          timeInterval {
+          interval {
             startTime = END_TIME
             endTime = END_INSTANT.plus(Duration.ofDays(1)).toProtoTime()
           }
         )
-      val internalTimeIntervals =
+      val intervals =
         listOf(
-          internalTimeInterval {
+          interval {
             startTime = START_TIME
             endTime = END_TIME
           },
-          internalTimeInterval {
+          interval {
             startTime = END_TIME
             endTime = END_INSTANT.plus(Duration.ofDays(1)).toProtoTime()
           }
@@ -788,7 +781,7 @@ class ReportsServiceTest {
       data class MetricConfig(
         val reportingSet: String,
         val metricSpec: MetricSpec,
-        val timeInterval: TimeInterval,
+        val timeInterval: Interval,
         val filters: List<String>
       )
       val metricConfigs =
@@ -803,11 +796,11 @@ class ReportsServiceTest {
       data class ReportingMetricConfig(
         val reportingSetId: String,
         val metricSpec: InternalMetricSpec,
-        val timeInterval: InternalTimeInterval,
+        val timeInterval: Interval,
         val filters: List<String>
       )
       val reportingMetricConfigs =
-        internalTimeIntervals.flatMap { timeInterval ->
+        intervals.flatMap { timeInterval ->
           internalMetricSpecs.flatMap { metricSpec ->
             groupingsCartesianProduct.map { predicateGroup ->
               ReportingMetricConfig(
@@ -833,7 +826,7 @@ class ReportsServiceTest {
       val (internalRequestingReport, internalInitialReport, internalPendingReport) =
         buildInternalReports(
           MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-          internalTimeIntervals,
+          intervals,
           targetReportingSet.resourceId,
           initialReportingMetrics,
           internalGroupings,
@@ -951,11 +944,11 @@ class ReportsServiceTest {
     runBlocking {
       val displayName = DISPLAY_NAME
       val targetReportingSets = PRIMITIVE_REPORTING_SETS
-      val timeInterval = timeInterval {
+      val timeInterval = interval {
         startTime = START_TIME
         endTime = END_TIME
       }
-      val internalTimeInterval = internalTimeInterval {
+      val interval = interval {
         startTime = START_TIME
         endTime = END_TIME
       }
@@ -964,7 +957,7 @@ class ReportsServiceTest {
         targetReportingSets.associateWith { reportingSet ->
           buildInitialReportingMetric(
             reportingSet.resourceId,
-            internalTimeInterval,
+            interval,
             INTERNAL_REACH_METRIC_SPEC,
             listOf()
           )
@@ -972,7 +965,7 @@ class ReportsServiceTest {
 
       val internalRequestingReport = internalReport {
         cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-        timeIntervals = internalTimeIntervals { timeIntervals += internalTimeInterval }
+        timeIntervals = Intervals { timeIntervals += interval }
         reportingSetToCreateMetricRequestMap.forEach { (reportingSet, reportingMetric) ->
           val initialReportingMetrics = listOf(reportingMetric)
           reportingMetricEntries.putAll(
@@ -1148,11 +1141,11 @@ class ReportsServiceTest {
     runBlocking {
       val displayName = DISPLAY_NAME
       val targetReportingSet = PRIMITIVE_REPORTING_SETS.first()
-      val timeInterval = timeInterval {
+      val timeInterval = interval {
         startTime = START_TIME
         endTime = END_TIME
       }
-      val internalTimeInterval = internalTimeInterval {
+      val interval = interval {
         startTime = START_TIME
         endTime = END_TIME
       }
@@ -1165,7 +1158,7 @@ class ReportsServiceTest {
                 InternalReportKt.ReportingMetricKt.details {
                   externalReportingSetId = targetReportingSet.resourceId
                   metricSpec = INTERNAL_REACH_METRIC_SPEC
-                  this.timeInterval = internalTimeInterval
+                  this.timeInterval = interval
                 }
             }
           details =
@@ -1178,7 +1171,7 @@ class ReportsServiceTest {
 
       val internalRequestingReport = internalReport {
         cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-        timeIntervals = internalTimeIntervals { timeIntervals += internalTimeInterval }
+        timeIntervals = Intervals { timeIntervals += interval }
         reportingMetricEntries.putAll(
           mapOf(
             targetReportingSet.resourceId to
@@ -1364,16 +1357,16 @@ class ReportsServiceTest {
       }
       val endTimesList: List<Long> =
         (startSec + incrementSec until startSec + incrementSec + intervalCount).toList()
-      val internalTimeIntervals: List<InternalTimeInterval> =
+      val intervals: List<Interval> =
         endTimesList.map { end ->
-          internalTimeInterval {
+          interval {
             startTime = timestamp { seconds = startSec }
             endTime = timestamp { seconds = end }
           }
         }
 
       val reportingCreateMetricRequests =
-        internalTimeIntervals.map { timeInterval ->
+        intervals.map { timeInterval ->
           buildInitialReportingMetric(
             PRIMITIVE_REPORTING_SETS.first().resourceId,
             timeInterval,
@@ -1481,7 +1474,7 @@ class ReportsServiceTest {
                       )
                       .toName()
                   reportingSet = PRIMITIVE_REPORTING_SETS.first().name
-                  timeInterval = timeInterval {
+                  timeInterval = interval {
                     startTime = timestamp { seconds = startSec }
                     endTime = timestamp { seconds = end }
                   }
@@ -1795,7 +1788,7 @@ class ReportsServiceTest {
           clearCreateTime()
           clearState()
           timeIntervals = timeIntervals {
-            timeIntervals += timeInterval {
+            timeIntervals += interval {
               startTime = START_TIME
               endTime = END_TIME
             }
@@ -1861,7 +1854,7 @@ class ReportsServiceTest {
           clearState()
           clearTime()
           timeIntervals = timeIntervals {
-            timeIntervals += timeInterval { endTime = timestamp { seconds = 5 } }
+            timeIntervals += interval { endTime = timestamp { seconds = 5 } }
           }
         }
       reportId = "report-id"
@@ -1887,7 +1880,7 @@ class ReportsServiceTest {
           clearState()
           clearTime()
           timeIntervals = timeIntervals {
-            timeIntervals += timeInterval { startTime = timestamp { seconds = 5 } }
+            timeIntervals += interval { startTime = timestamp { seconds = 5 } }
           }
         }
       reportId = "report-id"
@@ -1914,7 +1907,7 @@ class ReportsServiceTest {
           clearState()
           clearTime()
           timeIntervals = timeIntervals {
-            timeIntervals += timeInterval {
+            timeIntervals += interval {
               startTime = timestamp {
                 seconds = 5
                 nanos = 5
@@ -2371,16 +2364,16 @@ class ReportsServiceTest {
 
     val endTimesList: List<Long> =
       (startSec + incrementSec until startSec + incrementSec + intervalCount).toList()
-    val internalTimeIntervals: List<InternalTimeInterval> =
+    val intervals: List<Interval> =
       endTimesList.map { end ->
-        internalTimeInterval {
+        interval {
           startTime = timestamp { seconds = startSec }
           endTime = timestamp { seconds = end }
         }
       }
 
     val reportingCreateMetricRequests =
-      internalTimeIntervals.map { timeInterval ->
+      intervals.map { timeInterval ->
         buildInitialReportingMetric(
           PRIMITIVE_REPORTING_SETS.first().resourceId,
           timeInterval,
@@ -2445,7 +2438,7 @@ class ReportsServiceTest {
                     )
                     .toName()
                 reportingSet = PRIMITIVE_REPORTING_SETS.first().name
-                timeInterval = timeInterval {
+                timeInterval = interval {
                   startTime = timestamp { seconds = startSec }
                   endTime = timestamp { seconds = end }
                 }
@@ -2973,7 +2966,7 @@ class ReportsServiceTest {
   companion object {
     private fun buildInitialReportingMetric(
       reportingSetId: String,
-      timeInterval: InternalTimeInterval,
+      timeInterval: Interval,
       metricSpec: InternalMetricSpec,
       filters: List<String>,
     ): InternalReport.ReportingMetric {
@@ -3015,7 +3008,7 @@ class ReportsServiceTest {
 
     private fun buildInternalReports(
       cmmsMeasurementConsumerId: String,
-      timeIntervals: List<InternalTimeInterval>,
+      timeIntervals: List<Interval>,
       reportingSetId: String,
       reportingMetrics: List<InternalReport.ReportingMetric>,
       groupings: List<InternalReport.MetricCalculationSpec.Grouping>,
@@ -3025,7 +3018,7 @@ class ReportsServiceTest {
       // Internal reports of reach
       val internalRequestingReport = internalReport {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-        this.timeIntervals = internalTimeIntervals { this.timeIntervals += timeIntervals }
+        this.timeIntervals = Intervals { this.timeIntervals += timeIntervals }
 
         reportingMetricEntries.putAll(
           buildInternalReportingMetricEntryWithOneMetricCalculationSpec(
@@ -3289,7 +3282,7 @@ class ReportsServiceTest {
     private const val WATCH_DURATION_METRIC_ID_BASE_LONG: Long = 320L
     private val REQUESTING_REACH_METRIC = metric {
       reportingSet = PRIMITIVE_REPORTING_SETS.first().name
-      timeInterval = timeInterval {
+      timeInterval = interval {
         startTime = START_TIME
         endTime = END_TIME
       }
@@ -3322,7 +3315,7 @@ class ReportsServiceTest {
           )
           .toName()
       reportingSet = PRIMITIVE_REPORTING_SETS.first().name
-      timeInterval = timeInterval {
+      timeInterval = interval {
         startTime = START_TIME
         endTime = END_TIME
       }
@@ -3343,7 +3336,7 @@ class ReportsServiceTest {
     private val INITIAL_REACH_REPORTING_METRIC =
       buildInitialReportingMetric(
         PRIMITIVE_REPORTING_SETS.first().resourceId,
-        internalTimeInterval {
+        interval {
           startTime = START_TIME
           endTime = END_TIME
         },
@@ -3355,7 +3348,7 @@ class ReportsServiceTest {
       buildInternalReports(
         MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
         listOf(
-          internalTimeInterval {
+          interval {
             startTime = START_TIME
             endTime = END_TIME
           }
@@ -3368,7 +3361,7 @@ class ReportsServiceTest {
     private val INITIAL_WATCH_DURATION_REPORTING_METRIC =
       buildInitialReportingMetric(
         PRIMITIVE_REPORTING_SETS.first().resourceId,
-        internalTimeInterval {
+        interval {
           startTime = START_TIME
           endTime = END_TIME
         },
@@ -3379,7 +3372,7 @@ class ReportsServiceTest {
       buildInternalReports(
         MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
         listOf(
-          internalTimeInterval {
+          interval {
             startTime = START_TIME
             endTime = END_TIME
           }
@@ -3407,7 +3400,7 @@ class ReportsServiceTest {
             }
         }
       timeIntervals = timeIntervals {
-        timeIntervals += timeInterval {
+        timeIntervals += interval {
           startTime = START_TIME
           endTime = END_TIME
         }
@@ -3449,7 +3442,7 @@ class ReportsServiceTest {
             }
         }
       timeIntervals = timeIntervals {
-        timeIntervals += timeInterval {
+        timeIntervals += interval {
           startTime = START_TIME
           endTime = END_TIME
         }

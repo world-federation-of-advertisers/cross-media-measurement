@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.postgres.readers
 
+import com.google.type.Interval
+import com.google.type.interval
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
@@ -29,9 +31,7 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.reporting.v2.Measurement
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
-import org.wfanet.measurement.internal.reporting.v2.TimeInterval
 import org.wfanet.measurement.internal.reporting.v2.measurement
-import org.wfanet.measurement.internal.reporting.v2.timeInterval
 
 class MeasurementReader(private val readContext: ReadContext) {
   data class Result(
@@ -45,7 +45,7 @@ class MeasurementReader(private val readContext: ReadContext) {
     val cmmsMeasurementConsumerId: String,
     val cmmsMeasurementId: String?,
     val cmmsCreateMeasurementRequestId: String,
-    val timeInterval: TimeInterval,
+    val timeInterval: Interval,
     // Key is primitiveReportingSetBasisId.
     val primitiveReportingSetBasisInfoMap: MutableMap<InternalId, PrimitiveReportingSetBasisInfo>,
     val state: Measurement.State,
@@ -220,7 +220,7 @@ class MeasurementReader(private val readContext: ReadContext) {
 
       val measurementInfo =
         measurementInfoMap.computeIfAbsent(measurementId) {
-          val timeInterval = timeInterval {
+          val timeInterval = interval {
             startTime = measurementTimeIntervalStart.toProtoTime()
             endTime = measurementTimeIntervalEnd.toProtoTime()
           }

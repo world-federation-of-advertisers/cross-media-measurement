@@ -13,12 +13,12 @@
  */
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.type.Interval
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-import org.wfanet.measurement.api.v2alpha.TimeInterval
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.timeOrNull
-import org.wfanet.measurement.api.v2alpha.toRange
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toRange
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 /** Fulfills the query with matching events using filters. */
@@ -30,7 +30,7 @@ open class InMemoryEventQuery(private val events: Iterable<LabelledEvent>) : Eve
   data class LabelledEvent(val vid: Long, val event: TestEvent)
 
   override fun getUserVirtualIds(
-    timeInterval: TimeInterval,
+    timeInterval: Interval,
     eventFilter: RequisitionSpec.EventFilter
   ): Sequence<Long> {
     val timeRange = timeInterval.toRange()

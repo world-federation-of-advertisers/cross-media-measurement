@@ -18,11 +18,12 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.Timestamp
 import com.google.protobuf.duration
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.protobuf.timestamp
+import com.google.type.Interval
+import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.nio.file.Paths
@@ -92,8 +93,8 @@ import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
-import org.wfanet.measurement.api.v2alpha.timeInterval as measurementTimeInterval
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
+import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
@@ -110,6 +111,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.common.toInterval
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.MetricSpecConfigKt
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
@@ -166,7 +168,6 @@ import org.wfanet.measurement.internal.reporting.v2.metric as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
-import org.wfanet.measurement.internal.reporting.v2.timeInterval as internalTimeInterval
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v2alpha.RequestIdMatcher.Companion.requestIdEq
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageTokenKt.previousPageEnd
@@ -191,7 +192,6 @@ import org.wfanet.measurement.reporting.v2alpha.listMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.metric
 import org.wfanet.measurement.reporting.v2alpha.metricResult
 import org.wfanet.measurement.reporting.v2alpha.metricSpec
-import org.wfanet.measurement.reporting.v2alpha.timeInterval
 
 private const val MAX_BATCH_SIZE = 1000
 private const val DEFAULT_PAGE_SIZE = 50
@@ -527,22 +527,8 @@ private val INTERNAL_INCREMENTAL_REPORTING_SET = internalReportingSet {
 // Time intervals
 
 private val START_INSTANT = Instant.now()
-private val END_INSTANT = START_INSTANT.plus(Duration.ofDays(1))
-
-private val START_TIME: Timestamp = START_INSTANT.toProtoTime()
-private val END_TIME = END_INSTANT.toProtoTime()
-private val MEASUREMENT_TIME_INTERVAL = measurementTimeInterval {
-  startTime = START_TIME
-  endTime = END_TIME
-}
-private val INTERNAL_TIME_INTERVAL = internalTimeInterval {
-  startTime = START_TIME
-  endTime = END_TIME
-}
-private val TIME_INTERVAL = timeInterval {
-  startTime = START_TIME
-  endTime = END_TIME
-}
+private val TIME_RANGE = OpenEndTimeRange(START_INSTANT, START_INSTANT.plus(Duration.ofDays(1)))
+private val TIME_INTERVAL: Interval = TIME_RANGE.toInterval()
 
 // Requisition specs
 private val REQUISITION_SPECS: Map<DataProviderKey, RequisitionSpec> =
@@ -553,7 +539,7 @@ private val REQUISITION_SPECS: Map<DataProviderKey, RequisitionSpec> =
           key = it.toName()
           value =
             RequisitionSpecKt.EventGroupEntryKt.value {
-              collectionInterval = MEASUREMENT_TIME_INTERVAL
+              collectionInterval = TIME_INTERVAL
               filter =
                 RequisitionSpecKt.eventFilter {
                   expression =
@@ -612,7 +598,7 @@ private val INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT = internalMeasurement {
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
   cmmsCreateMeasurementRequestId = "UNION_ALL_REACH_MEASUREMENT"
   cmmsMeasurementId = externalIdToApiId(401L)
-  timeInterval = INTERNAL_TIME_INTERVAL
+  timeInterval = TIME_INTERVAL
   primitiveReportingSetBases += primitiveReportingSetBasis {
     externalReportingSetId = INTERNAL_UNION_ALL_REPORTING_SET.externalReportingSetId
     filters += ALL_FILTERS
@@ -624,7 +610,7 @@ private val INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT = in
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
   cmmsCreateMeasurementRequestId = "UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT"
   cmmsMeasurementId = externalIdToApiId(402L)
-  timeInterval = INTERNAL_TIME_INTERVAL
+  timeInterval = TIME_INTERVAL
   primitiveReportingSetBases += primitiveReportingSetBasis {
     externalReportingSetId =
       INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET.externalReportingSetId
@@ -651,7 +637,7 @@ private val INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT = internalM
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
   cmmsCreateMeasurementRequestId = "SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT"
   cmmsMeasurementId = externalIdToApiId(403L)
-  timeInterval = INTERNAL_TIME_INTERVAL
+  timeInterval = TIME_INTERVAL
   primitiveReportingSetBases += primitiveReportingSetBasis {
     externalReportingSetId = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
     filters += METRIC_FILTER
@@ -676,7 +662,7 @@ private val INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
 // Internal cross-publisher watch duration measurements
 private val INTERNAL_REQUESTING_UNION_ALL_WATCH_DURATION_MEASUREMENT = internalMeasurement {
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-  timeInterval = INTERNAL_TIME_INTERVAL
+  timeInterval = TIME_INTERVAL
   primitiveReportingSetBases += primitiveReportingSetBasis {
     externalReportingSetId = INTERNAL_UNION_ALL_REPORTING_SET.externalReportingSetId
     filters += listOf(METRIC_FILTER, PRIMITIVE_REPORTING_SET_FILTER)
@@ -930,7 +916,7 @@ private const val INCREMENTAL_REACH_METRIC_IDEMPOTENCY_KEY = "TEST_INCREMENTAL_R
 private val INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC = internalMetric {
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
   externalReportingSetId = INTERNAL_INCREMENTAL_REPORTING_SET.externalReportingSetId
-  timeInterval = INTERNAL_TIME_INTERVAL
+  timeInterval = TIME_INTERVAL
   metricSpec = internalMetricSpec {
     reach =
       InternalMetricSpecKt.reachParams {
@@ -1028,7 +1014,7 @@ private val INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC =
 private val INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC = internalMetric {
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
   externalReportingSetId = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
-  timeInterval = INTERNAL_TIME_INTERVAL
+  timeInterval = TIME_INTERVAL
   metricSpec = internalMetricSpec {
     impressionCount =
       InternalMetricSpecKt.impressionCountParams {
@@ -1091,7 +1077,7 @@ private val INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC =
 private val INTERNAL_REQUESTING_CROSS_PUBLISHER_WATCH_DURATION_METRIC = internalMetric {
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
   externalReportingSetId = INTERNAL_UNION_ALL_REPORTING_SET.externalReportingSetId
-  timeInterval = INTERNAL_TIME_INTERVAL
+  timeInterval = TIME_INTERVAL
   metricSpec = internalMetricSpec {
     watchDuration =
       InternalMetricSpecKt.watchDurationParams {
@@ -2019,7 +2005,7 @@ class MetricsServiceTest {
             weight = 1
             measurement = internalMeasurement {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-              timeInterval = INTERNAL_TIME_INTERVAL
+              timeInterval = TIME_INTERVAL
               primitiveReportingSetBases += primitiveReportingSetBasis {
                 externalReportingSetId = internalSinglePublisherReportingSet.externalReportingSetId
               }
@@ -2565,7 +2551,7 @@ class MetricsServiceTest {
       metric =
         REQUESTING_INCREMENTAL_REACH_METRIC.copy {
           clearTimeInterval()
-          timeInterval = timeInterval { endTime = timestamp { seconds = 5 } }
+          timeInterval = interval { endTime = timestamp { seconds = 5 } }
         }
       metricId = "metric-id"
     }
@@ -2586,7 +2572,7 @@ class MetricsServiceTest {
       metric =
         REQUESTING_INCREMENTAL_REACH_METRIC.copy {
           clearTimeInterval()
-          timeInterval = timeInterval { startTime = timestamp { seconds = 5 } }
+          timeInterval = interval { startTime = timestamp { seconds = 5 } }
         }
       metricId = "metric-id"
     }
@@ -2607,7 +2593,7 @@ class MetricsServiceTest {
       metric =
         REQUESTING_INCREMENTAL_REACH_METRIC.copy {
           clearTimeInterval()
-          timeInterval = timeInterval {
+          timeInterval = interval {
             startTime = timestamp {
               seconds = 5
               nanos = 5

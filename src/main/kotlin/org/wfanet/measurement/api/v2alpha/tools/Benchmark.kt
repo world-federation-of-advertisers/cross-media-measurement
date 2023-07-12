@@ -50,6 +50,7 @@
 package org.wfanet.measurement.api.v2alpha.tools
 
 import com.google.protobuf.ByteString
+import com.google.type.interval
 import io.grpc.ManagedChannel
 import java.io.File
 import java.security.SecureRandom
@@ -87,7 +88,6 @@ import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
-import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.Hashing
@@ -413,7 +413,7 @@ private fun getDataProviderEntry(
           eventGroupEntry {
             key = it.name
             value = eventGroupEntryValue {
-              collectionInterval = timeInterval {
+              collectionInterval = interval {
                 startTime = it.eventStartTime.toProtoTime()
                 endTime = it.eventEndTime.toProtoTime()
               }

@@ -19,6 +19,7 @@ package org.wfanet.measurement.reporting.service.internal.testing.v2
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.timestamp
+import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
@@ -52,7 +53,6 @@ import org.wfanet.measurement.internal.reporting.v2.metric
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
-import org.wfanet.measurement.internal.reporting.v2.timeInterval
 
 private const val CMMS_MEASUREMENT_CONSUMER_ID = "1234"
 private const val MAX_BATCH_SIZE = 1000
@@ -92,7 +92,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     val metric = metric {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportingSetId = createdReportingSet.externalReportingSetId
-      timeInterval = timeInterval {
+      timeInterval = interval {
         startTime = timestamp { seconds = 10 }
         endTime = timestamp { seconds = 100 }
       }
@@ -116,7 +116,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           weight = 2
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            timeInterval = timeInterval {
+            timeInterval = interval {
               startTime = timestamp { seconds = 10 }
               endTime = timestamp { seconds = 100 }
             }
@@ -139,7 +139,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           weight = 3
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            timeInterval = timeInterval {
+            timeInterval = interval {
               startTime = timestamp { seconds = 10 }
               endTime = timestamp { seconds = 100 }
             }
@@ -187,7 +187,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     val metric = metric {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportingSetId = createdReportingSet.externalReportingSetId
-      timeInterval = timeInterval {
+      timeInterval = interval {
         startTime = timestamp { seconds = 10 }
         endTime = timestamp { seconds = 100 }
       }
@@ -217,7 +217,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           weight = 2
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            timeInterval = timeInterval {
+            timeInterval = interval {
               startTime = timestamp { seconds = 10 }
               endTime = timestamp { seconds = 100 }
             }
@@ -240,7 +240,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           weight = 3
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            timeInterval = timeInterval {
+            timeInterval = interval {
               startTime = timestamp { seconds = 10 }
               endTime = timestamp { seconds = 100 }
             }
@@ -288,7 +288,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     val metric = metric {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportingSetId = createdReportingSet.externalReportingSetId
-      timeInterval = timeInterval {
+      timeInterval = interval {
         startTime = timestamp { seconds = 10 }
         endTime = timestamp { seconds = 100 }
       }
@@ -313,7 +313,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           weight = 2
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            timeInterval = timeInterval {
+            timeInterval = interval {
               startTime = timestamp { seconds = 10 }
               endTime = timestamp { seconds = 100 }
             }
@@ -336,7 +336,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           weight = 3
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            timeInterval = timeInterval {
+            timeInterval = interval {
               startTime = timestamp { seconds = 10 }
               endTime = timestamp { seconds = 100 }
             }
@@ -384,7 +384,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     val metric = metric {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportingSetId = createdReportingSet.externalReportingSetId
-      timeInterval = timeInterval {
+      timeInterval = interval {
         startTime = timestamp { seconds = 10 }
         endTime = timestamp { seconds = 100 }
       }
@@ -409,7 +409,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           weight = 2
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            timeInterval = timeInterval {
+            timeInterval = interval {
               startTime = timestamp { seconds = 10 }
               endTime = timestamp { seconds = 100 }
             }
@@ -432,7 +432,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           weight = 3
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            timeInterval = timeInterval {
+            timeInterval = interval {
               startTime = timestamp { seconds = 10 }
               endTime = timestamp { seconds = 100 }
             }
@@ -480,7 +480,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     val metric = metric {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportingSetId = createdReportingSet.externalReportingSetId
-      timeInterval = timeInterval {
+      timeInterval = interval {
         startTime = timestamp { seconds = 10 }
         endTime = timestamp { seconds = 100 }
       }
@@ -505,7 +505,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           weight = 2
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            timeInterval = timeInterval {
+            timeInterval = interval {
               startTime = timestamp { seconds = 10 }
               endTime = timestamp { seconds = 100 }
             }
@@ -545,7 +545,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     val metric = metric {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportingSetId = createdReportingSet.externalReportingSetId
-      timeInterval = timeInterval {
+      timeInterval = interval {
         startTime = timestamp { seconds = 10 }
         endTime = timestamp { seconds = 100 }
       }
@@ -575,7 +575,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           weight = 2
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            timeInterval = timeInterval {
+            timeInterval = interval {
               startTime = timestamp { seconds = 10 }
               endTime = timestamp { seconds = 100 }
             }
@@ -598,7 +598,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           weight = 3
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            timeInterval = timeInterval {
+            timeInterval = interval {
               startTime = timestamp { seconds = 10 }
               endTime = timestamp { seconds = 100 }
             }
@@ -656,7 +656,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       val metric = metric {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         externalReportingSetId = createdReportingSet.externalReportingSetId
-        timeInterval = timeInterval {
+        timeInterval = interval {
           startTime = timestamp { seconds = 10 }
           endTime = timestamp { seconds = 100 }
         }
@@ -686,7 +686,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
             weight = 2
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              timeInterval = timeInterval {
+              timeInterval = interval {
                 startTime = timestamp { seconds = 10 }
                 endTime = timestamp { seconds = 100 }
               }
@@ -709,7 +709,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
             weight = 3
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              timeInterval = timeInterval {
+              timeInterval = interval {
                 startTime = timestamp { seconds = 10 }
                 endTime = timestamp { seconds = 100 }
               }
@@ -766,7 +766,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     val metric = metric {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportingSetId = createdReportingSet.externalReportingSetId
-      timeInterval = timeInterval {
+      timeInterval = interval {
         startTime = timestamp { seconds = 10 }
         endTime = timestamp { seconds = 100 }
       }
@@ -796,7 +796,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           weight = 2
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            timeInterval = timeInterval {
+            timeInterval = interval {
               startTime = timestamp { seconds = 10 }
               endTime = timestamp { seconds = 100 }
             }
@@ -837,7 +837,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     val metric = metric {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportingSetId = "1234"
-      timeInterval = timeInterval {
+      timeInterval = interval {
         startTime = timestamp { seconds = 10 }
         endTime = timestamp { seconds = 100 }
       }
@@ -867,7 +867,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           weight = 2
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            timeInterval = timeInterval {
+            timeInterval = interval {
               startTime = timestamp { seconds = 10 }
               endTime = timestamp { seconds = 100 }
             }
@@ -941,7 +941,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           weight = 2
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            timeInterval = timeInterval {
+            timeInterval = interval {
               startTime = timestamp { seconds = 10 }
               endTime = timestamp { seconds = 100 }
             }
@@ -982,7 +982,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     val metric = metric {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportingSetId = createdReportingSet.externalReportingSetId
-      timeInterval = timeInterval {
+      timeInterval = interval {
         startTime = timestamp { seconds = 10 }
         endTime = timestamp { seconds = 100 }
       }
@@ -998,7 +998,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           weight = 2
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            timeInterval = timeInterval {
+            timeInterval = interval {
               startTime = timestamp { seconds = 10 }
               endTime = timestamp { seconds = 100 }
             }
@@ -1041,7 +1041,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       val metric = metric {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         externalReportingSetId = createdReportingSet.externalReportingSetId
-        timeInterval = timeInterval {
+        timeInterval = interval {
           startTime = timestamp { seconds = 10 }
           endTime = timestamp { seconds = 100 }
         }
@@ -1060,7 +1060,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
             weight = 2
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              timeInterval = timeInterval {
+              timeInterval = interval {
                 startTime = timestamp { seconds = 10 }
                 endTime = timestamp { seconds = 100 }
               }
@@ -1103,7 +1103,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       val metric = metric {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         externalReportingSetId = createdReportingSet.externalReportingSetId
-        timeInterval = timeInterval {
+        timeInterval = interval {
           startTime = timestamp { seconds = 10 }
           endTime = timestamp { seconds = 100 }
         }
@@ -1151,7 +1151,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     val metric = metric {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID + "2"
       externalReportingSetId = createdReportingSet.externalReportingSetId
-      timeInterval = timeInterval {
+      timeInterval = interval {
         startTime = timestamp { seconds = 10 }
         endTime = timestamp { seconds = 100 }
       }
@@ -1181,7 +1181,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           weight = 2
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            timeInterval = timeInterval {
+            timeInterval = interval {
               startTime = timestamp { seconds = 10 }
               endTime = timestamp { seconds = 100 }
             }
@@ -1222,7 +1222,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     val metric = metric {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportingSetId = createdReportingSet.externalReportingSetId
-      timeInterval = timeInterval {
+      timeInterval = interval {
         startTime = timestamp { seconds = 10 }
         endTime = timestamp { seconds = 100 }
       }
@@ -1252,7 +1252,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           weight = 2
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            timeInterval = timeInterval {
+            timeInterval = interval {
               startTime = timestamp { seconds = 10 }
               endTime = timestamp { seconds = 100 }
             }
@@ -1299,7 +1299,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     val metric = metric {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportingSetId = createdReportingSet.externalReportingSetId
-      timeInterval = timeInterval {
+      timeInterval = interval {
         startTime = timestamp { seconds = 10 }
         endTime = timestamp { seconds = 100 }
       }
@@ -1329,7 +1329,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           weight = 2
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            timeInterval = timeInterval {
+            timeInterval = interval {
               startTime = timestamp { seconds = 10 }
               endTime = timestamp { seconds = 100 }
             }
@@ -1387,7 +1387,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       val metric = metric {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         externalReportingSetId = createdReportingSet.externalReportingSetId
-        timeInterval = timeInterval {
+        timeInterval = interval {
           startTime = timestamp { seconds = 10 }
           endTime = timestamp { seconds = 100 }
         }
@@ -1417,7 +1417,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
             weight = 2
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              timeInterval = timeInterval {
+              timeInterval = interval {
                 startTime = timestamp { seconds = 10 }
                 endTime = timestamp { seconds = 100 }
               }
@@ -1484,7 +1484,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       val metric = metric {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         externalReportingSetId = createdReportingSet.externalReportingSetId
-        timeInterval = timeInterval {
+        timeInterval = interval {
           startTime = timestamp { seconds = 10 }
           endTime = timestamp { seconds = 100 }
         }
@@ -1514,7 +1514,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
             weight = 2
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              timeInterval = timeInterval {
+              timeInterval = interval {
                 startTime = timestamp { seconds = 10 }
                 endTime = timestamp { seconds = 100 }
               }
@@ -1574,7 +1574,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       val metric = metric {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         externalReportingSetId = createdReportingSet.externalReportingSetId
-        timeInterval = timeInterval {
+        timeInterval = interval {
           startTime = timestamp { seconds = 10 }
           endTime = timestamp { seconds = 100 }
         }
@@ -1604,7 +1604,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
             weight = 2
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              timeInterval = timeInterval {
+              timeInterval = interval {
                 startTime = timestamp { seconds = 10 }
                 endTime = timestamp { seconds = 100 }
               }
@@ -1653,7 +1653,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       val metric = metric {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         externalReportingSetId = createdReportingSet.externalReportingSetId
-        timeInterval = timeInterval {
+        timeInterval = interval {
           startTime = timestamp { seconds = 10 }
           endTime = timestamp { seconds = 100 }
         }
@@ -1683,7 +1683,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
             weight = 2
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              timeInterval = timeInterval {
+              timeInterval = interval {
                 startTime = timestamp { seconds = 10 }
                 endTime = timestamp { seconds = 100 }
               }
@@ -1731,7 +1731,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     val metric = metric {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportingSetId = createdReportingSet.externalReportingSetId
-      timeInterval = timeInterval {
+      timeInterval = interval {
         startTime = timestamp { seconds = 10 }
         endTime = timestamp { seconds = 100 }
       }
@@ -1761,7 +1761,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           weight = 2
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            timeInterval = timeInterval {
+            timeInterval = interval {
               startTime = timestamp { seconds = 10 }
               endTime = timestamp { seconds = 100 }
             }
@@ -1811,7 +1811,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       val metric = metric {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         externalReportingSetId = createdReportingSet.externalReportingSetId
-        timeInterval = timeInterval {
+        timeInterval = interval {
           startTime = timestamp { seconds = 10 }
           endTime = timestamp { seconds = 100 }
         }
@@ -1841,7 +1841,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
             weight = 2
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              timeInterval = timeInterval {
+              timeInterval = interval {
                 startTime = timestamp { seconds = 10 }
                 endTime = timestamp { seconds = 100 }
               }
@@ -1892,7 +1892,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       val metric = metric {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         externalReportingSetId = createdReportingSet.externalReportingSetId
-        timeInterval = timeInterval {
+        timeInterval = interval {
           startTime = timestamp { seconds = 10 }
           endTime = timestamp { seconds = 100 }
         }
@@ -1922,7 +1922,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
             weight = 2
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              timeInterval = timeInterval {
+              timeInterval = interval {
                 startTime = timestamp { seconds = 10 }
                 endTime = timestamp { seconds = 100 }
               }
@@ -1972,7 +1972,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       val metric = metric {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         externalReportingSetId = createdReportingSet.externalReportingSetId
-        timeInterval = timeInterval {
+        timeInterval = interval {
           startTime = timestamp { seconds = 10 }
           endTime = timestamp { seconds = 100 }
         }
@@ -2002,7 +2002,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
             weight = 2
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              timeInterval = timeInterval {
+              timeInterval = interval {
                 startTime = timestamp { seconds = 10 }
                 endTime = timestamp { seconds = 100 }
               }
@@ -2051,7 +2051,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     val metric = metric {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportingSetId = createdReportingSet.externalReportingSetId
-      timeInterval = timeInterval {
+      timeInterval = interval {
         startTime = timestamp { seconds = 10 }
         endTime = timestamp { seconds = 100 }
       }
@@ -2081,7 +2081,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           weight = 2
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            timeInterval = timeInterval {
+            timeInterval = interval {
               startTime = timestamp { seconds = 10 }
               endTime = timestamp { seconds = 100 }
             }
@@ -2342,7 +2342,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 weight = 2
                 measurement = measurement {
                   cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-                  timeInterval = timeInterval {
+                  timeInterval = interval {
                     startTime = timestamp { seconds = 10 }
                     endTime = timestamp { seconds = 100 }
                   }
@@ -2632,7 +2632,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       val metric = metric {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
         externalReportingSetId = createdReportingSet.externalReportingSetId
-        timeInterval = timeInterval {
+        timeInterval = interval {
           startTime = timestamp { seconds = 10 }
           endTime = timestamp { seconds = 100 }
         }
@@ -2656,7 +2656,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
             weight = 2
             measurement = measurement {
               this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-              timeInterval = timeInterval {
+              timeInterval = interval {
                 startTime = timestamp { seconds = 10 }
                 endTime = timestamp { seconds = 100 }
               }
@@ -2679,7 +2679,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
             weight = 3
             measurement = measurement {
               this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-              timeInterval = timeInterval {
+              timeInterval = interval {
                 startTime = timestamp { seconds = 10 }
                 endTime = timestamp { seconds = 100 }
               }

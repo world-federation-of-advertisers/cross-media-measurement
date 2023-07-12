@@ -19,6 +19,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
+import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
@@ -49,7 +50,6 @@ import org.wfanet.measurement.api.v2alpha.listModelOutagesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelOutagesRequest
 import org.wfanet.measurement.api.v2alpha.listModelOutagesResponse
 import org.wfanet.measurement.api.v2alpha.modelOutage
-import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withDuchyPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
@@ -122,7 +122,7 @@ private val INTERNAL_MODEL_OUTAGE: InternalModelOutage = internalModelOutage {
 
 private val MODEL_OUTAGE: ModelOutage = modelOutage {
   name = MODEL_OUTAGE_NAME
-  outageInterval = timeInterval {
+  outageInterval = interval {
     startTime = OUTAGE_START_TIME
     endTime = OUTAGE_END_TIME
   }
@@ -305,7 +305,7 @@ class ModelOutagesServiceTest {
       parent = MODEL_LINE_NAME
       showDeleted = true
       filter = filter {
-        outageIntervalOverlapping = timeInterval {
+        outageIntervalOverlapping = interval {
           startTime = OUTAGE_START_TIME
           endTime = OUTAGE_END_TIME
         }
@@ -355,7 +355,7 @@ class ModelOutagesServiceTest {
       parent = MODEL_LINE_NAME
       showDeleted = true
       filter = filter {
-        outageIntervalOverlapping = timeInterval {
+        outageIntervalOverlapping = interval {
           startTime = OUTAGE_START_TIME
           endTime = OUTAGE_END_TIME
         }
@@ -480,7 +480,7 @@ class ModelOutagesServiceTest {
         externalModelProviderId = 987L
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
         externalModelLineId = EXTERNAL_MODEL_LINE_ID
-        outageInterval = timeInterval {
+        outageInterval = interval {
           startTime = OUTAGE_START_TIME
           endTime = OUTAGE_END_TIME
         }
@@ -507,7 +507,7 @@ class ModelOutagesServiceTest {
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
         externalModelLineId = EXTERNAL_MODEL_LINE_ID
-        outageInterval = timeInterval {
+        outageInterval = interval {
           startTime = OUTAGE_START_TIME
           endTime = OUTAGE_END_TIME
         }
@@ -534,7 +534,7 @@ class ModelOutagesServiceTest {
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
         externalModelLineId = EXTERNAL_MODEL_LINE_ID
-        outageInterval = timeInterval {
+        outageInterval = interval {
           startTime = Instant.ofEpochSecond(123).toProtoTime()
           endTime = OUTAGE_END_TIME
         }
@@ -559,7 +559,7 @@ class ModelOutagesServiceTest {
       pageSize = 2
       showDeleted = true
       filter = filter {
-        outageIntervalOverlapping = timeInterval {
+        outageIntervalOverlapping = interval {
           startTime = OUTAGE_START_TIME
           endTime = OUTAGE_END_TIME
         }
@@ -569,7 +569,7 @@ class ModelOutagesServiceTest {
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
         externalModelLineId = EXTERNAL_MODEL_LINE_ID
-        outageInterval = timeInterval {
+        outageInterval = interval {
           startTime = OUTAGE_START_TIME
           endTime = OUTAGE_END_TIME
         }
@@ -598,7 +598,7 @@ class ModelOutagesServiceTest {
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
         externalModelLineId = EXTERNAL_MODEL_LINE_ID
-        outageInterval = timeInterval {
+        outageInterval = interval {
           startTime = OUTAGE_START_TIME
           endTime = OUTAGE_END_TIME
         }
@@ -654,7 +654,7 @@ class ModelOutagesServiceTest {
       pageSize = 4
       showDeleted = false
       filter = filter {
-        outageIntervalOverlapping = timeInterval {
+        outageIntervalOverlapping = interval {
           startTime = OUTAGE_START_TIME
           endTime = OUTAGE_END_TIME
         }
@@ -664,7 +664,7 @@ class ModelOutagesServiceTest {
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
         externalModelLineId = EXTERNAL_MODEL_LINE_ID
-        outageInterval = timeInterval {
+        outageInterval = interval {
           startTime = OUTAGE_START_TIME
           endTime = OUTAGE_END_TIME
         }
@@ -721,7 +721,7 @@ class ModelOutagesServiceTest {
       parent = MODEL_LINE_NAME
       showDeleted = false
       filter = filter {
-        outageIntervalOverlapping = timeInterval {
+        outageIntervalOverlapping = interval {
           startTime = OUTAGE_START_TIME
           endTime = OUTAGE_END_TIME
         }
@@ -731,7 +731,7 @@ class ModelOutagesServiceTest {
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
         externalModelLineId = EXTERNAL_MODEL_LINE_ID
-        outageInterval = timeInterval {
+        outageInterval = interval {
           startTime = OUTAGE_START_TIME
           endTime = OUTAGE_END_TIME
         }

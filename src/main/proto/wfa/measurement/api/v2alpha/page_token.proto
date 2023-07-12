@@ -17,10 +17,10 @@ syntax = "proto3";
 package wfa.measurement.api.v2alpha;
 
 import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
 import "wfa/measurement/api/v2alpha/measurement.proto";
 import "wfa/measurement/api/v2alpha/model_line.proto";
 import "wfa/measurement/api/v2alpha/requisition.proto";
-import "wfa/measurement/api/v2alpha/time_interval.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
@@ -134,7 +134,7 @@ message ListModelOutagesPageToken {
   fixed64 external_model_provider_id = 2;
   fixed64 external_model_suite_id = 3;
   fixed64 external_model_line_id = 4;
-  TimeInterval outage_interval = 5;
+  google.type.Interval outage_interval = 5;
   message PreviousPageEnd {
     fixed64 external_model_provider_id = 1;
     fixed64 external_model_suite_id = 2;
@@ -151,7 +151,7 @@ message ListModelRolloutsPageToken {
   fixed64 external_model_provider_id = 2;
   fixed64 external_model_suite_id = 3;
   fixed64 external_model_line_id = 4;
-  TimeInterval rollout_period_overlapping = 5;
+  google.type.Interval rollout_period_overlapping = 5;
   message PreviousPageEnd {
     fixed64 external_model_provider_id = 1;
     fixed64 external_model_suite_id = 2;
