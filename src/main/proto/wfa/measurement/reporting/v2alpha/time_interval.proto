@@ -19,26 +19,16 @@ package wfa.measurement.reporting.v2alpha;
 import "google/api/field_behavior.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "TimeIntervalProto";
 
-// A time interval.
-message TimeInterval {
-  // Start of the time interval, inclusive.
-  google.protobuf.Timestamp start_time = 1
-      [(google.api.field_behavior) = REQUIRED];
-  // End of the time interval, exclusive. This must be later than the start
-  // time.
-  google.protobuf.Timestamp end_time = 2
-      [(google.api.field_behavior) = REQUIRED];
-}
-
 // A list of time intervals with different start times and end times.
 message TimeIntervals {
   // A list of time intervals.
-  repeated TimeInterval time_intervals = 1
+  repeated google.type.Interval time_intervals = 1
       [(google.api.field_behavior) = REQUIRED];
 }
 

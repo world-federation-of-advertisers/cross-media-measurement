@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Empty
 import com.google.protobuf.Timestamp
+import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
@@ -50,7 +51,6 @@ import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsResponse
 import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.scheduleModelRolloutFreezeRequest
-import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withDuchyPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
@@ -130,7 +130,7 @@ private val INTERNAL_MODEL_ROLLOUT: InternalModelRollout = internalModelRollout 
 
 private val MODEL_ROLLOUT: ModelRollout = modelRollout {
   name = MODEL_ROLLOUT_NAME_2
-  gradualRolloutPeriod = timeInterval {
+  gradualRolloutPeriod = interval {
     startTime = ROLLOUT_PERIOD_START_TIME
     endTime = ROLLOUT_PERIOD_END_TIME
   }
@@ -751,7 +751,7 @@ class ModelRolloutsServiceTest {
     val request = listModelRolloutsRequest {
       parent = MODEL_LINE_NAME
       filter = filter {
-        rolloutPeriodOverlapping = timeInterval {
+        rolloutPeriodOverlapping = interval {
           startTime = ROLLOUT_PERIOD_START_TIME
           endTime = ROLLOUT_PERIOD_END_TIME
         }
@@ -761,7 +761,7 @@ class ModelRolloutsServiceTest {
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
         externalModelLineId = EXTERNAL_MODEL_LINE_ID
-        rolloutPeriodOverlapping = timeInterval {
+        rolloutPeriodOverlapping = interval {
           startTime = ROLLOUT_PERIOD_START_TIME
           endTime = ROLLOUT_FREEZE_TIME
         }
@@ -795,7 +795,7 @@ class ModelRolloutsServiceTest {
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
         externalModelLineId = EXTERNAL_MODEL_LINE_ID
-        rolloutPeriodOverlapping = timeInterval {
+        rolloutPeriodOverlapping = interval {
           startTime = ROLLOUT_PERIOD_START_TIME
           endTime = ROLLOUT_PERIOD_END_TIME
         }
@@ -825,7 +825,7 @@ class ModelRolloutsServiceTest {
       parent = MODEL_LINE_NAME
       pageSize = 2
       filter = filter {
-        rolloutPeriodOverlapping = timeInterval {
+        rolloutPeriodOverlapping = interval {
           startTime = ROLLOUT_PERIOD_START_TIME
           endTime = ROLLOUT_PERIOD_END_TIME
         }
@@ -835,7 +835,7 @@ class ModelRolloutsServiceTest {
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
         externalModelLineId = EXTERNAL_MODEL_LINE_ID
-        rolloutPeriodOverlapping = timeInterval {
+        rolloutPeriodOverlapping = interval {
           startTime = ROLLOUT_PERIOD_START_TIME
           endTime = ROLLOUT_PERIOD_END_TIME
         }
@@ -863,7 +863,7 @@ class ModelRolloutsServiceTest {
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
         externalModelLineId = EXTERNAL_MODEL_LINE_ID
-        rolloutPeriodOverlapping = timeInterval {
+        rolloutPeriodOverlapping = interval {
           startTime = ROLLOUT_PERIOD_START_TIME
           endTime = ROLLOUT_PERIOD_END_TIME
         }
@@ -917,7 +917,7 @@ class ModelRolloutsServiceTest {
       parent = MODEL_LINE_NAME
       pageSize = 4
       filter = filter {
-        rolloutPeriodOverlapping = timeInterval {
+        rolloutPeriodOverlapping = interval {
           startTime = ROLLOUT_PERIOD_START_TIME
           endTime = ROLLOUT_PERIOD_END_TIME
         }
@@ -927,7 +927,7 @@ class ModelRolloutsServiceTest {
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
         externalModelLineId = EXTERNAL_MODEL_LINE_ID
-        rolloutPeriodOverlapping = timeInterval {
+        rolloutPeriodOverlapping = interval {
           startTime = ROLLOUT_PERIOD_START_TIME
           endTime = ROLLOUT_PERIOD_END_TIME
         }
