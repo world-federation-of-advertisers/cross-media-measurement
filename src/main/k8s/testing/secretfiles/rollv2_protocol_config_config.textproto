@@ -1,17 +1,15 @@
-# proto-file: src/main/proto/wfa/measurement/internal/kingdom/protocol_configs.proto
-# proto-message: Llv2ProtocolConfigs
+# proto-file: src/main/proto/wfa/measurement/internal/kingdom/protocol_config_config.proto
+# proto-message: Llv2ProtocolConfigConfig
 protocol_config {
   sketch_params {
     decay_rate: 7.75
     max_size: 100000
-    sampling_indicator_size: 10000000
   }
   data_provider_noise {
     epsilon: 1.0
     delta: 1.0
   }
   elliptic_curve_id: 415
-  maximum_frequency: 10
   noise_mechanism: GEOMETRIC
 }
 duchy_protocol_config {

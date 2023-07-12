@@ -18,9 +18,8 @@ import java.io.File
 import kotlin.properties.Delegates
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
-import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigs
+import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
-import org.wfanet.measurement.internal.kingdom.Rollv2ProtocolConfigs
 import picocli.CommandLine
 
 object Llv2ProtocolConfig {
@@ -40,7 +39,9 @@ object Llv2ProtocolConfig {
     require(!Llv2ProtocolConfig::duchyProtocolConfig.isInitialized)
     require(!Llv2ProtocolConfig::requiredExternalDuchyIds.isInitialized)
     val configMessage =
-      flags.config.reader().use { parseTextProto(it, Llv2ProtocolConfigs.getDefaultInstance()) }
+      flags.config.reader().use {
+        parseTextProto(it, Llv2ProtocolConfigConfig.getDefaultInstance())
+      }
     protocolConfig = configMessage.protocolConfig
     duchyProtocolConfig = configMessage.duchyProtocolConfig
     requiredExternalDuchyIds = configMessage.requiredExternalDuchyIdsList.toSet()
@@ -66,7 +67,7 @@ object Llv2ProtocolConfig {
 class Llv2ProtocolConfigFlags {
   @CommandLine.Option(
     names = ["--llv2-protocol-config-config"],
-    description = ["Llv2ProtocolConfigs proto message in text format."],
+    description = ["Llv2ProtocolConfigConfig proto message in text format."],
     required = true
   )
   lateinit var config: File
@@ -93,7 +94,9 @@ object Rollv2ProtocolConfig {
     require(!Rollv2ProtocolConfig::duchyProtocolConfig.isInitialized)
     require(!Rollv2ProtocolConfig::requiredExternalDuchyIds.isInitialized)
     val configMessage =
-      flags.config.reader().use { parseTextProto(it, Rollv2ProtocolConfigs.getDefaultInstance()) }
+      flags.config.reader().use {
+        parseTextProto(it, Llv2ProtocolConfigConfig.getDefaultInstance())
+      }
     protocolConfig = configMessage.protocolConfig
     duchyProtocolConfig = configMessage.duchyProtocolConfig
     requiredExternalDuchyIds = configMessage.requiredExternalDuchyIdsList.toSet()
@@ -122,8 +125,8 @@ object Rollv2ProtocolConfig {
 
 class Rollv2ProtocolConfigFlags {
   @CommandLine.Option(
-    names = ["--rollv2-protocol-config"],
-    description = ["Rollv2ProtocolConfigs proto message in text format."],
+    names = ["--rollv2-protocol-config-config"],
+    description = ["Llv2ProtocolConfigConfig proto message in text format."],
     required = true
   )
   lateinit var config: File

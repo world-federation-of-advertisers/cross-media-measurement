@@ -23,18 +23,8 @@ option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
 // The kingdom local config proto used to initialize the `ProtocolConfig` and
-// `DuchyProtocolConfig` for the LLV2 protocol.
-message Llv2ProtocolConfigs {
-  ProtocolConfig.LiquidLegionsV2 protocol_config = 1;
-  DuchyProtocolConfig.LiquidLegionsV2 duchy_protocol_config = 2;
-  // List of required duchies for this protocol. E.g. aggregator.
-  repeated string required_external_duchy_ids = 3;
-  int32 minimum_duchy_participant_count = 4;
-}
-
-// The kingdom local config proto used to initialize the `ProtocolConfig` and
-// `DuchyProtocolConfig` for the ROLLV2 protocol.
-message Rollv2ProtocolConfigs {
+// `DuchyProtocolConfig` for the Liquid Legions v2 protocols.
+message Llv2ProtocolConfigConfig {
   ProtocolConfig.LiquidLegionsV2 protocol_config = 1;
   DuchyProtocolConfig.LiquidLegionsV2 duchy_protocol_config = 2;
   // List of required duchies for this protocol. E.g. aggregator.

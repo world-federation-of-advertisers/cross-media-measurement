@@ -36,7 +36,7 @@ message ProtocolConfig {
     DISCRETE_GAUSSIAN = 2;
   }
 
-  // Configuration for the Liquid Legions v2 R/F protocol.
+  // Configuration for Liquid Legions v2 protocols.
   message LiquidLegionsV2 {
     // Parameters for sketch.
     LiquidLegionsSketchParams sketch_params = 1;
@@ -84,5 +84,6 @@ message LiquidLegionsSketchParams {
   int64 max_size = 2;
 
   // The size of the distribution of the sampling indicator value.
+  // Reach-Only Liquid Legions protocol ignores this field.
   int64 sampling_indicator_size = 3;
 }

@@ -35,7 +35,7 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
-import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigs
+import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 
@@ -60,8 +60,11 @@ val NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG: ProtocolsSetupConfig =
     "non_aggregator_protocols_setup_config.textproto",
     ProtocolsSetupConfig.getDefaultInstance()
   )
-val LLV2_PROTOCOL_CONFIGS: Llv2ProtocolConfigs =
-  loadTextProto("llv2_protocol_configs.textproto", Llv2ProtocolConfigs.getDefaultInstance())
+val LLV2_PROTOCOL_CONFIG_CONFIG: Llv2ProtocolConfigConfig =
+  loadTextProto(
+    "llv2_protocol_config_config.textproto",
+    Llv2ProtocolConfigConfig.getDefaultInstance()
+  )
 val LLV2_AGGREGATOR_NAME =
   AGGREGATOR_PROTOCOLS_SETUP_CONFIG.liquidLegionsV2.externalAggregatorDuchyId!!
 

@@ -74,6 +74,7 @@ import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.protocolConfig
+import org.wfanet.measurement.api.v2alpha.reachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -242,10 +243,9 @@ fun InternalProtocolConfig.toProtocolConfig(
                 reachOnlyLiquidLegionsV2 = reachOnlyLiquidLegionsV2 {
                   if (source.reachOnlyLiquidLegionsV2.hasSketchParams()) {
                     val sourceSketchParams = source.reachOnlyLiquidLegionsV2.sketchParams
-                    sketchParams = liquidLegionsSketchParams {
+                    sketchParams = reachOnlyLiquidLegionsSketchParams {
                       decayRate = sourceSketchParams.decayRate
                       maxSize = sourceSketchParams.maxSize
-                      samplingIndicatorSize = sourceSketchParams.samplingIndicatorSize
                     }
                   }
                   if (source.reachOnlyLiquidLegionsV2.hasDataProviderNoise()) {

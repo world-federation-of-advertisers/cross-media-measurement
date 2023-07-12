@@ -195,14 +195,14 @@ class InProcessCmmsComponents(
     fun initConfig() {
       DuchyIds.setForTest(ALL_DUCHIES)
       Llv2ProtocolConfig.setForTest(
-        LLV2_PROTOCOL_CONFIGS.protocolConfig,
-        LLV2_PROTOCOL_CONFIGS.duchyProtocolConfig,
+        LLV2_PROTOCOL_CONFIG_CONFIG.protocolConfig,
+        LLV2_PROTOCOL_CONFIG_CONFIG.duchyProtocolConfig,
         setOf("aggregator"),
         2
       )
       Rollv2ProtocolConfig.setForTest(
-        LLV2_PROTOCOL_CONFIGS.protocolConfig,
-        LLV2_PROTOCOL_CONFIGS.duchyProtocolConfig,
+        LLV2_PROTOCOL_CONFIG_CONFIG.protocolConfig,
+        LLV2_PROTOCOL_CONFIG_CONFIG.duchyProtocolConfig,
         setOf("aggregator"),
         2,
         false

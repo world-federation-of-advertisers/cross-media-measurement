@@ -75,6 +75,7 @@ import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
+import org.wfanet.measurement.api.v2alpha.reachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
@@ -1736,10 +1737,9 @@ class MeasurementsServiceTest {
       protocols +=
         ProtocolConfigKt.protocol {
           reachOnlyLiquidLegionsV2 = reachOnlyLiquidLegionsV2 {
-            sketchParams = liquidLegionsSketchParams {
+            sketchParams = reachOnlyLiquidLegionsSketchParams {
               decayRate = 1.1
               maxSize = 100
-              samplingIndicatorSize = 1000
             }
             dataProviderNoise = differentialPrivacyParams {
               epsilon = 2.1

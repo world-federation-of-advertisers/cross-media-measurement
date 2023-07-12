@@ -42,8 +42,8 @@ def wfa_measurement_system_repositories():
         name = "wfa_measurement_proto",
         repo = "cross-media-measurement-api",
         # DO_NOT_SUBMIT(@renjiez): use a release version.
-        sha256 = "35bb219d38679756c42f4b358865ba822579df21a5d836b566a93927a965a2d7",
-        commit = "7b8c7a3d974a04d11f2d5d0dbcf902e4493b4537",
+        sha256 = "167ca65cf6077a95f965269d2b018b53bbd23266b5216ba85620c9f6cb95e415",
+        commit = "17132fa553ebe66786326e45211536a1309704aa",
     )
 
     wfa_repo_archive(
