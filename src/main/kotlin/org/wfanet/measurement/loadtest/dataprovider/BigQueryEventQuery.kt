@@ -23,12 +23,12 @@ import com.google.cloud.bigquery.JobId
 import com.google.cloud.bigquery.JobInfo
 import com.google.cloud.bigquery.QueryJobConfiguration
 import com.google.cloud.bigquery.QueryParameterValue
+import com.google.type.Interval
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
-import org.wfanet.measurement.api.v2alpha.TimeInterval
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.PersonKt
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
@@ -47,10 +47,7 @@ class BigQueryEventQuery(
   private val publisherId: Int,
 ) : EventQuery {
 
-  override fun getUserVirtualIds(
-    timeInterval: TimeInterval,
-    eventFilter: EventFilter
-  ): Sequence<Long> {
+  override fun getUserVirtualIds(timeInterval: Interval, eventFilter: EventFilter): Sequence<Long> {
     val queryConfig =
       buildQueryConfig(
         publisherId = publisherId,
