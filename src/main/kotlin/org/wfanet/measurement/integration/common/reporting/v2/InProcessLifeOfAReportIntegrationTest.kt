@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.duration
 import com.google.protobuf.timestamp
+import com.google.type.interval
 import java.io.File
 import java.nio.file.Paths
 import kotlinx.coroutines.Deferred
@@ -79,7 +80,6 @@ import org.wfanet.measurement.reporting.v2alpha.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.periodicTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
-import org.wfanet.measurement.reporting.v2alpha.timeInterval
 import org.wfanet.measurement.reporting.v2alpha.timeIntervals
 import org.wfanet.measurement.storage.StorageClient
 
@@ -279,7 +279,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
             }
         }
       timeIntervals = timeIntervals {
-        timeIntervals += timeInterval {
+        timeIntervals += interval {
           startTime = timestamp { seconds = 100 }
           endTime = timestamp { seconds = 200 }
         }
@@ -406,7 +406,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
             }
         }
       timeIntervals = timeIntervals {
-        timeIntervals += timeInterval {
+        timeIntervals += interval {
           startTime = timestamp { seconds = 100 }
           endTime = timestamp { seconds = 200 }
         }
@@ -522,7 +522,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
             }
         }
       timeIntervals = timeIntervals {
-        timeIntervals += timeInterval {
+        timeIntervals += interval {
           startTime = timestamp { seconds = 100 }
           endTime = timestamp { seconds = 200 }
         }
@@ -638,12 +638,12 @@ abstract class InProcessLifeOfAReportIntegrationTest {
             }
         }
       timeIntervals = timeIntervals {
-        timeIntervals += timeInterval {
+        timeIntervals += interval {
           startTime = timestamp { seconds = 100 }
           endTime = timestamp { seconds = 200 }
         }
 
-        timeIntervals += timeInterval {
+        timeIntervals += interval {
           startTime = timestamp { seconds = 300 }
           endTime = timestamp { seconds = 400 }
         }
@@ -1000,12 +1000,12 @@ abstract class InProcessLifeOfAReportIntegrationTest {
             }
         }
       timeIntervals = timeIntervals {
-        timeIntervals += timeInterval {
+        timeIntervals += interval {
           startTime = timestamp { seconds = 100 }
           endTime = timestamp { seconds = 200 }
         }
 
-        timeIntervals += timeInterval {
+        timeIntervals += interval {
           startTime = timestamp { seconds = 300 }
           endTime = timestamp { seconds = 400 }
         }
@@ -1074,7 +1074,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
             }
         }
       timeIntervals = timeIntervals {
-        timeIntervals += timeInterval {
+        timeIntervals += interval {
           startTime = timestamp { seconds = 100 }
           endTime = timestamp { seconds = 200 }
         }
@@ -1147,7 +1147,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val metric = metric {
       reportingSet = createdPrimitiveReportingSet.name
-      timeInterval = timeInterval {
+      timeInterval = interval {
         startTime = timestamp { seconds = 100 }
         endTime = timestamp { seconds = 200 }
       }
@@ -1201,7 +1201,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val metric = metric {
       reportingSet = createdPrimitiveReportingSet.name
-      timeInterval = timeInterval {
+      timeInterval = interval {
         startTime = timestamp { seconds = 100 }
         endTime = timestamp { seconds = 200 }
       }
@@ -1258,7 +1258,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val metric = metric {
       reportingSet = createdPrimitiveReportingSet.name
-      timeInterval = timeInterval {
+      timeInterval = interval {
         startTime = timestamp { seconds = 100 }
         endTime = timestamp { seconds = 200 }
       }
@@ -1315,7 +1315,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val metric = metric {
       reportingSet = createdPrimitiveReportingSet.name
-      timeInterval = timeInterval {
+      timeInterval = interval {
         startTime = timestamp { seconds = 100 }
         endTime = timestamp { seconds = 200 }
       }
@@ -1371,7 +1371,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val metric = metric {
       reportingSet = createdPrimitiveReportingSet.name
-      timeInterval = timeInterval {
+      timeInterval = interval {
         startTime = timestamp { seconds = 100 }
         endTime = timestamp { seconds = 200 }
       }
@@ -1427,7 +1427,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val metric = metric {
       reportingSet = createdPrimitiveReportingSet.name
-      timeInterval = timeInterval {
+      timeInterval = interval {
         startTime = timestamp { seconds = 100 }
         endTime = timestamp { seconds = 200 }
       }

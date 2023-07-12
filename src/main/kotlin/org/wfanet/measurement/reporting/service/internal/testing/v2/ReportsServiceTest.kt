@@ -358,7 +358,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                           width = 0.5f
                         }
                     }
-                    timeInterval = timeInterval {
+                    timeInterval = interval {
                       startTime = timestamp { seconds = 100 }
                       endTime = timestamp { seconds = 200 }
                     }
@@ -384,7 +384,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                           width = 0.5f
                         }
                     }
-                    timeInterval = timeInterval {
+                    timeInterval = interval {
                       startTime = timestamp { seconds = 100 }
                       endTime = timestamp { seconds = 200 }
                     }
@@ -419,7 +419,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
       reportingMetricEntries[createdReportingSet.externalReportingSetId] =
         reportingMetricCalculationSpec
       timeIntervals = timeIntervals {
-        timeIntervals += timeInterval {
+        timeIntervals += interval {
           startTime = timestamp { seconds = 100 }
           endTime = timestamp { seconds = 200 }
         }
