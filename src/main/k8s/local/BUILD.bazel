@@ -76,6 +76,8 @@ cue_library(
     srcs = ["duchies.cue"],
     deps = [
         ":config_cue",
+        "//src/main/k8s:postgres",
+        "//src/main/k8s:postgres_duchy",
         "//src/main/k8s:spanner_duchy",
     ],
 )

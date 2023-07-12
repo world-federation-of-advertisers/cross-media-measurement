@@ -18,7 +18,7 @@ _secret_name:          string @tag("secret_name")
 _aggregator_cert_name: string @tag("aggregator_cert_name")
 _worker1_cert_name:    string @tag("worker1_cert_name")
 _worker2_cert_name:    string @tag("worker2_cert_name")
-_use_postgres:   bool		@tag("use_postgres")
+_use_postgres_duchy:   bool		@tag("use_postgres_duchy")
 
 #KingdomSystemApiTarget: (#Target & {name: "system-api-server"}).target
 // TODO move
@@ -86,7 +86,7 @@ _postgresDuchies:  [ for duchyConfig in _duchyConfigs {
 			"computation-control-server":     "duchy/local-computation-control"
 			"liquid-legions-v2-mill-daemon":  "duchy/local-liquid-legions-v2-mill"
 			"requisition-fulfillment-server": "duchy/local-requisition-fulfillment"
-			"postgres-data-server":    "duchy/local-postgres-data"
+			"postgres-data-server":    				"duchy/local-postgres-data"
 		}
 		_duchy: {
 			name:                   duchyConfig.name
@@ -104,7 +104,7 @@ _postgresDuchies:  [ for duchyConfig in _duchyConfigs {
 	}
 }]
 
-duchies = _spannerDuchies
-if (_use_postgres) {
-	duchies = _postgresDuchies
+duchies: _spannerDuchies
+if (_use_postgres_duchy) {
+	duchies: _postgresDuchies
 }

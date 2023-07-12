@@ -57,6 +57,14 @@ cue_library(
 )
 
 cue_library(
+    name = "postgres_duchy",
+    srcs = ["postgres_duchy.cue"],
+    deps = [
+        ":duchy",
+    ],
+)
+
+cue_library(
     name = "edp_simulator",
     srcs = ["edp_simulator.cue"],
     deps = [
