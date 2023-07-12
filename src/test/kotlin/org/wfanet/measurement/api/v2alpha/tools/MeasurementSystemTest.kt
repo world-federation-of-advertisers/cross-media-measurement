@@ -312,7 +312,7 @@ private val MODEL_SHARD = modelShard {
 
 private val MODEL_ROLLOUT = modelRollout {
   name = MODEL_ROLLOUT_NAME
-  rolloutPeriod = timeInterval {
+  gradualRolloutPeriod = timeInterval {
     startTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime()
     endTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime()
   }
@@ -322,7 +322,7 @@ private val MODEL_ROLLOUT = modelRollout {
 
 private val MODEL_ROLLOUT_WITH_FREEZE_TIME = modelRollout {
   name = MODEL_ROLLOUT_NAME
-  rolloutPeriod = timeInterval {
+  gradualRolloutPeriod = timeInterval {
     startTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime()
     endTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime()
   }
@@ -1637,7 +1637,7 @@ class MeasurementSystemTest {
         createModelRolloutRequest {
           parent = MODEL_LINE_NAME
           modelRollout = modelRollout {
-            rolloutPeriod = timeInterval {
+            gradualRolloutPeriod = timeInterval {
               startTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime()
               endTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime()
             }

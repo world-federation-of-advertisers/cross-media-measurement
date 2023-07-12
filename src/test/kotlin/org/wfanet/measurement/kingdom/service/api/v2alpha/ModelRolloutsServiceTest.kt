@@ -130,7 +130,7 @@ private val INTERNAL_MODEL_ROLLOUT: InternalModelRollout = internalModelRollout 
 
 private val MODEL_ROLLOUT: ModelRollout = modelRollout {
   name = MODEL_ROLLOUT_NAME_2
-  rolloutPeriod = timeInterval {
+  gradualRolloutPeriod = timeInterval {
     startTime = ROLLOUT_PERIOD_START_TIME
     endTime = ROLLOUT_PERIOD_END_TIME
   }
@@ -143,10 +143,7 @@ private val MODEL_ROLLOUT: ModelRollout = modelRollout {
 
 private val MODEL_ROLLOUT_2: ModelRollout = modelRollout {
   name = MODEL_ROLLOUT_NAME_2
-  rolloutPeriod = timeInterval {
-    startTime = ROLLOUT_PERIOD_START_TIME
-    endTime = ROLLOUT_PERIOD_END_TIME
-  }
+  instantRolloutTime = ROLLOUT_PERIOD_START_TIME
   rolloutFreezeTime = ROLLOUT_FREEZE_TIME
   previousModelRollout = MODEL_ROLLOUT_NAME
   modelRelease = MODEL_RELEASE_NAME_2
