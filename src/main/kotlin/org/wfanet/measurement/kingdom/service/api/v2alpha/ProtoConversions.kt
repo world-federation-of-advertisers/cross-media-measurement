@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.util.Timestamps
+import com.google.type.interval
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -77,7 +78,6 @@ import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.signedData
-import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toLocalDate
@@ -404,7 +404,7 @@ fun InternalModelOutage.toModelOutage(): ModelOutage {
           externalIdToApiId(source.externalModelOutageId)
         )
         .toName()
-    outageInterval = timeInterval {
+    outageInterval = interval {
       startTime = source.modelOutageStartTime
       endTime = source.modelOutageEndTime
     }
@@ -444,7 +444,7 @@ fun InternalModelRollout.toModelRollout(): ModelRollout {
     if (Timestamps.compare(source.rolloutPeriodStartTime, source.rolloutPeriodEndTime) == 0) {
       instantRolloutTime = source.rolloutPeriodStartTime
     } else {
-      gradualRolloutPeriod = timeInterval {
+      gradualRolloutPeriod = interval {
         startTime = source.rolloutPeriodStartTime
         endTime = source.rolloutPeriodEndTime
       }

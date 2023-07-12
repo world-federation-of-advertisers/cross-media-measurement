@@ -16,6 +16,7 @@ package org.wfanet.measurement.loadtest.frontend
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.google.type.interval
 import io.grpc.StatusException
 import java.nio.file.Paths
 import java.security.SignatureException
@@ -81,7 +82,6 @@ import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
-import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.Hashing
@@ -674,7 +674,7 @@ class FrontendSimulator(
           key = eventGroup.name
           value =
             RequisitionSpecKt.EventGroupEntryKt.value {
-              collectionInterval = timeInterval {
+              collectionInterval = interval {
                 startTime = EVENT_RANGE.start.toProtoTime()
                 endTime = EVENT_RANGE.endExclusive.toProtoTime()
               }

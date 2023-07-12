@@ -14,6 +14,7 @@
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
+import com.google.type.interval
 import java.time.LocalDate
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
@@ -26,7 +27,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
-import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.DpCharge
@@ -48,7 +48,7 @@ private val REQUISITION_SPEC = requisitionSpec {
     key = "eventGroups/someEventGroup"
     value =
       RequisitionSpecKt.EventGroupEntryKt.value {
-        collectionInterval = timeInterval {
+        collectionInterval = interval {
           startTime = TIME_RANGE.start.toProtoTime()
           endTime = TIME_RANGE.endExclusive.toProtoTime()
         }
