@@ -46,9 +46,6 @@ import ("strings")
 		"herald-daemon":                    string | *"duchy/herald"
 		"liquid-legions-v2-mill-daemon":    string | *"duchy/liquid-legions-v2-mill"
 		"requisition-fulfillment-server":   string | *"duchy/requisition-fulfillment"
-		//"postgres-duchy-data-server":      string | *"duchy/postgres-data-server"
-		//"update-duchy-spanner-schema":              string | *"duchy/spanner-update-schema"
-		//"update-duchy-postgre-schema":              string | *"duchy/postgres-update-schema"
 		"computations-cleaner":             string | *"duchy/computations-cleaner"
 	}
 	_imageConfigs: [string]: #ImageConfig

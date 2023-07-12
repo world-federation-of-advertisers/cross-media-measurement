@@ -21,8 +21,8 @@ package k8s
 	_postgresConfig: #PostgresConfig
 
 	_imageSuffixes: {
-		"\(_duchy_data_server_name)": string | *"duchy/spanner-computations"
-		"update-spanner-duchy-schema": string | *"duchy/spanner-update-schema"
+		"\(_duchy_data_server_name)": string | *"duchy/postgres-duchy-data"
+		"\(_duchy_update_schema_image)": string | *"duchy/postgres-update-schema"
 	}
 
 	_duchy_data_server_name: "postgres-data-server"
