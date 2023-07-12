@@ -18,13 +18,11 @@ import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.duchy.deploy.common.server.DuchyDataServer
 import picocli.CommandLine
-import org.wfanet.measurement.gcloud.postgres.PostgresFlags as GCloudPostgresFlags
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.duchy.deploy.common.service.PostgresDuchyDataServices
-import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-import org.wfanet.measurement.gcloud.postgres.PostgresConnectionFactories
+import org.wfanet.measurement.common.db.postgres.PostgresFlags
 import org.wfanet.measurement.storage.forwarded.ForwardedStorageFromFlags
 
 /**
@@ -37,8 +35,8 @@ import org.wfanet.measurement.storage.forwarded.ForwardedStorageFromFlags
   showDefaultValues = true
 )
 class ForwardedStoragePostgresDuchyDataServer : DuchyDataServer() {
-  @CommandLine.Mixin
-  private lateinit var gCloudPostgresFlags: GCloudPostgresFlags
+  @CommandLine.Mixin private lateinit var postgresFlags: PostgresFlags
+
   @CommandLine.Mixin
   private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
 
@@ -48,8 +46,7 @@ class ForwardedStoragePostgresDuchyDataServer : DuchyDataServer() {
     val storageClient =
       ForwardedStorageFromFlags(forwardedStorageFlags, serverFlags.tlsFlags).storageClient
 
-    val factory = PostgresConnectionFactories.buildConnectionFactory(gCloudPostgresFlags)
-    val client = PostgresDatabaseClient.fromConnectionFactory(factory)
+    val client = PostgresDatabaseClient.fromFlags(postgresFlags)
 
     run(
       PostgresDuchyDataServices.create(
@@ -63,4 +60,4 @@ class ForwardedStoragePostgresDuchyDataServer : DuchyDataServer() {
   }
 }
 
-fun main(args: Array<String>) = commandLineMain(GcsPostgresDuchyDataServer(), args)
+fun main(args: Array<String>) = commandLineMain(ForwardedStoragePostgresDuchyDataServer(), args)
