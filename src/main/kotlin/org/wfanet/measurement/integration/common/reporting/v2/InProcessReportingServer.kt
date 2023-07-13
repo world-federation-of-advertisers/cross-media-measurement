@@ -35,6 +35,7 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCorou
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub as PublicKingdomEventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as PublicKingdomEventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as PublicKingdomMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as PublicKingdomMeasurementsCoroutineStub
 import org.wfanet.measurement.api.withAuthenticationKey
@@ -45,9 +46,10 @@ import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
+import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.config.reporting.MetricSpecConfigKt
+import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.metricSpecConfig
-import org.wfanet.measurement.integration.common.reporting.v2.identity.withMetadataPrincipalIdentities
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
@@ -59,6 +61,7 @@ import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportin
 import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupsService
+import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withMetadataPrincipalIdentities
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
@@ -116,6 +119,8 @@ class InProcessReportingServer(
 
   private lateinit var publicApiServer: GrpcTestServerRule
 
+  lateinit var metricSpecConfig: MetricSpecConfig
+
   private fun createPublicApiTestServerRule(): GrpcTestServerRule =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       runBlocking {
@@ -139,15 +144,21 @@ class InProcessReportingServer(
           )
 
         val measurementConsumerConfig = measurementConsumerConfigGenerator()
+        val measurementConsumerName =
+          MeasurementConsumerKey(
+            MeasurementConsumerCertificateKey.fromName(
+                measurementConsumerConfig.signingCertificateName
+              )!!
+              .measurementConsumerId
+          )
+        val measurementConsumerConfigs = measurementConsumerConfigs {
+          configs[measurementConsumerName.toName()] = measurementConsumerConfig
+        }
 
         try {
           internalMeasurementConsumersClient.createMeasurementConsumer(
             measurementConsumer {
-              cmmsMeasurementConsumerId =
-                MeasurementConsumerCertificateKey.fromName(
-                    measurementConsumerConfig.signingCertificateName
-                  )!!
-                  .measurementConsumerId
+              cmmsMeasurementConsumerId = measurementConsumerName.measurementConsumerId
             }
           )
         } catch (e: StatusException) {
@@ -168,13 +179,15 @@ class InProcessReportingServer(
             Dispatchers.Default,
           )
 
+        metricSpecConfig = METRIC_SPEC_CONFIG
+
         listOf(
             EventGroupsService(
                 publicKingdomEventGroupsClient,
                 encryptionKeyPairStore,
                 celEnvCacheProvider
               )
-              .withMetadataPrincipalIdentities(measurementConsumerConfig),
+              .withMetadataPrincipalIdentities(measurementConsumerConfigs),
             MetricsService(
                 METRIC_SPEC_CONFIG,
                 internalReportingSetsClient,
@@ -190,15 +203,15 @@ class InProcessReportingServer(
                 trustedCertificates,
                 Dispatchers.IO
               )
-              .withMetadataPrincipalIdentities(measurementConsumerConfig),
+              .withMetadataPrincipalIdentities(measurementConsumerConfigs),
             ReportingSetsService(internalReportingSetsClient)
-              .withMetadataPrincipalIdentities(measurementConsumerConfig),
+              .withMetadataPrincipalIdentities(measurementConsumerConfigs),
             ReportsService(
                 internalReportsClient,
                 PublicMetricsCoroutineStub(this@GrpcTestServerRule.channel),
                 METRIC_SPEC_CONFIG,
               )
-              .withMetadataPrincipalIdentities(measurementConsumerConfig)
+              .withMetadataPrincipalIdentities(measurementConsumerConfigs)
           )
           .forEach { addService(it.withVerboseLogging(verboseGrpcLogging)) }
       }

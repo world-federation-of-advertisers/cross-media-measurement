@@ -104,6 +104,8 @@ import org.wfanet.measurement.reporting.v2alpha.timeIntervals
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
+private const val METRIC_ID_PREFIX = "a"
+
 // Authentication key
 private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
 
@@ -237,7 +239,7 @@ class ReportsServiceTest {
             parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
             metric = REQUESTING_REACH_METRIC
             requestId = ExternalId(REACH_METRIC_ID_BASE_LONG).apiId.value
-            metricId = requestId
+            metricId = "$METRIC_ID_PREFIX$requestId"
           }
         }
       )
@@ -256,7 +258,7 @@ class ReportsServiceTest {
                 parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
                 metric = REQUESTING_REACH_METRIC
                 requestId = ExternalId(REACH_METRIC_ID_BASE_LONG).apiId.value
-                metricId = requestId
+                metricId = "$METRIC_ID_PREFIX$requestId"
               }
             }
           )
@@ -419,7 +421,7 @@ class ReportsServiceTest {
                   parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
                   this.metric = metric
                   this.requestId = ExternalId(REACH_METRIC_ID_BASE_LONG + requestId).apiId.value
-                  metricId = this.requestId
+                  metricId = "$METRIC_ID_PREFIX${this.requestId}"
                 }
               }
           }
@@ -574,7 +576,7 @@ class ReportsServiceTest {
                 parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
                 this.metric = metric
                 this.requestId = ExternalId(REACH_METRIC_ID_BASE_LONG + requestId).apiId.value
-                metricId = this.requestId
+                metricId = "$METRIC_ID_PREFIX${this.requestId}"
               }
             }
         }
@@ -710,7 +712,7 @@ class ReportsServiceTest {
                   parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
                   this.metric = metric
                   this.requestId = ExternalId(REACH_METRIC_ID_BASE_LONG + requestId).apiId.value
-                  metricId = this.requestId
+                  metricId = "$METRIC_ID_PREFIX${this.requestId}"
                 }
               }
           }
@@ -923,7 +925,7 @@ class ReportsServiceTest {
                   parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
                   this.metric = metric
                   this.requestId = ExternalId(REACH_METRIC_ID_BASE_LONG + requestId).apiId.value
-                  metricId = this.requestId
+                  metricId = "$METRIC_ID_PREFIX${this.requestId}"
                 }
               }
           }
@@ -1120,7 +1122,7 @@ class ReportsServiceTest {
                   parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
                   this.metric = metric
                   this.requestId = requestId.toString()
-                  metricId = this.requestId
+                  metricId = "$METRIC_ID_PREFIX${this.requestId}"
                 }
               }
           }
@@ -1327,7 +1329,7 @@ class ReportsServiceTest {
                   parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
                   this.metric = metric
                   this.requestId = requestId.toString()
-                  metricId = this.requestId
+                  metricId = "$METRIC_ID_PREFIX${this.requestId}"
                 }
               }
           }
@@ -1559,7 +1561,7 @@ class ReportsServiceTest {
             parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
             metric = REQUESTING_REACH_METRIC.copy { metricSpec = REACH_METRIC_SPEC }
             this.requestId = requestId
-            metricId = this.requestId
+            metricId = "$METRIC_ID_PREFIX${this.requestId}"
           }
         }
       )
