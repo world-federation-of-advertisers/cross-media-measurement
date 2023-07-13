@@ -37,10 +37,10 @@ kt_jvm_library(
         "//src/main/k8s/testing/secretfiles:secret_files",
     ],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2/identity:metadata_principal_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/server:internal_reporting_server",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:cel_env_provider",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:event_groups_service",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:metadata_principal_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:metrics_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:reporting_sets_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:reports_service",

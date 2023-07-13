@@ -25,7 +25,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
-import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -42,6 +41,7 @@ import org.wfanet.measurement.internal.reporting.v2.createReportRequest as inter
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
+import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withPrincipalName
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
@@ -145,7 +145,7 @@ class ReportsService(
       subResults.flatMap { internalReport -> internalReport.metricNames }.distinct().asFlow()
 
     val callRpc: suspend (List<String>) -> BatchGetMetricsResponse = { items ->
-      batchGetMetrics(principal.resourceKey.toName(), principal.config.apiKey, items)
+      batchGetMetrics(principal.resourceKey.toName(), items)
     }
     val externalIdToMetricMap: Map<String, Metric> =
       submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc) { response ->
@@ -199,7 +199,7 @@ class ReportsService(
     val metricNames: Flow<String> = internalReport.metricNames.distinct().asFlow()
 
     val callRpc: suspend (List<String>) -> BatchGetMetricsResponse = { items ->
-      batchGetMetrics(principal.resourceKey.toName(), principal.config.apiKey, items)
+      batchGetMetrics(principal.resourceKey.toName(), items)
     }
     val externalIdToMetricMap: Map<String, Metric> =
       submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc) { response ->
@@ -214,12 +214,11 @@ class ReportsService(
 
   private suspend fun batchGetMetrics(
     parent: String,
-    apiAuthenticationKey: String,
     metricNames: List<String>,
   ): BatchGetMetricsResponse {
     return try {
       metricsStub
-        .withAuthenticationKey(apiAuthenticationKey)
+        .withPrincipalName(parent)
         .batchGetMetrics(
           batchGetMetricsRequest {
             this.parent = parent
@@ -292,7 +291,7 @@ class ReportsService(
         .asFlow()
 
     val callRpc: suspend (List<CreateMetricRequest>) -> BatchCreateMetricsResponse = { items ->
-      batchCreateMetrics(request.parent, principal.config.apiKey, items)
+      batchCreateMetrics(request.parent, items)
     }
     val externalIdToMetricMap: Map<String, Metric> =
       submitBatchRequests(createMetricRequests, BATCH_CREATE_METRICS_LIMIT, callRpc) {
@@ -414,12 +413,11 @@ class ReportsService(
   /** Creates a batch of [Metric]s. */
   private suspend fun batchCreateMetrics(
     parent: String,
-    apiAuthenticationKey: String,
     createMetricRequests: List<CreateMetricRequest>
   ): BatchCreateMetricsResponse {
     return try {
       metricsStub
-        .withAuthenticationKey(apiAuthenticationKey)
+        .withPrincipalName(parent)
         .batchCreateMetrics(
           batchCreateMetricsRequest {
             this.parent = parent

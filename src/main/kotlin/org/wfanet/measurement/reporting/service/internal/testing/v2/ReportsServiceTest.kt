@@ -325,6 +325,127 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
   }
 
   @Test
+  fun `createReport succeeds when multiple reporting metrics in one entry`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val createdReportingSet =
+      createReportingSet(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        reportingSetsService,
+        "external-reporting-set-id"
+      )
+
+    val reportingMetricCalculationSpec =
+      ReportKt.reportingMetricCalculationSpec {
+        metricCalculationSpecs +=
+          ReportKt.metricCalculationSpec {
+            reportingMetrics +=
+              ReportKt.reportingMetric {
+                details =
+                  ReportKt.ReportingMetricKt.details {
+                    externalReportingSetId = createdReportingSet.externalReportingSetId
+                    metricSpec = metricSpec {
+                      reach =
+                        MetricSpecKt.reachParams {
+                          privacyParams =
+                            MetricSpecKt.differentialPrivacyParams {
+                              epsilon = 1.0
+                              delta = 2.0
+                            }
+                        }
+                      vidSamplingInterval =
+                        MetricSpecKt.vidSamplingInterval {
+                          start = 0.1f
+                          width = 0.5f
+                        }
+                    }
+                    timeInterval = interval {
+                      startTime = timestamp { seconds = 100 }
+                      endTime = timestamp { seconds = 200 }
+                    }
+                  }
+              }
+            reportingMetrics +=
+              ReportKt.reportingMetric {
+                details =
+                  ReportKt.ReportingMetricKt.details {
+                    externalReportingSetId = createdReportingSet.externalReportingSetId
+                    metricSpec = metricSpec {
+                      reach =
+                        MetricSpecKt.reachParams {
+                          privacyParams =
+                            MetricSpecKt.differentialPrivacyParams {
+                              epsilon = 1.0
+                              delta = 2.0
+                            }
+                        }
+                      vidSamplingInterval =
+                        MetricSpecKt.vidSamplingInterval {
+                          start = 0.1f
+                          width = 0.5f
+                        }
+                    }
+                    timeInterval = interval {
+                      startTime = timestamp { seconds = 100 }
+                      endTime = timestamp { seconds = 200 }
+                    }
+                  }
+              }
+            details =
+              ReportKt.MetricCalculationSpecKt.details {
+                displayName = "display"
+                metricSpecs += metricSpec {
+                  reach =
+                    MetricSpecKt.reachParams {
+                      privacyParams =
+                        MetricSpecKt.differentialPrivacyParams {
+                          epsilon = 1.0
+                          delta = 2.0
+                        }
+                    }
+                  vidSamplingInterval =
+                    MetricSpecKt.vidSamplingInterval {
+                      start = 0.1f
+                      width = 0.5f
+                    }
+                }
+                groupings += ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                cumulative = false
+              }
+          }
+      }
+
+    val report = report {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      reportingMetricEntries[createdReportingSet.externalReportingSetId] =
+        reportingMetricCalculationSpec
+      timeIntervals = timeIntervals {
+        timeIntervals += interval {
+          startTime = timestamp { seconds = 100 }
+          endTime = timestamp { seconds = 200 }
+        }
+      }
+    }
+
+    val createdReport =
+      service.createReport(
+        createReportRequest {
+          this.report = report
+          this.externalReportId = "external-report-id"
+        }
+      )
+
+    assertThat(createdReport.externalReportId).isNotEqualTo(0)
+    assertThat(createdReport.hasCreateTime()).isTrue()
+    createdReport.reportingMetricEntriesMap.entries.forEach { entry ->
+      entry.value.metricCalculationSpecsList.forEach { metricCalculationSpec ->
+        metricCalculationSpec.reportingMetricsList.forEach {
+          assertThat(it.createMetricRequestId).isNotEmpty()
+        }
+      }
+    }
+  }
+
+  @Test
   fun `createReport returns the same report when request id used`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val report = createReportForRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
@@ -1331,8 +1452,8 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
               endTime = timestamp { seconds = 200 }
             }
             timeIntervals += interval {
-              startTime = timestamp { seconds = 300 }
-              endTime = timestamp { seconds = 400 }
+              startTime = timestamp { seconds = 200 }
+              endTime = timestamp { seconds = 300 }
             }
           }
         }

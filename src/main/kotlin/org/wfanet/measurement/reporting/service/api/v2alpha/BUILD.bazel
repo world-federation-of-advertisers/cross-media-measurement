@@ -122,6 +122,21 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "metadata_principal_server_interceptor",
+    srcs = ["MetadataPrincipalServerInterceptor.kt"],
+    deps = [
+        ":context_keys",
+        ":principal_server_interceptor",
+        ":reporting_principal",
+        "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/grpc/stub",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+kt_jvm_library(
     name = "metrics_service",
     srcs = ["MetricsService.kt"],
     deps = [
@@ -188,6 +203,7 @@ kt_jvm_library(
     name = "reports_service",
     srcs = ["ReportsService.kt"],
     deps = [
+        ":metadata_principal_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:encryption_key_pair_store",
