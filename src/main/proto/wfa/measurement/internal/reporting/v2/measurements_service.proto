@@ -59,6 +59,7 @@ message BatchSetMeasurementResultsRequest {
     // `Measurement` ID from the CMMS public API.
     string cmms_measurement_id = 1;
     Measurement.Result result = 2;
+    repeated ComputationConfig computation_configs = 3;
   }
   // Maximum is 1000.
   repeated MeasurementResult measurement_results = 2;
