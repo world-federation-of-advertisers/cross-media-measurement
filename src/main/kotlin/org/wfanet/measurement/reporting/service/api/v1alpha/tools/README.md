@@ -33,7 +33,7 @@ Reporting \
   --event-group=measurementConsumers/VCTqwV_vFXw/dataProviders/1/eventGroups/1 \
   --event-group=measurementConsumers/VCTqwV_vFXw/dataProviders/1/eventGroups/2 \
   --event-group=measurementConsumers/VCTqwV_vFXw/dataProviders/2/eventGroups/1 \
-  --filter='video_ad.age.value == 1' --display-name='test-reporting-set'
+  --filter='video_ad.age == 1' --display-name='test-reporting-set'
 ```
 
 #### list
@@ -64,9 +64,9 @@ Reporting \
   --idempotency-key="report001" \
   --parent=measurementConsumers/777 \
   --event-group-key=$EVENT_GROUP_NAME_1 \
-  --event-group-value="video_ad.age.value == 1" \
+  --event-group-value="video_ad.age == 1" \
   --event-group-key=$EVENT_GROUP_NAME_2 \
-  --event-group-value="video_ad.age.value == 12" \
+  --event-group-value="video_ad.age == 12" \
   --interval-start-time=2017-01-15T01:30:15.01Z \
   --interval-end-time=2018-10-27T23:19:12.99Z \
   --interval-start-time=2019-01-19T09:48:35.57Z \
@@ -126,6 +126,7 @@ Reporting \
 ### event-groups
 
 #### list
+
 ```shell
 Reporting \
   --tls-cert-file=secretfiles/mc_tls.pem \

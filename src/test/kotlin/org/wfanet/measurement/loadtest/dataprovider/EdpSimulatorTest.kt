@@ -95,7 +95,6 @@ import org.wfanet.measurement.api.v2alpha.elGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.PersonKt
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
@@ -229,9 +228,7 @@ private val REQUISITION_ONE_SPEC = requisitionSpec {
           startTime = TIME_RANGE.start.toProtoTime()
           endTime = TIME_RANGE.endExclusive.toProtoTime()
         }
-        filter = eventFilter {
-          expression = "person.age_group.value == 1 && person.gender.value == 2"
-        }
+        filter = eventFilter { expression = "person.age_group == 1 && person.gender == 2" }
       }
   }
   measurementPublicKey = MEASUREMENT_PUBLIC_KEY
@@ -358,8 +355,8 @@ class EdpSimulatorTest {
           time = date.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
           person = person {
             this.vid = vid
-            this.ageGroup = PersonKt.ageGroupField { value = ageGroup }
-            this.gender = PersonKt.genderField { value = gender }
+            this.ageGroup = ageGroup
+            this.gender = gender
           }
         }
       )
