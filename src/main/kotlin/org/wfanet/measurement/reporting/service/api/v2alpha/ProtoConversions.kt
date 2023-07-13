@@ -28,6 +28,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
+import org.wfanet.measurement.internal.reporting.v2.DifferentialPrivacyParams as InternalDifferentialPrivacyParams
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
@@ -42,6 +43,7 @@ import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.TimeIntervals as InternalTimeIntervals
+import org.wfanet.measurement.internal.reporting.v2.differentialPrivacyParams as internalDifferentialPrivacyParams
 import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.periodicTimeInterval as internalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
@@ -217,10 +219,9 @@ fun MetricSpec.ReachParams.toInternal(): InternalMetricSpec.ReachParams {
  * Converts a [MetricSpec.DifferentialPrivacyParams] to an
  * [InternalMetricSpec.DifferentialPrivacyParams].
  */
-fun MetricSpec.DifferentialPrivacyParams.toInternal():
-  InternalMetricSpec.DifferentialPrivacyParams {
+fun MetricSpec.DifferentialPrivacyParams.toInternal(): InternalDifferentialPrivacyParams {
   val source = this
-  return InternalMetricSpecKt.differentialPrivacyParams {
+  return internalDifferentialPrivacyParams {
     if (source.hasEpsilon()) {
       this.epsilon = source.epsilon
     }
@@ -282,11 +283,10 @@ fun InternalMetricSpec.toMetricSpec(): MetricSpec {
 }
 
 /**
- * Converts an [InternalMetricSpec.DifferentialPrivacyParams] to a public
+ * Converts an [InternalDifferentialPrivacyParams] to a public
  * [MetricSpec.DifferentialPrivacyParams].
  */
-fun InternalMetricSpec.DifferentialPrivacyParams.toPrivacyParams():
-  MetricSpec.DifferentialPrivacyParams {
+fun InternalDifferentialPrivacyParams.toPrivacyParams(): MetricSpec.DifferentialPrivacyParams {
   val source = this
   return MetricSpecKt.differentialPrivacyParams {
     epsilon = source.epsilon
@@ -294,8 +294,8 @@ fun InternalMetricSpec.DifferentialPrivacyParams.toPrivacyParams():
   }
 }
 
-/** Converts an [InternalMetricSpec.DifferentialPrivacyParams] to [DifferentialPrivacyParams]. */
-fun InternalMetricSpec.DifferentialPrivacyParams.toCmmsPrivacyParams(): DifferentialPrivacyParams {
+/** Converts an [InternalDifferentialPrivacyParams] to [DifferentialPrivacyParams]. */
+fun InternalDifferentialPrivacyParams.toCmmsPrivacyParams(): DifferentialPrivacyParams {
   val source = this
   return differentialPrivacyParams {
     epsilon = source.epsilon

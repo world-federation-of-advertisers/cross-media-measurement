@@ -47,6 +47,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
+import org.wfanet.measurement.internal.reporting.v2.differentialPrivacyParams
 import org.wfanet.measurement.internal.reporting.v2.measurement
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.metric
@@ -99,11 +100,10 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         reach =
           MetricSpecKt.reachParams {
-            privacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
+            privacyParams = differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 2.0
+            }
           }
         vidSamplingInterval =
           MetricSpecKt.vidSamplingInterval {
@@ -196,16 +196,14 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         frequencyHistogram =
           MetricSpecKt.frequencyHistogramParams {
-            reachPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
-            frequencyPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
+            reachPrivacyParams = differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 2.0
+            }
+            frequencyPrivacyParams = differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 2.0
+            }
             maximumFrequencyPerUser = 5
           }
         vidSamplingInterval =
@@ -299,11 +297,10 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         impressionCount =
           MetricSpecKt.impressionCountParams {
-            privacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
+            privacyParams = differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 2.0
+            }
             maximumFrequencyPerUser = 5
           }
         vidSamplingInterval =
@@ -397,11 +394,10 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         watchDuration =
           MetricSpecKt.watchDurationParams {
-            privacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
+            privacyParams = differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 2.0
+            }
             maximumWatchDurationPerUser = 100
           }
         vidSamplingInterval =
@@ -495,11 +491,10 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         watchDuration =
           MetricSpecKt.watchDurationParams {
-            privacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
+            privacyParams = differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 2.0
+            }
             maximumWatchDurationPerUser = 100
           }
         vidSamplingInterval =
@@ -561,16 +556,14 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         frequencyHistogram =
           MetricSpecKt.frequencyHistogramParams {
-            reachPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
-            frequencyPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
+            reachPrivacyParams = differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 2.0
+            }
+            frequencyPrivacyParams = differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 2.0
+            }
             maximumFrequencyPerUser = 5
           }
         vidSamplingInterval =
@@ -674,16 +667,14 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         metricSpec = metricSpec {
           frequencyHistogram =
             MetricSpecKt.frequencyHistogramParams {
-              reachPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
-              frequencyPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
+              reachPrivacyParams = differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+              frequencyPrivacyParams = differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
               maximumFrequencyPerUser = 5
             }
           vidSamplingInterval =
@@ -786,16 +777,14 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         frequencyHistogram =
           MetricSpecKt.frequencyHistogramParams {
-            reachPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
-            frequencyPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 3.0
-                delta = 4.0
-              }
+            reachPrivacyParams = differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 2.0
+            }
+            frequencyPrivacyParams = differentialPrivacyParams {
+              epsilon = 3.0
+              delta = 4.0
+            }
             maximumFrequencyPerUser = 5
           }
         vidSamplingInterval =
@@ -858,16 +847,14 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         frequencyHistogram =
           MetricSpecKt.frequencyHistogramParams {
-            reachPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
-            frequencyPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
+            reachPrivacyParams = differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 2.0
+            }
+            frequencyPrivacyParams = differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 2.0
+            }
             maximumFrequencyPerUser = 5
           }
         vidSamplingInterval =
@@ -939,11 +926,10 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         reach =
           MetricSpecKt.reachParams {
-            privacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
+            privacyParams = differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 2.0
+            }
           }
         vidSamplingInterval =
           MetricSpecKt.vidSamplingInterval {
@@ -1065,11 +1051,10 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         metricSpec = metricSpec {
           reach =
             MetricSpecKt.reachParams {
-              privacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
+              privacyParams = differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
             }
         }
         weightedMeasurements +=
@@ -1128,11 +1113,10 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         metricSpec = metricSpec {
           reach =
             MetricSpecKt.reachParams {
-              privacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
+              privacyParams = differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
             }
           vidSamplingInterval =
             MetricSpecKt.vidSamplingInterval {
@@ -1176,16 +1160,14 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         frequencyHistogram =
           MetricSpecKt.frequencyHistogramParams {
-            reachPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
-            frequencyPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
+            reachPrivacyParams = differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 2.0
+            }
+            frequencyPrivacyParams = differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 2.0
+            }
             maximumFrequencyPerUser = 5
           }
         vidSamplingInterval =
@@ -1248,16 +1230,14 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         frequencyHistogram =
           MetricSpecKt.frequencyHistogramParams {
-            reachPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
-            frequencyPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
+            reachPrivacyParams = differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 2.0
+            }
+            frequencyPrivacyParams = differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 2.0
+            }
             maximumFrequencyPerUser = 5
           }
         vidSamplingInterval =
@@ -1326,16 +1306,14 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         frequencyHistogram =
           MetricSpecKt.frequencyHistogramParams {
-            reachPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
-            frequencyPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
+            reachPrivacyParams = differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 2.0
+            }
+            frequencyPrivacyParams = differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 2.0
+            }
             maximumFrequencyPerUser = 5
           }
         vidSamplingInterval =
@@ -1415,16 +1393,14 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         metricSpec = metricSpec {
           frequencyHistogram =
             MetricSpecKt.frequencyHistogramParams {
-              reachPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
-              frequencyPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
+              reachPrivacyParams = differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+              frequencyPrivacyParams = differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
               maximumFrequencyPerUser = 5
             }
           vidSamplingInterval =
@@ -1513,16 +1489,14 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         metricSpec = metricSpec {
           frequencyHistogram =
             MetricSpecKt.frequencyHistogramParams {
-              reachPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
-              frequencyPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
+              reachPrivacyParams = differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+              frequencyPrivacyParams = differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
               maximumFrequencyPerUser = 5
             }
           vidSamplingInterval =
@@ -1604,16 +1578,14 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         metricSpec = metricSpec {
           frequencyHistogram =
             MetricSpecKt.frequencyHistogramParams {
-              reachPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
-              frequencyPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
+              reachPrivacyParams = differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+              frequencyPrivacyParams = differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
               maximumFrequencyPerUser = 5
             }
           vidSamplingInterval =
@@ -1684,16 +1656,14 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         metricSpec = metricSpec {
           frequencyHistogram =
             MetricSpecKt.frequencyHistogramParams {
-              reachPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
-              frequencyPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
+              reachPrivacyParams = differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+              frequencyPrivacyParams = differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
               maximumFrequencyPerUser = 5
             }
           vidSamplingInterval =
@@ -1763,16 +1733,14 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         frequencyHistogram =
           MetricSpecKt.frequencyHistogramParams {
-            reachPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
-            frequencyPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
+            reachPrivacyParams = differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 2.0
+            }
+            frequencyPrivacyParams = differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 2.0
+            }
             maximumFrequencyPerUser = 5
           }
         vidSamplingInterval =
@@ -1844,16 +1812,14 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         metricSpec = metricSpec {
           frequencyHistogram =
             MetricSpecKt.frequencyHistogramParams {
-              reachPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
-              frequencyPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
+              reachPrivacyParams = differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+              frequencyPrivacyParams = differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
               maximumFrequencyPerUser = 5
             }
           vidSamplingInterval =
@@ -1926,16 +1892,14 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         metricSpec = metricSpec {
           frequencyHistogram =
             MetricSpecKt.frequencyHistogramParams {
-              reachPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
-              frequencyPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
+              reachPrivacyParams = differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+              frequencyPrivacyParams = differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
               maximumFrequencyPerUser = 5
             }
           vidSamplingInterval =
@@ -2007,16 +1971,14 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         metricSpec = metricSpec {
           frequencyHistogram =
             MetricSpecKt.frequencyHistogramParams {
-              reachPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
-              frequencyPrivacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
+              reachPrivacyParams = differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
+              frequencyPrivacyParams = differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
               maximumFrequencyPerUser = 5
             }
           vidSamplingInterval =
@@ -2087,16 +2049,14 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       metricSpec = metricSpec {
         frequencyHistogram =
           MetricSpecKt.frequencyHistogramParams {
-            reachPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
-            frequencyPrivacyParams =
-              MetricSpecKt.differentialPrivacyParams {
-                epsilon = 1.0
-                delta = 2.0
-              }
+            reachPrivacyParams = differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 2.0
+            }
+            frequencyPrivacyParams = differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 2.0
+            }
             maximumFrequencyPerUser = 5
           }
         vidSamplingInterval =
@@ -2160,11 +2120,10 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
             metricSpec = metricSpec {
               reach =
                 MetricSpecKt.reachParams {
-                  privacyParams =
-                    MetricSpecKt.differentialPrivacyParams {
-                      epsilon = 1.0
-                      delta = 2.0
-                    }
+                  privacyParams = differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 2.0
+                  }
                 }
               vidSamplingInterval =
                 MetricSpecKt.vidSamplingInterval {
@@ -2200,16 +2159,14 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
             metricSpec = metricSpec {
               frequencyHistogram =
                 MetricSpecKt.frequencyHistogramParams {
-                  reachPrivacyParams =
-                    MetricSpecKt.differentialPrivacyParams {
-                      epsilon = 1.0
-                      delta = 2.0
-                    }
-                  frequencyPrivacyParams =
-                    MetricSpecKt.differentialPrivacyParams {
-                      epsilon = 1.0
-                      delta = 2.0
-                    }
+                  reachPrivacyParams = differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 2.0
+                  }
+                  frequencyPrivacyParams = differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 2.0
+                  }
                   maximumFrequencyPerUser = 5
                 }
               vidSamplingInterval =
@@ -2246,11 +2203,10 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
             metricSpec = metricSpec {
               impressionCount =
                 MetricSpecKt.impressionCountParams {
-                  privacyParams =
-                    MetricSpecKt.differentialPrivacyParams {
-                      epsilon = 1.0
-                      delta = 2.0
-                    }
+                  privacyParams = differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 2.0
+                  }
                   maximumFrequencyPerUser = 5
                 }
               vidSamplingInterval =
@@ -2287,11 +2243,10 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
             metricSpec = metricSpec {
               watchDuration =
                 MetricSpecKt.watchDurationParams {
-                  privacyParams =
-                    MetricSpecKt.differentialPrivacyParams {
-                      epsilon = 1.0
-                      delta = 2.0
-                    }
+                  privacyParams = differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 2.0
+                  }
                   maximumWatchDurationPerUser = 100
                 }
               vidSamplingInterval =
@@ -2670,11 +2625,10 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         metricSpec = metricSpec {
           reach =
             MetricSpecKt.reachParams {
-              privacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
+              privacyParams = differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
             }
           vidSamplingInterval =
             MetricSpecKt.vidSamplingInterval {

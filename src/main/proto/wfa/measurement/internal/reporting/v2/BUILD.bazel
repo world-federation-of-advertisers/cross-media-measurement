@@ -36,6 +36,10 @@ proto_and_java_proto_library(
 )
 
 proto_and_java_proto_library(
+    name = "differential_privacy",
+)
+
+proto_and_java_proto_library(
     name = "measurement",
     deps = [
         ":reporting_set_proto",
@@ -75,6 +79,7 @@ kt_jvm_grpc_proto_library(
 proto_and_java_proto_library(
     name = "metric",
     deps = [
+        ":differential_privacy_proto",
         ":measurement_proto",
         "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:timestamp_proto",
