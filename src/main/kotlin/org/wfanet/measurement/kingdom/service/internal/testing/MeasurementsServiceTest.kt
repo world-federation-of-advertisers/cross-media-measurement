@@ -76,7 +76,7 @@ import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
-import org.wfanet.measurement.kingdom.deploy.common.Rollv2ProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
 
@@ -2216,7 +2216,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         ),
         2
       )
-      Rollv2ProtocolConfig.setForTest(
+      RoLlv2ProtocolConfig.setForTest(
         ProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
         DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
         setOf(

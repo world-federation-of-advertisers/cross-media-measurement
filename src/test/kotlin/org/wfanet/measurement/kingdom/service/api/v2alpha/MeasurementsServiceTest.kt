@@ -112,7 +112,7 @@ import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
-import org.wfanet.measurement.kingdom.deploy.common.Rollv2ProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 
 private const val DEFAULT_LIMIT = 50
 private const val DATA_PROVIDERS_CERTIFICATE_NAME =
@@ -1661,9 +1661,9 @@ class MeasurementsServiceTest {
         setOf("aggregator"),
         2
       )
-      Rollv2ProtocolConfig.setForTest(
-        ROLLV2_INTERNAL_PROTOCOL_CONFIG.reachOnlyLiquidLegionsV2,
-        ROLLV2_DUCHY_PROTOCOL_CONFIG.reachOnlyLiquidLegionsV2,
+      RoLlv2ProtocolConfig.setForTest(
+        RO_LLV2_INTERNAL_PROTOCOL_CONFIG.reachOnlyLiquidLegionsV2,
+        RO_LLV2_DUCHY_PROTOCOL_CONFIG.reachOnlyLiquidLegionsV2,
         setOf("aggregator"),
         2,
         true
@@ -1715,7 +1715,7 @@ class MeasurementsServiceTest {
       liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
     }
 
-    private val ROLLV2_INTERNAL_PROTOCOL_CONFIG = internalProtocolConfig {
+    private val RO_LLV2_INTERNAL_PROTOCOL_CONFIG = internalProtocolConfig {
       externalProtocolConfigId = "rollv2"
       reachOnlyLiquidLegionsV2 =
         InternalProtocolConfigKt.liquidLegionsV2 {
@@ -1732,7 +1732,7 @@ class MeasurementsServiceTest {
         }
     }
 
-    private val ROLLV2_PUBLIC_PROTOCOL_CONFIG = protocolConfig {
+    private val RO_LLV2_PUBLIC_PROTOCOL_CONFIG = protocolConfig {
       measurementType = ProtocolConfig.MeasurementType.REACH
       protocols +=
         ProtocolConfigKt.protocol {
@@ -1750,7 +1750,7 @@ class MeasurementsServiceTest {
         }
     }
 
-    private val ROLLV2_DUCHY_PROTOCOL_CONFIG = duchyProtocolConfig {
+    private val RO_LLV2_DUCHY_PROTOCOL_CONFIG = duchyProtocolConfig {
       reachOnlyLiquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
     }
 
@@ -1883,7 +1883,7 @@ class MeasurementsServiceTest {
           data = REACH_ONLY_MEASUREMENT_SPEC.toByteString()
           signature = UPDATE_TIME.toByteString()
         }
-        protocolConfig = ROLLV2_PUBLIC_PROTOCOL_CONFIG
+        protocolConfig = RO_LLV2_PUBLIC_PROTOCOL_CONFIG
       }
 
     private val REACH_ONLY_INTERNAL_MEASUREMENT =
@@ -1893,8 +1893,8 @@ class MeasurementsServiceTest {
             apiVersion = Version.V2_ALPHA.string
             measurementSpec = REACH_ONLY_MEASUREMENT.measurementSpec.data
             measurementSpecSignature = REACH_ONLY_MEASUREMENT.measurementSpec.signature
-            protocolConfig = ROLLV2_INTERNAL_PROTOCOL_CONFIG
-            duchyProtocolConfig = ROLLV2_DUCHY_PROTOCOL_CONFIG
+            protocolConfig = RO_LLV2_INTERNAL_PROTOCOL_CONFIG
+            duchyProtocolConfig = RO_LLV2_DUCHY_PROTOCOL_CONFIG
             failure =
               InternalMeasurementKt.failure {
                 reason = InternalMeasurement.Failure.Reason.CERTIFICATE_REVOKED

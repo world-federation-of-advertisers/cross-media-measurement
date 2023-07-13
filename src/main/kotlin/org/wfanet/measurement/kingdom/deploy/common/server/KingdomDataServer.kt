@@ -22,8 +22,8 @@ import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIdsFlags
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfigFlags
-import org.wfanet.measurement.kingdom.deploy.common.Rollv2ProtocolConfig
-import org.wfanet.measurement.kingdom.deploy.common.Rollv2ProtocolConfigFlags
+import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfigFlags
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
 import picocli.CommandLine
@@ -37,13 +37,13 @@ abstract class KingdomDataServer : Runnable {
 
   @CommandLine.Mixin private lateinit var llv2ProtocolConfigFlags: Llv2ProtocolConfigFlags
 
-  @CommandLine.Mixin private lateinit var rollv2ProtocolConfigFlags: Rollv2ProtocolConfigFlags
+  @CommandLine.Mixin private lateinit var roLlv2ProtocolConfigFlags: RoLlv2ProtocolConfigFlags
 
   protected suspend fun run(dataServices: DataServices) {
     DuchyInfo.initializeFromFlags(duchyInfoFlags)
     DuchyIds.initializeFromFlags(duchyIdsFlags)
     Llv2ProtocolConfig.initializeFromFlags(llv2ProtocolConfigFlags)
-    Rollv2ProtocolConfig.initializeFromFlags(rollv2ProtocolConfigFlags)
+    RoLlv2ProtocolConfig.initializeFromFlags(roLlv2ProtocolConfigFlags)
 
     val services = dataServices.buildDataServices().toList()
     val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services)

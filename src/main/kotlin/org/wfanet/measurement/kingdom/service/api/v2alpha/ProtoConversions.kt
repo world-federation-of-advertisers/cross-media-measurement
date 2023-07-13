@@ -111,7 +111,7 @@ import org.wfanet.measurement.internal.kingdom.modelShard as internalModelShard
 import org.wfanet.measurement.internal.kingdom.modelSuite as internalModelSuite
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
-import org.wfanet.measurement.kingdom.deploy.common.Rollv2ProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 
 /** Converts an internal [InternalMeasurement.State] to a public [State]. */
 fun InternalMeasurement.State.toState(): State =
@@ -669,13 +669,13 @@ fun Measurement.toInternal(
       when (measurementSpecProto.measurementTypeCase) {
         MeasurementSpec.MeasurementTypeCase.REACH -> {
           if (dataProvidersCount > 1) {
-            if (Rollv2ProtocolConfig.enabled) {
+            if (RoLlv2ProtocolConfig.enabled) {
               protocolConfig = internalProtocolConfig {
-                externalProtocolConfigId = Rollv2ProtocolConfig.name
-                reachOnlyLiquidLegionsV2 = Rollv2ProtocolConfig.protocolConfig
+                externalProtocolConfigId = RoLlv2ProtocolConfig.name
+                reachOnlyLiquidLegionsV2 = RoLlv2ProtocolConfig.protocolConfig
               }
               duchyProtocolConfig = duchyProtocolConfig {
-                reachOnlyLiquidLegionsV2 = Rollv2ProtocolConfig.duchyProtocolConfig
+                reachOnlyLiquidLegionsV2 = RoLlv2ProtocolConfig.duchyProtocolConfig
               }
             } else {
               protocolConfig = internalProtocolConfig {

@@ -40,7 +40,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
-import org.wfanet.measurement.kingdom.deploy.common.Rollv2ProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
@@ -105,7 +105,7 @@ class CreateMeasurement(private val request: CreateMeasurementRequest) :
           ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2
       )
         Llv2ProtocolConfig.requiredExternalDuchyIds
-      else Rollv2ProtocolConfig.requiredExternalDuchyIds
+      else RoLlv2ProtocolConfig.requiredExternalDuchyIds
     val requiredDuchyIds =
       requiredExternalDuchyIds +
         readDataProviderRequiredDuchies(
@@ -124,7 +124,7 @@ class CreateMeasurement(private val request: CreateMeasurementRequest) :
           ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2
       )
         Llv2ProtocolConfig.minimumNumberOfRequiredDuchies
-      else Rollv2ProtocolConfig.minimumNumberOfRequiredDuchies
+      else RoLlv2ProtocolConfig.minimumNumberOfRequiredDuchies
 
     val includedDuchyEntries =
       if (requiredDuchyEntries.size < minimumNumberOfRequiredDuchies) {

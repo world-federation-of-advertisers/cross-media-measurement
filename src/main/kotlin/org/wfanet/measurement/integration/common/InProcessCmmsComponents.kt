@@ -34,7 +34,7 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.DuchyCertConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
-import org.wfanet.measurement.kingdom.deploy.common.Rollv2ProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.frontend.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
@@ -200,7 +200,7 @@ class InProcessCmmsComponents(
         setOf("aggregator"),
         2
       )
-      Rollv2ProtocolConfig.setForTest(
+      RoLlv2ProtocolConfig.setForTest(
         LLV2_PROTOCOL_CONFIG_CONFIG.protocolConfig,
         LLV2_PROTOCOL_CONFIG_CONFIG.duchyProtocolConfig,
         setOf("aggregator"),
