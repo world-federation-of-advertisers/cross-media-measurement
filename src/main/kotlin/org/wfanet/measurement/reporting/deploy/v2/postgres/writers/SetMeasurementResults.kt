@@ -52,7 +52,10 @@ class SetMeasurementResults(private val request: BatchSetMeasurementResultsReque
       ) {
         val state = Measurement.State.SUCCEEDED
         request.measurementResultsList.forEach {
-          val details = MeasurementKt.details { result = it.result }
+          val details = MeasurementKt.details {
+            result = it.result
+            computationConfigs += it.computationConfigsList
+          }
           addBinding {
             bind("$1", details)
             bind("$2", details.toJson())

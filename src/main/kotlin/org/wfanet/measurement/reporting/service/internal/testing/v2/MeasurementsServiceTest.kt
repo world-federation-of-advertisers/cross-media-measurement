@@ -35,6 +35,8 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequestKt
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt
+import org.wfanet.measurement.internal.reporting.v2.ComputationConfigKt
+import org.wfanet.measurement.internal.reporting.v2.DeterministicCountDistinct
 import org.wfanet.measurement.internal.reporting.v2.Measurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt
@@ -43,6 +45,7 @@ import org.wfanet.measurement.internal.reporting.v2.Metric
 import org.wfanet.measurement.internal.reporting.v2.MetricKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt
+import org.wfanet.measurement.internal.reporting.v2.NoiseMechanism
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt
@@ -50,6 +53,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRequest
+import org.wfanet.measurement.internal.reporting.v2.computationConfig
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
@@ -444,6 +448,14 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
       }
     )
 
+    val computationConfig = computationConfig {
+      reach =
+        ComputationConfigKt.reach {
+          noiseMechanism = NoiseMechanism.GEOMETRIC
+          deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
+        }
+    }
+
     service.batchSetMeasurementResults(
       batchSetMeasurementResultsRequest {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -451,6 +463,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
           BatchSetMeasurementResultsRequestKt.measurementResult {
             cmmsMeasurementId = "1234"
             result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 1 } }
+            computationConfigs += computationConfig
           }
       }
     )
@@ -474,6 +487,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
                 MeasurementKt.details {
                   result =
                     MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 1 } }
+                  computationConfigs += computationConfig
                 }
               state = Measurement.State.SUCCEEDED
             }
@@ -509,6 +523,14 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
       }
     )
 
+    val computationConfig = computationConfig {
+      reach =
+        ComputationConfigKt.reach {
+          noiseMechanism = NoiseMechanism.GEOMETRIC
+          deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
+        }
+    }
+
     service.batchSetMeasurementResults(
       batchSetMeasurementResultsRequest {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -516,11 +538,13 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
           BatchSetMeasurementResultsRequestKt.measurementResult {
             cmmsMeasurementId = "1234"
             result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 1 } }
+            computationConfigs += computationConfig
           }
         measurementResults +=
           BatchSetMeasurementResultsRequestKt.measurementResult {
             cmmsMeasurementId = "1235"
             result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 2 } }
+            computationConfigs += computationConfig
           }
       }
     )
@@ -544,6 +568,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
                 MeasurementKt.details {
                   result =
                     MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 1 } }
+                  computationConfigs += computationConfig
                 }
               state = Measurement.State.SUCCEEDED
             }
@@ -556,6 +581,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
                 MeasurementKt.details {
                   result =
                     MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 2 } }
+                  computationConfigs += computationConfig
                 }
               state = Measurement.State.SUCCEEDED
             }
@@ -593,6 +619,14 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
         }
       )
 
+      val computationConfig = computationConfig {
+        reach =
+          ComputationConfigKt.reach {
+            noiseMechanism = NoiseMechanism.GEOMETRIC
+            deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
+          }
+      }
+
       service.batchSetMeasurementResults(
         batchSetMeasurementResultsRequest {
           cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -600,11 +634,13 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
             BatchSetMeasurementResultsRequestKt.measurementResult {
               cmmsMeasurementId = "1234"
               result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 1 } }
+              computationConfigs += computationConfig
             }
           measurementResults +=
             BatchSetMeasurementResultsRequestKt.measurementResult {
               cmmsMeasurementId = "1235"
               result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 2 } }
+              computationConfigs += computationConfig
             }
         }
       )
@@ -628,6 +664,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
                   MeasurementKt.details {
                     result =
                       MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 1 } }
+                    computationConfigs += computationConfig
                   }
                 state = Measurement.State.SUCCEEDED
               }
@@ -640,6 +677,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
                   MeasurementKt.details {
                     result =
                       MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 2 } }
+                    computationConfigs += computationConfig
                   }
                 state = Measurement.State.SUCCEEDED
               }
@@ -670,12 +708,21 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
         }
       )
 
+      val computationConfig = computationConfig {
+        reach =
+          ComputationConfigKt.reach {
+            noiseMechanism = NoiseMechanism.GEOMETRIC
+            deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
+          }
+      }
+
       val request = batchSetMeasurementResultsRequest {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         measurementResults +=
           BatchSetMeasurementResultsRequestKt.measurementResult {
             cmmsMeasurementId = "1234"
             result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 1 } }
+            computationConfigs += computationConfig
           }
       }
 
@@ -701,6 +748,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
                   MeasurementKt.details {
                     result =
                       MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 1 } }
+                    computationConfigs += computationConfig
                   }
                 state = Measurement.State.SUCCEEDED
               }
