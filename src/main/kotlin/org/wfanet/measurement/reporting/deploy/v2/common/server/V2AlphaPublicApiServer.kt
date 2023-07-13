@@ -19,13 +19,21 @@ package org.wfanet.measurement.reporting.deploy.v2.common.server
 import com.google.protobuf.ByteString
 import io.grpc.Channel
 import io.grpc.ServerServiceDefinition
+import io.grpc.inprocess.InProcessChannelBuilder
+import io.grpc.inprocess.InProcessServerBuilder
 import java.io.File
 import java.security.SecureRandom
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as KingdomCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as KingdomDataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub as KingdomEventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as KingdomEventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as KingdomMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as KingdomMeasurementsCoroutineStub
 import org.wfanet.measurement.api.withAuthenticationKey
@@ -38,20 +46,12 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
+import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
-import io.grpc.inprocess.InProcessChannelBuilder
-import io.grpc.inprocess.InProcessServerBuilder
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.LinkedBlockingQueue
-import java.util.concurrent.ThreadPoolExecutor
-import java.util.concurrent.TimeUnit
-import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
-import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.reporting.deploy.common.EncryptionKeyPairMap
 import org.wfanet.measurement.reporting.deploy.common.KingdomApiFlags
@@ -121,8 +121,9 @@ private fun run(
   val internalMeasurementConsumersCoroutineStub = InternalMeasurementConsumersCoroutineStub(channel)
   runBlocking {
     measurementConsumerConfigs.configsMap.keys.forEach {
-      val measurementConsumerKey = MeasurementConsumerKey.fromName(it)
-        ?: throw IllegalArgumentException("measurement_consumer_config is invalid")
+      val measurementConsumerKey =
+        MeasurementConsumerKey.fromName(it)
+          ?: throw IllegalArgumentException("measurement_consumer_config is invalid")
       internalMeasurementConsumersCoroutineStub.createMeasurementConsumer(
         measurementConsumer {
           cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
@@ -132,10 +133,7 @@ private fun run(
   }
 
   val metricSpecConfig =
-    parseTextProto(
-      v2AlphaFlags.metricSpecConfigFile,
-      MetricSpecConfig.getDefaultInstance()
-    )
+    parseTextProto(v2AlphaFlags.metricSpecConfigFile, MetricSpecConfig.getDefaultInstance())
 
   val apiKey = measurementConsumerConfigs.configsMap.values.first().apiKey
   val celEnvCacheProvider =
@@ -166,20 +164,22 @@ private fun run(
   val inProcessServerName = InProcessServerBuilder.generateName()
 
   val executor: ExecutorService =
-    ThreadPoolExecutor(1, commonServerFlags.threadPoolSize, 60L, TimeUnit.SECONDS, LinkedBlockingQueue())
+    ThreadPoolExecutor(
+      1,
+      commonServerFlags.threadPoolSize,
+      60L,
+      TimeUnit.SECONDS,
+      LinkedBlockingQueue()
+    )
 
-  InProcessServerBuilder
-    .forName(inProcessServerName)
+  InProcessServerBuilder.forName(inProcessServerName)
     .executor(executor)
     .addService(metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs))
     .build()
     .start()
 
   val inProcessChannel =
-    InProcessChannelBuilder
-      .forName(inProcessServerName)
-      .directExecutor()
-      .build()
+    InProcessChannelBuilder.forName(inProcessServerName).directExecutor().build()
 
   val services: List<ServerServiceDefinition> =
     listOf(
@@ -189,8 +189,7 @@ private fun run(
           celEnvCacheProvider,
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-      metricsService
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+      metricsService.withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ReportingSetsService(InternalReportingSetsCoroutineStub(channel))
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ReportsService(
