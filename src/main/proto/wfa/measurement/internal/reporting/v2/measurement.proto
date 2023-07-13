@@ -19,6 +19,8 @@ package wfa.measurement.internal.reporting.v2;
 import "google/protobuf/duration.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/internal/reporting/v2/reporting_set.proto";
+import "wfa/measurement/internal/reporting/v2/mpc_protocol.proto";
+import "wfa/measurement/internal/reporting/v2/direct_computation.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
@@ -92,6 +94,74 @@ message Measurement {
     Failure failure = 1;
     // The result of the `Measurement` derived from the CMMS public API.
     Result result = 2;
+    // Computation configs of the `Measurement` derived from the CMMS public
+    // API.
+    repeated ComputationConfig computation_configs = 3;
   }
   Details details = 7;
+}
+
+// The mechanism used to generate noise in computations.
+enum NoiseMechanism {
+  // Default value used if the mechanism is omitted.
+  NOISE_MECHANISM_UNSPECIFIED = 0;
+  // No noise is added.
+  NONE = 1;
+  // Geometric, i.e. discrete Laplace.
+  GEOMETRIC = 2;
+  // Discrete Gaussian.
+  DISCRETE_GAUSSIAN = 3;
+  // Continuous Laplace.
+  CONTINUOUS_LAPLACE = 4;
+  // Continuous Gaussian.
+  CONTINUOUS_GAUSSIAN = 5;
+}
+
+// Used for measurement variance calculations and as a fingerprint to identify
+// measurements.
+message ComputationConfig {
+  message Reach {
+    // The mechanism used to generate noise during computation.
+    NoiseMechanism noise_mechanism = 1;
+    oneof methodology {
+      CustomDirectMethodology custom_direct_methodology = 2;
+      DeterministicCountDistinct deterministic_count_distinct = 3;
+      LiquidLegionsCountDistinct liquid_legions_count_distinct = 4;
+      LiquidLegionsV2 liquid_legions_v2 = 5;
+      ReachOnlyLiquidLegionsV2 reach_only_liquid_legions_v2 = 6;
+    }
+  }
+  Reach reach = 1;
+
+  message Frequency {
+    // The mechanism used to generate noise during computation.
+    NoiseMechanism noise_mechanism = 1;
+    oneof methodology {
+      CustomDirectMethodology custom_direct_methodology = 2;
+      DeterministicDistribution deterministic_distribution = 3;
+      LiquidLegionsDistribution liquid_legions_distribution = 4;
+      LiquidLegionsV2 liquid_legions_v2 = 5;
+    }
+  }
+  Frequency frequency = 2;
+
+  message Impression {
+    // The mechanism used to generate noise during computation.
+    NoiseMechanism noise_mechanism = 1;
+    oneof methodology {
+      CustomDirectMethodology custom_direct_methodology = 2;
+      DeterministicCount deterministic_count = 3;
+    }
+  }
+  Impression impression = 3;
+
+  message WatchDuration {
+    // The mechanism used to generate noise during computation.
+    NoiseMechanism noise_mechanism = 1;
+    oneof methodology {
+      CustomDirectMethodology custom_direct_methodology = 2;
+      DeterministicSum deterministic_sum = 3;
+    }
+  }
+  WatchDuration watchDuration = 4;
 }
