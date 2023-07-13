@@ -59,6 +59,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
@@ -96,8 +97,15 @@ import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRe
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequestKt.measurementFailure
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt.measurementResult
+import org.wfanet.measurement.internal.reporting.v2.ComputationConfig
+import org.wfanet.measurement.internal.reporting.v2.ComputationConfigKt
 import org.wfanet.measurement.internal.reporting.v2.CreateMetricRequest as InternalCreateMetricRequest
+import org.wfanet.measurement.internal.reporting.v2.DeterministicCount
+import org.wfanet.measurement.internal.reporting.v2.DeterministicCountDistinct
+import org.wfanet.measurement.internal.reporting.v2.DeterministicDistribution
+import org.wfanet.measurement.internal.reporting.v2.DeterministicSum
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
@@ -116,8 +124,10 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRequest
+import org.wfanet.measurement.internal.reporting.v2.computationConfig
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest as internalCreateMetricRequest
+import org.wfanet.measurement.internal.reporting.v2.customDirectMethodology
 import org.wfanet.measurement.internal.reporting.v2.measurement as internalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.metric as internalMetric
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
@@ -770,15 +780,11 @@ class MetricsService(
         cmmsMeasurementConsumerId = principal.resourceKey.measurementConsumerId
         measurementResults +=
           succeededMeasurementsList.map { measurement ->
-            measurementResult {
-              cmmsMeasurementId = MeasurementKey.fromName(measurement.name)!!.measurementId
-              result =
-                buildInternalMeasurementResult(
-                  measurement,
-                  apiAuthenticationKey,
-                  principal.resourceKey.toName()
-                )
-            }
+            buildInternalMeasurementResult(
+              measurement,
+              apiAuthenticationKey,
+              principal.resourceKey.toName()
+            )
           }
       }
 
@@ -839,7 +845,7 @@ class MetricsService(
       measurement: Measurement,
       apiAuthenticationKey: String,
       principalName: String,
-    ): InternalMeasurement.Result {
+    ): BatchSetMeasurementResultsRequest.MeasurementResult {
       val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
       val encryptionPrivateKeyHandle =
         encryptionKeyPairStore.getPrivateKeyHandle(
@@ -850,13 +856,144 @@ class MetricsService(
             "Encryption private key not found for the measurement ${measurement.name}."
           }
 
-      return aggregateResults(
-        measurement.resultsList
-          .map {
-            decryptMeasurementResultPair(it, encryptionPrivateKeyHandle, apiAuthenticationKey)
+      val decryptedMeasurementResults =
+        measurement.resultsList.map {
+          decryptMeasurementResultPair(it, encryptionPrivateKeyHandle, apiAuthenticationKey)
+        }
+
+      return measurementResult {
+        cmmsMeasurementId = MeasurementKey.fromName(measurement.name)!!.measurementId
+        result = aggregateResults(decryptedMeasurementResults.map(Measurement.Result::toInternal))
+        computationConfigs +=
+          decryptedMeasurementResults.map { measurementResult ->
+            buildComputationConfig(measurementResult, measurement.protocolConfig)
           }
-          .map(Measurement.Result::toInternal)
-      )
+      }
+    }
+
+    /** Builds a [ComputationConfig] from a CMMS [Measurement.Result] and a [ProtocolConfig]. */
+    private fun buildComputationConfig(
+      measurementResult: Measurement.Result,
+      protocolConfig: ProtocolConfig,
+    ): ComputationConfig {
+      return computationConfig {
+        if (measurementResult.hasReach()) {
+          reach =
+            ComputationConfigKt.reach {
+              if (protocolConfig.protocolsList.any { it.hasDirect() }) {
+                noiseMechanism = measurementResult.reach.noiseMechanism.toInternal()
+                @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+                when (measurementResult.reach.methodologyCase) {
+                  Measurement.Result.Reach.MethodologyCase.METHODOLOGY_NOT_SET -> {}
+                  Measurement.Result.Reach.MethodologyCase.CUSTOM_DIRECT_METHODOLOGY -> {
+                    customDirectMethodology =
+                      measurementResult.reach.customDirectMethodology.toInternal()
+                  }
+                  Measurement.Result.Reach.MethodologyCase.DETERMINISTIC_COUNT_DISTINCT -> {
+                    deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
+                  }
+                  Measurement.Result.Reach.MethodologyCase.LIQUID_LEGIONS_COUNT_DISTINCT -> {
+                    liquidLegionsCountDistinct =
+                      measurementResult.reach.liquidLegionsCountDistinct.toInternal()
+                  }
+                }
+              } else if (protocolConfig.protocolsList.any { it.hasLiquidLegionsV2() }) {
+                val cmmsProtocol =
+                  protocolConfig.protocolsList.first { it.hasLiquidLegionsV2() }.liquidLegionsV2
+                noiseMechanism = cmmsProtocol.noiseMechanism.toInternal()
+                liquidLegionsV2 = cmmsProtocol.toInternal()
+              } else if (protocolConfig.protocolsList.any { it.hasReachOnlyLiquidLegionsV2() }) {
+                val cmmsProtocol =
+                  protocolConfig.protocolsList
+                    .first { it.hasReachOnlyLiquidLegionsV2() }
+                    .reachOnlyLiquidLegionsV2
+                noiseMechanism = cmmsProtocol.noiseMechanism.toInternal()
+                reachOnlyLiquidLegionsV2 = cmmsProtocol.toInternal()
+              } else {
+                error("Measurement protocol is not set or not supported.")
+              }
+            }
+        }
+        if (measurementResult.hasFrequency()) {
+          frequency =
+            ComputationConfigKt.frequency {
+              if (protocolConfig.protocolsList.any { it.hasDirect() }) {
+                noiseMechanism = measurementResult.frequency.noiseMechanism.toInternal()
+                @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+                when (measurementResult.frequency.methodologyCase) {
+                  Measurement.Result.Frequency.MethodologyCase.METHODOLOGY_NOT_SET -> {}
+                  Measurement.Result.Frequency.MethodologyCase.CUSTOM_DIRECT_METHODOLOGY -> {
+                    customDirectMethodology =
+                      measurementResult.frequency.customDirectMethodology.toInternal()
+                  }
+                  Measurement.Result.Frequency.MethodologyCase.DETERMINISTIC_DISTRIBUTION -> {
+                    deterministicDistribution = DeterministicDistribution.getDefaultInstance()
+                  }
+                  Measurement.Result.Frequency.MethodologyCase.LIQUID_LEGIONS_DISTRIBUTION -> {
+                    liquidLegionsDistribution =
+                      measurementResult.frequency.liquidLegionsDistribution.toInternal()
+                  }
+                }
+              } else if (protocolConfig.protocolsList.any { it.hasLiquidLegionsV2() }) {
+                liquidLegionsV2 =
+                  protocolConfig.protocolsList
+                    .first { it.hasLiquidLegionsV2() }
+                    .liquidLegionsV2
+                    .toInternal()
+              } else if (protocolConfig.protocolsList.any { it.hasReachOnlyLiquidLegionsV2() }) {
+                reachOnlyLiquidLegionsV2 =
+                  protocolConfig.protocolsList
+                    .first { it.hasReachOnlyLiquidLegionsV2() }
+                    .reachOnlyLiquidLegionsV2
+                    .toInternal()
+              } else {
+                error("Measurement protocol is not set or not supported.")
+              }
+            }
+        }
+        if (measurementResult.hasImpression()) {
+          impression =
+            ComputationConfigKt.impression {
+              if (protocolConfig.protocolsList.any { it.hasDirect() }) {
+                noiseMechanism = measurementResult.impression.noiseMechanism.toInternal()
+                @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+                when (measurementResult.impression.methodologyCase) {
+                  Measurement.Result.Impression.MethodologyCase.METHODOLOGY_NOT_SET -> {}
+                  Measurement.Result.Impression.MethodologyCase.CUSTOM_DIRECT_METHODOLOGY -> {
+                    customDirectMethodology =
+                      measurementResult.impression.customDirectMethodology.toInternal()
+                  }
+                  Measurement.Result.Impression.MethodologyCase.DETERMINISTIC_COUNT -> {
+                    deterministicCount = DeterministicCount.getDefaultInstance()
+                  }
+                }
+              } else {
+                error("Measurement protocol is not set or not supported.")
+              }
+            }
+        }
+        if (measurementResult.hasWatchDuration()) {
+          watchDuration =
+            ComputationConfigKt.watchDuration {
+              if (protocolConfig.protocolsList.any { it.hasDirect() }) {
+                noiseMechanism = measurementResult.watchDuration.noiseMechanism.toInternal()
+                @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+                when (measurementResult.watchDuration.methodologyCase) {
+                  Measurement.Result.WatchDuration.MethodologyCase.METHODOLOGY_NOT_SET -> {}
+                  Measurement.Result.WatchDuration.MethodologyCase.CUSTOM_DIRECT_METHODOLOGY -> {
+                    customDirectMethodology =
+                      measurementResult.watchDuration.customDirectMethodology.toInternal()
+                  }
+                  Measurement.Result.WatchDuration.MethodologyCase.DETERMINISTIC_SUM -> {
+                    deterministicSum = DeterministicSum.getDefaultInstance()
+                  }
+                }
+              } else {
+                error("Measurement protocol is not set or not supported.")
+              }
+            }
+        }
+      }
     }
 
     /** Decrypts a [Measurement.ResultPair] to [Measurement.Result] */
