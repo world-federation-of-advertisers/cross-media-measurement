@@ -16,8 +16,6 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing
 import com.google.protobuf.Message
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.PersonKt.ageGroupField
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.PersonKt.genderField
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
@@ -37,7 +35,7 @@ class TestPrivacyBucketMapper : PrivacyBucketMapper {
       compileProgram(
         TestEvent.getDescriptor(),
         filterExpression,
-        setOf("person.age_group.value", "person.gender.value")
+        setOf("person.age_group", "person.gender")
       )
     } catch (e: EventFilterValidationException) {
       throw PrivacyBudgetManagerException(
@@ -49,21 +47,17 @@ class TestPrivacyBucketMapper : PrivacyBucketMapper {
   override fun toEventMessage(privacyBucketGroup: PrivacyBucketGroup): Message {
     return testEvent {
       person = person {
-        ageGroup = ageGroupField {
-          value =
-            when (privacyBucketGroup.ageGroup) {
-              AgeGroup.RANGE_18_34 -> Person.AgeGroup.YEARS_18_TO_34
-              AgeGroup.RANGE_35_54 -> Person.AgeGroup.YEARS_35_TO_54
-              AgeGroup.ABOVE_54 -> Person.AgeGroup.YEARS_55_PLUS
-            }
-        }
-        gender = genderField {
-          value =
-            when (privacyBucketGroup.gender) {
-              Gender.MALE -> Person.Gender.MALE
-              Gender.FEMALE -> Person.Gender.FEMALE
-            }
-        }
+        ageGroup =
+          when (privacyBucketGroup.ageGroup) {
+            AgeGroup.RANGE_18_34 -> Person.AgeGroup.YEARS_18_TO_34
+            AgeGroup.RANGE_35_54 -> Person.AgeGroup.YEARS_35_TO_54
+            AgeGroup.ABOVE_54 -> Person.AgeGroup.YEARS_55_PLUS
+          }
+        gender =
+          when (privacyBucketGroup.gender) {
+            Gender.MALE -> Person.Gender.MALE
+            Gender.FEMALE -> Person.Gender.FEMALE
+          }
       }
     }
   }

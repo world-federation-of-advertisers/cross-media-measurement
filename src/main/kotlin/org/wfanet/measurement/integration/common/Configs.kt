@@ -94,8 +94,8 @@ const val DUCHY_MILL_PARALLELISM = 3
  */
 val EVENT_TEMPLATES_TO_FILTERS_MAP =
   mapOf(
-    "$TEMPLATE_PREFIX.Video" to "video_ad.viewed_fraction.value > 0.25",
-    "$TEMPLATE_PREFIX.Person" to "person.gender.value == $TEMPLATE_PREFIX.Person.Gender.MALE"
+    "$TEMPLATE_PREFIX.Video" to "video_ad.viewed_fraction > 0.25",
+    "$TEMPLATE_PREFIX.Person" to "person.gender == $TEMPLATE_PREFIX.Person.Gender.MALE"
   )
 const val MC_DISPLAY_NAME = "mc"
 

@@ -169,11 +169,11 @@ path to the executable.
     --measurement-ref-id=9999 \
     --data-provider=dataProviders/1 \
     --event-group=dataProviders/1/eventGroups/1 \
-    --event-filter="video_ad.age.value == 1" \
+    --event-filter="video_ad.age == 1" \
     --event-start-time=2022-05-22T01:00:00.000Z \
     --event-end-time=2022-05-24T05:00:00.000Z \
     --event-group=dataProviders/1/eventGroups/2 \
-    --event-filter="video_ad.age.value == 2" \
+    --event-filter="video_ad.age == 2" \
     --event-start-time=2022-05-22T01:22:32.250Z \
     --event-end-time=2022-05-23T03:14:55.450Z \
     --data-provider=dataProviders/2 \

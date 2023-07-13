@@ -28,14 +28,10 @@ message Banner {
     description: "A simple template for events related to a banner ad."
   };
 
-  message ViewableField {
-    option (.wfa.measurement.api.v2alpha.event_field) = {
-      display_name: "Viewable"
-    };
-
-    bool value = 1;
-  }
-  // Whether the ad was shown for more than 2 seconds with at least 50% of the
-  // pixels on the screen. If not specified, viewability was not determined.
-  ViewableField viewable = 1;
+  bool viewable = 1 [(.wfa.measurement.api.v2alpha.template_field) = {
+    display_name: "Viewable"
+    description: "Whether the ad was shown for more than 2 seconds with at "
+                 "least 50% of the pixels on the screen. If not specified, "
+                 "viewability was not determined."
+  }];
 }

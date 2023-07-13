@@ -36,7 +36,7 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.Event
 
 private const val TEMPLATE_PREFIX = "wfa.measurement.api.v2alpha.event_templates.testing"
 private val OPERATIVE_FIELDS =
-  setOf("person.age_group.value", "person.gender.value", "person.social_grade_group.value")
+  setOf("person.age_group", "person.gender", "person.social_grade_group")
 
 @RunWith(JUnit4::class)
 class EventFilterValidatorTest {
@@ -241,7 +241,7 @@ class EventFilterValidatorTest {
   @Test
   fun `can use valid template fields on comparison`() {
     compile(
-      "banner.viewable.value == true && person.age_group.value == 1",
+      "banner.viewable == true && person.age_group == 1",
       envWithTestTemplateVars(
         bannerTemplateVar(),
         personTemplateVar(),
@@ -251,7 +251,7 @@ class EventFilterValidatorTest {
 
   @Test
   fun `can use template with IN operator`() {
-    compile("person.age_group.value in [0, 1]", envWithTestTemplateVars(personTemplateVar()))
+    compile("person.age_group in [0, 1]", envWithTestTemplateVars(personTemplateVar()))
   }
 
   @Test
@@ -262,7 +262,7 @@ class EventFilterValidatorTest {
   @Test
   fun `can use template with has operator with other operators`() {
     compile(
-      "has(person.age_group) && person.age_group.value in [0, 1]",
+      "has(person.age_group) && person.age_group in [0, 1]",
       envWithTestTemplateVars(personTemplateVar())
     )
   }
@@ -271,8 +271,8 @@ class EventFilterValidatorTest {
   fun `compiles to Normal Form correctly with single operative field`() {
     val env = envWithTestTemplateVars(personTemplateVar())
 
-    val expression = "person.age_group.value in [0, 1]"
-    val expectedNormalizedExpression = "person.age_group.value in [0, 1]"
+    val expression = "person.age_group in [0, 1]"
+    val expectedNormalizedExpression = "person.age_group in [0, 1]"
 
     assertIgnoringId(compileToNormalForm(expression, env, OPERATIVE_FIELDS))
       .isEqualTo(compile(expectedNormalizedExpression, env))
@@ -288,7 +288,7 @@ class EventFilterValidatorTest {
       )
     // Note that this is a contrived example, as this field would be non-operative in practice.
     val operativeFields = OPERATIVE_FIELDS.plus("video.length")
-    val expression = "video.length.value.seconds > 30"
+    val expression = "video.length.seconds > 30"
 
     assertIgnoringId(compileToNormalForm(expression, env, operativeFields))
       .isEqualTo(compile(expression, env))
@@ -302,7 +302,7 @@ class EventFilterValidatorTest {
         personTemplateVar(),
       )
 
-    val expression = "video.viewed_fraction.value > 0.25"
+    val expression = "video.viewed_fraction > 0.25"
     val expectedCompiledNormalizedExpression =
       Expr.newBuilder().setConstExpr(Constant.newBuilder().setBoolValue(true)).build()
 
@@ -332,8 +332,8 @@ class EventFilterValidatorTest {
 
     // Note that this is a contrived example, as the value field is scalar and therefore always
     // present. In practice, presence checks are only useful on wrapper messages.
-    val expression = "has(person.age_group.value)"
-    val expectedNormalizedExpression = "has(person.age_group.value)"
+    val expression = "has(person.age_group)"
+    val expectedNormalizedExpression = "has(person.age_group)"
 
     assertIgnoringId(compileToNormalForm(expression, env, OPERATIVE_FIELDS))
       .isEqualTo(compile(expectedNormalizedExpression, env))
@@ -347,8 +347,8 @@ class EventFilterValidatorTest {
         personTemplateVar(),
       )
 
-    val expression = "banner.viewable.value == true && person.age_group.value == 1"
-    val expectedNormalizedExpression = "true && person.age_group.value == 1"
+    val expression = "banner.viewable == true && person.age_group == 1"
+    val expectedNormalizedExpression = "true && person.age_group == 1"
 
     assertIgnoringId(compileToNormalForm(expression, env, OPERATIVE_FIELDS))
       .isEqualTo(compile(expectedNormalizedExpression, env))
@@ -360,8 +360,8 @@ class EventFilterValidatorTest {
       envWithTestTemplateVars(
         personTemplateVar(),
       )
-    val expression = "!(person.gender.value == 2 && person.age_group.value == 1)"
-    val expectedNormalizedExpression = "person.gender.value == 2 || person.age_group.value == 1"
+    val expression = "!(person.gender == 2 && person.age_group == 1)"
+    val expectedNormalizedExpression = "person.gender == 2 || person.age_group == 1"
 
     assertIgnoringId(compileToNormalForm(expression, env, OPERATIVE_FIELDS))
       .isEqualTo(compile(expectedNormalizedExpression, env))
@@ -376,10 +376,8 @@ class EventFilterValidatorTest {
       )
 
     val expression =
-      "!(person.gender.value == 2 && person.age_group.value == 1) && " +
-        "!(video.viewed_fraction.value > 0.25)"
-    val expectedNormalizedExpression =
-      "(person.gender.value == 2 || person.age_group.value == 1) && true"
+      "!(person.gender == 2 && person.age_group == 1) && " + "!(video.viewed_fraction > 0.25)"
+    val expectedNormalizedExpression = "(person.gender == 2 || person.age_group == 1) && true"
 
     assertIgnoringId(compileToNormalForm(expression, env, OPERATIVE_FIELDS))
       .isEqualTo(compile(expectedNormalizedExpression, env))
@@ -395,10 +393,10 @@ class EventFilterValidatorTest {
 
     val expression =
       """
-      !(person.gender.value == 2  || video.viewed_fraction.value > 0.25) && !(
-        person.age_group.value == 1 || (
-          person.age_group.value == 2 || !(
-            (video.viewed_fraction.value > 0.25 && video.viewed_fraction.value < 1.0)
+      !(person.gender == 2  || video.viewed_fraction > 0.25) && !(
+        person.age_group == 1 || (
+          person.age_group == 2 || !(
+            (video.viewed_fraction > 0.25 && video.viewed_fraction < 1.0)
           )
         )
       )
@@ -406,8 +404,8 @@ class EventFilterValidatorTest {
         .trim()
 
     val expectedNormalizedExpression =
-      "(person.gender.value == 2  && true) && (person.age_group.value == 1 && " +
-        "(person.age_group.value == 2 && ((true && true))) )"
+      "(person.gender == 2  && true) && (person.age_group == 1 && " +
+        "(person.age_group == 2 && ((true && true))) )"
 
     assertIgnoringId(compileToNormalForm(expression, env, OPERATIVE_FIELDS))
       .isEqualTo(compile(expectedNormalizedExpression, env))

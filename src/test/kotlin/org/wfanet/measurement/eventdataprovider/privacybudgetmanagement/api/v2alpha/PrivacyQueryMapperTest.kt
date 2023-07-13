@@ -42,7 +42,7 @@ private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
 private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
 
 private const val FILTER_EXPRESSION =
-  "person.gender.value==0 && person.age_group.value==0 && " + "banner_ad.gender.value == 1"
+  "person.gender==0 && person.age_group==0 && banner_ad.gender == 1"
 private val REQUISITION_SPEC = requisitionSpec {
   eventGroups += eventGroupEntry {
     key = "eventGroups/someEventGroup"

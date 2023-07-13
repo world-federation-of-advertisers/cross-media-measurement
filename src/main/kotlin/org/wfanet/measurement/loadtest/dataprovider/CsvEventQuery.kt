@@ -23,9 +23,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.PersonKt
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.VideoKt.viewedFractionField
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.video
@@ -102,25 +100,23 @@ class CsvEventQuery(publisherId: Int, file: File) :
         person = person {
           this.vid = vid
           if (gender != null) {
-            this.gender = PersonKt.genderField { value = gender }
+            this.gender = gender
           }
           if (ageGroup != null) {
-            this.ageGroup = PersonKt.ageGroupField { value = ageGroup }
+            this.ageGroup = ageGroup
           }
           if (socialGradeGroup != null) {
-            socialGrade = PersonKt.socialGradeGroupField { value = socialGradeGroup }
+            this.socialGradeGroup = socialGradeGroup
           }
         }
         videoAd = video {
           if (complete != null) {
-            viewedFraction = viewedFractionField {
-              value =
-                if (complete) {
-                  1.0
-                } else {
-                  0.0
-                }
-            }
+            viewedFraction =
+              if (complete) {
+                1.0
+              } else {
+                0.0
+              }
           }
         }
       }
