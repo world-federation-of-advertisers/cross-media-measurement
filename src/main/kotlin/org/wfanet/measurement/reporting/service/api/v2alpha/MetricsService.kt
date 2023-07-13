@@ -563,7 +563,7 @@ class MetricsService(
                 key = cmmsEventGroupKey.toName()
                 value =
                   RequisitionSpecKt.EventGroupEntryKt.value {
-                    collectionInterval = measurement.timeInterval.toCmmsTimeInterval()
+                    collectionInterval = measurement.timeInterval
                     if (filter != null) {
                       this.filter = RequisitionSpecKt.eventFilter { expression = filter }
                     }
@@ -1358,7 +1358,7 @@ class MetricsService(
       metric = internalMetric {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
         externalReportingSetId = internalReportingSet.externalReportingSetId
-        timeInterval = request.metric.timeInterval.toInternal()
+        timeInterval = request.metric.timeInterval
         metricSpec =
           try {
             request.metric.metricSpec.withDefaults(metricSpecConfig).toInternal()
@@ -1392,7 +1392,7 @@ class MetricsService(
         weight = weightedSubsetUnion.weight
         measurement = internalMeasurement {
           this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-          timeInterval = metric.timeInterval.toInternal()
+          timeInterval = metric.timeInterval
           this.primitiveReportingSetBases +=
             weightedSubsetUnion.primitiveReportingSetBasesList.map { primitiveReportingSetBasis ->
               primitiveReportingSetBasis.copy { filters += metric.filtersList }
@@ -1486,7 +1486,7 @@ private fun InternalMetric.toMetric(): Metric {
         .toName()
     reportingSet =
       ReportingSetKey(source.cmmsMeasurementConsumerId, source.externalReportingSetId).toName()
-    timeInterval = source.timeInterval.toTimeInterval()
+    timeInterval = source.timeInterval
     metricSpec = source.metricSpec.toMetricSpec()
     filters += source.details.filtersList
     state = source.state

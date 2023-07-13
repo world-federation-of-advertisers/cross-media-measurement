@@ -402,11 +402,11 @@ proto_library(
     name = "page_token_proto",
     srcs = ["page_token.proto"],
     deps = [
+        "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:timestamp_proto",
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurement_proto",
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_line_proto",
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:requisition_proto",
-        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:time_interval_proto",
     ],
 )
 

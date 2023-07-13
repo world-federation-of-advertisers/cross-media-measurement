@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.google.type.Interval
+import com.google.type.copy
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.math.min
@@ -23,7 +25,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
-import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -36,12 +37,11 @@ import org.wfanet.measurement.internal.reporting.v2.Report as InternalReport
 import org.wfanet.measurement.internal.reporting.v2.ReportKt as InternalReportKt
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequest
-import org.wfanet.measurement.internal.reporting.v2.TimeInterval as InternalTimeInterval
-import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest as internalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
+import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withPrincipalName
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
@@ -81,8 +81,8 @@ class ReportsService(
 
   private data class InternalTimeRange(
     val canBeCumulative: Boolean,
-    val timeIntervals: List<InternalTimeInterval>,
-    val cumulativeTimeIntervals: List<InternalTimeInterval>
+    val timeIntervals: List<Interval>,
+    val cumulativeTimeIntervals: List<Interval>
   )
 
   private data class CreateReportInfo(
@@ -145,7 +145,7 @@ class ReportsService(
       subResults.flatMap { internalReport -> internalReport.metricNames }.distinct().asFlow()
 
     val callRpc: suspend (List<String>) -> BatchGetMetricsResponse = { items ->
-      batchGetMetrics(principal.resourceKey.toName(), principal.config.apiKey, items)
+      batchGetMetrics(principal.resourceKey.toName(), items)
     }
     val externalIdToMetricMap: Map<String, Metric> =
       submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc) { response ->
@@ -199,7 +199,7 @@ class ReportsService(
     val metricNames: Flow<String> = internalReport.metricNames.distinct().asFlow()
 
     val callRpc: suspend (List<String>) -> BatchGetMetricsResponse = { items ->
-      batchGetMetrics(principal.resourceKey.toName(), principal.config.apiKey, items)
+      batchGetMetrics(principal.resourceKey.toName(), items)
     }
     val externalIdToMetricMap: Map<String, Metric> =
       submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc) { response ->
@@ -214,12 +214,11 @@ class ReportsService(
 
   private suspend fun batchGetMetrics(
     parent: String,
-    apiAuthenticationKey: String,
     metricNames: List<String>,
   ): BatchGetMetricsResponse {
     return try {
       metricsStub
-        .withAuthenticationKey(apiAuthenticationKey)
+        .withPrincipalName(parent)
         .batchGetMetrics(
           batchGetMetricsRequest {
             this.parent = parent
@@ -292,7 +291,7 @@ class ReportsService(
         .asFlow()
 
     val callRpc: suspend (List<CreateMetricRequest>) -> BatchCreateMetricsResponse = { items ->
-      batchCreateMetrics(request.parent, principal.config.apiKey, items)
+      batchCreateMetrics(request.parent, items)
     }
     val externalIdToMetricMap: Map<String, Metric> =
       submitBatchRequests(createMetricRequests, BATCH_CREATE_METRICS_LIMIT, callRpc) {
@@ -414,12 +413,11 @@ class ReportsService(
   /** Creates a batch of [Metric]s. */
   private suspend fun batchCreateMetrics(
     parent: String,
-    apiAuthenticationKey: String,
     createMetricRequests: List<CreateMetricRequest>
   ): BatchCreateMetricsResponse {
     return try {
       metricsStub
-        .withAuthenticationKey(apiAuthenticationKey)
+        .withPrincipalName(parent)
         .batchCreateMetrics(
           batchCreateMetricsRequest {
             this.parent = parent
@@ -464,7 +462,7 @@ class ReportsService(
 
         InternalTimeRange(
           false,
-          source.timeIntervals.timeIntervalsList.map { it.toInternal() },
+          source.timeIntervals.timeIntervalsList,
           listOf(),
         )
       }
@@ -485,8 +483,7 @@ class ReportsService(
           "PeriodicTimeInterval intervalCount is unspecified."
         }
 
-        val timeIntervals =
-          source.periodicTimeInterval.toTimeIntervalsList().map { it.toInternal() }
+        val timeIntervals = source.periodicTimeInterval.toTimeIntervalsList()
         val cumulativeTimeIntervals =
           timeIntervals.map { timeInterval ->
             timeInterval.copy { startTime = timeIntervals.first().startTime }
@@ -585,7 +582,7 @@ class ReportsService(
       "No metric spec in MetricCalculationSpec [${metricCalculationSpec.displayName}] is specified."
     }
 
-    val timeIntervals: List<InternalTimeInterval> =
+    val timeIntervals: List<Interval> =
       if (metricCalculationSpec.cumulative) {
         grpcRequire(createReportInfo.internalTimeRange.canBeCumulative) {
           "Cumulative can only be used with PeriodicTimeInterval."
