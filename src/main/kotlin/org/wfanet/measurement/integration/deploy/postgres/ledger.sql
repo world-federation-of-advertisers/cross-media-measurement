@@ -41,6 +41,25 @@ CREATE TABLE PrivacyBucketCharges(
   PRIMARY KEY (MeasurementConsumerId, Date, AgeGroup, Gender, VidStart, Delta, Epsilon)
   );
 
+CREATE TABLE PrivacyBucketAcdpCharges(
+  -- Which Measurement Consumer this PrivacyBucket belongs to.
+  MeasurementConsumerId text NOT NULL,
+  -- Day for this PrivacyBucket. DD-MM-YYYY.
+  Date Date NOT NULL,
+  -- Age for this PrivacyBucket.
+  AgeGroup AgeGroup NOT NULL,
+  -- Gender for this PrivacyBucket.
+  Gender Gender NOT NULL,
+  -- Start of the Vid range for this PrivacyBucket. Bucket vid's ranges from VidStart to VidStart + 0.1.
+  VidStart real NOT NULL,
+  -- Rho for the AcdpCharge of this ledger entry.
+  Rho real NOT NULL,
+  -- Theta for the AcdpCharge of this ledger entry.
+  Theta real NOT NULL,
+  -- Used to query entries efficiently to update rho and theta
+  PRIMARY KEY (MeasurementConsumerId, Date, AgeGroup, Gender, VidStart)
+  );
+
 CREATE TABLE LedgerEntries(
   -- Which Measurement Consumer this Ledger Entry belongs to.
   MeasurementConsumerId text NOT NULL,

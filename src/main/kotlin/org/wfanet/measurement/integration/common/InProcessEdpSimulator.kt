@@ -39,6 +39,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.CompositionMechanism
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemoryBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
@@ -102,7 +103,8 @@ class InProcessEdpSimulator(
         ),
       trustedCertificates = trustedCertificates,
       random,
-      DIRECT_NOISE_MECHANISM
+      DIRECT_NOISE_MECHANISM,
+      COMPOSITION_MECHANISM
     )
 
   private lateinit var edpJob: Job
@@ -131,5 +133,6 @@ class InProcessEdpSimulator(
     private const val RANDOM_SEED: Long = 1
     private val random = Random(RANDOM_SEED)
     private val DIRECT_NOISE_MECHANISM = DirectNoiseMechanism.LAPLACE
+    private val COMPOSITION_MECHANISM = CompositionMechanism.DP_ADVANCED
   }
 }

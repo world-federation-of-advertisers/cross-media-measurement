@@ -102,6 +102,17 @@ class AcdpParamsConverterTest {
   }
 
   @Test
+  fun `mpc rho and theta should be correct with large dpParams and three contributors`() {
+    // sigmaDistributed and lambda with this set of params: sigmaDistributed = 1.1509301704045332,
+    // lambda = 2.12667410579919E-6
+    val acdpCharge = AcdpParamsConverter.getMpcAcdpCharge(DpParams(0.9, 0.5), 3)
+    val expectedAcdpCharge = AcdpCharge(0.12582564093358586, 0.007149139528009278)
+
+    assertThat(acdpCharge.rho).isWithin(TOLERANCE).of(expectedAcdpCharge.rho)
+    assertThat(acdpCharge.theta).isWithin(TOLERANCE).of(expectedAcdpCharge.theta)
+  }
+
+  @Test
   fun `direct rho and theta should be correct with given dpParams`() {
     val acdpCharge =
       AcdpParamsConverter.getDirectAcdpCharge(

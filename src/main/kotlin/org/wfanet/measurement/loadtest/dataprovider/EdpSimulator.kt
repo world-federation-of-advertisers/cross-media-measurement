@@ -128,11 +128,13 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 import org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiser
 import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.CompositionMechanism
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getPrivacyQuery
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDpQuery
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getMpcAcdpQuery
 import org.wfanet.measurement.loadtest.config.EventFilters.VID_SAMPLER_HASH_FUNCTION
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
 import org.wfanet.measurement.loadtest.storage.SketchStore
@@ -165,7 +167,8 @@ class EdpSimulator(
   private val privacyBudgetManager: PrivacyBudgetManager,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   private val random: Random,
-  private val directNoiseMechanism: DirectNoiseMechanism
+  private val directNoiseMechanism: DirectNoiseMechanism,
+  private val compositionMechanism: CompositionMechanism
 ) {
 
   /** A sequence of operations done in the simulator. */
@@ -560,16 +563,29 @@ class EdpSimulator(
   private suspend fun chargePrivacyBudget(
     requisitionName: String,
     measurementSpec: MeasurementSpec,
-    eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>
+    eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>,
+    contributorCount: Int
   ) {
     try {
-      privacyBudgetManager.chargePrivacyBudget(
-        getPrivacyQuery(
-          Reference(measurementConsumerName, requisitionName, false),
-          measurementSpec,
-          eventSpecs
-        )
-      )
+      when (compositionMechanism) {
+        CompositionMechanism.DP_ADVANCED ->
+          privacyBudgetManager.chargePrivacyBudget(
+            getDpQuery(
+              Reference(measurementConsumerName, requisitionName, false),
+              measurementSpec,
+              eventSpecs,
+            )
+          )
+        CompositionMechanism.ACDP ->
+          privacyBudgetManager.chargePrivacyBudgetInAcdp(
+            getMpcAcdpQuery(
+              Reference(measurementConsumerName, requisitionName, false),
+              measurementSpec,
+              eventSpecs,
+              contributorCount,
+            )
+          )
+      }
     } catch (e: PrivacyBudgetManagerException) {
       when (e.errorType) {
         PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED -> {
@@ -602,8 +618,14 @@ class EdpSimulator(
     sketchConfig: SketchConfig,
     measurementSpec: MeasurementSpec,
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
+    contributorCount: Int
   ): Sketch {
-    chargePrivacyBudget(requisitionName, measurementSpec, eventGroupSpecs.map { it.spec })
+    chargePrivacyBudget(
+      requisitionName,
+      measurementSpec,
+      eventGroupSpecs.map { it.spec },
+      contributorCount
+    )
     val vidSamplingIntervalStart = measurementSpec.vidSamplingInterval.start
     val vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width
 
@@ -670,7 +692,13 @@ class EdpSimulator(
 
     val sketch =
       try {
-        generateSketch(requisition.name, sketchConfig, measurementSpec, eventGroupSpecs)
+        generateSketch(
+          requisition.name,
+          sketchConfig,
+          measurementSpec,
+          eventGroupSpecs,
+          requisition.duchiesCount
+        )
       } catch (e: EventFilterValidationException) {
         refuseRequisition(
           requisition.name,

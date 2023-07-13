@@ -75,6 +75,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -139,7 +140,9 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionP
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup as PrivacyLandscapeAge
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.CompositionMechanism
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.DpCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender as PrivacyLandscapeGender
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
@@ -170,6 +173,7 @@ private const val EDP_NAME = "dataProviders/someDataProvider"
 
 private const val LLV2_DECAY_RATE = 12.0
 private const val LLV2_MAX_SIZE = 100_000L
+private val NOISE_MECHANISM = NoiseMechanism.GEOMETRIC
 
 private val SKETCH_CONFIG = sketchConfig {
   indexes += indexSpec {
@@ -241,6 +245,7 @@ private val REQUISITION_ONE_SPEC = requisitionSpec {
 private const val DUCHY_ID = "worker1"
 private const val RANDOM_SEED: Long = 1
 private val DIRECT_NOISE_MECHANISM = DirectNoiseMechanism.LAPLACE
+private val COMPOSITION_MECHANISM = CompositionMechanism.DP_ADVANCED
 
 @RunWith(JUnit4::class)
 class EdpSimulatorTest {
@@ -377,7 +382,7 @@ class EdpSimulatorTest {
   }
 
   @Test
-  fun `Does nothing for requisitions with different Measumrent Consumer Id`() {
+  fun `Does nothing for requisitions with different Measurements Consumer Id`() {
     runBlocking {
       val allEvents =
         generateEvents(
@@ -430,7 +435,8 @@ class EdpSimulatorTest {
           privacyBudgetManager,
           TRUSTED_CERTIFICATES,
           random,
-          DIRECT_NOISE_MECHANISM
+          DIRECT_NOISE_MECHANISM,
+          COMPOSITION_MECHANISM
         )
       edpSimulator.createEventGroup()
       edpSimulator.executeRequisitionFulfillingWorkflow()
@@ -440,7 +446,7 @@ class EdpSimulatorTest {
   }
 
   @Test
-  fun `filters events, charges privacy budget and generates sketch successfully`() {
+  fun `filters reach and frequency events, charges dp budget with DP_ADVANCED composition mechanism, and generates sketch successfully`() {
     runBlocking {
       val matchingEvents =
         generateEvents(
@@ -495,7 +501,8 @@ class EdpSimulatorTest {
           privacyBudgetManager,
           TRUSTED_CERTIFICATES,
           random,
-          DIRECT_NOISE_MECHANISM
+          DIRECT_NOISE_MECHANISM,
+          COMPOSITION_MECHANISM
         )
       edpSimulator.createEventGroup()
       edpSimulator.executeRequisitionFulfillingWorkflow()
@@ -567,6 +574,159 @@ class EdpSimulatorTest {
   }
 
   @Test
+  fun `filters mpc reach and frequency events, charges acdp budget with ACDP composition mechanism, and generates sketch successfully`() {
+    runBlocking {
+      val requisitionDiscreteGaussian =
+        REQUISITION_ONE.copy {
+          protocolConfig =
+            protocolConfig.copy {
+              protocols.clear()
+              protocols +=
+                ProtocolConfigKt.protocol {
+                  liquidLegionsV2 =
+                    ProtocolConfigKt.liquidLegionsV2 {
+                      noiseMechanism = NoiseMechanism.DISCRETE_GAUSSIAN
+                      sketchParams = liquidLegionsSketchParams {
+                        decayRate = LLV2_DECAY_RATE
+                        maxSize = LLV2_MAX_SIZE
+                        samplingIndicatorSize = 10_000_000
+                      }
+                      ellipticCurveId = 415
+                      maximumFrequency = 12
+                    }
+                }
+            }
+        }
+
+      requisitionsServiceMock.stub {
+        onBlocking { listRequisitions(any()) }
+          .thenReturn(listRequisitionsResponse { requisitions += requisitionDiscreteGaussian })
+      }
+
+      val matchingEvents =
+        generateEvents(
+          1L..10L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_18_TO_34,
+          Person.Gender.FEMALE
+        )
+      val nonMatchingEvents =
+        generateEvents(
+          11L..15L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_35_TO_54,
+          Person.Gender.FEMALE
+        ) +
+          generateEvents(
+            16L..20L,
+            FIRST_EVENT_DATE,
+            Person.AgeGroup.YEARS_55_PLUS,
+            Person.Gender.FEMALE
+          ) +
+          generateEvents(
+            21L..25L,
+            FIRST_EVENT_DATE,
+            Person.AgeGroup.YEARS_18_TO_34,
+            Person.Gender.MALE
+          ) +
+          generateEvents(
+            26L..30L,
+            FIRST_EVENT_DATE,
+            Person.AgeGroup.YEARS_35_TO_54,
+            Person.Gender.MALE
+          )
+
+      val allEvents = matchingEvents + nonMatchingEvents
+      val random = java.util.Random()
+
+      val edpSimulator =
+        EdpSimulator(
+          EDP_DATA,
+          MC_NAME,
+          measurementConsumersStub,
+          certificatesStub,
+          eventGroupsStub,
+          eventGroupMetadataDescriptorsStub,
+          requisitionsStub,
+          requisitionFulfillmentStub,
+          sketchStore,
+          InMemoryEventQuery(allEvents),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          EVENT_TEMPLATES,
+          privacyBudgetManager,
+          TRUSTED_CERTIFICATES,
+          random,
+          DIRECT_NOISE_MECHANISM,
+          CompositionMechanism.ACDP,
+        )
+      edpSimulator.createEventGroup()
+      edpSimulator.executeRequisitionFulfillingWorkflow()
+      val storedSketch = sketchStore.get(requisitionDiscreteGaussian)?.read()?.flatten()
+      assertThat(storedSketch).isNotNull()
+
+      val anySketchResult = SketchProtos.toAnySketch(Sketch.parseFrom(storedSketch))
+
+      val vidSamplingIntervalStart = 0.0f
+      val vidSamplingIntervalWidth = PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+
+      assertAnySketchEquals(
+        anySketchResult,
+        getExpectedResult((1L..10L), vidSamplingIntervalStart, vidSamplingIntervalWidth)
+      )
+
+      val acdpBalancesMap: Map<PrivacyBucketGroup, AcdpCharge> = backingStore.getAcdpBalancesMap()
+
+      // reach and frequency delta, epsilon, contributorCount: delta = 2.0, epsilon = 2E-12,
+      // contributorCount = 1
+      for (acdpCharge in acdpBalancesMap.values) {
+        assertThat(acdpCharge.rho).isEqualTo(0.035901274080426)
+        assertThat(acdpCharge.theta).isEqualTo(7.715411332048879E-14)
+      }
+
+      // The list of all the charged privacy bucket groups should be correct based on the filter.
+      assertThat(acdpBalancesMap.keys)
+        .containsExactly(
+          PrivacyBucketGroup(
+            MC_NAME,
+            FIRST_EVENT_DATE,
+            FIRST_EVENT_DATE,
+            PrivacyLandscapeAge.RANGE_18_34,
+            PrivacyLandscapeGender.FEMALE,
+            0.0f,
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          ),
+          PrivacyBucketGroup(
+            MC_NAME,
+            LAST_EVENT_DATE,
+            LAST_EVENT_DATE,
+            PrivacyLandscapeAge.RANGE_18_34,
+            PrivacyLandscapeGender.FEMALE,
+            0.0f,
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          ),
+          PrivacyBucketGroup(
+            MC_NAME,
+            FIRST_EVENT_DATE,
+            FIRST_EVENT_DATE,
+            PrivacyLandscapeAge.RANGE_18_34,
+            PrivacyLandscapeGender.FEMALE,
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          ),
+          PrivacyBucketGroup(
+            MC_NAME,
+            LAST_EVENT_DATE,
+            LAST_EVENT_DATE,
+            PrivacyLandscapeAge.RANGE_18_34,
+            PrivacyLandscapeGender.FEMALE,
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          ),
+        )
+    }
+  }
+
+  @Test
   fun `refuses requisition when DuchyEntry verification fails`() {
     val throttlerMock = mock<Throttler>()
     val eventQueryMock = mock<EventQuery>()
@@ -588,7 +748,8 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random,
-        DIRECT_NOISE_MECHANISM
+        DIRECT_NOISE_MECHANISM,
+        COMPOSITION_MECHANISM
       )
     val requisition =
       REQUISITION_ONE.copy {
@@ -651,7 +812,8 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         java.util.Random(),
-        DIRECT_NOISE_MECHANISM
+        DIRECT_NOISE_MECHANISM,
+        COMPOSITION_MECHANISM
       )
     eventGroupsServiceMock.stub {
       onBlocking { getEventGroup(any()) }.thenThrow(Status.NOT_FOUND.asRuntimeException())
@@ -701,7 +863,8 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random,
-        DIRECT_NOISE_MECHANISM
+        DIRECT_NOISE_MECHANISM,
+        COMPOSITION_MECHANISM
       )
 
     val vidSamplingIntervalWidth = 1f
@@ -776,14 +939,20 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random,
-        DIRECT_NOISE_MECHANISM
+        DIRECT_NOISE_MECHANISM,
+        COMPOSITION_MECHANISM
       )
 
     val vidSamplingIntervalWidth = 1f
     val newMeasurementSpec =
       MEASUREMENT_SPEC.copy {
         clearReachAndFrequency()
-        reach = reach { privacyParams = differentialPrivacyParams { epsilon = 1.0 } }
+        reach = reach {
+          privacyParams = differentialPrivacyParams {
+            epsilon = 1.0
+            delta = 1E-12
+          }
+        }
         vidSamplingInterval = vidSamplingInterval.copy { width = vidSamplingIntervalWidth }
       }
     val requisition =
@@ -845,7 +1014,8 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random,
-        DIRECT_NOISE_MECHANISM
+        DIRECT_NOISE_MECHANISM,
+        COMPOSITION_MECHANISM
       )
 
     val vidSamplingIntervalWidth = 0.1f
@@ -920,13 +1090,19 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         random,
-        DIRECT_NOISE_MECHANISM
+        DIRECT_NOISE_MECHANISM,
+        COMPOSITION_MECHANISM
       )
 
     val vidSamplingIntervalWidth = 0.1f
     val newMeasurementSpec =
       MEASUREMENT_SPEC.copy {
-        reach = reach { privacyParams = differentialPrivacyParams { epsilon = 1.0 } }
+        reach = reach {
+          privacyParams = differentialPrivacyParams {
+            epsilon = 1.0
+            delta = 1E-12
+          }
+        }
         vidSamplingInterval = vidSamplingInterval.copy { width = vidSamplingIntervalWidth }
       }
     val requisition =
@@ -982,8 +1158,14 @@ class EdpSimulatorTest {
     private val MEASUREMENT_SPEC = measurementSpec {
       measurementPublicKey = org.wfanet.measurement.loadtest.dataprovider.MEASUREMENT_PUBLIC_KEY
       reachAndFrequency = reachAndFrequency {
-        reachPrivacyParams = differentialPrivacyParams { epsilon = 1.0 }
-        frequencyPrivacyParams = differentialPrivacyParams { epsilon = 1.0 }
+        reachPrivacyParams = differentialPrivacyParams {
+          epsilon = 1.0
+          delta = 1E-12
+        }
+        frequencyPrivacyParams = differentialPrivacyParams {
+          epsilon = 1.0
+          delta = 1E-12
+        }
       }
       vidSamplingInterval = vidSamplingInterval {
         start = 0.0f
@@ -1026,6 +1208,7 @@ class EdpSimulatorTest {
           ProtocolConfigKt.protocol {
             liquidLegionsV2 =
               ProtocolConfigKt.liquidLegionsV2 {
+                noiseMechanism = NOISE_MECHANISM
                 sketchParams = liquidLegionsSketchParams {
                   decayRate = LLV2_DECAY_RATE
                   maxSize = LLV2_MAX_SIZE
