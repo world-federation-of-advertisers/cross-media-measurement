@@ -19,6 +19,9 @@ package wfa.measurement.internal.reporting.v2;
 import "google/protobuf/duration.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/internal/reporting/v2/reporting_set.proto";
+import "wfa/measurement/internal/reporting/v2/noise_mechanism.proto";
+import "wfa/measurement/internal/reporting/v2/mpc_protocol.proto";
+import "wfa/measurement/internal/reporting/v2/direct_computation.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
@@ -67,21 +70,50 @@ message Measurement {
   message Result {
     message Reach {
       int64 value = 1;
+      // The mechanism used to generate noise during computation.
+      NoiseMechanism noise_mechanism = 2;
+      oneof methodology {
+        CustomDirectMethodology custom_direct_methodology = 3;
+        DeterministicCountDistinct deterministic_count_distinct = 4;
+        LiquidLegionsCountDistinct liquid_legions_count_distinct = 5;
+        LiquidLegionsV2 liquid_legions_v2 = 6;
+        ReachOnlyLiquidLegionsV2 reach_only_liquid_legions_v2 = 7;
+      }
     }
     Reach reach = 1;
 
     message Frequency {
       map<int64, double> relative_frequency_distribution = 1;
+      // The mechanism used to generate noise during computation.
+      NoiseMechanism noise_mechanism = 2;
+      oneof methodology {
+        CustomDirectMethodology custom_direct_methodology = 3;
+        DeterministicDistribution deterministic_distribution = 4;
+        LiquidLegionsDistribution liquid_legions_distribution = 5;
+        LiquidLegionsV2 liquid_legions_v2 = 6;
+      }
     }
     Frequency frequency = 2;
 
     message Impression {
       int64 value = 1;
+      // The mechanism used to generate noise during computation.
+      NoiseMechanism noise_mechanism = 2;
+      oneof methodology {
+        CustomDirectMethodology custom_direct_methodology = 3;
+        DeterministicCount deterministic_count = 4;
+      }
     }
     Impression impression = 3;
 
     message WatchDuration {
       google.protobuf.Duration value = 1;
+      // The mechanism used to generate noise during computation.
+      NoiseMechanism noise_mechanism = 2;
+      oneof methodology {
+        CustomDirectMethodology custom_direct_methodology = 3;
+        DeterministicSum deterministic_sum = 4;
+      }
     }
     WatchDuration watchDuration = 4;
   }
@@ -90,8 +122,11 @@ message Measurement {
     // Failure reason of the `Measurement` derived from the CMMS public API.
     // Set when the state is set to FAILED.
     Failure failure = 1;
-    // The result of the `Measurement` derived from the CMMS public API.
-    Result result = 2;
+    // The results of the `Measurement` derived from the CMMS public API.
+    //
+    // For reach and frequency, there is only one result. For impression and
+    // watch duration, the result is per data provider.
+    repeated Result results = 2;
   }
   Details details = 7;
 }
