@@ -86,8 +86,7 @@ class CsvEventQueryTest {
       eventQuery.getUserVirtualIds(
         FULL_TIME_INTERVAL,
         eventFilter {
-          expression =
-            "person.gender.value == $PERSON_MALE && person.gender.value == $PERSON_FEMALE"
+          expression = "person.gender == $PERSON_MALE && person.gender == $PERSON_FEMALE"
         }
       )
 
@@ -100,8 +99,7 @@ class CsvEventQueryTest {
       eventQuery.getUserVirtualIds(
         FULL_TIME_INTERVAL,
         eventFilter {
-          expression =
-            "person.age_group.value == $PERSON_35_to_54 && person.gender.value == $PERSON_FEMALE"
+          expression = "person.age_group == $PERSON_35_to_54 && person.gender == $PERSON_FEMALE"
         }
       )
 
