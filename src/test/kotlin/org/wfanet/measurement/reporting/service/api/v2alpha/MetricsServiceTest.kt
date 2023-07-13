@@ -60,6 +60,7 @@ import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
+import org.wfanet.measurement.api.v2alpha.DeterministicSum
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
@@ -78,6 +79,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.certificate
@@ -93,6 +96,8 @@ import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.protocolConfig
+import org.wfanet.measurement.api.v2alpha.reachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.common.OpenEndTimeRange
@@ -134,6 +139,8 @@ import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresR
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequestKt.measurementFailure
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt.measurementResult
+import org.wfanet.measurement.internal.reporting.v2.ComputationConfigKt
+import org.wfanet.measurement.internal.reporting.v2.DeterministicSum as InternalDeterministicSum
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt as InternalMeasurementsGrpcKt
@@ -143,6 +150,7 @@ import org.wfanet.measurement.internal.reporting.v2.MetricKt.weightedMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt as InternalMetricsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.v2.NoiseMechanism
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet.SetExpression as InternalSetExpression
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt as InternalReportingSetKt
@@ -162,11 +170,14 @@ import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRe
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRequest
+import org.wfanet.measurement.internal.reporting.v2.computationConfig
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest as internalCreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.measurement as internalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.metric as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
+import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsSketchParams as internalReachOnlyLiquidLegionsSketchParams
+import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
@@ -589,6 +600,9 @@ private val BASE_MEASUREMENT = measurement {
   measurementConsumerCertificate = MEASUREMENT_CONSUMERS.values.first().certificate
 }
 
+private const val REACH_ONLY_LLV2_DECAY_RATE = 1e-2
+private const val REACH_ONLY_LLV2_SKETCH_SIZE = 10000L
+
 // Measurement values
 private const val UNION_ALL_REACH_VALUE = 100_000L
 private const val UNION_ALL_BUT_LAST_PUBLISHER_REACH_VALUE = 70_000L
@@ -634,6 +648,18 @@ private val INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT =
           InternalMeasurementKt.result {
             reach = InternalMeasurementKt.ResultKt.reach { value = UNION_ALL_REACH_VALUE }
           }
+        computationConfigs += computationConfig {
+          reach =
+            ComputationConfigKt.reach {
+              noiseMechanism = NoiseMechanism.GEOMETRIC
+              reachOnlyLiquidLegionsV2 = reachOnlyLiquidLegionsV2 {
+                sketchParams = internalReachOnlyLiquidLegionsSketchParams {
+                  decayRate = REACH_ONLY_LLV2_DECAY_RATE
+                  maxSize = REACH_ONLY_LLV2_SKETCH_SIZE
+                }
+              }
+            }
+        }
       }
   }
 
@@ -697,6 +723,16 @@ private val INTERNAL_SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT =
             watchDuration =
               InternalMeasurementKt.ResultKt.watchDuration { value = TOTAL_WATCH_DURATION }
           }
+        computationConfigs +=
+          DATA_PROVIDERS_LIST.map {
+            computationConfig {
+              watchDuration =
+                ComputationConfigKt.watchDuration {
+                  noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
+                  deterministicSum = InternalDeterministicSum.getDefaultInstance()
+                }
+            }
+          }
       }
   }
 
@@ -724,6 +760,21 @@ private val UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC = measurementSpe
     MeasurementSpecKt.vidSamplingInterval {
       start = REACH_ONLY_VID_SAMPLING_START
       width = REACH_ONLY_VID_SAMPLING_WIDTH
+    }
+}
+
+private val REACH_PROTOCOL_CONFIG: ProtocolConfig = protocolConfig {
+  measurementType = ProtocolConfig.MeasurementType.REACH
+  protocols +=
+    ProtocolConfigKt.protocol {
+      reachOnlyLiquidLegionsV2 =
+        ProtocolConfigKt.reachOnlyLiquidLegionsV2 {
+          sketchParams = reachOnlyLiquidLegionsSketchParams {
+            decayRate = REACH_ONLY_LLV2_DECAY_RATE
+            maxSize = REACH_ONLY_LLV2_SKETCH_SIZE
+          }
+          noiseMechanism = ProtocolConfig.NoiseMechanism.GEOMETRIC
+        }
     }
 }
 
@@ -758,6 +809,7 @@ private val PENDING_UNION_ALL_REACH_MEASUREMENT =
           INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsMeasurementId
         )
         .toName()
+    protocolConfig = REACH_PROTOCOL_CONFIG
     state = Measurement.State.COMPUTING
   }
 private val PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
@@ -768,6 +820,7 @@ private val PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
           INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.cmmsMeasurementId
         )
         .toName()
+    protocolConfig = REACH_PROTOCOL_CONFIG
     state = Measurement.State.COMPUTING
   }
 
@@ -821,6 +874,23 @@ private val SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC = measurementSpec {
     }
 }
 
+private val IMPRESSION_PROTOCOL_CONFIG: ProtocolConfig = protocolConfig {
+  measurementType = ProtocolConfig.MeasurementType.IMPRESSION
+  protocols +=
+    ProtocolConfigKt.protocol {
+      direct =
+        ProtocolConfigKt.direct {
+          noiseMechanisms +=
+            listOf(
+              ProtocolConfig.NoiseMechanism.NONE,
+              ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE,
+              ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+            )
+          deterministicCount = ProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
+        }
+    }
+}
+
 private val REQUESTING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
   BASE_MEASUREMENT.copy {
     dataProviders += DATA_PROVIDER_ENTRIES.getValue(DATA_PROVIDERS.keys.first())
@@ -840,6 +910,7 @@ private val PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
           INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId
         )
         .toName()
+    protocolConfig = IMPRESSION_PROTOCOL_CONFIG
     state = Measurement.State.COMPUTING
   }
 
@@ -873,6 +944,23 @@ private val UNION_ALL_WATCH_DURATION_MEASUREMENT_SPEC = measurementSpec {
     }
 }
 
+private val WATCH_DURATION_PROTOCOL_CONFIG: ProtocolConfig = protocolConfig {
+  measurementType = ProtocolConfig.MeasurementType.DURATION
+  protocols +=
+    ProtocolConfigKt.protocol {
+      direct =
+        ProtocolConfigKt.direct {
+          noiseMechanisms +=
+            listOf(
+              ProtocolConfig.NoiseMechanism.NONE,
+              ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE,
+              ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+            )
+          deterministicSum = ProtocolConfig.Direct.DeterministicSum.getDefaultInstance()
+        }
+    }
+}
+
 private val REQUESTING_UNION_ALL_WATCH_DURATION_MEASUREMENT =
   BASE_MEASUREMENT.copy {
     dataProviders += DATA_PROVIDERS.keys.map { DATA_PROVIDER_ENTRIES.getValue(it) }
@@ -894,6 +982,7 @@ private val PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT =
           INTERNAL_PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.cmmsMeasurementId
         )
         .toName()
+    protocolConfig = WATCH_DURATION_PROTOCOL_CONFIG
     state = Measurement.State.COMPUTING
   }
 
@@ -3615,6 +3704,18 @@ class MetricsServiceTest {
                     value = UNION_ALL_BUT_LAST_PUBLISHER_REACH_VALUE
                   }
               }
+            computationConfigs += computationConfig {
+              reach =
+                ComputationConfigKt.reach {
+                  noiseMechanism = NoiseMechanism.GEOMETRIC
+                  reachOnlyLiquidLegionsV2 = reachOnlyLiquidLegionsV2 {
+                    sketchParams = internalReachOnlyLiquidLegionsSketchParams {
+                      decayRate = REACH_ONLY_LLV2_DECAY_RATE
+                      maxSize = REACH_ONLY_LLV2_SKETCH_SIZE
+                    }
+                  }
+                }
+            }
           }
       }
 
@@ -3702,11 +3803,16 @@ class MetricsServiceTest {
           measurementResults += measurementResult {
             cmmsMeasurementId = INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.cmmsMeasurementId
             this.result = INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.details.result
+            computationConfigs +=
+              INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.details.computationConfigsList
           }
           measurementResults += measurementResult {
             cmmsMeasurementId =
               internalSucceededUnionAllButLastPublisherReachMeasurement.cmmsMeasurementId
             this.result = internalSucceededUnionAllButLastPublisherReachMeasurement.details.result
+            computationConfigs +=
+              internalSucceededUnionAllButLastPublisherReachMeasurement.details
+                .computationConfigsList
           }
         }
       )
@@ -4429,7 +4535,11 @@ class MetricsServiceTest {
                 val result =
                   MeasurementKt.result {
                     this.watchDuration =
-                      MeasurementKt.ResultKt.watchDuration { value = watchDuration }
+                      MeasurementKt.ResultKt.watchDuration {
+                        value = watchDuration
+                        noiseMechanism = ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE
+                        deterministicSum = DeterministicSum.getDefaultInstance()
+                      }
                   }
                 encryptedResult =
                   encryptResult(
@@ -4475,6 +4585,9 @@ class MetricsServiceTest {
               cmmsMeasurementId =
                 INTERNAL_SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT.cmmsMeasurementId
               this.result = INTERNAL_SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT.details.result
+              computationConfigs +=
+                INTERNAL_SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT.details
+                  .computationConfigsList
             }
           }
         )

@@ -21,18 +21,26 @@ import com.google.type.Interval
 import com.google.type.interval
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
+import org.wfanet.measurement.api.v2alpha.LiquidLegionsCountDistinct
+import org.wfanet.measurement.api.v2alpha.LiquidLegionsDistribution
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
+import org.wfanet.measurement.internal.reporting.v2.LiquidLegionsCountDistinct as InternalLiquidLegionsCountDistinct
+import org.wfanet.measurement.internal.reporting.v2.LiquidLegionsDistribution as InternalLiquidLegionsDistribution
+import org.wfanet.measurement.internal.reporting.v2.LiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.NoiseMechanism
 import org.wfanet.measurement.internal.reporting.v2.PeriodicTimeInterval as InternalPeriodicTimeInterval
+import org.wfanet.measurement.internal.reporting.v2.ReachOnlyLiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.Report as InternalReport
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequest
@@ -42,8 +50,14 @@ import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.TimeIntervals as InternalTimeIntervals
+import org.wfanet.measurement.internal.reporting.v2.liquidLegionsCountDistinct
+import org.wfanet.measurement.internal.reporting.v2.liquidLegionsDistribution
+import org.wfanet.measurement.internal.reporting.v2.liquidLegionsSketchParams
+import org.wfanet.measurement.internal.reporting.v2.liquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.periodicTimeInterval as internalPeriodicTimeInterval
+import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsSketchParams
+import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
@@ -367,20 +381,19 @@ fun Measurement.Result.toInternal(): InternalMeasurement.Result {
 
   return InternalMeasurementKt.result {
     if (source.hasReach()) {
-      this.reach = InternalMeasurementKt.ResultKt.reach { value = source.reach.value }
+      reach = InternalMeasurementKt.ResultKt.reach { value = source.reach.value }
     }
     if (source.hasFrequency()) {
-      this.frequency =
+      frequency =
         InternalMeasurementKt.ResultKt.frequency {
           relativeFrequencyDistribution.putAll(source.frequency.relativeFrequencyDistributionMap)
         }
     }
     if (source.hasImpression()) {
-      this.impression =
-        InternalMeasurementKt.ResultKt.impression { value = source.impression.value }
+      impression = InternalMeasurementKt.ResultKt.impression { value = source.impression.value }
     }
     if (source.hasWatchDuration()) {
-      this.watchDuration =
+      watchDuration =
         InternalMeasurementKt.ResultKt.watchDuration { value = source.watchDuration.value }
     }
   }
@@ -636,5 +649,69 @@ fun ListReportsPageToken.toStreamReportsRequest(): StreamReportsRequest {
             }
         }
       }
+  }
+}
+
+/** Converts a CMMS [ProtocolConfig.NoiseMechanism] to an internal [NoiseMechanism]. */
+fun ProtocolConfig.NoiseMechanism.toInternal(): NoiseMechanism {
+  return when (this) {
+    ProtocolConfig.NoiseMechanism.NONE -> NoiseMechanism.NONE
+    ProtocolConfig.NoiseMechanism.GEOMETRIC -> NoiseMechanism.GEOMETRIC
+    ProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN -> NoiseMechanism.DISCRETE_GAUSSIAN
+    /** TODO(@riemanli): once EDPs incorporate the new API, raise an error for unspecified. */
+    ProtocolConfig.NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
+    ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE -> NoiseMechanism.CONTINUOUS_LAPLACE
+    ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN -> NoiseMechanism.CONTINUOUS_GAUSSIAN
+    ProtocolConfig.NoiseMechanism.UNRECOGNIZED -> {
+      error { "Noise mechanism $this is not recognized." }
+    }
+  }
+}
+
+/**
+ * Converts a CMMS [LiquidLegionsCountDistinct] to an internal [InternalLiquidLegionsCountDistinct].
+ */
+fun LiquidLegionsCountDistinct.toInternal(): InternalLiquidLegionsCountDistinct {
+  val source = this
+  return liquidLegionsCountDistinct {
+    decayRate = source.decayRate
+    maxSize = source.maxSize
+  }
+}
+
+/** Converts a CMMS [ProtocolConfig.LiquidLegionsV2] to an internal [LiquidLegionsV2]. */
+fun ProtocolConfig.LiquidLegionsV2.toInternal(): LiquidLegionsV2 {
+  val source = this
+  return liquidLegionsV2 {
+    sketchParams = liquidLegionsSketchParams {
+      decayRate = source.sketchParams.decayRate
+      maxSize = source.sketchParams.maxSize
+    }
+    maximumFrequency = source.maximumFrequency
+  }
+}
+
+/**
+ * Converts a CMMS [ProtocolConfig.ReachOnlyLiquidLegionsV2] to an internal
+ * [ReachOnlyLiquidLegionsV2].
+ */
+fun ProtocolConfig.ReachOnlyLiquidLegionsV2.toInternal(): ReachOnlyLiquidLegionsV2 {
+  val source = this
+  return reachOnlyLiquidLegionsV2 {
+    sketchParams = reachOnlyLiquidLegionsSketchParams {
+      decayRate = source.sketchParams.decayRate
+      maxSize = source.sketchParams.maxSize
+    }
+  }
+}
+
+/**
+ * Converts a CMMS [LiquidLegionsDistribution] to an internal [InternalLiquidLegionsDistribution].
+ */
+fun LiquidLegionsDistribution.toInternal(): InternalLiquidLegionsDistribution {
+  val source = this
+  return liquidLegionsDistribution {
+    decayRate = source.decayRate
+    maxSize = source.maxSize
   }
 }
