@@ -152,14 +152,20 @@ message CompleteReachOnlyExecutionPhaseAtAggregatorRequest {
   // The serialized Paillier ciphertext that encrypts the aggregated excessive
   // noise.
   bytes serialized_aggregated_noise_ciphertext = 6;
+  // LiquidLegions parameters used for reach estimation.
+  LiquidLegionsSketchParameters liquid_legions_parameters = 7;
+  // The sampling rate to be used by the LiquidLegionsV2 protocol.
+  // This is taken from the VidSamplingInterval.width parameter in the
+  // MeasurementSpec.
+  float vid_sampling_interval_width = 8;
   // The maximum number of threads used by crypto actions.
-  int32 parallelism = 7;
+  int32 parallelism = 9;
 }
 
 // The response of the CompleteReachOnlyExecutionAtAggregator method.
 message CompleteReachOnlyExecutionPhaseAtAggregatorResponse {
   // The number of register count.
-  int64 register_count = 1;
+  int64 reach = 1;
   // The CPU time of processing the request.
   int64 elapsed_cpu_time_millis = 2;
 }
