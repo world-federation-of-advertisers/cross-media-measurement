@@ -38,6 +38,7 @@ import org.wfanet.measurement.internal.reporting.v2.MetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequest
+import org.wfanet.measurement.internal.reporting.v2.differentialPrivacyParams
 import org.wfanet.measurement.internal.reporting.v2.measurement
 import org.wfanet.measurement.internal.reporting.v2.metric
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
@@ -409,11 +410,10 @@ class MetricReader(private val readContext: ReadContext) {
               MetricSpec.TypeCase.REACH ->
                 reach =
                   MetricSpecKt.reachParams {
-                    privacyParams =
-                      MetricSpecKt.differentialPrivacyParams {
-                        epsilon = differentialPrivacyEpsilon
-                        delta = differentialPrivacyDelta
-                      }
+                    privacyParams = differentialPrivacyParams {
+                      epsilon = differentialPrivacyEpsilon
+                      delta = differentialPrivacyDelta
+                    }
                   }
               MetricSpec.TypeCase.FREQUENCY_HISTOGRAM -> {
                 if (
@@ -426,16 +426,14 @@ class MetricReader(private val readContext: ReadContext) {
 
                 frequencyHistogram =
                   MetricSpecKt.frequencyHistogramParams {
-                    reachPrivacyParams =
-                      MetricSpecKt.differentialPrivacyParams {
-                        epsilon = differentialPrivacyEpsilon
-                        delta = differentialPrivacyDelta
-                      }
-                    frequencyPrivacyParams =
-                      MetricSpecKt.differentialPrivacyParams {
-                        epsilon = frequencyDifferentialPrivacyEpsilon
-                        delta = frequencyDifferentialPrivacyDelta
-                      }
+                    reachPrivacyParams = differentialPrivacyParams {
+                      epsilon = differentialPrivacyEpsilon
+                      delta = differentialPrivacyDelta
+                    }
+                    frequencyPrivacyParams = differentialPrivacyParams {
+                      epsilon = frequencyDifferentialPrivacyEpsilon
+                      delta = frequencyDifferentialPrivacyDelta
+                    }
                     this.maximumFrequencyPerUser = maximumFrequencyPerUser
                   }
               }
@@ -446,11 +444,10 @@ class MetricReader(private val readContext: ReadContext) {
 
                 impressionCount =
                   MetricSpecKt.impressionCountParams {
-                    privacyParams =
-                      MetricSpecKt.differentialPrivacyParams {
-                        epsilon = differentialPrivacyEpsilon
-                        delta = differentialPrivacyDelta
-                      }
+                    privacyParams = differentialPrivacyParams {
+                      epsilon = differentialPrivacyEpsilon
+                      delta = differentialPrivacyDelta
+                    }
                     this.maximumFrequencyPerUser = maximumFrequencyPerUser
                   }
               }
@@ -461,11 +458,10 @@ class MetricReader(private val readContext: ReadContext) {
 
                 watchDuration =
                   MetricSpecKt.watchDurationParams {
-                    privacyParams =
-                      MetricSpecKt.differentialPrivacyParams {
-                        epsilon = differentialPrivacyEpsilon
-                        delta = differentialPrivacyDelta
-                      }
+                    privacyParams = differentialPrivacyParams {
+                      epsilon = differentialPrivacyEpsilon
+                      delta = differentialPrivacyDelta
+                    }
                     this.maximumWatchDurationPerUser = maximumWatchDurationPerUser
                   }
               }

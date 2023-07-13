@@ -62,6 +62,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCorouti
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest as internalCreateReportRequest
+import org.wfanet.measurement.internal.reporting.v2.differentialPrivacyParams
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
 import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.periodicTimeInterval as internalPeriodicTimeInterval
@@ -3191,11 +3192,10 @@ class ReportsServiceTest {
     private val INTERNAL_REACH_METRIC_SPEC: InternalMetricSpec = internalMetricSpec {
       reach =
         InternalMetricSpecKt.reachParams {
-          privacyParams =
-            InternalMetricSpecKt.differentialPrivacyParams {
-              epsilon = REACH_ONLY_REACH_EPSILON
-              delta = DIFFERENTIAL_PRIVACY_DELTA
-            }
+          privacyParams = differentialPrivacyParams {
+            epsilon = REACH_ONLY_REACH_EPSILON
+            delta = DIFFERENTIAL_PRIVACY_DELTA
+          }
         }
       vidSamplingInterval =
         InternalMetricSpecKt.vidSamplingInterval {
@@ -3227,16 +3227,14 @@ class ReportsServiceTest {
     private val INTERNAL_FREQUENCY_HISTOGRAM_METRIC_SPEC: InternalMetricSpec = internalMetricSpec {
       frequencyHistogram =
         InternalMetricSpecKt.frequencyHistogramParams {
-          reachPrivacyParams =
-            InternalMetricSpecKt.differentialPrivacyParams {
-              epsilon = REACH_FREQUENCY_REACH_EPSILON
-              delta = DIFFERENTIAL_PRIVACY_DELTA
-            }
-          frequencyPrivacyParams =
-            InternalMetricSpecKt.differentialPrivacyParams {
-              epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
-              delta = DIFFERENTIAL_PRIVACY_DELTA
-            }
+          reachPrivacyParams = differentialPrivacyParams {
+            epsilon = REACH_FREQUENCY_REACH_EPSILON
+            delta = DIFFERENTIAL_PRIVACY_DELTA
+          }
+          frequencyPrivacyParams = differentialPrivacyParams {
+            epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
+            delta = DIFFERENTIAL_PRIVACY_DELTA
+          }
           maximumFrequencyPerUser = REACH_FREQUENCY_MAXIMUM_FREQUENCY_PER_USER
         }
       vidSamplingInterval =
@@ -3265,11 +3263,10 @@ class ReportsServiceTest {
     private val INTERNAL_WATCH_DURATION_METRIC_SPEC: InternalMetricSpec = internalMetricSpec {
       watchDuration =
         InternalMetricSpecKt.watchDurationParams {
-          privacyParams =
-            InternalMetricSpecKt.differentialPrivacyParams {
-              epsilon = WATCH_DURATION_EPSILON
-              delta = DIFFERENTIAL_PRIVACY_DELTA
-            }
+          privacyParams = differentialPrivacyParams {
+            epsilon = WATCH_DURATION_EPSILON
+            delta = DIFFERENTIAL_PRIVACY_DELTA
+          }
           maximumWatchDurationPerUser = MAXIMUM_WATCH_DURATION_PER_USER
         }
       vidSamplingInterval =

@@ -53,6 +53,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRe
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
+import org.wfanet.measurement.internal.reporting.v2.differentialPrivacyParams
 import org.wfanet.measurement.internal.reporting.v2.measurement
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.metric
@@ -1263,11 +1264,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
         metricSpec = metricSpec {
           reach =
             MetricSpecKt.reachParams {
-              privacyParams =
-                MetricSpecKt.differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 2.0
-                }
+              privacyParams = differentialPrivacyParams {
+                epsilon = 1.0
+                delta = 2.0
+              }
             }
           vidSamplingInterval =
             MetricSpecKt.vidSamplingInterval {

@@ -163,6 +163,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresR
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest as internalCreateMetricRequest
+import org.wfanet.measurement.internal.reporting.v2.differentialPrivacyParams as internalDifferentialPrivacyParams
 import org.wfanet.measurement.internal.reporting.v2.measurement as internalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.metric as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
@@ -925,11 +926,10 @@ private val INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC = internalMetric {
   metricSpec = internalMetricSpec {
     reach =
       InternalMetricSpecKt.reachParams {
-        privacyParams =
-          InternalMetricSpecKt.differentialPrivacyParams {
-            epsilon = REACH_ONLY_REACH_EPSILON
-            delta = DIFFERENTIAL_PRIVACY_DELTA
-          }
+        privacyParams = internalDifferentialPrivacyParams {
+          epsilon = REACH_ONLY_REACH_EPSILON
+          delta = DIFFERENTIAL_PRIVACY_DELTA
+        }
       }
     vidSamplingInterval =
       InternalMetricSpecKt.vidSamplingInterval {
@@ -1031,11 +1031,10 @@ private val INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC = internalMet
   metricSpec = internalMetricSpec {
     impressionCount =
       InternalMetricSpecKt.impressionCountParams {
-        privacyParams =
-          InternalMetricSpecKt.differentialPrivacyParams {
-            epsilon = IMPRESSION_EPSILON
-            delta = DIFFERENTIAL_PRIVACY_DELTA
-          }
+        privacyParams = internalDifferentialPrivacyParams {
+          epsilon = IMPRESSION_EPSILON
+          delta = DIFFERENTIAL_PRIVACY_DELTA
+        }
         maximumFrequencyPerUser = IMPRESSION_MAXIMUM_FREQUENCY_PER_USER
       }
     vidSamplingInterval =
@@ -1098,11 +1097,10 @@ private val INTERNAL_REQUESTING_CROSS_PUBLISHER_WATCH_DURATION_METRIC = internal
   metricSpec = internalMetricSpec {
     watchDuration =
       InternalMetricSpecKt.watchDurationParams {
-        privacyParams =
-          InternalMetricSpecKt.differentialPrivacyParams {
-            epsilon = WATCH_DURATION_EPSILON
-            delta = DIFFERENTIAL_PRIVACY_DELTA
-          }
+        privacyParams = internalDifferentialPrivacyParams {
+          epsilon = WATCH_DURATION_EPSILON
+          delta = DIFFERENTIAL_PRIVACY_DELTA
+        }
         maximumWatchDurationPerUser = MAXIMUM_WATCH_DURATION_PER_USER
       }
     vidSamplingInterval =
@@ -1699,11 +1697,10 @@ class MetricsServiceTest {
     val internalMetricSpec = internalMetricSpec {
       impressionCount =
         InternalMetricSpecKt.impressionCountParams {
-          privacyParams =
-            InternalMetricSpecKt.differentialPrivacyParams {
-              this.epsilon = epsilon
-              this.delta = delta
-            }
+          privacyParams = internalDifferentialPrivacyParams {
+            this.epsilon = epsilon
+            this.delta = delta
+          }
           this.maximumFrequencyPerUser = maximumFrequencyPerUser
         }
       vidSamplingInterval =

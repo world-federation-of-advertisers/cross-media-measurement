@@ -19,16 +19,12 @@ package wfa.measurement.internal.reporting.v2;
 import "google/protobuf/timestamp.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/internal/reporting/v2/measurement.proto";
+import "wfa/measurement/internal/reporting/v2/differential_privacy.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
 message MetricSpec {
-  message DifferentialPrivacyParams {
-    double epsilon = 1;
-    double delta = 2;
-  }
-
   message ReachParams {
     DifferentialPrivacyParams privacy_params = 1;
   }
