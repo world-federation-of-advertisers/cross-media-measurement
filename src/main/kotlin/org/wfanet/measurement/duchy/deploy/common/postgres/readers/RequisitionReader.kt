@@ -15,11 +15,17 @@
 package org.wfanet.measurement.duchy.deploy.common.postgres.readers
 
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
+import org.wfanet.measurement.internal.duchy.RequisitionDetails
+import org.wfanet.measurement.internal.duchy.RequisitionMetadata
+import org.wfanet.measurement.internal.duchy.externalRequisitionKey
+import org.wfanet.measurement.internal.duchy.requisitionMetadata
 
+/** Performs read operations on Requisitions tables */
 class RequisitionReader {
   data class RequisitionResult(val computationId: Long, val requisitionId: Long) {
     constructor(
@@ -57,5 +63,72 @@ class RequisitionReader {
         bind("$2", key.requisitionFingerprint.toByteArray())
       }
     return readContext.executeQuery(sql).consume(RequisitionReader::RequisitionResult).firstOrNull()
+  }
+
+  /**
+   * Gets a list of requisitionBlobKeys by localComputationId
+   *
+   * @param readContext The transaction context for reading from the Postgres database.
+   * @param localComputationId A local identifier for a computation
+   * @return A list of requisition blob keys
+   */
+  suspend fun readRequisitionBlobKeys(
+    readContext: ReadContext,
+    localComputationId: Long
+  ): List<String> {
+    val statement =
+      boundStatement(
+        """
+        SELECT PathToBlob
+        FROM Requisitions
+        WHERE ComputationId = $1 AND PathToBlob IS NOT NULL
+      """
+          .trimIndent()
+      ) {
+        bind("$1", localComputationId)
+      }
+
+    return readContext
+      .executeQuery(statement)
+      .consume { row -> row.get<String>("PathToBlob") }
+      .toList()
+  }
+
+  /**
+   * Gets a list of [RequisitionMetadata] by localComputationId
+   *
+   * @param readContext The transaction context for reading from the Postgres database.
+   * @param localComputationId A local identifier for a computation
+   * @return A list of requisition blob keys
+   */
+  suspend fun readRequisitionMetadata(
+    readContext: ReadContext,
+    localComputationId: Long,
+  ): List<RequisitionMetadata> {
+    val statement =
+      boundStatement(
+        """
+      SELECT
+        ExternalRequisitionId, RequisitionFingerprint, PathToBlob, RequisitionDetails
+      FROM Requisitions
+        WHERE ComputationId = $1
+      """
+          .trimIndent()
+      ) {
+        bind("$1", localComputationId)
+      }
+
+    return readContext.executeQuery(statement).consume(::buildRequisitionMetadata).toList()
+  }
+
+  private fun buildRequisitionMetadata(row: ResultRow): RequisitionMetadata {
+    return requisitionMetadata {
+      externalKey = externalRequisitionKey {
+        externalRequisitionId = row["ExternalRequisitionId"]
+        requisitionFingerprint = row["RequisitionFingerprint"]
+      }
+      row.get<String?>("PathToBlob")?.let { path = it }
+      details = row.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
+    }
   }
 }

@@ -27,7 +27,6 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationStageLongValues
-import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
@@ -35,12 +34,9 @@ import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
-import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
-import org.wfanet.measurement.internal.duchy.computationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.externalRequisitionKey
-import org.wfanet.measurement.internal.duchy.requisitionMetadata
 
 /**
  * Performs read operations on Computations, Requisitions, and ComputationBlobReferences tables
@@ -52,6 +48,9 @@ class ComputationReader(
   private val computationProtocolStagesEnumHelper:
     ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
 ) {
+
+  private val blobReferenceReader = ComputationBlobReferenceReader()
+  private val requisitionReader = RequisitionReader()
 
   data class Computation(
     val globalComputationId: String,
@@ -81,25 +80,6 @@ class ComputationReader(
     )
   }
 
-  private fun buildBlob(row: ResultRow): ComputationStageBlobMetadata {
-    return computationStageBlobMetadata {
-      blobId = row["BlobId"]
-      row.get<String?>("PathToBlob")?.let { path = it }
-      dependencyType = row.getProtoEnum("DependencyType", ComputationBlobDependency::forNumber)
-    }
-  }
-
-  private fun buildRequisition(row: ResultRow): RequisitionMetadata {
-    return requisitionMetadata {
-      externalKey = externalRequisitionKey {
-        externalRequisitionId = row["ExternalRequisitionId"]
-        requisitionFingerprint = row["RequisitionFingerprint"]
-      }
-      row.get<String?>("PathToBlob")?.let { path = it }
-      details = row.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
-    }
-  }
-
   private fun buildComputationToken(
     computation: Computation,
     blobs: List<ComputationStageBlobMetadata>,
@@ -127,50 +107,6 @@ class ComputationReader(
         this.requisitions += requisitions
       }
     }
-  }
-
-  private suspend fun readBlobs(
-    readContext: ReadContext,
-    localComputationId: Long,
-    computationStage: Long
-  ): List<ComputationStageBlobMetadata> {
-    val statement =
-      boundStatement(
-        """
-        SELECT BlobId, PathToBlob, DependencyType
-        FROM ComputationBlobReferences
-        WHERE
-          ComputationId = $1
-        AND
-          ComputationStage = $2
-      """
-          .trimIndent()
-      ) {
-        bind("$1", localComputationId)
-        bind("$2", computationStage)
-      }
-
-    return readContext.executeQuery(statement).consume(::buildBlob).toList()
-  }
-
-  private suspend fun readRequisitions(
-    readContext: ReadContext,
-    localComputationId: Long,
-  ): List<RequisitionMetadata> {
-    val statement =
-      boundStatement(
-        """
-      SELECT
-        ExternalRequisitionId, RequisitionFingerprint, PathToBlob, RequisitionDetails
-      FROM Requisitions
-        WHERE ComputationId = $1
-      """
-          .trimIndent()
-      ) {
-        bind("$1", localComputationId)
-      }
-
-    return readContext.executeQuery(statement).consume(::buildRequisition).toList()
   }
 
   suspend fun readComputation(readContext: ReadContext, globalComputationId: String): Computation? {
@@ -249,8 +185,13 @@ class ComputationReader(
         readComputation(readContext, globalComputationId) ?: return null
 
       val blobs =
-        readBlobs(readContext, computation.localComputationId, computation.computationStage)
-      val requisitions = readRequisitions(readContext, computation.localComputationId)
+        blobReferenceReader.readBlobMetadata(
+          readContext,
+          computation.localComputationId,
+          computation.computationStage
+        )
+      val requisitions =
+        requisitionReader.readRequisitionMetadata(readContext, computation.localComputationId)
 
       return buildComputationToken(computation, blobs, requisitions)
     } finally {
@@ -274,71 +215,18 @@ class ComputationReader(
       val computation = readComputation(readContext, externalRequisitionKey) ?: return null
 
       val blobs =
-        readBlobs(readContext, computation.localComputationId, computation.computationStage)
-      val requisitions = readRequisitions(readContext, computation.localComputationId)
+        blobReferenceReader.readBlobMetadata(
+          readContext,
+          computation.localComputationId,
+          computation.computationStage
+        )
+      val requisitions =
+        requisitionReader.readRequisitionMetadata(readContext, computation.localComputationId)
 
       return buildComputationToken(computation, blobs, requisitions)
     } finally {
       readContext.close()
     }
-  }
-
-  /**
-   * Gets a list of computationBlobKeys by localComputationId
-   *
-   * @param readContext The transaction context for reading from the Postgres database.
-   * @param localComputationId A local identifier for a computation
-   * @return A list of computation blob keys
-   */
-  suspend fun readComputationBlobKeys(
-    readContext: ReadContext,
-    localComputationId: Long
-  ): List<String> {
-    val statement =
-      boundStatement(
-        """
-        SELECT PathToBlob
-        FROM ComputationBlobReferences
-        WHERE ComputationId = $1 AND PathToBlob IS NOT NULL
-      """
-          .trimIndent()
-      ) {
-        bind("$1", localComputationId)
-      }
-
-    return readContext
-      .executeQuery(statement)
-      .consume { row -> row.get<String>("PathToBlob") }
-      .toList()
-  }
-
-  /**
-   * Gets a list of requisitionBlobKeys by localComputationId
-   *
-   * @param readContext The transaction context for reading from the Postgres database.
-   * @param localComputationId A local identifier for a computation
-   * @return A list of requisition blob keys
-   */
-  suspend fun readRequisitionBlobKeys(
-    readContext: ReadContext,
-    localComputationId: Long
-  ): List<String> {
-    val statement =
-      boundStatement(
-        """
-        SELECT PathToBlob
-        FROM Requisitions
-        WHERE ComputationId = $1 AND PathToBlob IS NOT NULL
-      """
-          .trimIndent()
-      ) {
-        bind("$1", localComputationId)
-      }
-
-    return readContext
-      .executeQuery(statement)
-      .consume { row -> row.get<String>("PathToBlob") }
-      .toList()
   }
 
   /**
