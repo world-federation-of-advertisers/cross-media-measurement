@@ -17,6 +17,8 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.util.Timestamps
+import com.google.type.Interval
+import com.google.type.interval
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.Measurement
@@ -24,9 +26,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
-import org.wfanet.measurement.api.v2alpha.TimeInterval as CmmsTimeInterval
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.timeInterval as cmmsTimeInterval
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
@@ -41,14 +41,12 @@ import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequestKt
-import org.wfanet.measurement.internal.reporting.v2.TimeInterval as InternalTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.TimeIntervals as InternalTimeIntervals
 import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.periodicTimeInterval as internalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
-import org.wfanet.measurement.internal.reporting.v2.timeInterval as internalTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals as internalTimeIntervals
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageToken
@@ -61,14 +59,12 @@ import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
-import org.wfanet.measurement.reporting.v2alpha.TimeInterval
 import org.wfanet.measurement.reporting.v2alpha.TimeIntervals
 import org.wfanet.measurement.reporting.v2alpha.createMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.metric
 import org.wfanet.measurement.reporting.v2alpha.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.periodicTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
-import org.wfanet.measurement.reporting.v2alpha.timeInterval
 import org.wfanet.measurement.reporting.v2alpha.timeIntervals
 
 /**
@@ -101,30 +97,12 @@ fun InternalMetricSpec.VidSamplingInterval.toVidSamplingInterval(): MetricSpec.V
   }
 }
 
-/** Converts an [InternalTimeInterval] to a [CmmsTimeInterval]. */
-fun InternalTimeInterval.toCmmsTimeInterval(): CmmsTimeInterval {
-  val source = this
-  return cmmsTimeInterval {
-    startTime = source.startTime
-    endTime = source.endTime
-  }
-}
-
 /** Converts a [MetricSpec.VidSamplingInterval] to an [InternalMetricSpec.VidSamplingInterval]. */
 fun MetricSpec.VidSamplingInterval.toInternal(): InternalMetricSpec.VidSamplingInterval {
   val source = this
   return InternalMetricSpecKt.vidSamplingInterval {
     start = source.start
     width = source.width
-  }
-}
-
-/** Converts a public [TimeInterval] to an [InternalTimeInterval]. */
-fun TimeInterval.toInternal(): InternalTimeInterval {
-  val source = this
-  return internalTimeInterval {
-    startTime = source.startTime
-    endTime = source.endTime
   }
 }
 
@@ -252,12 +230,12 @@ fun MetricSpec.DifferentialPrivacyParams.toInternal():
   }
 }
 
-/** Convert an [PeriodicTimeInterval] to a list of [TimeInterval]s. */
-fun PeriodicTimeInterval.toTimeIntervalsList(): List<TimeInterval> {
+/** Convert an [PeriodicTimeInterval] to a list of [Interval]s. */
+fun PeriodicTimeInterval.toTimeIntervalsList(): List<Interval> {
   val source = this
   var startTime = checkNotNull(source.startTime)
   return (0 until source.intervalCount).map {
-    timeInterval {
+    interval {
       this.startTime = startTime
       this.endTime = Timestamps.add(startTime, source.increment)
       startTime = this.endTime
@@ -313,15 +291,6 @@ fun InternalMetricSpec.DifferentialPrivacyParams.toPrivacyParams():
   return MetricSpecKt.differentialPrivacyParams {
     epsilon = source.epsilon
     delta = source.delta
-  }
-}
-
-/** Converts an [InternalTimeInterval] to a public [TimeInterval]. */
-fun InternalTimeInterval.toTimeInterval(): TimeInterval {
-  val source = this
-  return timeInterval {
-    startTime = source.startTime
-    endTime = source.endTime
   }
 }
 
@@ -590,17 +559,13 @@ fun InternalPeriodicTimeInterval.toPeriodicTimeInterval(): PeriodicTimeInterval 
 /** Converts an [InternalTimeIntervals] to a [TimeIntervals]. */
 fun InternalTimeIntervals.toTimeIntervals(): TimeIntervals {
   val source = this
-  return timeIntervals {
-    this.timeIntervals += source.timeIntervalsList.map { it.toTimeInterval() }
-  }
+  return timeIntervals { this.timeIntervals += source.timeIntervalsList }
 }
 
 /** Converts a public [TimeIntervals] to an [InternalTimeIntervals]. */
 fun TimeIntervals.toInternal(): InternalTimeIntervals {
   val source = this
-  return internalTimeIntervals {
-    this.timeIntervals += source.timeIntervalsList.map { it.toInternal() }
-  }
+  return internalTimeIntervals { this.timeIntervals += source.timeIntervalsList }
 }
 
 /** Converts a public [PeriodicTimeInterval] to an [InternalPeriodicTimeInterval]. */
@@ -627,12 +592,12 @@ fun InternalReport.ReportingMetric.toCreateMetricRequest(
             source.details.externalReportingSetId
           )
           .toName()
-      timeInterval = source.details.timeInterval.toTimeInterval()
+      timeInterval = source.details.timeInterval
       metricSpec = source.details.metricSpec.toMetricSpec()
       filters += source.details.filtersList
     }
     requestId = source.createMetricRequestId
-    metricId = source.createMetricRequestId
+    metricId = "a" + source.createMetricRequestId
   }
 }
 

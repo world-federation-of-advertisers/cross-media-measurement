@@ -18,6 +18,8 @@ package org.wfanet.measurement.reporting.deploy.v2.postgres.readers
 
 import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Timestamps
+import com.google.type.Interval
+import com.google.type.interval
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.Optional
@@ -34,10 +36,8 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.reporting.v2.Report
 import org.wfanet.measurement.internal.reporting.v2.ReportKt
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequest
-import org.wfanet.measurement.internal.reporting.v2.TimeInterval
 import org.wfanet.measurement.internal.reporting.v2.periodicTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.report
-import org.wfanet.measurement.internal.reporting.v2.timeInterval
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals
 
 const val STREAM_DEFAULT_LIMIT = 50
@@ -57,7 +57,8 @@ class ReportReader(private val readContext: ReadContext) {
     val reportId: InternalId,
     val externalReportId: String,
     val createTime: Timestamp,
-    val timeIntervals: MutableSet<TimeInterval>,
+    val timeIntervals: MutableSet<Interval>,
+    val periodic: Boolean,
     /** Map of external reporting set ID to [ReportingMetricCalculationSpecInfo]. */
     val reportingSetReportingMetricCalculationSpecInfoMap:
       MutableMap<String, ReportingMetricCalculationSpecInfo>,
@@ -82,6 +83,7 @@ class ReportReader(private val readContext: ReadContext) {
       Reports.ExternalReportId,
       Reports.CreateReportRequestId,
       Reports.CreateTime,
+      Reports.Periodic,
       ReportTimeIntervals.TimeIntervalStart,
       ReportTimeIntervals.TimeIntervalEndExclusive,
       MetricCalculationSpecs.MetricCalculationSpecDetails,
@@ -234,6 +236,7 @@ class ReportReader(private val readContext: ReadContext) {
       val reportId: InternalId = row["ReportId"]
       val externalReportId: String = row["ExternalReportId"]
       val createTime: Instant = row["CreateTime"]
+      val periodic: Boolean = row["Periodic"]
 
       var result: Result? = null
       if (accumulator == null) {
@@ -246,6 +249,7 @@ class ReportReader(private val readContext: ReadContext) {
             externalReportId = externalReportId,
             createTime = createTime.toProtoTime(),
             timeIntervals = mutableSetOf(),
+            periodic = periodic,
             reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf()
           )
       } else if (
@@ -262,6 +266,7 @@ class ReportReader(private val readContext: ReadContext) {
             externalReportId = externalReportId,
             createTime = createTime.toProtoTime(),
             timeIntervals = mutableSetOf(),
+            periodic = periodic,
             reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf()
           )
       }
@@ -298,19 +303,15 @@ class ReportReader(private val readContext: ReadContext) {
       row.getProtoMessage("ReportingMetricDetails", Report.ReportingMetric.Details.parser())
     val externalMetricId: String? = row["ExternalMetricId"]
 
-    val source = this
-
-    source.timeIntervals.add(
-      timeInterval {
+    timeIntervals.add(
+      interval {
         startTime = timeIntervalStart.toProtoTime()
         endTime = timeIntervalEnd.toProtoTime()
       }
     )
 
     val reportingMetricCalculationSpecInfo =
-      source.reportingSetReportingMetricCalculationSpecInfoMap.computeIfAbsent(
-        externalReportingSetId
-      ) {
+      reportingSetReportingMetricCalculationSpecInfoMap.computeIfAbsent(externalReportingSetId) {
         ReportingMetricCalculationSpecInfo(
           metricCalculationSpecInfoMap = mutableMapOf(),
         )
@@ -363,15 +364,7 @@ class ReportReader(private val readContext: ReadContext) {
       val sortedTimeIntervals =
         source.timeIntervals.sortedWith { a, b -> Timestamps.compare(a.startTime, b.startTime) }
 
-      var isPeriodic = true
-      for (i in 0..sortedTimeIntervals.size - 2) {
-        if (sortedTimeIntervals[i].endTime != sortedTimeIntervals[i + 1].startTime) {
-          isPeriodic = false
-          break
-        }
-      }
-
-      if (isPeriodic) {
+      if (source.periodic) {
         val firstTimeInterval = sortedTimeIntervals[0]
         periodicTimeInterval = periodicTimeInterval {
           startTime = firstTimeInterval.startTime
@@ -381,7 +374,7 @@ class ReportReader(private val readContext: ReadContext) {
       } else {
         timeIntervals = timeIntervals {
           sortedTimeIntervals.forEach {
-            timeIntervals += timeInterval {
+            timeIntervals += interval {
               startTime = it.startTime
               endTime = it.endTime
             }
