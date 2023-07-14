@@ -96,8 +96,8 @@ class ComputationBlobReferenceReader {
 
     return readContext
       .executeQuery(sql)
-      .consume { row -> row }
+      .consume { it.get<Long>("BlobId") to it.get<String?>("PathToBlob") }
       .toList()
-      .associate { it.get<Long>("BlobId") to it.get<String?>("PathToBlob") }
+      .toMap()
   }
 }
