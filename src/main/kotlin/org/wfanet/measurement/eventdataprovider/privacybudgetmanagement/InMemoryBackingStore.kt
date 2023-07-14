@@ -31,7 +31,7 @@ import java.time.Instant
  */
 open class InMemoryBackingStore : PrivacyBudgetLedgerBackingStore {
   protected val balances:
-    MutableMap<PrivacyBucketGroup, MutableMap<Charge, PrivacyBudgetBalanceEntry>> =
+    MutableMap<PrivacyBucketGroup, MutableMap<DpCharge, PrivacyBudgetBalanceEntry>> =
     mutableMapOf()
   private val referenceLedger: MutableMap<String, MutableList<PrivacyBudgetLedgerEntry>> =
     mutableMapOf()
@@ -43,7 +43,7 @@ open class InMemoryBackingStore : PrivacyBudgetLedgerBackingStore {
 }
 
 class InMemoryBackingStoreTransactionContext(
-  val balances: MutableMap<PrivacyBucketGroup, MutableMap<Charge, PrivacyBudgetBalanceEntry>>,
+  val balances: MutableMap<PrivacyBucketGroup, MutableMap<DpCharge, PrivacyBudgetBalanceEntry>>,
   val referenceLedger: MutableMap<String, MutableList<PrivacyBudgetLedgerEntry>>,
 ) : PrivacyBudgetLedgerTransactionContext {
 
@@ -87,21 +87,23 @@ class InMemoryBackingStoreTransactionContext(
 
   override suspend fun addLedgerEntries(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
-    charges: Set<Charge>,
+    dpCharges: Set<DpCharge>,
     reference: Reference
   ) {
     // Update the balance for all the charges.
     for (queryBucketGroup in privacyBucketGroups) {
-      for (charge in charges) {
+      for (dpCharge in dpCharges) {
         val balanceEntries = transactionBalances.getOrPut(queryBucketGroup) { mutableMapOf() }
 
         val balanceEntry =
-          balanceEntries.getOrPut(charge) { PrivacyBudgetBalanceEntry(queryBucketGroup, charge, 0) }
+          balanceEntries.getOrPut(dpCharge) {
+            PrivacyBudgetBalanceEntry(queryBucketGroup, dpCharge, 0)
+          }
         balanceEntries.put(
-          charge,
+          dpCharge,
           PrivacyBudgetBalanceEntry(
             queryBucketGroup,
-            charge,
+            dpCharge,
             if (reference.isRefund) balanceEntry.repetitionCount - 1
             else balanceEntry.repetitionCount + 1
           )

@@ -26,7 +26,7 @@ import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
 
 private const val MEASUREMENT_CONSUMER_ID = "ACME"
-private const val FILTER_EXPRESSION = "person.gender.value==1 && person.age_group.value==1"
+private const val FILTER_EXPRESSION = "person.gender==1 && person.age_group==1"
 
 @RunWith(JUnit4::class)
 class PrivacyBudgetManagerTest {
@@ -42,7 +42,7 @@ class PrivacyBudgetManagerTest {
     Query(
       Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
       LandscapeMask(listOf(EventGroupSpec(expression, timeRange)), 0.01f, 0.02f),
-      Charge(0.6f, 0.02f)
+      DpCharge(0.6f, 0.02f)
     )
 
   private suspend fun PrivacyBudgetManager.assertChargeExceedsPrivacyBudget(
@@ -72,7 +72,7 @@ class PrivacyBudgetManagerTest {
 
     val exception =
       assertFailsWith<PrivacyBudgetManagerException> {
-        pbm.chargePrivacyBudget(createQuery("referenceId", "person.age_group.value"))
+        pbm.chargePrivacyBudget(createQuery("referenceId", "person.age_group"))
       }
     assertThat(exception.errorType)
       .isEqualTo(PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER)

@@ -21,6 +21,8 @@ import com.google.protobuf.Duration
 import com.google.protobuf.duration
 import com.google.protobuf.util.Durations
 import com.google.protobuf.util.Timestamps
+import com.google.type.Interval
+import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.File
@@ -58,7 +60,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
-import org.wfanet.measurement.api.v2alpha.TimeInterval as MeasurementTimeInterval
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
@@ -68,7 +69,6 @@ import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
-import org.wfanet.measurement.api.v2alpha.timeInterval as measurementTimeInterval
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
@@ -1095,7 +1095,7 @@ class ReportsService(
    */
   private fun groupEventGroupEntriesByDataProvider(
     reportingSetNames: List<String>,
-    timeInterval: MeasurementTimeInterval,
+    timeInterval: Interval,
     eventGroupFilters: Map<String, String>,
     internalReportingSetMap: Map<Long, InternalReportingSet>
   ): Map<DataProviderKey, List<EventGroupEntry>> {
@@ -1555,10 +1555,10 @@ private fun buildInternalMeasurementKeys(
     }
 }
 
-/** Converts an [TimeInterval] to a [MeasurementTimeInterval] for measurement request. */
-private fun TimeInterval.toMeasurementTimeInterval(): MeasurementTimeInterval {
+/** Converts an [TimeInterval] to a [Interval] for measurement request. */
+private fun TimeInterval.toMeasurementTimeInterval(): Interval {
   val source = this
-  return measurementTimeInterval {
+  return interval {
     startTime = source.startTime
     endTime = source.endTime
   }

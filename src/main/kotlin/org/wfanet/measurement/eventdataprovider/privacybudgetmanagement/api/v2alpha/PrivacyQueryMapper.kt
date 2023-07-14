@@ -16,8 +16,8 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2a
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.MeasurementTypeCase
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-import org.wfanet.measurement.api.v2alpha.toRange
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Charge
+import org.wfanet.measurement.common.toRange
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.DpCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.EventGroupSpec
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.LandscapeMask
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Query
@@ -41,15 +41,15 @@ object PrivacyQueryMapper {
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec
   ): Query {
-    val charge =
+    val dpCharge =
       when (measurementSpec.measurementTypeCase) {
         MeasurementTypeCase.REACH ->
-          Charge(
+          DpCharge(
             measurementSpec.reach.privacyParams.epsilon.toFloat(),
             measurementSpec.reach.privacyParams.delta.toFloat()
           )
         MeasurementTypeCase.REACH_AND_FREQUENCY ->
-          Charge(
+          DpCharge(
             measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon.toFloat() +
               measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon.toFloat(),
             measurementSpec.reachAndFrequency.reachPrivacyParams.delta.toFloat() +
@@ -71,12 +71,12 @@ object PrivacyQueryMapper {
         // }
 
         MeasurementTypeCase.IMPRESSION ->
-          Charge(
+          DpCharge(
             measurementSpec.impression.privacyParams.epsilon.toFloat(),
             measurementSpec.impression.privacyParams.delta.toFloat()
           )
         MeasurementTypeCase.DURATION ->
-          Charge(
+          DpCharge(
             measurementSpec.duration.privacyParams.epsilon.toFloat(),
             measurementSpec.duration.privacyParams.delta.toFloat()
           )
@@ -91,7 +91,7 @@ object PrivacyQueryMapper {
         measurementSpec.vidSamplingInterval.start,
         measurementSpec.vidSamplingInterval.width
       ),
-      charge
+      dpCharge
     )
   }
 }

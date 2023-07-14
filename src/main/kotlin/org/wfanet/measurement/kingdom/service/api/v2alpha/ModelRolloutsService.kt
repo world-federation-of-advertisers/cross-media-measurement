@@ -94,6 +94,13 @@ class ModelRolloutsService(private val internalClient: ModelRolloutsCoroutineStu
       }
     }
 
+    if (
+      request.modelRollout.rolloutDeployPeriodCase ==
+        ModelRollout.RolloutDeployPeriodCase.ROLLOUTDEPLOYPERIOD_NOT_SET
+    ) {
+      failGrpc(Status.INVALID_ARGUMENT) { "RolloutDeployPeriod is unspecified" }
+    }
+
     val createModelRolloutRequest = request.modelRollout.toInternal(parentKey, modelReleaseKey)
     return try {
       internalClient.createModelRollout(createModelRolloutRequest).toModelRollout()

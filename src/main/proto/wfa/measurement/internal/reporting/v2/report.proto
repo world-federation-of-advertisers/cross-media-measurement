@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.reporting.v2;
 
 import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
 import "wfa/measurement/internal/reporting/v2/metric.proto";
 import "wfa/measurement/internal/reporting/v2/time_interval.proto";
 
@@ -51,7 +52,7 @@ message Report {
     message Details {
       string external_reporting_set_id = 1;
       MetricSpec metric_spec = 2;
-      TimeInterval time_interval = 3;
+      google.type.Interval time_interval = 3;
       repeated string filters = 4;
     }
 

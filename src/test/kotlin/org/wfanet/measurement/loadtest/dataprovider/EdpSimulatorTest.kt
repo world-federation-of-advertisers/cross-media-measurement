@@ -21,6 +21,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
+import com.google.type.interval
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
@@ -94,7 +95,6 @@ import org.wfanet.measurement.api.v2alpha.elGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.PersonKt
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
@@ -108,7 +108,6 @@ import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
-import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.Hashing
@@ -136,8 +135,9 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
+import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup as PrivacyLandscapeAge
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Charge
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.DpCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender as PrivacyLandscapeGender
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
@@ -224,13 +224,11 @@ private val REQUISITION_ONE_SPEC = requisitionSpec {
     key = "eventGroup/name"
     value =
       RequisitionSpecKt.EventGroupEntryKt.value {
-        collectionInterval = timeInterval {
+        collectionInterval = interval {
           startTime = TIME_RANGE.start.toProtoTime()
           endTime = TIME_RANGE.endExclusive.toProtoTime()
         }
-        filter = eventFilter {
-          expression = "person.age_group.value == 1 && person.gender.value == 2"
-        }
+        filter = eventFilter { expression = "person.age_group == 1 && person.gender == 2" }
       }
   }
   measurementPublicKey = MEASUREMENT_PUBLIC_KEY
@@ -280,7 +278,7 @@ class EdpSimulatorTest {
   private val requisitionFulfillmentServiceMock: RequisitionFulfillmentCoroutineImplBase =
     mockService()
 
-  @get:Rule public val temporaryFolder: TemporaryFolder = TemporaryFolder()
+  @get:Rule val temporaryFolder: TemporaryFolder = TemporaryFolder()
 
   private lateinit var sketchStore: SketchStore
 
@@ -357,8 +355,8 @@ class EdpSimulatorTest {
           time = date.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
           person = person {
             this.vid = vid
-            this.ageGroup = PersonKt.ageGroupField { value = ageGroup }
-            this.gender = PersonKt.genderField { value = gender }
+            this.ageGroup = ageGroup
+            this.gender = gender
           }
         }
       )
@@ -501,7 +499,7 @@ class EdpSimulatorTest {
         getExpectedResult((1L..10L), vidSamplingIntervalStart, vidSamplingIntervalWidth)
       )
 
-      val balanceLedger: Map<PrivacyBucketGroup, MutableMap<Charge, PrivacyBudgetBalanceEntry>> =
+      val balanceLedger: Map<PrivacyBucketGroup, MutableMap<DpCharge, PrivacyBudgetBalanceEntry>> =
         backingStore.getBalancesMap()
 
       // Verify that each bucket is only charged once.

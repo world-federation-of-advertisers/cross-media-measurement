@@ -20,6 +20,7 @@ import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.CleartextKeysetHandle
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
+import com.google.type.interval
 import io.grpc.ManagedChannel
 import java.io.File
 import java.security.SecureRandom
@@ -125,7 +126,6 @@ import org.wfanet.measurement.api.v2alpha.scheduleModelRolloutFreezeRequest
 import org.wfanet.measurement.api.v2alpha.setModelLineActiveEndTimeRequest
 import org.wfanet.measurement.api.v2alpha.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.api.v2alpha.signedData
-import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.api.v2alpha.updatePublicKeyRequest
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.api.withIdToken
@@ -860,7 +860,7 @@ class CreateMeasurement : Runnable {
               key = it.name
               value =
                 EventGroupEntries.value {
-                  collectionInterval = timeInterval {
+                  collectionInterval = interval {
                     startTime = it.eventStartTime.toProtoTime()
                     endTime = it.eventEndTime.toProtoTime()
                   }
@@ -1505,7 +1505,7 @@ private class ModelOutages {
     val request = createModelOutageRequest {
       parent = modelLineName
       modelOutage = modelOutage {
-        outageInterval = timeInterval {
+        outageInterval = interval {
           startTime = outageStartTime.toProtoTime()
           endTime = outageEndTime.toProtoTime()
         }
@@ -1574,7 +1574,7 @@ private class ModelOutages {
       if (outageStartTime != null && outageEndTime != null) {
         filter =
           ListModelOutagesRequestKt.filter {
-            outageIntervalOverlapping = timeInterval {
+            outageIntervalOverlapping = interval {
               startTime = outageStartTime.toProtoTime()
               endTime = outageEndTime.toProtoTime()
             }
@@ -1744,15 +1744,21 @@ private class ModelRollouts {
     @Option(
       names = ["--rollout-start-time"],
       description = ["Start time of model rollout in ISO 8601 format of UTC"],
-      required = true,
+      required = false,
     )
-    rolloutStartTime: Instant,
+    rolloutStartTime: Instant? = null,
     @Option(
       names = ["--rollout-end-time"],
       description = ["End time of model rollout in ISO 8601 format of UTC"],
-      required = true,
+      required = false,
     )
-    rolloutEndTime: Instant,
+    rolloutEndTime: Instant? = null,
+    @Option(
+      names = ["--instant-rollout-time"],
+      description = ["Instant rollout time of model rollout in ISO 8601 format of UTC"],
+      required = false,
+    )
+    instantRolloutTime: Instant? = null,
     @Option(
       names = ["--model-release"],
       description = ["The `ModelRelease` this model rollout refers to."],
@@ -1760,12 +1766,24 @@ private class ModelRollouts {
     )
     modelRolloutRelease: String,
   ) {
+
+    if (instantRolloutTime == null && (rolloutStartTime == null || rolloutEndTime == null)) {
+      throw ParameterException(
+        parentCommand.commandLine,
+        "Both `rolloutStartTime` and `rolloutEndTime` must be set when `instantRolloutTime` is not."
+      )
+    }
+
     val request = createModelRolloutRequest {
       parent = modelLineName
       modelRollout = modelRollout {
-        rolloutPeriod = timeInterval {
-          startTime = rolloutStartTime.toProtoTime()
-          endTime = rolloutEndTime.toProtoTime()
+        if (instantRolloutTime != null) {
+          this.instantRolloutTime = instantRolloutTime.toProtoTime()
+        } else {
+          gradualRolloutPeriod = interval {
+            startTime = rolloutStartTime!!.toProtoTime()
+            endTime = rolloutEndTime!!.toProtoTime()
+          }
         }
         modelRelease = modelRolloutRelease
       }
@@ -1824,7 +1842,7 @@ private class ModelRollouts {
       if (rolloutPeriodStartTime != null && rolloutPeriodEndTime != null) {
         filter =
           ListModelRolloutsRequestKt.filter {
-            rolloutPeriodOverlapping = timeInterval {
+            rolloutPeriodOverlapping = interval {
               startTime = rolloutPeriodStartTime.toProtoTime()
               endTime = rolloutPeriodEndTime.toProtoTime()
             }
@@ -1882,7 +1900,11 @@ private class ModelRollouts {
 
   private fun printModelRollout(modelRollout: ModelRollout) {
     println("NAME - ${modelRollout.name}")
-    println("ROLLOUT PERIOD- ${modelRollout.rolloutPeriod}")
+    if (modelRollout.hasInstantRolloutTime()) {
+      println("INSTANT ROLLOUT TIME- ${modelRollout.instantRolloutTime}")
+    } else {
+      println("GRADUAL ROLLOUT PERIOD- ${modelRollout.gradualRolloutPeriod}")
+    }
     println("ROLLOUT FREEZE TIME - ${modelRollout.rolloutFreezeTime}")
     println("PREVIOUS MODEL ROLLOUT - ${modelRollout.previousModelRollout}")
     println("MODEL RELEASE - ${modelRollout.modelRelease}")
