@@ -228,12 +228,12 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     )
 
     assertThat(
-        service
-          .getComputationToken(
-            getComputationTokenRequest { globalComputationId = GLOBAL_COMPUTATION_ID }
-          )
-          .token
-      )
+      service
+        .getComputationToken(
+          getComputationTokenRequest { globalComputationId = GLOBAL_COMPUTATION_ID }
+        )
+        .token
+    )
       .isEqualTo(createdToken)
   }
 
@@ -405,12 +405,12 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     assertThat(response.token)
       .isEqualTo(createdToken.copy { computationDetails = updatedComputationDetails })
     assertThat(
-        service
-          .getComputationToken(
-            getComputationTokenRequest { globalComputationId = createdToken.globalComputationId }
-          )
-          .token
-      )
+      service
+        .getComputationToken(
+          getComputationTokenRequest { globalComputationId = createdToken.globalComputationId }
+        )
+        .token
+    )
       .isEqualTo(response.token)
   }
 
@@ -435,12 +435,12 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
 
     assertThat(response.token.requisitionsList[0].details).isEqualTo(updatedRequisitionDetails)
     assertThat(
-        service
-          .getComputationToken(
-            getComputationTokenRequest { globalComputationId = createdToken.globalComputationId }
-          )
-          .token
-      )
+      service
+        .getComputationToken(
+          getComputationTokenRequest { globalComputationId = createdToken.globalComputationId }
+        )
+        .token
+    )
       .isEqualTo(response.token)
   }
 
@@ -507,6 +507,87 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
       .ignoringFields(ComputationToken.VERSION_FIELD_NUMBER)
       .isEqualTo(claimWorkResponse.token.copy { computationStage = nextStage })
   }
+
+  @Test
+  fun `advanceComputationStage enqueues the computation when afterTransition is ADD_UNCLAIMED_TO_QUEUE`() =
+    runBlocking {
+      service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+      val claimWorkResponse = service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
+
+      val nextStage = computationStage {
+        liquidLegionsSketchAggregationV2 = Stage.WAIT_REQUISITIONS_AND_KEY_SET
+      }
+      val advanceComputationStageResp =
+        service.advanceComputationStage(
+          advanceComputationStageRequest {
+            token = claimWorkResponse.token
+            nextComputationStage = nextStage
+            afterTransition = AfterTransition.ADD_UNCLAIMED_TO_QUEUE
+          }
+        )
+
+      assertThat(advanceComputationStageResp.token.attempt).isEqualTo(0)
+      assertThat(advanceComputationStageResp.token.lockOwner).isEmpty()
+      assertThat(advanceComputationStageResp.token.lockExpirationTime).isEqualTo(
+        clock.last().toProtoTime()
+      )
+    }
+
+  @Test
+  fun `advanceComputationStage releases the computation lock when afterTransition is DO_NOT_ADD_TO_QUEUE`() =
+    runBlocking {
+      service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+      val claimWorkResponse = service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
+
+      val nextStage = computationStage {
+        liquidLegionsSketchAggregationV2 = Stage.WAIT_REQUISITIONS_AND_KEY_SET
+      }
+      val advanceComputationStageResp =
+        service.advanceComputationStage(
+          advanceComputationStageRequest {
+            token = claimWorkResponse.token
+            nextComputationStage = nextStage
+            afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE
+          }
+        )
+
+      assertThat(advanceComputationStageResp.token.lockOwner).isEmpty()
+      assertThat(advanceComputationStageResp.token.lockExpirationTime).isEqualToDefaultInstance()
+    }
+
+  @Test
+  fun `advanceComputationStage throws when output blobs are not fulfilled`() =
+    runBlocking {
+      service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+      val claimWorkResponse = service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
+      val advanceResp = service.advanceComputationStage(
+        advanceComputationStageRequest {
+          token = claimWorkResponse.token
+          nextComputationStage = computationStage {
+            liquidLegionsSketchAggregationV2 = Stage.WAIT_REQUISITIONS_AND_KEY_SET
+          }
+          afterTransition = AfterTransition.RETAIN_AND_EXTEND_LOCK
+          outputBlobs = 2
+        }
+      )
+
+
+      val nextStage = computationStage {
+        liquidLegionsSketchAggregationV2 = Stage.CONFIRMATION_PHASE
+      }
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          service.advanceComputationStage(
+            advanceComputationStageRequest {
+              token = advanceResp.token
+              nextComputationStage = nextStage
+              afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE
+            }
+          )
+        }
+
+      assertThat(exception.message).contains("written")
+    }
 
   @Test
   fun `advanceComputationStage throws IllegalArgumentException when transition stage is invalid`() =
@@ -579,10 +660,21 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   @Test
   fun `finishComputation returns computation in terminal stage`() = runBlocking {
     val createComputationResp = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+    val claimWorkResponse = service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
+    val advanceResp = service.advanceComputationStage(
+      advanceComputationStageRequest {
+        token = claimWorkResponse.token
+        nextComputationStage = computationStage {
+          liquidLegionsSketchAggregationV2 = Stage.WAIT_REQUISITIONS_AND_KEY_SET
+        }
+        afterTransition = AfterTransition.RETAIN_AND_EXTEND_LOCK
+        outputBlobs = 2
+      }
+    )
     clock.tickSeconds("finish", 1)
 
     val finishComputationRequest = finishComputationRequest {
-      token = createComputationResp.token
+      token = advanceResp.token
       endingComputationStage = Stage.COMPLETE.toProtocolStage()
       reason = ComputationDetails.CompletedReason.SUCCEEDED
     }
@@ -710,12 +802,12 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
         }
       )
     assertThat(
-        service
-          .getComputationToken(
-            getComputationTokenRequest { globalComputationId = response.token.globalComputationId }
-          )
-          .token
-      )
+      service
+        .getComputationToken(
+          getComputationTokenRequest { globalComputationId = response.token.globalComputationId }
+        )
+        .token
+    )
       .isEqualTo(response.token)
   }
 

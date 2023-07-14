@@ -18,8 +18,10 @@ _secret_name:          string @tag("secret_name")
 _aggregator_cert_name: string @tag("aggregator_cert_name")
 _worker1_cert_name:    string @tag("worker1_cert_name")
 _worker2_cert_name:    string @tag("worker2_cert_name")
+_use_postgres_duchy:   string	@tag("use_postgres_duchy")
 
 #KingdomSystemApiTarget: (#Target & {name: "system-api-server"}).target
+// TODO move
 #SpannerEmulatorHost:    (#Target & {name: "spanner-emulator"}).target
 #DuchyConfig: {
 	let duchyName = name
@@ -54,8 +56,8 @@ _computationControlTargets: {
 	}
 }
 
-duchies: [ for duchyConfig in _duchyConfigs {
-	#Duchy & {
+_spannerDuchies: [ for duchyConfig in _duchyConfigs {
+	#SpannerDuchy & {
 		_imageSuffixes: {
 			"computation-control-server":     "duchy/local-computation-control"
 			"liquid-legions-v2-mill-daemon":  "duchy/local-liquid-legions-v2-mill"
@@ -77,3 +79,36 @@ duchies: [ for duchyConfig in _duchyConfigs {
 		_verbose_grpc_logging: "true"
 	}
 }]
+
+_postgresDuchies:  [ for duchyConfig in _duchyConfigs {
+	#PostgresDuchy & {
+		_imageSuffixes: {
+			"computation-control-server":     "duchy/local-computation-control"
+			"liquid-legions-v2-mill-daemon":  "duchy/local-liquid-legions-v2-mill"
+			"requisition-fulfillment-server": "duchy/local-requisition-fulfillment"
+			"postgres-data-server":    				"duchy/local-postgres-data"
+		}
+		_duchy: {
+			name:                   duchyConfig.name
+			protocols_setup_config: duchyConfig.protocolsSetupConfig
+			cs_cert_resource_name:  duchyConfig.certificateResourceName
+		}
+		_duchy_secret_name:           _secret_name
+		_computation_control_targets: _computationControlTargets
+		_kingdom_system_api_target:   #KingdomSystemApiTarget
+		_blob_storage_flags: [
+			"--forwarded-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
+			"--forwarded-storage-cert-host=localhost",
+		]
+		_verbose_grpc_logging: "true"
+	}
+}]
+
+duchies: [...#PostgresDuchy] | [...#SpannerDuchy]
+
+if (_use_postgres_duchy == "true") {
+	duchies: _postgresDuchies
+}
+if (_use_postgres_duchy != "true") {
+	duchies: _spannerDuchies
+}

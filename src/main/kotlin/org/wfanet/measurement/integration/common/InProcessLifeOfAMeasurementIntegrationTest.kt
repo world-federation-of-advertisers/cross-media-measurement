@@ -34,6 +34,7 @@ import org.wfanet.measurement.loadtest.frontend.FrontendSimulator
 import org.wfanet.measurement.loadtest.frontend.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
 /**
  * Test that everything is wired up properly.
@@ -45,7 +46,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
   abstract val kingdomDataServicesRule: ProviderRule<DataServices>
 
   /** Provides a function from Duchy to the dependencies needed to start the Duchy to the test. */
-  abstract val duchyDependenciesRule: ProviderRule<(String) -> InProcessDuchy.DuchyDependencies>
+  abstract val duchyDependenciesRule: ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>
 
   abstract val storageClient: StorageClient
 
