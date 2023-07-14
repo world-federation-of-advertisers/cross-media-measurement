@@ -183,15 +183,16 @@ private fun run(
       LinkedBlockingQueue()
     )
 
-  InProcessServerBuilder.forName(inProcessServerName).apply {
-    executor(executor)
-    addService(metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs))
-    if (commonServerFlags.debugVerboseGrpcLogging) {
-      intercept(LoggingServerInterceptor)
-    } else {
-      intercept(ErrorLoggingServerInterceptor)
+  InProcessServerBuilder.forName(inProcessServerName)
+    .apply {
+      executor(executor)
+      addService(metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs))
+      if (commonServerFlags.debugVerboseGrpcLogging) {
+        intercept(LoggingServerInterceptor)
+      } else {
+        intercept(ErrorLoggingServerInterceptor)
+      }
     }
-  }
     .build()
     .start()
 
