@@ -52,6 +52,8 @@ import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.Measureme
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
+import io.grpc.Status
+import io.grpc.StatusException
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.reporting.deploy.common.EncryptionKeyPairMap
 import org.wfanet.measurement.reporting.deploy.common.KingdomApiFlags
@@ -124,11 +126,18 @@ private fun run(
       val measurementConsumerKey =
         MeasurementConsumerKey.fromName(it)
           ?: throw IllegalArgumentException("measurement_consumer_config is invalid")
-      internalMeasurementConsumersCoroutineStub.createMeasurementConsumer(
-        measurementConsumer {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      try {
+        internalMeasurementConsumersCoroutineStub.createMeasurementConsumer(
+          measurementConsumer {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+          }
+        )
+      } catch (e: StatusException) {
+        when (e.status.code) {
+          Status.Code.ALREADY_EXISTS -> {}
+          else -> throw e
         }
-      )
+      }
     }
   }
 
