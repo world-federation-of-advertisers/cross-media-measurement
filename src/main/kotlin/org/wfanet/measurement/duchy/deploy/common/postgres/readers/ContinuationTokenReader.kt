@@ -19,6 +19,7 @@ import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 
+/** Performs read operations on HeraldContinuationTokens tables */
 class ContinuationTokenReader {
   companion object {
     private const val parameterizedQueryString =

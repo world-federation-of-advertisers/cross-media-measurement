@@ -17,9 +17,13 @@ package org.wfanet.measurement.duchy.deploy.common.postgres.readers
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
+import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
+import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
+import org.wfanet.measurement.internal.duchy.computationStageBlobMetadata
 
+/** Performs read operations on ComputationBlobReferences tables */
 class ComputationBlobReferenceReader {
 
   /**
@@ -99,5 +103,74 @@ class ComputationBlobReferenceReader {
       .consume { it.get<Long>("BlobId") to it.get<String?>("PathToBlob") }
       .toList()
       .toMap()
+  }
+
+  /**
+   * Gets a list of computationBlobKeys by localComputationId
+   *
+   * @param readContext The transaction context for reading from the Postgres database.
+   * @param localComputationId A local identifier for a computation
+   * @return A list of computation blob keys
+   */
+  suspend fun readComputationBlobKeys(
+    readContext: ReadContext,
+    localComputationId: Long
+  ): List<String> {
+    val statement =
+      boundStatement(
+        """
+        SELECT PathToBlob
+        FROM ComputationBlobReferences
+        WHERE ComputationId = $1 AND PathToBlob IS NOT NULL
+      """
+          .trimIndent()
+      ) {
+        bind("$1", localComputationId)
+      }
+
+    return readContext
+      .executeQuery(statement)
+      .consume { row -> row.get<String>("PathToBlob") }
+      .toList()
+  }
+
+  /**
+   * Gets a list of [ComputationStageBlobMetadata] by localComputationId
+   *
+   * @param readContext The transaction context for reading from the Postgres database.
+   * @param localComputationId A local identifier for a computation
+   * @param computationStage stage enum of the computation
+   * @return A list of [ComputationStageBlobMetadata]
+   */
+  suspend fun readBlobMetadata(
+    readContext: ReadContext,
+    localComputationId: Long,
+    computationStage: Long
+  ): List<ComputationStageBlobMetadata> {
+    val statement =
+      boundStatement(
+        """
+        SELECT BlobId, PathToBlob, DependencyType
+        FROM ComputationBlobReferences
+        WHERE
+          ComputationId = $1
+        AND
+          ComputationStage = $2
+      """
+          .trimIndent()
+      ) {
+        bind("$1", localComputationId)
+        bind("$2", computationStage)
+      }
+
+    return readContext.executeQuery(statement).consume(::buildBlobMetadata).toList()
+  }
+
+  private fun buildBlobMetadata(row: ResultRow): ComputationStageBlobMetadata {
+    return computationStageBlobMetadata {
+      blobId = row["BlobId"]
+      row.get<String?>("PathToBlob")?.let { path = it }
+      dependencyType = row.getProtoEnum("DependencyType", ComputationBlobDependency::forNumber)
+    }
   }
 }
