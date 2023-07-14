@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.postgres.testing
+package org.wfanet.measurement.duchy.deploy.common.postgres.testing
 
 import java.nio.file.Path
 import org.wfanet.measurement.common.getJarResourcePath

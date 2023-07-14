@@ -1,7 +1,7 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 
 package(default_visibility = [
-    "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/postgres:__subpackages__",
+    "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres:__subpackages__",
 ])
 
 kt_jvm_library(
@@ -9,7 +9,7 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/postgres/readers",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/readers",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal:internal_exception",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_stats_service_kt_jvm_grpc_proto",

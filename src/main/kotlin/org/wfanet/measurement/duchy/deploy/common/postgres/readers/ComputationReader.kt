@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.postgres.readers
+package org.wfanet.measurement.duchy.deploy.common.postgres.readers
 
 import com.google.protobuf.Timestamp
 import java.time.Instant
@@ -196,7 +196,7 @@ class ComputationReader(
       ) {
         bind("$1", globalComputationId)
       }
-    return readContext.executeQuery(statement).consume(::Computation).firstOrNull()
+    return readContext.executeQuery(statement).consume(ComputationReader::Computation).firstOrNull()
   }
 
   private suspend fun readComputation(
@@ -229,7 +229,7 @@ class ComputationReader(
         bind("$1", externalRequisitionKey.externalRequisitionId)
         bind("$2", externalRequisitionKey.requisitionFingerprint)
       }
-    return readContext.executeQuery(statement).consume(::Computation).firstOrNull()
+    return readContext.executeQuery(statement).consume(ComputationReader::Computation).firstOrNull()
   }
 
   /**
