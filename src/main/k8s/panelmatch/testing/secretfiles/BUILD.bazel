@@ -1,5 +1,13 @@
 load("@rules_pkg//pkg:pkg.bzl", "pkg_tar")
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
+load("//build/k8s:defs.bzl", "k8s_apply", "kustomization_dir")
+
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/main/k8s:__subpackages__",
+    ],
+)
 
 filegroup(
     name = "root_certs",
@@ -47,9 +55,15 @@ pkg_tar(
     out = "secretfiles.tar",
 )
 
-sh_binary(
+kustomization_dir(
+    name = "kustomization",
+    srcs = [
+        ":kustomization.yaml",
+        ":secret_files",
+    ],
+)
+
+k8s_apply(
     name = "apply_kustomization",
-    srcs = ["apply_kustomization.sh"],
-    data = [":secretfiles.tar"],
-    deps = ["@bazel_tools//tools/bash/runfiles"],
+    srcs = [":kustomization"],
 )
