@@ -44,6 +44,8 @@ import org.wfanet.measurement.common.api.memoizing
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.ErrorLoggingServerInterceptor
+import org.wfanet.measurement.common.grpc.LoggingServerInterceptor
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.parseTextProto
@@ -181,9 +183,15 @@ private fun run(
       LinkedBlockingQueue()
     )
 
-  InProcessServerBuilder.forName(inProcessServerName)
-    .executor(executor)
-    .addService(metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs))
+  InProcessServerBuilder.forName(inProcessServerName).apply {
+    executor(executor)
+    addService(metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs))
+    if (commonServerFlags.debugVerboseGrpcLogging) {
+      intercept(LoggingServerInterceptor)
+    } else {
+      intercept(ErrorLoggingServerInterceptor)
+    }
+  }
     .build()
     .start()
 
