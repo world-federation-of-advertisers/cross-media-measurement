@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.postgres.writers
+package org.wfanet.measurement.duchy.deploy.common.postgres.writers
 
 import java.time.Clock
 import java.time.Duration
@@ -27,10 +27,6 @@ import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnum
 import org.wfanet.measurement.duchy.db.computation.ComputationStageLongValues
 import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationStageAttemptReader
-import org.wfanet.measurement.duchy.deploy.common.postgres.writers.acquireComputationLock
-import org.wfanet.measurement.duchy.deploy.common.postgres.writers.insertComputationStageAttempt
-import org.wfanet.measurement.duchy.deploy.common.postgres.writers.updateComputationStage
-import org.wfanet.measurement.duchy.deploy.common.postgres.writers.updateComputationStageAttempt
 import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 import org.wfanet.measurement.internal.duchy.copy
