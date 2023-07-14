@@ -1,9 +1,4 @@
 load("//build:variables.bzl", "EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG")
-load(
-    "//src/main/docker/panel_exchange_client:images.bzl",
-    "AWS_IMAGES",
-    "GCLOUD_IMAGES",
-)
 load("@wfa_rules_cue//cue:defs.bzl", "cue_library")
 load("//src/main/k8s:macros.bzl", "cue_dump")
 load("//build/k8s:defs.bzl", "kustomization_dir")
