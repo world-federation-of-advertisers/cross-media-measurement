@@ -36,8 +36,7 @@ class ContinuationTokenReader {
   /**
    * Reads a ContinuationToken from the HeraldContinuationTokens table.
    *
-   * @return [Result] when a ContinuationToken is found.
-   * @return null when there is no ContinuationToken.
+   * @return [Result] when a ContinuationToken is found, or null.
    */
   suspend fun getContinuationToken(readContext: ReadContext): Result? {
     val statement = boundStatement(parameterizedQueryString)
