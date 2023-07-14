@@ -17,7 +17,6 @@ package org.wfanet.measurement.duchy.deploy.common.postgres.readers
 import com.google.protobuf.Timestamp
 import java.time.Instant
 import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.flow.toSet
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
@@ -36,10 +35,9 @@ import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.computationToken
-import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 
 /**
- * Performs read operations on Computations, Requisitions, and ComputationBlobReferences tables
+ * Performs read operations on Computations and ComputationStages tables
  *
  * @param computationProtocolStagesEnumHelper [ComputationProtocolStagesEnumHelper] a helper class
  *   to work with Enum representations of [ComputationType] and [ComputationStage].

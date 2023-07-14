@@ -19,7 +19,7 @@ import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 
-/** Performs read operations on Computations and ComputationStageAttempts tables */
+/** Performs read operations on ComputationStageAttempts tables */
 class ComputationStageAttemptReader {
 
   /**
