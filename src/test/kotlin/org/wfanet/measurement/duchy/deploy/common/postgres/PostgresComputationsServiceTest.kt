@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.postgres
+package org.wfanet.measurement.duchy.deploy.common.postgres
 
 import java.time.Clock
 import kotlin.random.Random
+import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -23,16 +24,14 @@ import org.wfanet.measurement.common.db.r2dbc.postgres.testing.EmbeddedPostgresD
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
 import org.wfanet.measurement.duchy.db.computation.ComputationTypes
-import org.wfanet.measurement.duchy.deploy.common.postgres.PostgresComputationStatsService
-import org.wfanet.measurement.duchy.deploy.common.postgres.PostgresComputationsService
 import org.wfanet.measurement.duchy.deploy.common.postgres.testing.Schemata.DUCHY_CHANGELOG_PATH
-import org.wfanet.measurement.duchy.service.internal.testing.ComputationStatsServiceTest
+import org.wfanet.measurement.duchy.service.internal.testing.ComputationsServiceTest
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.storage.RequisitionStore
-import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
@@ -40,8 +39,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.Computa
 private const val ALSACE = "Alsace"
 
 @RunWith(JUnit4::class)
-class PostgresComputationStatsServiceTest :
-  ComputationStatsServiceTest<PostgresComputationStatsService>() {
+class PostgresComputationsServiceTest : ComputationsServiceTest<PostgresComputationsService>() {
 
   private lateinit var storageClient: FileSystemStorageClient
   private lateinit var computationStore: ComputationStore
@@ -59,14 +57,11 @@ class PostgresComputationStatsServiceTest :
     requisitionStore = RequisitionStore(storageClient)
     addService(mockComputationLogEntriesService)
   }
+  @get:Rule val ruleChain = chainRulesSequentially(tempDirectory, grpcTestServerRule)
   private val systemComputationLogEntriesClient =
     ComputationLogEntriesCoroutineStub(grpcTestServerRule.channel)
 
-  override fun newComputationStatsService(): PostgresComputationStatsService {
-    return PostgresComputationStatsService(client, idGenerator)
-  }
-
-  override fun newComputationsService(): ComputationsGrpcKt.ComputationsCoroutineImplBase {
+  override fun newService(clock: Clock): PostgresComputationsService {
     return PostgresComputationsService(
       computationTypeEnumHelper = ComputationTypes,
       protocolStagesEnumHelper = ComputationProtocolStages,
@@ -74,7 +69,10 @@ class PostgresComputationStatsServiceTest :
       client = client,
       idGenerator = idGenerator,
       duchyName = ALSACE,
-      computationLogEntriesClient = systemComputationLogEntriesClient
+      computationStorageClient = computationStore,
+      requisitionStorageClient = requisitionStore,
+      computationLogEntriesClient = systemComputationLogEntriesClient,
+      clock = clock
     )
   }
 }

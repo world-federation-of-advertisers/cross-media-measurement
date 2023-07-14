@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.postgres
+package org.wfanet.measurement.duchy.deploy.common.postgres
 
 import java.time.Clock
 import kotlin.random.Random
@@ -20,7 +20,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.EmbeddedPostgresDatabaseProvider
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.duchy.deploy.common.postgres.PostgresContinuationTokensService
 import org.wfanet.measurement.duchy.deploy.common.postgres.testing.Schemata.DUCHY_CHANGELOG_PATH
 import org.wfanet.measurement.duchy.service.internal.testing.ContinuationTokensServiceTest
 

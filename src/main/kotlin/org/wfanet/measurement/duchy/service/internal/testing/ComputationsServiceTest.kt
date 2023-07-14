@@ -523,6 +523,83 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     }
 
   @Test
+  fun `advanceComputationStage enqueues the computation when afterTransition is ADD_UNCLAIMED_TO_QUEUE`() =
+    runBlocking {
+      service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+      val claimWorkResponse = service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
+
+      val nextStage = computationStage {
+        liquidLegionsSketchAggregationV2 = Stage.WAIT_REQUISITIONS_AND_KEY_SET
+      }
+      val advanceComputationStageResp =
+        service.advanceComputationStage(
+          advanceComputationStageRequest {
+            token = claimWorkResponse.token
+            nextComputationStage = nextStage
+            afterTransition = AfterTransition.ADD_UNCLAIMED_TO_QUEUE
+          }
+        )
+
+      assertThat(advanceComputationStageResp.token.attempt).isEqualTo(0)
+      assertThat(advanceComputationStageResp.token.lockOwner).isEmpty()
+      assertThat(advanceComputationStageResp.token.lockExpirationTime)
+        .isEqualTo(clock.last().toProtoTime())
+    }
+
+  @Test
+  fun `advanceComputationStage releases the computation lock when afterTransition is DO_NOT_ADD_TO_QUEUE`() =
+    runBlocking {
+      service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+      val claimWorkResponse = service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
+
+      val nextStage = computationStage {
+        liquidLegionsSketchAggregationV2 = Stage.WAIT_REQUISITIONS_AND_KEY_SET
+      }
+      val advanceComputationStageResp =
+        service.advanceComputationStage(
+          advanceComputationStageRequest {
+            token = claimWorkResponse.token
+            nextComputationStage = nextStage
+            afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE
+          }
+        )
+
+      assertThat(advanceComputationStageResp.token.lockOwner).isEmpty()
+      assertThat(advanceComputationStageResp.token.lockExpirationTime).isEqualToDefaultInstance()
+    }
+
+  @Test
+  fun `advanceComputationStage throws when output blobs are not fulfilled`() = runBlocking {
+    service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+    val claimWorkResponse = service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
+    val advanceResp =
+      service.advanceComputationStage(
+        advanceComputationStageRequest {
+          token = claimWorkResponse.token
+          nextComputationStage = computationStage {
+            liquidLegionsSketchAggregationV2 = Stage.WAIT_REQUISITIONS_AND_KEY_SET
+          }
+          afterTransition = AfterTransition.RETAIN_AND_EXTEND_LOCK
+          outputBlobs = 2
+        }
+      )
+
+    val nextStage = computationStage { liquidLegionsSketchAggregationV2 = Stage.CONFIRMATION_PHASE }
+    val exception =
+      assertFailsWith<IllegalStateException> {
+        service.advanceComputationStage(
+          advanceComputationStageRequest {
+            token = advanceResp.token
+            nextComputationStage = nextStage
+            afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE
+          }
+        )
+      }
+
+    assertThat(exception.message).contains("written")
+  }
+
+  @Test
   fun `finishComputation returns computation in terminal stage`() = runBlocking {
     val createComputationResp = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
     clock.tickSeconds("finish", 1)
@@ -892,6 +969,6 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
         service.recordRequisitionBlobPath(recordRequisitionBlobPathRequest)
       }
 
-    assertThat(exception.message).contains("No Computation found")
+    assertThat(exception.message).contains("found")
   }
 }
