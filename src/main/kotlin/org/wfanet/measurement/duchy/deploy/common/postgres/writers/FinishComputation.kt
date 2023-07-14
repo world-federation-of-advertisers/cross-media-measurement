@@ -163,7 +163,7 @@ class FinishComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Me
     val sql =
       boundStatement(
         """
-      SELECT s.ComputationStage, s.Attempt, s.Details, c.Protocol
+      SELECT s.ComputationId, s.ComputationStage, s.Attempt, s.Details, c.Protocol
       FROM ComputationStageAttempts as s
       JOIN Computations AS c
         ON s.ComputationId = c.ComputationId

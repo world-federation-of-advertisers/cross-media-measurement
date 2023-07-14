@@ -160,7 +160,10 @@ suspend fun PostgresWriter.TransactionScope.releaseComputationLock(
   setLock(transactionContext, localComputationId, updateTime)
 }
 
-/** Acquire a lock by setting the owner and expiration. */
+/**
+ * Acquire a lock by setting the owner and expiration. If the owner is null, the computation will be
+ * put onto the queue for next worker to claim.
+ */
 suspend fun PostgresWriter.TransactionScope.acquireComputationLock(
   localId: Long,
   updateTime: Instant,
