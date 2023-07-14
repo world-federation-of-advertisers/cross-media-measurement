@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.postgres.writers
+package org.wfanet.measurement.duchy.deploy.common.postgres.writers
 
 import com.google.protobuf.Message
 import java.time.Clock
@@ -23,16 +23,6 @@ import org.wfanet.measurement.duchy.db.computation.AfterTransition
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationBlobReferenceReader
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationStageAttemptReader
-import org.wfanet.measurement.duchy.deploy.common.postgres.writers.checkComputationUnmodified
-import org.wfanet.measurement.duchy.deploy.common.postgres.writers.enqueueComputation
-import org.wfanet.measurement.duchy.deploy.common.postgres.writers.extendComputationLock
-import org.wfanet.measurement.duchy.deploy.common.postgres.writers.insertComputationBlobReference
-import org.wfanet.measurement.duchy.deploy.common.postgres.writers.insertComputationStage
-import org.wfanet.measurement.duchy.deploy.common.postgres.writers.insertComputationStageAttempt
-import org.wfanet.measurement.duchy.deploy.common.postgres.writers.releaseComputationLock
-import org.wfanet.measurement.duchy.deploy.common.postgres.writers.updateComputation
-import org.wfanet.measurement.duchy.deploy.common.postgres.writers.updateComputationStage
-import org.wfanet.measurement.duchy.deploy.common.postgres.writers.updateComputationStageAttempt
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 import org.wfanet.measurement.internal.duchy.copy
