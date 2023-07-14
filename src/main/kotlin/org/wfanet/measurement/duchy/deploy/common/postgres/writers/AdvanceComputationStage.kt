@@ -24,6 +24,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnum
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationBlobReferenceReader
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationStageAttemptReader
 import org.wfanet.measurement.duchy.deploy.common.postgres.writers.checkComputationUnmodified
+import org.wfanet.measurement.duchy.deploy.common.postgres.writers.enqueueComputation
 import org.wfanet.measurement.duchy.deploy.common.postgres.writers.extendComputationLock
 import org.wfanet.measurement.duchy.deploy.common.postgres.writers.insertComputationBlobReference
 import org.wfanet.measurement.duchy.deploy.common.postgres.writers.insertComputationStage
@@ -102,9 +103,9 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
     )
 
     when (afterTransition) {
-      // Write the NULL value to the lockOwner column to release the lock.
-      AfterTransition.DO_NOT_ADD_TO_QUEUE,
-      AfterTransition.ADD_UNCLAIMED_TO_QUEUE -> releaseComputationLock(localId, writeTime)
+      AfterTransition.DO_NOT_ADD_TO_QUEUE -> releaseComputationLock(localId, writeTime)
+      AfterTransition.ADD_UNCLAIMED_TO_QUEUE ->
+        enqueueComputation(localId, writeTime, delaySeconds = 0)
       // Do not change the owner
       AfterTransition.CONTINUE_WORKING ->
         extendComputationLock(localId, writeTime, writeTime.plus(lockExtension))
