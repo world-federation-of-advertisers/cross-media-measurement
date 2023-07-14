@@ -29,11 +29,8 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.simulator
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.vidRange
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.BannerKt
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.PersonKt
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.VideoKt
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.banner
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
@@ -50,11 +47,11 @@ class SyntheticDataGenerationTest {
           endExclusive = 100L
         }
 
-        populationFields += "person.gender.value"
-        populationFields += "person.age_group.value"
+        populationFields += "person.gender"
+        populationFields += "person.age_group"
 
-        nonPopulationFields += "banner_ad.viewable.value"
-        nonPopulationFields += "video_ad.viewed_fraction.value"
+        nonPopulationFields += "banner_ad.viewable"
+        nonPopulationFields += "video_ad.viewed_fraction"
 
         subPopulations +=
           SyntheticPopulationSpecKt.subPopulation {
@@ -63,8 +60,8 @@ class SyntheticDataGenerationTest {
               endExclusive = 50L
             }
 
-            populationFieldsValues["person.gender.value"] = fieldValue { enumValue = 1 }
-            populationFieldsValues["person.age_group.value"] = fieldValue { enumValue = 1 }
+            populationFieldsValues["person.gender"] = fieldValue { enumValue = 1 }
+            populationFieldsValues["person.age_group"] = fieldValue { enumValue = 1 }
           }
         subPopulations +=
           SyntheticPopulationSpecKt.subPopulation {
@@ -73,8 +70,8 @@ class SyntheticDataGenerationTest {
               endExclusive = 100L
             }
 
-            populationFieldsValues["person.gender.value"] = fieldValue { enumValue = 2 }
-            populationFieldsValues["person.age_group.value"] = fieldValue { enumValue = 1 }
+            populationFieldsValues["person.gender"] = fieldValue { enumValue = 2 }
+            populationFieldsValues["person.age_group"] = fieldValue { enumValue = 1 }
           }
       }
 
@@ -108,10 +105,8 @@ class SyntheticDataGenerationTest {
                       endExclusive = 25L
                     }
 
-                    nonPopulationFieldValues["banner_ad.viewable.value"] = fieldValue {
-                      boolValue = true
-                    }
-                    nonPopulationFieldValues["video_ad.viewed_fraction.value"] = fieldValue {
+                    nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                    nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
                       doubleValue = 0.5
                     }
                   }
@@ -122,10 +117,10 @@ class SyntheticDataGenerationTest {
                       endExclusive = 50L
                     }
 
-                    nonPopulationFieldValues["banner_ad.viewable.value"] = fieldValue {
+                    nonPopulationFieldValues["banner_ad.viewable"] = fieldValue {
                       boolValue = false
                     }
-                    nonPopulationFieldValues["video_ad.viewed_fraction.value"] = fieldValue {
+                    nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
                       doubleValue = 0.7
                     }
                   }
@@ -141,10 +136,8 @@ class SyntheticDataGenerationTest {
                       endExclusive = 75L
                     }
 
-                    nonPopulationFieldValues["banner_ad.viewable.value"] = fieldValue {
-                      boolValue = true
-                    }
-                    nonPopulationFieldValues["video_ad.viewed_fraction.value"] = fieldValue {
+                    nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                    nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
                       doubleValue = 0.8
                     }
                   }
@@ -176,10 +169,8 @@ class SyntheticDataGenerationTest {
                       endExclusive = 100L
                     }
 
-                    nonPopulationFieldValues["banner_ad.viewable.value"] = fieldValue {
-                      boolValue = true
-                    }
-                    nonPopulationFieldValues["video_ad.viewed_fraction.value"] = fieldValue {
+                    nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                    nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
                       doubleValue = 0.9
                     }
                   }
@@ -215,10 +206,8 @@ class SyntheticDataGenerationTest {
                       endExclusive = 100L
                     }
 
-                    nonPopulationFieldValues["banner_ad.viewable.value"] = fieldValue {
-                      boolValue = true
-                    }
-                    nonPopulationFieldValues["video_ad.viewed_fraction.value"] = fieldValue {
+                    nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                    nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
                       doubleValue = 0.9
                     }
                   }
@@ -233,37 +222,37 @@ class SyntheticDataGenerationTest {
     val testEventList = eventSequence.map { TestEvent.parseFrom(it.toByteString()) }.toList()
 
     val subPopulationPerson = person {
-      gender = PersonKt.genderField { value = Person.Gender.MALE }
-      ageGroup = PersonKt.ageGroupField { value = Person.AgeGroup.YEARS_18_TO_34 }
+      gender = Person.Gender.MALE
+      ageGroup = Person.AgeGroup.YEARS_18_TO_34
     }
 
     val subPopulationPerson2 = person {
-      gender = PersonKt.genderField { value = Person.Gender.FEMALE }
-      ageGroup = PersonKt.ageGroupField { value = Person.AgeGroup.YEARS_18_TO_34 }
+      gender = Person.Gender.FEMALE
+      ageGroup = Person.AgeGroup.YEARS_18_TO_34
     }
 
     val expectedTestEvent = testEvent {
       person = subPopulationPerson
-      bannerAd = banner { viewable = BannerKt.viewableField { value = true } }
-      videoAd = video { viewedFraction = VideoKt.viewedFractionField { value = 0.5 } }
+      bannerAd = banner { viewable = true }
+      videoAd = video { viewedFraction = 0.5 }
     }
 
     val expectedTestEvent2 = testEvent {
       person = subPopulationPerson
-      bannerAd = banner { viewable = BannerKt.viewableField { value = false } }
-      videoAd = video { viewedFraction = VideoKt.viewedFractionField { value = 0.7 } }
+      bannerAd = banner { viewable = false }
+      videoAd = video { viewedFraction = 0.7 }
     }
 
     val expectedTestEvent3 = testEvent {
       person = subPopulationPerson2
-      bannerAd = banner { viewable = BannerKt.viewableField { value = true } }
-      videoAd = video { viewedFraction = VideoKt.viewedFractionField { value = 0.8 } }
+      bannerAd = banner { viewable = true }
+      videoAd = video { viewedFraction = 0.8 }
     }
 
     val expectedTestEvent4 = testEvent {
       person = subPopulationPerson2
-      bannerAd = banner { viewable = BannerKt.viewableField { value = true } }
-      videoAd = video { viewedFraction = VideoKt.viewedFractionField { value = 0.9 } }
+      bannerAd = banner { viewable = true }
+      videoAd = video { viewedFraction = 0.9 }
     }
 
     val numExpectedTestEvent = 50
@@ -429,7 +418,7 @@ class SyntheticDataGenerationTest {
           endExclusive = 100L
         }
 
-        nonPopulationFields += "banner_ad.viewable.value"
+        nonPopulationFields += "banner_ad.viewable"
 
         subPopulations +=
           SyntheticPopulationSpecKt.subPopulation {
@@ -475,9 +464,7 @@ class SyntheticDataGenerationTest {
                       endExclusive = 100L
                     }
 
-                    nonPopulationFieldValues["banner_ad.viewable.value"] = fieldValue {
-                      int32Value = 5
-                    }
+                    nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { int32Value = 5 }
                   }
               }
           }

@@ -30,7 +30,7 @@ object EventFilters {
   val EVENT_TEMPLATES_TO_FILTERS_MAP =
     mapOf(
       "$TEMPLATE_PREFIX.Person" to
-        "person.age_group.value == $TEMPLATE_PREFIX.Person.AgeGroup.YEARS_18_TO_34"
+        "person.age_group == $TEMPLATE_PREFIX.Person.AgeGroup.YEARS_18_TO_34"
     )
 
   val VID_SAMPLER_HASH_FUNCTION: HashFunction = Hashing.farmHashFingerprint64()
