@@ -19,6 +19,8 @@ package org.wfanet.measurement.reporting.deploy.v2.common.server
 import com.google.protobuf.ByteString
 import io.grpc.Channel
 import io.grpc.ServerServiceDefinition
+import io.grpc.Status
+import io.grpc.StatusException
 import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.inprocess.InProcessServerBuilder
 import java.io.File
@@ -52,8 +54,6 @@ import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.Measureme
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
-import io.grpc.Status
-import io.grpc.StatusException
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.reporting.deploy.common.EncryptionKeyPairMap
 import org.wfanet.measurement.reporting.deploy.common.KingdomApiFlags
