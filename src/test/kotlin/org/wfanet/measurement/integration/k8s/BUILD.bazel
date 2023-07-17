@@ -19,7 +19,7 @@ kt_jvm_library(
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/frontend:frontend_simulator",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:simulator",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
@@ -39,7 +39,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/k8s/testing:processes",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:event_filters",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/frontend:frontend_simulator",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:simulator",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup",
         "@wfa_common_jvm//imports/java/org/jetbrains/annotations",
         "@wfa_common_jvm//imports/java/org/junit",
