@@ -22,9 +22,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.PersonKt
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.VideoKt.lengthField
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.video
@@ -36,32 +34,28 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.Event
 class EventFiltersTest {
   private fun exampleEventWithAge(): Message {
     return testEvent {
-      person = person {
-        ageGroup = PersonKt.ageGroupField { value = Person.AgeGroup.YEARS_18_TO_34 }
-      }
-      videoAd = video {
-        length = lengthField { value = Duration.ofMinutes(5).withSeconds(11).toProtoDuration() }
-      }
+      person = person { ageGroup = Person.AgeGroup.YEARS_18_TO_34 }
+      videoAd = video { length = Duration.ofMinutes(5).withSeconds(11).toProtoDuration() }
     }
   }
 
   @Test
   fun `matches returns true when filter expression matches event`() {
-    val program = compileProgram(TestEvent.getDescriptor(), "person.age_group.value == 1")
+    val program = compileProgram(TestEvent.getDescriptor(), "person.age_group == 1")
     val event = exampleEventWithAge()
     assertThat(EventFilters.matches(event, program)).isTrue()
   }
 
   @Test
   fun `matches returns false when filter expression does not match event`() {
-    val program = compileProgram(TestEvent.getDescriptor(), "person.age_group.value == 2")
+    val program = compileProgram(TestEvent.getDescriptor(), "person.age_group == 2")
     val event = exampleEventWithAge()
     assertThat(EventFilters.matches(event, program)).isFalse()
   }
 
   @Test
   fun `matches returns true for default value when evaluated field is not set`() {
-    val program = compileProgram(TestEvent.getDescriptor(), "person.age_group.value == 0")
+    val program = compileProgram(TestEvent.getDescriptor(), "person.age_group == 0")
     val event = TestEvent.getDefaultInstance()
     assertThat(EventFilters.matches(event, program)).isTrue()
   }
@@ -84,7 +78,7 @@ class EventFiltersTest {
   fun `compileProgram throws error when expression is not a conditional`() {
     val e =
       assertFailsWith(EventFilterValidationException::class) {
-        compileProgram(TestEvent.getDescriptor(), "person.age_group.value")
+        compileProgram(TestEvent.getDescriptor(), "person.age_group")
       }
     assertThat(e.code).isEqualTo(EventFilterValidationException.Code.EXPRESSION_IS_NOT_CONDITIONAL)
   }

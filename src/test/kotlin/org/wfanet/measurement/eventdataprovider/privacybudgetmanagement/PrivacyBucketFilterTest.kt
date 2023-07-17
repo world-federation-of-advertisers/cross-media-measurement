@@ -40,7 +40,7 @@ class PrivacyBucketFilterTest {
   fun `Mapper fails for invalid filter expression`() {
     val privacyLandscapeMask =
       LandscapeMask(
-        listOf(EventGroupSpec("person.age_group.value", timeRange)),
+        listOf(EventGroupSpec("person.age_group", timeRange)),
         0.0f,
         PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
       )
@@ -54,9 +54,7 @@ class PrivacyBucketFilterTest {
   fun `Filter succeeds for filter expression with only privacy budget Fields`() {
     val privacyLandscapeMask =
       LandscapeMask(
-        listOf(
-          EventGroupSpec("person.age_group.value in [1] && person.gender.value == 2", timeRange)
-        ),
+        listOf(EventGroupSpec("person.age_group in [1] && person.gender == 2", timeRange)),
         0.0f,
         PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
       )
@@ -110,8 +108,7 @@ class PrivacyBucketFilterTest {
       LandscapeMask(
         listOf(
           EventGroupSpec(
-            "person.age_group.value in [1] && person.gender.value == 2 && " +
-              "banner_ad.viewable.value == true",
+            "person.age_group in [1] && person.gender == 2 && " + "banner_ad.viewable == true",
             timeRange
           )
         ),
@@ -166,7 +163,7 @@ class PrivacyBucketFilterTest {
   fun `Mapper succeeds with left out privacy budget Fields`() {
     val privacyLandscapeMask =
       LandscapeMask(
-        listOf(EventGroupSpec("person.age_group.value in [1] ", timeRange)),
+        listOf(EventGroupSpec("person.age_group in [1] ", timeRange)),
         0.0f,
         PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
       )
@@ -256,8 +253,7 @@ class PrivacyBucketFilterTest {
       LandscapeMask(
         listOf(
           EventGroupSpec(
-            "person.age_group.value in [0] && person.gender.value == 1 || " +
-              "banner_ad.viewable.value == true",
+            "person.age_group in [0] && person.gender == 1 || " + "banner_ad.viewable == true",
             timeRange
           )
         ),

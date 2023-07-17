@@ -17,6 +17,8 @@
 package org.wfanet.measurement.reporting.deploy.v2.postgres.readers
 
 import com.google.protobuf.Timestamp
+import com.google.type.Interval
+import com.google.type.interval
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
@@ -36,11 +38,9 @@ import org.wfanet.measurement.internal.reporting.v2.MetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequest
-import org.wfanet.measurement.internal.reporting.v2.TimeInterval
 import org.wfanet.measurement.internal.reporting.v2.measurement
 import org.wfanet.measurement.internal.reporting.v2.metric
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
-import org.wfanet.measurement.internal.reporting.v2.timeInterval
 
 class MetricReader(private val readContext: ReadContext) {
   data class Result(
@@ -58,7 +58,7 @@ class MetricReader(private val readContext: ReadContext) {
     val metricId: InternalId,
     val externalMetricId: String,
     val createTime: Timestamp,
-    val timeInterval: TimeInterval,
+    val timeInterval: Interval,
     val metricSpec: MetricSpec,
     val weightedMeasurementInfoMap: MutableMap<MetricMeasurementKey, WeightedMeasurementInfo>,
     val details: Metric.Details,
@@ -78,7 +78,7 @@ class MetricReader(private val readContext: ReadContext) {
   private data class MeasurementInfo(
     val cmmsMeasurementId: String?,
     val cmmsCreateMeasurementRequestId: String,
-    val timeInterval: TimeInterval,
+    val timeInterval: Interval,
     // Key is primitiveReportingSetBasisId.
     val primitiveReportingSetBasisInfoMap: MutableMap<InternalId, PrimitiveReportingSetBasisInfo>,
     val state: Measurement.State,
@@ -389,7 +389,7 @@ class MetricReader(private val readContext: ReadContext) {
 
       val metricInfo =
         metricInfoMap.computeIfAbsent(externalMetricId) {
-          val metricTimeInterval = timeInterval {
+          val metricTimeInterval = interval {
             startTime = metricTimeIntervalStart.toProtoTime()
             endTime = metricTimeIntervalEnd.toProtoTime()
           }
@@ -493,7 +493,7 @@ class MetricReader(private val readContext: ReadContext) {
             metricId = metricId,
           )
         ) {
-          val timeInterval = timeInterval {
+          val timeInterval = interval {
             startTime = measurementTimeIntervalStart.toProtoTime()
             endTime = measurementTimeIntervalEnd.toProtoTime()
           }

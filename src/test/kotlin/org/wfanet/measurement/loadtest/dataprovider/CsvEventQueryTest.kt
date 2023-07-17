@@ -14,6 +14,8 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.truth.Truth.assertThat
+import com.google.type.copy
+import com.google.type.interval
 import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -24,9 +26,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
-import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.toProtoTime
 
@@ -54,7 +54,7 @@ private val EMPTY_EVENT_FILTER = RequisitionSpec.EventFilter.getDefaultInstance(
 
 private val FIRST_EVENT_DATE = LocalDate.of(2021, 4, 20)
 private val LAST_EVENT_DATE = FIRST_EVENT_DATE.plusDays(1)
-private val FULL_TIME_INTERVAL = timeInterval {
+private val FULL_TIME_INTERVAL = interval {
   startTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
   // end_time is exclusive, so we specify the start of the day after LAST_EVENT_DATE.
   endTime = LAST_EVENT_DATE.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
@@ -86,8 +86,7 @@ class CsvEventQueryTest {
       eventQuery.getUserVirtualIds(
         FULL_TIME_INTERVAL,
         eventFilter {
-          expression =
-            "person.gender.value == $PERSON_MALE && person.gender.value == $PERSON_FEMALE"
+          expression = "person.gender == $PERSON_MALE && person.gender == $PERSON_FEMALE"
         }
       )
 
@@ -100,8 +99,7 @@ class CsvEventQueryTest {
       eventQuery.getUserVirtualIds(
         FULL_TIME_INTERVAL,
         eventFilter {
-          expression =
-            "person.age_group.value == $PERSON_35_to_54 && person.gender.value == $PERSON_FEMALE"
+          expression = "person.age_group == $PERSON_35_to_54 && person.gender == $PERSON_FEMALE"
         }
       )
 

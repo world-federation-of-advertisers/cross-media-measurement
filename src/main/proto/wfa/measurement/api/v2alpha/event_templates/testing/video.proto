@@ -29,23 +29,13 @@ message Video {
     description: "A simple template for events related to a video ad."
   };
 
-  message LengthField {
-    option (.wfa.measurement.api.v2alpha.event_field) = {
-      display_name: "Video Length"
-    };
+  google.protobuf.Duration length = 1
+      [(.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Video Length"
+      }];
 
-    google.protobuf.Duration value = 1;
-  }
-  LengthField length = 1;
-
-  message ViewedFractionField {
-    option (.wfa.measurement.api.v2alpha.event_field) = {
-      display_name: "Viewed Fraction"
-    };
-
-    // In the range [0, 1] of what fraction of the video was viewed.
-    double value = 1;
-  }
-  // Fraction of video that was viewed.
-  ViewedFractionField viewed_fraction = 2;
+  double viewed_fraction = 2 [(.wfa.measurement.api.v2alpha.template_field) = {
+    display_name: "Viewed Fraction"
+    description: "Fraction of the video that was viewed in the range [0, 1]"
+  }];
 }
