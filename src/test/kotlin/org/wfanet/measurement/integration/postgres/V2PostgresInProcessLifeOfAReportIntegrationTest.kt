@@ -24,13 +24,14 @@ import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.InProcessDuchy
+import org.wfanet.measurement.integration.common.duchy.PostgresDuchyDependencyProviderRule
 import org.wfanet.measurement.integration.common.reporting.v2.InProcessLifeOfAReportIntegrationTest
-import org.wfanet.measurement.integration.gcloud.DuchyDependencyProviderRule
 import org.wfanet.measurement.integration.gcloud.KingdomDataServicesProviderRule
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.reporting.deploy.v2.common.server.postgres.PostgresServices
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
 /** Implementation of [InProcessLifeOfAReportIntegrationTest] for Postgres. */
 class V2PostgresInProcessLifeOfAReportIntegrationTest : InProcessLifeOfAReportIntegrationTest() {
@@ -40,8 +41,8 @@ class V2PostgresInProcessLifeOfAReportIntegrationTest : InProcessLifeOfAReportIn
 
   /** Provides a function from Duchy to the dependencies needed to start the Duchy to the test. */
   override val duchyDependenciesRule:
-    ProviderRule<(String) -> InProcessDuchy.DuchyDependencies> by lazy {
-    DuchyDependencyProviderRule(ALL_DUCHY_NAMES)
+    ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies> by lazy {
+    PostgresDuchyDependencyProviderRule(ALL_DUCHY_NAMES)
   }
 
   override val storageClient: StorageClient by lazy {
