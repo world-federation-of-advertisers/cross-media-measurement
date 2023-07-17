@@ -73,7 +73,7 @@ class ComputationBlobReferenceReader {
    * @param dependencyType enum value of the dependency type
    * @return [Map<[Long], [String]?>] for all blobIds of a computation
    */
-  suspend fun blobIdToPathMapByDepType(
+  suspend fun readBlobIdToPathMap(
     readContext: ReadContext,
     localId: Long,
     stage: Long,
