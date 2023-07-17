@@ -1,0 +1,171 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.duchy.protocol;
+
+import "wfa/measurement/internal/duchy/crypto.proto";
+import "wfa/measurement/internal/duchy/differential_privacy.proto";
+import "wfa/measurement/internal/duchy/protocol/liquid_legions_sketch_parameter.proto";
+import "wfa/measurement/internal/duchy/protocol/liquid_legions_v2_encryption_methods.proto";
+import "wfa/measurement/internal/duchy/protocol/liquid_legions_v2_noise_config.proto";
+
+option java_package = "org.wfanet.measurement.internal.duchy.protocol";
+option java_multiple_files = true;
+
+// Proto messages wrapping the input arguments or output results of the reach
+// only liquid legion v2 MPC protocol encryption methods, which are to be called
+// via JNI in the Mill. Note that these protos contain sensitive data, e.g.,
+// private keys used in the ciphers. So they SHOULD NOT be written into any
+// logs or leave the running process.
+
+// The request to complete work in the initialization phase.
+message CompleteReachOnlyInitializationPhaseRequest {
+  // The elliptical curve to work on.
+  int64 curve_id = 1;
+}
+
+// Response of the CompleteReachOnlyInitializationPhase method.
+message CompleteReachOnlyInitializationPhaseResponse {
+  // A randomly created ElGamal Key pair.
+  ElGamalKeyPair el_gamal_key_pair = 1;
+  // The CPU time of processing the request.
+  int64 elapsed_cpu_time_millis = 2;
+}
+
+// The request to complete work in the setup phase.
+message CompleteReachOnlySetupPhaseRequest {
+  // The input combined register vector (CRV).
+  // Each register contains an index, each of which is a 66 bytes ElGamal
+  // ciphertext. In other words, the sketch size should be divisible by 66.
+  // The CRV is only needed so the noise can be interleaved and hidden in the
+  // CRV. The registers in the CRV are unchanged, except for their orders.
+  bytes combined_register_vector = 1;
+  // The parameters required for generating noise registers.
+  // if unset, the worker only shuffles the register without adding any noise.
+  RegisterNoiseGenerationParameters noise_parameters = 2;
+  // The mechanism used to generate noise.
+  LiquidLegionsV2NoiseConfig.NoiseMechanism noise_mechanism = 3;
+  // The maximum number of threads used by crypto actions.
+  int32 parallelism = 4;
+}
+
+// Response of the CompleteReachOnlySetupPhase method.
+message CompleteReachOnlySetupPhaseResponse {
+  // The output combined register vector (CRV), which contains shuffled input
+  // and noise registers.
+  bytes combined_register_vector = 1;
+  // The excessive noise that can be removed in the execution phase.
+  int64 excessive_noise = 2;
+  // The CPU time of processing the request.
+  int64 elapsed_cpu_time_millis = 3;
+}
+
+// Response of the CompleteReachOnlySetupPhase method at the aggregate worker.
+// Different from the non-aggregator, the aggregator samples the Paillier key
+// pair and encrypts its excessive noise with the public key.
+message CompleteReachOnlySetupPhaseAtAggregatorResponse {
+  // The output combined register vector (CRV), which contains shuffled input
+  // and noise registers.
+  bytes combined_register_vector = 1;
+  // The Paillier private key.
+  PaillierPrivateKey paillier_private_key = 2;
+  // The Paillier public key.
+  PaillierPublicKey paillier_public_key = 3;
+  // The serialized Paillier ciphertext that encrypts the aggregated excessive
+  // noise of the aggregator.
+  bytes serialized_aggregated_noise_ciphertext = 4;
+  // The CPU time of processing the request.
+  int64 elapsed_cpu_time_millis = 5;
+}
+
+// The request to complete work in the execution phase at a non-aggregator
+// worker.
+message CompleteReachOnlyExecutionPhaseRequest {
+  // The input combined register vector (CRV).
+  // Each register contains an index, each of which is a 66 bytes ElGamal
+  // ciphertext. In other words, the sketch size should be divisible by 66.
+  bytes combined_register_vector = 1;
+  // Key pair of the local ElGamal cipher. Required.
+  ElGamalKeyPair local_el_gamal_key_pair = 2;
+  // Public Key of the composite ElGamal cipher. Used to re-randomize the keys
+  // and counts.
+  ElGamalPublicKey composite_el_gamal_public_key = 3;
+  // The elliptical curve to work on.
+  int64 curve_id = 4;
+  // The excessive noise that will be removed. The noise was computed during the
+  // Setup phase, and stored in the database.
+  int64 excessive_noise = 5;
+  // The Paillier public key.
+  PaillierPublicKey paillier_public_key = 6;
+  // The serialized Paillier ciphertext that encrypts the aggregated excessive
+  // noise.
+  bytes serialized_aggregated_noise_ciphertext = 7;
+  // The maximum number of threads used by crypto actions.
+  int32 parallelism = 8;
+}
+
+// Response of the CompleteReachOnlyExecution method.
+message CompleteReachOnlyExecutionPhaseResponse {
+  // The output combined register vector (CRV), whose register indexes are
+  // partially decrypted. Each register contains an index, each of which is a 66
+  // bytes ElGamal ciphertext. In other words, the CRV size should be divisible
+  // by 66.
+  bytes combined_register_vector = 1;
+  // The serialized Paillier ciphertext that encrypts the aggregated excessive
+  // noise.
+  bytes serialized_aggregated_noise_ciphertext = 2;
+  // The CPU time of processing the request.
+  int64 elapsed_cpu_time_millis = 3;
+}
+
+// The request to complete work in the execution phase one at the aggregator
+// worker.
+message CompleteReachOnlyExecutionPhaseAtAggregatorRequest {
+  // The input combined register vector (CRV).
+  // Each register contains an index, each of which is a 66 bytes ElGamal
+  // ciphertext. In other words, the sketch size should be divisible by 66.
+  // There should be only one layer of ElGamal encryption left
+  // on the register indexes.
+  bytes combined_register_vector = 1;
+  // Key pair of the local ElGamal cipher. Required.
+  ElGamalKeyPair local_el_gamal_key_pair = 2;
+  // Public Key of the composite ElGamal cipher. Used to encrypt the random
+  // numbers in SameKeyAggregation.
+  ElGamalPublicKey composite_el_gamal_public_key = 3;
+  // The elliptical curve to work on.
+  int64 curve_id = 4;
+  // The Paillier private key to decrypt the aggregated noise ciphertext.
+  PaillierPrivateKey paillier_private_key = 5;
+  // The serialized Paillier ciphertext that encrypts the aggregated excessive
+  // noise.
+  bytes serialized_aggregated_noise_ciphertext = 6;
+  // LiquidLegions parameters used for reach estimation.
+  LiquidLegionsSketchParameters liquid_legions_parameters = 7;
+  // The sampling rate to be used by the LiquidLegionsV2 protocol.
+  // This is taken from the VidSamplingInterval.width parameter in the
+  // MeasurementSpec.
+  float vid_sampling_interval_width = 8;
+  // The maximum number of threads used by crypto actions.
+  int32 parallelism = 9;
+}
+
+// The response of the CompleteReachOnlyExecutionAtAggregator method.
+message CompleteReachOnlyExecutionPhaseAtAggregatorResponse {
+  // The number of register count.
+  int64 reach = 1;
+  // The CPU time of processing the request.
+  int64 elapsed_cpu_time_millis = 2;
+}
