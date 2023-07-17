@@ -195,7 +195,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group.value == 1"
+      filter = "person.age_group == 1"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
@@ -212,7 +212,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet2 = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group.value == 2"
+      filter = "person.age_group == 2"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
@@ -229,7 +229,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val compositeReportingSet = reportingSet {
       displayName = "composite"
-      filter = "person.age_group.value == 1"
+      filter = "person.age_group == 1"
       composite =
         ReportingSetKt.composite {
           expression =
@@ -311,7 +311,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group.value == 1"
+      filter = "person.age_group == 1"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
@@ -328,7 +328,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet2 = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group.value == 2"
+      filter = "person.age_group == 2"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
@@ -345,7 +345,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val compositeReportingSet = reportingSet {
       displayName = "composite"
-      filter = "person.age_group.value == 1"
+      filter = "person.age_group == 1"
       composite =
         ReportingSetKt.composite {
           expression =
@@ -438,7 +438,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group.value == 1"
+      filter = "person.age_group == 1"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
@@ -455,7 +455,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet2 = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group.value == 2"
+      filter = "person.age_group == 2"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
@@ -472,7 +472,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val compositeReportingSet = reportingSet {
       displayName = "composite"
-      filter = "person.age_group.value == 1"
+      filter = "person.age_group == 1"
       composite =
         ReportingSetKt.composite {
           expression =
@@ -554,7 +554,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group.value == 1"
+      filter = "person.age_group == 1"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
@@ -571,7 +571,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet2 = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group.value == 2"
+      filter = "person.age_group == 2"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
@@ -588,7 +588,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val compositeReportingSet = reportingSet {
       displayName = "composite"
-      filter = "person.age_group.value == 1"
+      filter = "person.age_group == 1"
       composite =
         ReportingSetKt.composite {
           expression =
@@ -675,7 +675,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group.value == 1"
+      filter = "person.age_group == 1"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
@@ -692,7 +692,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet2 = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group.value == 2"
+      filter = "person.age_group == 2"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
@@ -709,7 +709,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val compositeReportingSet = reportingSet {
       displayName = "composite"
-      filter = "person.age_group.value == 1"
+      filter = "person.age_group == 1"
       composite =
         ReportingSetKt.composite {
           expression =
@@ -790,7 +790,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group.value == 1"
+      filter = "person.age_group == 1"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
@@ -807,7 +807,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet2 = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group.value == 2"
+      filter = "person.age_group == 2"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
@@ -824,7 +824,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val compositeReportingSet = reportingSet {
       displayName = "composite"
-      filter = "person.age_group.value == 1"
+      filter = "person.age_group == 1"
       composite =
         ReportingSetKt.composite {
           expression =
@@ -906,7 +906,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group.value == 1"
+      filter = "person.age_group == 1"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
@@ -923,7 +923,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet2 = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group.value == 2"
+      filter = "person.age_group == 2"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
@@ -940,7 +940,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val compositeReportingSet = reportingSet {
       displayName = "composite"
-      filter = "person.age_group.value == 1"
+      filter = "person.age_group == 1"
       composite =
         ReportingSetKt.composite {
           expression =
@@ -988,13 +988,13 @@ abstract class InProcessLifeOfAReportIntegrationTest {
                       .withDefaults(reportingServer.metricSpecConfig)
                   groupings +=
                     ReportKt.grouping {
-                      predicates += "person.age_group.value == 2"
-                      predicates += "person.age_group.value == 1"
+                      predicates += "person.age_group == 2"
+                      predicates += "person.age_group == 1"
                     }
                   groupings +=
                     ReportKt.grouping {
-                      predicates += "person.gender.value == 2"
-                      predicates += "person.gender.value == 1"
+                      predicates += "person.age_group == 2"
+                      predicates += "person.gender == 1"
                     }
                 }
             }
@@ -1038,7 +1038,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group.value == 1"
+      filter = "person.age_group == 1"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
@@ -1130,7 +1130,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group.value == 1"
+      filter = "person.age_group == 1"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
@@ -1184,7 +1184,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group.value == 1"
+      filter = "person.age_group == 1"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
@@ -1241,7 +1241,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group.value == 1"
+      filter = "person.age_group == 1"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
@@ -1298,7 +1298,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group.value == 1"
+      filter = "person.age_group == 1"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
@@ -1354,7 +1354,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group.value == 1"
+      filter = "person.age_group == 1"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
@@ -1381,7 +1381,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
               MetricSpecKt.reachParams { privacyParams = MetricSpecKt.differentialPrivacyParams {} }
           }
           .withDefaults(reportingServer.metricSpecConfig)
-      filters += "person.gender.value == 1"
+      filters += "person.gender == 1"
     }
 
     val createdMetric =
@@ -1410,7 +1410,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group.value == 1"
+      filter = "person.age_group == 1"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
@@ -1489,7 +1489,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group.value == 1"
+      filter = "person.age_group == 1"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
