@@ -51,18 +51,13 @@ import org.wfanet.measurement.duchy.daemon.mill.Certificate
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniLiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
-import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
 import org.wfanet.measurement.duchy.service.api.v2alpha.RequisitionFulfillmentService
 import org.wfanet.measurement.duchy.service.internal.computationcontrol.AsyncComputationControlService
-import org.wfanet.measurement.duchy.service.internal.computations.ComputationsService
-import org.wfanet.measurement.duchy.service.internal.computationstats.ComputationStatsService
 import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlService
-import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
-import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub as SystemComputationControlCoroutineStub
@@ -70,34 +65,40 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.Computa
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub as SystemRequisitionsCoroutineStub
+import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.duchy.deploy.common.service.DuchyDataServices
 
 /**
  * TestRule that starts and stops all Duchy gRPC services and daemons.
  *
  * @param externalDuchyId the external ID of this duchy
  * @param kingdomSystemApiChannel a gRPC channel to the Kingdom
- * @param duchyDependenciesProvider provides the backends and other inputs required to start a Duchy
+ * @param duchyDependenciesRule provides the data services and storage client
  * @param verboseGrpcLogging whether to do verboseGrpcLogging
  */
 class InProcessDuchy(
   val externalDuchyId: String,
   val kingdomSystemApiChannel: Channel,
-  duchyDependenciesProvider: () -> DuchyDependencies,
+  val duchyDependenciesRule: ProviderRule<(String, SystemComputationLogEntriesCoroutineStub) -> DuchyDependencies>,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   val verboseGrpcLogging: Boolean = true,
   daemonContext: CoroutineContext = Dispatchers.Default,
 ) : TestRule {
   data class DuchyDependencies(
-    val computationsDatabase: ComputationsDatabase,
+    val duchyDataServices: DuchyDataServices,
     val storageClient: StorageClient,
-    val continuationTokensService: ContinuationTokensCoroutineImplBase,
   )
 
   private val daemonScope = CoroutineScope(daemonContext)
   private lateinit var heraldJob: Job
   private lateinit var llv2MillJob: Job
 
-  private val duchyDependencies by lazy { duchyDependenciesProvider() }
+  private val duchyDependencies by lazy {
+    duchyDependenciesRule.value(
+      externalDuchyId,
+      systemComputationLogEntriesClient
+    )
+  }
 
   private val systemComputationsClient by lazy {
     SystemComputationsCoroutineStub(kingdomSystemApiChannel).withDuchyId(externalDuchyId)
@@ -124,26 +125,18 @@ class InProcessDuchy(
 
   private val computationsServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
-      addService(
-        ComputationsService(
-          duchyDependencies.computationsDatabase,
-          systemComputationLogEntriesClient,
-          ComputationStore(duchyDependencies.storageClient),
-          RequisitionStore(duchyDependencies.storageClient),
-          externalDuchyId,
-        )
-      )
-      addService(ComputationStatsService(duchyDependencies.computationsDatabase))
-      addService(duchyDependencies.continuationTokensService)
+      addService(duchyDependencies.duchyDataServices.computationsService)
+      addService(duchyDependencies.duchyDataServices.computationStatsService)
+      addService(duchyDependencies.duchyDataServices.continuationTokensService)
     }
   private val requisitionFulfillmentServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       addService(
         RequisitionFulfillmentService(
-            systemRequisitionsClient,
-            computationsClient,
-            RequisitionStore(duchyDependencies.storageClient)
-          )
+          systemRequisitionsClient,
+          computationsClient,
+          RequisitionStore(duchyDependencies.storageClient)
+        )
           .withMetadataPrincipalIdentities()
       )
     }
