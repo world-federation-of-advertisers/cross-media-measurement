@@ -106,7 +106,9 @@ class ClaimWork<ProtocolT, StageT>(
              c.CreationTime, cs.NextAttempt
       FROM Computations AS c
         JOIN ComputationStages AS cs
-      ON c.Protocol = $1
+      ON c.ComputationId = cs.ComputationId
+        AND c.ComputationStage = cs.ComputationStage
+      WHERE c.Protocol = $1
         AND c.LockExpirationTime IS NOT NULL
         AND c.LockExpirationTime <= $2
       ORDER BY c.CreationTime ASC, c.LockExpirationTime ASC, c.UpdateTime ASC
