@@ -579,7 +579,7 @@ class MetricsService(
 
     /** Combines event group filters. */
     private fun buildConjunction(filters: Collection<String>): String {
-      return filters.joinToString(separator = " AND ") { filter -> "($filter)" }
+      return filters.joinToString(separator = " && ") { filter -> "($filter)" }
     }
 
     /** Gets a [MeasurementConsumer] based on a CMMS ID. */
