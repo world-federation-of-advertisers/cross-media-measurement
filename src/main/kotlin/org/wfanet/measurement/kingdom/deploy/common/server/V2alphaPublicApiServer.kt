@@ -48,6 +48,8 @@ import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.Recurrin
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfigFlags
+import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfigFlags
 import org.wfanet.measurement.kingdom.service.api.v2alpha.AccountsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ApiKeysService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.CertificatesService
@@ -83,10 +85,12 @@ private fun run(
   @CommandLine.Mixin kingdomApiServerFlags: KingdomApiServerFlags,
   @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
   @CommandLine.Mixin llv2ProtocolConfigFlags: Llv2ProtocolConfigFlags,
+  @CommandLine.Mixin roLlv2ProtocolConfigFlags: RoLlv2ProtocolConfigFlags,
   @CommandLine.Mixin v2alphaFlags: V2alphaFlags,
   @CommandLine.Mixin duchyInfoFlags: DuchyInfoFlags,
 ) {
   Llv2ProtocolConfig.initializeFromFlags(llv2ProtocolConfigFlags)
+  RoLlv2ProtocolConfig.initializeFromFlags(roLlv2ProtocolConfigFlags)
   DuchyInfo.initializeFromFlags(duchyInfoFlags)
 
   val clientCerts =

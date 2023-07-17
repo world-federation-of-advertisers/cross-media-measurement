@@ -22,8 +22,11 @@ import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import picocli.CommandLine
 
-object Llv2ProtocolConfig {
-  const val name = "llv2"
+object RoLlv2ProtocolConfig {
+  var enabled: Boolean by Delegates.notNull()
+    private set
+
+  const val name = "rollv2"
   lateinit var protocolConfig: ProtocolConfig.LiquidLegionsV2
     private set
   lateinit var duchyProtocolConfig: DuchyProtocolConfig.LiquidLegionsV2
@@ -34,10 +37,10 @@ object Llv2ProtocolConfig {
   var minimumNumberOfRequiredDuchies: Int by Delegates.notNull()
     private set
 
-  fun initializeFromFlags(flags: Llv2ProtocolConfigFlags) {
-    require(!Llv2ProtocolConfig::protocolConfig.isInitialized)
-    require(!Llv2ProtocolConfig::duchyProtocolConfig.isInitialized)
-    require(!Llv2ProtocolConfig::requiredExternalDuchyIds.isInitialized)
+  fun initializeFromFlags(flags: RoLlv2ProtocolConfigFlags) {
+    require(!RoLlv2ProtocolConfig::protocolConfig.isInitialized)
+    require(!RoLlv2ProtocolConfig::duchyProtocolConfig.isInitialized)
+    require(!RoLlv2ProtocolConfig::requiredExternalDuchyIds.isInitialized)
     val configMessage =
       flags.config.reader().use {
         parseTextProto(it, Llv2ProtocolConfigConfig.getDefaultInstance())
@@ -46,30 +49,42 @@ object Llv2ProtocolConfig {
     duchyProtocolConfig = configMessage.duchyProtocolConfig
     requiredExternalDuchyIds = configMessage.requiredExternalDuchyIdsList.toSet()
     minimumNumberOfRequiredDuchies = configMessage.minimumDuchyParticipantCount
+    enabled = flags.enableRoLlv2Protocol
   }
 
   fun setForTest(
     protocolConfig: ProtocolConfig.LiquidLegionsV2,
     duchyProtocolConfig: DuchyProtocolConfig.LiquidLegionsV2,
     requiredExternalDuchyIds: Set<String>,
-    minimumNumberOfRequiredDuchies: Int
+    minimumNumberOfRequiredDuchies: Int,
+    enabled: Boolean,
   ) {
-    require(!Llv2ProtocolConfig::protocolConfig.isInitialized)
-    require(!Llv2ProtocolConfig::duchyProtocolConfig.isInitialized)
-    require(!Llv2ProtocolConfig::requiredExternalDuchyIds.isInitialized)
-    Llv2ProtocolConfig.protocolConfig = protocolConfig
-    Llv2ProtocolConfig.duchyProtocolConfig = duchyProtocolConfig
-    Llv2ProtocolConfig.requiredExternalDuchyIds = requiredExternalDuchyIds
-    Llv2ProtocolConfig.minimumNumberOfRequiredDuchies = minimumNumberOfRequiredDuchies
+    RoLlv2ProtocolConfig.enabled = enabled
+
+    require(!RoLlv2ProtocolConfig::protocolConfig.isInitialized)
+    require(!RoLlv2ProtocolConfig::duchyProtocolConfig.isInitialized)
+    require(!RoLlv2ProtocolConfig::requiredExternalDuchyIds.isInitialized)
+    RoLlv2ProtocolConfig.protocolConfig = protocolConfig
+    RoLlv2ProtocolConfig.duchyProtocolConfig = duchyProtocolConfig
+    RoLlv2ProtocolConfig.requiredExternalDuchyIds = requiredExternalDuchyIds
+    RoLlv2ProtocolConfig.minimumNumberOfRequiredDuchies = minimumNumberOfRequiredDuchies
   }
 }
 
-class Llv2ProtocolConfigFlags {
+class RoLlv2ProtocolConfigFlags {
   @CommandLine.Option(
-    names = ["--llv2-protocol-config-config"],
+    names = ["--ro-llv2-protocol-config-config"],
     description = ["Llv2ProtocolConfigConfig proto message in text format."],
     required = true
   )
   lateinit var config: File
+    private set
+
+  @CommandLine.Option(
+    names = ["--enable-ro-llv2-protocol"],
+    description = ["Determine whether enable reach-only liquid legions v2 protocol."],
+    required = false
+  )
+  var enableRoLlv2Protocol: Boolean = false
     private set
 }

@@ -243,6 +243,38 @@ fun buildMpcProtocolConfig(
         }
       }
     }
+    InternalDuchyProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
+      require(protocolConfig.hasReachOnlyLiquidLegionsV2()) {
+        "Public API ProtocolConfig type doesn't match DuchyProtocolConfig type."
+      }
+      mpcProtocolConfig {
+        reachOnlyLiquidLegionsV2 = liquidLegionsV2 {
+          sketchParams = liquidLegionsSketchParams {
+            decayRate = protocolConfig.liquidLegionsV2.sketchParams.decayRate
+            maxSize = protocolConfig.liquidLegionsV2.sketchParams.maxSize
+          }
+          mpcNoise = mpcNoise {
+            blindedHistogramNoise =
+              duchyProtocolConfig.liquidLegionsV2.mpcNoise.blindedHistogramNoise
+                .toSystemDifferentialPrivacyParams()
+            publisherNoise =
+              duchyProtocolConfig.liquidLegionsV2.mpcNoise.noiseForPublisherNoise
+                .toSystemDifferentialPrivacyParams()
+          }
+          ellipticCurveId = protocolConfig.liquidLegionsV2.ellipticCurveId
+          // Use `GEOMETRIC` for unspecified InternalNoiseMechanism for old Measurements.
+          noiseMechanism =
+            if (
+              protocolConfig.liquidLegionsV2.noiseMechanism ==
+                InternalProtocolConfig.NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED
+            ) {
+              NoiseMechanism.GEOMETRIC
+            } else {
+              protocolConfig.liquidLegionsV2.noiseMechanism.toSystemNoiseMechanism()
+            }
+        }
+      }
+    }
     InternalDuchyProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Protocol not set")
   }
 }

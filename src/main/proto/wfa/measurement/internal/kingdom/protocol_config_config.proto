@@ -23,7 +23,7 @@ option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
 // The kingdom local config proto used to initialize the `ProtocolConfig` and
-// `DuchyProtocolConfig` for the LLV2 protocol.
+// `DuchyProtocolConfig` for the Liquid Legions v2 protocols.
 message Llv2ProtocolConfigConfig {
   ProtocolConfig.LiquidLegionsV2 protocol_config = 1;
   DuchyProtocolConfig.LiquidLegionsV2 duchy_protocol_config = 2;

@@ -152,7 +152,8 @@ message Computation {
       // prime256v1 curve.
       int32 elliptic_curve_id = 3 [(google.api.field_behavior) = REQUIRED];
 
-      // The maximum frequency to reveal in the histogram.
+      // The maximum frequency to reveal in the histogram. For reach-only liquid
+      // legions protocol, this field should be ignored.
       int32 maximum_frequency = 4 [(google.api.field_behavior) = REQUIRED];
 
       // The mechanism to generate noise during computation.
@@ -166,6 +167,10 @@ message Computation {
       //
       // May only be set when the measurement type is REACH_AND_FREQUENCY.
       LiquidLegionsV2 liquid_legions_v2 = 1;
+      // Reach-only Liquid Legions v2 config.
+      //
+      // Must only be set when the measurement type is REACH.
+      LiquidLegionsV2 reach_only_liquid_legions_v2 = 2;
     }
   }
   // MPC protocol configuration that need to be known by Duchies.
