@@ -40,19 +40,18 @@ class SpannerDuchyDependencyProviderRule(duchies: Iterable<String>) :
         ?: error("Missing Computations Spanner database for duchy $duchyId")
     val storageClient = GcsStorageClient(LocalStorageHelper.getOptions().service, "bucket-$duchyId")
 
-    val duchyDataServices = SpannerDuchyDataServices.create(
-      storageClient,
-      logEntryClient,
-      duchyId,
-      computationsDatabase.databaseClient
-    )
-    return InProcessDuchy.DuchyDependencies(
-      duchyDataServices,
-      storageClient
-    )
+    val duchyDataServices =
+      SpannerDuchyDataServices.create(
+        storageClient,
+        logEntryClient,
+        duchyId,
+        computationsDatabase.databaseClient
+      )
+    return InProcessDuchy.DuchyDependencies(duchyDataServices, storageClient)
   }
 
-  override val value: (String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies
+  override val value:
+    (String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies
     get() = ::buildDuchyDependencies
 
   override fun apply(base: Statement, description: Description): Statement {

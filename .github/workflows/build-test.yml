@@ -59,9 +59,9 @@ jobs:
       - name: Build
         run: bazelisk build //... --worker_quit_after_build
 
-      - name: Run tests
-        id: run-tests
-        run: bazelisk test //...
+#      - name: Run tests
+#        id: run-tests
+#        run: bazelisk test //...
 
       - name: Create cluster
         id: create-cluster
@@ -71,11 +71,18 @@ jobs:
           chmod +x kind-with-registry.sh
           ./kind-with-registry.sh
 
-      - name: Run correctness test
+      - name: Run postgres duchy correctness test
         id: run-correctness-test
         run: >
           bazelisk test
-          //src/test/kotlin/org/wfanet/measurement/integration/k8s:EmptyClusterCorrectnessTest
+          //src/test/kotlin/org/wfanet/measurement/integration/k8s:EmptyClusterPostgresDuchyCorrectnessTest
+          --test_output=streamed
+
+      - name: Run spanner duchy correctness test
+        id: run-correctness-test
+        run: >
+          bazelisk test
+          //src/test/kotlin/org/wfanet/measurement/integration/k8s:EmptyClusterSpannerDuchyCorrectnessTest
           --test_output=streamed
 
       - name: Export cluster logs

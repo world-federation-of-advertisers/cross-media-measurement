@@ -21,6 +21,7 @@ cue_dump(
         "aggregator_cert_name": "{aggregator_cert_name}",
         "worker1_cert_name": "{worker1_cert_name}",
         "worker2_cert_name": "{worker2_cert_name}",
+        "use_postgres_duchy": "{use_postgres_duchy}",
     },
     tags = ["manual"],
     deps = ["//src/main/k8s/local:duchies_cue"],

@@ -94,7 +94,12 @@ abstract class InProcessLifeOfAReportIntegrationTest {
   abstract val kingdomDataServicesRule: ProviderRule<DataServices>
 
   /** Provides a function from Duchy to the dependencies needed to start the Duchy to the test. */
-  abstract val duchyDependenciesRule: ProviderRule<(String, ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>
+  abstract val duchyDependenciesRule:
+    ProviderRule<
+      (
+        String, ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
+      ) -> InProcessDuchy.DuchyDependencies
+    >
 
   abstract val storageClient: StorageClient
 

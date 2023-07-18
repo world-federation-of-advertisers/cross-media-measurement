@@ -71,6 +71,7 @@ DUCHY_K8S_SETTINGS = struct(
     certificate_id = "$(duchy_cert_id)",
     storage_bucket = "$(duchy_storage_bucket)",
     public_api_target = "$(duchy_public_api_target)",
+    use_postgres_duchy = "$(use_postgres_duchy)",
 )
 
 # Settings for simulator Kubernetes deployments.

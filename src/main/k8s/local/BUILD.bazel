@@ -1,4 +1,4 @@
-load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS", "TEST_K8S_SETTINGS")
+load("//build:variables.bzl", "DUCHY_K8S_SETTINGS", "IMAGE_REPOSITORY_SETTINGS", "TEST_K8S_SETTINGS")
 load("//build/k8s:defs.bzl", "kustomization_dir")
 load("@wfa_rules_cue//cue:defs.bzl", "cue_library")
 load("//src/main/k8s:macros.bzl", "cue_dump")
@@ -76,7 +76,9 @@ cue_library(
     srcs = ["duchies.cue"],
     deps = [
         ":config_cue",
-        "//src/main/k8s:duchy",
+        "//src/main/k8s:postgres",
+        "//src/main/k8s:postgres_duchy",
+        "//src/main/k8s:spanner_duchy",
     ],
 )
 
@@ -90,6 +92,7 @@ cue_dump(
         "aggregator_cert_name": TEST_K8S_SETTINGS.aggregator_cert_name,
         "worker1_cert_name": TEST_K8S_SETTINGS.worker1_cert_name,
         "worker2_cert_name": TEST_K8S_SETTINGS.worker2_cert_name,
+        "use_postgres_duchy": DUCHY_K8S_SETTINGS.use_postgres_duchy,
     },
     tags = ["manual"],
     deps = [":duchies_cue"],

@@ -27,6 +27,8 @@ import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.Computatio
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseReader
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseTransactor
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.continuationtoken.SpannerContinuationTokensService
+import org.wfanet.measurement.duchy.service.internal.computations.ComputationsService
+import org.wfanet.measurement.duchy.service.internal.computationstats.ComputationStatsService
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -34,15 +36,13 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
-import org.wfanet.measurement.duchy.service.internal.computations.ComputationsService
-import org.wfanet.measurement.duchy.service.internal.computationstats.ComputationStatsService
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
 private typealias ComputationsDb =
   ComputationsDatabaseTransactor<
     ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
-    >
+  >
 
 object SpannerDuchyDataServices {
   @JvmStatic
@@ -54,28 +54,29 @@ object SpannerDuchyDataServices {
   ): DuchyDataServices {
 
     val computationTypeEnumHelper: ComputationTypeEnumHelper<ComputationType> = ComputationTypes
-    val protocolStagesEnumHelper: ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage> =
+    val protocolStagesEnumHelper:
+      ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage> =
       ComputationProtocolStages
-    val computationProtocolStageDetailsHelper: ComputationProtocolStageDetailsHelper<
-      ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
-      > = ComputationProtocolStageDetails
+    val computationProtocolStageDetailsHelper:
+      ComputationProtocolStageDetailsHelper<
+        ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
+      > =
+      ComputationProtocolStageDetails
 
     val computationReader =
       GcpSpannerComputationsDatabaseReader(databaseClient, protocolStagesEnumHelper)
-    val computationDb = GcpSpannerComputationsDatabaseTransactor(
-      databaseClient = databaseClient,
-      computationMutations =
-      ComputationMutations(
-        computationTypeEnumHelper,
-        protocolStagesEnumHelper,
-        computationProtocolStageDetailsHelper
+    val computationDb =
+      GcpSpannerComputationsDatabaseTransactor(
+        databaseClient = databaseClient,
+        computationMutations =
+          ComputationMutations(
+            computationTypeEnumHelper,
+            protocolStagesEnumHelper,
+            computationProtocolStageDetailsHelper
+          )
       )
-    )
-    val computationsDatabase = newComputationsDatabase(
-      computationReader,
-      computationDb,
-      protocolStagesEnumHelper
-    )
+    val computationsDatabase =
+      newComputationsDatabase(computationReader, computationDb, protocolStagesEnumHelper)
     return DuchyDataServices(
       ComputationsService(
         computationsDatabase = computationsDatabase,
@@ -92,7 +93,8 @@ object SpannerDuchyDataServices {
   private fun newComputationsDatabase(
     computationsDatabaseReader: ComputationsDatabaseReader,
     computationDb: ComputationsDb,
-    protocolStagesEnumHelper: ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>,
+    protocolStagesEnumHelper:
+      ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>,
   ): ComputationsDatabase {
     return object :
       ComputationsDatabase,
@@ -100,6 +102,6 @@ object SpannerDuchyDataServices {
       ComputationsDb by computationDb,
       ComputationProtocolStagesEnumHelper<
         ComputationType, ComputationStage
-        > by protocolStagesEnumHelper {}
+      > by protocolStagesEnumHelper {}
   }
 }
