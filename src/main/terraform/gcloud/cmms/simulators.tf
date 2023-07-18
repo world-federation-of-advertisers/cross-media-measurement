@@ -69,8 +69,6 @@ module "simulators" {
     kubernetes = kubernetes.simulators
   }
 
-  storage_bucket = module.storage.storage_bucket
-
   # TODO(hashicorp/terraform-provider-google#5693): Use data source once available.
   bigquery_table = {
     dataset_id = var.bigquery_dataset_id

@@ -48,7 +48,6 @@ jobs:
 
     - name: Write ~/.bazelrc
       env:
-        STORAGE_BUCKET: ${{ vars.STORAGE_BUCKET }}
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
         MC_NAME: ${{ vars.MC_NAME }}
         MC_API_KEY: ${{ secrets.MC_API_KEY }}
@@ -58,7 +57,8 @@ jobs:
         build --host_platform //build/platforms:ubuntu_20_04
         build --define google_cloud_project=$GCLOUD_PROJECT
         build --define kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET
-        build --define simulator_storage_bucket=$STORAGE_BUCKET
+        build --define bigquery_dataset=demo
+        build --define bigquery_table=labelled_events
         build --define mc_name=$MC_NAME
         build --define mc_api_key=$MC_API_KEY
         build --test_env=GOOGLE_APPLICATION_CREDENTIALS

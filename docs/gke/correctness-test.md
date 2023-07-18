@@ -173,7 +173,8 @@ Run the following, substituting your own values:
 ```shell
 bazel build //src/main/k8s/dev:edp_simulators.tar \
   --define=google_cloud_project=halo-cmm-demo \
-  --define=simulator_storage_bucket=halo-cmm-demo-bucket \
+  --define=bigquery_dataset=demo \
+  --define=bigquery_table=labelled_events \
   --define=kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
   --define=duchy_public_api_target=public.worker1.dev.halo-cmm.org:8443 \
   --define=mc_name=measurementConsumers/TGWOaWehLQ8 \
@@ -202,11 +203,12 @@ kubectl apply -k src/main/k8s/dev/edp_simulators
 Run the following, substituting your own values:
 
 ```shell
-bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:GcsCorrectnessTest
+bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:BigQueryCorrectnessTest
   --test_output=streamed \
   --define=kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
   --define=google_cloud_project=halo-cmm-demo \
-  --define=simulator_storage_bucket=cmm-demo-simulators \
+  --define=bigquery_dataset=demo \
+  --define=bigquery_table=labelled_events \
   --define=mc_name=measurementConsumers/Rcn7fKd25C8 \
   --define=mc_api_key=W9q4zad246g
 ```
