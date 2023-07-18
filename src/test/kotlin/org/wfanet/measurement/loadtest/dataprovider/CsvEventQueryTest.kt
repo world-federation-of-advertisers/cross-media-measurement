@@ -25,7 +25,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
+import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.toProtoTime
@@ -69,11 +71,18 @@ class CsvEventQueryTest {
   fun `getUserVirtualIds excludes events outside of time interval`() {
     val userVids: Sequence<Long> =
       eventQuery.getUserVirtualIds(
-        FULL_TIME_INTERVAL.copy {
-          // end_time is exclusive, so this should exclude all events on or after LAST_EVENT_DATE.
-          endTime = LAST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
-        },
-        EMPTY_EVENT_FILTER
+        EventQuery.EventGroupSpec(
+          EVENT_GROUP,
+          RequisitionSpecKt.EventGroupEntryKt.value {
+            collectionInterval =
+              FULL_TIME_INTERVAL.copy {
+                // end_time is exclusive, so this should exclude all events on or after
+                // LAST_EVENT_DATE.
+                endTime = LAST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+              }
+            filter = EMPTY_EVENT_FILTER
+          }
+        )
       )
 
     assertThat(userVids.toList())
@@ -84,10 +93,15 @@ class CsvEventQueryTest {
   fun `getUserVirtualIds return empty when no events match filter expression`() {
     val userVids: Sequence<Long> =
       eventQuery.getUserVirtualIds(
-        FULL_TIME_INTERVAL,
-        eventFilter {
-          expression = "person.gender == $PERSON_MALE && person.gender == $PERSON_FEMALE"
-        }
+        EventQuery.EventGroupSpec(
+          EVENT_GROUP,
+          RequisitionSpecKt.EventGroupEntryKt.value {
+            collectionInterval = FULL_TIME_INTERVAL
+            filter = eventFilter {
+              expression = "person.gender == $PERSON_MALE && person.gender == $PERSON_FEMALE"
+            }
+          }
+        )
       )
 
     assertThat(userVids.toList()).isEmpty()
@@ -97,10 +111,15 @@ class CsvEventQueryTest {
   fun `getUserVirtualIds returns VIDs for matching events`() {
     val userVids: Sequence<Long> =
       eventQuery.getUserVirtualIds(
-        FULL_TIME_INTERVAL,
-        eventFilter {
-          expression = "person.age_group == $PERSON_35_to_54 && person.gender == $PERSON_FEMALE"
-        }
+        EventQuery.EventGroupSpec(
+          EVENT_GROUP,
+          RequisitionSpecKt.EventGroupEntryKt.value {
+            collectionInterval = FULL_TIME_INTERVAL
+            filter = eventFilter {
+              expression = "person.age_group == $PERSON_35_to_54 && person.gender == $PERSON_FEMALE"
+            }
+          }
+        )
       )
 
     assertThat(userVids.toList()).containsExactly(1001096L, 1001096L)
@@ -108,12 +127,25 @@ class CsvEventQueryTest {
 
   @Test
   fun `getUserVirtualIds returns VIDs for all events when filter is empty`() {
-    val vids = eventQuery.getUserVirtualIds(FULL_TIME_INTERVAL, EMPTY_EVENT_FILTER)
+    val vids =
+      eventQuery.getUserVirtualIds(
+        EventQuery.EventGroupSpec(
+          EVENT_GROUP,
+          RequisitionSpecKt.EventGroupEntryKt.value {
+            collectionInterval = FULL_TIME_INTERVAL
+            filter = EMPTY_EVENT_FILTER
+          }
+        )
+      )
 
     assertThat(vids.toList()).containsExactlyElementsIn(ALL_VIDS)
   }
 
   companion object {
+    private val EVENT_GROUP = eventGroup {
+      name = "dataProviders/foo123/eventGroups/bar456"
+      eventGroupReferenceId = "001-csv-event-group"
+    }
     private val eventQuery = CsvEventQuery(PUBLISHER_ID_1, FILE)
   }
 }
