@@ -26,13 +26,13 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadSigningKey
-import org.wfanet.measurement.loadtest.frontend.FrontendSimulator
+import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 
 /** Test for correctness of the CMMS on Kubernetes. */
 abstract class AbstractCorrectnessTest(private val measurementSystem: MeasurementSystem) {
   private val runId: String
     get() = measurementSystem.runId
-  private val testHarness: FrontendSimulator
+  private val testHarness: MeasurementConsumerSimulator
     get() = measurementSystem.testHarness
 
   @Test(timeout = 1 * 60 * 1000)
@@ -52,7 +52,7 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
 
   interface MeasurementSystem {
     val runId: String
-    val testHarness: FrontendSimulator
+    val testHarness: MeasurementConsumerSimulator
   }
 
   companion object {

@@ -41,6 +41,9 @@ message DuchyProtocolConfig {
   }
 
   oneof protocol {
+    // Used for REACH or REACH_AND_FREQUENCY Measurements.
     LiquidLegionsV2 liquid_legions_v2 = 1;
+    // Only used for REACH Measurements.
+    LiquidLegionsV2 reach_only_liquid_legions_v2 = 2;
   }
 }

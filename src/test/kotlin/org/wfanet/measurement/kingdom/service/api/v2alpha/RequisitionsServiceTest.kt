@@ -814,7 +814,6 @@ class RequisitionsServiceTest {
         signature = INTERNAL_REQUISITION.parentMeasurement.measurementSpecSignature
       }
       protocolConfig = protocolConfig {
-        name = "protocolConfigs/llv2"
         measurementType = ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
         protocols += ProtocolConfigKt.protocol { direct = ProtocolConfigKt.direct {} }
       }

@@ -76,6 +76,7 @@ import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
 
@@ -97,6 +98,22 @@ private val MEASUREMENT = measurement {
       }
       protocolConfig = protocolConfig {
         liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+      }
+    }
+}
+
+private val REACH_ONLY_MEASUREMENT = measurement {
+  providedMeasurementId = PROVIDED_MEASUREMENT_ID
+  details =
+    MeasurementKt.details {
+      apiVersion = API_VERSION
+      measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
+      measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
+      duchyProtocolConfig = duchyProtocolConfig {
+        reachOnlyLiquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+      }
+      protocolConfig = protocolConfig {
+        reachOnlyLiquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
       }
     }
 }
@@ -411,6 +428,39 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
     val measurement =
       MEASUREMENT.copy {
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+        externalMeasurementConsumerCertificateId =
+          measurementConsumer.certificate.externalCertificateId
+        dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
+      }
+
+    val createdMeasurement =
+      measurementsService.createMeasurement(
+        createMeasurementRequest { this.measurement = measurement }
+      )
+    assertThat(createdMeasurement.externalMeasurementId).isNotEqualTo(0L)
+    assertThat(createdMeasurement.externalComputationId).isNotEqualTo(0L)
+    assertThat(createdMeasurement.createTime.seconds).isGreaterThan(0L)
+    assertThat(createdMeasurement.updateTime).isEqualTo(createdMeasurement.createTime)
+    assertThat(createdMeasurement)
+      .ignoringFields(
+        Measurement.EXTERNAL_MEASUREMENT_ID_FIELD_NUMBER,
+        Measurement.EXTERNAL_COMPUTATION_ID_FIELD_NUMBER,
+        Measurement.CREATE_TIME_FIELD_NUMBER,
+        Measurement.UPDATE_TIME_FIELD_NUMBER,
+        Measurement.ETAG_FIELD_NUMBER,
+      )
+      .isEqualTo(measurement.copy { state = Measurement.State.PENDING_REQUISITION_PARAMS })
+  }
+
+  @Test
+  fun `createMeasurement for duchy REACH measurement succeeds`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+
+    val measurement =
+      REACH_ONLY_MEASUREMENT.copy {
         externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
         externalMeasurementConsumerCertificateId =
           measurementConsumer.certificate.externalCertificateId
@@ -2165,6 +2215,16 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           Population.WORKER1_DUCHY.externalDuchyId
         ),
         2
+      )
+      RoLlv2ProtocolConfig.setForTest(
+        ProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
+        DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
+        setOf(
+          Population.AGGREGATOR_DUCHY.externalDuchyId,
+          Population.WORKER1_DUCHY.externalDuchyId
+        ),
+        2,
+        true
       )
     }
   }

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.loadtest.frontend
+package org.wfanet.measurement.loadtest.measurementconsumer
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
@@ -112,8 +112,8 @@ data class MeasurementConsumerData(
   val apiAuthenticationKey: String
 )
 
-/** A simulator performing frontend operations. */
-class FrontendSimulator(
+/** Simulator for MeasurementConsumer operations on the CMMS public API. */
+class MeasurementConsumerSimulator(
   private val measurementConsumerData: MeasurementConsumerData,
   private val outputDpParams: DifferentialPrivacyParams,
   private val dataProvidersClient: DataProvidersCoroutineStub,
@@ -151,11 +151,7 @@ class FrontendSimulator(
     val expectedResult = getExpectedResult(measurement.name, liquidLegionV2Protocol)
     logger.info("Expected result: $expectedResult")
 
-    assertDpResultsEqual(
-      expectedResult,
-      reachAndFrequencyResult,
-      liquidLegionV2Protocol.maximumFrequency.toLong()
-    )
+    assertDpResultsEqual(expectedResult, reachAndFrequencyResult)
     logger.info("Reach and frequency result is equal to the expected result")
   }
 
@@ -256,7 +252,7 @@ class FrontendSimulator(
 
     logger.info("Expected result: $expectedResult")
 
-    assertDpResultsEqual(expectedResult, reachOnlyResult, 0L)
+    assertDpResultsEqual(expectedResult, reachOnlyResult)
     logger.info("Reach-only result is equal to the expected result. Correctness Test passes.")
   }
 
@@ -307,17 +303,13 @@ class FrontendSimulator(
   }
 
   /** Compare two [Result]s within the differential privacy error range. */
-  private fun assertDpResultsEqual(
-    expectedResult: Result,
-    actualResult: Result,
-    maximumFrequency: Long
-  ) {
+  private fun assertDpResultsEqual(expectedResult: Result, actualResult: Result) {
     // TODO(@riemanli): Use margin of error rather than fixed tolerance values.
     assertThat(actualResult).reachValue().isWithinPercent(10.0).of(expectedResult.reach.value)
     assertThat(actualResult)
       .frequencyDistribution()
       .isWithin(0.05)
-      .of(expectedResult.frequency.relativeFrequencyDistributionMap, maximumFrequency)
+      .of(expectedResult.frequency.relativeFrequencyDistributionMap)
   }
 
   /** Creates a Measurement on behalf of the [MeasurementConsumer]. */
