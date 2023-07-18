@@ -73,8 +73,8 @@ import org.wfanet.measurement.integration.common.loadTestCertDerFile
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.testing.ForwardedStorageGrpcKt
 import org.wfanet.measurement.loadtest.config.EventFilters
-import org.wfanet.measurement.loadtest.frontend.FrontendSimulator
-import org.wfanet.measurement.loadtest.frontend.MeasurementConsumerData
+import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
+import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.loadtest.resourcesetup.ResourceSetup
@@ -178,8 +178,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private val tempDir: TemporaryFolder by tempDir
     override val runId: String by runId
 
-    private lateinit var _testHarness: FrontendSimulator
-    override val testHarness: FrontendSimulator
+    private lateinit var _testHarness: MeasurementConsumerSimulator
+    override val testHarness: MeasurementConsumerSimulator
       get() = _testHarness
 
     override fun apply(base: Statement, description: Description): Statement {
@@ -236,7 +236,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
     private suspend fun createTestHarness(
       measurementConsumerData: MeasurementConsumerData
-    ): FrontendSimulator {
+    ): MeasurementConsumerSimulator {
       val kingdomPublicPod: V1Pod =
         k8sClient
           .listPodsByMatchLabels(k8sClient.waitUntilDeploymentReady(KINGDOM_PUBLIC_DEPLOYMENT_NAME))
@@ -272,7 +272,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         ForwardedStorageClient(ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(storageChannel))
       val eventGroupsClient = EventGroupsGrpcKt.EventGroupsCoroutineStub(publicApiChannel)
 
-      return FrontendSimulator(
+      return MeasurementConsumerSimulator(
           measurementConsumerData,
           OUTPUT_DP_PARAMS,
           DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),

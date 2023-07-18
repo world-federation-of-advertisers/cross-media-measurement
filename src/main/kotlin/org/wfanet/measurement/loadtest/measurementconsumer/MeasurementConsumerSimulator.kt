@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.loadtest.frontend
+package org.wfanet.measurement.loadtest.measurementconsumer
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
@@ -112,8 +112,8 @@ data class MeasurementConsumerData(
   val apiAuthenticationKey: String
 )
 
-/** A simulator performing frontend operations. */
-class FrontendSimulator(
+/** Simulator for MeasurementConsumer operations on the CMMS public API. */
+class MeasurementConsumerSimulator(
   private val measurementConsumerData: MeasurementConsumerData,
   private val outputDpParams: DifferentialPrivacyParams,
   private val dataProvidersClient: DataProvidersCoroutineStub,
