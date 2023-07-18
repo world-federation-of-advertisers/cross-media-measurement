@@ -34,6 +34,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.EventGro
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.LandscapeMask
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Query
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getPrivacyQuery
 
 private const val MEASUREMENT_CONSUMER_ID = "ACME"
 
@@ -112,10 +113,10 @@ class PrivacyQueryMapperTest {
     val referenceId = "RequisitioId1"
 
     assertThat(
-        PrivacyQueryMapper.getPrivacyQuery(
+        getPrivacyQuery(
           Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
-          REQUISITION_SPEC,
-          REACH_AND_FREQ_MEASUREMENT_SPEC
+          REACH_AND_FREQ_MEASUREMENT_SPEC,
+          REQUISITION_SPEC.eventGroupsList.map { it.value }
         )
       )
       .isEqualTo(
@@ -132,10 +133,10 @@ class PrivacyQueryMapperTest {
     val referenceId = "RequisitioId1"
 
     assertThat(
-        PrivacyQueryMapper.getPrivacyQuery(
+        getPrivacyQuery(
           Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
-          REQUISITION_SPEC,
-          DURATION_MEASUREMENT_SPEC
+          DURATION_MEASUREMENT_SPEC,
+          REQUISITION_SPEC.eventGroupsList.map { it.value }
         )
       )
       .isEqualTo(
@@ -152,10 +153,10 @@ class PrivacyQueryMapperTest {
     val referenceId = "RequisitioId1"
 
     assertThat(
-        PrivacyQueryMapper.getPrivacyQuery(
+        getPrivacyQuery(
           Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
-          REQUISITION_SPEC,
-          IMPRESSION_MEASUREMENT_SPEC
+          IMPRESSION_MEASUREMENT_SPEC,
+          REQUISITION_SPEC.eventGroupsList.map { it.value }
         )
       )
       .isEqualTo(
@@ -172,10 +173,10 @@ class PrivacyQueryMapperTest {
     val referenceId = "RequisitioId1"
 
     assertThat(
-        PrivacyQueryMapper.getPrivacyQuery(
+        getPrivacyQuery(
           Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
-          REQUISITION_SPEC,
-          REACH_MEASUREMENT_SPEC
+          REACH_MEASUREMENT_SPEC,
+          REQUISITION_SPEC.eventGroupsList.map { it.value }
         )
       )
       .isEqualTo(

@@ -18,6 +18,7 @@ import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
 import com.google.protobuf.duration
+import io.grpc.Status
 import io.grpc.StatusException
 import java.nio.file.Paths
 import java.security.GeneralSecurityException
@@ -97,6 +98,7 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetad
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
+import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
@@ -130,7 +132,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getPrivacyQuery
 import org.wfanet.measurement.loadtest.config.EventFilters.VID_SAMPLER_HASH_FUNCTION
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
 import org.wfanet.measurement.loadtest.storage.SketchStore
@@ -242,8 +244,11 @@ class EdpSimulator(
     val requisitionSpec: RequisitionSpec
   )
 
-  private class VerificationException(message: String? = null, cause: Throwable? = null) :
+  private class InvalidConsentSignalException(message: String? = null, cause: Throwable? = null) :
     GeneralSecurityException(message, cause)
+
+  private class InvalidSpecException(message: String, cause: Throwable? = null) :
+    Exception(message, cause)
 
   private fun verifySpecifications(
     requisition: Requisition,
@@ -255,19 +260,19 @@ class EdpSimulator(
     // consider having a mapping of MC to root/CA cert.
     val trustedIssuer =
       trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]
-        ?: throw VerificationException(
+        ?: throw InvalidConsentSignalException(
           "Issuer of ${measurementConsumerCertificate.name} is not trusted"
         )
 
     try {
       verifyMeasurementSpec(requisition.measurementSpec, x509Certificate, trustedIssuer)
     } catch (e: CertPathValidatorException) {
-      throw VerificationException(
+      throw InvalidConsentSignalException(
         "Certificate path for ${measurementConsumerCertificate.name} is invalid",
         e
       )
     } catch (e: SignatureException) {
-      throw VerificationException("MeasurementSpec signature is invalid", e)
+      throw InvalidConsentSignalException("MeasurementSpec signature is invalid", e)
     }
 
     val measurementSpec = MeasurementSpec.parseFrom(requisition.measurementSpec.data)
@@ -276,7 +281,7 @@ class EdpSimulator(
       try {
         decryptRequisitionSpec(requisition.encryptedRequisitionSpec, edpData.encryptionKey)
       } catch (e: GeneralSecurityException) {
-        throw VerificationException("RequisitionSpec decryption failed", e)
+        throw InvalidConsentSignalException("RequisitionSpec decryption failed", e)
       }
     val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
     try {
@@ -288,16 +293,16 @@ class EdpSimulator(
         trustedIssuer
       )
     } catch (e: CertPathValidatorException) {
-      throw VerificationException(
+      throw InvalidConsentSignalException(
         "Certificate path for ${measurementConsumerCertificate.name} is invalid",
         e
       )
     } catch (e: SignatureException) {
-      throw VerificationException("RequisitionSpec signature is invalid", e)
+      throw InvalidConsentSignalException("RequisitionSpec signature is invalid", e)
     } catch (e: NonceMismatchException) {
-      throw VerificationException(e.message, e)
+      throw InvalidConsentSignalException(e.message, e)
     } catch (e: PublicKeyMismatchException) {
-      throw VerificationException(e.message, e)
+      throw InvalidConsentSignalException(e.message, e)
     }
 
     // TODO(@uakyol): Validate that collection interval is not outside of privacy landscape.
@@ -320,7 +325,7 @@ class EdpSimulator(
     // consider having a mapping of Duchy to issuer certificate.
     val trustedIssuer =
       trustedCertificates[checkNotNull(duchyX509Certificate.authorityKeyIdentifier)]
-        ?: throw VerificationException("Issuer of ${duchyCertificate.name} is not trusted")
+        ?: throw InvalidConsentSignalException("Issuer of ${duchyCertificate.name} is not trusted")
 
     try {
       verifyElGamalPublicKey(
@@ -329,9 +334,12 @@ class EdpSimulator(
         trustedIssuer
       )
     } catch (e: CertPathValidatorException) {
-      throw VerificationException("Certificate path for ${duchyCertificate.name} is invalid", e)
+      throw InvalidConsentSignalException(
+        "Certificate path for ${duchyCertificate.name} is invalid",
+        e
+      )
     } catch (e: SignatureException) {
-      throw VerificationException(
+      throw InvalidConsentSignalException(
         "ElGamal public key signature is invalid for Duchy ${duchyEntry.key}",
         e
       )
@@ -348,7 +356,7 @@ class EdpSimulator(
     // consider having a mapping of MC to root/CA cert.
     val trustedIssuer =
       trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]
-        ?: throw VerificationException(
+        ?: throw InvalidConsentSignalException(
           "Issuer of ${measurementConsumerCertificate.name} is not trusted"
         )
     // TODO(world-federation-of-advertisers/consent-signaling-client#41): Use method from
@@ -356,12 +364,12 @@ class EdpSimulator(
     try {
       verifyEncryptionPublicKey(signedEncryptionPublicKey, x509Certificate, trustedIssuer)
     } catch (e: CertPathValidatorException) {
-      throw VerificationException(
+      throw InvalidConsentSignalException(
         "Certificate path for ${measurementConsumerCertificate.name} is invalid",
         e
       )
     } catch (e: SignatureException) {
-      throw VerificationException("EncryptionPublicKey signature is invalid", e)
+      throw InvalidConsentSignalException("EncryptionPublicKey signature is invalid", e)
     }
   }
 
@@ -396,13 +404,25 @@ class EdpSimulator(
       val (measurementSpec, requisitionSpec) =
         try {
           verifySpecifications(requisition, measurementConsumerCertificate)
-        } catch (e: VerificationException) {
+        } catch (e: InvalidConsentSignalException) {
           logger.log(Level.WARNING, e) {
             "Consent signaling verification failed for ${requisition.name}"
           }
           refuseRequisition(
             requisition.name,
             Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID,
+            e.message.orEmpty()
+          )
+          continue
+        }
+
+      val eventGroupSpecs: List<EventQuery.EventGroupSpec> =
+        try {
+          buildEventGroupSpecs(requisitionSpec)
+        } catch (e: InvalidSpecException) {
+          refuseRequisition(
+            requisition.name,
+            Requisition.Refusal.Justification.SPEC_INVALID,
             e.message.orEmpty()
           )
           continue
@@ -416,7 +436,12 @@ class EdpSimulator(
         MeasurementSpec.MeasurementTypeCase.REACH,
         MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
           if (protocols.any { it.hasDirect() }) {
-            fulfillDirectReachAndFrequencyMeasurement(requisition, requisitionSpec, measurementSpec)
+            fulfillDirectReachAndFrequencyMeasurement(
+              requisition,
+              measurementSpec,
+              requisitionSpec.nonce,
+              eventGroupSpecs
+            )
             continue
           }
           if (protocols.any { it.hasLiquidLegionsV2() }) {
@@ -430,7 +455,7 @@ class EdpSimulator(
                   ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2
                 )
               }
-            } catch (e: VerificationException) {
+            } catch (e: InvalidConsentSignalException) {
               logger.log(Level.WARNING, e) {
                 "Consent signaling verification failed for ${requisition.name}"
               }
@@ -446,7 +471,8 @@ class EdpSimulator(
               requisition,
               measurementSpec,
               requisitionFingerprint,
-              requisitionSpec
+              requisitionSpec.nonce,
+              eventGroupSpecs
             )
             continue
           }
@@ -472,6 +498,30 @@ class EdpSimulator(
     }
   }
 
+  /**
+   * Builds [EventQuery.EventGroupSpec]s from a [requisitionSpec] by fetching [EventGroup]s.
+   *
+   * @throws InvalidSpecException if [requisitionSpec] is found to be invalid
+   */
+  private suspend fun buildEventGroupSpecs(
+    requisitionSpec: RequisitionSpec
+  ): List<EventQuery.EventGroupSpec> {
+    // TODO(@SanjayVas): Cache EventGroups.
+    return requisitionSpec.eventGroupsList.map {
+      val eventGroup =
+        try {
+          eventGroupsStub.getEventGroup(getEventGroupRequest { name = it.key })
+        } catch (e: StatusException) {
+          throw when (e.status.code) {
+            Status.Code.NOT_FOUND -> InvalidSpecException("EventGroup $it not found", e)
+            else -> Exception("Error retrieving EventGroup $it", e)
+          }
+        }
+
+      EventQuery.EventGroupSpec(eventGroup, it.value)
+    }
+  }
+
   private suspend fun refuseRequisition(
     requisitionName: String,
     justification: Requisition.Refusal.Justification,
@@ -493,14 +543,14 @@ class EdpSimulator(
   }
 
   private fun populateAnySketch(
-    eventSpec: RequisitionSpec.EventGroupEntry.Value,
+    eventGroupSpec: EventQuery.EventGroupSpec,
     vidSampler: VidSampler,
     vidSamplingIntervalStart: Float,
     vidSamplingIntervalWidth: Float,
     anySketch: AnySketch
   ) {
     eventQuery
-      .getUserVirtualIds(eventSpec.collectionInterval, eventSpec.filter)
+      .getUserVirtualIds(eventGroupSpec)
       .filter {
         vidSampler.vidIsInSamplingBucket(it, vidSamplingIntervalStart, vidSamplingIntervalWidth)
       }
@@ -510,14 +560,14 @@ class EdpSimulator(
   private suspend fun chargePrivacyBudget(
     requisitionName: String,
     measurementSpec: MeasurementSpec,
-    requisitionSpec: RequisitionSpec
-  ) =
+    eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>
+  ) {
     try {
       privacyBudgetManager.chargePrivacyBudget(
-        PrivacyQueryMapper.getPrivacyQuery(
+        getPrivacyQuery(
           Reference(measurementConsumerName, requisitionName, false),
-          requisitionSpec,
-          measurementSpec
+          measurementSpec,
+          eventSpecs
         )
       )
     } catch (e: PrivacyBudgetManagerException) {
@@ -545,29 +595,31 @@ class EdpSimulator(
       }
       logger.log(Level.WARNING, "RequisitionFulfillmentWorkflow failed due to ${e.errorType}", e)
     }
+  }
 
   private suspend fun generateSketch(
     requisitionName: String,
     sketchConfig: SketchConfig,
     measurementSpec: MeasurementSpec,
-    requisitionSpec: RequisitionSpec
+    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
   ): Sketch {
-    chargePrivacyBudget(requisitionName, measurementSpec, requisitionSpec)
+    chargePrivacyBudget(requisitionName, measurementSpec, eventGroupSpecs.map { it.spec })
     val vidSamplingIntervalStart = measurementSpec.vidSamplingInterval.start
     val vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width
 
     val anySketch: AnySketch = SketchProtos.toAnySketch(sketchConfig)
     logger.info("Generating Sketch...")
 
-    requisitionSpec.eventGroupsList.forEach {
+    for (eventGroupSpec in eventGroupSpecs) {
       populateAnySketch(
-        it.value,
+        eventGroupSpec,
         VidSampler(VID_SAMPLER_HASH_FUNCTION),
         vidSamplingIntervalStart,
         vidSamplingIntervalWidth,
         anySketch
       )
     }
+
     return SketchProtos.fromAnySketch(anySketch, sketchConfig)
   }
 
@@ -603,7 +655,8 @@ class EdpSimulator(
     requisition: Requisition,
     measurementSpec: MeasurementSpec,
     requisitionFingerprint: ByteString,
-    requisitionSpec: RequisitionSpec
+    nonce: Long,
+    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>
   ) {
     val llv2Protocol: ProtocolConfig.Protocol =
       requireNotNull(
@@ -617,7 +670,7 @@ class EdpSimulator(
 
     val sketch =
       try {
-        generateSketch(requisition.name, sketchConfig, measurementSpec, requisitionSpec)
+        generateSketch(requisition.name, sketchConfig, measurementSpec, eventGroupSpecs)
       } catch (e: EventFilterValidationException) {
         refuseRequisition(
           requisition.name,
@@ -636,12 +689,7 @@ class EdpSimulator(
     sketchStore.write(requisition, sketch.toByteString())
 
     val encryptedSketch = encryptSketch(sketch, combinedPublicKey, liquidLegionsV2)
-    fulfillRequisition(
-      requisition.name,
-      requisitionFingerprint,
-      requisitionSpec.nonce,
-      encryptedSketch
-    )
+    fulfillRequisition(requisition.name, requisitionFingerprint, nonce, encryptedSketch)
   }
 
   private suspend fun fulfillRequisition(
@@ -715,8 +763,9 @@ class EdpSimulator(
    */
   private suspend fun fulfillDirectReachAndFrequencyMeasurement(
     requisition: Requisition,
-    requisitionSpec: RequisitionSpec,
-    measurementSpec: MeasurementSpec
+    measurementSpec: MeasurementSpec,
+    nonce: Long,
+    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>
   ) {
     logger.info("Calculating direct reach and frequency...")
     val vidSampler = VidSampler(VID_SAMPLER_HASH_FUNCTION)
@@ -737,18 +786,15 @@ class EdpSimulator(
     }
 
     val vidList: List<Long> =
-      requisitionSpec.eventGroupsList
-        .distinctBy { eventGroup -> eventGroup.key }
-        .flatMap { eventGroup ->
-          eventQuery.getUserVirtualIds(eventGroup.value.collectionInterval, eventGroup.value.filter)
-        }
+      eventGroupSpecs
+        .flatMap { eventQuery.getUserVirtualIds(it) }
         .filter { vid ->
           vidSampler.vidIsInSamplingBucket(vid, vidSamplingIntervalStart, vidSamplingIntervalWidth)
         }
 
     val measurementResult = buildDirectMeasurementResult(measurementSpec, vidList)
 
-    fulfillDirectMeasurement(requisition, requisitionSpec, measurementSpec, measurementResult)
+    fulfillDirectMeasurement(requisition, measurementSpec, nonce, measurementResult)
   }
 
   private fun getPublisherNoiser(
@@ -877,7 +923,7 @@ class EdpSimulator(
         }
       }
 
-    fulfillDirectMeasurement(requisition, requisitionSpec, measurementSpec, measurementResult)
+    fulfillDirectMeasurement(requisition, measurementSpec, requisitionSpec.nonce, measurementResult)
   }
 
   private suspend fun fulfillDurationMeasurement(
@@ -895,13 +941,13 @@ class EdpSimulator(
         }
       }
 
-    fulfillDirectMeasurement(requisition, requisitionSpec, measurementSpec, measurementResult)
+    fulfillDirectMeasurement(requisition, measurementSpec, requisitionSpec.nonce, measurementResult)
   }
 
   private suspend fun fulfillDirectMeasurement(
     requisition: Requisition,
-    requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec,
+    nonce: Long,
     measurementResult: Measurement.Result
   ) {
     val measurementEncryptionPublicKey =
@@ -919,7 +965,7 @@ class EdpSimulator(
         fulfillDirectRequisitionRequest {
           name = requisition.name
           this.encryptedData = encryptedData
-          nonce = requisitionSpec.nonce
+          this.nonce = nonce
         }
       )
     } catch (e: StatusException) {

@@ -13,10 +13,10 @@
  */
 package org.wfanet.measurement.loadtest.dataprovider
 
-import com.google.type.Interval
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.timeOrNull
+import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toRange
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
@@ -29,12 +29,10 @@ open class InMemoryEventQuery(private val events: Iterable<LabelledEvent>) : Eve
 
   data class LabelledEvent(val vid: Long, val event: TestEvent)
 
-  override fun getUserVirtualIds(
-    timeInterval: Interval,
-    eventFilter: RequisitionSpec.EventFilter
-  ): Sequence<Long> {
-    val timeRange = timeInterval.toRange()
-    val program = EventQuery.compileProgram(eventFilter, TestEvent.getDescriptor())
+  override fun getUserVirtualIds(eventGroupSpec: EventQuery.EventGroupSpec): Sequence<Long> {
+    val timeRange: OpenEndTimeRange = eventGroupSpec.spec.collectionInterval.toRange()
+    val program: Program =
+      EventQuery.compileProgram(eventGroupSpec.spec.filter, TestEvent.getDescriptor())
 
     return events
       .asSequence()

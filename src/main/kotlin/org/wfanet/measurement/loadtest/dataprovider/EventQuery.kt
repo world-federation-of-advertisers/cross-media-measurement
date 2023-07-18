@@ -15,21 +15,32 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.protobuf.Descriptors
-import com.google.type.Interval
 import org.projectnessie.cel.Program
 import org.projectnessie.cel.common.types.BoolT
+import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 /** A query to get the list of user virtual IDs for a particular requisition. */
 interface EventQuery {
   /**
+   * An [EventGroup] with the specification of events from it.
+   *
+   * This is a [RequisitionSpec.EventGroupEntry] with the [EventGroup] dereferenced.
+   */
+  data class EventGroupSpec(
+    val eventGroup: EventGroup,
+    val spec: RequisitionSpec.EventGroupEntry.Value
+  )
+
+  /**
    * Returns a [Sequence] of virtual person IDs for matching events.
    *
    * Each element in the returned value represents a single event. As a result, the same VID may be
    * returned multiple times.
    */
-  fun getUserVirtualIds(timeInterval: Interval, eventFilter: EventFilter): Sequence<Long>
+  fun getUserVirtualIds(eventGroupSpec: EventGroupSpec): Sequence<Long>
 
   companion object {
     private val TRUE_EVAL_RESULT = Program.newEvalResult(BoolT.True, null)
