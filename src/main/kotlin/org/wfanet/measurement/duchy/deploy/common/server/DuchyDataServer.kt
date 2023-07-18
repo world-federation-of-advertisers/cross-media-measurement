@@ -15,21 +15,20 @@
 package org.wfanet.measurement.duchy.deploy.common.server
 
 import io.grpc.ManagedChannel
-import org.wfanet.measurement.common.crypto.SigningCerts
-import kotlin.reflect.full.declaredMemberProperties
-import kotlinx.coroutines.runInterruptible
-import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.identity.DuchyInfoFlags
-import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
-import org.wfanet.measurement.duchy.deploy.common.SystemApiFlags
-import picocli.CommandLine
 import java.time.Duration
+import kotlinx.coroutines.runInterruptible
+import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
+import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.common.identity.withDuchyId
+import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
+import org.wfanet.measurement.duchy.deploy.common.SystemApiFlags
 import org.wfanet.measurement.duchy.deploy.common.service.DuchyDataServices
 import org.wfanet.measurement.duchy.deploy.common.service.toList
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
+import picocli.CommandLine
 
 abstract class DuchyDataServer : Runnable {
   @CommandLine.Mixin

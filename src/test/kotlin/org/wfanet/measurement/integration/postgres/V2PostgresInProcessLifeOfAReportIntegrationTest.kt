@@ -41,9 +41,9 @@ class V2PostgresInProcessLifeOfAReportIntegrationTest : InProcessLifeOfAReportIn
 
   /** Provides a function from Duchy to the dependencies needed to start the Duchy to the test. */
   override val duchyDependenciesRule:
-    ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies> by lazy {
-    PostgresDuchyDependencyProviderRule(ALL_DUCHY_NAMES)
-  }
+    ProviderRule<
+      (String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies
+    > by lazy { PostgresDuchyDependencyProviderRule(ALL_DUCHY_NAMES) }
 
   override val storageClient: StorageClient by lazy {
     GcsStorageClient(LocalStorageHelper.getOptions().service, "bucket-simulator")
