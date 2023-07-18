@@ -51,7 +51,7 @@ kt_jvm_library(
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/integration/common:__pkg__",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy:__subpackages__",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/frontend:__pkg__",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:__pkg__",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",

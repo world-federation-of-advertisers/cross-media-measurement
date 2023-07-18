@@ -30,8 +30,8 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
-import org.wfanet.measurement.loadtest.frontend.FrontendSimulator
-import org.wfanet.measurement.loadtest.frontend.MeasurementConsumerData
+import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
+import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.StorageClient
 
@@ -54,7 +54,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule, storageClient)
   }
 
-  private lateinit var frontendSimulator: FrontendSimulator
+  private lateinit var mcSimulator: MeasurementConsumerSimulator
 
   private val publicMeasurementsClient by lazy {
     MeasurementsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
@@ -83,8 +83,8 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
 
   private fun initFrontendSimulator() {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
-    frontendSimulator =
-      FrontendSimulator(
+    mcSimulator =
+      MeasurementConsumerSimulator(
         MeasurementConsumerData(
           measurementConsumerData.name,
           InProcessCmmsComponents.MC_ENTITY_CONTENT.signingKey,
@@ -119,7 +119,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
   fun `create a RF measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create a reach and frequency measurement and verify its result.
-      frontendSimulator.executeReachAndFrequency("1234")
+      mcSimulator.executeReachAndFrequency("1234")
     }
 
   @Test
@@ -127,28 +127,28 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     runBlocking {
       // Use frontend simulator to create a direct reach and frequency measurement and verify its
       // result.
-      frontendSimulator.executeDirectReachAndFrequency("1234")
+      mcSimulator.executeDirectReachAndFrequency("1234")
     }
 
   @Test
   fun `create a reach-only measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create a reach and frequency measurement and verify its result.
-      frontendSimulator.executeReachOnly("1234")
+      mcSimulator.executeReachOnly("1234")
     }
 
   @Test
   fun `create an impression measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create an impression measurement and verify its result.
-      frontendSimulator.executeImpression("1234")
+      mcSimulator.executeImpression("1234")
     }
 
   @Test
   fun `create a duration measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create a duration measurement and verify its result.
-      frontendSimulator.executeDuration("1234")
+      mcSimulator.executeDuration("1234")
     }
 
   @Test
@@ -156,7 +156,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     runBlocking {
       // Use frontend simulator to create an invalid reach and frequency measurement and verify
       // its error info.
-      frontendSimulator.executeInvalidReachAndFrequency("1234")
+      mcSimulator.executeInvalidReachAndFrequency("1234")
     }
 
   // TODO(@renjiez): Add Multi-round test given the same input to verify correctness.
