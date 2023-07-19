@@ -18,20 +18,17 @@ import com.google.cloud.bigquery.BigQuery
 import com.google.cloud.bigquery.BigQueryOptions
 import kotlin.properties.Delegates
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
-import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.loadtest.config.EventGroupMetadata
 import picocli.CommandLine
 
 @CommandLine.Command(
-  name = "GcsEdpSimulatorRunner",
+  name = "BigQueryEdpSimulatorRunner",
   description = ["EdpSimulator Daemon"],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-/** Implementation of [EdpSimulator] using the File System to store blobs. */
-class GcsEdpSimulatorRunner : EdpSimulatorRunner() {
-  @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
-
+/** Implementation of [EdpSimulatorRunner] using [BigQueryEventQuery]. */
+class BigQueryEdpSimulatorRunner : EdpSimulatorRunner() {
   @set:CommandLine.Option(
     names = ["--publisher-id"],
     description = ["ID of the publisher within the test dataset"],
@@ -66,12 +63,16 @@ class GcsEdpSimulatorRunner : EdpSimulatorRunner() {
   override fun run() {
     val bigQuery: BigQuery =
       BigQueryOptions.newBuilder().apply { setProjectId(bigQueryProjectName) }.build().service
+    val eventQuery =
+      SinglePublisherBigQueryEventQuery(
+        bigQuery,
+        bigQueryDatasetName,
+        bigQueryTableName,
+        publisherId
+      )
 
-    run(
-      GcsStorageClient.fromFlags(GcsFromFlags(gcsFlags)),
-      BigQueryEventQuery(bigQuery, bigQueryDatasetName, bigQueryTableName, publisherId)
-    )
+    run(eventQuery, EventGroupMetadata.testMetadata(publisherId))
   }
 }
 
-fun main(args: Array<String>) = commandLineMain(GcsEdpSimulatorRunner(), args)
+fun main(args: Array<String>) = commandLineMain(BigQueryEdpSimulatorRunner(), args)

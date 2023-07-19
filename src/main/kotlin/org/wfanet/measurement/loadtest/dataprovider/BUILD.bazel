@@ -14,62 +14,62 @@ package(
 )
 
 kt_jvm_library(
-    name = "edp_simulator",
-    srcs = [
-        "BigQueryEventQuery.kt",
-        "CsvEventQuery.kt",
-        "EdpSimulator.kt",
-        "EdpSimulatorFlags.kt",
-        "EdpSimulatorRunner.kt",
-        "EventQuery.kt",
-        "InMemoryEventQuery.kt",
-        "RandomEventQuery.kt",
-    ],
+    name = "event_query",
+    srcs = ["EventQuery.kt"],
     deps = [
-        "//imports/java/com/google:cel-generated-pb",
         "//imports/java/org/projectnessie/cel",
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/api/v2alpha:privacy_query_mapper",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest:service_flags",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:event_filters",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:privacy_budgets",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:test_identifiers",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/storage",
-        "//src/main/proto/wfa/any_sketch:sketch_kt_jvm_proto",
-        "//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptors_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumers_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_fulfillment_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:test_metadata_messages_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)
+
+kt_jvm_library(
+    name = "in_memory_event_query",
+    srcs = ["InMemoryEventQuery.kt"],
+    deps = [
+        ":event_query",
+        "//imports/java/org/projectnessie/cel",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
-        "@any_sketch_java//src/main/java/org/wfanet/anysketch",
-        "@any_sketch_java//src/main/java/org/wfanet/anysketch:sketch_proto_converter",
-        "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
-        "@any_sketch_java//src/main/java/org/wfanet/sampling:vid_sampler",
-        "@wfa_common_jvm//imports/java/com/google/cloud/bigquery",
-        "@wfa_common_jvm//imports/java/com/opencsv",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:key_storage",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
-        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/common:verification_exception",
-        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
-        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/duchy",
-        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
+    ],
+)
+
+kt_jvm_library(
+    name = "csv_event_query",
+    srcs = ["CsvEventQuery.kt"],
+    deps = [
+        ":in_memory_event_query",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/opencsv",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "bigquery_event_query",
+    srcs = ["BigQueryEventQuery.kt"],
+    deps = [
+        ":event_query",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud/bigquery",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "synthetic_generator_event_query",
+    srcs = ["SyntheticGeneratorEventQuery.kt"],
+    deps = [
+        ":event_query",
+        ":synthetic_data_generation",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
 )
 
@@ -85,54 +85,196 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "forwarded_storage_edp_simulator_runner",
-    srcs = ["ForwardStorageEdpSimulatorRunner.kt"],
+    name = "sketch_generator",
+    srcs = ["SketchGenerator.kt"],
+    deps = [
+        ":event_query",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:vid_sampling",
+        "//src/main/proto/wfa/any_sketch:sketch_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
+        "@any_sketch_java//src/main/java/org/wfanet/anysketch",
+        "@any_sketch_java//src/main/java/org/wfanet/anysketch:sketch_proto_converter",
+        "@any_sketch_java//src/main/java/org/wfanet/sampling:vid_sampler",
+    ],
+)
+
+kt_jvm_library(
+    name = "sketch_encrypter",
+    srcs = ["SketchEncrypter.kt"],
+    deps = [
+        "//src/main/proto/wfa/any_sketch:sketch_kt_jvm_proto",
+        "//src/main/proto/wfa/any_sketch/crypto:el_gamal_key_kt_jvm_proto",
+        "//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_kt_jvm_proto",
+        "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "measurement_results",
+    srcs = ["MeasurementResults.kt"],
+)
+
+kt_jvm_library(
+    name = "edp_simulator",
+    srcs = ["EdpSimulator.kt"],
+    deps = [
+        ":event_query",
+        ":measurement_results",
+        ":sketch_encrypter",
+        ":sketch_generator",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/api/v2alpha:privacy_query_mapper",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:privacy_budgets",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:test_identifiers",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:vid_sampling",
+        "//src/main/proto/wfa/any_sketch:sketch_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptors_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumers_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_fulfillment_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:test_metadata_messages_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "@any_sketch_java//src/main/java/org/wfanet/anysketch:sketch_proto_converter",
+        "@any_sketch_java//src/main/java/org/wfanet/sampling:vid_sampler",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:key_storage",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/common:verification_exception",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/duchy",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
+    ],
+)
+
+kt_jvm_library(
+    name = "edp_simulator_flags",
+    srcs = ["EdpSimulatorFlags.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest:service_flags",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+kt_jvm_library(
+    name = "edp_simulator_runner",
+    srcs = ["EdpSimulatorRunner.kt"],
     deps = [
         ":edp_simulator",
+        ":edp_simulator_flags",
+        ":event_query",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:privacy_budgets",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:vid_sampling",
+        "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptors_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumers_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_fulfillment_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_certs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+    ],
+)
+
+kt_jvm_library(
+    name = "csv_edp_simulator_runner",
+    srcs = ["CsvEdpSimulatorRunner.kt"],
+    deps = [
+        ":csv_event_query",
+        ":edp_simulator_runner",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:event_group_metadata",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/forwarded",
     ],
 )
 
 java_binary(
-    name = "ForwardStorageEdpSimulatorRunner",
-    main_class = "org.wfanet.measurement.loadtest.dataprovider.ForwardStorageEdpSimulatorRunnerKt",
-    runtime_deps = [":forwarded_storage_edp_simulator_runner"],
+    name = "CsvEdpSimulatorRunner",
+    main_class = "org.wfanet.measurement.loadtest.dataprovider.CsvEdpSimulatorRunnerKt",
+    runtime_deps = [":csv_edp_simulator_runner"],
 )
 
 java_image(
-    name = "forwarded_storage_edp_simulator_runner_image",
+    name = "csv_edp_simulator_runner_image",
     # Use the debug image as it includes the `tar` binary needed to use `kubectl cp` to copy in a CSV file.
     base = "@java_debug_image_base//image",
-    binary = ":ForwardStorageEdpSimulatorRunner",
-    main_class = "org.wfanet.measurement.loadtest.dataprovider.ForwardStorageEdpSimulatorRunnerKt",
+    binary = ":CsvEdpSimulatorRunner",
+    main_class = "org.wfanet.measurement.loadtest.dataprovider.CsvEdpSimulatorRunnerKt",
     target_compatible_with = DISTROLESS_JAVA,
     visibility = ["//src:docker_image_deployment"],
 )
 
 kt_jvm_library(
-    name = "gcs_edp_simulator_runner",
-    srcs = ["GcsEdpSimulatorRunner.kt"],
+    name = "bigquery_edp_simulator_runner",
+    srcs = ["BigQueryEdpSimulatorRunner.kt"],
     deps = [
-        ":edp_simulator",
+        ":bigquery_event_query",
+        ":edp_simulator_runner",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:event_group_metadata",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
     ],
 )
 
 java_binary(
-    name = "GcsEdpSimulatorRunner",
-    main_class = "org.wfanet.measurement.loadtest.dataprovider.GcsEdpSimulatorRunnerKt",
-    runtime_deps = [":gcs_edp_simulator_runner"],
+    name = "BigQueryEdpSimulatorRunner",
+    main_class = "org.wfanet.measurement.loadtest.dataprovider.BigQueryEdpSimulatorRunnerKt",
+    runtime_deps = [":bigquery_edp_simulator_runner"],
 )
 
 java_image(
-    name = "gcs_edp_simulator_runner_image",
-    binary = ":GcsEdpSimulatorRunner",
-    main_class = "org.wfanet.measurement.loadtest.dataprovider.GcsEdpSimulatorRunnerKt",
+    name = "bigquery_edp_simulator_runner_image",
+    binary = ":BigQueryEdpSimulatorRunner",
+    main_class = "org.wfanet.measurement.loadtest.dataprovider.BigQueryEdpSimulatorRunnerKt",
+    target_compatible_with = DISTROLESS_JAVA,
+    visibility = ["//src:docker_image_deployment"],
+)
+
+kt_jvm_library(
+    name = "synthetic_generator_edp_simulator_runner",
+    srcs = ["SyntheticGeneratorEdpSimulatorRunner.kt"],
+    deps = [
+        ":edp_simulator_runner",
+        ":synthetic_generator_event_query",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:event_group_metadata",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+java_binary(
+    name = "SyntheticGeneratorEdpSimulatorRunner",
+    main_class = "org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEdpSimulatorRunnerKt",
+    runtime_deps = [":synthetic_generator_edp_simulator_runner"],
+)
+
+java_image(
+    name = "synthetic_generator_edp_simulator_runner_image",
+    binary = ":SyntheticGeneratorEdpSimulatorRunner",
+    main_class = "org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEdpSimulatorRunnerKt",
     target_compatible_with = DISTROLESS_JAVA,
     visibility = ["//src:docker_image_deployment"],
 )
