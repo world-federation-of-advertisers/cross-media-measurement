@@ -90,7 +90,7 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
       throw when (e.status.code) {
           Status.Code.ALREADY_EXISTS ->
             Status.ALREADY_EXISTS.withDescription(
-              "Metric with ID ${request.reportingSetId} already exists under ${request.parent}"
+              "ReportingSet with ID ${request.reportingSetId} already exists under ${request.parent}"
             )
           Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("Child ReportingSet not found.")
           Status.Code.FAILED_PRECONDITION ->
