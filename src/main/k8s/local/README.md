@@ -189,6 +189,9 @@ archive:
 kubectl apply -k src/main/k8s/local/cmms_with_reporting/
 ```
 
+To deploy Reporting V2, swap out `cmms_with_reporting` with 
+`cmms_with_reporting_v2`.
+
 ## Enabling Metrics Collection
 
 ### Install OpenTelemetry Operator
