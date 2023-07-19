@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.postgres.writers
+package org.wfanet.measurement.duchy.deploy.common.postgres.writers
 
 import java.time.Instant
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
