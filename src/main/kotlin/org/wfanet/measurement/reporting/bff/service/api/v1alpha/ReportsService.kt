@@ -40,6 +40,7 @@ class ReportsService(private val haloReportsStub: HaloReportsGrpcKt.ReportsCorou
         reports += r
       }
     }
+  }
 
   override suspend fun getReport(request: GetReportRequest): Report {
     val haloRequest = getReportRequest { name = request.name }
