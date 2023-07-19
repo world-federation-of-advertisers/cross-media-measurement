@@ -38,7 +38,7 @@ COMMON_IMAGES = [
     ),
     struct(
         name = "duchy_postgres_update_schema_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/postgres/tools:update_schema_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/tools:update_schema_image",
         repository = _PREFIX + "/duchy/postgres-update-schema",
     ),
     struct(
