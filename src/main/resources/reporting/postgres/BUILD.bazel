@@ -1,6 +1,7 @@
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/gcloud/postgres:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres:__subpackages__",
+    "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/reporting/deploy/postgres:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres:__subpackages__",
