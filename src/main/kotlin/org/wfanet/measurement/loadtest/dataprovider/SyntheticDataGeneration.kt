@@ -20,15 +20,23 @@ import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.Message
+import java.time.Instant
+import java.time.ZoneOffset
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SimulatorSyntheticDataSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec.SubPopulation
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.VidRange
+import org.wfanet.measurement.common.LocalDateProgression
+import org.wfanet.measurement.common.rangeTo
+import org.wfanet.measurement.common.toLocalDate
 
 object SyntheticDataGeneration {
+  data class LabeledEvent(val vid: Long, val timestamp: Instant, val event: Message)
+
   /**
-   * Generates a sequence of [DynamicMessage], which represents events.
+   * Generates a sequence of [LabeledEvent].
    *
    * Consumption of [Sequence] throws
    * * [IllegalArgumentException] when [SimulatorSyntheticDataSpec] is invalid, or incompatible
@@ -37,44 +45,44 @@ object SyntheticDataGeneration {
   @JvmStatic
   fun generateEvents(
     descriptor: Descriptor,
-    simulatorSyntheticDataSpec: SimulatorSyntheticDataSpec
-  ): Sequence<DynamicMessage> {
-    val population = simulatorSyntheticDataSpec.population
-    val subPopulations = population.subPopulationsList
+    populationSpec: SyntheticPopulationSpec,
+    syntheticEventGroupSpec: SyntheticEventGroupSpec
+  ): Sequence<LabeledEvent> {
+    val subPopulations = populationSpec.subPopulationsList
 
     return sequence {
-      for (syntheticEventGroupSpec: SyntheticEventGroupSpec in
-        simulatorSyntheticDataSpec.eventGroupSpecList) {
-        for (dateSpec: SyntheticEventGroupSpec.DateSpec in syntheticEventGroupSpec.dateSpecsList) {
-          for (frequencySpec: SyntheticEventGroupSpec.FrequencySpec in
-            dateSpec.frequencySpecsList) {
-            for (vidRangeSpec: SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec in
-              frequencySpec.vidRangeSpecsList) {
-              val subPopulation: SubPopulation =
-                vidRangeSpec.vidRange.findSubPopulation(subPopulations)
-                  ?: throw IllegalArgumentException()
+      for (dateSpec: SyntheticEventGroupSpec.DateSpec in syntheticEventGroupSpec.dateSpecsList) {
+        val dateProgression = dateSpec.dateRange.toProgression()
+        for (frequencySpec: SyntheticEventGroupSpec.FrequencySpec in dateSpec.frequencySpecsList) {
+          for (vidRangeSpec: SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec in
+            frequencySpec.vidRangeSpecsList) {
+            val subPopulation: SubPopulation =
+              vidRangeSpec.vidRange.findSubPopulation(subPopulations)
+                ?: throw IllegalArgumentException()
 
-              val builder = DynamicMessage.newBuilder(descriptor)
+            val builder = DynamicMessage.newBuilder(descriptor)
 
-              population.populationFieldsList.forEach {
-                val subPopulationFieldValue: FieldValue =
-                  subPopulation.populationFieldsValuesMap.getValue(it)
-                val fieldPath = it.split('.')
-                builder.setField(fieldPath, subPopulationFieldValue)
+            populationSpec.populationFieldsList.forEach {
+              val subPopulationFieldValue: FieldValue =
+                subPopulation.populationFieldsValuesMap.getValue(it)
+              val fieldPath = it.split('.')
+              builder.setField(fieldPath, subPopulationFieldValue)
+            }
+
+            populationSpec.nonPopulationFieldsList.forEach {
+              val nonPopulationFieldValue: FieldValue =
+                vidRangeSpec.nonPopulationFieldValuesMap.getValue(it)
+              val fieldPath = it.split('.')
+              builder.setField(fieldPath, nonPopulationFieldValue)
+            }
+
+            val event: DynamicMessage = builder.build()
+            for (vid in vidRangeSpec.vidRange.start until vidRangeSpec.vidRange.endExclusive) {
+              for (date in dateProgression) {
+                for (i in 0 until frequencySpec.frequency) {
+                  yield(LabeledEvent(vid, date.atStartOfDay().toInstant(ZoneOffset.UTC), event))
+                }
               }
-
-              population.nonPopulationFieldsList.forEach {
-                val nonPopulationFieldValue: FieldValue =
-                  vidRangeSpec.nonPopulationFieldValuesMap.getValue(it)
-                val fieldPath = it.split('.')
-                builder.setField(fieldPath, nonPopulationFieldValue)
-              }
-
-              val event: DynamicMessage = builder.build()
-              val numEvents =
-                frequencySpec.frequency *
-                  (vidRangeSpec.vidRange.endExclusive - vidRangeSpec.vidRange.start)
-              repeat(numEvents.toInt()) { yield(event) }
             }
           }
         }
@@ -137,4 +145,8 @@ object SyntheticDataGeneration {
     val traversedFieldPath = fieldPath.drop(1)
     nestedBuilder.setField(traversedFieldPath, fieldValue)
   }
+}
+
+private fun SyntheticEventGroupSpec.DateSpec.DateRange.toProgression(): LocalDateProgression {
+  return start.toLocalDate()..endExclusive.toLocalDate().minusDays(1)
 }

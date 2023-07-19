@@ -58,12 +58,11 @@ import org.wfanet.measurement.api.v2alpha.ModelShardKt.modelBlob
 import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
-import org.wfanet.measurement.api.v2alpha.ProtocolConfig.Direct
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
-import org.wfanet.measurement.api.v2alpha.ProtocolConfigKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.protocol
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.exchange
 import org.wfanet.measurement.api.v2alpha.exchangeStep
@@ -77,6 +76,7 @@ import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.protocolConfig
+import org.wfanet.measurement.api.v2alpha.reachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
@@ -112,6 +112,7 @@ import org.wfanet.measurement.internal.kingdom.modelShard as internalModelShard
 import org.wfanet.measurement.internal.kingdom.modelSuite as internalModelSuite
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 
 /** Converts an internal [InternalMeasurement.State] to a public [State]. */
 fun InternalMeasurement.State.toState(): State =
@@ -180,6 +181,7 @@ fun InternalNoiseMechanism.toNoiseMechanism(): NoiseMechanism {
   }
 }
 
+/** Converts an internal [InternalProtocolConfig] to a public [ProtocolConfig]. */
 fun InternalProtocolConfig.toProtocolConfig(
   measurementTypeCase: MeasurementSpec.MeasurementTypeCase,
   dataProviderCount: Int,
@@ -188,11 +190,6 @@ fun InternalProtocolConfig.toProtocolConfig(
 
   val source = this
   return protocolConfig {
-    name =
-      if (source.externalProtocolConfigId.isNotEmpty())
-        ProtocolConfigKey(source.externalProtocolConfigId).toName()
-      else ProtocolConfigKey(Direct.getDescriptor().name).toName()
-
     measurementType =
       when (measurementTypeCase) {
         MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
@@ -238,6 +235,35 @@ fun InternalProtocolConfig.toProtocolConfig(
                       NoiseMechanism.GEOMETRIC
                     } else {
                       source.liquidLegionsV2.noiseMechanism.toNoiseMechanism()
+                    }
+                }
+              }
+            }
+            InternalProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
+              protocols += protocol {
+                reachOnlyLiquidLegionsV2 = reachOnlyLiquidLegionsV2 {
+                  if (source.reachOnlyLiquidLegionsV2.hasSketchParams()) {
+                    val sourceSketchParams = source.reachOnlyLiquidLegionsV2.sketchParams
+                    sketchParams = reachOnlyLiquidLegionsSketchParams {
+                      decayRate = sourceSketchParams.decayRate
+                      maxSize = sourceSketchParams.maxSize
+                    }
+                  }
+                  if (source.reachOnlyLiquidLegionsV2.hasDataProviderNoise()) {
+                    dataProviderNoise =
+                      source.reachOnlyLiquidLegionsV2.dataProviderNoise
+                        .toDifferentialPrivacyParams()
+                  }
+                  ellipticCurveId = source.reachOnlyLiquidLegionsV2.ellipticCurveId
+                  // Use `GEOMETRIC` for unspecified InternalNoiseMechanism for old Measurements.
+                  noiseMechanism =
+                    if (
+                      source.reachOnlyLiquidLegionsV2.noiseMechanism ==
+                        InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED
+                    ) {
+                      NoiseMechanism.GEOMETRIC
+                    } else {
+                      source.reachOnlyLiquidLegionsV2.noiseMechanism.toNoiseMechanism()
                     }
                 }
               }
@@ -662,7 +688,27 @@ fun Measurement.toInternal(
 
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (measurementSpecProto.measurementTypeCase) {
-        MeasurementSpec.MeasurementTypeCase.REACH,
+        MeasurementSpec.MeasurementTypeCase.REACH -> {
+          if (dataProvidersCount > 1) {
+            if (RoLlv2ProtocolConfig.enabled) {
+              protocolConfig = internalProtocolConfig {
+                externalProtocolConfigId = RoLlv2ProtocolConfig.name
+                reachOnlyLiquidLegionsV2 = RoLlv2ProtocolConfig.protocolConfig
+              }
+              duchyProtocolConfig = duchyProtocolConfig {
+                reachOnlyLiquidLegionsV2 = RoLlv2ProtocolConfig.duchyProtocolConfig
+              }
+            } else {
+              protocolConfig = internalProtocolConfig {
+                externalProtocolConfigId = Llv2ProtocolConfig.name
+                liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
+              }
+              duchyProtocolConfig = duchyProtocolConfig {
+                liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig
+              }
+            }
+          }
+        }
         MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
           if (dataProvidersCount > 1) {
             protocolConfig = internalProtocolConfig {
