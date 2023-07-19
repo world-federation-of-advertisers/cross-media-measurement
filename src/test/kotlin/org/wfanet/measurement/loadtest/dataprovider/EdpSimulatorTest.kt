@@ -22,6 +22,7 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.type.interval
+import io.grpc.Status
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
@@ -67,6 +68,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.Ev
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
@@ -93,6 +95,7 @@ import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.elGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
@@ -147,6 +150,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyL
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestInMemoryBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
 import org.wfanet.measurement.loadtest.config.EventFilters.VID_SAMPLER_HASH_FUNCTION
+import org.wfanet.measurement.loadtest.config.TestIdentifiers
 import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
@@ -259,7 +263,16 @@ class EdpSimulatorTest {
           }
         )
     }
-  private val eventGroupsServiceMock: EventGroupsCoroutineImplBase = mockService()
+  private val eventGroupsServiceMock: EventGroupsCoroutineImplBase = mockService {
+    onBlocking { getEventGroup(any()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<GetEventGroupRequest>(0)
+        eventGroup {
+          name = request.name
+          eventGroupReferenceId = TestIdentifiers.EVENT_GROUP_REFERENCE_ID_PREFIX
+        }
+      }
+  }
   private val eventGroupMetadataDescriptorsServiceMock:
     EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase =
     mockService {
@@ -613,6 +626,55 @@ class EdpSimulatorTest {
         }
       )
     assertThat(refuseRequest.refusal.message).contains(DUCHY_NAME)
+    verifyBlocking(requisitionFulfillmentServiceMock, never()) { fulfillRequisition(any()) }
+    verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
+  }
+
+  @Test
+  fun `refuses Requisition when EventGroup not found`() {
+    val throttlerMock = mock<Throttler>()
+    val eventQueryMock = mock<EventQuery>()
+    val simulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        sketchStore,
+        eventQueryMock,
+        throttlerMock,
+        listOf(),
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        java.util.Random(),
+        DIRECT_NOISE_MECHANISM
+      )
+    eventGroupsServiceMock.stub {
+      onBlocking { getEventGroup(any()) }.thenThrow(Status.NOT_FOUND.asRuntimeException())
+    }
+
+    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+
+    val refuseRequest: RefuseRequisitionRequest =
+      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+    assertThat(refuseRequest)
+      .ignoringFieldScope(
+        FieldScopes.allowingFieldDescriptors(
+          Refusal.getDescriptor().findFieldByNumber(Refusal.MESSAGE_FIELD_NUMBER)
+        )
+      )
+      .isEqualTo(
+        refuseRequisitionRequest {
+          name = REQUISITION_ONE.name
+          refusal = refusal { justification = Refusal.Justification.SPEC_INVALID }
+        }
+      )
+    assertThat(refuseRequest.refusal.message)
+      .contains(REQUISITION_ONE_SPEC.eventGroupsList.first().key)
     verifyBlocking(requisitionFulfillmentServiceMock, never()) { fulfillRequisition(any()) }
     verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
   }

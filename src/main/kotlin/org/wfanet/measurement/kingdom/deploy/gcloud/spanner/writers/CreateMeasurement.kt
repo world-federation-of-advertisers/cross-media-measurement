@@ -40,6 +40,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
@@ -83,8 +84,10 @@ class CreateMeasurement(private val request: CreateMeasurementRequest) :
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields are never null.
     return when (request.measurement.details.protocolConfig.protocolCase) {
-      ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2 ->
+      ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2,
+      ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
         createComputedMeasurement(request.measurement, measurementConsumerId)
+      }
       ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET ->
         createDirectMeasurement(request.measurement, measurementConsumerId)
     }
@@ -96,12 +99,18 @@ class CreateMeasurement(private val request: CreateMeasurementRequest) :
   ): Measurement {
     val initialMeasurementState = Measurement.State.PENDING_REQUISITION_PARAMS
 
-    val requiredDuchyIds: Set<String> =
-      Llv2ProtocolConfig.requiredExternalDuchyIds +
+    val requiredExternalDuchyIds =
+      if (
+        request.measurement.details.protocolConfig.protocolCase ==
+          ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2
+      )
+        Llv2ProtocolConfig.requiredExternalDuchyIds
+      else RoLlv2ProtocolConfig.requiredExternalDuchyIds
+    val requiredDuchyIds =
+      requiredExternalDuchyIds +
         readDataProviderRequiredDuchies(
           measurement.dataProvidersMap.keys.map { ExternalId(it) }.toSet()
         )
-
     val now = Clock.systemUTC().instant()
     val requiredDuchyEntries = DuchyIds.entries.filter { it.externalDuchyId in requiredDuchyIds }
     requiredDuchyEntries.forEach {
@@ -109,20 +118,25 @@ class CreateMeasurement(private val request: CreateMeasurementRequest) :
         throw DuchyNotActiveException(it.externalDuchyId)
       }
     }
+    val minimumNumberOfRequiredDuchies =
+      if (
+        request.measurement.details.protocolConfig.protocolCase ==
+          ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2
+      )
+        Llv2ProtocolConfig.minimumNumberOfRequiredDuchies
+      else RoLlv2ProtocolConfig.minimumNumberOfRequiredDuchies
 
     val includedDuchyEntries =
-      if (requiredDuchyEntries.size < Llv2ProtocolConfig.minimumNumberOfRequiredDuchies) {
+      if (requiredDuchyEntries.size < minimumNumberOfRequiredDuchies) {
         val additionalActiveDuchies =
           DuchyIds.entries.filter { it !in requiredDuchyEntries && it.isActive(now) }
         requiredDuchyEntries +
-          additionalActiveDuchies.take(
-            Llv2ProtocolConfig.minimumNumberOfRequiredDuchies - requiredDuchyEntries.size
-          )
+          additionalActiveDuchies.take(minimumNumberOfRequiredDuchies - requiredDuchyEntries.size)
       } else {
         requiredDuchyEntries
       }
 
-    if (includedDuchyEntries.size < Llv2ProtocolConfig.minimumNumberOfRequiredDuchies) {
+    if (includedDuchyEntries.size < minimumNumberOfRequiredDuchies) {
       throw IllegalStateException("Not enough active duchies to run the computation")
     }
 

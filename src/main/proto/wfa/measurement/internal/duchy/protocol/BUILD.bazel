@@ -100,3 +100,56 @@ kt_jvm_proto_library(
     srcs = [":liquid_legions_v2_proto"],
     deps = [":liquid_legions_v2_java_proto"],
 )
+
+proto_library(
+    name = "reach_only_liquid_legions_v2_encryption_methods_proto",
+    srcs = ["reach_only_liquid_legions_v2_encryption_methods.proto"],
+    strip_import_prefix = "/src/main/proto",
+    deps = [
+        ":liquid_legions_sketch_parameter_proto",
+        ":liquid_legions_v2_encryption_methods_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:crypto_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_noise_config_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "reach_only_liquid_legions_v2_encryption_methods_cc_proto",
+    deps = [":reach_only_liquid_legions_v2_encryption_methods_proto"],
+)
+
+java_proto_library(
+    name = "reach_only_liquid_legions_v2_encryption_methods_java_proto",
+    deps = [":reach_only_liquid_legions_v2_encryption_methods_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "reach_only_liquid_legions_v2_encryption_methods_kt_jvm_proto",
+    srcs = [":reach_only_liquid_legions_v2_encryption_methods_proto"],
+    deps = [":reach_only_liquid_legions_v2_encryption_methods_java_proto"],
+)
+
+proto_library(
+    name = "reach_only_liquid_legions_v2_proto",
+    srcs = ["reach_only_liquid_legions_sketch_aggregation_v2.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":liquid_legions_sketch_parameter_proto",
+        ":liquid_legions_v2_noise_config_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:crypto_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_proto",
+    ],
+)
+
+java_proto_library(
+    name = "reach_only_liquid_legions_v2_java_proto",
+    deps = [":reach_only_liquid_legions_v2_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "reach_only_liquid_legions_v2_kt_jvm_proto",
+    srcs = [":reach_only_liquid_legions_v2_proto"],
+    deps = [":reach_only_liquid_legions_v2_java_proto"],
+)

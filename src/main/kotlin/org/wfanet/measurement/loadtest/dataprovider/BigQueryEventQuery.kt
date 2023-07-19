@@ -23,18 +23,17 @@ import com.google.cloud.bigquery.JobId
 import com.google.cloud.bigquery.JobInfo
 import com.google.cloud.bigquery.QueryJobConfiguration
 import com.google.cloud.bigquery.QueryParameterValue
-import com.google.type.Interval
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 import java.util.logging.Logger
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.video
-import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.common.toRange
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 /** Fulfill the query by querying the specified BigQuery table. */
@@ -45,13 +44,9 @@ class BigQueryEventQuery(
   private val publisherId: Int,
 ) : EventQuery {
 
-  override fun getUserVirtualIds(timeInterval: Interval, eventFilter: EventFilter): Sequence<Long> {
-    val queryConfig =
-      buildQueryConfig(
-        publisherId = publisherId,
-        startTime = timeInterval.startTime.toInstant(),
-        endTimeExclusive = timeInterval.endTime.toInstant(),
-      )
+  override fun getUserVirtualIds(eventGroupSpec: EventQuery.EventGroupSpec): Sequence<Long> {
+    val timeRange: OpenEndTimeRange = eventGroupSpec.spec.collectionInterval.toRange()
+    val queryConfig: QueryJobConfiguration = buildQueryConfig(publisherId, timeRange)
 
     bigQuery.query(queryConfig)
 
@@ -66,7 +61,7 @@ class BigQueryEventQuery(
     }
     logger.info("Running query on BigQuery table.")
 
-    val program = EventQuery.compileProgram(eventFilter, TestEvent.getDescriptor())
+    val program = EventQuery.compileProgram(eventGroupSpec.spec.filter, TestEvent.getDescriptor())
 
     return resultJob
       .getQueryResults()
@@ -80,8 +75,7 @@ class BigQueryEventQuery(
   /** Builds a query based on the parameters given. */
   private fun buildQueryConfig(
     publisherId: Int,
-    startTime: Instant,
-    endTimeExclusive: Instant
+    timeRange: OpenEndTimeRange
   ): QueryJobConfiguration {
     val query =
       """
@@ -95,10 +89,10 @@ class BigQueryEventQuery(
     return QueryJobConfiguration.newBuilder(query)
       .apply {
         addNamedParameter("publisher_id", QueryParameterValue.int64(publisherId))
-        addNamedParameter("start_time", QueryParameterValue.timestamp(startTime.epochMicros))
+        addNamedParameter("start_time", QueryParameterValue.timestamp(timeRange.start.epochMicros))
         addNamedParameter(
           "end_time_exclusive",
-          QueryParameterValue.timestamp(endTimeExclusive.epochMicros)
+          QueryParameterValue.timestamp(timeRange.endExclusive.epochMicros)
         )
       }
       .build()
