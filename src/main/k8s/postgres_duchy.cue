@@ -17,19 +17,19 @@ package k8s
 #PostgresDuchy: {
 	#Duchy
 
-	_duchy: _duchy
+	_duchy:          _duchy
 	_postgresConfig: #PostgresConfig
 
 	_imageSuffixes: {
-		"\(_duchy_data_server_name)": string | *"duchy/postgres-duchy-data"
+		"\(_duchy_data_server_name)":    string | *"duchy/postgres-duchy-data"
 		"\(_duchy_update_schema_image)": string | *"duchy/postgres-update-schema"
 	}
 
-	_duchy_data_server_name: "postgres-data-server"
-	_duchy_data_server_app_label: "postgres-data-server-app"
+	_duchy_data_server_name:            "postgres-data-server"
+	_duchy_data_server_app_label:       "postgres-data-server-app"
 	_duchy_data_server_deployment_name: "\(_duchy_data_server_name)-deployment"
-	_duchy_data_server_container_args: []
-	_duchy_data_service_target_flag: "--computations-service-target=" + (#Target & {name: "\(_duchy.name)-\(_duchy_data_server_name)"}).target
-	_duchy_data_service_cert_host_flag:  "--computations-service-cert-host=localhost"
-	_duchy_update_schema_image: "update-postgres-duchy-schema"
+	_duchy_data_server_container_args:  []
+	_duchy_data_service_target_flag:    "--computations-service-target=" + (#Target & {name: "\(_duchy.name)-\(_duchy_data_server_name)"}).target
+	_duchy_data_service_cert_host_flag: "--computations-service-cert-host=localhost"
+	_duchy_update_schema_image:         "update-postgres-duchy-schema"
 }

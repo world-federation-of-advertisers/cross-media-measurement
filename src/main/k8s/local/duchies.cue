@@ -79,13 +79,13 @@ _spannerDuchies: [ for duchyConfig in _duchyConfigs {
 	}
 }]
 
-_postgresDuchies:  [ for duchyConfig in _duchyConfigs {
+_postgresDuchies: [ for duchyConfig in _duchyConfigs {
 	#PostgresDuchy & {
 		_imageSuffixes: {
 			"computation-control-server":     "duchy/local-computation-control"
 			"liquid-legions-v2-mill-daemon":  "duchy/local-liquid-legions-v2-mill"
 			"requisition-fulfillment-server": "duchy/local-requisition-fulfillment"
-			"postgres-data-server":    				"duchy/local-postgres-data"
+			"postgres-data-server":           "duchy/local-postgres-data"
 		}
 		_duchy: {
 			name:                   duchyConfig.name
