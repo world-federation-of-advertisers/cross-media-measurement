@@ -26,7 +26,9 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
 import org.wfanet.measurement.duchy.db.computation.ComputationTypes
-import org.wfanet.measurement.duchy.deploy.postgres.testing.Schemata.DUCHY_CHANGELOG_PATH
+import org.wfanet.measurement.duchy.deploy.common.postgres.PostgresComputationStatsService
+import org.wfanet.measurement.duchy.deploy.common.postgres.PostgresComputationsService
+import org.wfanet.measurement.duchy.deploy.common.postgres.testing.Schemata.DUCHY_CHANGELOG_PATH
 import org.wfanet.measurement.duchy.service.internal.testing.ComputationStatsServiceTest
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.storage.RequisitionStore

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.postgres
+package org.wfanet.measurement.duchy.deploy.common.postgres
 
 import io.grpc.Status
 import java.time.Clock
@@ -28,9 +28,9 @@ import org.wfanet.measurement.common.toDuration
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
-import org.wfanet.measurement.duchy.deploy.postgres.readers.ComputationReader
-import org.wfanet.measurement.duchy.deploy.postgres.writers.ClaimWork
-import org.wfanet.measurement.duchy.deploy.postgres.writers.CreateComputation
+import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationReader
+import org.wfanet.measurement.duchy.deploy.common.postgres.writers.ClaimWork
+import org.wfanet.measurement.duchy.deploy.common.postgres.writers.CreateComputation
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
 import org.wfanet.measurement.duchy.service.internal.ComputationDetailsNotFoundException

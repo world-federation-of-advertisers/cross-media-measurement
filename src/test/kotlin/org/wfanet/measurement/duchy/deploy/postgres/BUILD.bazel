@@ -5,7 +5,7 @@ kt_jvm_test(
     srcs = ["DuchySchemaTest.kt"],
     test_class = "org.wfanet.measurement.duchy.deploy.postgres.DuchySchemaTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/postgres/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/testing",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/opentable/db/postgres:pg_embedded",
         "@wfa_common_jvm//imports/java/org/junit",
@@ -18,8 +18,8 @@ kt_jvm_test(
     srcs = ["PostgresContinuationTokensServiceTest.kt"],
     test_class = "org.wfanet.measurement.duchy.deploy.postgres.PostgresContinuationTokensServiceTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/postgres:services",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/postgres/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres:services",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/testing",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/opentable/db/postgres:pg_embedded",
@@ -34,8 +34,8 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.duchy.deploy.postgres.PostgresComputationStatsServiceTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/postgres:services",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/postgres/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres:services",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computations",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/testing",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
