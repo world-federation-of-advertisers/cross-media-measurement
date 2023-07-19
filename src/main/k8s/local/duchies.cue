@@ -108,7 +108,6 @@ duchies: [...#PostgresDuchy] | [...#SpannerDuchy]
 if (_use_postgres_duchy == "true") {
 	duchies: _postgresDuchies
 }
-if (_use_postgres_duchy == "spanner") {
+if (_use_postgres_duchy != "true") {
 	duchies: _spannerDuchies
-	_duchyConfigs: 1
 }

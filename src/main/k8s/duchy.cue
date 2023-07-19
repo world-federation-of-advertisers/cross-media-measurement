@@ -60,15 +60,15 @@ import ("strings")
 		}
 	}
 
-	_millPollingInterval?: string
-	_duchy_data_server_name: string
-	_duchy_data_server_name_with_prefix: _object_prefix + _duchy_data_server_name
-	_duchy_data_server_app_label: string
-	_duchy_data_server_deployment_name: string
-	_duchy_data_server_container_args: [...string]
-	_duchy_data_service_target_flag: string
-	_duchy_data_service_cert_host_flag: string
-	_duchy_update_schema_image: string
+ 	_millPollingInterval?:               string
+ 	_duchy_data_server_name:             string
+ 	_duchy_data_server_name_with_prefix: _object_prefix + _duchy_data_server_name
+	_duchy_data_server_app_label:        string
+	_duchy_data_server_deployment_name:  string
+ 	_duchy_data_server_container_args: [...string]
+	_duchy_data_service_target_flag:    string
+ 	_duchy_data_service_cert_host_flag: string
+	_duchy_update_schema_image:         string
 
 	_akid_to_principal_map_file_flag:                   "--authority-key-identifier-to-principal-map-file=/etc/\(#AppName)/config-files/authority_key_identifier_to_principal_map.textproto"
 	_async_computations_control_service_target_flag:    "--async-computation-control-service-target=" + (#Target & {name: "\(_name)-async-computation-control-server"}).target
