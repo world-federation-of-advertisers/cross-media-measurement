@@ -27,7 +27,7 @@ import org.wfanet.measurement.internal.duchy.computationStageBlobMetadata
 class ComputationBlobReferenceReader {
 
   /**
-   * Gets the [ComputationBlobDependency] of a computation.
+   * Reads the [ComputationBlobDependency] of a computation.
    *
    * @param localId local identifier of the computation
    * @param stage stage enum of the computation
@@ -66,14 +66,14 @@ class ComputationBlobReferenceReader {
   }
 
   /**
-   * Gets a map of blobId to pathToBlob of a computation based on localComputationId.
+   * Reads a map of blobId to pathToBlob of a computation based on localComputationId.
    *
    * @param localId local identifier of the computation
    * @param stage stage enum of the computation
    * @param dependencyType enum value of the dependency type
-   * @return [Map<[Long], [String]?>] for all blobIds of a computation
+   * @return map of blobId to pathToBlob
    */
-  suspend fun blobIdToPathMapByDepType(
+  suspend fun readBlobIdToPathMap(
     readContext: ReadContext,
     localId: Long,
     stage: Long,
@@ -106,7 +106,7 @@ class ComputationBlobReferenceReader {
   }
 
   /**
-   * Gets a list of computationBlobKeys by localComputationId
+   * Reads a list of computationBlobKeys by localComputationId
    *
    * @param readContext The transaction context for reading from the Postgres database.
    * @param localComputationId A local identifier for a computation
@@ -135,7 +135,7 @@ class ComputationBlobReferenceReader {
   }
 
   /**
-   * Gets a list of [ComputationStageBlobMetadata] by localComputationId
+   * Reads a list of [ComputationStageBlobMetadata] by localComputationId
    *
    * @param readContext The transaction context for reading from the Postgres database.
    * @param localComputationId A local identifier for a computation
@@ -167,10 +167,13 @@ class ComputationBlobReferenceReader {
   }
 
   private fun buildBlobMetadata(row: ResultRow): ComputationStageBlobMetadata {
+    val path = row.get<String?>("PathToBlob")
     return computationStageBlobMetadata {
       blobId = row["BlobId"]
-      row.get<String?>("PathToBlob")?.let { path = it }
       dependencyType = row.getProtoEnum("DependencyType", ComputationBlobDependency::forNumber)
+      if (path != null) {
+        this.path = path
+      }
     }
   }
 }

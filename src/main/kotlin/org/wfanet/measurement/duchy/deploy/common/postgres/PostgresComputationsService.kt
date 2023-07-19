@@ -52,6 +52,7 @@ import org.wfanet.measurement.internal.duchy.CreateComputationResponse
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest.KeyCase
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
+import org.wfanet.measurement.internal.duchy.createComputationResponse
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest

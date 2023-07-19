@@ -11,10 +11,8 @@ package(
 )
 
 kt_jvm_library(
-    name = "frontend_simulator",
-    srcs = [
-        "FrontendSimulator.kt",
-    ],
+    name = "simulator",
+    srcs = ["MeasurementConsumerSimulator.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",

@@ -23,7 +23,7 @@ import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 class ComputationStageAttemptReader {
 
   /**
-   * Gets a [ComputationStageAttemptDetails] by localComputationId and stage.
+   * Reads a [ComputationStageAttemptDetails] by localComputationId and stage.
    *
    * @param readContext The transaction context for reading from the Postgres database.
    * @param localId The local identifier for the target computation.

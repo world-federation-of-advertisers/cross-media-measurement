@@ -81,6 +81,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.activateAccountRequest
 import org.wfanet.measurement.api.v2alpha.apiKey
 import org.wfanet.measurement.api.v2alpha.authenticateRequest
+import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.createApiKeyRequest
 import org.wfanet.measurement.api.v2alpha.createCertificateRequest
@@ -541,6 +542,7 @@ private class MeasurementConsumers {
       CreateMeasurement::class,
       ListMeasurements::class,
       GetMeasurement::class,
+      CancelMeasurement::class,
     ]
 )
 private class Measurements {
@@ -567,6 +569,18 @@ private class Measurements {
   }
   val certificateStub: CertificatesCoroutineStub by lazy {
     CertificatesCoroutineStub(parentCommand.kingdomChannel)
+  }
+
+  companion object {
+    fun printState(measurement: Measurement) {
+      if (measurement.state == Measurement.State.FAILED) {
+        println(
+          "State: FAILED - " + measurement.failure.reason + ": " + measurement.failure.message
+        )
+      } else {
+        println("State: ${measurement.state}")
+      }
+    }
   }
 }
 
@@ -1002,14 +1016,6 @@ class GetMeasurement : Runnable {
 
   private val privateKeyHandle: PrivateKeyHandle by lazy { loadPrivateKey(privateKeyDerFile) }
 
-  private fun printMeasurementState(measurement: Measurement) {
-    if (measurement.state == Measurement.State.FAILED) {
-      println("State: FAILED - " + measurement.failure.reason + ": " + measurement.failure.message)
-    } else {
-      println("State: ${measurement.state}")
-    }
-  }
-
   private fun getMeasurementResult(
     resultPair: Measurement.ResultPair,
   ): Measurement.Result {
@@ -1065,13 +1071,35 @@ class GetMeasurement : Runnable {
           .getMeasurement(getMeasurementRequest { name = measurementName })
       }
 
-    printMeasurementState(measurement)
+    Measurements.printState(measurement)
     if (measurement.state == Measurement.State.SUCCEEDED) {
       measurement.resultsList.forEach {
         val result = getMeasurementResult(it)
         printMeasurementResult(result)
       }
     }
+  }
+}
+
+@Command(name = "cancel", description = ["Cancels a Measurement"])
+class CancelMeasurement : Runnable {
+  @ParentCommand private lateinit var parentCommand: Measurements
+
+  @Parameters(
+    index = "0",
+    description = ["API resource name of the Measurement"],
+  )
+  private lateinit var measurementName: String
+
+  override fun run() {
+    val measurement =
+      runBlocking(parentCommand.parentCommand.rpcDispatcher) {
+        parentCommand.measurementStub
+          .withAuthenticationKey(parentCommand.apiAuthenticationKey)
+          .cancelMeasurement(cancelMeasurementRequest { name = measurementName })
+      }
+
+    Measurements.printState(measurement)
   }
 }
 

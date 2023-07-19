@@ -30,8 +30,9 @@ private constructor(failureMetadata: FailureMetadata, subject: RelativeFrequency
 
   fun isWithin(tolerance: Double): DistributionComparison {
     return object : DistributionComparison() {
-      override fun of(expected: RelativeFrequencyDistribution, maxFrequency: Long) {
-        for (bucket in 1L..maxFrequency) {
+      override fun of(expected: RelativeFrequencyDistribution) {
+        val buckets: Set<Long> = expected.keys.union(actual.keys)
+        for (bucket in buckets) {
           val actualValue = actual.getOrDefault(bucket, 0.0)
           val expectedValue = expected.getOrDefault(bucket, 0.0)
           check("getValue($bucket)").that(actualValue).isWithin(tolerance).of(expectedValue)
@@ -41,7 +42,7 @@ private constructor(failureMetadata: FailureMetadata, subject: RelativeFrequency
   }
 
   abstract class DistributionComparison internal constructor() {
-    abstract fun of(expected: RelativeFrequencyDistribution, maxFrequency: Long)
+    abstract fun of(expected: RelativeFrequencyDistribution)
   }
 
   companion object {

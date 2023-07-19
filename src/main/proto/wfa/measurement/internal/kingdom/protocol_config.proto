@@ -36,7 +36,7 @@ message ProtocolConfig {
     DISCRETE_GAUSSIAN = 2;
   }
 
-  // Configuration for the Liquid Legions v2 R/F protocol.
+  // Configuration for Liquid Legions v2 protocols.
   message LiquidLegionsV2 {
     // Parameters for sketch.
     LiquidLegionsSketchParams sketch_params = 1;
@@ -51,7 +51,8 @@ message ProtocolConfig {
     // prime256v1 curve. Required. Immutable.
     int32 elliptic_curve_id = 3;
 
-    // The maximum frequency to reveal in the histogram.
+    // The maximum frequency to reveal in the histogram. For reach-only liquid
+    // legions protocol, this field should be ignored.
     int32 maximum_frequency = 4;
 
     // The mechanism to generate noise during computation.
@@ -66,6 +67,11 @@ message ProtocolConfig {
     //
     // May only be set when the measurement type is REACH_AND_FREQUENCY.
     LiquidLegionsV2 liquid_legions_v2 = 3;
+
+    // Reach-only Liquid Legions v2 config.
+    //
+    // Must only be set when the measurement type is REACH.
+    LiquidLegionsV2 reach_only_liquid_legions_v2 = 4;
   }
 }
 
@@ -78,5 +84,6 @@ message LiquidLegionsSketchParams {
   int64 max_size = 2;
 
   // The size of the distribution of the sampling indicator value.
+  // Reach-Only Liquid Legions protocol ignores this field.
   int64 sampling_indicator_size = 3;
 }

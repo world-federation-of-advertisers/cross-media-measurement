@@ -1,0 +1,30 @@
+# proto-file: src/main/proto/wfa/measurement/internal/kingdom/protocol_config_config.proto
+# proto-message: Llv2ProtocolConfigConfig
+# Reuse Llv2ProtocolConfigConfig message type but omit sampling_indicator_size
+# and maximum_frequency.
+protocol_config {
+  sketch_params {
+    decay_rate: 7.75
+    max_size: 100000
+  }
+  data_provider_noise {
+    epsilon: 1.0
+    delta: 1.0
+  }
+  elliptic_curve_id: 415
+  noise_mechanism: GEOMETRIC
+}
+duchy_protocol_config {
+  mpc_noise {
+    blinded_histogram_noise {
+      epsilon: 1.0
+      delta: 1.0
+    }
+    noise_for_publisher_noise {
+      epsilon: 1.0
+      delta: 1.0
+    }
+  }
+}
+required_external_duchy_ids: "aggregator"
+minimum_duchy_participant_count: 3

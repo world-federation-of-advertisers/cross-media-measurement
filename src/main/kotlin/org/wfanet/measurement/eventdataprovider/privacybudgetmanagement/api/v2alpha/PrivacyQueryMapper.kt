@@ -30,16 +30,17 @@ object PrivacyQueryMapper {
    * @param reference representing the reference key and if the charge is a refund.
    * @param measurementSpec The measurementSpec protobuf that is associated with the query. The VID
    *   sampling interval is obtained from from this.
-   * @param requisitionSpec The requisitionSpec protobuf that is associated with the query. The date
-   *   range and demo groups are obtained from this.
-   * @throws PrivacyBudgetManagerException if an error occurs in handling this request. Possible
-   *   exceptions could include running out of privacy budget or a failure to commit the transaction
-   *   to the database.
+   * @param eventSpecs event specs from the Requisition. The date range and demo groups are obtained
+   *   from this.
+   * @throws
+   *   org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
+   *   if an error occurs in handling this request. Possible exceptions could include running out of
+   *   privacy budget or a failure to commit the transaction to the database.
    */
   fun getPrivacyQuery(
     reference: Reference,
-    requisitionSpec: RequisitionSpec,
-    measurementSpec: MeasurementSpec
+    measurementSpec: MeasurementSpec,
+    eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>
   ): Query {
     val dpCharge =
       when (measurementSpec.measurementTypeCase) {
@@ -85,9 +86,7 @@ object PrivacyQueryMapper {
     return Query(
       reference,
       LandscapeMask(
-        requisitionSpec.eventGroupsList.map {
-          EventGroupSpec(it.value.filter.expression, it.value.collectionInterval.toRange())
-        },
+        eventSpecs.map { EventGroupSpec(it.filter.expression, it.collectionInterval.toRange()) },
         measurementSpec.vidSamplingInterval.start,
         measurementSpec.vidSamplingInterval.width
       ),
