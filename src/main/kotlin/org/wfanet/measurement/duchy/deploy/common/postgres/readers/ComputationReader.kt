@@ -167,7 +167,7 @@ class ComputationReader(
   }
 
   /**
-   * Gets a [ComputationToken] by globalComputationId.
+   * Reads a [ComputationToken] by globalComputationId.
    *
    * @param client The [DatabaseClient] to the Postgres database.
    * @param globalComputationId A global identifier for a computation.
@@ -198,7 +198,7 @@ class ComputationReader(
   }
 
   /**
-   * Gets a [ComputationToken] by externalRequisitionKey.
+   * Reads a [ComputationToken] by externalRequisitionKey.
    *
    * @param client The [DatabaseClient] to the Postgres database.
    * @param externalRequisitionKey The [ExternalRequisitionKey] for a computation.
@@ -228,7 +228,7 @@ class ComputationReader(
   }
 
   /**
-   * Gets a set of globalComputationIds
+   * Reads a set of globalComputationIds
    *
    * @param readContext The transaction context for reading from the Postgres database.
    * @param stages A list of stage's long values
@@ -267,18 +267,18 @@ class ComputationReader(
           Protocol = $1
       """
 
-    val sql =
-      boundStatement(
-        updatedBefore?.let { baseSql + """
-          AND UpdateTime <= $2
-          """ } ?: baseSql
-      ) {
-        bind("$1", computationTypes[0])
-        updatedBefore?.let { bind("$2", it) }
+    val query =
+      if (updatedBefore == null) {
+        boundStatement(baseSql) { bind("$1", computationTypes[0]) }
+      } else {
+        boundStatement(baseSql + " AND UpdatedTime <= $2") {
+          bind("$1", computationTypes[0])
+          bind("$2", updatedBefore)
+        }
       }
 
     return readContext
-      .executeQuery(sql)
+      .executeQuery(query)
       .consume { row -> row.get<String>("GlobalComputationId") }
       .toSet()
   }
