@@ -1,37 +1,45 @@
 package org.wfanet.measurement.reporting.bff.service.api.v1alpha
 
 import org.wfanet.measurement.reporting.bff.v1alpha.Report
+import org.wfanet.measurement.reporting.bff.v1alpha.report
 import org.wfanet.measurement.reporting.bff.v1alpha.GetReportRequest
 import org.wfanet.measurement.reporting.bff.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.bff.v1alpha.ListReportsResponse
+import org.wfanet.measurement.reporting.bff.v1alpha.listReportsResponse
 import org.wfanet.measurement.reporting.bff.v1alpha.ReportsGrpcKt
+import org.wfanet.measurement.reporting.v1alpha.report as haloReport
+import org.wfanet.measurement.reporting.v1alpha.getReportRequest
+import org.wfanet.measurement.reporting.v1alpha.ReportsGrpcKt as HaloReportsGrpcKt
+import org.wfanet.measurement.reporting.v1alpha.listReportsRequest
 
 class ReportsService(
-    private val reportsStub: ReportsGrpcKt.ReportsCoroutineStub
+    private val haloReportsStub: HaloReportsGrpcKt.ReportsCoroutineStub
 ) : ReportsGrpcKt.ReportsCoroutineImplBase() { 
     override suspend fun listReports(request: ListReportsRequest): ListReportsResponse {
         // Map UI request to internal request
-        // val resp = reportsStub.listReports("measurementConsumers/VCTqwV_vFXw")
-        val resp = reportsStub.listReports(request)
+        val haloRequest = listReportsRequest { parent = request.parent }
+        val resp = haloReportsStub.listReports(haloRequest)
 
         // Map internal response to UI response
-        val results = ListReportsResponse.newBuilder()
+        val results = listReportsResponse {
+            nextPageToken = resp.nextPageToken
 
-        resp.reportsList.forEach{
-            val r = Report.newBuilder().setName(it.name).build()
-            results.addReports(r)
+            resp.reportsList.forEach{
+                val r = report { name = it.name }
+                reports += r
+            }
         }
 
-        val f = results.build()
-        return f
+        return results
     }
 
     override suspend fun getReport(request: GetReportRequest): Report {
-        val resp = reportsStub.getReport(request)
+        val haloRequest = getReportRequest { name = request.name }
+        val resp = haloReportsStub.getReport(haloRequest)
 
-        val result = Report.newBuilder()
-            .setName(resp.name)
-            .build()
+        val result = report {
+            name = resp.name
+        }
         return result
     }
 }

@@ -29,9 +29,9 @@ import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.reporting.bff.v1alpha.ReportsGrpcKt.ReportsCoroutineStub
-import org.wfanet.measurement.reporting.service.api.v1alpha.ReportingPrincipal
 import org.wfanet.measurement.reporting.bff.service.api.v1alpha.ReportsService
 import org.wfanet.measurement.reporting.deploy.common.server.ReportingApiServerFlags
+import org.wfanet.measurement.reporting.v1alpha.ReportsGrpcKt as HaloReportsGrpcKt
 import picocli.CommandLine
 
 private const val SERVER_NAME = "V1AlphaPublicApiServer"
@@ -66,7 +66,7 @@ private fun run(
   val services: List<ServerServiceDefinition> =
     listOf(
       ReportsService(
-          ReportsCoroutineStub(channel)
+          HaloReportsGrpcKt.ReportsCoroutineStub(channel)
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
     )
