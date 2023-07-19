@@ -14,22 +14,17 @@
 
 package org.wfanet.measurement.reporting.bff.service.api.v1alpha
 
-import com.google.protobuf.ByteString
 import io.grpc.Channel
 import io.grpc.ServerServiceDefinition
 import java.io.File
-import java.security.SecureRandom
 import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
 import org.wfanet.measurement.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
-import org.wfanet.measurement.common.api.PrincipalLookup
-import org.wfanet.measurement.common.api.memoizing
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.reporting.bff.v1alpha.ReportsGrpcKt.ReportsCoroutineStub
-import org.wfanet.measurement.reporting.bff.service.api.v1alpha.ReportsService
 import org.wfanet.measurement.reporting.deploy.common.server.ReportingApiServerFlags
 import org.wfanet.measurement.reporting.v1alpha.ReportsGrpcKt as HaloReportsGrpcKt
 import picocli.CommandLine
@@ -65,9 +60,7 @@ private fun run(
 
   val services: List<ServerServiceDefinition> =
     listOf(
-      ReportsService(
-          HaloReportsGrpcKt.ReportsCoroutineStub(channel)
-        )
+      ReportsService(HaloReportsGrpcKt.ReportsCoroutineStub(channel))
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
     )
   CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
