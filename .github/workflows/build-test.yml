@@ -78,6 +78,11 @@ jobs:
           //src/test/kotlin/org/wfanet/measurement/integration/k8s:EmptyClusterPostgresDuchyCorrectnessTest
           --test_output=streamed
 
+      - name: Clear cluster
+        id: clear-cluster
+        run: >
+          kubectl delete all --namespace=default --all
+
       - name: Run spanner duchy correctness test
         id: run-spanner-duchy-correctness-test
         run: >

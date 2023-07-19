@@ -20,7 +20,7 @@ import org.wfanet.measurement.storage.forwarded.ForwardedStorageFromFlags
 import picocli.CommandLine
 
 /** Implementation of [PostgresDuchyDataServer] using Fake Storage Service. */
-class ForwardedStoragePostgresDuchyDataServer: PostgresDuchyDataServer() {
+class ForwardedStoragePostgresDuchyDataServer : PostgresDuchyDataServer() {
 
   @CommandLine.Mixin private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
 
@@ -30,4 +30,3 @@ class ForwardedStoragePostgresDuchyDataServer: PostgresDuchyDataServer() {
 }
 
 fun main(args: Array<String>) = commandLineMain(ForwardedStoragePostgresDuchyDataServer(), args)
-
