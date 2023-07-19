@@ -7,13 +7,11 @@ kt_jvm_library(
     srcs = ["V1AlphaPublicApiServer.kt"],
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common/server:reporting_api_server_flags",
-
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:akid_principal_lookup",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/common/api:memoizing_principal_lookup",
-
         "//src/main/kotlin/org/wfanet/measurement/reporting/bff/service/api/v1alpha:reports_service",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common/server:reporting_api_server_flags",
         "//src/main/proto/wfa/measurement/reporting/bff/v1alpha:reports_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v1alpha:reports_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
