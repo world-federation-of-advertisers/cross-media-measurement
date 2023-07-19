@@ -229,7 +229,7 @@ class ReportsService(
       throw when (e.status.code) {
           Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT.withDescription(e.message)
           Status.Code.PERMISSION_DENIED -> Status.PERMISSION_DENIED.withDescription(e.message)
-          else -> Status.UNKNOWN.withDescription("Unable to create Metrics.")
+          else -> Status.UNKNOWN.withDescription("Unable to get Metrics.")
         }
         .withCause(e)
         .asRuntimeException()
