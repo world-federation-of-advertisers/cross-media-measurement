@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.postgres.writers
+package org.wfanet.measurement.duchy.deploy.common.postgres.writers
 
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.Timestamps
@@ -20,7 +20,7 @@ import java.time.Instant
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
-import org.wfanet.measurement.duchy.deploy.postgres.readers.ContinuationTokenReader
+import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ContinuationTokenReader
 import org.wfanet.measurement.duchy.service.internal.ContinuationTokenInvalidException
 import org.wfanet.measurement.duchy.service.internal.ContinuationTokenMalformedException
 import org.wfanet.measurement.duchy.service.internal.DuchyInternalException

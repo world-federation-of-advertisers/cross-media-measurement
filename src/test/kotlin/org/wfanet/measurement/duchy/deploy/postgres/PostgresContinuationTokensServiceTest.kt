@@ -20,7 +20,8 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.EmbeddedPostgresDatabaseProvider
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.duchy.deploy.postgres.testing.Schemata.DUCHY_CHANGELOG_PATH
+import org.wfanet.measurement.duchy.deploy.common.postgres.PostgresContinuationTokensService
+import org.wfanet.measurement.duchy.deploy.common.postgres.testing.Schemata.DUCHY_CHANGELOG_PATH
 import org.wfanet.measurement.duchy.service.internal.testing.ContinuationTokensServiceTest
 
 @RunWith(JUnit4::class)
