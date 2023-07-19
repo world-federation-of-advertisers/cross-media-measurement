@@ -33,7 +33,7 @@ package k8s
 	_imageSuffixes: [_=string]: string
 	_imageSuffixes: {
 		"update-reporting-schema":             string | *"reporting/v2/postgres-update-schema"
-		"postgres-internal-reporting-server":      string | *"reporting/v2/postgres-internal-server"
+		"postgres-internal-reporting-server":  string | *"reporting/v2/postgres-internal-server"
 		"reporting-public-api-v2alpha-server": string | *"reporting/v2/v2alpha-public-api"
 	}
 	_imageConfigs: [_=string]: #ImageConfig

@@ -24,7 +24,7 @@ reporting: #Reporting & {
 	_secretName:         _reportingSecretName
 	_mcConfigSecretName: _reportingMcConfigSecretName
 	_imageSuffixes: {
-		"update-reporting-schema":        "reporting/v2/local-postgres-update-schema"
+		"update-reporting-schema":            "reporting/v2/local-postgres-update-schema"
 		"postgres-internal-reporting-server": "reporting/v2/local-postgres-internal"
 	}
 
