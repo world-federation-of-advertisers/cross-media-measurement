@@ -150,15 +150,17 @@ class CreateReportingSetCommand : Runnable {
       parent = measurementConsumerName
       reportingSet = reportingSet {
         if (type.cmmsEventGroups != null && type.cmmsEventGroups!!.isNotEmpty()) {
-          primitive = ReportingSetKt.primitive {
-            type.cmmsEventGroups!!.forEach {
-              cmmsEventGroups += it
-            }
-          }
+          primitive =
+            ReportingSetKt.primitive { type.cmmsEventGroups!!.forEach { cmmsEventGroups += it } }
         } else if (type.textFormatSetExpression != null) {
-          composite = ReportingSetKt.composite {
-            expression = parseTextProto(type.textFormatSetExpression!!.reader(), ReportingSet.SetExpression.getDefaultInstance())
-          }
+          composite =
+            ReportingSetKt.composite {
+              expression =
+                parseTextProto(
+                  type.textFormatSetExpression!!.reader(),
+                  ReportingSet.SetExpression.getDefaultInstance()
+                )
+            }
         }
         filter = filterExpression
         displayName = displayNameInput
@@ -320,7 +322,11 @@ class CreateReportCommand : Runnable {
       parent = measurementConsumerName
       report = report {
         for (textFormatReportingMetricEntry in textFormatReportingMetricEntries) {
-          reportingMetricEntries += parseTextProto(textFormatReportingMetricEntry.reader(), Report.ReportingMetricEntry.getDefaultInstance())
+          reportingMetricEntries +=
+            parseTextProto(
+              textFormatReportingMetricEntry.reader(),
+              Report.ReportingMetricEntry.getDefaultInstance()
+            )
         }
 
         // Either timeIntervals or periodicTimeIntervalInput is set.

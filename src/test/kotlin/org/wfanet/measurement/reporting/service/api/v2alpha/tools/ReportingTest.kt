@@ -66,25 +66,20 @@ import org.wfanet.measurement.reporting.v2alpha.timeIntervals
 
 @RunWith(JUnit4::class)
 class ReportingTest {
-  private val reportingSetsServiceMock: ReportingSetsCoroutineImplBase =
-    mockService {
-      onBlocking { createReportingSet(any()) }.thenReturn(REPORTING_SET)
-      onBlocking { listReportingSets(any()) }.thenReturn(listReportingSetsResponse {
-        reportingSets += REPORTING_SET
-      })
-    }
-  private val reportsServiceMock: ReportsCoroutineImplBase =
-    mockService {
-      onBlocking { createReport(any()) }.thenReturn(REPORT)
-      onBlocking { listReports(any()) }.thenReturn(listReportsResponse {
-        reports += REPORT
-      })
-      onBlocking { getReport(any()) }.thenReturn(REPORT)
-    }
-  private val eventGroupsServiceMock: EventGroupsCoroutineImplBase =
-    mockService { onBlocking { listEventGroups(any()) }.thenReturn(listEventGroupsResponse {
-      eventGroups += EVENT_GROUP
-    }) }
+  private val reportingSetsServiceMock: ReportingSetsCoroutineImplBase = mockService {
+    onBlocking { createReportingSet(any()) }.thenReturn(REPORTING_SET)
+    onBlocking { listReportingSets(any()) }
+      .thenReturn(listReportingSetsResponse { reportingSets += REPORTING_SET })
+  }
+  private val reportsServiceMock: ReportsCoroutineImplBase = mockService {
+    onBlocking { createReport(any()) }.thenReturn(REPORT)
+    onBlocking { listReports(any()) }.thenReturn(listReportsResponse { reports += REPORT })
+    onBlocking { getReport(any()) }.thenReturn(REPORT)
+  }
+  private val eventGroupsServiceMock: EventGroupsCoroutineImplBase = mockService {
+    onBlocking { listEventGroups(any()) }
+      .thenReturn(listEventGroupsResponse { eventGroups += EVENT_GROUP })
+  }
 
   private val serverCerts =
     SigningCerts.fromPemFiles(
@@ -153,10 +148,11 @@ class ReportingTest {
           reportingSet = reportingSet {
             filter = "person.age_group == 1"
             displayName = "reporting-set"
-            primitive = ReportingSetKt.primitive {
-              cmmsEventGroups += CMMS_EVENT_GROUP_NAME_1
-              cmmsEventGroups += CMMS_EVENT_GROUP_NAME_2
-            }
+            primitive =
+              ReportingSetKt.primitive {
+                cmmsEventGroups += CMMS_EVENT_GROUP_NAME_1
+                cmmsEventGroups += CMMS_EVENT_GROUP_NAME_2
+              }
           }
           reportingSetId = REPORTING_SET_ID
         }
@@ -174,7 +170,8 @@ class ReportingTest {
         lhs {
           reporting_set: "$REPORTING_SET_NAME"
         }
-      """.trimIndent()
+      """
+        .trimIndent()
 
     val args =
       arrayOf(
@@ -194,23 +191,24 @@ class ReportingTest {
     val output = callCli(args)
 
     verifyProtoArgument(
-      reportingSetsServiceMock,
-      ReportingSetsCoroutineImplBase::createReportingSet
-    )
+        reportingSetsServiceMock,
+        ReportingSetsCoroutineImplBase::createReportingSet
+      )
       .isEqualTo(
         createReportingSetRequest {
           parent = MEASUREMENT_CONSUMER_NAME
           reportingSet = reportingSet {
             filter = "person.age_group == 1"
             displayName = "reporting-set"
-            composite = ReportingSetKt.composite {
-              expression = ReportingSetKt.setExpression {
-                operation = ReportingSet.SetExpression.Operation.UNION
-                lhs = ReportingSetKt.SetExpressionKt.operand {
-                  reportingSet = REPORTING_SET_NAME
-                }
+            composite =
+              ReportingSetKt.composite {
+                expression =
+                  ReportingSetKt.setExpression {
+                    operation = ReportingSet.SetExpression.Operation.UNION
+                    lhs =
+                      ReportingSetKt.SetExpressionKt.operand { reportingSet = REPORTING_SET_NAME }
+                  }
               }
-            }
           }
           reportingSetId = REPORTING_SET_ID
         }
@@ -228,7 +226,8 @@ class ReportingTest {
         lhs {
           reporting_set: "$REPORTING_SET_NAME"
         }
-      """.trimIndent()
+      """
+        .trimIndent()
 
     val args =
       arrayOf(
@@ -276,14 +275,13 @@ class ReportingTest {
         }
       )
     assertThat(parseTextProto(output.reader(), ListReportingSetsResponse.getDefaultInstance()))
-      .isEqualTo(listReportingSetsResponse {
-        reportingSets += REPORTING_SET
-      })
+      .isEqualTo(listReportingSetsResponse { reportingSets += REPORTING_SET })
   }
 
   @Test
   fun `create report with timeIntervalInput calls api with valid request`() {
-    val textFormatReportingMetricEntryFile = TEXTPROTO_DIR.resolve("reporting_metric_entry.textproto").toFile()
+    val textFormatReportingMetricEntryFile =
+      TEXTPROTO_DIR.resolve("reporting_metric_entry.textproto").toFile()
     val startTime = "2017-01-15T01:30:15.01Z"
     val endTime = "2018-01-15T01:30:15.01Z"
     val startTime2 = "2019-01-15T01:30:15.01Z"
@@ -316,7 +314,11 @@ class ReportingTest {
           reportId = REPORT_ID
           requestId = REPORT_REQUEST_ID
           report = report {
-            reportingMetricEntries += parseTextProto(textFormatReportingMetricEntryFile, Report.ReportingMetricEntry.getDefaultInstance())
+            reportingMetricEntries +=
+              parseTextProto(
+                textFormatReportingMetricEntryFile,
+                Report.ReportingMetricEntry.getDefaultInstance()
+              )
             timeIntervals = timeIntervals {
               timeIntervals += interval {
                 this.startTime = Instant.parse(startTime).toProtoTime()
@@ -336,7 +338,8 @@ class ReportingTest {
 
   @Test
   fun `create report with periodicTimeIntervalInput calls api with valid request`() {
-    val textFormatReportingMetricEntryFile = TEXTPROTO_DIR.resolve("reporting_metric_entry.textproto").toFile()
+    val textFormatReportingMetricEntryFile =
+      TEXTPROTO_DIR.resolve("reporting_metric_entry.textproto").toFile()
     val startTime = "2017-01-15T01:30:15.01Z"
     val increment = "P1DT3H5M12.99S"
 
@@ -366,7 +369,11 @@ class ReportingTest {
           reportId = REPORT_ID
           requestId = REPORT_REQUEST_ID
           report = report {
-            reportingMetricEntries += parseTextProto(textFormatReportingMetricEntryFile, Report.ReportingMetricEntry.getDefaultInstance())
+            reportingMetricEntries +=
+              parseTextProto(
+                textFormatReportingMetricEntryFile,
+                Report.ReportingMetricEntry.getDefaultInstance()
+              )
             periodicTimeInterval = periodicTimeInterval {
               this.startTime = Instant.parse(startTime).toProtoTime()
               this.increment = Duration.parse(increment).toProtoDuration()
@@ -381,7 +388,8 @@ class ReportingTest {
 
   @Test
   fun `create report with both periodicTimeIntervalInput and timeIntervalInput fails`() {
-    val textFormatReportingMetricEntryFile = TEXTPROTO_DIR.resolve("reporting_metric_entry.textproto").toFile()
+    val textFormatReportingMetricEntryFile =
+      TEXTPROTO_DIR.resolve("reporting_metric_entry.textproto").toFile()
     val increment = "P1DT3H5M12.99S"
     val startTime = "2017-01-15T01:30:15.01Z"
     val endTime = "2018-01-15T01:30:15.01Z"
@@ -478,9 +486,7 @@ class ReportingTest {
         }
       )
     assertThat(parseTextProto(output.reader(), ListEventGroupsResponse.getDefaultInstance()))
-      .isEqualTo(listEventGroupsResponse {
-        eventGroups += EVENT_GROUP
-      })
+      .isEqualTo(listEventGroupsResponse { eventGroups += EVENT_GROUP })
   }
 
   companion object {
@@ -516,20 +522,14 @@ class ReportingTest {
     private const val REPORTING_SET_ID = "abc"
     private const val REPORTING_SET_NAME = "reportingSet/$REPORTING_SET_ID"
 
-    private val REPORTING_SET = reportingSet {
-      name = REPORTING_SET_NAME
-    }
+    private val REPORTING_SET = reportingSet { name = REPORTING_SET_NAME }
 
     private const val REPORT_REQUEST_ID = "def"
     private const val REPORT_ID = "abc"
     private const val REPORT_NAME = "$MEASUREMENT_CONSUMER_NAME/reports/$REPORT_ID"
-    private val REPORT = report {
-      name = REPORT_NAME
-    }
+    private val REPORT = report { name = REPORT_NAME }
 
     private const val EVENT_GROUP_NAME = "$MEASUREMENT_CONSUMER_NAME/eventGroups/1"
-    private val EVENT_GROUP = eventGroup {
-      name = EVENT_GROUP_NAME
-    }
+    private val EVENT_GROUP = eventGroup { name = EVENT_GROUP_NAME }
   }
 }
