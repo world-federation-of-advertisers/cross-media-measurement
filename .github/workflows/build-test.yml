@@ -72,14 +72,14 @@ jobs:
           ./kind-with-registry.sh
 
       - name: Run postgres duchy correctness test
-        id: run-correctness-test
+        id: run-postgres-duchy-correctness-test
         run: >
           bazelisk test
           //src/test/kotlin/org/wfanet/measurement/integration/k8s:EmptyClusterPostgresDuchyCorrectnessTest
           --test_output=streamed
 
       - name: Run spanner duchy correctness test
-        id: run-correctness-test
+        id: run-spanner-duchy-correctness-test
         run: >
           bazelisk test
           //src/test/kotlin/org/wfanet/measurement/integration/k8s:EmptyClusterSpannerDuchyCorrectnessTest
