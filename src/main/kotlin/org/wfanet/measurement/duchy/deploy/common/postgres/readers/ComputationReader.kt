@@ -36,7 +36,7 @@ import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.computationToken
 
- *
+/**
  * @param computationProtocolStagesEnumHelper [ComputationProtocolStagesEnumHelper] a helper class
  *   to work with Enum representations of [ComputationType] and [ComputationStage].
  */
