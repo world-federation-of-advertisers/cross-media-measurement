@@ -37,7 +37,7 @@ class RequisitionReader {
   }
 
   /**
-   * Gets a set of globalComputationIds
+   * Reads a set of globalComputationIds
    *
    * @param readContext The transaction context for reading from the Postgres database.
    * @param key [ExternalRequisitionKey] external requisition key that identifies a requisition.
@@ -95,7 +95,7 @@ class RequisitionReader {
   }
 
   /**
-   * Gets a list of [RequisitionMetadata] by localComputationId
+   * Reads a list of [RequisitionMetadata] by localComputationId
    *
    * @param readContext The transaction context for reading from the Postgres database.
    * @param localComputationId A local identifier for a computation
