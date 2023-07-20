@@ -23,12 +23,14 @@ import io.kubernetes.client.common.KubernetesObject
 import io.kubernetes.client.openapi.Configuration
 import io.kubernetes.client.openapi.models.V1Deployment
 import io.kubernetes.client.openapi.models.V1Pod
+import io.kubernetes.client.util.ClientBuilder
 import java.io.File
 import java.net.InetSocketAddress
 import java.nio.charset.StandardCharsets
 import java.nio.file.Paths
 import java.security.Security
 import java.time.Duration
+import java.util.UUID
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -38,9 +40,12 @@ import kotlinx.coroutines.time.delay
 import kotlinx.coroutines.time.withTimeout
 import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.Blocking
+import org.junit.ClassRule
 import org.junit.rules.TemporaryFolder
 import org.junit.rules.TestRule
 import org.junit.runner.Description
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
@@ -59,6 +64,7 @@ import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.k8s.KubernetesClient
 import org.wfanet.measurement.common.k8s.testing.PortForwarder
 import org.wfanet.measurement.common.k8s.testing.Processes
+import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.MC_DISPLAY_NAME
 import org.wfanet.measurement.integration.common.createEntityContent
@@ -87,9 +93,9 @@ import org.wfanet.measurement.storage.forwarded.ForwardedStorageClient
  * This assumes that the `tar` and `kubectl` executables are the execution path. The latter is only
  * used for `kustomize`, as the Kubernetes API is used to interact with the cluster.
  */
-abstract class EmptyClusterCorrectnessTest(measurementSystem: LocalMeasurementSystem) :
-  AbstractCorrectnessTest(measurementSystem) {
-  protected class Images : TestRule {
+@RunWith(JUnit4::class)
+class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
+  private class Images : TestRule {
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
         override fun evaluate() {
@@ -163,8 +169,7 @@ abstract class EmptyClusterCorrectnessTest(measurementSystem: LocalMeasurementSy
   class LocalMeasurementSystem(
     k8sClient: Lazy<KubernetesClient>,
     tempDir: Lazy<TemporaryFolder>,
-    runId: Lazy<String>,
-    private val usePostgresDuchy: Boolean
+    runId: Lazy<String>
   ) : TestRule, MeasurementSystem {
     private val portForwarders = mutableListOf<PortForwarder>()
     private val channels = mutableListOf<ManagedChannel>()
@@ -325,7 +330,6 @@ abstract class EmptyClusterCorrectnessTest(measurementSystem: LocalMeasurementSy
               .replace("{worker1_cert_name}", resourceInfo.worker1Cert)
               .replace("{worker2_cert_name}", resourceInfo.worker2Cert)
               .replace("{mc_name}", resourceInfo.measurementConsumer)
-              .replace("{use_postgres_duchy}", usePostgresDuchy.toString())
               .let {
                 var config = it
                 for ((displayName, resourceName) in resourceInfo.dataProviders) {
@@ -478,6 +482,19 @@ abstract class EmptyClusterCorrectnessTest(measurementSystem: LocalMeasurementSy
     private val LOCAL_K8S_TESTING_PATH = LOCAL_K8S_PATH.resolve("testing")
     private val CONFIG_FILES_PATH = LOCAL_K8S_TESTING_PATH.resolve("config_files")
     private val IMAGE_PUSHER_PATH = Paths.get("src", "main", "docker", "push_all_local_images")
+
+    private val tempDir = TemporaryFolder()
+
+    private val measurementSystem =
+      LocalMeasurementSystem(
+        lazy { KubernetesClient(ClientBuilder.defaultClient()) },
+        lazy { tempDir },
+        lazy { UUID.randomUUID().toString() }
+      )
+
+    @ClassRule
+    @JvmField
+    val chainedRule = chainRulesSequentially(tempDir, Images(), measurementSystem)
 
     private suspend fun EventGroupsGrpcKt.EventGroupsCoroutineStub.waitForEventGroups(
       measurementConsumer: String,

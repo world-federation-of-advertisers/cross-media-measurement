@@ -92,7 +92,6 @@ cue_dump(
         "aggregator_cert_name": TEST_K8S_SETTINGS.aggregator_cert_name,
         "worker1_cert_name": TEST_K8S_SETTINGS.worker1_cert_name,
         "worker2_cert_name": TEST_K8S_SETTINGS.worker2_cert_name,
-        "use_postgres_duchy": DUCHY_K8S_SETTINGS.use_postgres_duchy,
     },
     tags = ["manual"],
     deps = [":duchies_cue"],

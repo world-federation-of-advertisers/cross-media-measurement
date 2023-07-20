@@ -53,22 +53,6 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "empty_cluster_postgres_duchy_correctness_test",
-    srcs = ["EmptyClusterPostgresDuchyCorrectnessTest.kt"],
-    deps = [
-        ":empty_cluster_correctness_test",
-    ],
-)
-
-kt_jvm_library(
-    name = "empty_cluster_spanner_duchy_correctness_test",
-    srcs = ["EmptyClusterSpannerDuchyCorrectnessTest.kt"],
-    deps = [
-        ":empty_cluster_correctness_test",
-    ],
-)
-
-kt_jvm_library(
     name = "forwarded_storage_correctness_test",
     srcs = ["ForwardedStorageCorrectnessTest.kt"],
     deps = [
@@ -136,7 +120,7 @@ expand_template(
 )
 
 java_test(
-    name = "EmptyClusterPostgresDuchyCorrectnessTest",
+    name = "EmptyClusterCorrectnessTest",
     size = "enormous",
     timeout = "long",
     data = [
@@ -152,29 +136,8 @@ java_test(
         "cpu:8",
         "manual",
     ],
-    test_class = "org.wfanet.measurement.integration.k8s.EmptyClusterPostgresDuchyCorrectnessTest",
-    runtime_deps = [":empty_cluster_postgres_duchy_correctness_test"],
-)
-
-java_test(
-    name = "EmptyClusterSpannerDuchyCorrectnessTest",
-    size = "enormous",
-    timeout = "long",
-    data = [
-        "//src/main/docker:push_all_local_images",
-        "//src/main/k8s/local:kingdom_setup.tar",
-        "//src/main/k8s/local/testing:cmms.tar",
-    ],
-    env_inherit = [
-        "DOCKER_HOST",
-        "KUBECONFIG",
-    ],
-    tags = [
-        "cpu:8",
-        "manual",
-    ],
-    test_class = "org.wfanet.measurement.integration.k8s.EmptyClusterSpannerDuchyCorrectnessTest",
-    runtime_deps = [":empty_cluster_spanner_duchy_correctness_test"],
+    test_class = "org.wfanet.measurement.integration.k8s.EmptyClusterCorrectnessTest",
+    runtime_deps = [":empty_cluster_correctness_test"],
 )
 
 java_test(
