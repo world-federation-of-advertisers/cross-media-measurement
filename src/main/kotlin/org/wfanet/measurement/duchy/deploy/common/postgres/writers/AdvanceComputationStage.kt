@@ -67,7 +67,7 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
 
     val unwrittenOutputs =
       ComputationBlobReferenceReader()
-        .blobIdToPathMapByDepType(
+        .readBlobIdToPathMap(
           transactionContext,
           localId,
           protocolStagesEnumHelper.computationStageEnumToLongValues(currentStage).stage,

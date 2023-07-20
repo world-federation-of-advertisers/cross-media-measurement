@@ -60,10 +60,10 @@ _computationControlTargets: {
 
 _baseDuchyConfig: {
 	_imageSuffixes: {
-	  "computation-control-server":     "duchy/local-computation-control"
+		"computation-control-server":     "duchy/local-computation-control"
 		"liquid-legions-v2-mill-daemon":  "duchy/local-liquid-legions-v2-mill"
 		"requisition-fulfillment-server": "duchy/local-requisition-fulfillment"
-  }
+	}
 	_duchy_secret_name:           _secret_name
 	_computation_control_targets: _computationControlTargets
 	_kingdom_system_api_target:   #KingdomSystemApiTarget
@@ -76,30 +76,31 @@ _baseDuchyConfig: {
 
 duchies: [
 	for duchyConfig in _duchyConfigs
-		if (duchyConfig.duchyType == "spanner") {
-			#SpannerDuchy & _baseDuchyConfig & {
-				_imageSuffixes: {
-					"spanner-computations-server":    "duchy/local-spanner-computations"
-				}
-				_duchy: {
-					name:                   duchyConfig.name
-					protocols_setup_config: duchyConfig.protocolsSetupConfig
-					cs_cert_resource_name:  duchyConfig.certificateResourceName
-				}
+	if (duchyConfig.duchyType == "spanner") {
+		#SpannerDuchy & _baseDuchyConfig & {
+			_imageSuffixes: {
+				"spanner-computations-server": "duchy/local-spanner-computations"
 			}
+			_duchy: {
+				name:                   duchyConfig.name
+				protocols_setup_config: duchyConfig.protocolsSetupConfig
+				cs_cert_resource_name:  duchyConfig.certificateResourceName
+		  }
 		}
+	}
+
 	for duchyConfig in _duchyConfigs
-		if (duchyConfig.duchyType == "postgres") {
-			#PostgresDuchy & _baseDuchyConfig & {
-				_imageSuffixes: {
-					"postgres-data-server":           "duchy/local-postgres-data"
-				}
-				_duchy: {
-					name:                   duchyConfig.name
-					protocols_setup_config: duchyConfig.protocolsSetupConfig
-					cs_cert_resource_name:  duchyConfig.certificateResourceName
-				}
+	if (duchyConfig.duchyType == "postgres") {
+		#PostgresDuchy & _baseDuchyConfig & {
+			_imageSuffixes: {
+				"postgres-data-server": "duchy/local-postgres-data"
+			}
+			_duchy: {
+				name:                   duchyConfig.name
+				protocols_setup_config: duchyConfig.protocolsSetupConfig
+				cs_cert_resource_name:  duchyConfig.certificateResourceName
 			}
 		}
+	}
 ]
 
