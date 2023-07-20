@@ -85,10 +85,9 @@ duchies: [
 				name:                   duchyConfig.name
 				protocols_setup_config: duchyConfig.protocolsSetupConfig
 				cs_cert_resource_name:  duchyConfig.certificateResourceName
-		  }
+			}
 		}
-	}
-
+	},
 	for duchyConfig in _duchyConfigs
 	if (duchyConfig.duchyType == "postgres") {
 		#PostgresDuchy & _baseDuchyConfig & {
@@ -101,6 +100,5 @@ duchies: [
 				cs_cert_resource_name:  duchyConfig.certificateResourceName
 			}
 		}
-	}
+	},
 ]
-
