@@ -1,5 +1,10 @@
 # Halo Reporting V2 Server Deployment on GKE
 
+## Important Note
+
+This is the deployment guide for the new V2. For the old V1, see
+[Reporting V1](reporting-server-deployment.md).
+
 ## Background
 
 The configuration for the [`dev` environment](../../src/main/k8s/dev) can be
@@ -47,10 +52,10 @@ Make sure that the instance has the `cloudsql.iam_authentication` flag set to
 
 The Reporting server expects its own database within your PostgreSQL instance.
 You can create one with the `gcloud` CLI. For example, a database named
-`reporting` in the `dev-postgres` instance.
+`reporting-v2` in the `dev-postgres` instance.
 
 ```shell
-gcloud sql databases create reporting --instance=dev-postgres
+gcloud sql databases create reporting-v2 --instance=dev-postgres
 ```
 
 ## Build and push the container images
