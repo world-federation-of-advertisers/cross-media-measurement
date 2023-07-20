@@ -19,10 +19,10 @@ import io.grpc.Channel
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
-import java.util.Random
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.coroutines.CoroutineContext
+import kotlin.random.Random
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -31,6 +31,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
@@ -43,22 +44,18 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemory
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
+import org.wfanet.measurement.loadtest.config.EventGroupMetadata
 import org.wfanet.measurement.loadtest.dataprovider.EdpData
 import org.wfanet.measurement.loadtest.dataprovider.EdpSimulator
-import org.wfanet.measurement.loadtest.dataprovider.RandomEventQuery
-import org.wfanet.measurement.loadtest.dataprovider.SketchGenerationParams
-import org.wfanet.measurement.loadtest.storage.SketchStore
-import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 
 /** An in process EDP simulator. */
 class InProcessEdpSimulator(
   val displayName: String,
   resourceName: String,
   mcResourceName: String,
-  storageClient: StorageClient,
   kingdomPublicApiChannel: Channel,
   duchyPublicApiChannel: Channel,
-  eventTemplateNames: List<String>,
   trustedCertificates: Map<ByteString, X509Certificate>,
   coroutineContext: CoroutineContext = Dispatchers.Default,
 ) {
@@ -89,10 +86,12 @@ class InProcessEdpSimulator(
         RequisitionsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
       requisitionFulfillmentStub =
         RequisitionFulfillmentCoroutineStub(duchyPublicApiChannel).withPrincipalName(resourceName),
-      sketchStore = SketchStore(storageClient),
-      eventQuery = RandomEventQuery(SketchGenerationParams(reach = 1000, universeSize = 10_000)),
+      eventQuery =
+        object : SyntheticGeneratorEventQuery(EventGroupMetadata.UK_POPULATION) {
+          override fun getSyntheticDataSpec(eventGroup: EventGroup) =
+            EventGroupMetadata.SYNTHETIC_DATA_SPEC
+        },
       throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-      eventTemplateNames = eventTemplateNames,
       privacyBudgetManager =
         PrivacyBudgetManager(
           PrivacyBucketFilter(TestPrivacyBucketMapper()),
@@ -101,8 +100,9 @@ class InProcessEdpSimulator(
           100.0f
         ),
       trustedCertificates = trustedCertificates,
-      random,
-      DIRECT_NOISE_MECHANISM
+      DIRECT_NOISE_MECHANISM,
+      EventGroupMetadata.SYNTHETIC_DATA_SPEC,
+      random = random
     )
 
   private lateinit var edpJob: Job

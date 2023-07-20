@@ -17,47 +17,34 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
+import com.google.protobuf.Message
 import com.google.protobuf.duration
 import io.grpc.Status
 import io.grpc.StatusException
-import java.nio.file.Paths
 import java.security.GeneralSecurityException
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
-import java.util.Random
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.random.Random
+import kotlin.random.asJavaRandom
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import org.apache.commons.math3.distribution.ConstantRealDistribution
-import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
-import org.wfanet.anysketch.SketchConfigKt.indexSpec
-import org.wfanet.anysketch.SketchConfigKt.valueSpec
-import org.wfanet.anysketch.SketchProtos
-import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
 import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
-import org.wfanet.anysketch.crypto.EncryptSketchRequest
-import org.wfanet.anysketch.crypto.EncryptSketchResponse
-import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
-import org.wfanet.anysketch.crypto.combineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
-import org.wfanet.anysketch.distribution
-import org.wfanet.anysketch.exponentialDistribution
-import org.wfanet.anysketch.oracleDistribution
-import org.wfanet.anysketch.sketchConfig
-import org.wfanet.anysketch.uniformDistribution
-import org.wfanet.estimation.VidSampler
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKt.eventTemplate
 import org.wfanet.measurement.api.v2alpha.EventGroupKt.metadata
@@ -67,7 +54,6 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
-import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
@@ -92,9 +78,7 @@ import org.wfanet.measurement.api.v2alpha.createEventGroupMetadataDescriptorRequ
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessage
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessageKt as TestMetadataMessages
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
@@ -109,7 +93,6 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.identity.apiIdToExternalId
-import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.consent.client.common.NonceMismatchException
 import org.wfanet.measurement.consent.client.common.PublicKeyMismatchException
@@ -133,9 +116,8 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getPrivacyQuery
-import org.wfanet.measurement.loadtest.config.EventFilters.VID_SAMPLER_HASH_FUNCTION
-import org.wfanet.measurement.loadtest.config.TestIdentifiers
-import org.wfanet.measurement.loadtest.storage.SketchStore
+import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
+import org.wfanet.measurement.loadtest.config.VidSampling
 
 data class EdpData(
   /** The EDP's public API resource name. */
@@ -158,22 +140,26 @@ class EdpSimulator(
   private val eventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
   private val requisitionsStub: RequisitionsCoroutineStub,
   private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
-  private val sketchStore: SketchStore,
   private val eventQuery: EventQuery,
   private val throttler: Throttler,
-  private val eventTemplateNames: List<String>,
   private val privacyBudgetManager: PrivacyBudgetManager,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
-  private val random: Random,
-  private val directNoiseMechanism: DirectNoiseMechanism
+  private val directNoiseMechanism: DirectNoiseMechanism,
+  private val eventGroupMetadata: Message,
+  private val sketchEncrypter: SketchEncrypter = SketchEncrypter.Default,
+  private val random: Random = Random.Default,
 ) {
-
   /** A sequence of operations done in the simulator. */
   suspend fun run() {
     throttler.loopOnReady { executeRequisitionFulfillingWorkflow() }
   }
 
-  /** Creates an eventGroup for the MC. */
+  /**
+   * Creates an [EventGroup] for the MC if it does not exist.
+   *
+   * TODO(@SanjayVas): Update existing EventGroup to avoid drift.
+   * TODO(@SanjayVas): Create multiple EventGroups with different synthetic data specs.
+   */
   suspend fun createEventGroup(): EventGroup {
     val measurementConsumer: MeasurementConsumer =
       try {
@@ -191,7 +177,7 @@ class EdpSimulator(
 
     val descriptorResource: EventGroupMetadataDescriptor =
       try {
-        val metadataDescriptor: Descriptors.Descriptor = TestMetadataMessage.getDescriptor()
+        val metadataDescriptor: Descriptors.Descriptor = eventGroupMetadata.descriptorForType
         eventGroupMetadataDescriptorsStub.createEventGroupMetadataDescriptor(
           createEventGroupMetadataDescriptorRequest {
             parent = edpData.name
@@ -205,24 +191,20 @@ class EdpSimulator(
         throw Exception("Error creating EventGroupMetadataDescriptor", e)
       }
 
-    val eventGroupReferenceId =
-      "${TestIdentifiers.EVENT_GROUP_REFERENCE_ID_PREFIX}-${edpData.displayName}"
+    val eventGroupReferenceId = "$SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX-${edpData.displayName}"
     val request = createEventGroupRequest {
       parent = edpData.name
       eventGroup = eventGroup {
         this.measurementConsumer = measurementConsumerName
         this.eventGroupReferenceId = eventGroupReferenceId
-        eventTemplates += eventTemplateNames.map { eventTemplate { type = it } }
+        eventTemplates += EVENT_TEMPLATE_TYPES.map { eventTemplate { type = it.fullName } }
         measurementConsumerCertificate = measurementConsumer.certificate
         measurementConsumerPublicKey = measurementConsumer.publicKey
         encryptedMetadata =
           encryptMetadata(
             metadata {
-              this.eventGroupMetadataDescriptor = descriptorResource.name
-              this.metadata =
-                Any.pack(
-                  testMetadataMessage { name = TestMetadataMessages.name { value = "John Doe" } }
-                )
+              eventGroupMetadataDescriptor = descriptorResource.name
+              metadata = Any.pack(eventGroupMetadata)
             },
             EncryptionPublicKey.parseFrom(measurementConsumer.publicKey.data)
           )
@@ -518,6 +500,10 @@ class EdpSimulator(
           }
         }
 
+      if (!eventGroup.eventGroupReferenceId.startsWith(SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX)) {
+        throw InvalidSpecException("EventGroup ${it.key} not supported by this simulator")
+      }
+
       EventQuery.EventGroupSpec(eventGroup, it.value)
     }
   }
@@ -540,21 +526,6 @@ class EdpSimulator(
     } catch (e: StatusException) {
       throw Exception("Error refusing requisition $requisitionName", e)
     }
-  }
-
-  private fun populateAnySketch(
-    eventGroupSpec: EventQuery.EventGroupSpec,
-    vidSampler: VidSampler,
-    vidSamplingIntervalStart: Float,
-    vidSamplingIntervalWidth: Float,
-    anySketch: AnySketch
-  ) {
-    eventQuery
-      .getUserVirtualIds(eventGroupSpec)
-      .filter {
-        vidSampler.vidIsInSamplingBucket(it, vidSamplingIntervalStart, vidSamplingIntervalWidth)
-      }
-      .forEach { anySketch.insert(it, mapOf("frequency" to 1L)) }
   }
 
   private suspend fun chargePrivacyBudget(
@@ -604,23 +575,10 @@ class EdpSimulator(
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
   ): Sketch {
     chargePrivacyBudget(requisitionName, measurementSpec, eventGroupSpecs.map { it.spec })
-    val vidSamplingIntervalStart = measurementSpec.vidSamplingInterval.start
-    val vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width
 
-    val anySketch: AnySketch = SketchProtos.toAnySketch(sketchConfig)
     logger.info("Generating Sketch...")
-
-    for (eventGroupSpec in eventGroupSpecs) {
-      populateAnySketch(
-        eventGroupSpec,
-        VidSampler(VID_SAMPLER_HASH_FUNCTION),
-        vidSamplingIntervalStart,
-        vidSamplingIntervalWidth,
-        anySketch
-      )
-    }
-
-    return SketchProtos.fromAnySketch(anySketch, sketchConfig)
+    return SketchGenerator(eventQuery, sketchConfig, measurementSpec.vidSamplingInterval)
+      .generate(eventGroupSpecs)
   }
 
   private fun encryptSketch(
@@ -629,22 +587,12 @@ class EdpSimulator(
     protocolConfig: ProtocolConfig.LiquidLegionsV2
   ): ByteString {
     logger.info("Encrypting Sketch...")
-    val request =
-      EncryptSketchRequest.newBuilder()
-        .apply {
-          this.sketch = sketch
-          elGamalKeys = combinedPublicKey
-          curveId = protocolConfig.ellipticCurveId.toLong()
-          maximumValue = protocolConfig.maximumFrequency
-          destroyedRegisterStrategy =
-            EncryptSketchRequest.DestroyedRegisterStrategy.FLAGGED_KEY // for LL_V2 protocol
-          // TODO(wangyaopw): add publisher noise
-        }
-        .build()
-    val response =
-      EncryptSketchResponse.parseFrom(SketchEncrypterAdapter.EncryptSketch(request.toByteArray()))
-
-    return response.encryptedSketch
+    return sketchEncrypter.encrypt(
+      sketch,
+      protocolConfig.ellipticCurveId,
+      combinedPublicKey,
+      protocolConfig.maximumFrequency
+    )
   }
 
   /**
@@ -666,11 +614,15 @@ class EdpSimulator(
       }
     val liquidLegionsV2: ProtocolConfig.LiquidLegionsV2 = llv2Protocol.liquidLegionsV2
     val combinedPublicKey = requisition.getCombinedPublicKey(liquidLegionsV2.ellipticCurveId)
-    val sketchConfig = liquidLegionsV2.sketchParams.toSketchConfig()
 
     val sketch =
       try {
-        generateSketch(requisition.name, sketchConfig, measurementSpec, eventGroupSpecs)
+        generateSketch(
+          requisition.name,
+          liquidLegionsV2.sketchParams.toSketchConfig(),
+          measurementSpec,
+          eventGroupSpecs
+        )
       } catch (e: EventFilterValidationException) {
         refuseRequisition(
           requisition.name,
@@ -685,9 +637,6 @@ class EdpSimulator(
         return
       }
 
-    logger.info("Writing sketch to storage")
-    sketchStore.write(requisition, sketch.toByteString())
-
     val encryptedSketch = encryptSketch(sketch, combinedPublicKey, liquidLegionsV2)
     fulfillRequisition(requisition.name, requisitionFingerprint, nonce, encryptedSketch)
   }
@@ -700,6 +649,7 @@ class EdpSimulator(
   ) {
     logger.info("Fulfilling requisition $requisitionName...")
     val requests: Flow<FulfillRequisitionRequest> = flow {
+      logger.info { "Emitting FulfillRequisitionRequests..." }
       emit(
         fulfillRequisitionRequest {
           header = header {
@@ -730,15 +680,7 @@ class EdpSimulator(
           .toAnySketchElGamalPublicKey()
       }
 
-    val request = combineElGamalPublicKeysRequest {
-      this.curveId = curveId.toLong()
-      this.elGamalKeys += elGamalPublicKeys
-    }
-
-    return CombineElGamalPublicKeysResponse.parseFrom(
-        SketchEncrypterAdapter.CombineElGamalPublicKeys(request.toByteArray())
-      )
-      .elGamalKeys
+    return SketchEncrypter.combineElGamalPublicKeys(curveId, elGamalPublicKeys)
   }
 
   private suspend fun getRequisitions(): List<Requisition> {
@@ -768,7 +710,6 @@ class EdpSimulator(
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>
   ) {
     logger.info("Calculating direct reach and frequency...")
-    val vidSampler = VidSampler(VID_SAMPLER_HASH_FUNCTION)
     val vidSamplingInterval = measurementSpec.vidSamplingInterval
     val vidSamplingIntervalStart = vidSamplingInterval.start
     val vidSamplingIntervalWidth = vidSamplingInterval.width
@@ -785,14 +726,33 @@ class EdpSimulator(
       "Invalid vidSamplingInterval: $vidSamplingInterval"
     }
 
-    val vidList: List<Long> =
-      eventGroupSpecs
-        .flatMap { eventQuery.getUserVirtualIds(it) }
-        .filter { vid ->
-          vidSampler.vidIsInSamplingBucket(vid, vidSamplingIntervalStart, vidSamplingIntervalWidth)
-        }
+    val sampledVids: Sequence<Long> =
+      try {
+        eventGroupSpecs
+          .asSequence()
+          .flatMap { eventQuery.getUserVirtualIds(it) }
+          .filter { vid ->
+            VidSampling.sampler.vidIsInSamplingBucket(
+              vid,
+              vidSamplingIntervalStart,
+              vidSamplingIntervalWidth
+            )
+          }
+      } catch (e: EventFilterValidationException) {
+        refuseRequisition(
+          requisition.name,
+          Requisition.Refusal.Justification.SPEC_INVALID,
+          "Invalid event filter (${e.code}): ${e.code.description}"
+        )
+        logger.log(
+          Level.WARNING,
+          "RequisitionFulfillmentWorkflow failed due to invalid event filter",
+          e
+        )
+        return
+      }
 
-    val measurementResult = buildDirectMeasurementResult(measurementSpec, vidList)
+    val measurementResult = buildDirectMeasurementResult(measurementSpec, sampledVids.asIterable())
 
     fulfillDirectMeasurement(requisition, measurementSpec, nonce, measurementResult)
   }
@@ -808,9 +768,9 @@ class EdpSimulator(
           override val distribution = ConstantRealDistribution(0.0)
         }
       DirectNoiseMechanism.LAPLACE ->
-        LaplaceNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random)
+        LaplaceNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random.asJavaRandom())
       DirectNoiseMechanism.GAUSSIAN ->
-        GaussianNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random)
+        GaussianNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random.asJavaRandom())
     }
 
   /**
@@ -821,9 +781,9 @@ class EdpSimulator(
    * @return Noised reach value.
    */
   private fun addReachPublisherNoise(
-    reachValue: Long,
+    reachValue: Int,
     privacyParams: DifferentialPrivacyParams
-  ): Long {
+  ): Int {
     val reachNoiser: AbstractNoiser =
       getPublisherNoiser(privacyParams, directNoiseMechanism, random)
 
@@ -839,10 +799,10 @@ class EdpSimulator(
    * @return Noised frequency map.
    */
   private fun addFrequencyPublisherNoise(
-    reachValue: Long,
-    frequencyMap: Map<Long, Double>,
+    reachValue: Int,
+    frequencyMap: Map<Int, Double>,
     privacyParams: DifferentialPrivacyParams,
-  ): Map<Long, Double> {
+  ): Map<Int, Double> {
     val frequencyNoiser: AbstractNoiser =
       getPublisherNoiser(privacyParams, directNoiseMechanism, random)
 
@@ -855,18 +815,18 @@ class EdpSimulator(
    * Build [Measurement.Result] of the measurement type specified in [MeasurementSpec].
    *
    * @param measurementSpec Measurement spec.
-   * @param vidList List of VIDs.
+   * @param sampledVids sampled event VIDs
    * @return [Measurement.Result].
    */
   private fun buildDirectMeasurementResult(
     measurementSpec: MeasurementSpec,
-    vidList: List<Long>,
+    sampledVids: Iterable<Long>,
   ): Measurement.Result {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
     return when (measurementSpec.measurementTypeCase) {
       MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-        val sampledReachValue = calculateDirectReach(vidList)
-        val frequencyMap = calculateDirectFrequency(vidList, sampledReachValue)
+        val (sampledReachValue, frequencyMap) =
+          MeasurementResults.computeReachAndFrequency(sampledVids)
 
         logger.info("Adding $directNoiseMechanism publisher noise to direct reach and frequency...")
         val sampledNoisedReachValue =
@@ -886,7 +846,9 @@ class EdpSimulator(
 
         MeasurementKt.result {
           reach = reach { value = scaledNoisedReachValue }
-          frequency = frequency { relativeFrequencyDistribution.putAll(noisedFrequencyMap) }
+          frequency = frequency {
+            relativeFrequencyDistribution.putAll(noisedFrequencyMap.mapKeys { it.key.toLong() })
+          }
         }
       }
       MeasurementSpec.MeasurementTypeCase.IMPRESSION,
@@ -894,7 +856,7 @@ class EdpSimulator(
         error("Measurement type not supported.")
       }
       MeasurementSpec.MeasurementTypeCase.REACH -> {
-        val sampledReachValue = calculateDirectReach(vidList)
+        val sampledReachValue = MeasurementResults.computeReach(sampledVids)
         logger.info("Adding $directNoiseMechanism publisher noise to direct reach...")
         val sampledNoisedReachValue =
           addReachPublisherNoise(sampledReachValue, measurementSpec.reach.privacyParams)
@@ -976,71 +938,14 @@ class EdpSimulator(
   companion object {
     private const val RPC_CHUNK_SIZE_BYTES = 32 * 1024 // 32 KiB
 
+    private val EVENT_TEMPLATE_TYPES: List<Descriptors.Descriptor> =
+      TestEvent.getDescriptor()
+        .fields
+        .filter { it.type == Descriptors.FieldDescriptor.Type.MESSAGE }
+        .map { it.messageType }
+        .filter { it.options.hasExtension(EventAnnotationsProto.eventTemplate) }
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-
-    init {
-      loadLibrary(
-        name = "sketch_encrypter_adapter",
-        directoryPath =
-          Paths.get(
-            "any_sketch_java",
-            "src",
-            "main",
-            "java",
-            "org",
-            "wfanet",
-            "anysketch",
-            "crypto"
-          )
-      )
-    }
-
-    /**
-     * Calculate direct reach from VIDs.
-     *
-     * @param vidList List of VIDs.
-     * @return Reach value.
-     */
-    private fun calculateDirectReach(
-      vidList: List<Long>,
-    ): Long {
-      // Example: vidList: [1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L]
-      // 5 unique people(1, 2, 3, 4, 5) being reached
-      // reach = 5
-      return vidList.toSet().size.toLong()
-    }
-
-    /**
-     * Calculate direct frequency from VIDs.
-     *
-     * @param vidList List of VIDs.
-     * @param directReachValue Direct reach value.
-     * @return Frequency map.
-     */
-    private fun calculateDirectFrequency(
-      vidList: List<Long>,
-      directReachValue: Long
-    ): Map<Long, Double> {
-      // Example: vidList: [1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L]
-      // 1 reach -> 0.6(3/5)(VID 3L, 4L, 5L)
-      // 2 reach -> 0.2(1/5)(VID 2L)
-      // 3 reach -> 0.2(1/5)(VID 1L)
-      // frequencyMap = {1L: 0.6, 2L to 0.2, 3L: 0.2}
-      val frequencyMap = mutableMapOf<Long, Double>().withDefault { 0.0 }
-
-      vidList
-        .groupingBy { it }
-        .eachCount()
-        .forEach { (_, frequency) ->
-          frequencyMap[frequency.toLong()] = frequencyMap.getValue(frequency.toLong()) + 1.0
-        }
-
-      frequencyMap.forEach { (frequency, _) ->
-        frequencyMap[frequency] = frequencyMap.getValue(frequency) / directReachValue.toDouble()
-      }
-
-      return frequencyMap
-    }
   }
 }
 
@@ -1049,32 +954,5 @@ private fun ElGamalPublicKey.toAnySketchElGamalPublicKey(): AnySketchElGamalPubl
   return anySketchElGamalPublicKey {
     generator = source.generator
     element = source.element
-  }
-}
-
-private fun LiquidLegionsSketchParams.toSketchConfig(): SketchConfig {
-  return sketchConfig {
-    indexes += indexSpec {
-      name = "Index"
-      distribution = distribution {
-        exponential = exponentialDistribution {
-          rate = decayRate
-          numValues = maxSize
-        }
-      }
-    }
-    values += valueSpec {
-      name = "SamplingIndicator"
-      aggregator = SketchConfig.ValueSpec.Aggregator.UNIQUE
-      distribution = distribution {
-        uniform = uniformDistribution { numValues = samplingIndicatorSize }
-      }
-    }
-
-    values += valueSpec {
-      name = "Frequency"
-      aggregator = SketchConfig.ValueSpec.Aggregator.SUM
-      distribution = distribution { oracle = oracleDistribution { key = "frequency" } }
-    }
   }
 }
