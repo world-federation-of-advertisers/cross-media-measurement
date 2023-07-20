@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.service.system.v1alpha
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.timestamp
 import com.google.protobuf.util.Timestamps
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.take
@@ -38,6 +39,7 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant as InternalComputationParticipant
+import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt as InternalComputationParticipantKt
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfigKt.LiquidLegionsV2Kt.mpcNoise
 import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
@@ -54,8 +56,10 @@ import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.computationKey
-import org.wfanet.measurement.internal.kingdom.differentialPrivacyParams
+import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.differentialPrivacyParams as internalDifferentialPrivacyParams
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
+import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.liquidLegionsSketchParams
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
 import org.wfanet.measurement.internal.kingdom.protocolConfig
@@ -63,12 +67,23 @@ import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.system.v1alpha.ComputationKey
+import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt
+import org.wfanet.measurement.system.v1alpha.ComputationKt.mpcProtocolConfig
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt.RequisitionParamsKt
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt.requisitionParams
 import org.wfanet.measurement.system.v1alpha.GetComputationRequest
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.SetComputationResultRequest
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsRequest
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
+import org.wfanet.measurement.system.v1alpha.computation
+import org.wfanet.measurement.system.v1alpha.computationParticipant
+import org.wfanet.measurement.system.v1alpha.differentialPrivacyParams
+import org.wfanet.measurement.system.v1alpha.getComputationRequest
+import org.wfanet.measurement.system.v1alpha.requisition
+import org.wfanet.measurement.system.v1alpha.stageAttempt
 
 private const val DUCHY_ID: String = "some-duchy-id"
 private const val MILL_ID: String = "some-mill-id"
@@ -169,6 +184,18 @@ private val INTERNAL_COMPUTATION_PARTICIPANT =
     }
     .build()
 
+private val INTERNAL_RO_LLV2_COMPUTATION_PARTICIPANT =
+  INTERNAL_COMPUTATION_PARTICIPANT.copy {
+    details =
+      InternalComputationParticipantKt.details {
+        reachOnlyLiquidLegionsV2 =
+          InternalComputationParticipantKt.liquidLegionsV2Details {
+            elGamalPublicKey = DUCHY_ELGAMAL_KEY
+            elGamalPublicKeySignature = DUCHY_ELGAMAL_KEY_SIGNATURE
+          }
+      }
+  }
+
 private val INTERNAL_MEASUREMENT = internalMeasurement {
   externalComputationId = EXTERNAL_COMPUTATION_ID
   state = InternalMeasurement.State.FAILED
@@ -179,11 +206,11 @@ private val INTERNAL_MEASUREMENT = internalMeasurement {
       liquidLegionsV2 =
         DuchyProtocolConfigKt.liquidLegionsV2 {
           mpcNoise = mpcNoise {
-            blindedHistogramNoise = differentialPrivacyParams {
+            blindedHistogramNoise = internalDifferentialPrivacyParams {
               epsilon = 1.1
               delta = 2.1
             }
-            noiseForPublisherNoise = differentialPrivacyParams {
+            noiseForPublisherNoise = internalDifferentialPrivacyParams {
               epsilon = 3.1
               delta = 4.1
             }
@@ -213,6 +240,43 @@ private val INTERNAL_MEASUREMENT = internalMeasurement {
   requisitions += INTERNAL_REQUISITION
 }
 
+private val INTERNAL_RO_LLV2_MEASUREMENT =
+  INTERNAL_MEASUREMENT.copy {
+    details = details {
+      apiVersion = PUBLIC_API_VERSION
+      measurementSpec = MEASUREMENT_SPEC
+      duchyProtocolConfig = duchyProtocolConfig {
+        reachOnlyLiquidLegionsV2 =
+          DuchyProtocolConfigKt.liquidLegionsV2 {
+            mpcNoise = mpcNoise {
+              blindedHistogramNoise = internalDifferentialPrivacyParams {
+                epsilon = 1.1
+                delta = 2.1
+              }
+              noiseForPublisherNoise = internalDifferentialPrivacyParams {
+                epsilon = 3.1
+                delta = 4.1
+              }
+            }
+          }
+      }
+      protocolConfig = protocolConfig {
+        reachOnlyLiquidLegionsV2 =
+          ProtocolConfigKt.liquidLegionsV2 {
+            sketchParams = liquidLegionsSketchParams {
+              decayRate = 10.0
+              maxSize = 100
+              samplingIndicatorSize = 1000
+            }
+            ellipticCurveId = 123
+            noiseMechanism = InternalNoiseMechanism.GEOMETRIC
+          }
+      }
+    }
+    computationParticipants.clear()
+    computationParticipants += INTERNAL_RO_LLV2_COMPUTATION_PARTICIPANT
+  }
+
 @RunWith(JUnit4::class)
 class ComputationsServiceTest {
   @get:Rule val duchyIdSetter = DuchyIdSetter(DUCHY_ID)
@@ -231,7 +295,7 @@ class ComputationsServiceTest {
     )
 
   @Test
-  fun `get computation successfully`() = runBlocking {
+  fun `get llv2 computation successfully`() = runBlocking {
     whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
       .thenReturn(INTERNAL_MEASUREMENT)
 
@@ -325,6 +389,100 @@ class ComputationsServiceTest {
         GetMeasurementByComputationIdRequest.newBuilder()
           .apply { externalComputationId = EXTERNAL_COMPUTATION_ID }
           .build()
+      )
+  }
+
+  @Test
+  fun `get rollv2 computation successfully`() = runBlocking {
+    whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
+      .thenReturn(INTERNAL_RO_LLV2_MEASUREMENT)
+
+    val request = getComputationRequest { name = SYSTEM_COMPUTATION_NAME }
+
+    val response = service.getComputation(request)
+
+    assertThat(response)
+      .isEqualTo(
+        computation {
+          name = SYSTEM_COMPUTATION_NAME
+          publicApiVersion = PUBLIC_API_VERSION
+          measurementSpec = MEASUREMENT_SPEC
+          state = Computation.State.FAILED
+          aggregatorCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
+          encryptedResult = ENCRYPTED_RESULT
+          mpcProtocolConfig = mpcProtocolConfig {
+            reachOnlyLiquidLegionsV2 =
+              MpcProtocolConfigKt.liquidLegionsV2 {
+                sketchParams =
+                  MpcProtocolConfigKt.LiquidLegionsV2Kt.liquidLegionsSketchParams {
+                    decayRate = 10.0
+                    maxSize = 100
+                  }
+                mpcNoise =
+                  MpcProtocolConfigKt.LiquidLegionsV2Kt.mpcNoise {
+                    blindedHistogramNoise = differentialPrivacyParams {
+                      epsilon = 1.1
+                      delta = 2.1
+                    }
+                    publisherNoise = differentialPrivacyParams {
+                      epsilon = 3.1
+                      delta = 4.1
+                    }
+                  }
+                ellipticCurveId = 123
+                noiseMechanism = NoiseMechanism.GEOMETRIC
+              }
+          }
+          requisitions += requisition {
+            name = SYSTEM_REQUISITION_NAME
+            state = Requisition.State.FULFILLED
+            requisitionSpecHash = ENCRYPTED_REQUISITION_SPEC_HASH.bytes
+            nonceHash = NONCE_HASH.bytes
+            fulfillingComputationParticipant = SYSTEM_COMPUTATION_PARTICIPATE_NAME
+            nonce = NONCE
+          }
+          computationParticipants += computationParticipant {
+            name = SYSTEM_COMPUTATION_PARTICIPATE_NAME
+            state = ComputationParticipant.State.FAILED
+            updateTime = timestamp {
+              seconds = 123
+              nanos = 456
+            }
+            requisitionParams = requisitionParams {
+              duchyCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
+              reachOnlyLiquidLegionsV2 =
+                RequisitionParamsKt.liquidLegionsV2 {
+                  elGamalPublicKey = DUCHY_ELGAMAL_KEY
+                  elGamalPublicKeySignature = DUCHY_ELGAMAL_KEY_SIGNATURE
+                }
+            }
+            failure =
+              ComputationParticipantKt.failure {
+                participantChildReferenceId = MILL_ID
+                errorMessage = DUCHY_ERROR_MESSAGE
+                errorTime = timestamp {
+                  seconds = 1001
+                  nanos = 2002
+                }
+                stageAttempt = stageAttempt {
+                  stage = STAGE_ATTEMPT_STAGE
+                  stageName = STAGE_ATTEMPT_STAGE_NAME
+                  attemptNumber = STAGE_ATTEMPT_ATTEMPT_NUMBER
+                  stageStartTime = timestamp {
+                    seconds = 100
+                    nanos = 200
+                  }
+                }
+              }
+          }
+        }
+      )
+    verifyProtoArgument(
+        internalMeasurementsServiceMock,
+        InternalMeasurementsCoroutineService::getMeasurementByComputationId
+      )
+      .isEqualTo(
+        getMeasurementByComputationIdRequest { externalComputationId = EXTERNAL_COMPUTATION_ID }
       )
   }
 

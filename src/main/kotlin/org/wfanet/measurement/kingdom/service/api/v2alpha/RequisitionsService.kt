@@ -42,6 +42,7 @@ import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
 import org.wfanet.measurement.api.v2alpha.Requisition.State
 import org.wfanet.measurement.api.v2alpha.RequisitionKey
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.liquidLegionsV2
+import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
@@ -391,6 +392,13 @@ private fun DuchyValue.toDuchyEntryValue(externalDuchyId: String): DuchyEntry.Va
             signature = value.liquidLegionsV2.elGamalPublicKeySignature
           }
         }
+      DuchyValue.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> reachOnlyLiquidLegionsV2 =
+          reachOnlyLiquidLegionsV2 {
+            elGamalPublicKey = signedData {
+              data = value.reachOnlyLiquidLegionsV2.elGamalPublicKey
+              signature = value.reachOnlyLiquidLegionsV2.elGamalPublicKeySignature
+            }
+          }
       DuchyValue.ProtocolCase.PROTOCOL_NOT_SET -> {}
     }
   }

@@ -18,6 +18,7 @@ import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType.UNRECOGNIZED
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType.UNSPECIFIED
 
@@ -30,6 +31,8 @@ object ComputationProtocolStages :
     return when (stage.stageCase) {
       ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+      ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+        REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }
@@ -46,6 +49,13 @@ object ComputationProtocolStages :
             value.liquidLegionsSketchAggregationV2
           )
         )
+      ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+        ComputationStageLongValues(
+          ComputationTypes.protocolEnumToLong(REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2),
+          ReachOnlyLiquidLegionsSketchAggregationV2Protocol.EnumStages.enumToLong(
+            value.reachOnlyLiquidLegionsSketchAggregationV2
+          )
+        )
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }
@@ -58,6 +68,9 @@ object ComputationProtocolStages :
       LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         LiquidLegionsSketchAggregationV2Protocol.EnumStages.longToEnum(value.stage)
           .toProtocolStage()
+      REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+        ReachOnlyLiquidLegionsSketchAggregationV2Protocol.EnumStages.longToEnum(value.stage)
+          .toProtocolStage()
       UNSPECIFIED,
       UNRECOGNIZED -> error("protocol not set")
     }
@@ -67,6 +80,8 @@ object ComputationProtocolStages :
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (protocol) {
       LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+        LiquidLegionsSketchAggregationV2Protocol.ComputationStages.validInitialStages
+      REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         LiquidLegionsSketchAggregationV2Protocol.ComputationStages.validInitialStages
       UNSPECIFIED,
       UNRECOGNIZED -> error("protocol not set")
@@ -78,6 +93,8 @@ object ComputationProtocolStages :
     return when (protocol) {
       LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         LiquidLegionsSketchAggregationV2Protocol.ComputationStages.validTerminalStages
+      REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+        ReachOnlyLiquidLegionsSketchAggregationV2Protocol.ComputationStages.validTerminalStages
       UNSPECIFIED,
       UNRECOGNIZED -> error("protocol not set")
     }
@@ -98,6 +115,8 @@ object ComputationProtocolStages :
       when (currentStage.stageCase) {
         ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
           LiquidLegionsSketchAggregationV2Protocol.ComputationStages.validSuccessors
+        ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+          ReachOnlyLiquidLegionsSketchAggregationV2Protocol.ComputationStages.validSuccessors
         ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
       }.getOrDefault(currentStage, setOf())
   }
