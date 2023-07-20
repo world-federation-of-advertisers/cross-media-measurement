@@ -24,6 +24,8 @@ import com.google.protobuf.duration
 import com.google.protobuf.empty
 import com.google.protobuf.timestamp
 import com.google.protobuf.value
+import com.google.type.Date
+import com.google.type.date
 import com.google.type.interval
 import io.grpc.Server
 import io.grpc.ServerInterceptors
@@ -33,6 +35,7 @@ import java.io.File
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
 import java.time.Instant
+import java.time.ZoneOffset
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -128,6 +131,7 @@ import org.wfanet.measurement.api.v2alpha.createModelOutageRequest
 import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.createModelShardRequest
 import org.wfanet.measurement.api.v2alpha.dataProvider
+import org.wfanet.measurement.api.v2alpha.dateInterval
 import org.wfanet.measurement.api.v2alpha.deleteModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
@@ -312,9 +316,9 @@ private val MODEL_SHARD = modelShard {
 
 private val MODEL_ROLLOUT = modelRollout {
   name = MODEL_ROLLOUT_NAME
-  gradualRolloutPeriod = interval {
-    startTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime()
-    endTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime()
+  gradualRolloutPeriod = dateInterval {
+    this.startDate = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toDate()
+    this.endDate = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toDate()
   }
   previousModelRollout = "previous model"
   modelRelease = MODEL_RELEASE_NAME
@@ -322,11 +326,11 @@ private val MODEL_ROLLOUT = modelRollout {
 
 private val MODEL_ROLLOUT_WITH_FREEZE_TIME = modelRollout {
   name = MODEL_ROLLOUT_NAME
-  gradualRolloutPeriod = interval {
-    startTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime()
-    endTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime()
+  gradualRolloutPeriod = dateInterval {
+    this.startDate = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toDate()
+    this.endDate = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toDate()
   }
-  rolloutFreezeTime = Instant.parse(MODEL_ROLLOUT_FREEZE_TIME).toProtoTime()
+  rolloutFreezeDate = Instant.parse(MODEL_ROLLOUT_FREEZE_TIME).toDate()
   previousModelRollout = "previous model"
   modelRelease = MODEL_RELEASE_NAME
 }
@@ -1621,8 +1625,8 @@ class MeasurementSystemTest {
           "model-rollouts",
           "create",
           "--parent=$MODEL_LINE_NAME",
-          "--rollout-start-time=$MODEL_ROLLOUT_ACTIVE_START_TIME",
-          "--rollout-end-time=$MODEL_ROLLOUT_ACTIVE_END_TIME",
+          "--rollout-start-date=$MODEL_ROLLOUT_ACTIVE_START_TIME",
+          "--rollout-end-date=$MODEL_ROLLOUT_ACTIVE_END_TIME",
           "--model-release=$MODEL_RELEASE_NAME",
         )
     callCli(args)
@@ -1637,9 +1641,9 @@ class MeasurementSystemTest {
         createModelRolloutRequest {
           parent = MODEL_LINE_NAME
           modelRollout = modelRollout {
-            gradualRolloutPeriod = interval {
-              startTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime()
-              endTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime()
+            gradualRolloutPeriod = dateInterval {
+              startDate = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toDate()
+              endDate = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toDate()
             }
             modelRelease = MODEL_RELEASE_NAME
           }
@@ -1675,9 +1679,9 @@ class MeasurementSystemTest {
           pageToken = "token"
           filter =
             ListModelRolloutsRequestKt.filter {
-              rolloutPeriodOverlapping = interval {
-                startTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime()
-                endTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime()
+              rolloutPeriodOverlapping = dateInterval {
+                startDate = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toDate()
+                endDate = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toDate()
               }
             }
         }
@@ -1705,7 +1709,7 @@ class MeasurementSystemTest {
       .isEqualTo(
         scheduleModelRolloutFreezeRequest {
           name = MODEL_ROLLOUT_NAME
-          rolloutFreezeTime = Instant.parse(MODEL_ROLLOUT_FREEZE_TIME).toProtoTime()
+          rolloutFreezeDate = Instant.parse(MODEL_ROLLOUT_FREEZE_TIME).toDate()
         }
       )
   }
@@ -1932,4 +1936,14 @@ private fun getEncryptedResult(
 ): ByteString {
   val signedResult = signResult(result, AGGREGATOR_SIGNING_KEY)
   return encryptResult(signedResult, publicKey)
+}
+
+// TODO(@MarcoPremier): Move this function to common-jvm.
+private fun Instant.toDate(): Date {
+  val localDate = this.atZone(ZoneOffset.UTC).toLocalDate()
+  return date {
+    year = localDate.year
+    month = localDate.monthValue
+    day = localDate.dayOfMonth
+  }
 }

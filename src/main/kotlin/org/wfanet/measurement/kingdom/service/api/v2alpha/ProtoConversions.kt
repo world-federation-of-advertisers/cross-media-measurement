@@ -14,8 +14,15 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.protobuf.Timestamp
+import com.google.protobuf.timestamp
 import com.google.protobuf.util.Timestamps
+import com.google.type.Date
+import com.google.type.date
 import com.google.type.interval
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -63,6 +70,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.protocol
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.reachOnlyLiquidLegionsV2
+import org.wfanet.measurement.api.v2alpha.dateInterval
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.exchange
 import org.wfanet.measurement.api.v2alpha.exchangeStep
@@ -468,15 +476,15 @@ fun InternalModelRollout.toModelRollout(): ModelRollout {
         .toName()
 
     if (Timestamps.compare(source.rolloutPeriodStartTime, source.rolloutPeriodEndTime) == 0) {
-      instantRolloutTime = source.rolloutPeriodStartTime
+      instantRolloutDate = source.rolloutPeriodStartTime.toDate()
     } else {
-      gradualRolloutPeriod = interval {
-        startTime = source.rolloutPeriodStartTime
-        endTime = source.rolloutPeriodEndTime
+      gradualRolloutPeriod = dateInterval {
+        startDate = source.rolloutPeriodStartTime.toDate()
+        endDate = source.rolloutPeriodEndTime.toDate()
       }
     }
 
-    rolloutFreezeTime = source.rolloutFreezeTime
+    rolloutFreezeDate = source.rolloutFreezeTime.toDate()
     if (source.externalPreviousModelRolloutId != 0L) {
       previousModelRollout =
         ModelRolloutKey(
@@ -514,19 +522,19 @@ fun ModelRollout.toInternal(
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     when (publicModelRollout.rolloutDeployPeriodCase) {
       ModelRollout.RolloutDeployPeriodCase.GRADUAL_ROLLOUT_PERIOD -> {
-        rolloutPeriodStartTime = publicModelRollout.gradualRolloutPeriod.startTime
-        rolloutPeriodEndTime = publicModelRollout.gradualRolloutPeriod.endTime
+        rolloutPeriodStartTime = publicModelRollout.gradualRolloutPeriod.startDate.toProtoTime()
+        rolloutPeriodEndTime = publicModelRollout.gradualRolloutPeriod.endDate.toProtoTime()
       }
-      ModelRollout.RolloutDeployPeriodCase.INSTANT_ROLLOUT_TIME -> {
-        rolloutPeriodStartTime = publicModelRollout.instantRolloutTime
-        rolloutPeriodEndTime = publicModelRollout.instantRolloutTime
+      ModelRollout.RolloutDeployPeriodCase.INSTANT_ROLLOUT_DATE -> {
+        rolloutPeriodStartTime = publicModelRollout.instantRolloutDate.toProtoTime()
+        rolloutPeriodEndTime = publicModelRollout.instantRolloutDate.toProtoTime()
       }
       ModelRollout.RolloutDeployPeriodCase.ROLLOUTDEPLOYPERIOD_NOT_SET -> {
         error("RolloutDeployPeriod not set.")
       }
     }
 
-    rolloutFreezeTime = publicModelRollout.rolloutFreezeTime
+    rolloutFreezeTime = publicModelRollout.rolloutFreezeDate.toProtoTime()
     externalModelReleaseId = apiIdToExternalId(modelReleaseKey.modelReleaseId)
   }
 }
@@ -914,5 +922,26 @@ fun InternalEventGroup.State.toV2Alpha(): EventGroup.State {
     InternalEventGroup.State.ACTIVE -> EventGroup.State.ACTIVE
     InternalEventGroup.State.DELETED -> EventGroup.State.DELETED
     InternalEventGroup.State.UNRECOGNIZED -> error("Invalid InternalEventGroup state: $this")
+  }
+}
+
+// TODO(@MarcoPremier): Move this function to common-jvm.
+private fun Date.toProtoTime(): Timestamp {
+  val localDate = LocalDate.of(year, month, day)
+  val instant = localDate.atStartOfDay().toInstant(java.time.ZoneOffset.UTC)
+  return timestamp {
+    seconds = instant.epochSecond
+    nanos = instant.nano
+  }
+}
+
+// TODO(@MarcoPremier): Move this function to common-jvm.
+private fun Timestamp.toDate(): Date {
+  val instant = Instant.ofEpochSecond(seconds, nanos.toLong())
+  val localDate = instant.atZone(ZoneOffset.UTC).toLocalDate()
+  return date {
+    year = localDate.year
+    month = localDate.monthValue
+    day = localDate.dayOfMonth
   }
 }
