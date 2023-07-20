@@ -22,6 +22,10 @@ on:
     types: [opened, synchronize, edited]
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-test:
     name: Build and test
