@@ -61,15 +61,15 @@ object ReachOnlyLiquidLegionsSketchAggregationV2Protocol {
 
     override val validSuccessors =
       mapOf(
-        INITIALIZATION_PHASE to setOf(WAIT_REQUISITIONS_AND_KEY_SET),
-        WAIT_REQUISITIONS_AND_KEY_SET to setOf(CONFIRMATION_PHASE),
-        CONFIRMATION_PHASE to setOf(WAIT_TO_START, WAIT_SETUP_PHASE_INPUTS),
-        WAIT_TO_START to setOf(SETUP_PHASE),
-        WAIT_SETUP_PHASE_INPUTS to setOf(SETUP_PHASE),
-        SETUP_PHASE to setOf(WAIT_EXECUTION_PHASE_INPUTS),
-        WAIT_EXECUTION_PHASE_INPUTS to setOf(EXECUTION_PHASE),
-        EXECUTION_PHASE to setOf()
-      )
+          INITIALIZATION_PHASE to setOf(WAIT_REQUISITIONS_AND_KEY_SET),
+          WAIT_REQUISITIONS_AND_KEY_SET to setOf(CONFIRMATION_PHASE),
+          CONFIRMATION_PHASE to setOf(WAIT_TO_START, WAIT_SETUP_PHASE_INPUTS),
+          WAIT_TO_START to setOf(SETUP_PHASE),
+          WAIT_SETUP_PHASE_INPUTS to setOf(SETUP_PHASE),
+          SETUP_PHASE to setOf(WAIT_EXECUTION_PHASE_INPUTS),
+          WAIT_EXECUTION_PHASE_INPUTS to setOf(EXECUTION_PHASE),
+          EXECUTION_PHASE to setOf()
+        )
         .withDefault { setOf() }
 
     override fun enumToLong(value: ReachOnlyLiquidLegionsSketchAggregationV2.Stage): Long {
@@ -78,7 +78,8 @@ object ReachOnlyLiquidLegionsSketchAggregationV2Protocol {
 
     override fun longToEnum(value: Long): ReachOnlyLiquidLegionsSketchAggregationV2.Stage {
       // forNumber() returns null for unrecognized enum values for the proto.
-      return ReachOnlyLiquidLegionsSketchAggregationV2.Stage.forNumber(value.toInt()) ?: UNRECOGNIZED
+      return ReachOnlyLiquidLegionsSketchAggregationV2.Stage.forNumber(value.toInt())
+        ?: UNRECOGNIZED
     }
 
     /**
@@ -90,7 +91,7 @@ object ReachOnlyLiquidLegionsSketchAggregationV2Protocol {
         ReachOnlyLiquidLegionsSketchAggregationV2.Stage,
         ComputationStageDetails,
         ReachOnlyLiquidLegionsSketchAggregationV2.ComputationDetails
-        > {
+      > {
 
       override fun validateRoleForStage(
         stage: ReachOnlyLiquidLegionsSketchAggregationV2.Stage,
@@ -156,16 +157,16 @@ object ReachOnlyLiquidLegionsSketchAggregationV2Protocol {
         return when (stage) {
           WAIT_SETUP_PHASE_INPUTS ->
             computationStageDetails {
-                reachOnlyLiquidLegionsV2 = stageDetails {
-                  waitSetupPhaseInputsDetails = waitSetupPhaseInputsDetails {
-                    val participants = computationDetails.participantList
-                    val nonAggregators = participants.subList(0, participants.size - 1)
-                    nonAggregators.mapIndexed { idx, duchy ->
-                      externalDuchyLocalBlobId[duchy.duchyId] = idx.toLong()
-                    }
+              reachOnlyLiquidLegionsV2 = stageDetails {
+                waitSetupPhaseInputsDetails = waitSetupPhaseInputsDetails {
+                  val participants = computationDetails.participantList
+                  val nonAggregators = participants.subList(0, participants.size - 1)
+                  nonAggregators.mapIndexed { idx, duchy ->
+                    externalDuchyLocalBlobId[duchy.duchyId] = idx.toLong()
                   }
                 }
               }
+            }
           else -> ComputationStageDetails.getDefaultInstance()
         }
       }
@@ -176,8 +177,8 @@ object ReachOnlyLiquidLegionsSketchAggregationV2Protocol {
   }
 
   /**
-   * Implementation of [ProtocolStageEnumHelper] for [ReachOnlyLiquidLegionsSketchAggregationV2.Stage]
-   * wrapped in a [ComputationStage].
+   * Implementation of [ProtocolStageEnumHelper] for
+   * [ReachOnlyLiquidLegionsSketchAggregationV2.Stage] wrapped in a [ComputationStage].
    */
   object ComputationStages : ProtocolStageEnumHelper<ComputationStage> {
     override val validInitialStages = EnumStages.validInitialStages.toSetOfComputationStages()
@@ -195,8 +196,8 @@ object ReachOnlyLiquidLegionsSketchAggregationV2Protocol {
       EnumStages.longToEnum(value).toProtocolStage()
 
     /**
-     * Translates [ReachOnlyLiquidLegionsSketchAggregationV2.Stage] s wrapped in a [ComputationStage] into
-     * [ComputationStageDetails].
+     * Translates [ReachOnlyLiquidLegionsSketchAggregationV2.Stage] s wrapped in a
+     * [ComputationStage] into [ComputationStageDetails].
      */
     object Details :
       ProtocolStageDetails<ComputationStage, ComputationStageDetails, ComputationDetails> {
@@ -211,7 +212,9 @@ object ReachOnlyLiquidLegionsSketchAggregationV2Protocol {
       }
 
       override fun afterTransitionForStage(stage: ComputationStage): AfterTransition {
-        return EnumStages.Details.afterTransitionForStage(stage.reachOnlyLiquidLegionsSketchAggregationV2)
+        return EnumStages.Details.afterTransitionForStage(
+          stage.reachOnlyLiquidLegionsSketchAggregationV2
+        )
       }
 
       override fun outputBlobNumbersForStage(
