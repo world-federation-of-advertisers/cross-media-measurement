@@ -38,8 +38,8 @@ import org.wfanet.measurement.system.v1alpha.ComputationKt.mpcProtocolConfig
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntryKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
-import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.RequisitionKey
@@ -109,20 +109,18 @@ fun InternalComputationParticipant.toSystemComputationParticipant(): Computation
             }
           duchyCertificateDer = duchyCertificate.details.x509Der
         }
-        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-        when(details.protocolCase) {
-          InternalComputationParticipant.Details.ProtocolCase.LIQUID_LEGIONS_V2 ->
-            liquidLegionsV2 = ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
+        if (details.hasLiquidLegionsV2()) {
+          liquidLegionsV2 =
+            ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
               elGamalPublicKey = details.liquidLegionsV2.elGamalPublicKey
               elGamalPublicKeySignature = details.liquidLegionsV2.elGamalPublicKeySignature
             }
-          InternalComputationParticipant.Details.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
-            reachOnlyLiquidLegionsV2 = ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
+        } else if (details.hasReachOnlyLiquidLegionsV2()) {
+          reachOnlyLiquidLegionsV2 =
+            ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
               elGamalPublicKey = details.reachOnlyLiquidLegionsV2.elGamalPublicKey
               elGamalPublicKeySignature = details.reachOnlyLiquidLegionsV2.elGamalPublicKeySignature
-          }
-          InternalComputationParticipant.Details.ProtocolCase.PROTOCOL_NOT_SET ->
-            error("Protocol is unspecified in internal computation participant's details.")
+            }
         }
       }
       if (hasFailureLogEntry()) {

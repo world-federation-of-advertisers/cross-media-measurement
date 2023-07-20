@@ -82,7 +82,7 @@ object ComputationProtocolStages :
       LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         LiquidLegionsSketchAggregationV2Protocol.ComputationStages.validInitialStages
       REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
-        LiquidLegionsSketchAggregationV2Protocol.ComputationStages.validInitialStages
+        ReachOnlyLiquidLegionsSketchAggregationV2Protocol.ComputationStages.validInitialStages
       UNSPECIFIED,
       UNRECOGNIZED -> error("protocol not set")
     }

@@ -46,7 +46,8 @@ sealed class ProtocolStages(val stageType: ComputationStage.StageCase) {
     fun forStageType(stageType: ComputationStage.StageCase): ProtocolStages? {
       return when (stageType) {
         ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 -> LiquidLegionsV2Stages()
-        ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 -> ReachOnlyLiquidLegionsV2Stages()
+        ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+          ReachOnlyLiquidLegionsV2Stages()
         ComputationStage.StageCase.STAGE_NOT_SET -> null
       }
     }
@@ -71,7 +72,8 @@ class LiquidLegionsV2Stages() :
       }
       LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS,
       LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS,
-      LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS -> token.singleOutputBlobMetadata()
+      LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS ->
+        token.singleOutputBlobMetadata()
       LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE,
       LiquidLegionsSketchAggregationV2.Stage.WAIT_REQUISITIONS_AND_KEY_SET,
       LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE,
@@ -93,10 +95,14 @@ class LiquidLegionsV2Stages() :
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enums fields cannot be null.
     return when (val protocolStage = stage.liquidLegionsSketchAggregationV2) {
-      LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS -> LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE
-      LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS -> LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE
-      LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS -> LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_TWO
-      LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS -> LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_THREE
+      LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS ->
+        LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE
+      LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS ->
+        LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE
+      LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS ->
+        LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_TWO
+      LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS ->
+        LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_THREE
       LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE,
       LiquidLegionsSketchAggregationV2.Stage.WAIT_REQUISITIONS_AND_KEY_SET,
       LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE,
@@ -123,13 +129,15 @@ class ReachOnlyLiquidLegionsV2Stages() :
     when (val protocolStage = token.computationStage.reachOnlyLiquidLegionsSketchAggregationV2) {
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS -> {
         // Get the blob id by looking up the sender in the stage specific details.
-        val stageDetails = token.stageSpecificDetails.reachOnlyLiquidLegionsV2.waitSetupPhaseInputsDetails
+        val stageDetails =
+          token.stageSpecificDetails.reachOnlyLiquidLegionsV2.waitSetupPhaseInputsDetails
         val blobId = checkNotNull(stageDetails.externalDuchyLocalBlobIdMap[dataOrigin])
         token.blobsList.single {
           it.dependencyType == ComputationBlobDependency.OUTPUT && it.blobId == blobId
         }
       }
-      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_INPUTS -> token.singleOutputBlobMetadata()
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_INPUTS ->
+        token.singleOutputBlobMetadata()
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE,
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_REQUISITIONS_AND_KEY_SET,
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE,
@@ -145,12 +153,16 @@ class ReachOnlyLiquidLegionsV2Stages() :
     }
 
   override fun nextStage(stage: ComputationStage): ComputationStage {
-    require(stage.stageCase == ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2)
+    require(
+      stage.stageCase == ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+    )
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enums fields cannot be null.
     return when (val protocolStage = stage.reachOnlyLiquidLegionsSketchAggregationV2) {
-      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS -> ReachOnlyLiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE
-      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_INPUTS -> ReachOnlyLiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS ->
+        ReachOnlyLiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_INPUTS ->
+        ReachOnlyLiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE,
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_REQUISITIONS_AND_KEY_SET,
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE,
