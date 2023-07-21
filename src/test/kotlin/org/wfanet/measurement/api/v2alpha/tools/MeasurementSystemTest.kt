@@ -246,8 +246,11 @@ private const val MODEL_OUTAGE_ACTIVE_START_TIME = "2026-05-24T05:00:00.000Z"
 private const val MODEL_OUTAGE_ACTIVE_END_TIME = "2026-05-29T05:00:00.000Z"
 
 private const val MODEL_ROLLOUT_ACTIVE_START_TIME = "2026-05-24T05:00:00.000Z"
+private const val MODEL_ROLLOUT_ACTIVE_START_DATE = "2026-05-24"
 private const val MODEL_ROLLOUT_ACTIVE_END_TIME = "2026-09-24T05:00:00.000Z"
+private const val MODEL_ROLLOUT_ACTIVE_END_DATE = "2026-09-24"
 private const val MODEL_ROLLOUT_FREEZE_TIME = "2026-07-24T05:00:00.000Z"
+private const val MODEL_ROLLOUT_FREEZE_DATE = "2026-07-24"
 
 private val DATA_PROVIDER = dataProvider {
   name = DATA_PROVIDER_NAME
@@ -1625,8 +1628,8 @@ class MeasurementSystemTest {
           "model-rollouts",
           "create",
           "--parent=$MODEL_LINE_NAME",
-          "--rollout-start-date=$MODEL_ROLLOUT_ACTIVE_START_TIME",
-          "--rollout-end-date=$MODEL_ROLLOUT_ACTIVE_END_TIME",
+          "--rollout-start-date=$MODEL_ROLLOUT_ACTIVE_START_DATE",
+          "--rollout-end-date=$MODEL_ROLLOUT_ACTIVE_END_DATE",
           "--model-release=$MODEL_RELEASE_NAME",
         )
     callCli(args)
@@ -1661,8 +1664,8 @@ class MeasurementSystemTest {
           "--parent=$MODEL_LINE_NAME",
           "--page-size=10",
           "--page-token=token",
-          "--rollout-period-overlapping-start-time=$MODEL_ROLLOUT_ACTIVE_START_TIME",
-          "--rollout-period-overlapping-end-time=$MODEL_ROLLOUT_ACTIVE_END_TIME"
+          "--rollout-period-overlapping-start-date=$MODEL_ROLLOUT_ACTIVE_START_DATE",
+          "--rollout-period-overlapping-end-date=$MODEL_ROLLOUT_ACTIVE_END_DATE"
         )
     callCli(args)
 
@@ -1696,7 +1699,7 @@ class MeasurementSystemTest {
           "model-rollouts",
           "schedule",
           "--name=$MODEL_ROLLOUT_NAME",
-          "--freeze-time=$MODEL_ROLLOUT_FREEZE_TIME",
+          "--freeze-time=$MODEL_ROLLOUT_FREEZE_DATE",
         )
     callCli(args)
 
