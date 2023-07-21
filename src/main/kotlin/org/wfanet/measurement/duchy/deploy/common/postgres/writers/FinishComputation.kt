@@ -17,24 +17,19 @@ package org.wfanet.measurement.duchy.deploy.common.postgres.writers
 import com.google.protobuf.Message
 import java.time.Clock
 import java.util.logging.Logger
-import kotlinx.coroutines.flow.Flow
-import org.wfanet.measurement.common.db.r2dbc.ResultRow
-import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
+import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
+import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationStageAttemptReader
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 import org.wfanet.measurement.internal.duchy.copy
 
 /**
  * [PostgresWriter] to finish a computation.
  *
- * @param localId local identifier of the computation.
- * @param editVersion the version of the computation.
- * @param protocol the protocol of the computation.
- * @param currentAttempt current attempt number.
- * @param currentStage current stage enum.
+ * @param token the [ComputationEditToken] of the target computation.
  * @param endingStage ending stage enum.
  * @param endComputationReason the reason to end this computation.
  * @param computationDetails the details of the computation.
@@ -43,11 +38,7 @@ import org.wfanet.measurement.internal.duchy.copy
  * @param protocolStageDetailsHelper See [ComputationProtocolStageDetailsHelper].
  */
 class FinishComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Message>(
-  private val localId: Long,
-  private val editVersion: Long,
-  private val protocol: ProtocolT,
-  private val currentAttempt: Long,
-  private val currentStage: StageT,
+  private val token: ComputationEditToken<ProtocolT, StageT>,
   private val endingStage: StageT,
   private val endComputationReason: EndComputationReason,
   private val computationDetails: ComputationDT,
@@ -56,12 +47,13 @@ class FinishComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Me
   private val protocolStageDetailsHelper:
     ComputationProtocolStageDetailsHelper<ProtocolT, StageT, StageDT, ComputationDT>,
 ) : PostgresWriter<Unit>() {
-
-  companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
-  }
-
   override suspend fun TransactionScope.runTransaction() {
+    val protocol = token.protocol
+    val localId = token.localId
+    val editVersion = token.editVersion
+    val currentStage = token.stage
+    val currentAttempt = token.attempt.toLong()
+
     require(protocolStagesEnumHelper.validTerminalStage(protocol, endingStage)) {
       "Invalid terminal stage of computation $endingStage"
     }
@@ -81,7 +73,7 @@ class FinishComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Me
       localId = localId,
       updateTime = writeTime,
       stage = endingStageLong,
-      details = endingComputationDetails
+      details = endingComputationDetails,
     )
 
     releaseComputationLock(
@@ -93,7 +85,7 @@ class FinishComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Me
       localId = localId,
       stage = currentStageLong,
       endTime = writeTime,
-      followingStage = endingStageLong
+      followingStage = endingStageLong,
     )
 
     insertComputationStage(
@@ -102,77 +94,47 @@ class FinishComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Me
       creationTime = writeTime,
       previousStage = currentStageLong,
       nextAttempt = 1,
-      details = endingStageDetails
+      details = endingStageDetails,
     )
 
-    readUnfinishedAttempts(localId).collect { unfinished ->
-      // Determine the reason the unfinished computation stage attempt is ending.
-      val reason =
-        if (
-          unfinished.protocol == protocol &&
-            unfinished.computationStage == currentStageLong &&
-            unfinished.attempt == currentAttempt
-        ) {
-          // The unfinished attempt is the current attempt of the current stage.
-          // Set its ending reason based on the ending status of the computation as a whole. { {
-          when (endComputationReason) {
-            EndComputationReason.SUCCEEDED -> ComputationStageAttemptDetails.EndReason.SUCCEEDED
-            EndComputationReason.FAILED -> ComputationStageAttemptDetails.EndReason.ERROR
-            EndComputationReason.CANCELED -> ComputationStageAttemptDetails.EndReason.CANCELLED
-          }
-        } else {
-          logger.warning(
-            "Stage attempt with primary key " +
-              "(${unfinished.computationId}, ${unfinished.computationStage}, ${unfinished.attempt}) " +
-              "did not have an ending reason set when ending computation, " +
-              "setting it to 'CANCELLED'."
-          )
-          ComputationStageAttemptDetails.EndReason.CANCELLED
-        }
-      updateComputationStageAttempt(
-        localId = unfinished.computationId,
-        stage = unfinished.computationStage,
-        attempt = unfinished.attempt,
-        endTime = writeTime,
-        details = unfinished.details.copy { reasonEnded = reason }
+    ComputationStageAttemptReader()
+      .readUnfinishedAttempts(
+        transactionContext,
+        localId,
       )
-    }
-  }
-
-  data class UnfinishedAttempt(
-    val computationId: Long,
-    val protocol: Long,
-    val computationStage: Long,
-    val attempt: Long,
-    val details: ComputationStageAttemptDetails
-  ) {
-    constructor(
-      row: ResultRow
-    ) : this(
-      computationId = row["ComputationId"],
-      protocol = row["Protocol"],
-      computationStage = row["ComputationStage"],
-      attempt = row["Attempt"],
-      details = row.getProtoMessage("Details", ComputationStageAttemptDetails.parser())
-    )
-  }
-
-  private suspend fun TransactionScope.readUnfinishedAttempts(
-    localComputationId: Long
-  ): Flow<UnfinishedAttempt> {
-    val sql =
-      boundStatement(
-        """
-      SELECT s.ComputationId, s.ComputationStage, s.Attempt, s.Details, c.Protocol
-      FROM ComputationStageAttempts as s
-      JOIN Computations AS c
-        ON s.ComputationId = c.ComputationId
-      WHERE s.ComputationId = $1
-        AND EndTime IS NULL
-      """
-      ) {
-        bind("$1", localComputationId)
+      .collect { unfinished ->
+        // Determine the reason the unfinished computation stage attempt is ending.
+        val reason =
+          if (
+            unfinished.computationStage == currentStageLong && unfinished.attempt == currentAttempt
+          ) {
+            // The unfinished attempt is the current attempt of the current stage.
+            // Set its ending reason based on the ending status of the computation as a whole. { {
+            when (endComputationReason) {
+              EndComputationReason.SUCCEEDED -> ComputationStageAttemptDetails.EndReason.SUCCEEDED
+              EndComputationReason.FAILED -> ComputationStageAttemptDetails.EndReason.ERROR
+              EndComputationReason.CANCELED -> ComputationStageAttemptDetails.EndReason.CANCELLED
+            }
+          } else {
+            logger.warning(
+              "Stage attempt with primary key " +
+                "(${unfinished.computationId}, ${unfinished.computationStage}, ${unfinished.attempt}) " +
+                "did not have an ending reason set when ending computation, " +
+                "setting it to 'CANCELLED'.",
+            )
+            ComputationStageAttemptDetails.EndReason.CANCELLED
+          }
+        updateComputationStageAttempt(
+          localId = unfinished.computationId,
+          stage = unfinished.computationStage,
+          attempt = unfinished.attempt,
+          endTime = writeTime,
+          details = unfinished.details.copy { reasonEnded = reason },
+        )
       }
-    return transactionContext.executeQuery(sql).consume(::UnfinishedAttempt)
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

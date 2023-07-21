@@ -21,6 +21,7 @@ import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
+import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationBlobReferenceReader
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationStageAttemptReader
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
@@ -30,10 +31,7 @@ import org.wfanet.measurement.internal.duchy.copy
 /**
  * [PostgresWriter] to advance a computation to next stage.
  *
- * @param localId local identifier of the computation.
- * @param editVersion the version of the computation.
- * @param attempt current attempt number.
- * @param currentStage current stage enum.
+ * @param token the [ComputationEditToken] of the target computation.
  * @param nextStage next stage enum.
  * @param nextStageDetails stageDetails of the next stage.
  * @param inputBlobPaths list of inputBlobPaths.
@@ -45,10 +43,7 @@ import org.wfanet.measurement.internal.duchy.copy
  * @param protocolStagesEnumHelper See [ComputationProtocolStagesEnumHelper].
  */
 class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
-  private val localId: Long,
-  private val editVersion: Long,
-  private val attempt: Long,
-  private val currentStage: StageT,
+  private val token: ComputationEditToken<ProtocolT, StageT>,
   private val nextStage: StageT,
   private val nextStageDetails: StageDT,
   private val inputBlobPaths: List<String>,
@@ -60,6 +55,11 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
   private val protocolStagesEnumHelper: ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
 ) : PostgresWriter<Unit>() {
   override suspend fun TransactionScope.runTransaction() {
+    val currentStage = token.stage
+    val localId = token.localId
+    val editVersion = token.editVersion
+    val attempt = token.attempt.toLong()
+
     require(protocolStagesEnumHelper.validTransition(currentStage, nextStage)) {
       "Invalid stage transition $currentStage -> $nextStage"
     }
@@ -171,9 +171,9 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
       insertComputationBlobReference(
         localId = localId,
         stage = nextStageLong,
-        blobId = index.toLong(),
+        blobId = index.toLong() + inputBlobPaths.size,
         pathToBlob = path,
-        dependencyType = ComputationBlobDependency.INPUT
+        dependencyType = ComputationBlobDependency.PASS_THROUGH
       )
     }
 
