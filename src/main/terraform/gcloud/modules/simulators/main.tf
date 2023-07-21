@@ -23,12 +23,14 @@ module "simulator_user" {
 }
 
 resource "google_project_iam_member" "bigquery_user" {
+  count   = var.bigquery_table == null ? 0 : 1
   project = data.google_project.project.name
   role    = "roles/bigquery.jobUser"
   member  = module.simulator_user.iam_service_account.member
 }
 
 resource "google_bigquery_table_iam_member" "bigquery_viewer" {
+  count      = var.bigquery_table == null ? 0 : 1
   dataset_id = var.bigquery_table.dataset_id
   table_id   = var.bigquery_table.id
   role       = "roles/bigquery.dataViewer"
