@@ -250,6 +250,25 @@ class ReportingTest {
   }
 
   @Test
+  fun `create reporting set with neither --set-expression nor --cmms-event-groups fails`() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "reporting-sets",
+        "create",
+        "--parent=$MEASUREMENT_CONSUMER_NAME",
+        "--filter=person.age_group == 1",
+        "--display-name=reporting-set",
+        "--id=$REPORTING_SET_ID",
+      )
+
+    CommandLineTesting.assertExitsWith(2) { Reporting.main(args) }
+  }
+
+  @Test
   fun `list reporting sets calls api with valid request`() {
     val args =
       arrayOf(
@@ -415,6 +434,30 @@ class ReportingTest {
         "--id=$REPORT_ID",
         "--request-id=$REPORT_REQUEST_ID",
         "--reporting-metric-entry=${textFormatReportingMetricEntryFile.readText()}",
+      )
+
+    CommandLineTesting.assertExitsWith(2) { Reporting.main(args) }
+  }
+
+  @Test
+  fun `create report with no --reporting-metric-entry fails`() {
+    val increment = "P1DT3H5M12.99S"
+    val startTime = "2017-01-15T01:30:15.01Z"
+
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "reports",
+        "create",
+        "--parent=$MEASUREMENT_CONSUMER_NAME",
+        "--periodic-interval-start-time=$startTime",
+        "--periodic-interval-increment=$increment",
+        "--periodic-interval-count=3",
+        "--id=$REPORT_ID",
+        "--request-id=$REPORT_REQUEST_ID",
       )
 
     CommandLineTesting.assertExitsWith(2) { Reporting.main(args) }
