@@ -1,4 +1,0 @@
-# proto-file: src/main/proto/wfa/measurement/integration/k8s/testing/google_cloud_storage_config.proto
-# proto-message: GoogleCloudStorageConfig
-project: "{project}"
-bucket: "{bucket}"
