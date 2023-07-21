@@ -15,9 +15,27 @@
 package k8s
 
 _secret_name:          string @tag("secret_name")
+_duchyDbSecretName:    string @tag("db_secret_name")
 _aggregator_cert_name: string @tag("aggregator_cert_name")
 _worker1_cert_name:    string @tag("worker1_cert_name")
 _worker2_cert_name:    string @tag("worker2_cert_name")
+
+let EnvVars = #EnvVarMap & {
+	"POSTGRES_USER": {
+		valueFrom:
+			secretKeyRef: {
+				name: _duchyDbSecretName
+				key:  "username"
+			}
+	}
+	"POSTGRES_PASSWORD": {
+		valueFrom:
+			secretKeyRef: {
+				name: _duchyDbSecretName
+				key:  "password"
+			}
+	}
+}
 
 #KingdomSystemApiTarget: (#Target & {name: "system-api-server"}).target
 #SpannerEmulatorHost:    (#Target & {name: "spanner-emulator"}).target
@@ -99,6 +117,12 @@ duchies: [
 				protocols_setup_config: duchyConfig.protocolsSetupConfig
 				cs_cert_resource_name:  duchyConfig.certificateResourceName
 			}
+			_postgresConfig: {
+				serviceName: "postgres"
+				password:    "$(POSTGRES_PASSWORD)"
+				user:        "$(POSTGRES_USER)"
+			}
+			_duchy_data_server_container_env_vars: EnvVars
 		}
 	},
 ]
