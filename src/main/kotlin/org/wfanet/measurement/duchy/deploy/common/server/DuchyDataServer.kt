@@ -32,47 +32,53 @@ import picocli.CommandLine
 
 abstract class DuchyDataServer : Runnable {
   @CommandLine.Mixin
-  lateinit var serverFlags: CommonServer.Flags
+  protected lateinit var flags: Flags
     private set
 
-  @CommandLine.Mixin
-  lateinit var duchyFlags: CommonDuchyFlags
-    private set
-
-  @CommandLine.Mixin
-  lateinit var duchyInfoFlags: DuchyInfoFlags
-    private set
-
-  @CommandLine.Option(
-    names = ["--channel-shutdown-timeout"],
-    defaultValue = "3s",
-    description = ["How long to allow for the gRPC channel to shutdown."],
-    required = true
-  )
-  lateinit var channelShutdownTimeout: Duration
-    private set
-
-  @CommandLine.Mixin
-  lateinit var systemApiFlags: SystemApiFlags
-    private set
-
-  val clientCerts =
-    SigningCerts.fromPemFiles(
-      certificateFile = serverFlags.tlsFlags.certFile,
-      privateKeyFile = serverFlags.tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = serverFlags.tlsFlags.certCollectionFile
-    )
-  val channel: ManagedChannel =
-    buildMutualTlsChannel(systemApiFlags.target, clientCerts, systemApiFlags.certHost)
-      .withShutdownTimeout(channelShutdownTimeout)
-
-  val computationLogEntriesClient =
-    ComputationLogEntriesCoroutineStub(channel).withDuchyId(duchyFlags.duchyName)
+  protected val computationLogEntriesClient by lazy {
+    val clientCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = flags.server.tlsFlags.certFile,
+        privateKeyFile = flags.server.tlsFlags.privateKeyFile,
+        trustedCertCollectionFile = flags.server.tlsFlags.certCollectionFile
+      )
+    val channel: ManagedChannel =
+      buildMutualTlsChannel(flags.systemApiFlags.target, clientCerts, flags.systemApiFlags.certHost)
+        .withShutdownTimeout(flags.channelShutdownTimeout)
+    ComputationLogEntriesCoroutineStub(channel).withDuchyId(flags.duchy.duchyName)
+  }
 
   protected suspend fun run(services: DuchyDataServices) {
-    val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services.toList())
+    val server = CommonServer.fromFlags(flags.server, this::class.simpleName!!, services.toList())
 
     runInterruptible { server.start().blockUntilShutdown() }
+  }
+
+  protected class Flags {
+    @CommandLine.Mixin
+    lateinit var server: CommonServer.Flags
+      private set
+
+    @CommandLine.Mixin
+    lateinit var duchy: CommonDuchyFlags
+      private set
+
+    @CommandLine.Mixin
+    lateinit var duchyInfo: DuchyInfoFlags
+      private set
+
+    @CommandLine.Option(
+      names = ["--channel-shutdown-timeout"],
+      defaultValue = "3s",
+      description = ["How long to allow for the gRPC channel to shutdown."],
+      required = true
+    )
+    lateinit var channelShutdownTimeout: Duration
+      private set
+
+    @CommandLine.Mixin
+    lateinit var systemApiFlags: SystemApiFlags
+      private set
   }
 
   companion object {

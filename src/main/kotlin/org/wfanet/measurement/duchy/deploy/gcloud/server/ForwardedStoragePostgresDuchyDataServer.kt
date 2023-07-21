@@ -15,17 +15,24 @@
 package org.wfanet.measurement.duchy.deploy.gcloud.server
 
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.duchy.deploy.common.server.DuchyDataServer
 import org.wfanet.measurement.duchy.deploy.common.server.postgres.PostgresDuchyDataServer
 import org.wfanet.measurement.storage.forwarded.ForwardedStorageFromFlags
 import picocli.CommandLine
 
 /** Implementation of [PostgresDuchyDataServer] using Fake Storage Service. */
+@CommandLine.Command(
+  name = "ForwardedStoragePostgresDuchyDataServer",
+  description = ["Server daemon for ${DuchyDataServer.SERVICE_NAME} service."],
+  mixinStandardHelpOptions = true,
+  showDefaultValues = true
+)
 class ForwardedStoragePostgresDuchyDataServer : PostgresDuchyDataServer() {
 
   @CommandLine.Mixin private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
 
   override fun run() {
-    run(ForwardedStorageFromFlags(forwardedStorageFlags, serverFlags.tlsFlags).storageClient)
+    run(ForwardedStorageFromFlags(forwardedStorageFlags, flags.server.tlsFlags).storageClient)
   }
 }
 

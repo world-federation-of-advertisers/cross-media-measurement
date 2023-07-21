@@ -44,7 +44,7 @@ abstract class PostgresDuchyDataServer : DuchyDataServer() {
       PostgresDuchyDataServices.create(
         storageClient,
         computationLogEntriesClient,
-        duchyFlags.duchyName,
+        flags.duchy.duchyName,
         idGenerator,
         client
       )
