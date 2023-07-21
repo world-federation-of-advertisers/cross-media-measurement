@@ -232,7 +232,7 @@ class CreateReportCommand : Runnable {
   @CommandLine.Option(
     names = ["--reporting-metric-entry"],
     description = ["ReportingMetricEntry protobuf messages in text format"],
-    required = false,
+    required = true,
   )
   lateinit var textFormatReportingMetricEntries: List<String>
 
