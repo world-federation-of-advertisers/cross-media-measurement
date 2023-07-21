@@ -249,6 +249,7 @@ kustomization_dir(
         "config_files_kustomization.yaml",
         "empty_akid_mapping_config.textproto",
         "empty_encryption_key_pair_config.textproto",
+        "metric_spec_config.textproto",
     ],
     renames = {
         "config_files_kustomization.yaml": "kustomization.yaml",
