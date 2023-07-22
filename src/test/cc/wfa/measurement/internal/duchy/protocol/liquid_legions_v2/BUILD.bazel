@@ -1,7 +1,8 @@
 load("@rules_cc//cc:defs.bzl", "cc_test")
 
 cc_test(
-    name = "liquid_legions_v2_encryption_utility_test", size = "small",
+    name = "liquid_legions_v2_encryption_utility_test",
+    size = "small",
     timeout = "moderate",
     srcs = [
         "liquid_legions_v2_encryption_utility_test.cc",
@@ -21,7 +22,8 @@ cc_test(
 
 cc_test(
     name = "reach_only_liquid_legions_v2_encryption_utility_test",
-    size = "small", timeout = "moderate",
+    size = "small",
+    timeout = "moderate",
     srcs = [
         "reach_only_liquid_legions_v2_encryption_utility_test.cc",
     ],
@@ -38,7 +40,8 @@ cc_test(
     ], )
 
 cc_test(
-    name = "noise_parameters_computation_test", size = "small",
+    name = "noise_parameters_computation_test",
+    size = "small",
     srcs = [
         "noise_parameters_computation_test.cc",
     ],
@@ -53,7 +56,8 @@ cc_test(
 )
 
 cc_test(
-    name = "multithreading_helper_test", size = "small",
+    name = "multithreading_helper_test",
+    size = "small",
     srcs = [
         "multithreading_helper_test.cc",
     ],
