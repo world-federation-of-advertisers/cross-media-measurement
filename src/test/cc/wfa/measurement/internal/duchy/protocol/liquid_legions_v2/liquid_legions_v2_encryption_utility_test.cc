@@ -30,6 +30,7 @@
 #include "wfa/measurement/common/crypto/constants.h"
 #include "wfa/measurement/common/crypto/ec_point_util.h"
 #include "wfa/measurement/common/crypto/encryption_utility_helper.h"
+#include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/liquid_legions_v2_encryption_utility_helper.h"
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2_encryption_methods.pb.h"
 
 namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
@@ -84,39 +85,6 @@ void AddRegister(Sketch* sketch, const int index, const int key,
   register_ptr->set_index(index);
   register_ptr->add_values(key);
   register_ptr->add_values(count);
-}
-
-::wfa::any_sketch::crypto::ElGamalPublicKey ToAnysketchElGamalKey(
-    ElGamalPublicKey key) {
-  ::wfa::any_sketch::crypto::ElGamalPublicKey result;
-  result.set_generator(key.generator());
-  result.set_element(key.element());
-  return result;
-}
-
-ElGamalPublicKey ToCmmsElGamalKey(
-    ::wfa::any_sketch::crypto::ElGamalPublicKey key) {
-  ElGamalPublicKey result;
-  result.set_generator(key.generator());
-  result.set_element(key.element());
-  return result;
-}
-
-Sketch CreateEmptyLiquidLegionsSketch() {
-  Sketch plain_sketch;
-  plain_sketch.mutable_config()->add_values()->set_aggregator(
-      SketchConfig::ValueSpec::UNIQUE);
-  plain_sketch.mutable_config()->add_values()->set_aggregator(
-      SketchConfig::ValueSpec::SUM);
-  return plain_sketch;
-}
-
-DifferentialPrivacyParams MakeDifferentialPrivacyParams(double epsilon,
-                                                        double delta) {
-  DifferentialPrivacyParams params;
-  params.set_epsilon(epsilon);
-  params.set_delta(delta);
-  return params;
 }
 
 // Partition the char vector 33 by 33, and convert the results to strings

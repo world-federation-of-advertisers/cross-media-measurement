@@ -66,6 +66,8 @@ class ProtocolCryptorImpl : public ProtocolCryptor {
       CompositeType composite_type) override;
   absl::StatusOr<ElGamalCiphertext> EncryptCompositeElGamal(
       absl::string_view plain_ec_point, CompositeType composite_type) override;
+  absl::StatusOr<std::string> EncryptIntegerWithCompositElGamalAndWriteToString(
+      int64_t value) override;
   absl::StatusOr<ElGamalCiphertext> ReRandomize(
       const ElGamalCiphertext& ciphertext,
       CompositeType composite_type) override;
@@ -171,6 +173,41 @@ absl::StatusOr<ElGamalCiphertext> ProtocolCryptorImpl::EncryptCompositeElGamal(
   return composite_type == CompositeType::kFull
              ? composite_el_gamal_cipher_->Encrypt(plain_ec_point)
              : partial_composite_el_gamal_cipher_->Encrypt(plain_ec_point);
+}
+
+absl::StatusOr<std::string>
+ProtocolCryptorImpl::EncryptIntegerWithCompositElGamalAndWriteToString(
+    int64_t value) {
+  Context ctx;
+  std::string ciphertext;
+  ciphertext.resize(kBytesPerCipherText);
+  if (value < 0) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("The value should be non-negative, but is ", value));
+  }
+  if (value == 0) {
+    ASSIGN_OR_RETURN(
+        ElGamalEcPointPair zero_ec,
+        EncryptIdentityElementToEcPointsCompositeElGamal(CompositeType::kFull));
+    std::string temp;
+    ASSIGN_OR_RETURN(temp, zero_ec.u.ToBytesCompressed());
+    ciphertext.replace(0, kBytesPerEcPoint, temp);
+    ASSIGN_OR_RETURN(temp, zero_ec.e.ToBytesCompressed());
+    ciphertext.replace(kBytesPerEcPoint, kBytesPerEcPoint, temp);
+  } else {
+    ASSIGN_OR_RETURN(ElGamalEcPointPair one_ec,
+                     EncryptPlaintextToEcPointsCompositeElGamal(
+                         kUnitECPointSeed, CompositeType::kFull));
+    ASSIGN_OR_RETURN(
+        ElGamalEcPointPair point_ec,
+        MultiplyEcPointPairByScalar(one_ec, ctx.CreateBigNum(value)));
+    std::string temp;
+    ASSIGN_OR_RETURN(temp, point_ec.u.ToBytesCompressed());
+    ciphertext.replace(0, kBytesPerEcPoint, temp);
+    ASSIGN_OR_RETURN(temp, point_ec.e.ToBytesCompressed());
+    ciphertext.replace(kBytesPerEcPoint, kBytesPerEcPoint, temp);
+  }
+  return ciphertext;
 }
 
 absl::StatusOr<ElGamalCiphertext> ProtocolCryptorImpl::ReRandomize(

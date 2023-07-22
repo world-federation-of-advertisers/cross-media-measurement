@@ -53,13 +53,20 @@ message CompleteReachOnlySetupPhaseRequest {
   // The CRV is only needed so the noise can be interleaved and hidden in the
   // CRV. The registers in the CRV are unchanged, except for their orders.
   bytes combined_register_vector = 1;
+  // The elliptical curve to work on.
+  int64 curve_id = 2;
   // The parameters required for generating noise registers.
   // if unset, the worker only shuffles the register without adding any noise.
-  RegisterNoiseGenerationParameters noise_parameters = 2;
+  RegisterNoiseGenerationParameters noise_parameters = 3;
   // The mechanism used to generate noise.
-  LiquidLegionsV2NoiseConfig.NoiseMechanism noise_mechanism = 3;
+  LiquidLegionsV2NoiseConfig.NoiseMechanism noise_mechanism = 4;
+  // Public Key of the composite ElGamal cipher. Used to encrypt the excessive
+  // noise (which is zero) when noise_parameters is not available.
+  ElGamalPublicKey composite_el_gamal_public_key = 5;
+  // The attached encrypted excessive noises. Only for the aggregator.
+  bytes serialized_excessive_noise_ciphertext = 6;
   // The maximum number of threads used by crypto actions.
-  int32 parallelism = 4;
+  int32 parallelism = 7;
 }
 
 // Response of the CompleteReachOnlySetupPhase method.
@@ -68,27 +75,23 @@ message CompleteReachOnlySetupPhaseResponse {
   // and noise registers.
   bytes combined_register_vector = 1;
   // The excessive noise that can be removed in the execution phase.
-  int64 excessive_noise = 2;
+  bytes serialized_excessive_noise_ciphertext = 2;
   // The CPU time of processing the request.
   int64 elapsed_cpu_time_millis = 3;
 }
 
 // Response of the CompleteReachOnlySetupPhase method at the aggregate worker.
-// Different from the non-aggregator, the aggregator samples the Paillier key
+// Different from the non-aggregator, the aggregator samples the El Gamal key
 // pair and encrypts its excessive noise with the public key.
 message CompleteReachOnlySetupPhaseAtAggregatorResponse {
   // The output combined register vector (CRV), which contains shuffled input
   // and noise registers.
   bytes combined_register_vector = 1;
-  // The Paillier private key.
-  PaillierPrivateKey paillier_private_key = 2;
-  // The Paillier public key.
-  PaillierPublicKey paillier_public_key = 3;
-  // The serialized Paillier ciphertext that encrypts the aggregated excessive
+  // The serialized El Gamal ciphertext that encrypts the aggregated excessive
   // noise of the aggregator.
-  bytes serialized_aggregated_noise_ciphertext = 4;
+  bytes serialized_excessive_noise_ciphertext = 2;
   // The CPU time of processing the request.
-  int64 elapsed_cpu_time_millis = 5;
+  int64 elapsed_cpu_time_millis = 3;
 }
 
 // The request to complete work in the execution phase at a non-aggregator
@@ -100,21 +103,13 @@ message CompleteReachOnlyExecutionPhaseRequest {
   bytes combined_register_vector = 1;
   // Key pair of the local ElGamal cipher. Required.
   ElGamalKeyPair local_el_gamal_key_pair = 2;
-  // Public Key of the composite ElGamal cipher. Used to re-randomize the keys
-  // and counts.
-  ElGamalPublicKey composite_el_gamal_public_key = 3;
   // The elliptical curve to work on.
-  int64 curve_id = 4;
-  // The excessive noise that will be removed. The noise was computed during the
-  // Setup phase, and stored in the database.
-  int64 excessive_noise = 5;
-  // The Paillier public key.
-  PaillierPublicKey paillier_public_key = 6;
-  // The serialized Paillier ciphertext that encrypts the aggregated excessive
+  int64 curve_id = 3;
+  // The serialized El Gamal ciphertext that encrypts the aggregated excessive
   // noise.
-  bytes serialized_aggregated_noise_ciphertext = 7;
+  bytes serialized_excessive_noise_ciphertext = 4;
   // The maximum number of threads used by crypto actions.
-  int32 parallelism = 8;
+  int32 parallelism = 5;
 }
 
 // Response of the CompleteReachOnlyExecution method.
@@ -124,9 +119,9 @@ message CompleteReachOnlyExecutionPhaseResponse {
   // bytes ElGamal ciphertext. In other words, the CRV size should be divisible
   // by 66.
   bytes combined_register_vector = 1;
-  // The serialized Paillier ciphertext that encrypts the aggregated excessive
+  // The serialized El Gamal ciphertext that encrypts the aggregated excessive
   // noise.
-  bytes serialized_aggregated_noise_ciphertext = 2;
+  bytes serialized_excessive_noise_ciphertext = 2;
   // The CPU time of processing the request.
   int64 elapsed_cpu_time_millis = 3;
 }
@@ -142,29 +137,33 @@ message CompleteReachOnlyExecutionPhaseAtAggregatorRequest {
   bytes combined_register_vector = 1;
   // Key pair of the local ElGamal cipher. Required.
   ElGamalKeyPair local_el_gamal_key_pair = 2;
-  // Public Key of the composite ElGamal cipher. Used to encrypt the random
-  // numbers in SameKeyAggregation.
-  ElGamalPublicKey composite_el_gamal_public_key = 3;
   // The elliptical curve to work on.
-  int64 curve_id = 4;
-  // The Paillier private key to decrypt the aggregated noise ciphertext.
-  PaillierPrivateKey paillier_private_key = 5;
-  // The serialized Paillier ciphertext that encrypts the aggregated excessive
+  int64 curve_id = 3;
+  // The serialized El Gamal ciphertext that encrypts the aggregated excessive
   // noise.
-  bytes serialized_aggregated_noise_ciphertext = 6;
+  bytes serialized_excessive_noise_ciphertext = 4;
+  // Parameters for computing the noise baseline of the global reach DP noise
+  // registers added in the setup phase.
+  // The baseline is subtracted before reach is estimated.
+  GlobalReachDpNoiseBaseline reach_dp_noise_baseline = 5;
   // LiquidLegions parameters used for reach estimation.
-  LiquidLegionsSketchParameters liquid_legions_parameters = 7;
+  LiquidLegionsSketchParameters liquid_legions_parameters = 6;
   // The sampling rate to be used by the LiquidLegionsV2 protocol.
   // This is taken from the VidSamplingInterval.width parameter in the
   // MeasurementSpec.
-  float vid_sampling_interval_width = 8;
+  float vid_sampling_interval_width = 7;
+  // The parameters required for generating noise registers.
+  // if unset, the worker only shuffles the register without adding any noise.
+  RegisterNoiseGenerationParameters noise_parameters = 8;
+  // The mechanism used to generate noise in previous phases.
+  LiquidLegionsV2NoiseConfig.NoiseMechanism noise_mechanism = 9;
   // The maximum number of threads used by crypto actions.
-  int32 parallelism = 9;
+  int32 parallelism = 10;
 }
 
 // The response of the CompleteReachOnlyExecutionAtAggregator method.
 message CompleteReachOnlyExecutionPhaseAtAggregatorResponse {
-  // The number of register count.
+  // The estimated reach.
   int64 reach = 1;
   // The CPU time of processing the request.
   int64 elapsed_cpu_time_millis = 2;

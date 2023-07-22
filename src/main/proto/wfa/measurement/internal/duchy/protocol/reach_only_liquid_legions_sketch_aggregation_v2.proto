@@ -151,16 +151,6 @@ message ReachOnlyLiquidLegionsSketchAggregationV2 {
     // TODO(@ple13): delete this field when we switch to use a secure key
     // store for duchy private keys.
     ElGamalKeyPair local_elgamal_key = 7;
-
-    // Paillier Private Key used to decrypt the total excessive noise to be
-    // removed from the register count in the execution phase.
-    // TODO(@ple13): delete this field when we switch to use a secure key
-    // store for duchy private keys. Only the aggregator samples and stores this
-    // key.
-    PaillierPrivateKey local_paillier_key = 8;
-
-    // Noise to be removed.
-    int64 excess_noise = 9;
   }
 
   // Details about a particular attempt of running a stage of the LiquidLegionV2

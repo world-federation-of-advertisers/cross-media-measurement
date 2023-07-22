@@ -26,6 +26,8 @@
 
 namespace wfa::measurement::common::crypto {
 
+using ::wfa::measurement::common::crypto::CompositeType;
+
 // A pair of ciphertexts which store the key and count values of a liquidlegions
 // register.
 struct KeyCountPairCipherText {
@@ -44,6 +46,11 @@ absl::StatusOr<ElGamalCiphertext> ExtractElGamalCiphertextFromString(
 // Blinds the last layer of ElGamal Encryption of register indexes, and return
 // the deterministically encrypted results.
 absl::StatusOr<std::vector<std::string>> GetBlindedRegisterIndexes(
+    absl::string_view data, ProtocolCryptor& protocol_cryptor);
+
+// Blinds the last layer of ElGamal Encryption of register indexes, and return
+// the deterministically encrypted results.
+absl::StatusOr<std::vector<std::string>> GetRollv2BlindedRegisterIndexes(
     absl::string_view data, ProtocolCryptor& protocol_cryptor);
 
 // Extracts a KeyCountPairCipherText from a string_view.
@@ -66,9 +73,29 @@ absl::Status AppendEcPointPairToString(const ElGamalEcPointPair& ec_point_pair,
 absl::Status WriteEcPointPairToString(const ElGamalEcPointPair& ec_point_pair,
                                       size_t pos, std::string& result);
 
+// Extract a ElGamalEcPointPair from a string_view.
+absl::StatusOr<ElGamalEcPointPair> GetEcPointPairFromString(
+    absl::string_view str, int curve_id);
+
 // Returns the vector of ECPoints for count values from 1 to maximum_value.
 absl::StatusOr<std::vector<std::string>> GetCountValuesPlaintext(
     int maximum_value, int curve_id);
+
+// Encrypts plaintext and appends bytes of the cipher text to a target string.
+// The length of bytes appened is kBytesPerCipherText = kBytesPerEcPoint * 2.
+absl::Status EncryptCompositeElGamalAndAppendToString(
+    ProtocolCryptor& protocol_cryptor, CompositeType composite_type,
+    absl::string_view plaintext_ec, std::string& data);
+
+// Encrypts plaintext and writes bytes of the cipher text to a target string at
+// a certain position.
+// Bytes are written by replacing content of the string starting at pos. The
+// length of bytes written is kBytesPerCipherText = kBytesPerEcPoint * 2.
+// Returns a Status with code `INVALID_ARGUMENT` when the result string is not
+// long enough.
+absl::Status EncryptCompositeElGamalAndWriteToString(
+    ProtocolCryptor& protocol_cryptor, CompositeType composite_type,
+    absl::string_view plaintext_ec, size_t pos, std::string& result);
 
 }  // namespace wfa::measurement::common::crypto
 

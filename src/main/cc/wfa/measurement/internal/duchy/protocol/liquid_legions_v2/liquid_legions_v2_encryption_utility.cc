@@ -240,39 +240,6 @@ absl::StatusOr<std::vector<ElGamalEcPointPair>> GetSameKeyAggregatorMatrixBase(
   return std::move(result);
 }
 
-absl::Status EncryptCompositeElGamalAndAppendToString(
-    ProtocolCryptor& protocol_cryptor, CompositeType composite_type,
-    absl::string_view plaintext_ec, std::string& data) {
-  ASSIGN_OR_RETURN(
-      ElGamalCiphertext key,
-      protocol_cryptor.EncryptCompositeElGamal(plaintext_ec, composite_type));
-  data.append(key.first);
-  data.append(key.second);
-  return absl::OkStatus();
-}
-
-// Encrypts plaintext and writes bytes of the cipher text to a target string at
-// a certain position.
-// Bytes are written by replacing content of the string starting at pos. The
-// length of bytes written is kBytesPerCipherText = kBytesPerEcPoint * 2.
-// Returns a Status with code `INVALID_ARGUMENT` when the result string is not
-// long enough.
-absl::Status EncryptCompositeElGamalAndWriteToString(
-    ProtocolCryptor& protocol_cryptor, CompositeType composite_type,
-    absl::string_view plaintext_ec, size_t pos, std::string& result) {
-  if (pos + kBytesPerCipherText > result.size()) {
-    return absl::InvalidArgumentError("result is not long enough to write.");
-  }
-  ASSIGN_OR_RETURN(
-      ElGamalCiphertext key,
-      protocol_cryptor.EncryptCompositeElGamal(plaintext_ec, composite_type));
-
-  result.replace(pos, kBytesPerEcPoint, key.first);
-  result.replace(pos + kBytesPerEcPoint, kBytesPerEcPoint, key.second);
-
-  return absl::OkStatus();
-}
-
 // Adds encrypted blinded-histogram-noise registers to the end of data.
 // returns the number of such noise registers added.
 absl::StatusOr<int64_t> AddBlindedHistogramNoise(
