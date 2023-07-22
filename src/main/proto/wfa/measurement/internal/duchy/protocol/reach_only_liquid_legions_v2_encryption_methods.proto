@@ -81,8 +81,6 @@ message CompleteReachOnlySetupPhaseResponse {
 }
 
 // Response of the CompleteReachOnlySetupPhase method at the aggregate worker.
-// Different from the non-aggregator, the aggregator samples the El Gamal key
-// pair and encrypts its excessive noise with the public key.
 message CompleteReachOnlySetupPhaseAtAggregatorResponse {
   // The output combined register vector (CRV), which contains shuffled input
   // and noise registers.
