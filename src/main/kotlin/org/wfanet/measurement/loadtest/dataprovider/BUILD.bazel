@@ -55,6 +55,7 @@ kt_jvm_library(
         "@any_sketch_java//src/main/java/org/wfanet/anysketch:sketch_proto_converter",
         "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
         "@any_sketch_java//src/main/java/org/wfanet/sampling:vid_sampler",
+        "@uk_pilot_event_templates//src/main/proto/eventtemplates:event_templates_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/bigquery",
         "@wfa_common_jvm//imports/java/com/opencsv",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",

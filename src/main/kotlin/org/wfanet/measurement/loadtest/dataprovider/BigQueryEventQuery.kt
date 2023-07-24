@@ -27,6 +27,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 import java.util.logging.Logger
+import org.halo_cmm.uk.pilot.Event
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
@@ -99,6 +100,56 @@ class BigQueryEventQuery(
   }
 
   private fun FieldValueList.toTestEvent(): TestEvent {
+    val gender: Person.Gender? =
+      when (get("sex").stringValue) {
+        "M" -> Person.Gender.MALE
+        "F" -> Person.Gender.FEMALE
+        else -> null
+      }
+    val ageGroup: Person.AgeGroup? =
+      when (get("age_group").stringValue) {
+        "18_34" -> Person.AgeGroup.YEARS_18_TO_34
+        "35_54" -> Person.AgeGroup.YEARS_35_TO_54
+        "55+" -> Person.AgeGroup.YEARS_55_PLUS
+        else -> null
+      }
+    val socialGradeGroup: Person.SocialGradeGroup? =
+      when (get("social_grade").stringValue) {
+        "ABC1" -> Person.SocialGradeGroup.A_B_C1
+        "C2DE" -> Person.SocialGradeGroup.C2_D_E
+        else -> null
+      }
+    val complete: Boolean =
+      when (get("complete").longValue) {
+        0L -> false
+        else -> true
+      }
+    return testEvent {
+      time = Timestamp.ofTimeMicroseconds(get("time").timestampValue).toProto()
+      person = person {
+        vid = get("vid").longValue
+        if (gender != null) {
+          this.gender = gender
+        }
+        if (ageGroup != null) {
+          this.ageGroup = ageGroup
+        }
+        if (socialGradeGroup != null) {
+          this.socialGradeGroup = socialGradeGroup
+        }
+      }
+      videoAd = video {
+        viewedFraction =
+          if (complete) {
+            1.0
+          } else {
+            0.0
+          }
+      }
+    }
+  }
+
+  private fun FieldValueList.toEvent(): Event {
     val gender: Person.Gender? =
       when (get("sex").stringValue) {
         "M" -> Person.Gender.MALE
