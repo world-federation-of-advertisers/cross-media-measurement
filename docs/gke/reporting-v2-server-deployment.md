@@ -1,9 +1,9 @@
-# Halo Reporting Server Deployment on GKE
+# Halo Reporting V2 Server Deployment on GKE
 
 ## Important Note
 
-This is the deployment guide for the old V1. For the new V2, see
-[Reporting V2](reporting-v2-server-deployment.md).
+This is the deployment guide for the new V2. For the old V1, see
+[Reporting V1](reporting-server-deployment.md).
 
 ## Background
 
@@ -24,14 +24,14 @@ free to use whichever you prefer.
     -   1 Kubernetes configmap
         -   `config-files`
     -   2 Kubernetes services
-        -   `postgres-reporting-data-server` (Cluster IP)
-        -   `v1alpha-public-api-server` (External load balancer)
+        -   `postgres-internal-reporting-server`  (Cluster IP)
+        -   `reporting-v2alpha-public-api-server` (External load balancer)
     -   2 Kubernetes deployments
-        -   `postgres-reporting-data-server-deployment`
-        -   `v1alpha-public-api-server-deployment`
+        -   `postgres-internal-reporting-server-deployment`
+        -   `reporting-v2alpha-public-api-server-deployment`
     -   3 Kubernetes network policies
-        -   `internal-data-server-network-policy`
-        -   `public-api-server-network-policy`
+        -   `postgres-internal-reporting-server-network-policy`
+        -   `reporting-v2alpha-public-api-server-network-policy`
         -   `default-deny-ingress-and-egress`
 
 ## Before you start
@@ -52,10 +52,10 @@ Make sure that the instance has the `cloudsql.iam_authentication` flag set to
 
 The Reporting server expects its own database within your PostgreSQL instance.
 You can create one with the `gcloud` CLI. For example, a database named
-`reporting` in the `dev-postgres` instance.
+`reporting-v2` in the `dev-postgres` instance.
 
 ```shell
-gcloud sql databases create reporting --instance=dev-postgres
+gcloud sql databases create reporting-v2 --instance=dev-postgres
 ```
 
 ## Build and push the container images
@@ -150,30 +150,30 @@ In order to use the IAM service account that we created earlier from our
 cluster, we need to create a K8s ServiceAccount and give it access to that IAM
 service account.
 
-For example, to create a K8s ServiceAccount named `internal-reporting-server`,
+For example, to create a K8s ServiceAccount named `internal-reporting-v2-server`,
 run
 
 ```shell
-kubectl create serviceaccount internal-reporting-server
+kubectl create serviceaccount internal-reporting-v2-server
 ```
 
 Supposing the IAM service account you created in a previous step is named
-`reporting-internal` within the `halo-cmm-dev` project. You'll need to allow the
+`reporting-v2-internal` within the `halo-cmm-dev` project. You'll need to allow the
 K8s service account to impersonate it
 
 ```shell
 gcloud iam service-accounts add-iam-policy-binding \
-  reporting-internal@halo-cmm-dev.iam.gserviceaccount.com \
+  reporting-v2-internal@halo-cmm-dev.iam.gserviceaccount.com \
   --role roles/iam.workloadIdentityUser \
-  --member "serviceAccount:halo-cmm-dev.svc.id.goog[default/internal-reporting-server]"
+  --member "serviceAccount:halo-cmm-dev.svc.id.goog[default/internal-reporting-v2-server]"
 ```
 
 Finally, add an annotation to link the K8s service account to the IAM service
 account:
 
 ```shell
-kubectl annotate serviceaccount internal-reporting-server \
-    iam.gke.io/gcp-service-account=reporting-internal@halo-cmm-dev.iam.gserviceaccount.com
+kubectl annotate serviceaccount internal-reporting-v2-server \
+    iam.gke.io/gcp-service-account=reporting-v2-internal@halo-cmm-dev.iam.gserviceaccount.com
 ```
 
 ## Generate the K8s Kustomization
@@ -186,13 +186,13 @@ To generate the `dev` Kustomization, run the following (substituting your own
 values):
 
 ```shell
-bazel build //src/main/k8s/dev:reporting.tar \
+bazel build //src/main/k8s/dev:reporting_v2.tar \
   --define google_cloud_project=halo-cmm-dev \
   --define postgres_instance=dev-postgres \
   --define postgres_region=us-central1 \
   --define kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
   --define container_registry=gcr.io \
-  --define image_repo_prefix=halo-kingdom-demo --define image_tag=build-0001
+  --define image_repo_prefix=halo-reporting-demo --define image_tag=build-0001
 ```
 
 Extract the generated archive to some directory.
@@ -256,7 +256,7 @@ Generate the archive:
 bazel build //src/main/k8s/testing/secretfiles:archive
 ```
 
-Extract the generated archive to the `src/main/k8s/dev/reporting_secrets/` path
+Extract the generated archive to the `src/main/k8s/dev/reporting_v2_secrets/` path
 within the Kustomization directory.
 
 ### Measurement Consumer config
@@ -270,7 +270,7 @@ Contents:
 
 ### Generator
 
-Place the above files into the `src/main/k8s/dev/reporting_secrets/` path within
+Place the above files into the `src/main/k8s/dev/reporting_v2_secrets/` path within
 the Kustomization directory.
 
 Create a `kustomization.yaml` file in that path with the following content,
@@ -302,8 +302,11 @@ in
     [`AuthorityKeyToPrincipalMap`](../../src/main/proto/wfa/measurement/config/authority_key_to_principal_map.proto)
 *   `encryption_key_pair_config.textproto` -
     [`EncryptionKeyPairConfig`](../../src/main/proto/wfa/measurement/config/reporting/encryption_key_pair_config.proto)
+*   `metric_spec_config.textproto` -
+    [`MetricSpecConfig`](../../src/main/proto/wfa/measurement/config/reporting/metric_spec_config.proto)
 
-Place these files into the `src/main/k8s/dev/reporting_config_files/` path
+
+Place these files into the `src/main/k8s/dev/reporting_v2_config_files/` path
 within the Kustomization directory.
 
 ## Apply the K8s Kustomization
@@ -311,7 +314,7 @@ within the Kustomization directory.
 Within the Kustomization directory, run
 
 ```shell
-kubectl apply -k src/main/k8s/dev/reporting
+kubectl apply -k src/main/k8s/dev/reporting_v2
 ```
 
 Now all components should be successfully deployed to your GKE cluster. You can
@@ -331,20 +334,20 @@ You should see something like the following:
 
 ```
 NAME                                             READY   UP-TO-DATE   AVAILABLE   AGE
-postgres-reporting-data-server-deployment        1/1     1            1           254d
-reporting-public-api-v1alpha-server-deployment   1/1     1            1           9m2s
+postgres-internal-reporting-server-deployment    1/1     1            1           254d
+reporting-v2alpha-public-api-server-deployment   1/1     1            1           9m2s
 ```
 
 ```
 NAME                                  TYPE           CLUSTER-IP     EXTERNAL-IP    PORT(S)          AGE
 kubernetes                            ClusterIP      10.16.32.1     <none>         443/TCP          260d
-postgres-reporting-data-server        ClusterIP      10.16.39.47    <none>         8443/TCP         254d
-reporting-public-api-v1alpha-server   LoadBalancer   10.16.32.255   34.135.79.68   8443:30104/TCP   8m45s
+postgres-internal-reporting-server    ClusterIP      10.16.39.47    <none>         8443/TCP         254d
+reporting-v2alpha-public-api-server   LoadBalancer   10.16.32.255   34.135.79.68   8443:30104/TCP   8m45s
 ```
 
 ## Reserve an external IP
 
-The `reporting-public-api-v1alpha-server` service has an external load balancer
+The `reporting-v2alpha-public-api-server` service has an external load balancer
 IP so that it can be accessed from outside the cluster. By default, the assigned
 IP address is ephemeral. We can reserve a static IP to make it easier to access.
 See [Reserving External IPs](cluster-config.md#reserving-external-ips).
@@ -384,7 +387,7 @@ See [Reserving External IPs](cluster-config.md#reserving-external-ips).
 ### Manual testing via CLI
 
 The
-[`Reporting`](../../src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha/tools)
+[`Reporting`](../../src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha/tools)
 CLI tool can be used for manual testing as well as examples of how to call the
 API.
 

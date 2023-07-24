@@ -331,6 +331,52 @@ kustomization_dir(
 )
 
 cue_dump(
+    name = "reporting_v2_gke",
+    srcs = ["reporting_v2_gke.cue"],
+    cue_tags = {
+        "secret_name": SIGNING_SECRET_NAME,
+        "mc_config_secret_name": MC_CONFIG_SECRET_NAME,
+        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
+        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+        "google_cloud_project": GCLOUD_SETTINGS.project,
+        "postgres_instance": GCLOUD_SETTINGS.postgres_instance,
+        "postgres_region": GCLOUD_SETTINGS.postgres_region,
+        "kingdom_public_api_target": KINGDOM_K8S_SETTINGS.public_api_target,
+    },
+    tags = ["manual"],
+    deps = [
+        ":base_gke",
+        ":config",
+        "//src/main/k8s:reporting_v2",
+    ],
+)
+
+kustomization_dir(
+    name = "reporting_v2_config_files",
+    srcs = ["reporting_v2_config_files_kustomization.yaml"],
+    renames = {"reporting_v2_config_files_kustomization.yaml": "kustomization.yaml"},
+)
+
+kustomization_dir(
+    name = "reporting_v2_secrets",
+)
+
+kustomization_dir(
+    name = "reporting_v2",
+    srcs = [
+        "resource_requirements.yaml",
+        ":reporting_v2_gke",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+    deps = [
+        ":reporting_v2_config_files",
+        ":reporting_v2_secrets",
+    ],
+)
+
+cue_dump(
     name = "open_telemetry_gke",
     srcs = ["open_telemetry_gke.cue"],
     tags = ["manual"],
