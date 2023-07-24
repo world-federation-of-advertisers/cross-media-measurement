@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.postgres
+package org.wfanet.measurement.duchy.deploy.common.postgres
 
 import io.grpc.Status
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.duchy.deploy.postgres.readers.ContinuationTokenReader
-import org.wfanet.measurement.duchy.deploy.postgres.writers.SetContinuationToken
+import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ContinuationTokenReader
+import org.wfanet.measurement.duchy.deploy.common.postgres.writers.SetContinuationToken
 import org.wfanet.measurement.duchy.service.internal.ContinuationTokenInvalidException
 import org.wfanet.measurement.duchy.service.internal.ContinuationTokenMalformedException
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineImplBase

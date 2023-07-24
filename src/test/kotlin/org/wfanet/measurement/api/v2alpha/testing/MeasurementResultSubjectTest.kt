@@ -57,7 +57,7 @@ class MeasurementResultSubjectTest {
     assertThat(PASSING_ACTUAL_RESULT)
       .frequencyDistribution()
       .isWithin(COMPARISON_TOLERANCE)
-      .of(EXPECTED_RESULT.frequency.relativeFrequencyDistributionMap, MAX_FREQUENCY)
+      .of(EXPECTED_RESULT.frequency.relativeFrequencyDistributionMap)
   }
 
   @Test
@@ -72,13 +72,12 @@ class MeasurementResultSubjectTest {
           )
           .frequencyDistribution()
           .isWithin(COMPARISON_TOLERANCE)
-          .of(EXPECTED_RESULT.frequency.relativeFrequencyDistributionMap, MAX_FREQUENCY)
+          .of(EXPECTED_RESULT.frequency.relativeFrequencyDistributionMap)
       }
     assertThat(failure).factValue("outside tolerance").isEqualTo("$COMPARISON_TOLERANCE")
   }
 
   companion object {
-    private const val MAX_FREQUENCY = 10L
     private const val COMPARISON_PERCENT = 10.0
     private const val COMPARISON_TOLERANCE = 0.05
 

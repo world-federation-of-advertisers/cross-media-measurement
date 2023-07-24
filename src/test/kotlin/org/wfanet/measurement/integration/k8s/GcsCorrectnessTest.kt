@@ -40,8 +40,8 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.loadtest.config.EventFilters
-import org.wfanet.measurement.loadtest.frontend.FrontendSimulator
-import org.wfanet.measurement.loadtest.frontend.MeasurementConsumerData
+import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
+import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.storage.SketchStore
 
 /**
@@ -55,8 +55,8 @@ class GcsCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
   private class RunningMeasurementSystem : MeasurementSystem, TestRule {
     override val runId: String by lazy { UUID.randomUUID().toString() }
 
-    private lateinit var _testHarness: FrontendSimulator
-    override val testHarness: FrontendSimulator
+    private lateinit var _testHarness: MeasurementConsumerSimulator
+    override val testHarness: MeasurementConsumerSimulator
       get() = _testHarness
 
     private val channels = mutableListOf<ManagedChannel>()
@@ -74,7 +74,7 @@ class GcsCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       }
     }
 
-    private fun createTestHarness(): FrontendSimulator {
+    private fun createTestHarness(): MeasurementConsumerSimulator {
       val measurementConsumerData =
         MeasurementConsumerData(
           TEST_CONFIG.measurementConsumer,
@@ -95,7 +95,7 @@ class GcsCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       val gcs = StorageOptions.newBuilder().setProjectId(STORAGE_CONFIG.project).build().service
       val storageClient = GcsStorageClient(gcs, STORAGE_CONFIG.bucket)
 
-      return FrontendSimulator(
+      return MeasurementConsumerSimulator(
         measurementConsumerData,
         OUTPUT_DP_PARAMS,
         DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),

@@ -23,7 +23,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.EmbeddedPostgresDatabaseProvider
-import org.wfanet.measurement.duchy.deploy.postgres.testing.Schemata.DUCHY_CHANGELOG_PATH
+import org.wfanet.measurement.duchy.deploy.common.postgres.testing.Schemata.DUCHY_CHANGELOG_PATH
 
 @RunWith(JUnit4::class)
 class DuchySchemaTest {
