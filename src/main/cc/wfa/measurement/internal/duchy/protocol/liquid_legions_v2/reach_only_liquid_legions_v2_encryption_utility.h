@@ -50,7 +50,8 @@ CompleteReachOnlyInitializationPhase(
 // specifically, the worker would
 //   1. add local noise registers (if configured to).
 //   2. shuffle all registers.
-//   3. stores the amount of excessive noise that it can remove to the database.
+//   3. encrypt the amount of excessive noise with the composit ElGamal public
+//      key.
 absl::StatusOr<CompleteReachOnlySetupPhaseResponse> CompleteReachOnlySetupPhase(
     const CompleteReachOnlySetupPhaseRequest& request);
 
@@ -58,8 +59,8 @@ absl::StatusOr<CompleteReachOnlySetupPhaseResponse> CompleteReachOnlySetupPhase(
 // aggregator would
 //   1. add local noise registers (if configured to).
 //   2. shuffle all registers.
-//   3. sample a Paillier keypair
-//   4. encrypt the excessive noise using Paillier encryption.
+//   3. encrypt its excessive noise using the composite ElGamal public key.
+//   4. combine its noise ciphertext with those from the workers.
 absl::StatusOr<CompleteReachOnlySetupPhaseResponse>
 CompleteReachOnlySetupPhaseAtAggregator(
     const CompleteReachOnlySetupPhaseRequest& request);
@@ -68,10 +69,9 @@ CompleteReachOnlySetupPhaseAtAggregator(
 //  More specifically, the worker would
 //    1. blind the positions (decrypt local ElGamal layer and then add another
 //       layer of deterministic pohlig_hellman encryption.
-//    2. re-randomize keys and counts.
+//    2. partially decrypt the noise ciphertext using its partial ElGamal
+//       private key.
 //    3. shuffle all registers.
-//    4. adds its excessive noise to the ciphertext that stores the aggregated
-//    excessive noise to be removed.
 absl::StatusOr<CompleteReachOnlyExecutionPhaseResponse>
 CompleteReachOnlyExecutionPhase(
     const CompleteReachOnlyExecutionPhaseRequest& request);
@@ -79,11 +79,9 @@ CompleteReachOnlyExecutionPhase(
 //  Complete work in the execution phase one at the aggregator worker.
 //  More specifically, the worker would
 //    1. decrypt the local ElGamal encryption on the positions.
-//    2. join the registers by positions.
+//    2. decrypt the total excessive noise.
 //    3. count the number of unique registers, excluding the blinded histogram
-//    noise and the publisher noise.
-//    4. decrypt the Paillier ciphertext that stores the aggregated excessive
-//    noise and subtract it from the total register count.
+//    noise, the publisher noise, and the excessive noise.
 absl::StatusOr<CompleteReachOnlyExecutionPhaseAtAggregatorResponse>
 CompleteReachOnlyExecutionPhaseAtAggregator(
     const CompleteReachOnlyExecutionPhaseAtAggregatorRequest& request);

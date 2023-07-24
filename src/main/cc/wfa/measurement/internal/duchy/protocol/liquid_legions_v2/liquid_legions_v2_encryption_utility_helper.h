@@ -26,11 +26,6 @@ using ::wfa::any_sketch::Sketch;
 using ::wfa::measurement::internal::duchy::DifferentialPrivacyParams;
 using ::wfa::measurement::internal::duchy::ElGamalPublicKey;
 
-absl::StatusOr<int64_t> EstimateReach(double liquid_legions_decay_rate,
-                                      int64_t liquid_legions_size,
-                                      size_t non_empty_register_count,
-                                      float sampling_rate = 1.0);
-
 ::wfa::any_sketch::crypto::ElGamalPublicKey ToAnysketchElGamalKey(
     ElGamalPublicKey key);
 
@@ -43,6 +38,7 @@ Sketch CreateReachOnlyEmptyLiquidLegionsSketch();
 
 DifferentialPrivacyParams MakeDifferentialPrivacyParams(double epsilon,
                                                         double delta);
+
 }  // namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2
 
 #endif  // SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_LIQUID_LEGIONS_V2_ENCRYPTION_UTILITY_HELPER_H_

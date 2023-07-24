@@ -37,6 +37,7 @@ cc_library(
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
+        ":liquid_legions_v2_encryption_utility_helper",
         ":multithreading_helper",
         ":noise_parameters_computation",
         "//src/main/cc/wfa/measurement/common/crypto:constants",
@@ -64,6 +65,7 @@ cc_library(
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
+        ":liquid_legions_v2_encryption_utility_helper",
         ":multithreading_helper",
         ":noise_parameters_computation",
         "//src/main/cc/wfa/measurement/common/crypto:constants",

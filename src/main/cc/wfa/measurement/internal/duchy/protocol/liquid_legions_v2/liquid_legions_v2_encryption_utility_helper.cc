@@ -60,23 +60,4 @@ DifferentialPrivacyParams MakeDifferentialPrivacyParams(double epsilon,
   return params;
 }
 
-absl::StatusOr<int64_t> EstimateReach(double liquid_legions_decay_rate,
-                                      int64_t liquid_legions_size,
-                                      size_t non_empty_register_count,
-                                      float sampling_rate) {
-  if (liquid_legions_decay_rate <= 1.0) {
-    return absl::InvalidArgumentError(absl::StrCat(
-        "The decay rate should be > 1, but is ", liquid_legions_decay_rate));
-  }
-  if (liquid_legions_size <= non_empty_register_count) {
-    return absl::InvalidArgumentError(absl::StrCat(
-        "liquid legions size (", liquid_legions_size,
-        ") should be greater then the number of non empty registers (",
-        non_empty_register_count, ")."));
-  }
-  return wfa::estimation::EstimateCardinalityLiquidLegions(
-      liquid_legions_decay_rate, liquid_legions_size, non_empty_register_count,
-      sampling_rate);
-}
-
 }  // namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2
