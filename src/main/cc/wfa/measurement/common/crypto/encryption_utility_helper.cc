@@ -14,6 +14,7 @@
 
 #include "wfa/measurement/common/crypto/encryption_utility_helper.h"
 
+#include <memory>
 #include <utility>
 
 #include "absl/status/status.h"
