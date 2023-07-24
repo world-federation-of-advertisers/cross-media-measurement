@@ -261,15 +261,15 @@ class TestData {
     client_el_gamal_public_key_ = ToCmmsElGamalKey(
         any_sketch::crypto::CombineElGamalPublicKeys(
             kTestCurveId,
-            {ToAnysketchElGamalKey(duchy_1_el_gamal_key_pair_.public_key()),
-             ToAnysketchElGamalKey(duchy_2_el_gamal_key_pair_.public_key()),
-             ToAnysketchElGamalKey(duchy_3_el_gamal_key_pair_.public_key())})
+            {ToAnySketchElGamalKey(duchy_1_el_gamal_key_pair_.public_key()),
+             ToAnySketchElGamalKey(duchy_2_el_gamal_key_pair_.public_key()),
+             ToAnySketchElGamalKey(duchy_3_el_gamal_key_pair_.public_key())})
             .value());
     duchy_2_3_composite_public_key_ = ToCmmsElGamalKey(
         any_sketch::crypto::CombineElGamalPublicKeys(
             kTestCurveId,
-            {ToAnysketchElGamalKey(duchy_2_el_gamal_key_pair_.public_key()),
-             ToAnysketchElGamalKey(duchy_3_el_gamal_key_pair_.public_key())})
+            {ToAnySketchElGamalKey(duchy_2_el_gamal_key_pair_.public_key()),
+             ToAnySketchElGamalKey(duchy_3_el_gamal_key_pair_.public_key())})
             .value());
 
     any_sketch::crypto::CiphertextString client_public_key = {

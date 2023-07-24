@@ -26,7 +26,7 @@ using ::wfa::any_sketch::Sketch;
 using ::wfa::measurement::internal::duchy::DifferentialPrivacyParams;
 using ::wfa::measurement::internal::duchy::ElGamalPublicKey;
 
-::wfa::any_sketch::crypto::ElGamalPublicKey ToAnysketchElGamalKey(
+::wfa::any_sketch::crypto::ElGamalPublicKey ToAnySketchElGamalKey(
     ElGamalPublicKey key);
 
 ElGamalPublicKey ToCmmsElGamalKey(

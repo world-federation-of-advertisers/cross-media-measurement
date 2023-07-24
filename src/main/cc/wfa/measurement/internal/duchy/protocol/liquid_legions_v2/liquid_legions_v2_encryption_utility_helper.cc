@@ -22,7 +22,7 @@ using ::wfa::any_sketch::Sketch;
 using ::wfa::any_sketch::SketchConfig;
 using ::wfa::measurement::internal::duchy::ElGamalPublicKey;
 
-::wfa::any_sketch::crypto::ElGamalPublicKey ToAnysketchElGamalKey(
+::wfa::any_sketch::crypto::ElGamalPublicKey ToAnySketchElGamalKey(
     ElGamalPublicKey key) {
   ::wfa::any_sketch::crypto::ElGamalPublicKey result;
   result.set_generator(key.generator());
