@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
-import com.google.cloud.Timestamp
 import com.google.cloud.bigquery.BigQuery
 import com.google.cloud.bigquery.BigQueryError
 import com.google.cloud.bigquery.FieldValueList
@@ -27,12 +26,15 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 import java.util.logging.Logger
+import org.halo_cmm.uk.pilot.Display.Viewability as DisplayViewability
+import org.halo_cmm.uk.pilot.DisplayKt.viewability as displayViewability
 import org.halo_cmm.uk.pilot.Event
+import org.halo_cmm.uk.pilot.Video.Viewability as VideoViewability
+import org.halo_cmm.uk.pilot.VideoKt.digitalVideoCompletionStatus
+import org.halo_cmm.uk.pilot.VideoKt.viewability as videoViewability
+import org.halo_cmm.uk.pilot.video
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.video
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.toRange
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
@@ -68,9 +70,9 @@ class BigQueryEventQuery(
       .getQueryResults()
       .iterateAll()
       .asSequence()
-      .map { it.toTestEvent() }
-      .filter { EventFilters.matches(it, program) }
-      .map { it.person.vid }
+      .map { it.toVidAndEvent() }
+      .filter { EventFilters.matches(it.event, program) }
+      .map { it.vid }
   }
 
   /** Builds a query based on the parameters given. */
@@ -99,57 +101,78 @@ class BigQueryEventQuery(
       .build()
   }
 
-  private fun FieldValueList.toTestEvent(): TestEvent {
-    val gender: Person.Gender? =
-      when (get("sex").stringValue) {
-        "M" -> Person.Gender.MALE
-        "F" -> Person.Gender.FEMALE
-        else -> null
-      }
-    val ageGroup: Person.AgeGroup? =
-      when (get("age_group").stringValue) {
-        "18_34" -> Person.AgeGroup.YEARS_18_TO_34
-        "35_54" -> Person.AgeGroup.YEARS_35_TO_54
-        "55+" -> Person.AgeGroup.YEARS_55_PLUS
-        else -> null
-      }
-    val socialGradeGroup: Person.SocialGradeGroup? =
-      when (get("social_grade").stringValue) {
-        "ABC1" -> Person.SocialGradeGroup.A_B_C1
-        "C2DE" -> Person.SocialGradeGroup.C2_D_E
-        else -> null
-      }
-    val complete: Boolean =
-      when (get("complete").longValue) {
-        0L -> false
-        else -> true
-      }
-    return testEvent {
-      time = Timestamp.ofTimeMicroseconds(get("time").timestampValue).toProto()
-      person = person {
-        vid = get("vid").longValue
-        if (gender != null) {
-          this.gender = gender
+  private fun getDigitalVideoCompletionStatus(
+    completionStatus: String
+  ): DigitalVideoCompletionStatus? {
+    return when (completionStatus) {
+      "0% - 25%" -> digitalVideoCompletionStatus { completed0PercentPlus = true }
+      "25% - 50%" ->
+        digitalVideoCompletionStatus {
+          completed0PercentPlus = true
+          completed25PercentPlus = true
         }
-        if (ageGroup != null) {
-          this.ageGroup = ageGroup
+      "50% - 75%" ->
+        digitalVideoCompletionStatus {
+          completed0PercentPlus = true
+          completed25PercentPlus = true
+          completed50PercentPlus = true
         }
-        if (socialGradeGroup != null) {
-          this.socialGradeGroup = socialGradeGroup
+      "75% - 100%" ->
+        digitalVideoCompletionStatus {
+          completed0PercentPlus = true
+          completed25PercentPlus = true
+          completed50PercentPlus = true
+          completed75PercentPlus = true
         }
-      }
-      videoAd = video {
-        viewedFraction =
-          if (complete) {
-            1.0
-          } else {
-            0.0
-          }
-      }
+      "100%" ->
+        digitalVideoCompletionStatus {
+          completed0PercentPlus = true
+          completed25PercentPlus = true
+          completed50PercentPlus = true
+          completed75PercentPlus = true
+          completed100Percent = true
+        }
+      else -> null
     }
   }
 
-  private fun FieldValueList.toEvent(): Event {
+  private fun getVideoViewability(viewability: String): VideoViewability {
+    return when (viewability) {
+      "viewable_0_percent_to_50_percent" -> videoViewability { viewable0PercentPlus = true }
+      "viewable_50_percent_to_100_percent" ->
+        videoViewability {
+          viewable0PercentPlus = true
+          viewable50PercentPlus = true
+        }
+      "viewable_100_percent" ->
+        videoViewability {
+          viewable0PercentPlus = true
+          viewable50PercentPlus = true
+          viewable100Percent = true
+        }
+      else -> null
+    }
+  }
+
+  private fun getDisplayViewability(viewability: String): DisplayViewability {
+    return when (viewability) {
+      "viewable_0_percent_to_50_percent" -> displayViewability { viewable0PercentPlus = true }
+      "viewable_50_percent_to_100_percent" ->
+        displayViewability {
+          viewable0PercentPlus = true
+          viewable50PercentPlus = true
+        }
+      "viewable_100_percent" ->
+        displayViewability {
+          viewable0PercentPlus = true
+          viewable50PercentPlus = true
+          viewable100Percent = true
+        }
+      else -> null
+    }
+  }
+
+  private fun FieldValueList.toVidAndEvent(): VidAndEvent {
     val gender: Person.Gender? =
       when (get("sex").stringValue) {
         "M" -> Person.Gender.MALE
@@ -174,35 +197,24 @@ class BigQueryEventQuery(
         0L -> false
         else -> true
       }
-    return testEvent {
-      time = Timestamp.ofTimeMicroseconds(get("time").timestampValue).toProto()
-      person = person {
-        vid = get("vid").longValue
-        if (gender != null) {
-          this.gender = gender
-        }
-        if (ageGroup != null) {
-          this.ageGroup = ageGroup
-        }
-        if (socialGradeGroup != null) {
-          this.socialGradeGroup = socialGradeGroup
-        }
+
+    val event = event {
+      video = video {
+        digitalVideoCompletionStatus =
+          getDigitalVideoCompletionStatus(get("digital_video_completion_status").stringValue)
+        viewability = getVideoViewability(get("viewability").stringValue)
       }
-      videoAd = video {
-        viewedFraction =
-          if (complete) {
-            1.0
-          } else {
-            0.0
-          }
-      }
+      display = display { viewability = getDisplayViewability(get("viewability").stringValue) }
     }
+    return VidAndEvent(get("vid").longValue, event)
   }
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
+
+data class VidAndEvent(val vid: Int, val event: Event)
 
 private val Instant.epochMicros: Long
   get() = ChronoUnit.MICROS.between(Instant.EPOCH, this)

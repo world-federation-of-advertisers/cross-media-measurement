@@ -2,6 +2,7 @@ load("@rules_java//java:defs.bzl", "java_binary")
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 load("//src/main/docker:macros.bzl", "java_image")
 load("//build/platforms:constraints.bzl", "DISTROLESS_JAVA")
+load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
 
 package(
     default_testonly = True,
@@ -11,6 +12,19 @@ package(
         "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
     ],
+)
+
+java_proto_library(
+    name = "uk_event_java_proto",
+    visibility = ["//visibility:public"],
+    deps = ["@uk_pilot_event_templates//src/main/proto/eventtemplates:event_templates_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "uk_event_kt_jvm_proto",
+    srcs = ["@uk_pilot_event_templates//src/main/proto/eventtemplates:event_templates_proto",],
+    visibility = ["//visibility:public"],
+    deps = [":uk_event_java_proto"],
 )
 
 kt_jvm_library(
@@ -51,11 +65,11 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:test_metadata_messages_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        ":uk_event_kt_jvm_proto", 
         "@any_sketch_java//src/main/java/org/wfanet/anysketch",
         "@any_sketch_java//src/main/java/org/wfanet/anysketch:sketch_proto_converter",
         "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
         "@any_sketch_java//src/main/java/org/wfanet/sampling:vid_sampler",
-        "@uk_pilot_event_templates//src/main/proto/eventtemplates:event_templates_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/bigquery",
         "@wfa_common_jvm//imports/java/com/opencsv",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
