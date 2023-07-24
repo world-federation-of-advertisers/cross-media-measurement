@@ -30,8 +30,8 @@ free to use whichever you prefer.
         -   `postgres-internal-reporting-server-deployment`
         -   `reporting-v2alpha-public-api-server-deployment`
     -   3 Kubernetes network policies
-        -   `internal-server-network-policy`
-        -   `public-api-server-network-policy`
+        -   `postgres-internal-reporting-server-network-policy`
+        -   `reporting-v2alpha-public-api-server-network-policy`
         -   `default-deny-ingress-and-egress`
 
 ## Before you start

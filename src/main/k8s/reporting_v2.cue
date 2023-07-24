@@ -34,7 +34,7 @@ package k8s
 	_imageSuffixes: {
 		"update-reporting-schema":             string | *"reporting/v2/postgres-update-schema"
 		"postgres-internal-reporting-server":  string | *"reporting/v2/postgres-internal-server"
-		"reporting-public-api-v2alpha-server": string | *"reporting/v2/v2alpha-public-api"
+		"reporting-v2alpha-public-api-server": string | *"reporting/v2/v2alpha-public-api"
 	}
 	_imageConfigs: [_=string]: #ImageConfig
 	_imageConfigs: {
@@ -139,17 +139,17 @@ package k8s
 	}
 
 	networkPolicies: {
-		"internal-server": {
+		"postgres-internal-reporting-server": {
 			_app_label: "postgres-internal-reporting-server-app"
 			_sourceMatchLabels: [
-				"reporting-public-api-v2alpha-server-app",
+				"reporting-v2alpha-public-api-server-app",
 			]
 			_egresses: {
 				// Needs to call out to Postgres server.
 				any: {}
 			}
 		}
-		"public-api-server": {
+		"reporting-v2alpha-public-api-server": {
 			_app_label: "reporting-v2alpha-public-api-server-app"
 			_destinationMatchLabels: ["postgres-internal-reporting-server-app"]
 			_ingresses: {
