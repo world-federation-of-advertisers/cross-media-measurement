@@ -148,7 +148,12 @@ Adjust the node pools based on your expected usage. You may wish to use GKE
 features such as autoscaling or multiple node pools with different
 machine/scheduling types. The default Mill and Herald configuration include a
 toleration for running on
-[Spot VMs](https://cloud.google.com/kubernetes-engine/docs/how-to/spot-vms#use_taints_and_tolerations_for).
+[Spot VMs](https://cloud.google.com/kubernetes-engine/docs/how-to/spot-vms#use_taints_and_tolerations_for). 
+
+Due to the Mill's nature that runs in multithreading mode, it is recommended
+to use the T2D machine type in a dedicated node pool. To have the best 
+performance and cost-efficiency, use machine type `t2d-standard-8` for
+the node pool as a mill uses 4 CPUs.
 
 The cluster version should be no older than `1.24.0` in order to support
 built-in gRPC health probe.
