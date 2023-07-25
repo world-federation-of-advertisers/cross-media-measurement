@@ -75,10 +75,8 @@ class InProcessCmmsComponents(
         displayName = displayName,
         resourceName = resourceName,
         mcResourceName = mcResourceName,
-        storageClient = storageClient,
         kingdomPublicApiChannel = kingdom.publicApiChannel,
         duchyPublicApiChannel = duchies[1].publicApiChannel,
-        eventTemplateNames = EVENT_TEMPLATES_TO_FILTERS_MAP.keys.toList(),
         trustedCertificates = TRUSTED_CERTIFICATES,
       )
     }
