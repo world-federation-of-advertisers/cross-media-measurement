@@ -30,26 +30,12 @@ variable "storage_bucket" {
   })
 }
 
-variable "database_type" {
-  description = "Type of the database. Either postgres or spanner."
-  type        = string
-  nullable    = false
-}
-
 variable "spanner_instance" {
   description = "`google_spanner_instance` for the system."
   type = object({
     name = string
   })
   default = null
-
-  validation {
-    condition     = (
-    (var.database_type != "spanner" && var.spanner_instance == null) ||
-    (var.database_type == "spanner" && var.spanner_instance != null)
-    )
-    error_message = "database type does not match with the instance config"
-  }
 }
 
 variable "postgres_instance" {
@@ -59,12 +45,4 @@ variable "postgres_instance" {
     connection_name = string
   })
   default = null
-
-  validation {
-    condition     = (
-      (var.database_type != "spanner" && var.spanner_instance == null) ||
-      (var.database_type == "spanner" && var.spanner_instance != null)
-    )
-    error_message = "database type does not match with the instance config"
-  }
 }
