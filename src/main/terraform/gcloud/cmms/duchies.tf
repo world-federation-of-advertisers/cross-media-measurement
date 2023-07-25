@@ -108,7 +108,6 @@ module "aggregator_duchy" {
 
   name             = "aggregator"
   database_name    = "aggregator_duchy_computations"
-  database_type    = "spanner"
   spanner_instance = google_spanner_instance.spanner_instance
   storage_bucket   = module.storage.storage_bucket
 }
