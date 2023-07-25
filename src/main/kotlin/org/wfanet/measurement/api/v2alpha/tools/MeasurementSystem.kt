@@ -20,7 +20,6 @@ import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.CleartextKeysetHandle
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
-import com.google.type.date
 import com.google.type.interval
 import io.grpc.ManagedChannel
 import java.io.File
@@ -147,6 +146,7 @@ import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
@@ -1809,23 +1809,11 @@ private class ModelRollouts {
       parent = modelLineName
       modelRollout = modelRollout {
         if (instantRolloutDate != null) {
-          this.instantRolloutDate = date {
-            year = instantRolloutDate.year
-            month = instantRolloutDate.monthValue
-            day = instantRolloutDate.dayOfMonth
-          }
+          this.instantRolloutDate = instantRolloutDate.toProtoDate()
         } else {
           gradualRolloutPeriod = dateInterval {
-            this.startDate = date {
-              year = rolloutStartDate!!.year
-              month = rolloutStartDate.monthValue
-              day = rolloutStartDate.dayOfMonth
-            }
-            this.endDate = date {
-              year = rolloutEndDate!!.year
-              month = rolloutEndDate.monthValue
-              day = rolloutEndDate.dayOfMonth
-            }
+            this.startDate = rolloutStartDate!!.toProtoDate()
+            this.endDate = rolloutEndDate!!.toProtoDate()
           }
         }
         modelRelease = modelRolloutRelease
@@ -1886,16 +1874,8 @@ private class ModelRollouts {
         filter =
           ListModelRolloutsRequestKt.filter {
             rolloutPeriodOverlapping = dateInterval {
-              this.startDate = date {
-                year = rolloutPeriodOverlappingStartDate.year
-                month = rolloutPeriodOverlappingStartDate.monthValue
-                day = rolloutPeriodOverlappingStartDate.dayOfMonth
-              }
-              this.endDate = date {
-                year = rolloutPeriodOverlappingEndDate.year
-                month = rolloutPeriodOverlappingEndDate.monthValue
-                day = rolloutPeriodOverlappingEndDate.dayOfMonth
-              }
+              this.startDate = rolloutPeriodOverlappingStartDate.toProtoDate()
+              this.endDate = rolloutPeriodOverlappingEndDate.toProtoDate()
             }
           }
       }
@@ -1922,11 +1902,7 @@ private class ModelRollouts {
   ) {
     val request = scheduleModelRolloutFreezeRequest {
       name = modelRolloutName
-      this.rolloutFreezeDate = date {
-        year = freezeDate.year
-        month = freezeDate.monthValue
-        day = freezeDate.dayOfMonth
-      }
+      this.rolloutFreezeDate = freezeDate.toProtoDate()
     }
     val outputModelRollout =
       runBlocking(parentCommand.rpcDispatcher) {
