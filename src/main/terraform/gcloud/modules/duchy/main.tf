@@ -49,7 +49,8 @@ module "postgres_database" {
 
   database_name = local.database_name
   postgres_instance = var.postgres_instance
-  iam_service_account = module.internal_server_user.iam_service_account
+  iam_service_account_email = module.internal_server_user.iam_service_account.email
+  iam_service_account_member = module.internal_server_user.iam_service_account.member
 }
 
 resource "google_storage_bucket_iam_member" "internal_server" {
