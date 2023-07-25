@@ -121,7 +121,6 @@ module "worker1_duchy" {
 
   name             = "worker1"
   database_name    = "worker1_duchy_computations"
-  database_type    = "spanner"
   spanner_instance = google_spanner_instance.spanner_instance
   storage_bucket   = module.storage.storage_bucket
 }
@@ -133,9 +132,9 @@ module "worker2_duchy" {
     kubernetes = kubernetes.worker2
   }
 
-  name             = "worker2"
-  database_name    = "worker2_duchy_computations"
-  database_type    = "postgres"
+  name              = "worker2"
+  database_name     = "worker2_duchy_computations"
+  spanner_instance  = google_spanner_instance.spanner_instance
   postgres_instance = google_sql_database_instance.postgres
-  storage_bucket   = module.storage.storage_bucket
+  storage_bucket    = module.storage.storage_bucket
 }
