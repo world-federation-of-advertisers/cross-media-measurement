@@ -21,16 +21,16 @@ variable "postgres_instance" {
   nullable = false
 }
 
-variable "iam_service_account" {
-  description = <<-EOT
-    `google_service_account` for an existing IAM service account.
-  EOT
+variable "iam_service_account_member" {
+  description = "member of a `google_service_account` for an existing IAM service account."
 
-  type = object({
-    name  = string
-    email = string
-  })
-  default = null
+  type = string
+}
+
+variable "iam_service_account_email" {
+  description = "email of a `google_service_account` for an existing IAM service account."
+
+  type = string
 }
 
 variable "database_name" {

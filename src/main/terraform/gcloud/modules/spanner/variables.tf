@@ -20,16 +20,12 @@ variable "spanner_instance" {
   nullable = false
 }
 
-variable "iam_service_account" {
+variable "iam_service_account_member" {
   description = <<-EOT
-    `google_service_account` for an existing IAM service account.
+    member of a `google_service_account` for an existing IAM service account.
   EOT
 
-  type = object({
-    name  = string
-    email = string
-  })
-  default = null
+  type = string
 }
 
 variable "database_name" {
