@@ -32,17 +32,24 @@ module "internal_server_user" {
   iam_service_account_description = "${var.name} internal API server."
 }
 
-resource "google_spanner_database" "db" {
-  instance         = var.spanner_instance.name
-  name             = local.database_name
-  database_dialect = "GOOGLE_STANDARD_SQL"
+module "spanner_database" {
+  source = "../spanner"
+
+  count = var.spanner_instance == null ? 0 : 1
+
+  database_name = local.database_name
+  spanner_instance = var.spanner_instance
+  iam_service_account = module.internal_server_user.iam_service_account
 }
 
-resource "google_spanner_database_iam_member" "internal_server" {
-  instance = google_spanner_database.db.instance
-  database = google_spanner_database.db.name
-  role     = "roles/spanner.databaseUser"
-  member   = module.internal_server_user.iam_service_account.member
+module "postgres_database" {
+  source = "../postgres"
+
+  count = var.postgres_instance == null ? 0 : 1
+
+  database_name = local.database_name
+  postgres_instance = var.postgres_instance
+  iam_service_account = module.internal_server_user.iam_service_account
 }
 
 resource "google_storage_bucket_iam_member" "internal_server" {

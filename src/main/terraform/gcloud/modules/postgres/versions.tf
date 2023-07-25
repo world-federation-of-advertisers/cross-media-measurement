@@ -12,18 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-module "kingdom_internal" {
-  source = "../workload-identity-user"
-
-  k8s_service_account_name        = "internal-server"
-  iam_service_account_name        = "kingdom-internal"
-  iam_service_account_description = "Kingdom internal API server."
-}
-
-module "spanner_database" {
-  source = "../spanner"
-
-  database_name = "kingdom"
-  spanner_instance = var.spanner_instance
-  iam_service_account = module.kingdom_internal.iam_service_account
+terraform {
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = ">= 4.63.0"
+    }
+    postgresql = {
+      source  = "cyrilgdn/postgresql"
+      version = ">= 1.19.0"
+    }
+  }
 }

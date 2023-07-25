@@ -29,32 +29,10 @@ module "reporting_internal" {
   iam_service_account_description = "Reporting internal API server."
 }
 
-resource "google_sql_user" "reporting_internal" {
-  instance = var.postgres_instance.name
-  name     = trimsuffix(module.reporting_internal.iam_service_account.email, ".gserviceaccount.com")
-  type     = "CLOUD_IAM_SERVICE_ACCOUNT"
-}
+module "postgres_database" {
+  source = "../postgres"
 
-resource "google_project_iam_member" "sql_user" {
-  project = data.google_project.project.name
-  role    = "roles/cloudsql.instanceUser"
-  member  = module.reporting_internal.iam_service_account.member
-}
-
-resource "google_project_iam_member" "sql_client" {
-  project = data.google_project.project.name
-  role    = "roles/cloudsql.client"
-  member  = module.reporting_internal.iam_service_account.member
-}
-
-resource "google_sql_database" "db" {
-  name     = "reporting"
-  instance = var.postgres_instance.name
-}
-
-resource "postgresql_grant" "db" {
-  role        = google_sql_user.reporting_internal.name
-  database    = google_sql_database.db.name
-  object_type = "database"
-  privileges  = local.all_db_privileges
+  database_name = "reporting"
+  postgres_instance = var.postgres_instance
+  iam_service_account = module.reporting_internal.iam_service_account
 }

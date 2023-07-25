@@ -12,18 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-module "kingdom_internal" {
-  source = "../workload-identity-user"
+data "google_project" "project" {}
 
-  k8s_service_account_name        = "internal-server"
-  iam_service_account_name        = "kingdom-internal"
-  iam_service_account_description = "Kingdom internal API server."
+resource "google_spanner_database" "db" {
+  instance         = var.spanner_instance.name
+  name             = var.database_name
+  database_dialect = "GOOGLE_STANDARD_SQL"
 }
 
-module "spanner_database" {
-  source = "../spanner"
-
-  database_name = "kingdom"
-  spanner_instance = var.spanner_instance
-  iam_service_account = module.kingdom_internal.iam_service_account
+resource "google_spanner_database_iam_member" "grant_db_user_role" {
+  instance = google_spanner_database.db.instance
+  database = google_spanner_database.db.name
+  role     = "roles/spanner.databaseUser"
+  member   = var.iam_service_account.member
 }
+
