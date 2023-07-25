@@ -25,5 +25,5 @@ module "spanner_database" {
 
   database_name = "kingdom"
   spanner_instance = var.spanner_instance
-  iam_service_account = module.kingdom_internal.iam_service_account
+  iam_service_account_member = module.kingdom_internal.iam_service_account.member
 }

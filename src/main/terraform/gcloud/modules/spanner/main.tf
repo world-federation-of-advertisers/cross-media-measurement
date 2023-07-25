@@ -24,6 +24,6 @@ resource "google_spanner_database_iam_member" "grant_db_user_role" {
   instance = google_spanner_database.db.instance
   database = google_spanner_database.db.name
   role     = "roles/spanner.databaseUser"
-  member   = var.iam_service_account.member
+  member   = var.iam_service_account_member
 }
 

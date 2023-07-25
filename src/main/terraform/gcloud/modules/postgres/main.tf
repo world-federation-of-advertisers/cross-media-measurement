@@ -23,20 +23,20 @@ locals {
 
 resource "google_sql_user" "service_account" {
   instance = var.postgres_instance.name
-  name     = trimsuffix(var.iam_service_account.email, ".gserviceaccount.com")
+  name     = trimsuffix(var.iam_service_account_email, ".gserviceaccount.com")
   type     = "CLOUD_IAM_SERVICE_ACCOUNT"
 }
 
 resource "google_project_iam_member" "grant_sql_user_role" {
   project = data.google_project.project.name
   role    = "roles/cloudsql.instanceUser"
-  member  = var.iam_service_account.member
+  member  = var.iam_service_account_member
 }
 
 resource "google_project_iam_member" "grant_sql_client_role" {
   project = data.google_project.project.name
   role    = "roles/cloudsql.client"
-  member  = var.iam_service_account.member
+  member  = var.iam_service_account_member
 }
 
 resource "google_sql_database" "db" {

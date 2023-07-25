@@ -32,7 +32,8 @@ module "reporting_internal" {
 module "postgres_database" {
   source = "../postgres"
 
-  database_name = "reporting"
-  postgres_instance = var.postgres_instance
-  iam_service_account = module.reporting_internal.iam_service_account
+  database_name              = "reporting"
+  postgres_instance          = var.postgres_instance
+  iam_service_account_email  = module.reporting_internal.iam_service_account.email
+  iam_service_account_member = module.reporting_internal.iam_service_account.member
 }

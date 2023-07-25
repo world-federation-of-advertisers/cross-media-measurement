@@ -39,7 +39,7 @@ module "spanner_database" {
 
   database_name = local.database_name
   spanner_instance = var.spanner_instance
-  iam_service_account = module.internal_server_user.iam_service_account
+  iam_service_account_member = module.internal_server_user.iam_service_account.member
 }
 
 module "postgres_database" {
