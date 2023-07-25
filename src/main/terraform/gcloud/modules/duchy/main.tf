@@ -67,10 +67,10 @@ resource "google_storage_bucket_iam_member" "storage" {
 
 moved {
   from = google_spanner_database.db
-  to   = module.spanner_database.google_spanner_database.db
+  to   = module.spanner_database[0].google_spanner_database.db
 }
 
 moved {
   from = google_spanner_database_iam_member.internal_server
-  to   = module.spanner_database.google_spanner_database_iam_member.grant_db_user_role
+  to   = module.spanner_database[0].google_spanner_database_iam_member.grant_db_user_role
 }
