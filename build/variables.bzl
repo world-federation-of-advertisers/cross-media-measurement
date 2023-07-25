@@ -75,7 +75,6 @@ DUCHY_K8S_SETTINGS = struct(
 
 # Settings for simulator Kubernetes deployments.
 SIMULATOR_K8S_SETTINGS = struct(
-    storage_bucket = "$(simulator_storage_bucket)",
     mc_name = "$(mc_name)",
     mc_api_key = "$(mc_api_key)",
     edp1_name = "$(edp1_name)",
@@ -84,6 +83,8 @@ SIMULATOR_K8S_SETTINGS = struct(
     edp4_name = "$(edp4_name)",
     edp5_name = "$(edp5_name)",
     edp6_name = "$(edp6_name)",
+    bigquery_dataset = "$(bigquery_dataset)",
+    bigquery_table = "$(bigquery_table)",
 )
 
 # Settings for Grafana Kubernetes deployments.

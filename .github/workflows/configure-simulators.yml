@@ -81,7 +81,6 @@ jobs:
     - name: Generate archives
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
-        STORAGE_BUCKET: ${{ vars.STORAGE_BUCKET }}
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
         DUCHY_PUBLIC_API_TARGET: ${{ vars.DUCHY_PUBLIC_API_TARGET }}
         MC_NAME: ${{ vars.MC_NAME }}
@@ -91,14 +90,14 @@ jobs:
         EDP4_NAME: ${{ vars.EDP4_NAME }}
         EDP5_NAME: ${{ vars.EDP5_NAME }}
         EDP6_NAME: ${{ vars.EDP6_NAME }}
+        BIGQUERY_DATASET: ${{ vars.BIGQUERY_DATASET }}
+        BIGQUERY_TABLE: ${{ vars.BIGQUERY_TABLE }}
       run: >
         bazelisk build 
         //src/main/k8s/dev:edp_simulators.tar
         //src/main/k8s/testing/secretfiles:kustomization.tar
         --config ghcr
         --define "image_tag=$IMAGE_TAG"
-        --define "google_cloud_project=$GCLOUD_PROJECT"
-        --define "simulator_storage_bucket=$STORAGE_BUCKET"
         --define "kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
         --define "duchy_public_api_target=$DUCHY_PUBLIC_API_TARGET"
         --define "mc_name=$MC_NAME"
@@ -108,6 +107,9 @@ jobs:
         --define "edp4_name=$EDP4_NAME"
         --define "edp5_name=$EDP5_NAME"
         --define "edp6_name=$EDP6_NAME"
+        --define "google_cloud_project=$GCLOUD_PROJECT"
+        --define "bigquery_dataset=$BIGQUERY_DATASET"
+        --define "bigquery_table=$BIGQUERY_TABLE"
 
     - name: Make Kustomization dir
       run: mkdir -p "$KUSTOMIZATION_PATH"

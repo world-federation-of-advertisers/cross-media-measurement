@@ -1,4 +1,4 @@
-// Copyright 2023 The Cross-Media Measurement Authors
+// Copyright 2022 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,20 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
+package org.wfanet.measurement.loadtest.config
 
-package wfa.measurement.integration.k8s.testing;
+import com.google.common.hash.HashFunction
+import com.google.common.hash.Hashing
+import org.wfanet.estimation.VidSampler
 
-option java_package = "org.measurement.integration.k8s.testing";
-option java_multiple_files = true;
+object VidSampling {
+  private val VID_SAMPLER_HASH_FUNCTION: HashFunction = Hashing.farmHashFingerprint64()
 
-message ForwardedStorageConfig {
-  // gRPC target of the forwarded storage API server.
-  string forwarded_storage_api_target = 1;
-
-  // Expected hostname (DNS-ID) in the forwarded storage API server's TLS
-  // certificate.
-  //
-  // If not specified, standard TLS DNS-ID derivation will be used.
-  string forwarded_storage_api_cert_host = 2;
+  val sampler = VidSampler(VID_SAMPLER_HASH_FUNCTION)
 }

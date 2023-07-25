@@ -12,14 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-variable "storage_bucket" {
-  description = "`google_storage_bucket` for the system."
-  type = object({
-    name = string
-  })
-  nullable = false
-}
-
 variable "bigquery_table" {
   description = "`google_bigquery_table` containing labeled test events."
   type = object({

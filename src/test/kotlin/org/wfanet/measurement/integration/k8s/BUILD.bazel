@@ -38,8 +38,10 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/k8s/testing:port_forwarder",
         "//src/main/kotlin/org/wfanet/measurement/common/k8s/testing:processes",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:event_filters",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:event_group_metadata",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:vid_sampling",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:simulator",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:synthetic_generator_event_query",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup",
         "@wfa_common_jvm//imports/java/org/jetbrains/annotations",
         "@wfa_common_jvm//imports/java/org/junit",
@@ -48,39 +50,38 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/forwarded",
     ],
 )
 
 kt_jvm_library(
-    name = "forwarded_storage_correctness_test",
-    srcs = ["ForwardedStorageCorrectnessTest.kt"],
+    name = "synthetic_data_generator_correctness_test",
+    srcs = ["SyntheticGeneratorCorrectnessTest.kt"],
     deps = [
         ":abstract_correctness_test",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:event_filters",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:event_group_metadata",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:vid_sampling",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:synthetic_generator_event_query",
         "//src/main/proto/wfa/measurement/integration/k8s/testing:correctness_test_config_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/integration/k8s/testing:forwarded_storage_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/forwarded",
     ],
 )
 
 kt_jvm_library(
-    name = "gcs_correctness_test",
-    srcs = ["GcsCorrectnessTest.kt"],
+    name = "bigquery_correctness_test",
+    srcs = ["BigQueryCorrectnessTest.kt"],
     deps = [
         ":abstract_correctness_test",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:event_filters",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:vid_sampling",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:bigquery_event_query",
+        "//src/main/proto/wfa/measurement/integration/k8s/testing:bigquery_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/integration/k8s/testing:correctness_test_config_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/integration/k8s/testing:google_cloud_storage_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
     ],
 )
 
@@ -98,25 +99,15 @@ expand_template(
 )
 
 expand_template(
-    name = "gen_forwarded_storage_config",
-    out = "forwarded_storage_config.textproto",
-    substitutions = {
-        "{forwarded_storage_api_target}": "$(forwarded_storage_api_target)",
-        "{forwarded_storage_api_cert_host}": "localhost",
-    },
-    tags = ["manual"],
-    template = "forwarded_storage_config.tmpl.textproto",
-)
-
-expand_template(
-    name = "gen_gcs_config",
-    out = "gcs_config.textproto",
+    name = "gen_bigquery_config",
+    out = "bigquery_config.textproto",
     substitutions = {
         "{project}": GCLOUD_SETTINGS.project,
-        "{bucket}": SIMULATOR_K8S_SETTINGS.storage_bucket,
+        "{dataset}": SIMULATOR_K8S_SETTINGS.bigquery_dataset,
+        "{table}": SIMULATOR_K8S_SETTINGS.bigquery_table,
     },
     tags = ["manual"],
-    template = "gcs_config.tmpl.textproto",
+    template = "bigquery_config.tmpl.textproto",
 )
 
 java_test(
@@ -141,33 +132,32 @@ java_test(
 )
 
 java_test(
-    name = "ForwardedStorageCorrectnessTest",
+    name = "SyntheticGeneratorCorrectnessTest",
     timeout = "long",
     data = [
         ":correctness_test_config.textproto",
-        ":forwarded_storage_config.textproto",
     ],
     tags = [
         "exclusive",
         "external",
         "manual",
     ],
-    test_class = "org.wfanet.measurement.integration.k8s.ForwardedStorageCorrectnessTest",
-    runtime_deps = [":forwarded_storage_correctness_test"],
+    test_class = "org.wfanet.measurement.integration.k8s.SyntheticGeneratorCorrectnessTest",
+    runtime_deps = [":synthetic_data_generator_correctness_test"],
 )
 
 java_test(
-    name = "GcsCorrectnessTest",
+    name = "BigQueryCorrectnessTest",
     timeout = "long",
     data = [
+        ":bigquery_config.textproto",
         ":correctness_test_config.textproto",
-        ":gcs_config.textproto",
     ],
     tags = [
         "exclusive",
         "external",
         "manual",
     ],
-    test_class = "org.wfanet.measurement.integration.k8s.GcsCorrectnessTest",
-    runtime_deps = [":gcs_correctness_test"],
+    test_class = "org.wfanet.measurement.integration.k8s.BigQueryCorrectnessTest",
+    runtime_deps = [":bigquery_correctness_test"],
 )

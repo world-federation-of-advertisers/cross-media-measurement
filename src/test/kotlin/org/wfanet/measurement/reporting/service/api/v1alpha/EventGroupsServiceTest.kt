@@ -46,9 +46,6 @@ import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessageKt.age
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessageKt.duration
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessageKt.name
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testParentMetadataMessage
 import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsResponse
@@ -96,11 +93,7 @@ private val ENCRYPTION_KEY_PAIR_STORE =
         listOf(ENCRYPTION_PUBLIC_KEY.toByteString() to ENCRYPTION_PRIVATE_KEY)
     )
   )
-private val TEST_MESSAGE = testMetadataMessage {
-  name = name { value = "Bob" }
-  age = age { value = 15 }
-  duration = duration { value = 20 }
-}
+private val TEST_MESSAGE = testMetadataMessage { publisherId = 15 }
 private const val CMMS_EVENT_GROUP_ID = "AAAAAAAAAHs"
 private val CMMS_EVENT_GROUP = cmmsEventGroup {
   name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID"
@@ -118,11 +111,7 @@ private val CMMS_EVENT_GROUP = cmmsEventGroup {
       ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey()
     )
 }
-private val TEST_MESSAGE_2 = testMetadataMessage {
-  name = name { value = "Alice" }
-  age = age { value = 5 }
-  duration = duration { value = 20 }
-}
+private val TEST_MESSAGE_2 = testMetadataMessage { publisherId = 5 }
 private const val CMMS_EVENT_GROUP_ID_2 = "AAAAAAAAAGs"
 private val CMMS_EVENT_GROUP_2 = cmmsEventGroup {
   name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID_2"
@@ -287,7 +276,7 @@ class EventGroupsServiceTest {
           service.listEventGroups(
             listEventGroupsRequest {
               parent = EVENT_GROUP_PARENT
-              filter = "metadata.metadata.age.value > 10"
+              filter = "metadata.metadata.publisher_id > 10"
               pageToken = PAGE_TOKEN
             }
           )
@@ -351,7 +340,7 @@ class EventGroupsServiceTest {
           service.listEventGroups(
             listEventGroupsRequest {
               parent = EVENT_GROUP_PARENT
-              filter = "metadata.metadata.age.value > 10"
+              filter = "metadata.metadata.publisher_id > 10"
               pageToken = PAGE_TOKEN
             }
           )
@@ -405,7 +394,7 @@ class EventGroupsServiceTest {
             service.listEventGroups(
               listEventGroupsRequest {
                 parent = EVENT_GROUP_PARENT
-                filter = "metadata.metadata.age.value > 10"
+                filter = "metadata.metadata.publisher_id > 10"
               }
             )
           }
@@ -449,7 +438,7 @@ class EventGroupsServiceTest {
             service.listEventGroups(
               listEventGroupsRequest {
                 parent = EVENT_GROUP_PARENT
-                filter = "metadata.metadata.age.value > 10"
+                filter = "metadata.metadata.publisher_id > 10"
               }
             )
           }
@@ -467,7 +456,7 @@ class EventGroupsServiceTest {
           runBlocking {
             service.listEventGroups(
               listEventGroupsRequest {
-                filter = "metadata.metadata.age.value > 10"
+                filter = "metadata.metadata.publisher_id > 10"
                 pageToken = PAGE_TOKEN
                 ENCRYPTION_KEY_PAIR_STORE
               }
@@ -488,7 +477,7 @@ class EventGroupsServiceTest {
           service.listEventGroups(
             listEventGroupsRequest {
               parent = EVENT_GROUP_PARENT
-              filter = "metadata.metadata.age.value > 10"
+              filter = "metadata.metadata.publisher_id > 10"
             }
           )
         }

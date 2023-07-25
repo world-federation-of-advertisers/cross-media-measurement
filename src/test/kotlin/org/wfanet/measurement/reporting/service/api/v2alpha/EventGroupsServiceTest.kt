@@ -47,7 +47,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessageKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsResponse
@@ -144,11 +143,7 @@ class EventGroupsServiceTest {
 
   @Test
   fun `listEventGroups returns only event groups that match filter when filter has metadata`() {
-    val testMessage = testMetadataMessage {
-      name = TestMetadataMessageKt.name { value = "Bob" }
-      age = TestMetadataMessageKt.age { value = 5 }
-      duration = TestMetadataMessageKt.duration { value = 20 }
-    }
+    val testMessage = testMetadataMessage { publisherId = 5 }
 
     val cmmsEventGroup2 =
       CMMS_EVENT_GROUP.copy {
@@ -175,7 +170,7 @@ class EventGroupsServiceTest {
           service.listEventGroups(
             listEventGroupsRequest {
               parent = MEASUREMENT_CONSUMER_NAME
-              filter = "metadata.metadata.age.value > 5"
+              filter = "metadata.metadata.publisher_id > 5"
             }
           )
         }
@@ -583,11 +578,7 @@ class EventGroupsServiceTest {
     private const val DATA_PROVIDER_ID = "1235"
     private val DATA_PROVIDER_NAME = DataProviderKey(DATA_PROVIDER_ID).toName()
 
-    private val TEST_MESSAGE = testMetadataMessage {
-      name = TestMetadataMessageKt.name { value = "Bob" }
-      age = TestMetadataMessageKt.age { value = 15 }
-      duration = TestMetadataMessageKt.duration { value = 20 }
-    }
+    private val TEST_MESSAGE = testMetadataMessage { publisherId = 15 }
     private val EVENT_GROUP_METADATA_DESCRIPTOR_NAME =
       EventGroupMetadataDescriptorKey(DATA_PROVIDER_ID, "1236").toName()
     private val EVENT_GROUP_METADATA_DESCRIPTOR = eventGroupMetadataDescriptor {

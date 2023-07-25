@@ -18,12 +18,16 @@ package wfa.measurement.integration.k8s.testing;
 
 option java_package = "org.measurement.integration.k8s.testing";
 option java_multiple_files = true;
+option java_outer_classname = "BigQueryConfigProto";
 
-// Configuration for Google Cloud Storage (GCS).
-message GoogleCloudStorageConfig {
+// Configuration for BigQuery.
+message BigQueryConfig {
   // Google Cloud project.
   string project = 1;
 
-  // Google Cloud Storage bucket.
-  string bucket = 2;
+  // Name of BigQuery dataset.
+  string dataset = 2;
+
+  // Name of BigQuery table.
+  string table = 3;
 }

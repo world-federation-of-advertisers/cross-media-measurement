@@ -23,6 +23,7 @@ _eventsCsv: "/data/csvfiles/synthetic-labelled-events.csv"
 edpSimulators: {
 	for edpConfig in _edpConfigs {
 		"\(edpConfig.displayName)": {
+			_imageConfig: repoSuffix: "simulator/csv-edp"
 			_additional_args: [
 				"--events-csv=\(_eventsCsv)",
 				"--publisher-id=\(edpConfig.publisherId)",

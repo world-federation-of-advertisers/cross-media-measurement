@@ -44,7 +44,6 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ListEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessageKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.copy
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testParentMetadataMessage
@@ -60,11 +59,7 @@ import org.wfanet.measurement.reporting.v1alpha.eventGroup
 
 private const val METADATA_FIELD = "metadata.metadata"
 private const val MAX_PAGE_SIZE = 1000
-private val TEST_MESSAGE = testMetadataMessage {
-  name = TestMetadataMessageKt.name { value = "Bob" }
-  age = TestMetadataMessageKt.age { value = 15 }
-  duration = TestMetadataMessageKt.duration { value = 20 }
-}
+private val TEST_MESSAGE = testMetadataMessage { publisherId = 15 }
 private const val DATA_PROVIDER_NAME = "dataProviders/123"
 private const val EVENT_GROUP_METADATA_DESCRIPTOR_NAME =
   "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/abc"
@@ -280,17 +275,17 @@ class CelEnvProviderTest {
         metadata =
           EventGroupKt.metadata {
             eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-            metadata = pack(TEST_MESSAGE.copy { age = TestMetadataMessageKt.age { value = 15 } })
+            metadata = pack(TEST_MESSAGE.copy { publisherId = 15 })
           }
       }
       val eventGroup2 = eventGroup {
         metadata =
           EventGroupKt.metadata {
             eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-            metadata = pack(TEST_MESSAGE.copy { age = TestMetadataMessageKt.age { value = 9 } })
+            metadata = pack(TEST_MESSAGE.copy { publisherId = 9 })
           }
       }
-      val filter = "metadata.metadata.age.value > 10"
+      val filter = "metadata.metadata.publisher_id > 10"
 
       assertThat(filterEventGroups(listOf(eventGroup, eventGroup2), filter, typeRegistryAndEnv))
         .containsExactly(eventGroup)

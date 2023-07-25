@@ -26,32 +26,29 @@ import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.measurement.integration.k8s.testing.CorrectnessTestConfig
-import org.measurement.integration.k8s.testing.ForwardedStorageConfig
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.internal.testing.ForwardedStorageGrpcKt
-import org.wfanet.measurement.loadtest.config.EventFilters
+import org.wfanet.measurement.loadtest.config.EventGroupMetadata
+import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
-import org.wfanet.measurement.loadtest.storage.SketchStore
-import org.wfanet.measurement.storage.forwarded.ForwardedStorageClient
+import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 
 /**
- * Test for correctness of an existing CMMS on Kubernetes where the EDP simulator sketches are
- * accessible via a [ForwardedStorageClient].
+ * Test for correctness of an existing CMMS on Kubernetes where the EDP simulators use
+ * [SyntheticGeneratorEventQuery].
  *
  * This currently assumes that the CMMS instance is using the certificates and keys from this Bazel
  * workspace.
  */
-class ForwardedStorageCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
+class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
   private class RunningMeasurementSystem : MeasurementSystem, TestRule {
     override val runId: String by lazy { UUID.randomUUID().toString() }
 
@@ -83,15 +80,6 @@ class ForwardedStorageCorrectnessTest : AbstractCorrectnessTest(measurementSyste
           TEST_CONFIG.apiAuthenticationKey
         )
 
-      val forwardedStorageChannel =
-        buildMutualTlsChannel(
-            STORAGE_CONFIG.forwardedStorageApiTarget,
-            KINGDOM_SIGNING_CERTS,
-            STORAGE_CONFIG.forwardedStorageApiCertHost.ifEmpty { null }
-          )
-          .also { channels.add(it) }
-          .withDefaultDeadline(RPC_DEADLINE_DURATION)
-
       val publicApiChannel =
         buildMutualTlsChannel(
             TEST_CONFIG.kingdomPublicApiTarget,
@@ -101,9 +89,10 @@ class ForwardedStorageCorrectnessTest : AbstractCorrectnessTest(measurementSyste
           .also { channels.add(it) }
           .withDefaultDeadline(RPC_DEADLINE_DURATION)
 
-      val storageClient =
-        ForwardedStorageClient(
-          ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(forwardedStorageChannel)
+      val eventQuery: SyntheticGeneratorEventQuery =
+        MetadataSyntheticGeneratorEventQuery(
+          EventGroupMetadata.UK_POPULATION,
+          MC_ENCRYPTION_PRIVATE_KEY
         )
       return MeasurementConsumerSimulator(
         measurementConsumerData,
@@ -111,13 +100,11 @@ class ForwardedStorageCorrectnessTest : AbstractCorrectnessTest(measurementSyste
         DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
         EventGroupsGrpcKt.EventGroupsCoroutineStub(publicApiChannel),
         MeasurementsGrpcKt.MeasurementsCoroutineStub(publicApiChannel),
-        RequisitionsGrpcKt.RequisitionsCoroutineStub(publicApiChannel),
         MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(publicApiChannel),
         CertificatesGrpcKt.CertificatesCoroutineStub(publicApiChannel),
-        SketchStore(storageClient),
         RESULT_POLLING_DELAY,
         MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
-        EventFilters.EVENT_TEMPLATES_TO_FILTERS_MAP
+        eventQuery,
       )
     }
 
@@ -134,16 +121,10 @@ class ForwardedStorageCorrectnessTest : AbstractCorrectnessTest(measurementSyste
     private val CONFIG_PATH =
       Paths.get("src", "test", "kotlin", "org", "wfanet", "measurement", "integration", "k8s")
     private const val TEST_CONFIG_NAME = "correctness_test_config.textproto"
-    private const val STORAGE_CONFIG_NAME = "forwarded_storage_config.textproto"
 
     private val TEST_CONFIG: CorrectnessTestConfig by lazy {
       val configFile = getRuntimePath(CONFIG_PATH.resolve(TEST_CONFIG_NAME)).toFile()
       parseTextProto(configFile, CorrectnessTestConfig.getDefaultInstance())
-    }
-
-    private val STORAGE_CONFIG: ForwardedStorageConfig by lazy {
-      val configFile = getRuntimePath(CONFIG_PATH.resolve(STORAGE_CONFIG_NAME)).toFile()
-      parseTextProto(configFile, ForwardedStorageConfig.getDefaultInstance())
     }
 
     private val tempDir = TemporaryFolder()

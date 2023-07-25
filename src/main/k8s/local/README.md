@@ -283,10 +283,9 @@ kubectl port-forward --address=localhost services/fake-storage-server 7443:8443 
 Then you can run the test, substituting your own values:
 
 ```shell
-bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:ForwardedStorageCorrectnessTest
+bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGeneratorCorrectnessTest
   --test_output=streamed \
   --define=kingdom_public_api_target=localhost:8443 \
-  --define=forwarded_storage_api_target=localhost:7443 \
   --define=mc_name=measurementConsumers/Rcn7fKd25C8 \
   --define=mc_api_key=W9q4zad246g
 ```
