@@ -27,3 +27,13 @@ module "spanner_database" {
   spanner_instance = var.spanner_instance
   iam_service_account_member = module.kingdom_internal.iam_service_account.member
 }
+
+moved {
+  from = google_spanner_database.kingdom
+  to   = module.spanner_database.google_spanner_database.db
+}
+
+moved {
+  from = google_spanner_database_iam_member.kingdom_internal
+  to   = module.spanner_database.google_spanner_database_iam_member.grant_db_user_role
+}
