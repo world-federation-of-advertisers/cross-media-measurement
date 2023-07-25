@@ -67,21 +67,9 @@ kubectl apply -k src/main/k8s/dev/kingdom
 ## Deploy EDP simulators
 
 The correctness test assumes that you have six Event Data Provider (EDP)
-simulators running, each acting as a different fake `DataProvider`. All of these
-must write their sketches to a single Google Cloud Storage bucket.
+simulators running, each acting as a different fake `DataProvider`.
 
 ### Initial Setup
-
-1.  Create a Cloud Storage bucket
-
-    This can be done from the
-    [Console](https://console.cloud.google.com/storage/browser). Note that
-    bucket names are public, globally unique, and cannot be changed once
-    created. See
-    [Bucket naming guidelines](https://cloud.google.com/storage/docs/naming-buckets).
-
-    As the data in this bucket need not be exposed to the public internet,
-    select "Enforce public access prevention on this bucket".
 
 1.  Create a K8s cluster
 
@@ -105,10 +93,9 @@ must write their sketches to a single Google Cloud Storage bucket.
 
 1.  Create a `simulator` K8s service account
 
-    The underlying IAM service account must be able to access the Cloud Storage
-    bucket, create BigQuery jobs, and access the `labelled_events` BigQuery
-    table. See the [configuration guide](cluster-config.md#workload-identity)
-    for details.
+    The underlying IAM service account must be able to create BigQuery jobs and
+    access the `labelled_events` BigQuery table. See the
+    [configuration guide](cluster-config.md#workload-identity) for details.
 
 ### Build and push simulator image
 
@@ -122,7 +109,7 @@ Assuming a project named `halo-cmm-demo` and an image tag `build-0001`, run the
 following to build and push the image:
 
 ```shell
-bazel run -c opt //src/main/docker:push_gcs_edp_simulator_runner_image \
+bazel run -c opt //src/main/docker:push_bigquery_edp_simulator_runner_image \
   --define container_registry=gcr.io \
   --define image_repo_prefix=halo-cmm-demo --define image_tag=build-0001
 ```
@@ -173,7 +160,8 @@ Run the following, substituting your own values:
 ```shell
 bazel build //src/main/k8s/dev:edp_simulators.tar \
   --define=google_cloud_project=halo-cmm-demo \
-  --define=simulator_storage_bucket=halo-cmm-demo-bucket \
+  --define=bigquery_dataset=demo \
+  --define=bigquery_table=labelled_events \
   --define=kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
   --define=duchy_public_api_target=public.worker1.dev.halo-cmm.org:8443 \
   --define=mc_name=measurementConsumers/TGWOaWehLQ8 \
@@ -202,11 +190,12 @@ kubectl apply -k src/main/k8s/dev/edp_simulators
 Run the following, substituting your own values:
 
 ```shell
-bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:GcsCorrectnessTest
+bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:BigQueryCorrectnessTest
   --test_output=streamed \
   --define=kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
   --define=google_cloud_project=halo-cmm-demo \
-  --define=simulator_storage_bucket=cmm-demo-simulators \
+  --define=bigquery_dataset=demo \
+  --define=bigquery_table=labelled_events \
   --define=mc_name=measurementConsumers/Rcn7fKd25C8 \
   --define=mc_api_key=W9q4zad246g
 ```

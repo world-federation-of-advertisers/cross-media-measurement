@@ -16,7 +16,8 @@
 
 package org.wfanet.measurement.integration.k8s
 
-import com.google.cloud.storage.StorageOptions
+import com.google.cloud.bigquery.BigQuery
+import com.google.cloud.bigquery.BigQueryOptions
 import io.grpc.ManagedChannel
 import java.nio.file.Paths
 import java.time.Duration
@@ -26,32 +27,30 @@ import org.junit.rules.TemporaryFolder
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import org.measurement.integration.k8s.testing.BigQueryConfig
 import org.measurement.integration.k8s.testing.CorrectnessTestConfig
-import org.measurement.integration.k8s.testing.GoogleCloudStorageConfig
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-import org.wfanet.measurement.loadtest.config.EventFilters
+import org.wfanet.measurement.loadtest.dataprovider.BigQueryEventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
-import org.wfanet.measurement.loadtest.storage.SketchStore
+import org.wfanet.measurement.loadtest.measurementconsumer.MetadataBigQueryEventQuery
 
 /**
- * Test for correctness of an existing CMMS on Kubernetes where the EDP simulator sketches are
- * accessible via a [GcsStorageClient].
+ * Test for correctness of an existing CMMS on Kubernetes where the EDP simulators use
+ * [BigQueryEventQuery].
  *
  * This currently assumes that the CMMS instance is using the certificates and keys from this Bazel
  * workspace.
  */
-class GcsCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
+class BigQueryCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
   private class RunningMeasurementSystem : MeasurementSystem, TestRule {
     override val runId: String by lazy { UUID.randomUUID().toString() }
 
@@ -92,8 +91,15 @@ class GcsCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           .also { channels.add(it) }
           .withDefaultDeadline(RPC_DEADLINE_DURATION)
 
-      val gcs = StorageOptions.newBuilder().setProjectId(STORAGE_CONFIG.project).build().service
-      val storageClient = GcsStorageClient(gcs, STORAGE_CONFIG.bucket)
+      val bigQuery: BigQuery =
+        BigQueryOptions.newBuilder().apply { setProjectId(BIGQUERY_CONFIG.project) }.build().service
+      val eventQuery: BigQueryEventQuery =
+        MetadataBigQueryEventQuery(
+          bigQuery,
+          BIGQUERY_CONFIG.dataset,
+          BIGQUERY_CONFIG.table,
+          MC_ENCRYPTION_PRIVATE_KEY
+        )
 
       return MeasurementConsumerSimulator(
         measurementConsumerData,
@@ -101,13 +107,11 @@ class GcsCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
         EventGroupsGrpcKt.EventGroupsCoroutineStub(publicApiChannel),
         MeasurementsGrpcKt.MeasurementsCoroutineStub(publicApiChannel),
-        RequisitionsGrpcKt.RequisitionsCoroutineStub(publicApiChannel),
         MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(publicApiChannel),
         CertificatesGrpcKt.CertificatesCoroutineStub(publicApiChannel),
-        SketchStore(storageClient),
         RESULT_POLLING_DELAY,
         MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
-        EventFilters.EVENT_TEMPLATES_TO_FILTERS_MAP
+        eventQuery
       )
     }
 
@@ -124,16 +128,16 @@ class GcsCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private val CONFIG_PATH =
       Paths.get("src", "test", "kotlin", "org", "wfanet", "measurement", "integration", "k8s")
     private const val TEST_CONFIG_NAME = "correctness_test_config.textproto"
-    private const val STORAGE_CONFIG_NAME = "gcs_config.textproto"
+    private const val BIGQUERY_CONFIG_NAME = "bigquery_config.textproto"
 
     private val TEST_CONFIG: CorrectnessTestConfig by lazy {
       val configFile = getRuntimePath(CONFIG_PATH.resolve(TEST_CONFIG_NAME)).toFile()
       parseTextProto(configFile, CorrectnessTestConfig.getDefaultInstance())
     }
 
-    private val STORAGE_CONFIG: GoogleCloudStorageConfig by lazy {
-      val configFile = getRuntimePath(CONFIG_PATH.resolve(STORAGE_CONFIG_NAME)).toFile()
-      parseTextProto(configFile, GoogleCloudStorageConfig.getDefaultInstance())
+    private val BIGQUERY_CONFIG: BigQueryConfig by lazy {
+      val configFile = getRuntimePath(CONFIG_PATH.resolve(BIGQUERY_CONFIG_NAME)).toFile()
+      parseTextProto(configFile, BigQueryConfig.getDefaultInstance())
     }
 
     private val tempDir = TemporaryFolder()

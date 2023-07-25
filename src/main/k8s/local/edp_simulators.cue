@@ -47,15 +47,11 @@ edpSimulators: {
 	for edpConfig in _edpConfigs {
 		"\(edpConfig.displayName)": #EdpSimulator & {
 			_edpConfig: edpConfig
-			_imageConfig: repoSuffix: "simulator/local-edp"
+			_imageConfig: repoSuffix: "simulator/synthetic-generator-edp"
 			_edp_secret_name:           _secret_name
 			_mc_resource_name:          _mc_name
 			_duchy_public_api_target:   #Worker1PublicApiTarget
 			_kingdom_public_api_target: #KingdomPublicApiTarget
-			_blob_storage_flags: [
-				"--forwarded-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
-				"--forwarded-storage-cert-host=localhost",
-			]
 
 			deployment: spec: template: spec: {
 				_dependencies: [
