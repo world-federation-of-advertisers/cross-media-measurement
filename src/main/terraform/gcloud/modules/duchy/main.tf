@@ -64,3 +64,13 @@ resource "google_storage_bucket_iam_member" "storage" {
   role   = "roles/storage.objectAdmin"
   member = module.storage_user.iam_service_account.member
 }
+
+moved {
+  from = google_spanner_database.db
+  to   = module.spanner_database.google_spanner_database.db
+}
+
+moved {
+  from = google_spanner_database_iam_member.internal_server
+  to   = module.spanner_database.google_spanner_database_iam_member.grant_db_user_role
+}

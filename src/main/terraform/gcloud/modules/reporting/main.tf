@@ -37,3 +37,28 @@ module "postgres_database" {
   iam_service_account_email  = module.reporting_internal.iam_service_account.email
   iam_service_account_member = module.reporting_internal.iam_service_account.member
 }
+
+moved {
+  from = google_project_iam_member.sql_client
+  to   = module.postgres_database.google_project_iam_member.grant_sql_client_role
+}
+
+moved {
+  from = google_project_iam_member.sql_user
+  to   = module.postgres_database.google_project_iam_member.grant_sql_user_role
+}
+
+moved {
+  from = google_sql_user.reporting_internal
+  to   = module.postgres_database.google_sql_user.service_account
+}
+
+moved {
+  from = google_sql_database.db
+  to   = module.postgres_database.google_sql_database.db
+}
+
+moved {
+  from = postgresql_grant.db
+  to   = module.postgres_database.postgresql_grant.db
+}
