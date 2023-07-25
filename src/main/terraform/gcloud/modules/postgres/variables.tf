@@ -12,18 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-module "kingdom_internal" {
-  source = "../workload-identity-user"
-
-  k8s_service_account_name        = "internal-server"
-  iam_service_account_name        = "kingdom-internal"
-  iam_service_account_description = "Kingdom internal API server."
+variable "postgres_instance" {
+  description = "PostgreSQL `google_sql_database_instance`."
+  type = object({
+    name            = string
+    connection_name = string
+  })
+  nullable = false
 }
 
-module "spanner_database" {
-  source = "../spanner"
+variable "iam_service_account" {
+  description = <<-EOT
+    `google_service_account` for an existing IAM service account.
+  EOT
 
-  database_name = "kingdom"
-  spanner_instance = var.spanner_instance
-  iam_service_account = module.kingdom_internal.iam_service_account
+  type = object({
+    name  = string
+    email = string
+  })
+  default = null
+}
+
+variable "database_name" {
+  description = "Name of the database. Defaults to <name>-duchy."
+  type        = string
 }
