@@ -24,6 +24,7 @@ kt_jvm_library(
     srcs = [
         "Herald.kt",
         "LiquidLegionsV2Starter.kt",
+        "ReachOnlyLiquidLegionsV2Starter.kt",
     ],
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
