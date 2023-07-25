@@ -29,11 +29,13 @@ import java.util.logging.Logger
 import org.halo_cmm.uk.pilot.Display.Viewability as DisplayViewability
 import org.halo_cmm.uk.pilot.DisplayKt.viewability as displayViewability
 import org.halo_cmm.uk.pilot.Event
+import org.halo_cmm.uk.pilot.Video.DigitalVideoCompletionStatus
 import org.halo_cmm.uk.pilot.Video.Viewability as VideoViewability
 import org.halo_cmm.uk.pilot.VideoKt.digitalVideoCompletionStatus
 import org.halo_cmm.uk.pilot.VideoKt.viewability as videoViewability
+import org.halo_cmm.uk.pilot.display
+import org.halo_cmm.uk.pilot.event
 import org.halo_cmm.uk.pilot.video
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.toRange
@@ -80,6 +82,8 @@ class BigQueryEventQuery(
     publisherId: Int,
     timeRange: OpenEndTimeRange
   ): QueryJobConfiguration {
+    // Please make sure to correctly cast and query date column. The filtering on date column is
+    // done here and not in the event templates.
     val query =
       """
       SELECT *, CAST(date AS TIMESTAMP) AS time
@@ -115,20 +119,20 @@ class BigQueryEventQuery(
         digitalVideoCompletionStatus {
           completed0PercentPlus = true
           completed25PercentPlus = true
-          completed50PercentPlus = true
+          comepleted50PercentPlus = true
         }
       "75% - 100%" ->
         digitalVideoCompletionStatus {
           completed0PercentPlus = true
           completed25PercentPlus = true
-          completed50PercentPlus = true
+          comepleted50PercentPlus = true
           completed75PercentPlus = true
         }
       "100%" ->
         digitalVideoCompletionStatus {
           completed0PercentPlus = true
           completed25PercentPlus = true
-          completed50PercentPlus = true
+          comepleted50PercentPlus = true
           completed75PercentPlus = true
           completed100Percent = true
         }
@@ -136,7 +140,7 @@ class BigQueryEventQuery(
     }
   }
 
-  private fun getVideoViewability(viewability: String): VideoViewability {
+  private fun getVideoViewability(viewability: String): VideoViewability? {
     return when (viewability) {
       "viewable_0_percent_to_50_percent" -> videoViewability { viewable0PercentPlus = true }
       "viewable_50_percent_to_100_percent" ->
@@ -154,7 +158,7 @@ class BigQueryEventQuery(
     }
   }
 
-  private fun getDisplayViewability(viewability: String): DisplayViewability {
+  private fun getDisplayViewability(viewability: String): DisplayViewability? {
     return when (viewability) {
       "viewable_0_percent_to_50_percent" -> displayViewability { viewable0PercentPlus = true }
       "viewable_50_percent_to_100_percent" ->
@@ -173,38 +177,24 @@ class BigQueryEventQuery(
   }
 
   private fun FieldValueList.toVidAndEvent(): VidAndEvent {
-    val gender: Person.Gender? =
-      when (get("sex").stringValue) {
-        "M" -> Person.Gender.MALE
-        "F" -> Person.Gender.FEMALE
-        else -> null
-      }
-    val ageGroup: Person.AgeGroup? =
-      when (get("age_group").stringValue) {
-        "18_34" -> Person.AgeGroup.YEARS_18_TO_34
-        "35_54" -> Person.AgeGroup.YEARS_35_TO_54
-        "55+" -> Person.AgeGroup.YEARS_55_PLUS
-        else -> null
-      }
-    val socialGradeGroup: Person.SocialGradeGroup? =
-      when (get("social_grade").stringValue) {
-        "ABC1" -> Person.SocialGradeGroup.A_B_C1
-        "C2DE" -> Person.SocialGradeGroup.C2_D_E
-        else -> null
-      }
-    val complete: Boolean =
-      when (get("complete").longValue) {
-        0L -> false
-        else -> true
-      }
-
+    val digitalVideoCompletion =
+      getDigitalVideoCompletionStatus(get("digital_video_completion_status").stringValue)
+    val videoViewability = getVideoViewability(get("viewability").stringValue)
+    val displayViewability = getDisplayViewability(get("viewability").stringValue)
     val event = event {
       video = video {
-        digitalVideoCompletionStatus =
-          getDigitalVideoCompletionStatus(get("digital_video_completion_status").stringValue)
-        viewability = getVideoViewability(get("viewability").stringValue)
+        if (digitalVideoCompletion != null) {
+          digitalVideoCompletionStatus = digitalVideoCompletion
+        }
+        if (videoViewability != null) {
+          viewability = videoViewability
+        }
       }
-      display = display { viewability = getDisplayViewability(get("viewability").stringValue) }
+      display = display {
+        if (displayViewability != null) {
+          viewability = displayViewability
+        }
+      }
     }
     return VidAndEvent(get("vid").longValue, event)
   }
@@ -214,7 +204,7 @@ class BigQueryEventQuery(
   }
 }
 
-data class VidAndEvent(val vid: Int, val event: Event)
+data class VidAndEvent(val vid: Long, val event: Event)
 
 private val Instant.epochMicros: Long
   get() = ChronoUnit.MICROS.between(Instant.EPOCH, this)

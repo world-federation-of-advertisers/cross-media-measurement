@@ -15,14 +15,27 @@ package(
 )
 
 java_proto_library(
-    name = "uk_event_java_proto",
+    name = "uk_event_templates_java_proto",
     visibility = ["//visibility:public"],
     deps = ["@uk_pilot_event_templates//src/main/proto/eventtemplates:event_templates_proto"],
 )
 
 kt_jvm_proto_library(
-    name = "uk_event_kt_jvm_proto",
+    name = "uk_event_templates_kt_jvm_proto",
     srcs = ["@uk_pilot_event_templates//src/main/proto/eventtemplates:event_templates_proto",],
+    visibility = ["//visibility:public"],
+    deps = [":uk_event_templates_java_proto"],
+)
+
+java_proto_library(
+    name = "uk_event_java_proto",
+    visibility = ["//visibility:public"],
+    deps = ["@uk_pilot_event_templates//src/main/proto/eventtemplates:event_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "uk_event_kt_jvm_proto",
+    srcs = ["@uk_pilot_event_templates//src/main/proto/eventtemplates:event_proto",],
     visibility = ["//visibility:public"],
     deps = [":uk_event_java_proto"],
 )
