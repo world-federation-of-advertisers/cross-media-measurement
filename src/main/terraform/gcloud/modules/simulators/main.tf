@@ -22,12 +22,6 @@ module "simulator_user" {
   iam_service_account_description = "EDP simulator"
 }
 
-resource "google_storage_bucket_iam_member" "object_admin" {
-  bucket = var.storage_bucket.name
-  role   = "roles/storage.objectAdmin"
-  member = module.simulator_user.iam_service_account.member
-}
-
 resource "google_project_iam_member" "bigquery_user" {
   project = data.google_project.project.name
   role    = "roles/bigquery.jobUser"
