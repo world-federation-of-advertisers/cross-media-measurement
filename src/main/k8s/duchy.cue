@@ -66,7 +66,6 @@ import ("strings")
 	_duchy_data_server_app_label:        string
 	_duchy_data_server_deployment_name:  string
 	_duchy_data_server_container_args: [...string]
-	_duchy_data_server_container_env_vars: #EnvVarMap
 	_duchy_data_service_target_flag:       string
 	_duchy_data_service_cert_host_flag:    string
 	_duchy_update_schema_image:            string
@@ -199,13 +198,11 @@ import ("strings")
 					"--port=8443",
 					"--health-port=8080",
 				] + _duchy_data_server_container_args + _blob_storage_flags
-				_envVars: _duchy_data_server_container_env_vars
 			}
 			_updateSchemaContainer: #Container & {
 				image:            _images[_duchy_update_schema_image]
 				imagePullPolicy?: _container.imagePullPolicy
 				args:             _duchy_data_server_container_args
-				_envVars:         _duchy_data_server_container_env_vars
 			}
 			spec: template: spec: {
 				_initContainers: {

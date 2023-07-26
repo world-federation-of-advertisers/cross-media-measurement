@@ -59,7 +59,7 @@ _cloudStorageConfig: #CloudStorageConfig & {
 	bucket: _cloudStorageBucket
 }
 
-duchy: #Duchy & {
+_baseDuchyConfig: {
 	_duchy: {
 		name:                   _duchy_name
 		protocols_setup_config: _duchy_protocols_setup_config
@@ -76,14 +76,6 @@ duchy: #Duchy & {
 	_verbose_grpc_logging:      "false"
 
 	deployments: {
-		"spanner-computations-server-deployment": {
-			_container: {
-				resources: #InternalServerResourceRequirements
-			}
-			spec: template: spec: #ServiceAccountPodSpec & {
-				serviceAccountName: #InternalServerServiceAccount
-			}
-		}
 		"herald-daemon-deployment": {
 			_container: {
 				resources: #HeraldResourceRequirements
@@ -110,6 +102,36 @@ duchy: #Duchy & {
 		"requisition-fulfillment-server-deployment": {
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #StorageServiceAccount
+			}
+		}
+	}
+}
+
+if (_duchy_name != "worker2") {
+	duchy: #SpannerDuchy & _baseDuchyConfig & {
+		deployments: {
+			"\(#SpannerDuchy._duchy_data_server_deployment_name)": {
+				_container: {
+					resources: #InternalServerResourceRequirements
+				}
+				spec: template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #InternalServerServiceAccount
+				}
+			}
+		}
+	}
+}
+
+if (_duchy_name == "worker2") {
+	duchy: #PostgresDuchy & _baseDuchyConfig & {
+		deployments: {
+			"\(#PostgresDuchy._duchy_data_server_deployment_name)": {
+				_container: {
+					resources: #InternalServerResourceRequirements
+				}
+				spec: template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #InternalServerServiceAccount
+				}
 			}
 		}
 	}

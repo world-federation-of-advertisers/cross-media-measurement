@@ -122,7 +122,12 @@ duchies: [
 				password:    "$(POSTGRES_PASSWORD)"
 				user:        "$(POSTGRES_USER)"
 			}
-			_duchy_data_server_container_env_vars: EnvVars
+			deployments: {
+				"\(#PostgresDuchy._duchy_data_server_deployment_name)": {
+					_container: _envVars:             EnvVars
+					_updateSchemaContainer: _envVars: EnvVars
+				}
+			}
 		}
 	},
 ]
