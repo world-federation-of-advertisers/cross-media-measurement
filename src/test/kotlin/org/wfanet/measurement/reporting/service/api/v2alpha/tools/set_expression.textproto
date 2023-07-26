@@ -1,0 +1,6 @@
+# proto-file: wfa/measurement/reporting/v2alpha/reporting_set.proto
+# proto-message: ReportingSet.SetExpression
+operation: UNION
+lhs {
+  reporting_set: "measurementConsumers/1/reportingSets/abc"
+}
