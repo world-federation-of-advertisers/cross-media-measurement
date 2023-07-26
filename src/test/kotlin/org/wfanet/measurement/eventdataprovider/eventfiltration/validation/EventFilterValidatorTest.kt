@@ -47,6 +47,7 @@ class EventFilterValidatorTest {
   private val booleanVar = { name: String -> Decls.newVar(name, Decls.Bool) }
   private val intVar = { name: String -> Decls.newVar(name, Decls.Int) }
   private val stringVar = { name: String -> Decls.newVar(name, Decls.String) }
+
   private fun bannerTemplateVar(): Decl {
     return Decls.newVar(
       "banner",
@@ -361,7 +362,7 @@ class EventFilterValidatorTest {
         personTemplateVar(),
       )
     val expression = "!(person.gender == 2 && person.age_group == 1)"
-    val expectedNormalizedExpression = "person.gender == 2 || person.age_group == 1"
+    val expectedNormalizedExpression = "!(person.gender == 2) || !(person.age_group == 1)"
 
     assertIgnoringId(compileToNormalForm(expression, env, OPERATIVE_FIELDS))
       .isEqualTo(compile(expectedNormalizedExpression, env))
@@ -377,7 +378,7 @@ class EventFilterValidatorTest {
 
     val expression =
       "!(person.gender == 2 && person.age_group == 1) && " + "!(video.viewed_fraction > 0.25)"
-    val expectedNormalizedExpression = "(person.gender == 2 || person.age_group == 1) && true"
+    val expectedNormalizedExpression = "(!(person.gender == 2) || !(person.age_group == 1)) && true"
 
     assertIgnoringId(compileToNormalForm(expression, env, OPERATIVE_FIELDS))
       .isEqualTo(compile(expectedNormalizedExpression, env))
@@ -404,8 +405,8 @@ class EventFilterValidatorTest {
         .trim()
 
     val expectedNormalizedExpression =
-      "(person.gender == 2  && true) && (person.age_group == 1 && " +
-        "(person.age_group == 2 && ((true && true))) )"
+      "(!(person.gender == 2)  && true) && (!(person.age_group == 1) && " +
+        "(!(person.age_group == 2) && ((true && true))) )"
 
     assertIgnoringId(compileToNormalForm(expression, env, OPERATIVE_FIELDS))
       .isEqualTo(compile(expectedNormalizedExpression, env))
