@@ -99,6 +99,8 @@ cue_dump(
         ":config",
         "//src/main/k8s:base",
         "//src/main/k8s:duchy",
+        "//src/main/k8s:postgres_duchy",
+        "//src/main/k8s:spanner_duchy",
     ],
 )
 
@@ -124,6 +126,8 @@ cue_dump(
         ":config",
         "//src/main/k8s:base",
         "//src/main/k8s:duchy",
+        "//src/main/k8s:postgres_duchy",
+        "//src/main/k8s:spanner_duchy",
     ],
 )
 
@@ -149,6 +153,8 @@ cue_dump(
         ":config",
         "//src/main/k8s:base",
         "//src/main/k8s:duchy",
+        "//src/main/k8s:postgres_duchy",
+        "//src/main/k8s:spanner_duchy",
     ],
 )
 

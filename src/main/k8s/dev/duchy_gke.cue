@@ -59,7 +59,8 @@ _cloudStorageConfig: #CloudStorageConfig & {
 	bucket: _cloudStorageBucket
 }
 
-_baseDuchyConfig: {
+
+duchy: #Duchy & {
 	_duchy: {
 		name:                   _duchy_name
 		protocols_setup_config: _duchy_protocols_setup_config
@@ -108,7 +109,7 @@ _baseDuchyConfig: {
 }
 
 if (_duchy_name != "worker2") {
-	duchy: #SpannerDuchy & _baseDuchyConfig & {
+	duchy: duchy & #SpannerDuchy & {
 		deployments: {
 			"\(#SpannerDuchy._duchy_data_server_deployment_name)": {
 				_container: {
@@ -123,7 +124,7 @@ if (_duchy_name != "worker2") {
 }
 
 if (_duchy_name == "worker2") {
-	duchy: #PostgresDuchy & _baseDuchyConfig & {
+	duchy: duchy & #PostgresDuchy & {
 		deployments: {
 			"\(#PostgresDuchy._duchy_data_server_deployment_name)": {
 				_container: {
