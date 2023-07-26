@@ -93,3 +93,11 @@ class ComputationInitialStageInvalidException(
   override val context
     get() = mapOf("protocol" to protocol, "computation_stage" to computationStage)
 }
+
+class ComputationAlreadyExistsException(
+  val globalComputationId: String,
+  message: String = "Computation already exists",
+) : DuchyInternalException(ErrorCode.COMPUTATION_ALREADY_EXISTS, message) {
+  override val context
+    get() = mapOf("global_computation_id" to globalComputationId)
+}

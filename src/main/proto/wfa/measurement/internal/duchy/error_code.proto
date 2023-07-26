@@ -36,4 +36,7 @@ enum ErrorCode {
 
   /** Computation initial stage is invalid. */
   COMPUTATION_INITIAL_STAGE_INVALID = 5;
+
+  /** Computation with the same global ID already exists. */
+  COMPUTATION_ALREADY_EXISTS = 6;
 }

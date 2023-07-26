@@ -37,6 +37,8 @@ import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.computationToken
 
 /**
+ * Performs read operations on Computations and ComputationStages tables
+ *
  * @param computationProtocolStagesEnumHelper [ComputationProtocolStagesEnumHelper] a helper class
  *   to work with Enum representations of [ComputationType] and [ComputationStage].
  */
