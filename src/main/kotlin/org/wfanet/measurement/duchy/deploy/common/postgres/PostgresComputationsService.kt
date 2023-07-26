@@ -14,7 +14,9 @@
 
 package org.wfanet.measurement.duchy.deploy.common.postgres
 
+import com.google.protobuf.Empty
 import io.grpc.Status
+import io.grpc.StatusException
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Level
@@ -25,21 +27,45 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.toDuration
+import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.duchy.db.computation.AfterTransition
+import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
+import org.wfanet.measurement.duchy.db.computation.EndComputationReason
+import org.wfanet.measurement.duchy.db.computation.toDatabaseEditToken
+import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationBlobReferenceReader
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationReader
+import org.wfanet.measurement.duchy.deploy.common.postgres.readers.RequisitionReader
+import org.wfanet.measurement.duchy.deploy.common.postgres.writers.AdvanceComputationStage
 import org.wfanet.measurement.duchy.deploy.common.postgres.writers.ClaimWork
 import org.wfanet.measurement.duchy.deploy.common.postgres.writers.CreateComputation
+import org.wfanet.measurement.duchy.deploy.common.postgres.writers.DeleteComputation
+import org.wfanet.measurement.duchy.deploy.common.postgres.writers.EnqueueComputation
+import org.wfanet.measurement.duchy.deploy.common.postgres.writers.FinishComputation
+import org.wfanet.measurement.duchy.deploy.common.postgres.writers.RecordOutputBlobPath
+import org.wfanet.measurement.duchy.deploy.common.postgres.writers.RecordRequisitionBlobPath
+import org.wfanet.measurement.duchy.deploy.common.postgres.writers.UpdateComputationDetails
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
 import org.wfanet.measurement.duchy.service.internal.ComputationAlreadyExistsException
 import org.wfanet.measurement.duchy.service.internal.ComputationDetailsNotFoundException
 import org.wfanet.measurement.duchy.service.internal.ComputationInitialStageInvalidException
 import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
+import org.wfanet.measurement.duchy.service.internal.computations.toAdvanceComputationStageResponse
 import org.wfanet.measurement.duchy.service.internal.computations.toClaimWorkResponse
 import org.wfanet.measurement.duchy.service.internal.computations.toCreateComputationResponse
+import org.wfanet.measurement.duchy.service.internal.computations.toFinishComputationResponse
 import org.wfanet.measurement.duchy.service.internal.computations.toGetComputationTokenResponse
+import org.wfanet.measurement.duchy.service.internal.computations.toRecordOutputBlobPathResponse
+import org.wfanet.measurement.duchy.service.internal.computations.toRecordRequisitionBlobPathResponse
+import org.wfanet.measurement.duchy.service.internal.computations.toUpdateComputationDetailsResponse
+import org.wfanet.measurement.duchy.storage.ComputationStore
+import org.wfanet.measurement.duchy.storage.RequisitionStore
+import org.wfanet.measurement.duchy.toProtocolStage
+import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
+import org.wfanet.measurement.internal.duchy.AdvanceComputationStageResponse
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
 import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
 import org.wfanet.measurement.internal.duchy.ComputationDetails
@@ -49,9 +75,26 @@ import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
 import org.wfanet.measurement.internal.duchy.CreateComputationResponse
+import org.wfanet.measurement.internal.duchy.DeleteComputationRequest
+import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
+import org.wfanet.measurement.internal.duchy.EnqueueComputationResponse
+import org.wfanet.measurement.internal.duchy.FinishComputationRequest
+import org.wfanet.measurement.internal.duchy.FinishComputationResponse
+import org.wfanet.measurement.internal.duchy.GetComputationIdsRequest
+import org.wfanet.measurement.internal.duchy.GetComputationIdsResponse
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest.KeyCase
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
+import org.wfanet.measurement.internal.duchy.PurgeComputationsRequest
+import org.wfanet.measurement.internal.duchy.PurgeComputationsResponse
+import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
+import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
+import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathRequest
+import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathResponse
+import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
+import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsResponse
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.internal.duchy.purgeComputationsResponse
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
@@ -71,12 +114,16 @@ class PostgresComputationsService(
   private val client: DatabaseClient,
   private val idGenerator: IdGenerator,
   private val duchyName: String,
+  private val computationStorageClient: ComputationStore,
+  private val requisitionStorageClient: RequisitionStore,
   private val computationLogEntriesClient: ComputationLogEntriesCoroutineStub,
   private val clock: Clock = Clock.systemUTC(),
   private val defaultLockDuration: Duration = Duration.ofMinutes(5),
 ) : ComputationsCoroutineImplBase() {
 
   private val computationReader = ComputationReader(protocolStagesEnumHelper)
+  private val computationBlobReferenceReader = ComputationBlobReferenceReader()
+  private val requisitionReader = RequisitionReader()
 
   override suspend fun createComputation(
     request: CreateComputationRequest
@@ -167,6 +214,255 @@ class PostgresComputationsService(
     return token.toGetComputationTokenResponse()
   }
 
+  override suspend fun deleteComputation(request: DeleteComputationRequest): Empty {
+    val computationBlobKeys =
+      computationBlobReferenceReader.readComputationBlobKeys(
+        client.singleUse(),
+        request.localComputationId
+      )
+    for (blobKey in computationBlobKeys) {
+      try {
+        computationStorageClient.get(blobKey)?.delete()
+      } catch (e: StatusException) {
+        if (e.status.code != Status.Code.NOT_FOUND) {
+          throw e
+        }
+      }
+    }
+
+    val requisitionBlobKeys =
+      requisitionReader.readRequisitionBlobKeys(client.singleUse(), request.localComputationId)
+    for (blobKey in requisitionBlobKeys) {
+      try {
+        requisitionStorageClient.get(blobKey)?.delete()
+      } catch (e: StatusException) {
+        if (e.status.code != Status.NOT_FOUND.code) {
+          throw e
+        }
+      }
+    }
+
+    DeleteComputation(request.localComputationId).execute(client, idGenerator)
+    return Empty.getDefaultInstance()
+  }
+
+  override suspend fun purgeComputations(
+    request: PurgeComputationsRequest
+  ): PurgeComputationsResponse {
+    var deleted = 0
+    try {
+      val globalIds: Set<String> =
+        computationReader.readGlobalComputationIds(
+          client.singleUse(),
+          request.stagesList,
+          request.updatedBefore.toInstant()
+        )
+      if (!request.force) {
+        return purgeComputationsResponse {
+          purgeCount = globalIds.size
+          purgeSample += globalIds
+        }
+      }
+      for (globalId in globalIds) {
+        val token = computationReader.readComputationToken(client, globalId) ?: continue
+        val computationStageEnum = token.computationStage
+        val endComputationStage = getEndingComputationStage(computationStageEnum)
+
+        if (!isTerminated(computationStageEnum)) {
+          FinishComputation(
+              token.toDatabaseEditToken(),
+              endingStage = endComputationStage,
+              endComputationReason = EndComputationReason.FAILED,
+              computationDetails = token.computationDetails,
+              clock = clock,
+              protocolStagesEnumHelper = protocolStagesEnumHelper,
+              protocolStageDetailsHelper = computationProtocolStageDetailsHelper,
+            )
+            .execute(client, idGenerator)
+          sendStatusUpdateToKingdom(
+            newCreateComputationLogEntryRequest(
+              token.globalComputationId,
+              endComputationStage,
+            )
+          )
+        }
+        DeleteComputation(token.localComputationId).execute(client, idGenerator)
+        deleted += 1
+      }
+    } catch (e: Exception) {
+      logger.log(Level.WARNING, "Exception during Computations cleaning. $e")
+    }
+    return purgeComputationsResponse { this.purgeCount = deleted }
+  }
+
+  override suspend fun finishComputation(
+    request: FinishComputationRequest
+  ): FinishComputationResponse {
+    FinishComputation(
+        request.token.toDatabaseEditToken(),
+        endingStage = request.endingComputationStage,
+        endComputationReason =
+          when (val it = request.reason) {
+            ComputationDetails.CompletedReason.SUCCEEDED -> EndComputationReason.SUCCEEDED
+            ComputationDetails.CompletedReason.FAILED -> EndComputationReason.FAILED
+            ComputationDetails.CompletedReason.CANCELED -> EndComputationReason.CANCELED
+            else -> error("Unknown CompletedReason $it")
+          },
+        computationDetails = request.token.computationDetails,
+        clock = clock,
+        protocolStagesEnumHelper = protocolStagesEnumHelper,
+        protocolStageDetailsHelper = computationProtocolStageDetailsHelper,
+      )
+      .execute(client, idGenerator)
+
+    sendStatusUpdateToKingdom(
+      newCreateComputationLogEntryRequest(
+        request.token.globalComputationId,
+        request.endingComputationStage
+      )
+    )
+
+    val token =
+      computationReader.readComputationToken(client, request.token.globalComputationId)
+        ?: failGrpc(Status.INTERNAL) {
+          "Finished computation ${request.token.globalComputationId} not found."
+        }
+
+    return token.toFinishComputationResponse()
+  }
+
+  override suspend fun updateComputationDetails(
+    request: UpdateComputationDetailsRequest
+  ): UpdateComputationDetailsResponse {
+    require(request.token.computationDetails.protocolCase == request.details.protocolCase) {
+      "The protocol type cannot change."
+    }
+    UpdateComputationDetails(
+        clock = clock,
+        localId = request.token.localComputationId,
+        editVersion = request.token.version,
+        computationDetails = request.details,
+        requisitionEntries = request.requisitionsList
+      )
+      .execute(client, idGenerator)
+
+    val token =
+      computationReader.readComputationToken(client, request.token.globalComputationId)
+        ?: failGrpc(Status.INTERNAL) {
+          "Updated computation ${request.token.globalComputationId} not found."
+        }
+    return token.toUpdateComputationDetailsResponse()
+  }
+
+  override suspend fun recordOutputBlobPath(
+    request: RecordOutputBlobPathRequest
+  ): RecordOutputBlobPathResponse {
+
+    RecordOutputBlobPath(
+        clock = clock,
+        localId = request.token.localComputationId,
+        editVersion = request.token.version,
+        stage = request.token.computationStage,
+        blobRef = BlobRef(request.outputBlobId, request.blobPath),
+        protocolStagesEnumHelper = protocolStagesEnumHelper
+      )
+      .execute(client, idGenerator)
+
+    val token =
+      computationReader.readComputationToken(client, request.token.globalComputationId)
+        ?: failGrpc(Status.INTERNAL) {
+          "Computation ${request.token.globalComputationId} not found."
+        }
+    return token.toRecordOutputBlobPathResponse()
+  }
+
+  override suspend fun advanceComputationStage(
+    request: AdvanceComputationStageRequest
+  ): AdvanceComputationStageResponse {
+    val lockExtension: Duration =
+      if (request.hasLockExtension()) request.lockExtension.toDuration() else defaultLockDuration
+    val afterTransition =
+      when (val it = request.afterTransition) {
+        AdvanceComputationStageRequest.AfterTransition.ADD_UNCLAIMED_TO_QUEUE ->
+          AfterTransition.ADD_UNCLAIMED_TO_QUEUE
+        AdvanceComputationStageRequest.AfterTransition.DO_NOT_ADD_TO_QUEUE ->
+          AfterTransition.DO_NOT_ADD_TO_QUEUE
+        AdvanceComputationStageRequest.AfterTransition.RETAIN_AND_EXTEND_LOCK ->
+          AfterTransition.CONTINUE_WORKING
+        else -> error("Unsupported AdvanceComputationStageRequest.AfterTransition '$it'. ")
+      }
+
+    AdvanceComputationStage(
+        request.token.toDatabaseEditToken(),
+        nextStage = request.nextComputationStage,
+        nextStageDetails = request.stageDetails,
+        inputBlobPaths = request.inputBlobsList,
+        passThroughBlobPaths = request.passThroughBlobsList,
+        outputBlobs = request.outputBlobs,
+        afterTransition = afterTransition,
+        lockExtension = lockExtension,
+        clock = clock,
+        protocolStagesEnumHelper = protocolStagesEnumHelper
+      )
+      .execute(client, idGenerator)
+
+    sendStatusUpdateToKingdom(
+      newCreateComputationLogEntryRequest(
+        request.token.globalComputationId,
+        request.nextComputationStage
+      )
+    )
+
+    val token =
+      computationReader.readComputationToken(client, request.token.globalComputationId)
+        ?: failGrpc(Status.INTERNAL) {
+          "Computation ${request.token.globalComputationId} not found."
+        }
+    return token.toAdvanceComputationStageResponse()
+  }
+
+  override suspend fun getComputationIds(
+    request: GetComputationIdsRequest
+  ): GetComputationIdsResponse {
+    val ids = computationReader.readGlobalComputationIds(client.singleUse(), request.stagesList)
+    return GetComputationIdsResponse.newBuilder().addAllGlobalIds(ids).build()
+  }
+
+  override suspend fun enqueueComputation(
+    request: EnqueueComputationRequest
+  ): EnqueueComputationResponse {
+    grpcRequire(request.delaySecond >= 0) {
+      "DelaySecond ${request.delaySecond} should be non-negative."
+    }
+    EnqueueComputation(
+        request.token.localComputationId,
+        request.token.version,
+        request.delaySecond.toLong(),
+        clock,
+      )
+      .execute(client, idGenerator)
+    return EnqueueComputationResponse.getDefaultInstance()
+  }
+
+  override suspend fun recordRequisitionBlobPath(
+    request: RecordRequisitionBlobPathRequest
+  ): RecordRequisitionBlobPathResponse {
+    RecordRequisitionBlobPath(
+        clock = clock,
+        localId = request.token.localComputationId,
+        externalRequisitionKey = request.key,
+        pathToBlob = request.blobPath
+      )
+      .execute(client, idGenerator)
+
+    val token =
+      computationReader.readComputationToken(client, request.token.globalComputationId)
+        ?: failGrpc(Status.INTERNAL) {
+          "Computation ${request.token.globalComputationId} not found."
+        }
+    return token.toRecordRequisitionBlobPathResponse()
+  }
+
   private fun newCreateComputationLogEntryRequest(
     globalId: String,
     computationStage: ComputationStage,
@@ -193,6 +489,25 @@ class PostgresComputationsService(
       computationLogEntriesClient.createComputationLogEntry(request)
     } catch (ignored: Exception) {
       logger.log(Level.WARNING, "Failed to update status change to the kingdom. $ignored")
+    }
+  }
+
+  private fun isTerminated(computationStage: ComputationStage): Boolean {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    return when (computationStage.stageCase) {
+      ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+        computationStage.liquidLegionsSketchAggregationV2 ==
+          LiquidLegionsSketchAggregationV2.Stage.COMPLETE
+      ComputationStage.StageCase.STAGE_NOT_SET -> false
+    }
+  }
+
+  private fun getEndingComputationStage(computationStage: ComputationStage): ComputationStage {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    return when (computationStage.stageCase) {
+      ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+        LiquidLegionsSketchAggregationV2.Stage.COMPLETE.toProtocolStage()
+      ComputationStage.StageCase.STAGE_NOT_SET -> error("protocol not set")
     }
   }
 

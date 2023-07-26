@@ -107,7 +107,10 @@ class ComputationReader(
     }
   }
 
-  suspend fun readComputation(readContext: ReadContext, globalComputationId: String): Computation? {
+  private suspend fun readComputation(
+    readContext: ReadContext,
+    globalComputationId: String
+  ): Computation? {
     val statement =
       boundStatement(
         """
@@ -271,7 +274,7 @@ class ComputationReader(
       if (updatedBefore == null) {
         boundStatement(baseSql) { bind("$1", computationTypes[0]) }
       } else {
-        boundStatement(baseSql + " AND UpdatedTime <= $2") {
+        boundStatement("$baseSql AND UpdateTime <= $2") {
           bind("$1", computationTypes[0])
           bind("$2", updatedBefore)
         }

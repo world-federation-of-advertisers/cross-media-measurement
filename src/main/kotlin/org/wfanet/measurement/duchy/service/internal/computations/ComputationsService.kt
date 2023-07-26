@@ -21,7 +21,6 @@ import java.time.Clock
 import java.time.Duration
 import java.util.logging.Level
 import java.util.logging.Logger
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.toDuration
@@ -29,8 +28,8 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
 import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
-import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
+import org.wfanet.measurement.duchy.db.computation.toDatabaseEditToken
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
 import org.wfanet.measurement.duchy.storage.ComputationStore
@@ -43,7 +42,6 @@ import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
-import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
 import org.wfanet.measurement.internal.duchy.CreateComputationResponse
@@ -98,7 +96,9 @@ class ComputationsService(
         )
       )
       token.toClaimWorkResponse()
-    } else ClaimWorkResponse.getDefaultInstance()
+    } else {
+      ClaimWorkResponse.getDefaultInstance()
+    }
   }
 
   override suspend fun createComputation(
@@ -391,20 +391,3 @@ class ComputationsService(
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
-
-private fun ComputationToken.toDatabaseEditToken():
-  ComputationEditToken<ComputationType, ComputationStage> =
-  ComputationEditToken(
-    localId = localComputationId,
-    protocol = computationStage.toComputationType(),
-    stage = computationStage,
-    attempt = attempt,
-    editVersion = version
-  )
-
-private fun ComputationStage.toComputationType() =
-  when (stageCase) {
-    ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
-      ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
-    else -> failGrpc { "Computation type for $this is unknown" }
-  }

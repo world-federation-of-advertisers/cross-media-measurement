@@ -18,9 +18,9 @@ import com.google.protobuf.Message
 import java.time.Clock
 import java.util.logging.Logger
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
+import org.wfanet.measurement.duchy.db.computation.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
-import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationStageAttemptReader
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails

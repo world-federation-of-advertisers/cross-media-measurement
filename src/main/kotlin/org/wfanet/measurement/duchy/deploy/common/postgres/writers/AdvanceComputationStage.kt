@@ -20,8 +20,8 @@ import java.time.Duration
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
+import org.wfanet.measurement.duchy.db.computation.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
-import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationBlobReferenceReader
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationStageAttemptReader
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
