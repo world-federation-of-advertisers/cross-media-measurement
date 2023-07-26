@@ -18,15 +18,27 @@ import java.time.Instant
 /**
  * Representation of a balance for [privacyBucketGroup] in the privacy budget ledger backing store.
  * Note that a given [privacyBucketGroup] may have multiple rows associated to it due to different
- * [privacyCharge]s. The total charge to the PrivacyBucketGroup is obtained by aggregating all of
- * the charges specified in all of the rows for that bucket group. This aggregation may be
- * non-linear, e.g., determining total privacy budget usage is not as simple as just adding up the
- * charges for the individual rows.
+ * [dpCharge]s. The total charge to the PrivacyBucketGroup is obtained by aggregating all the
+ * charges specified in all the rows for that bucket group. This aggregation may be non-linear,
+ * e.g., determining total privacy budget usage is not as simple as just adding up the charges for
+ * the individual rows.
  */
 data class PrivacyBudgetBalanceEntry(
   val privacyBucketGroup: PrivacyBucketGroup,
   val dpCharge: DpCharge,
   val repetitionCount: Int
+)
+
+/**
+ * Representation of an AcdpCharge balance for [privacyBucketGroup] in the privacy budget ledger
+ * backing store. Note that a given [privacyBucketGroup] should only have one row associated to it
+ * which is the aggregated [acdpCharge]s. When checking the privacy usage, the aggregated
+ * [acdpCharge] is first converted to Delta in Differential Privacy Params(Epsilon, Delta) and check
+ * against the maximum Delta set for each [privacyBucketGroup].
+ */
+data class PrivacyBudgetAcdpBalanceEntry(
+  val privacyBucketGroup: PrivacyBucketGroup,
+  val acdpCharge: AcdpCharge,
 )
 /**
  * Representation of a single query that resulted in multiple charges in the privacy budget ledger
@@ -74,12 +86,30 @@ interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
   ): List<PrivacyBudgetBalanceEntry>
 
   /**
-   * Adds new entries to the PrivacyBudgetLedger specifying a charge to a privacy budget, adds the
+   * Returns the row in the PrivacyBudgetAcdpBalance of the PrivacyBucket. Each PrivacyBucketGroup
+   * should only have one row.
+   */
+  suspend fun findAcdpBalanceEntry(
+    privacyBucketGroup: PrivacyBucketGroup
+  ): PrivacyBudgetAcdpBalanceEntry
+
+  /**
+   * Adds new entries to the PrivacyBudgetLedger specifying a DpCharge to a privacy budget, adds the
    * [reference] that created these charges
    */
   suspend fun addLedgerEntries(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     dpCharges: Set<DpCharge>,
+    reference: Reference
+  )
+
+  /**
+   * Adds new entries to the PrivacyBudgetAcdpLedger specifying a AcdpCharge to a privacy budget,
+   * adds the [reference] that created these charges
+   */
+  suspend fun addAcdpLedgerEntries(
+    privacyBucketGroups: Set<PrivacyBucketGroup>,
+    acdpCharges: Set<AcdpCharge>,
     reference: Reference
   )
 
