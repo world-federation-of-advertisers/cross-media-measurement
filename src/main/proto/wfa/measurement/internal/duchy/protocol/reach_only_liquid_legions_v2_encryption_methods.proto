@@ -63,7 +63,8 @@ message CompleteReachOnlySetupPhaseRequest {
   // Public Key of the composite ElGamal cipher. Used to encrypt the excessive
   // noise (which is zero) when noise_parameters is not available.
   ElGamalPublicKey composite_el_gamal_public_key = 5;
-  // The attached encrypted excessive noises. Only for the aggregator.
+  // This field is only set for the aggregator. There will be one encrypted
+  // noise element for each non-aggregator worker.
   bytes serialized_excessive_noise_ciphertext = 6;
   // The maximum number of threads used by crypto actions.
   int32 parallelism = 7;

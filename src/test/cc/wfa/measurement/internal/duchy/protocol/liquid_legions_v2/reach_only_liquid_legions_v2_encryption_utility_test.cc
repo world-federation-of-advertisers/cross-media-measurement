@@ -30,7 +30,7 @@
 #include "wfa/measurement/common/crypto/constants.h"
 #include "wfa/measurement/common/crypto/ec_point_util.h"
 #include "wfa/measurement/common/crypto/encryption_utility_helper.h"
-#include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/liquid_legions_v2_encryption_utility_helper.h"
+#include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/testing/liquid_legions_v2_encryption_utility_helper.h"
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2_encryption_methods.pb.h"
 
 namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
@@ -94,7 +94,8 @@ MATCHER_P(IsBlockSorted, block_size, "") {
 }
 
 // The ReachOnlyTest generates cipher keys for 3 duchies, and the combined
-// public key for the data providers.
+// public key for the data providers. The duchy 1 and 2 are non-aggregator
+// workers, while the duchy 3 is the aggregator.
 class ReachOnlyTest {
  public:
   ElGamalKeyPair duchy_1_el_gamal_key_pair_;
@@ -128,14 +129,14 @@ class ReachOnlyTest {
 
     // Combine the el_gamal keys from all duchies to generate the data provider
     // el_gamal key.
-    client_el_gamal_public_key_ = ToCmmsElGamalKey(
+    client_el_gamal_public_key_ = ToDuchyInternalElGamalKey(
         any_sketch::crypto::CombineElGamalPublicKeys(
             kTestCurveId,
             {ToAnySketchElGamalKey(duchy_1_el_gamal_key_pair_.public_key()),
              ToAnySketchElGamalKey(duchy_2_el_gamal_key_pair_.public_key()),
              ToAnySketchElGamalKey(duchy_3_el_gamal_key_pair_.public_key())})
             .value());
-    duchy_2_3_composite_public_key_ = ToCmmsElGamalKey(
+    duchy_2_3_composite_public_key_ = ToDuchyInternalElGamalKey(
         any_sketch::crypto::CombineElGamalPublicKeys(
             kTestCurveId,
             {ToAnySketchElGamalKey(duchy_2_el_gamal_key_pair_.public_key()),
@@ -189,6 +190,9 @@ class ReachOnlyTest {
     EXPECT_THAT(
         complete_reach_only_setup_phase_response_1.combined_register_vector(),
         IsBlockSorted(kBytesCipherText));
+    EXPECT_THAT(complete_reach_only_setup_phase_response_1
+                    .serialized_excessive_noise_ciphertext(),
+                SizeIs(kBytesCipherText));
 
     // Setup phase at Duchy 2.
     // We assume all test data comes from duchy 1 in the test, so there is only
@@ -213,6 +217,9 @@ class ReachOnlyTest {
     EXPECT_THAT(
         complete_reach_only_setup_phase_response_2.combined_register_vector(),
         IsBlockSorted(kBytesCipherText));
+    EXPECT_THAT(complete_reach_only_setup_phase_response_2
+                    .serialized_excessive_noise_ciphertext(),
+                SizeIs(kBytesCipherText));
 
     // Setup phase at Duchy 3.
     // We assume all test data comes from duchy 1 in the test, so there is only
@@ -253,6 +260,9 @@ class ReachOnlyTest {
     EXPECT_THAT(
         complete_reach_only_setup_phase_response_3.combined_register_vector(),
         IsBlockSorted(kBytesCipherText));
+    EXPECT_THAT(complete_reach_only_setup_phase_response_3
+                    .serialized_excessive_noise_ciphertext(),
+                SizeIs(kBytesCipherText));
 
     // Execution phase at duchy 1 (non-aggregator).
     CompleteReachOnlyExecutionPhaseRequest

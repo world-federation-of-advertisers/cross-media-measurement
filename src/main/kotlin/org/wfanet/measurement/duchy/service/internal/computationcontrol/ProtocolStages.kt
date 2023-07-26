@@ -79,7 +79,7 @@ class LiquidLegionsV2Stages() :
       Stage.EXECUTION_PHASE_TWO,
       Stage.EXECUTION_PHASE_THREE,
       Stage.COMPLETE,
-      Stage.STAGE_UNKNOWN,
+      Stage.STAGE_UNSPECIFIED,
       Stage.UNRECOGNIZED ->
         throw IllegalStageException(token.computationStage) {
           "Unexpected $stageType stage: $protocolStage"
@@ -104,7 +104,7 @@ class LiquidLegionsV2Stages() :
       Stage.EXECUTION_PHASE_TWO,
       Stage.EXECUTION_PHASE_THREE,
       Stage.COMPLETE,
-      Stage.STAGE_UNKNOWN,
+      Stage.STAGE_UNSPECIFIED,
       Stage.UNRECOGNIZED ->
         throw IllegalStageException(stage) { "Next $stageType stage unknown for $protocolStage" }
     }.toProtocolStage()

@@ -23,10 +23,13 @@
 #include "absl/strings/string_view.h"
 #include "wfa/measurement/common/crypto/ec_point_util.h"
 #include "wfa/measurement/common/crypto/protocol_cryptor.h"
+#include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/multithreading_helper.h"
 
 namespace wfa::measurement::common::crypto {
 
 using ::wfa::measurement::common::crypto::CompositeType;
+using ::wfa::measurement::internal::duchy::protocol::liquid_legions_v2::
+    MultithreadingHelper;
 
 // A pair of ciphertexts which store the key and count values of a liquidlegions
 // register.
@@ -46,12 +49,12 @@ absl::StatusOr<ElGamalCiphertext> ExtractElGamalCiphertextFromString(
 // Blinds the last layer of ElGamal Encryption of register indexes, and return
 // the deterministically encrypted results.
 absl::StatusOr<std::vector<std::string>> GetBlindedRegisterIndexes(
-    absl::string_view data, ProtocolCryptor& protocol_cryptor);
+    absl::string_view data, MultithreadingHelper& helper);
 
 // Blinds the last layer of ElGamal Encryption of register indexes, and return
 // the deterministically encrypted results.
 absl::StatusOr<std::vector<std::string>> GetRollv2BlindedRegisterIndexes(
-    absl::string_view data, ProtocolCryptor& protocol_cryptor);
+    absl::string_view data, MultithreadingHelper& helper);
 
 // Extracts a KeyCountPairCipherText from a string_view.
 absl::StatusOr<KeyCountPairCipherText> ExtractKeyCountPairFromSubstring(

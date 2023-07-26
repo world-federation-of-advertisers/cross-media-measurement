@@ -50,6 +50,7 @@ using ::wfa::measurement::common::crypto::ElGamalCiphertext;
 using ::wfa::measurement::common::crypto::ElGamalEcPointPair;
 using ::wfa::measurement::common::crypto::ExtractElGamalCiphertextFromString;
 using ::wfa::measurement::common::crypto::ExtractKeyCountPairFromRegisters;
+using ::wfa::measurement::common::crypto::GetBlindedRegisterIndexes;
 using ::wfa::measurement::common::crypto::GetCountValuesPlaintext;
 using ::wfa::measurement::common::crypto::GetNumberOfBlocks;
 using ::wfa::measurement::common::crypto::kBlindedHistogramNoiseRegisterKey;
@@ -906,10 +907,9 @@ CompleteExecutionPhaseOneAtAggregator(
                    MultithreadingHelper::CreateMultithreadingHelper(
                        request.parallelism(), protocol_cryptor_options));
 
-  ASSIGN_OR_RETURN(
-      std::vector<std::string> blinded_register_indexes,
-      GetBlindedRegisterIndexes(request.combined_register_vector(),
-                                multithreading_helper->GetProtocolCryptor()));
+  ASSIGN_OR_RETURN(std::vector<std::string> blinded_register_indexes,
+                   GetBlindedRegisterIndexes(request.combined_register_vector(),
+                                             *multithreading_helper));
 
   // Create a sorting permutation of the blinded register indexes, such that we
   // don't need to modify the sketch data, whose size could be huge. We only

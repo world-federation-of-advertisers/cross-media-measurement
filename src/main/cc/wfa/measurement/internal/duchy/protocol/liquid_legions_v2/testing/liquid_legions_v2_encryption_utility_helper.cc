@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/liquid_legions_v2_encryption_utility_helper.h"
+#include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/testing/liquid_legions_v2_encryption_utility_helper.h"
 
 #include "estimation/estimators.h"
 
@@ -30,7 +30,7 @@ using ::wfa::measurement::internal::duchy::ElGamalPublicKey;
   return result;
 }
 
-ElGamalPublicKey ToCmmsElGamalKey(
+ElGamalPublicKey ToDuchyInternalElGamalKey(
     ::wfa::any_sketch::crypto::ElGamalPublicKey key) {
   ElGamalPublicKey result;
   result.set_generator(key.generator());

@@ -30,7 +30,7 @@
 #include "wfa/measurement/common/crypto/constants.h"
 #include "wfa/measurement/common/crypto/ec_point_util.h"
 #include "wfa/measurement/common/crypto/encryption_utility_helper.h"
-#include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/liquid_legions_v2_encryption_utility_helper.h"
+#include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/testing/liquid_legions_v2_encryption_utility_helper.h"
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2_encryption_methods.pb.h"
 
 namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
@@ -258,14 +258,14 @@ class TestData {
 
     // Combine the el_gamal keys from all duchies to generate the data provider
     // el_gamal key.
-    client_el_gamal_public_key_ = ToCmmsElGamalKey(
+    client_el_gamal_public_key_ = ToDuchyInternalElGamalKey(
         any_sketch::crypto::CombineElGamalPublicKeys(
             kTestCurveId,
             {ToAnySketchElGamalKey(duchy_1_el_gamal_key_pair_.public_key()),
              ToAnySketchElGamalKey(duchy_2_el_gamal_key_pair_.public_key()),
              ToAnySketchElGamalKey(duchy_3_el_gamal_key_pair_.public_key())})
             .value());
-    duchy_2_3_composite_public_key_ = ToCmmsElGamalKey(
+    duchy_2_3_composite_public_key_ = ToDuchyInternalElGamalKey(
         any_sketch::crypto::CombineElGamalPublicKeys(
             kTestCurveId,
             {ToAnySketchElGamalKey(duchy_2_el_gamal_key_pair_.public_key()),

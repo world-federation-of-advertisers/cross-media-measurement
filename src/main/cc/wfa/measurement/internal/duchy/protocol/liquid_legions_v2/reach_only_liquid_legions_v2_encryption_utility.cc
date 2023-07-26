@@ -57,6 +57,7 @@ using ::wfa::measurement::common::crypto::GetCountValuesPlaintext;
 using ::wfa::measurement::common::crypto::GetEcPointPairFromString;
 using ::wfa::measurement::common::crypto::GetElGamalEcPoints;
 using ::wfa::measurement::common::crypto::GetNumberOfBlocks;
+using ::wfa::measurement::common::crypto::GetRollv2BlindedRegisterIndexes;
 using ::wfa::measurement::common::crypto::kBlindedHistogramNoiseRegisterKey;
 using ::wfa::measurement::common::crypto::kBytesPerCipherText;
 using ::wfa::measurement::common::crypto::kBytesPerEcPoint;
@@ -133,10 +134,6 @@ absl::StatusOr<int64_t> AddReachOnlyBlindedHistogramNoise(
     ProtocolCryptor& protocol_cryptor, int total_sketches_count,
     const math::DistributedNoiser& distributed_noiser, size_t pos,
     std::string& data, int64_t& num_unique_noise_id) {
-  ASSIGN_OR_RETURN(
-      std::string blinded_histogram_noise_key_ec,
-      protocol_cryptor.MapToCurve(kBlindedHistogramNoiseRegisterKey));
-
   int64_t noise_register_added = 0;
   num_unique_noise_id = 0;
 
@@ -181,8 +178,11 @@ absl::StatusOr<int64_t> AddReachOnlyNoiseForPublisherNoise(
 
   ASSIGN_OR_RETURN(int64_t noise_registers_count,
                    distributed_noiser.GenerateNoiseComponent());
-  // Make sure that there is at least one publisher noise added.
+  // Make sure that there is at least one publisher noise added so that we can
+  // always subtract 1 for the publisher noise later. This is to avoid the
+  // corner case where the noise_registers_count is zero for all workers.
   noise_registers_count++;
+
   absl::AnyInvocable<absl::Status(ProtocolCryptor&, size_t)> f =
       [&](ProtocolCryptor& cryptor, size_t index) -> absl::Status {
     size_t current_pos = pos + kBytesPerCipherText * index;
@@ -399,10 +399,9 @@ absl::StatusOr<CompleteReachOnlySetupPhaseResponse> CompleteReachOnlySetupPhase(
   // Encrypt the excessive noise.
   ASSIGN_OR_RETURN(std::unique_ptr<ProtocolCryptor> protocol_cryptor,
                    CreateProtocolCryptor(protocol_cryptor_options));
-  ASSIGN_OR_RETURN(
-      std::string serialized_excessive_noise_ciphertext,
-      protocol_cryptor->EncryptIntegerWithCompositElGamalAndWriteToString(
-          excessive_noise_count));
+  ASSIGN_OR_RETURN(std::string serialized_excessive_noise_ciphertext,
+                   protocol_cryptor->EncryptIntegerToStringCompositeElGamal(
+                       excessive_noise_count));
 
   response.set_serialized_excessive_noise_ciphertext(
       serialized_excessive_noise_ciphertext);
@@ -555,21 +554,30 @@ CompleteReachOnlyExecutionPhaseAtAggregator(
         request.noise_parameters().dp_params().blind_histogram(),
         request.noise_parameters().contributors_count(),
         request.noise_mechanism());
+    // For each a in [1; number_of_EDPs], each worker samples at most
+    // blind_histogram_noiser->options().shift_offset * 2 noise registers. So
+    // all workers sample at most #EDPs*#max_per_worker noise registers.
     int max_excessive_noise =
         blind_histogram_noiser->options().shift_offset * 2 *
         request.noise_parameters().total_sketches_count() *
-        request.noise_parameters().total_sketches_count();
+        request.noise_parameters().contributors_count();
     // The lookup table stores the max_excessive_noise EC points where
     // ec_lookup_table[i] = (i+1)*ec_generator.
     ASSIGN_OR_RETURN(
         std::vector<std::string> ec_lookup_table,
         GetCountValuesPlaintext(max_excessive_noise, request.curve_id()));
     // Decrypt the excessive noise using the lookup table.
-    for (int i = 0; i < ec_lookup_table.size(); i++) {
+    int i = 0;
+    for (i = 0; i < ec_lookup_table.size(); i++) {
       if (ec_lookup_table[i] == plaintext) {
         excessive_noise_count = i + 1;
         break;
       }
+    }
+    // Throws an error if the decryption fails.
+    if (i == ec_lookup_table.size()) {
+      return absl::InternalError(
+          "Failed to decrypt the excessive noise ciphertext.");
     }
   }
 
@@ -577,10 +585,10 @@ CompleteReachOnlyExecutionPhaseAtAggregator(
                    MultithreadingHelper::CreateMultithreadingHelper(
                        request.parallelism(), protocol_cryptor_options));
 
-  ASSIGN_OR_RETURN(std::vector<std::string> blinded_register_indexes,
-                   GetRollv2BlindedRegisterIndexes(
-                       request.combined_register_vector(),
-                       multithreading_helper->GetProtocolCryptor()));
+  ASSIGN_OR_RETURN(
+      std::vector<std::string> blinded_register_indexes,
+      GetRollv2BlindedRegisterIndexes(request.combined_register_vector(),
+                                      *multithreading_helper));
   CompleteReachOnlyExecutionPhaseAtAggregatorResponse response;
 
   // Counting the number of unique registers.

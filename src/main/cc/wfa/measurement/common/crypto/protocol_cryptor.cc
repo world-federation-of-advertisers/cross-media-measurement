@@ -66,7 +66,7 @@ class ProtocolCryptorImpl : public ProtocolCryptor {
       CompositeType composite_type) override;
   absl::StatusOr<ElGamalCiphertext> EncryptCompositeElGamal(
       absl::string_view plain_ec_point, CompositeType composite_type) override;
-  absl::StatusOr<std::string> EncryptIntegerWithCompositElGamalAndWriteToString(
+  absl::StatusOr<std::string> EncryptIntegerToStringCompositeElGamal(
       int64_t value) override;
   absl::StatusOr<ElGamalCiphertext> ReRandomize(
       const ElGamalCiphertext& ciphertext,
@@ -176,8 +176,7 @@ absl::StatusOr<ElGamalCiphertext> ProtocolCryptorImpl::EncryptCompositeElGamal(
 }
 
 absl::StatusOr<std::string>
-ProtocolCryptorImpl::EncryptIntegerWithCompositElGamalAndWriteToString(
-    int64_t value) {
+ProtocolCryptorImpl::EncryptIntegerToStringCompositeElGamal(int64_t value) {
   Context ctx;
   std::string ciphertext;
   ciphertext.resize(kBytesPerCipherText);
@@ -189,11 +188,20 @@ ProtocolCryptorImpl::EncryptIntegerWithCompositElGamalAndWriteToString(
     ASSIGN_OR_RETURN(
         ElGamalEcPointPair zero_ec,
         EncryptIdentityElementToEcPointsCompositeElGamal(CompositeType::kFull));
-    std::string temp;
-    ASSIGN_OR_RETURN(temp, zero_ec.u.ToBytesCompressed());
-    ciphertext.replace(0, kBytesPerEcPoint, temp);
-    ASSIGN_OR_RETURN(temp, zero_ec.e.ToBytesCompressed());
-    ciphertext.replace(kBytesPerEcPoint, kBytesPerEcPoint, temp);
+
+    if (absl::StatusOr<std::string> result = zero_ec.u.ToBytesCompressed();
+        result.ok()) {
+      ciphertext.replace(0, kBytesPerEcPoint, *result);
+    } else {
+      return result.status();
+    }
+
+    if (absl::StatusOr<std::string> result = zero_ec.e.ToBytesCompressed();
+        result.ok()) {
+      ciphertext.replace(kBytesPerEcPoint, kBytesPerEcPoint, *result);
+    } else {
+      return result.status();
+    }
   } else {
     ASSIGN_OR_RETURN(ElGamalEcPointPair one_ec,
                      EncryptPlaintextToEcPointsCompositeElGamal(
@@ -201,11 +209,20 @@ ProtocolCryptorImpl::EncryptIntegerWithCompositElGamalAndWriteToString(
     ASSIGN_OR_RETURN(
         ElGamalEcPointPair point_ec,
         MultiplyEcPointPairByScalar(one_ec, ctx.CreateBigNum(value)));
-    std::string temp;
-    ASSIGN_OR_RETURN(temp, point_ec.u.ToBytesCompressed());
-    ciphertext.replace(0, kBytesPerEcPoint, temp);
-    ASSIGN_OR_RETURN(temp, point_ec.e.ToBytesCompressed());
-    ciphertext.replace(kBytesPerEcPoint, kBytesPerEcPoint, temp);
+
+    if (absl::StatusOr<std::string> result = point_ec.u.ToBytesCompressed();
+        result.ok()) {
+      ciphertext.replace(0, kBytesPerEcPoint, *result);
+    } else {
+      return result.status();
+    }
+
+    if (absl::StatusOr<std::string> result = point_ec.e.ToBytesCompressed();
+        result.ok()) {
+      ciphertext.replace(kBytesPerEcPoint, kBytesPerEcPoint, *result);
+    } else {
+      return result.status();
+    }
   }
   return ciphertext;
 }
@@ -286,9 +303,9 @@ absl::Status ProtocolCryptorImpl::BatchProcess(absl::string_view data,
       }
       case Action::kPartialDecrypt: {
         ASSIGN_OR_RETURN(std::string temp, DecryptLocalElGamal(ciphertext));
-        // The first part of the ciphertext is the random number which is still
-        // required to decrypt the other layers of ElGamal encryptions (at the
-        // subsequent duchies. So we keep it.
+        // The first part of the ciphertext is the random number which is
+        // still required to decrypt the other layers of ElGamal encryptions
+        // (at the subsequent duchies. So we keep it.
         result.replace(pos, kBytesPerEcPoint, ciphertext.first);
         pos += kBytesPerEcPoint;
         result.replace(pos, kBytesPerEcPoint, temp);

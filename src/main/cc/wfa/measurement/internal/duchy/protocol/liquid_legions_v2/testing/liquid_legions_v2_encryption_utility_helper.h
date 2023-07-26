@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_LIQUID_LEGIONS_V2_ENCRYPTION_UTILITY_HELPER_H_
-#define SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_LIQUID_LEGIONS_V2_ENCRYPTION_UTILITY_HELPER_H_
+#ifndef SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_TESTING_LIQUID_LEGIONS_V2_ENCRYPTION_UTILITY_HELPER_H_
+#define SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_TESTING_LIQUID_LEGIONS_V2_ENCRYPTION_UTILITY_HELPER_H_
 
 #include "absl/status/statusor.h"
 #include "any_sketch/crypto/sketch_encrypter.h"
@@ -29,7 +29,7 @@ using ::wfa::measurement::internal::duchy::ElGamalPublicKey;
 ::wfa::any_sketch::crypto::ElGamalPublicKey ToAnySketchElGamalKey(
     ElGamalPublicKey key);
 
-ElGamalPublicKey ToCmmsElGamalKey(
+ElGamalPublicKey ToDuchyInternalElGamalKey(
     ::wfa::any_sketch::crypto::ElGamalPublicKey key);
 
 Sketch CreateEmptyLiquidLegionsSketch();
@@ -41,4 +41,4 @@ DifferentialPrivacyParams MakeDifferentialPrivacyParams(double epsilon,
 
 }  // namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2
 
-#endif  // SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_LIQUID_LEGIONS_V2_ENCRYPTION_UTILITY_HELPER_H_
+#endif  // SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_TESTING_LIQUID_LEGIONS_V2_ENCRYPTION_UTILITY_HELPER_H_
