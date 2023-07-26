@@ -14,43 +14,49 @@
 
 package org.wfanet.measurement.duchy.deploy.gcloud.server
 
+import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.duchy.deploy.common.server.DuchyDataServer
+import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
+import org.wfanet.measurement.gcloud.postgres.PostgresConnectionFactories
+import org.wfanet.measurement.gcloud.postgres.PostgresFlags as GCloudPostgresFlags
 import java.time.Clock
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.db.postgres.PostgresFlags
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.duchy.deploy.common.server.DuchyDataServer
 import org.wfanet.measurement.duchy.deploy.common.service.PostgresDuchyDataServices
-import org.wfanet.measurement.storage.forwarded.ForwardedStorageFromFlags
+import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+
 import picocli.CommandLine
 
-/** Implementation of [DuchyDataServer] using Fake Storage Service. */
+/** Implementation of [DuchyDataServer] using Google Cloud Postgres and Google Cloud Storage (GCS). */
 @CommandLine.Command(
-  name = "ForwardedStoragePostgresDuchyDataServer",
+  name = "GcsPostgresDuchyDataServer",
   description = ["Server daemon for ${DuchyDataServer.SERVICE_NAME} service."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-class ForwardedStoragePostgresDuchyDataServer : DuchyDataServer() {
-  @CommandLine.Mixin private lateinit var postgresFlags: PostgresFlags
-  @CommandLine.Mixin private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
+class GcsPostgresDuchyDataServer : DuchyDataServer() {
+  @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
+  @CommandLine.Mixin private lateinit var gCloudPostgresFlags: GCloudPostgresFlags
 
   override fun run() = runBlocking {
     val clock = Clock.systemUTC()
     val idGenerator = RandomIdGenerator(clock)
 
-    val client = PostgresDatabaseClient.fromFlags(postgresFlags)
+    val factory = PostgresConnectionFactories.buildConnectionFactory(gCloudPostgresFlags)
+    val databaseClient = PostgresDatabaseClient.fromConnectionFactory(factory)
+    val storageClient = GcsStorageClient.fromFlags(GcsFromFlags(gcsFlags))
+
     run(
       PostgresDuchyDataServices.create(
-        ForwardedStorageFromFlags(forwardedStorageFlags, flags.server.tlsFlags).storageClient,
+        storageClient,
         computationLogEntriesClient,
         flags.duchy.duchyName,
         idGenerator,
-        client
+        databaseClient
       )
     )
   }
 }
 
-fun main(args: Array<String>) = commandLineMain(ForwardedStoragePostgresDuchyDataServer(), args)
+fun main(args: Array<String>) = commandLineMain(GcsPostgresDuchyDataServer(), args)
