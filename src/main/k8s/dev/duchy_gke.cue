@@ -125,6 +125,10 @@ if (_duchy_name != "worker2") {
 
 if (_duchy_name == "worker2") {
 	duchy: duchy & #PostgresDuchy & {
+	  _postgresConfig: {
+	 	  iamUserLocal: "worker2-duchy-internal"
+		  database:     "worker2_duchy_computations"
+	  }
 		deployments: {
 			"\(#PostgresDuchy._duchy_data_server_deployment_name)": {
 				_container: {
