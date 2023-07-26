@@ -81,7 +81,7 @@ jobs:
     - name: Generate archives
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
-        POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
+        POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}s
         GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
       run: >

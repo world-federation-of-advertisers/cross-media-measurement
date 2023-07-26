@@ -102,6 +102,8 @@ jobs:
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
         SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
+        POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
+        GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
         KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
         STORAGE_BUCKET: ${{ vars.STORAGE_BUCKET }}
       run: >
@@ -112,6 +114,8 @@ jobs:
         --define "image_tag=$IMAGE_TAG"
         --define "google_cloud_project=$GCLOUD_PROJECT"
         --define "spanner_instance=$SPANNER_INSTANCE"
+        --define "postgres_instance=$POSTGRES_INSTANCE"
+        --define "postgres_region=$GCLOUD_REGION"
         --define "kingdom_system_api_target=$KINGDOM_SYSTEM_API_TARGET"
         --define "duchy_storage_bucket=$STORAGE_BUCKET"
         --define "duchy_cert_id=$DUCHY_CERT_ID"
