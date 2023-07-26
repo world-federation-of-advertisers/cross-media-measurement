@@ -1,0 +1,5 @@
+# proto-file: src/main/proto/wfa/measurement/integration/k8s/testing/bigquery_config.proto
+# proto-message: BigQueryConfig
+project: "{project}"
+dataset: "{dataset}"
+table: "{table}"

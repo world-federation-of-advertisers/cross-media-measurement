@@ -11,6 +11,27 @@ package(
 )
 
 kt_jvm_library(
+    name = "synthetic_generator_event_query",
+    srcs = ["MetadataSyntheticGeneratorEventQuery.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_event_query",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:key_storage",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
+    ],
+)
+
+kt_jvm_library(
+    name = "bigquery_event_query",
+    srcs = ["MetadataBigQueryEventQuery.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:bigquery_event_query",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:test_metadata_messages_kt_jvm_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:key_storage",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
+    ],
+)
+
+kt_jvm_library(
     name = "simulator",
     srcs = ["MeasurementConsumerSimulator.kt"],
     deps = [
@@ -20,7 +41,9 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:api_key_authentication_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:test_identifiers",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/storage",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:vid_sampling",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:event_query",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:measurement_results",
         "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_kt_jvm_proto",
@@ -35,10 +58,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
-        "@any_sketch_java//src/main/java/org/wfanet/anysketch",
-        "@any_sketch_java//src/main/java/org/wfanet/anysketch:sketch_proto_converter",
-        "@any_sketch_java//src/main/java/org/wfanet/estimation:estimators",
-        "@any_sketch_java//src/main/java/org/wfanet/estimation:value_histogram",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/apache/commons:math3",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:jdk8",
