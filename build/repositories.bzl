@@ -48,8 +48,8 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "uk_pilot_event_templates",
         repo = "uk-pilot-event-templates",
-        sha256 = "f501a1a3a07e03376188de6447755d1dd30ff58516ac73be31fe0e1f335e0ef2",
-        version = "0.1.1",
+        sha256 = "ae4e90c325e95889fce8ded149d272e77ecde440a016755c8dea25be23188abe",
+        version = "0.1.2",
     )
 
     wfa_repo_archive(

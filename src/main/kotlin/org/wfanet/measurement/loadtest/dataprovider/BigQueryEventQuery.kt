@@ -119,20 +119,20 @@ class BigQueryEventQuery(
         digitalVideoCompletionStatus {
           completed0PercentPlus = true
           completed25PercentPlus = true
-          comepleted50PercentPlus = true
+          completed50PercentPlus = true
         }
       "75% - 100%" ->
         digitalVideoCompletionStatus {
           completed0PercentPlus = true
           completed25PercentPlus = true
-          comepleted50PercentPlus = true
+          completed50PercentPlus = true
           completed75PercentPlus = true
         }
       "100%" ->
         digitalVideoCompletionStatus {
           completed0PercentPlus = true
           completed25PercentPlus = true
-          comepleted50PercentPlus = true
+          completed50PercentPlus = true
           completed75PercentPlus = true
           completed100Percent = true
         }
