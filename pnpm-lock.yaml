@@ -114,12 +114,6 @@ importers:
       webpack-node-externals: 3.0.0
 
   experimental/reporting-ui/src/main/react/reporting-ui:
-    specifiers:
-      ocmm-comp-lib: workspace:*
-    dependencies:
-      ocmm-comp-lib: link:../reporting-ui-component-library
-
-  experimental/reporting-ui/src/main/react/reporting-ui-component-library:
     specifiers: {}
 
 packages:
