@@ -84,7 +84,7 @@ jobs:
       id: run-tests
       run: >
         bazelisk test
-        //src/test/kotlin/org/wfanet/measurement/integration/k8s:BigQueryCorrectnessTest
+        //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGeneratorCorrectnessTest
         --test_output=streamed
 
     - name: Upload Bazel testlogs
