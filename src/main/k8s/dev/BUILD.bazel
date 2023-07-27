@@ -242,28 +242,9 @@ kustomization_dir(
     ],
 )
 
-cue_dump(
+cue_library(
     name = "edp_simulator_gke",
     srcs = ["edp_simulator_gke.cue"],
-    cue_tags = {
-        "secret_name": SECRET_NAME,
-        "mc_name": SIMULATOR_K8S_SETTINGS.mc_name,
-        "edp1_name": SIMULATOR_K8S_SETTINGS.edp1_name,
-        "edp2_name": SIMULATOR_K8S_SETTINGS.edp2_name,
-        "edp3_name": SIMULATOR_K8S_SETTINGS.edp3_name,
-        "edp4_name": SIMULATOR_K8S_SETTINGS.edp4_name,
-        "edp5_name": SIMULATOR_K8S_SETTINGS.edp5_name,
-        "edp6_name": SIMULATOR_K8S_SETTINGS.edp6_name,
-        "bigquery_dataset": SIMULATOR_K8S_SETTINGS.bigquery_dataset,
-        "bigquery_table": SIMULATOR_K8S_SETTINGS.bigquery_table,
-        "google_cloud_project": GCLOUD_SETTINGS.project,
-        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
-        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
-        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
-        "kingdom_public_api_target": KINGDOM_K8S_SETTINGS.public_api_target,
-        "duchy_public_api_target": DUCHY_K8S_SETTINGS.public_api_target,
-    },
-    tags = ["manual"],
     deps = [
         ":base_gke",
         ":config",
@@ -271,12 +252,62 @@ cue_dump(
     ],
 )
 
+EDP_SIMULATOR_TAGS = {
+    "secret_name": SECRET_NAME,
+    "mc_name": SIMULATOR_K8S_SETTINGS.mc_name,
+    "edp1_name": SIMULATOR_K8S_SETTINGS.edp1_name,
+    "edp2_name": SIMULATOR_K8S_SETTINGS.edp2_name,
+    "edp3_name": SIMULATOR_K8S_SETTINGS.edp3_name,
+    "edp4_name": SIMULATOR_K8S_SETTINGS.edp4_name,
+    "edp5_name": SIMULATOR_K8S_SETTINGS.edp5_name,
+    "edp6_name": SIMULATOR_K8S_SETTINGS.edp6_name,
+    "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
+    "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
+    "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+    "kingdom_public_api_target": KINGDOM_K8S_SETTINGS.public_api_target,
+    "duchy_public_api_target": DUCHY_K8S_SETTINGS.public_api_target,
+}
+
+cue_dump(
+    name = "bigquery_edp_simulator_gke",
+    srcs = ["bigquery_edp_simulator_gke.cue"],
+    cue_tags = dict(EDP_SIMULATOR_TAGS.items() + {
+        "google_cloud_project": GCLOUD_SETTINGS.project,
+        "bigquery_dataset": SIMULATOR_K8S_SETTINGS.bigquery_dataset,
+        "bigquery_table": SIMULATOR_K8S_SETTINGS.bigquery_table,
+    }.items()),
+    tags = ["manual"],
+    deps = [":edp_simulator_gke"],
+)
+
 kustomization_dir(
-    name = "edp_simulators",
+    name = "bigquery_edp_simulators",
     testonly = True,
     srcs = [
         "resource_requirements.yaml",
-        ":edp_simulator_gke",
+        ":bigquery_edp_simulator_gke",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+    deps = [
+        "//src/main/k8s/testing/secretfiles:kustomization",
+    ],
+)
+
+cue_dump(
+    name = "synthetic_generator_edp_simulator_gke",
+    srcs = ["synthetic_generator_edp_simulator_gke.cue"],
+    cue_tags = EDP_SIMULATOR_TAGS,
+    tags = ["manual"],
+    deps = [":edp_simulator_gke"],
+)
+
+kustomization_dir(
+    name = "synthetic_generator_edp_simulators",
+    testonly = True,
+    srcs = [
+        "resource_requirements.yaml",
+        ":synthetic_generator_edp_simulator_gke",
     ],
     generate_kustomization = True,
     tags = ["manual"],

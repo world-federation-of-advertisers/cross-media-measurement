@@ -18,5 +18,6 @@ variable "bigquery_table" {
     dataset_id = string
     id         = string
   })
-  nullable = false
+  nullable = true
+  default  = null
 }
