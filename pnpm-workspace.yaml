@@ -1,2 +1,3 @@
 packages:
-  - 'src/main/react/reporting-ui'
+  - 'experimental/reporting-ui/src/main/react/reporting-ui'
+  

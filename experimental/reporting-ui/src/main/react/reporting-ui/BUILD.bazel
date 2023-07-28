@@ -20,8 +20,8 @@ js_library(
         "//:node_modules/webpack",
     ],
     visibility = [
-        "//src/main/react/reporting-ui:__subpackages__",
-        "//src/test/react/reporting-ui:__subpackages__",
+        "//experimental/reporting-ui/src/main/react/reporting-ui:__subpackages__",
+        "//experimental/reporting-ui/src/test/react/reporting-ui:__subpackages__",
     ],
 )
 
@@ -29,8 +29,8 @@ js_library(
     name = "webpack_config",
     srcs = ["webpack.config.js"],
     visibility = [
-        "//src/main/react/reporting-ui:__subpackages__",
-        "//src/test/react/reporting-ui:__subpackages__",
+        "//experimental/reporting-ui/src/main/react/reporting-ui:__subpackages__",
+        "//experimental/reporting-ui/src/test/react/reporting-ui:__subpackages__",
     ],
 )
 
@@ -39,8 +39,8 @@ webpack_bundle(
     srcs = [
         ":webpack_config",
         "//:tsconfig",
-        "//src/main/react/reporting-ui/public",
-        "//src/main/react/reporting-ui/src:src_files",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/public",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/src:src_files",
     ],
     node_modules = "//:node_modules",
     output_dir = True,
@@ -55,8 +55,8 @@ webpack_devserver(
     data = [
         ":build_node_deps",
         "//:tsconfig",
-        "//src/main/react/reporting-ui/public",
-        "//src/main/react/reporting-ui/src:src_files",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/public",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/src:src_files",
     ],
     node_modules = "//:node_modules",
     webpack_config = ":webpack_config",

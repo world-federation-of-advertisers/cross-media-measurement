@@ -16,6 +16,6 @@
     "declaration": true,
     "jsx": "react-jsx"
   },
-  "include": ["src"],
+  "include": ["src", "experimental/reporting-ui"],
   "types": ["node", "jest", "@testing-library/jest-dom"],
 }
