@@ -81,18 +81,6 @@ message CompleteReachOnlySetupPhaseResponse {
   int64 elapsed_cpu_time_millis = 3;
 }
 
-// Response of the CompleteReachOnlySetupPhase method at the aggregate worker.
-message CompleteReachOnlySetupPhaseAtAggregatorResponse {
-  // The output combined register vector (CRV), which contains shuffled input
-  // and noise registers.
-  bytes combined_register_vector = 1;
-  // The serialized El Gamal ciphertext that encrypts the aggregated excessive
-  // noise of the aggregator.
-  bytes serialized_excessive_noise_ciphertext = 2;
-  // The CPU time of processing the request.
-  int64 elapsed_cpu_time_millis = 3;
-}
-
 // The request to complete work in the execution phase at a non-aggregator
 // worker.
 message CompleteReachOnlyExecutionPhaseRequest {

@@ -33,8 +33,6 @@ using ::wfa::measurement::internal::duchy::protocol::
 using ::wfa::measurement::internal::duchy::protocol::
     CompleteReachOnlyInitializationPhaseResponse;
 using ::wfa::measurement::internal::duchy::protocol::
-    CompleteReachOnlySetupPhaseAtAggregatorResponse;
-using ::wfa::measurement::internal::duchy::protocol::
     CompleteReachOnlySetupPhaseRequest;
 using ::wfa::measurement::internal::duchy::protocol::
     CompleteReachOnlySetupPhaseResponse;
