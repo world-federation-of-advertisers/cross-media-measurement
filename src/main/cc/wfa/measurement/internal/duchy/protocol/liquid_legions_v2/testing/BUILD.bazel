@@ -1,5 +1,4 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
-load("@wfa_common_jvm//build:defs.bzl", "test_target")
 
 package(
     default_testonly = True,

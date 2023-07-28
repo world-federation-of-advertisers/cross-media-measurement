@@ -25,9 +25,6 @@
 
 namespace wfa::measurement::common::crypto {
 
-using ::wfa::measurement::internal::duchy::protocol::liquid_legions_v2::
-    MultithreadingHelper;
-
 absl::StatusOr<size_t> GetNumberOfBlocks(absl::string_view data,
                                          size_t block_size) {
   if (block_size == 0) {
@@ -49,52 +46,6 @@ absl::StatusOr<ElGamalCiphertext> ExtractElGamalCiphertextFromString(
   return std::make_pair(
       std::string(str.substr(0, kBytesPerEcPoint)),
       std::string(str.substr(kBytesPerEcPoint, kBytesPerEcPoint)));
-}
-
-absl::StatusOr<std::vector<std::string>> GetBlindedRegisterIndexes(
-    absl::string_view data, MultithreadingHelper& helper) {
-  ASSIGN_OR_RETURN(size_t register_count,
-                   GetNumberOfBlocks(data, kBytesPerCipherRegister));
-  std::vector<std::string> blinded_register_indexes;
-  blinded_register_indexes.resize(register_count);
-
-  absl::AnyInvocable<absl::Status(ProtocolCryptor&, size_t)> f =
-      [&](ProtocolCryptor& cryptor, size_t index) -> absl::Status {
-    absl::string_view data_block =
-        data.substr(index * kBytesPerCipherRegister, kBytesPerCipherText);
-    ASSIGN_OR_RETURN(ElGamalCiphertext ciphertext,
-                     ExtractElGamalCiphertextFromString(data_block));
-    ASSIGN_OR_RETURN(std::string decrypted_el_gamal,
-                     cryptor.DecryptLocalElGamal(ciphertext));
-    blinded_register_indexes[index] = std::move(decrypted_el_gamal);
-    return absl::OkStatus();
-  };
-  RETURN_IF_ERROR(helper.Execute(register_count, f));
-
-  return blinded_register_indexes;
-}
-
-absl::StatusOr<std::vector<std::string>> GetRollv2BlindedRegisterIndexes(
-    absl::string_view data, MultithreadingHelper& helper) {
-  ASSIGN_OR_RETURN(size_t register_count,
-                   GetNumberOfBlocks(data, kBytesPerCipherText));
-  std::vector<std::string> blinded_register_indexes;
-  blinded_register_indexes.resize(register_count);
-
-  absl::AnyInvocable<absl::Status(ProtocolCryptor&, size_t)> f =
-      [&](ProtocolCryptor& cryptor, size_t index) -> absl::Status {
-    absl::string_view data_block =
-        data.substr(index * kBytesPerCipherText, kBytesPerCipherText);
-    ASSIGN_OR_RETURN(ElGamalCiphertext ciphertext,
-                     ExtractElGamalCiphertextFromString(data_block));
-    ASSIGN_OR_RETURN(std::string decrypted_el_gamal,
-                     cryptor.DecryptLocalElGamal(ciphertext));
-    blinded_register_indexes[index] = std::move(decrypted_el_gamal);
-    return absl::OkStatus();
-  };
-  RETURN_IF_ERROR(helper.Execute(register_count, f));
-
-  return blinded_register_indexes;
 }
 
 absl::StatusOr<KeyCountPairCipherText> ExtractKeyCountPairFromSubstring(

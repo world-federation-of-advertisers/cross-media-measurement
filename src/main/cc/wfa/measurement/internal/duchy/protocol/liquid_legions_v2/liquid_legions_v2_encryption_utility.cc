@@ -50,7 +50,6 @@ using ::wfa::measurement::common::crypto::ElGamalCiphertext;
 using ::wfa::measurement::common::crypto::ElGamalEcPointPair;
 using ::wfa::measurement::common::crypto::ExtractElGamalCiphertextFromString;
 using ::wfa::measurement::common::crypto::ExtractKeyCountPairFromRegisters;
-using ::wfa::measurement::common::crypto::GetBlindedRegisterIndexes;
 using ::wfa::measurement::common::crypto::GetCountValuesPlaintext;
 using ::wfa::measurement::common::crypto::GetNumberOfBlocks;
 using ::wfa::measurement::common::crypto::kBlindedHistogramNoiseRegisterKey;
@@ -75,6 +74,31 @@ using ::wfa::measurement::common::crypto::ProtocolCryptor;
 using ::wfa::measurement::common::crypto::ProtocolCryptorOptions;
 using ::wfa::measurement::internal::duchy::ElGamalPublicKey;
 using ::wfa::measurement::internal::duchy::protocol::LiquidLegionsV2NoiseConfig;
+
+// Blinds the last layer of ElGamal Encryption of register indexes, and return
+// the deterministically encrypted results.
+absl::StatusOr<std::vector<std::string>> GetBlindedRegisterIndexes(
+    absl::string_view data, MultithreadingHelper& helper) {
+  ASSIGN_OR_RETURN(size_t register_count,
+                   GetNumberOfBlocks(data, kBytesPerCipherRegister));
+  std::vector<std::string> blinded_register_indexes;
+  blinded_register_indexes.resize(register_count);
+
+  absl::AnyInvocable<absl::Status(ProtocolCryptor&, size_t)> f =
+      [&](ProtocolCryptor& cryptor, size_t index) -> absl::Status {
+    absl::string_view data_block =
+        data.substr(index * kBytesPerCipherRegister, kBytesPerCipherText);
+    ASSIGN_OR_RETURN(ElGamalCiphertext ciphertext,
+                     ExtractElGamalCiphertextFromString(data_block));
+    ASSIGN_OR_RETURN(std::string decrypted_el_gamal,
+                     cryptor.DecryptLocalElGamal(ciphertext));
+    blinded_register_indexes[index] = std::move(decrypted_el_gamal);
+    return absl::OkStatus();
+  };
+  RETURN_IF_ERROR(helper.Execute(register_count, f));
+
+  return blinded_register_indexes;
+}
 
 // Merge all the counts in each group using the SameKeyAggregation algorithm.
 // The calculated (flag_1, flag_2, flag_3, count) tuple is appended to the

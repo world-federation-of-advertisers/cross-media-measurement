@@ -57,7 +57,6 @@ using ::wfa::measurement::common::crypto::GetCountValuesPlaintext;
 using ::wfa::measurement::common::crypto::GetEcPointPairFromString;
 using ::wfa::measurement::common::crypto::GetElGamalEcPoints;
 using ::wfa::measurement::common::crypto::GetNumberOfBlocks;
-using ::wfa::measurement::common::crypto::GetRollv2BlindedRegisterIndexes;
 using ::wfa::measurement::common::crypto::kBlindedHistogramNoiseRegisterKey;
 using ::wfa::measurement::common::crypto::kBytesPerCipherText;
 using ::wfa::measurement::common::crypto::kBytesPerEcPoint;
@@ -79,6 +78,31 @@ using ::wfa::measurement::common::crypto::ProtocolCryptor;
 using ::wfa::measurement::common::crypto::ProtocolCryptorOptions;
 using ::wfa::measurement::internal::duchy::ElGamalPublicKey;
 using ::wfa::measurement::internal::duchy::protocol::LiquidLegionsV2NoiseConfig;
+
+// Blinds the last layer of ElGamal Encryption of register indexes, and return
+// the deterministically encrypted results.
+absl::StatusOr<std::vector<std::string>> GetRollv2BlindedRegisterIndexes(
+    absl::string_view data, MultithreadingHelper& helper) {
+  ASSIGN_OR_RETURN(size_t register_count,
+                   GetNumberOfBlocks(data, kBytesPerCipherText));
+  std::vector<std::string> blinded_register_indexes;
+  blinded_register_indexes.resize(register_count);
+
+  absl::AnyInvocable<absl::Status(ProtocolCryptor&, size_t)> f =
+      [&](ProtocolCryptor& cryptor, size_t index) -> absl::Status {
+    absl::string_view data_block =
+        data.substr(index * kBytesPerCipherText, kBytesPerCipherText);
+    ASSIGN_OR_RETURN(ElGamalCiphertext ciphertext,
+                     ExtractElGamalCiphertextFromString(data_block));
+    ASSIGN_OR_RETURN(std::string decrypted_el_gamal,
+                     cryptor.DecryptLocalElGamal(ciphertext));
+    blinded_register_indexes[index] = std::move(decrypted_el_gamal);
+    return absl::OkStatus();
+  };
+  RETURN_IF_ERROR(helper.Execute(register_count, f));
+
+  return blinded_register_indexes;
+}
 
 absl::StatusOr<int64_t> EstimateReach(double liquid_legions_decay_rate,
                                       int64_t liquid_legions_size,
@@ -574,7 +598,7 @@ CompleteReachOnlyExecutionPhaseAtAggregator(
         break;
       }
     }
-    // Throws an error if the decryption fails.
+    // Returns an error if the decryption fails.
     if (i == ec_lookup_table.size()) {
       return absl::InternalError(
           "Failed to decrypt the excessive noise ciphertext.");

@@ -28,7 +28,6 @@ cc_library(
         ":constants",
         ":ec_point_util",
         ":protocol_cryptor",
-        "//src/main/cc/wfa/measurement/internal/duchy/protocol/liquid_legions_v2:multithreading_helper",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
         "@wfa_common_cpp//src/main/cc/common_cpp/macros",

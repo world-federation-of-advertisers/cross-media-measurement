@@ -303,9 +303,9 @@ absl::Status ProtocolCryptorImpl::BatchProcess(absl::string_view data,
       }
       case Action::kPartialDecrypt: {
         ASSIGN_OR_RETURN(std::string temp, DecryptLocalElGamal(ciphertext));
-        // The first part of the ciphertext is the random number which is
-        // still required to decrypt the other layers of ElGamal encryptions
-        // (at the subsequent duchies. So we keep it.
+        // The first part of the ciphertext is the random number which is still
+        // required to decrypt the other layers of ElGamal encryptions (at the
+        // subsequent duchies). So we keep it.
         result.replace(pos, kBytesPerEcPoint, ciphertext.first);
         pos += kBytesPerEcPoint;
         result.replace(pos, kBytesPerEcPoint, temp);
