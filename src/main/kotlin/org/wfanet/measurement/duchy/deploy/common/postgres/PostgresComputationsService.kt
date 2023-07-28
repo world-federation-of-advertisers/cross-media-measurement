@@ -93,6 +93,7 @@ import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathResponse
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsResponse
+import org.wfanet.measurement.internal.duchy.getComputationIdsResponse
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.purgeComputationsResponse
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
@@ -302,11 +303,11 @@ class PostgresComputationsService(
         request.token.toDatabaseEditToken(),
         endingStage = request.endingComputationStage,
         endComputationReason =
-          when (val it = request.reason) {
+          when (request.reason) {
             ComputationDetails.CompletedReason.SUCCEEDED -> EndComputationReason.SUCCEEDED
             ComputationDetails.CompletedReason.FAILED -> EndComputationReason.FAILED
             ComputationDetails.CompletedReason.CANCELED -> EndComputationReason.CANCELED
-            else -> error("Unknown CompletedReason $it")
+            else -> error("Unknown CompletedReason ${request.reason}")
           },
         computationDetails = request.token.computationDetails,
         clock = clock,
@@ -357,7 +358,6 @@ class PostgresComputationsService(
   override suspend fun recordOutputBlobPath(
     request: RecordOutputBlobPathRequest
   ): RecordOutputBlobPathResponse {
-
     RecordOutputBlobPath(
         clock = clock,
         localId = request.token.localComputationId,
@@ -382,14 +382,17 @@ class PostgresComputationsService(
     val lockExtension: Duration =
       if (request.hasLockExtension()) request.lockExtension.toDuration() else defaultLockDuration
     val afterTransition =
-      when (val it = request.afterTransition) {
+      when (request.afterTransition) {
         AdvanceComputationStageRequest.AfterTransition.ADD_UNCLAIMED_TO_QUEUE ->
           AfterTransition.ADD_UNCLAIMED_TO_QUEUE
         AdvanceComputationStageRequest.AfterTransition.DO_NOT_ADD_TO_QUEUE ->
           AfterTransition.DO_NOT_ADD_TO_QUEUE
         AdvanceComputationStageRequest.AfterTransition.RETAIN_AND_EXTEND_LOCK ->
           AfterTransition.CONTINUE_WORKING
-        else -> error("Unsupported AdvanceComputationStageRequest.AfterTransition '$it'. ")
+        else ->
+          error(
+            "Unsupported AdvanceComputationStageRequest.AfterTransition '${request.afterTransition}'. "
+          )
       }
 
     AdvanceComputationStage(
@@ -425,7 +428,7 @@ class PostgresComputationsService(
     request: GetComputationIdsRequest
   ): GetComputationIdsResponse {
     val ids = computationReader.readGlobalComputationIds(client.singleUse(), request.stagesList)
-    return GetComputationIdsResponse.newBuilder().addAllGlobalIds(ids).build()
+    return getComputationIdsResponse { globalIds += ids }
   }
 
   override suspend fun enqueueComputation(
