@@ -12,21 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-const cache = new Map(); 
-export const memoizePromiseFn = (fn) => {
-    return (...args) => {
-        const key = JSON.stringify(args);
-    
-        if (cache.has(key)) {
-            return cache.get(key);
-        }
+const cache = new Map();
+export const memoizePromiseFn = fn => {
+  return (...args) => {
+    const key = JSON.stringify(args);
 
-        cache.set(key, fn(...args).catch((error) => {
-            // Delete cache entry if API call fails
-            cache.delete(key);
-            return Promise.reject(error);
-        }));
+    if (cache.has(key)) {
+      return cache.get(key);
+    }
 
-        return cache.get(key);
-    };
+    cache.set(
+      key,
+      fn(...args).catch(error => {
+        // Delete cache entry if API call fails
+        cache.delete(key);
+        return Promise.reject(error);
+      })
+    );
+
+    return cache.get(key);
+  };
 };
