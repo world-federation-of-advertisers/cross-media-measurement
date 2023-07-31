@@ -19,9 +19,8 @@ import {
   InitApiProps,
 } from './models';
 
-export interface ReportApi {
+export interface IReportingApi {
   init(props: InitApiProps): void;
   listReports(): Promise<ListReportsResponse>;
   getReport(req: GetReportRequest): Promise<GetReportResponse>;
-  createReport(): Promise<void>; // WIP
 }
