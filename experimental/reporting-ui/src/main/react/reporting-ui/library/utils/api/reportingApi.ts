@@ -1,26 +1,33 @@
-import { memoizePromiseFn } from "./memoize";
-import { InitApiProps, ListReportsResponse, GetReportRequest, GetReportResponse, Report } from "./models";
-import { ReportApi } from "./reportApi";
+import {memoizePromiseFn} from './memoize';
+import {
+  GetReportRequest,
+  GetReportResponse,
+  InitApiProps,
+  ListReportsResponse,
+  Report,
+} from './models';
+import {ReportApi} from './reportApi';
 
-export class ReportingApi{
-    reports: Report[] = [];
+export class ReportingApi {
+  reports: Report[] = [];
 
-    constructor(private api: ReportApi) {}
+  constructor(private api: ReportApi) {}
 
-    init(props: InitApiProps): void {
-        this.api.init(props);
-    }
+  init(props: InitApiProps): void {
+    this.api.init(props);
+  }
 
-    listReports(): Promise<ListReportsResponse> {
-        return this.api.listReports();
-    }
+  listReports(): Promise<ListReportsResponse> {
+    return this.api.listReports();
+  }
 
-    getReport(req: GetReportRequest): Promise<GetReportResponse> {
-        const getCached = memoizePromiseFn(this.api.getReport(req));
+  getReport(req: GetReportRequest): Promise<GetReportResponse> {
+    const getCached = memoizePromiseFn(this.api.getReport(req));
 
-        return getCached(req, this.reports);    }
+    return getCached(req, this.reports);
+  }
 
-    createReport(): Promise<void> {
-        throw new Error("Method not implemented.");
-    }
+  createReport(): Promise<void> {
+    throw new Error('Method not implemented.');
+  }
 }
