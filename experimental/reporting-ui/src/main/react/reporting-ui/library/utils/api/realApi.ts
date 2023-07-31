@@ -19,7 +19,6 @@ import {
   ListReportsResponse,
 } from './models';
 import {ReportApi} from './reportApi';
-import {memoizePromiseFn} from './memoize';
 import path from 'path';
 
 export class RealApi implements ReportApi {
