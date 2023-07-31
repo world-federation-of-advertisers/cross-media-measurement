@@ -13,7 +13,7 @@
 // limitations under the License.
 
 export type UniqueReach = {
-  pub: number,
-  value: number,
-  date: Date,
-}
+  pub: number;
+  value: number;
+  date: Date;
+};

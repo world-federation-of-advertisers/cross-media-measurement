@@ -13,13 +13,13 @@
 // limitations under the License.
 
 export type TargetReach = {
-    cat: string,
-    value: number,
-    x: number,
-}
+  cat: string; // The category of the values
+  value: number; // The value (y-axis)
+  x: number; // The x-axis
+};
 
 export type Reach = {
-    pub: number,
-    value: number,
-    date: Date,
-}
+  pub: number; // The publisher of the Reach
+  value: number; // The value (y-axis)
+  date: Date; // The date of the value (x-asix)
+};
