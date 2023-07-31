@@ -355,7 +355,8 @@ private constructor(
               },
             stage = it.computationStage,
             attempt = it.attempt,
-            editVersion = it.version
+            editVersion = it.version,
+            globalId = it.globalComputationId,
           )
         }
         .firstOrNull()

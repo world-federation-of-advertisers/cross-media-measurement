@@ -34,7 +34,9 @@ data class ComputationEditToken<ProtocolT, StageT>(
    * increasing number used as a guardrail to protect against concurrent edits to the same
    * computation.
    */
-  val editVersion: Long
+  val editVersion: Long,
+  /** The global identifier for the computation. */
+  val globalId: String,
 )
 
 fun ComputationToken.toDatabaseEditToken():
@@ -48,6 +50,7 @@ fun ComputationToken.toDatabaseEditToken():
     protocol = protocol,
     stage = computationStage,
     attempt = attempt,
-    editVersion = version
+    editVersion = version,
+    globalId = globalComputationId
   )
 }

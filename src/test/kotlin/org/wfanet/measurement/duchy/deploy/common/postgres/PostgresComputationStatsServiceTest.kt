@@ -75,8 +75,8 @@ class PostgresComputationStatsServiceTest :
       client = client,
       idGenerator = idGenerator,
       duchyName = ALSACE,
-      computationStorageClient = ComputationStore(storageClient),
-      requisitionStorageClient = RequisitionStore(storageClient),
+      computationStore = ComputationStore(storageClient),
+      requisitionStore = RequisitionStore(storageClient),
       computationLogEntriesClient = systemComputationLogEntriesClient,
     )
   }

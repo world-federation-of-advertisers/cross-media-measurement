@@ -163,11 +163,15 @@ class ComputationsService(
   override suspend fun purgeComputations(
     request: PurgeComputationsRequest
   ): PurgeComputationsResponse {
+    val terminalStages =
+      request.stagesList.filter {
+        computationsDatabase.validTerminalStage(computationsDatabase.stageToProtocol(it), it)
+      }
     var deleted = 0
     try {
       val globalIds =
         computationsDatabase.readGlobalComputationIds(
-          request.stagesList.toSet(),
+          terminalStages.toSet(),
           request.updatedBefore.toInstant()
         )
       if (!request.force) {

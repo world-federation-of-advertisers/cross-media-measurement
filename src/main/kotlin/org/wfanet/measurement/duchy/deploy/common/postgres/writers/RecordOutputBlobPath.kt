@@ -17,34 +17,39 @@ package org.wfanet.measurement.duchy.deploy.common.postgres.writers
 import java.time.Clock
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.duchy.db.computation.BlobRef
+import org.wfanet.measurement.duchy.db.computation.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationBlobReferenceReader
+import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationReader
+import org.wfanet.measurement.duchy.service.internal.UnknownDataError
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
+import org.wfanet.measurement.internal.duchy.ComputationToken
 
 /**
  * [PostgresWriter] to record the path for a new output blob.
  *
- * @param localId local identifier of the computation.
- * @param editVersion the version of the computation.
- * @param stage stage enum of the computation.
+ * @param token the [ComputationEditToken] of the target computation.
  * @param blobRef See [BlobRef].
  * @param clock See [Clock].
  * @param protocolStagesEnumHelper See [ComputationProtocolStagesEnumHelper].
  */
 class RecordOutputBlobPath<ProtocolT, StageT>(
-  private val localId: Long,
-  private val editVersion: Long,
-  private val stage: StageT,
+  private val token: ComputationEditToken<ProtocolT, StageT>,
   private val blobRef: BlobRef,
   private val clock: Clock,
   private val protocolStagesEnumHelper: ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
-) : PostgresWriter<Unit>() {
-  override suspend fun TransactionScope.runTransaction() {
+  private val computationReader: ComputationReader,
+) : PostgresWriter<ComputationToken>() {
+  override suspend fun TransactionScope.runTransaction(): ComputationToken {
     require(blobRef.key.isNotBlank()) { "Cannot insert blank path to blob. $blobRef" }
 
-    checkComputationUnmodified(localId, editVersion)
+    val localId = token.localId
+    val stage = token.stage
 
-    val stageLongValue = protocolStagesEnumHelper.computationStageEnumToLongValues(stage).stage
+    checkComputationUnmodified(localId, token.editVersion)
+
+    val stageLongValue =
+      protocolStagesEnumHelper.computationStageEnumToLongValues(token.stage).stage
     val type: ComputationBlobDependency =
       ComputationBlobReferenceReader()
         .readBlobDependency(
@@ -67,5 +72,8 @@ class RecordOutputBlobPath<ProtocolT, StageT>(
       blobId = blobRef.idInRelationalDatabase,
       pathToBlob = blobRef.key
     )
+
+    return computationReader.readComputationToken(transactionContext, token.globalId)
+      ?: throw UnknownDataError()
   }
 }

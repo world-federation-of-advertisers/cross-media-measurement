@@ -69,8 +69,8 @@ class PostgresComputationsServiceTest : ComputationsServiceTest<PostgresComputat
       client = client,
       idGenerator = idGenerator,
       duchyName = ALSACE,
-      computationStorageClient = computationStore,
-      requisitionStorageClient = requisitionStore,
+      computationStore = computationStore,
+      requisitionStore = requisitionStore,
       computationLogEntriesClient = systemComputationLogEntriesClient,
       clock = clock
     )

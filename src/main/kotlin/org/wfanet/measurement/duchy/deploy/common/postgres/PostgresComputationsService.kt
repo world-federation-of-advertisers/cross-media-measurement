@@ -53,6 +53,7 @@ import org.wfanet.measurement.duchy.service.internal.ComputationAlreadyExistsExc
 import org.wfanet.measurement.duchy.service.internal.ComputationDetailsNotFoundException
 import org.wfanet.measurement.duchy.service.internal.ComputationInitialStageInvalidException
 import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
+import org.wfanet.measurement.duchy.service.internal.UnknownDataError
 import org.wfanet.measurement.duchy.service.internal.computations.toAdvanceComputationStageResponse
 import org.wfanet.measurement.duchy.service.internal.computations.toClaimWorkResponse
 import org.wfanet.measurement.duchy.service.internal.computations.toCreateComputationResponse
@@ -95,6 +96,7 @@ import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsResponse
 import org.wfanet.measurement.internal.duchy.getComputationIdsResponse
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.internal.duchy.purgeComputationsResponse
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
@@ -115,8 +117,8 @@ class PostgresComputationsService(
   private val client: DatabaseClient,
   private val idGenerator: IdGenerator,
   private val duchyName: String,
-  private val computationStorageClient: ComputationStore,
-  private val requisitionStorageClient: RequisitionStore,
+  private val computationStore: ComputationStore,
+  private val requisitionStore: RequisitionStore,
   private val computationLogEntriesClient: ComputationLogEntriesCoroutineStub,
   private val clock: Clock = Clock.systemUTC(),
   private val defaultLockDuration: Duration = Duration.ofMinutes(5),
@@ -133,29 +135,30 @@ class PostgresComputationsService(
       "global_computation_id is not specified."
     }
 
-    try {
-      CreateComputation(
-          request.globalComputationId,
-          request.computationType,
-          protocolStagesEnumHelper.getValidInitialStage(request.computationType).first(),
-          request.stageDetails,
-          request.computationDetails,
-          request.requisitionsList,
-          clock,
-          computationTypeEnumHelper,
-          protocolStagesEnumHelper,
-          computationProtocolStageDetailsHelper
-        )
-        .execute(client, idGenerator)
-    } catch (ex: ComputationInitialStageInvalidException) {
-      throw ex.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    } catch (ex: ComputationAlreadyExistsException) {
-      throw ex.asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
-    }
-
     val token =
-      computationReader.readComputationToken(client, request.globalComputationId)
-        ?: failGrpc(Status.INTERNAL) { "Created computation not found." }
+      try {
+        CreateComputation(
+            request.globalComputationId,
+            request.computationType,
+            protocolStagesEnumHelper.getValidInitialStage(request.computationType).first(),
+            request.stageDetails,
+            request.computationDetails,
+            request.requisitionsList,
+            clock,
+            computationTypeEnumHelper,
+            protocolStagesEnumHelper,
+            computationProtocolStageDetailsHelper,
+            computationReader
+          )
+          .execute(client, idGenerator)
+      } catch (ex: ComputationInitialStageInvalidException) {
+        throw ex.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      } catch (ex: ComputationAlreadyExistsException) {
+        throw ex.asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+      } catch (ex: UnknownDataError) {
+        throw ex.asStatusRuntimeException(Status.Code.INTERNAL)
+      }
+
     return token.toCreateComputationResponse()
   }
 
@@ -164,7 +167,7 @@ class PostgresComputationsService(
 
     val lockDuration =
       if (request.hasLockDuration()) request.lockDuration.toDuration() else defaultLockDuration
-    val claimed =
+    val claimedToken =
       try {
         ClaimWork(
             request.computationType,
@@ -173,6 +176,7 @@ class PostgresComputationsService(
             clock,
             computationTypeEnumHelper,
             protocolStagesEnumHelper,
+            computationReader,
           )
           .execute(client, idGenerator)
       } catch (e: ComputationNotFoundException) {
@@ -181,21 +185,18 @@ class PostgresComputationsService(
         throw e.asStatusRuntimeException(Status.Code.INTERNAL)
       }
 
-    return claimed?.let {
-      val token =
-        ComputationReader(protocolStagesEnumHelper).readComputationToken(client, it)
-          ?: failGrpc(Status.INTERNAL) { "Claimed computation $claimed not found." }
-
+    if (claimedToken != null) {
       sendStatusUpdateToKingdom(
         newCreateComputationLogEntryRequest(
-          token.globalComputationId,
-          token.computationStage,
-          token.attempt.toLong()
+          claimedToken.globalComputationId,
+          claimedToken.computationStage,
+          claimedToken.attempt.toLong()
         )
       )
-      token.toClaimWorkResponse()
+      return claimedToken.toClaimWorkResponse()
     }
-      ?: ClaimWorkResponse.getDefaultInstance()
+
+    return ClaimWorkResponse.getDefaultInstance()
   }
 
   override suspend fun getComputationToken(
@@ -223,7 +224,7 @@ class PostgresComputationsService(
       )
     for (blobKey in computationBlobKeys) {
       try {
-        computationStorageClient.get(blobKey)?.delete()
+        computationStore.get(blobKey)?.delete()
       } catch (e: StatusException) {
         if (e.status.code != Status.Code.NOT_FOUND) {
           throw e
@@ -235,7 +236,7 @@ class PostgresComputationsService(
       requisitionReader.readRequisitionBlobKeys(client.singleUse(), request.localComputationId)
     for (blobKey in requisitionBlobKeys) {
       try {
-        requisitionStorageClient.get(blobKey)?.delete()
+        requisitionStore.get(blobKey)?.delete()
       } catch (e: StatusException) {
         if (e.status.code != Status.NOT_FOUND.code) {
           throw e
@@ -250,12 +251,19 @@ class PostgresComputationsService(
   override suspend fun purgeComputations(
     request: PurgeComputationsRequest
   ): PurgeComputationsResponse {
+    val terminalStages =
+      request.stagesList.filter {
+        protocolStagesEnumHelper.validTerminalStage(
+          protocolStagesEnumHelper.stageToProtocol(it),
+          it
+        )
+      }
     var deleted = 0
     try {
       val globalIds: Set<String> =
         computationReader.readGlobalComputationIds(
           client.singleUse(),
-          request.stagesList,
+          terminalStages,
           request.updatedBefore.toInstant()
         )
       if (!request.force) {
@@ -278,6 +286,7 @@ class PostgresComputationsService(
               clock = clock,
               protocolStagesEnumHelper = protocolStagesEnumHelper,
               protocolStageDetailsHelper = computationProtocolStageDetailsHelper,
+              computationReader = computationReader,
             )
             .execute(client, idGenerator)
           sendStatusUpdateToKingdom(
@@ -299,22 +308,28 @@ class PostgresComputationsService(
   override suspend fun finishComputation(
     request: FinishComputationRequest
   ): FinishComputationResponse {
-    FinishComputation(
-        request.token.toDatabaseEditToken(),
-        endingStage = request.endingComputationStage,
-        endComputationReason =
-          when (request.reason) {
-            ComputationDetails.CompletedReason.SUCCEEDED -> EndComputationReason.SUCCEEDED
-            ComputationDetails.CompletedReason.FAILED -> EndComputationReason.FAILED
-            ComputationDetails.CompletedReason.CANCELED -> EndComputationReason.CANCELED
-            else -> error("Unknown CompletedReason ${request.reason}")
-          },
-        computationDetails = request.token.computationDetails,
-        clock = clock,
-        protocolStagesEnumHelper = protocolStagesEnumHelper,
-        protocolStageDetailsHelper = computationProtocolStageDetailsHelper,
-      )
-      .execute(client, idGenerator)
+    val token =
+      try {
+        FinishComputation(
+            request.token.toDatabaseEditToken(),
+            endingStage = request.endingComputationStage,
+            endComputationReason =
+              when (request.reason) {
+                ComputationDetails.CompletedReason.SUCCEEDED -> EndComputationReason.SUCCEEDED
+                ComputationDetails.CompletedReason.FAILED -> EndComputationReason.FAILED
+                ComputationDetails.CompletedReason.CANCELED -> EndComputationReason.CANCELED
+                else -> error("Unknown CompletedReason ${request.reason}")
+              },
+            computationDetails = request.token.computationDetails,
+            clock = clock,
+            protocolStagesEnumHelper = protocolStagesEnumHelper,
+            protocolStageDetailsHelper = computationProtocolStageDetailsHelper,
+            computationReader = computationReader,
+          )
+          .execute(client, idGenerator)
+      } catch (ex: UnknownDataError) {
+        throw ex.asStatusRuntimeException(Status.Code.INTERNAL)
+      }
 
     sendStatusUpdateToKingdom(
       newCreateComputationLogEntryRequest(
@@ -322,12 +337,6 @@ class PostgresComputationsService(
         request.endingComputationStage
       )
     )
-
-    val token =
-      computationReader.readComputationToken(client, request.token.globalComputationId)
-        ?: failGrpc(Status.INTERNAL) {
-          "Finished computation ${request.token.globalComputationId} not found."
-        }
 
     return token.toFinishComputationResponse()
   }
@@ -338,41 +347,41 @@ class PostgresComputationsService(
     require(request.token.computationDetails.protocolCase == request.details.protocolCase) {
       "The protocol type cannot change."
     }
-    UpdateComputationDetails(
-        clock = clock,
-        localId = request.token.localComputationId,
-        editVersion = request.token.version,
-        computationDetails = request.details,
-        requisitionEntries = request.requisitionsList
-      )
-      .execute(client, idGenerator)
 
     val token =
-      computationReader.readComputationToken(client, request.token.globalComputationId)
-        ?: failGrpc(Status.INTERNAL) {
-          "Updated computation ${request.token.globalComputationId} not found."
-        }
+      try {
+        UpdateComputationDetails(
+            token = request.token.toDatabaseEditToken(),
+            clock = clock,
+            computationDetails = request.details,
+            requisitionEntries = request.requisitionsList,
+            computationReader = computationReader
+          )
+          .execute(client, idGenerator)
+      } catch (ex: UnknownDataError) {
+        throw ex.asStatusRuntimeException(Status.Code.INTERNAL)
+      }
+
     return token.toUpdateComputationDetailsResponse()
   }
 
   override suspend fun recordOutputBlobPath(
     request: RecordOutputBlobPathRequest
   ): RecordOutputBlobPathResponse {
-    RecordOutputBlobPath(
-        clock = clock,
-        localId = request.token.localComputationId,
-        editVersion = request.token.version,
-        stage = request.token.computationStage,
-        blobRef = BlobRef(request.outputBlobId, request.blobPath),
-        protocolStagesEnumHelper = protocolStagesEnumHelper
-      )
-      .execute(client, idGenerator)
-
     val token =
-      computationReader.readComputationToken(client, request.token.globalComputationId)
-        ?: failGrpc(Status.INTERNAL) {
-          "Computation ${request.token.globalComputationId} not found."
-        }
+      try {
+        RecordOutputBlobPath(
+            token = request.token.toDatabaseEditToken(),
+            clock = clock,
+            blobRef = BlobRef(request.outputBlobId, request.blobPath),
+            protocolStagesEnumHelper = protocolStagesEnumHelper,
+            computationReader = computationReader,
+          )
+          .execute(client, idGenerator)
+      } catch (ex: UnknownDataError) {
+        throw ex.asStatusRuntimeException(Status.Code.INTERNAL)
+      }
+
     return token.toRecordOutputBlobPathResponse()
   }
 
@@ -395,19 +404,25 @@ class PostgresComputationsService(
           )
       }
 
-    AdvanceComputationStage(
-        request.token.toDatabaseEditToken(),
-        nextStage = request.nextComputationStage,
-        nextStageDetails = request.stageDetails,
-        inputBlobPaths = request.inputBlobsList,
-        passThroughBlobPaths = request.passThroughBlobsList,
-        outputBlobs = request.outputBlobs,
-        afterTransition = afterTransition,
-        lockExtension = lockExtension,
-        clock = clock,
-        protocolStagesEnumHelper = protocolStagesEnumHelper
-      )
-      .execute(client, idGenerator)
+    val token =
+      try {
+        AdvanceComputationStage(
+            request.token.toDatabaseEditToken(),
+            nextStage = request.nextComputationStage,
+            nextStageDetails = request.stageDetails,
+            inputBlobPaths = request.inputBlobsList,
+            passThroughBlobPaths = request.passThroughBlobsList,
+            outputBlobs = request.outputBlobs,
+            afterTransition = afterTransition,
+            lockExtension = lockExtension,
+            clock = clock,
+            protocolStagesEnumHelper = protocolStagesEnumHelper,
+            computationReader = computationReader,
+          )
+          .execute(client, idGenerator)
+      } catch (ex: UnknownDataError) {
+        throw ex.asStatusRuntimeException(Status.Code.INTERNAL)
+      }
 
     sendStatusUpdateToKingdom(
       newCreateComputationLogEntryRequest(
@@ -416,11 +431,6 @@ class PostgresComputationsService(
       )
     )
 
-    val token =
-      computationReader.readComputationToken(client, request.token.globalComputationId)
-        ?: failGrpc(Status.INTERNAL) {
-          "Computation ${request.token.globalComputationId} not found."
-        }
     return token.toAdvanceComputationStageResponse()
   }
 
@@ -450,19 +460,20 @@ class PostgresComputationsService(
   override suspend fun recordRequisitionBlobPath(
     request: RecordRequisitionBlobPathRequest
   ): RecordRequisitionBlobPathResponse {
-    RecordRequisitionBlobPath(
-        clock = clock,
-        localId = request.token.localComputationId,
-        externalRequisitionKey = request.key,
-        pathToBlob = request.blobPath
-      )
-      .execute(client, idGenerator)
-
     val token =
-      computationReader.readComputationToken(client, request.token.globalComputationId)
-        ?: failGrpc(Status.INTERNAL) {
-          "Computation ${request.token.globalComputationId} not found."
-        }
+      try {
+        RecordRequisitionBlobPath(
+            clock = clock,
+            localId = request.token.localComputationId,
+            externalRequisitionKey = request.key,
+            pathToBlob = request.blobPath,
+            computationReader = computationReader,
+          )
+          .execute(client, idGenerator)
+      } catch (ex: UnknownDataError) {
+        throw ex.asStatusRuntimeException(Status.Code.INTERNAL)
+      }
+
     return token.toRecordRequisitionBlobPathResponse()
   }
 

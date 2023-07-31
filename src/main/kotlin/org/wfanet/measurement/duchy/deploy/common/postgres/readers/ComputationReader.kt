@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.deploy.common.postgres.readers
 
 import com.google.protobuf.Timestamp
 import java.time.Instant
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.toSet
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
@@ -76,6 +77,29 @@ class ComputationReader(
       lockOwner = row["LockOwner"],
       lockExpirationTime = row.get<Instant?>("LockExpirationTime")?.toProtoTime()
     )
+  }
+
+  data class UnclaimedTaskQueryResult(
+    val computationId: Long,
+    val globalId: String,
+    val computationStage: Long,
+    val creationTime: Instant,
+    val updateTime: Instant,
+    val nextAttempt: Long
+  )
+
+  private fun buildUnclaimedTaskQueryResult(row: ResultRow): UnclaimedTaskQueryResult =
+    UnclaimedTaskQueryResult(
+      row["ComputationId"],
+      row["GlobalComputationId"],
+      row["ComputationStage"],
+      row["CreationTime"],
+      row["UpdateTime"],
+      row["NextAttempt"]
+    )
+
+  data class LockOwnerQueryResult(val lockOwner: String?, val updateTime: Instant) {
+    constructor(row: ResultRow) : this(lockOwner = row["LockOwner"], updateTime = row["UpdateTime"])
   }
 
   private fun buildComputationToken(
@@ -172,6 +196,31 @@ class ComputationReader(
   /**
    * Reads a [ComputationToken] by globalComputationId.
    *
+   * @param readContext The [ReadContext] for reading from the Postgres database.
+   * @param globalComputationId A global identifier for a computation.
+   * @return [ComputationToken] when a Computation with globalComputationId is found, or null.
+   */
+  suspend fun readComputationToken(
+    readContext: ReadContext,
+    globalComputationId: String
+  ): ComputationToken? {
+    val computation: Computation = readComputation(readContext, globalComputationId) ?: return null
+
+    val blobs =
+      blobReferenceReader.readBlobMetadata(
+        readContext,
+        computation.localComputationId,
+        computation.computationStage
+      )
+    val requisitions =
+      requisitionReader.readRequisitionMetadata(readContext, computation.localComputationId)
+
+    return buildComputationToken(computation, blobs, requisitions)
+  }
+
+  /**
+   * Reads a [ComputationToken] by globalComputationId.
+   *
    * @param client The [DatabaseClient] to the Postgres database.
    * @param globalComputationId A global identifier for a computation.
    * @return [ComputationToken] when a Computation with globalComputationId is found, or null.
@@ -182,22 +231,35 @@ class ComputationReader(
   ): ComputationToken? {
     val readContext = client.readTransaction()
     try {
-      val computation: Computation =
-        readComputation(readContext, globalComputationId) ?: return null
-
-      val blobs =
-        blobReferenceReader.readBlobMetadata(
-          readContext,
-          computation.localComputationId,
-          computation.computationStage
-        )
-      val requisitions =
-        requisitionReader.readRequisitionMetadata(readContext, computation.localComputationId)
-
-      return buildComputationToken(computation, blobs, requisitions)
+      return readComputationToken(readContext, globalComputationId)
     } finally {
       readContext.close()
     }
+  }
+
+  /**
+   * Reads a [ComputationToken] by externalRequisitionKey.
+   *
+   * @param readContext The [ReadContext] for reading from the Postgres database.
+   * @param externalRequisitionKey The [ExternalRequisitionKey] for a computation.
+   * @return [ComputationToken] when a Computation with externalRequisitionKey is found, or null.
+   */
+  suspend fun readComputationToken(
+    readContext: ReadContext,
+    externalRequisitionKey: ExternalRequisitionKey
+  ): ComputationToken? {
+    val computation = readComputation(readContext, externalRequisitionKey) ?: return null
+
+    val blobs =
+      blobReferenceReader.readBlobMetadata(
+        readContext,
+        computation.localComputationId,
+        computation.computationStage
+      )
+    val requisitions =
+      requisitionReader.readRequisitionMetadata(readContext, computation.localComputationId)
+
+    return buildComputationToken(computation, blobs, requisitions)
   }
 
   /**
@@ -213,18 +275,7 @@ class ComputationReader(
   ): ComputationToken? {
     val readContext = client.readTransaction()
     try {
-      val computation = readComputation(readContext, externalRequisitionKey) ?: return null
-
-      val blobs =
-        blobReferenceReader.readBlobMetadata(
-          readContext,
-          computation.localComputationId,
-          computation.computationStage
-        )
-      val requisitions =
-        requisitionReader.readRequisitionMetadata(readContext, computation.localComputationId)
-
-      return buildComputationToken(computation, blobs, requisitions)
+      return readComputationToken(readContext, externalRequisitionKey)
     } finally {
       readContext.close()
     }
@@ -284,5 +335,57 @@ class ComputationReader(
       .executeQuery(query)
       .consume { row -> row.get<String>("GlobalComputationId") }
       .toSet()
+  }
+
+  /**
+   * Reads a list of unclaimed computation tasks
+   *
+   * @param readContext The transaction context for reading from the Postgres database.
+   * @param protocol The enum value of target computation type.
+   * @param timestamp An [Instant] to filter for the expired computation locks.
+   * @return a flow of [UnclaimedTaskQueryResult]
+   */
+  suspend fun listUnclaimedTasks(
+    readContext: ReadContext,
+    protocol: Long,
+    timestamp: Instant,
+  ): Flow<UnclaimedTaskQueryResult> {
+    val listUnclaimedTasksSql =
+      boundStatement(
+        """
+      SELECT c.ComputationId,  c.GlobalComputationId,
+             c.Protocol, c.ComputationStage, c.UpdateTime,
+             c.CreationTime, cs.NextAttempt
+      FROM Computations AS c
+        JOIN ComputationStages AS cs
+      ON c.ComputationId = cs.ComputationId
+        AND c.ComputationStage = cs.ComputationStage
+      WHERE c.Protocol = $1
+        AND c.LockExpirationTime IS NOT NULL
+        AND c.LockExpirationTime <= $2
+      ORDER BY c.CreationTime ASC, c.LockExpirationTime ASC, c.UpdateTime ASC
+      LIMIT 50;
+      """
+      ) {
+        bind("$1", protocol)
+        bind("$2", timestamp)
+      }
+
+    return readContext.executeQuery(listUnclaimedTasksSql).consume(::buildUnclaimedTaskQueryResult)
+  }
+
+  suspend fun readLockOwner(readContext: ReadContext, computationId: Long): LockOwnerQueryResult? {
+    val readLockOwnerSql =
+      boundStatement(
+        """
+      SELECT LockOwner, UpdateTime
+      FROM Computations
+      WHERE
+        ComputationId = $1;
+      """
+      ) {
+        bind("$1", computationId)
+      }
+    return readContext.executeQuery(readLockOwnerSql).consume(::LockOwnerQueryResult).firstOrNull()
   }
 }

@@ -22,8 +22,11 @@ import org.wfanet.measurement.duchy.db.computation.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
+import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationReader
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationStageAttemptReader
+import org.wfanet.measurement.duchy.service.internal.UnknownDataError
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
+import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.copy
 
 /**
@@ -46,8 +49,9 @@ class FinishComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Me
   private val protocolStagesEnumHelper: ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
   private val protocolStageDetailsHelper:
     ComputationProtocolStageDetailsHelper<ProtocolT, StageT, StageDT, ComputationDT>,
-) : PostgresWriter<Unit>() {
-  override suspend fun TransactionScope.runTransaction() {
+  private val computationReader: ComputationReader,
+) : PostgresWriter<ComputationToken>() {
+  override suspend fun TransactionScope.runTransaction(): ComputationToken {
     val protocol = token.protocol
     val localId = token.localId
     val editVersion = token.editVersion
@@ -132,6 +136,9 @@ class FinishComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Me
           details = unfinished.details.copy { reasonEnded = reason },
         )
       }
+
+    return computationReader.readComputationToken(transactionContext, token.globalId)
+      ?: throw UnknownDataError()
   }
 
   companion object {
