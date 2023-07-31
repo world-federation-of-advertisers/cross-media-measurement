@@ -18,10 +18,10 @@ import {
   InitApiProps,
   ListReportsResponse,
 } from './models';
-import {ReportApi} from './reportApi';
+import {IReportingApi} from './IReportingApi';
 import path from 'path';
 
-export class RealApi implements ReportApi {
+export class RealApi implements IReportingApi {
   // eslint-disable-next-line node/no-unsupported-features/node-builtins
   baseUrl: URL = new URL('');
 
@@ -51,9 +51,5 @@ export class RealApi implements ReportApi {
           report: undefined,
         };
       });
-  }
-
-  async createReport(): Promise<void> {
-    throw new Error('Method not implemented.');
   }
 }

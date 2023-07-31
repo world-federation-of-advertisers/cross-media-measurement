@@ -20,12 +20,12 @@ import {
   ListReportsResponse,
   Report,
 } from './models';
-import {ReportApi} from './reportApi';
+import {IReportingApi} from './IReportingApi';
 
 export class ReportingApi {
   reports: Report[] = [];
 
-  constructor(private api: ReportApi) {}
+  constructor(private api: IReportingApi) {}
 
   init(props: InitApiProps): void {
     this.api.init(props);
@@ -36,12 +36,8 @@ export class ReportingApi {
   }
 
   getReport(req: GetReportRequest): Promise<GetReportResponse> {
-    const getCached = memoizePromiseFn(this.api.getReport(req));
+    const getCached = memoizePromiseFn(this.api.getReport);
 
-    return getCached(req, this.reports);
-  }
-
-  createReport(): Promise<void> {
-    throw new Error('Method not implemented.');
+    return getCached(req);
   }
 }
