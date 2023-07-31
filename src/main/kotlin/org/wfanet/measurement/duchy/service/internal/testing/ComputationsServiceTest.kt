@@ -303,7 +303,24 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   }
 
   @Test
-  fun `purgeComputations only deletes computations of terminal target stages`() = runBlocking {
+  fun `purgeComputations throws INVALID_ARGUMENT exception when target stage is non-terminal`() =
+    runBlocking {
+      val currentTime = clock.last()
+      val purgeComputationsRequest = purgeComputationsRequest {
+        updatedBefore = currentTime.plusSeconds(1000L).toProtoTime()
+        stages += Stage.COMPLETE.toProtocolStage()
+        stages += Stage.INITIALIZATION_PHASE.toProtocolStage()
+        force = true
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.purgeComputations(purgeComputationsRequest)
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `purgeComputations only deletes computations of target stages`() = runBlocking {
     // Creates a computation in WAIT_REQUISITIONS_AND_KEY_SET stage
     service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
     val claimWorkResponse = service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
@@ -358,7 +375,6 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
         purgeComputationsRequest {
           updatedBefore = currentTime.plusSeconds(1000L).toProtoTime()
           stages += Stage.COMPLETE.toProtocolStage()
-          stages += Stage.WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage()
           force = false
         }
       )

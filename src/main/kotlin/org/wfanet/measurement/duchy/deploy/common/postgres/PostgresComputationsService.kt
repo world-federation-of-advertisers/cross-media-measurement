@@ -251,19 +251,22 @@ class PostgresComputationsService(
   override suspend fun purgeComputations(
     request: PurgeComputationsRequest
   ): PurgeComputationsResponse {
-    val terminalStages =
-      request.stagesList.filter {
+    grpcRequire(
+      request.stagesList.all {
         protocolStagesEnumHelper.validTerminalStage(
           protocolStagesEnumHelper.stageToProtocol(it),
           it
         )
       }
+    ) {
+      "Requested stage list contains non terminal stage."
+    }
     var deleted = 0
     try {
       val globalIds: Set<String> =
         computationReader.readGlobalComputationIds(
           client.singleUse(),
-          terminalStages,
+          request.stagesList,
           request.updatedBefore.toInstant()
         )
       if (!request.force) {

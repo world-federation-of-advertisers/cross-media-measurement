@@ -163,15 +163,18 @@ class ComputationsService(
   override suspend fun purgeComputations(
     request: PurgeComputationsRequest
   ): PurgeComputationsResponse {
-    val terminalStages =
-      request.stagesList.filter {
+    grpcRequire(
+      request.stagesList.all {
         computationsDatabase.validTerminalStage(computationsDatabase.stageToProtocol(it), it)
       }
+    ) {
+      "Requested stage list contains non terminal stage."
+    }
     var deleted = 0
     try {
       val globalIds =
         computationsDatabase.readGlobalComputationIds(
-          terminalStages.toSet(),
+          request.stagesList.toSet(),
           request.updatedBefore.toInstant()
         )
       if (!request.force) {

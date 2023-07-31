@@ -427,7 +427,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
         protocol = FakeProtocol.ZERO,
         stage = C,
         attempt = 1,
-        editVersion = lastUpdated.toEpochMilli()
+        editVersion = lastUpdated.toEpochMilli(),
+        globalId = "0"
       )
 
     val computation =
@@ -435,7 +436,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
         localId = token.localId,
         creationTime = lastUpdated.toGcloudTimestamp(),
         updateTime = lastUpdated.toGcloudTimestamp(),
-        globalId = "0",
+        globalId = token.globalId,
         protocol = token.protocol,
         stage = token.stage,
         lockOwner = "PeterSpacemen",
@@ -501,7 +502,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
           protocol = FakeProtocol.ZERO,
           stage = C,
           attempt = 1,
-          editVersion = 0
+          editVersion = 0,
+          globalId = "0"
         )
       assertFailsWith<IllegalStateException> { database.enqueue(token, 0) }
     }
@@ -517,7 +519,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
           protocol = FakeProtocol.ZERO,
           stage = C,
           attempt = 1,
-          editVersion = lastUpdated.minusSeconds(200).toEpochMilli()
+          editVersion = lastUpdated.minusSeconds(200).toEpochMilli(),
+          globalId = "1234"
         )
 
       val computation =
@@ -525,7 +528,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
           localId = token.localId,
           creationTime = lastUpdated.toGcloudTimestamp(),
           updateTime = lastUpdated.toGcloudTimestamp(),
-          globalId = "1234",
+          globalId = token.globalId,
           protocol = FakeProtocol.ONE,
           stage = token.stage,
           lockOwner = "AnOwnedLock",
@@ -782,7 +785,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
         protocol = FakeProtocol.ONE,
         stage = B,
         attempt = 2,
-        editVersion = testClock["last_updated"].toEpochMilli()
+        editVersion = testClock["last_updated"].toEpochMilli(),
+        globalId = globalId
       )
     val computation =
       computationMutations.insertComputation(
@@ -1041,7 +1045,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
           attempt = 1,
           protocol = FakeProtocol.ZERO,
           stage = A,
-          editVersion = 0
+          editVersion = 0,
+          globalId = "0"
         )
       assertFailsWith<IllegalArgumentException> {
         database.updateComputationStage(
@@ -1066,7 +1071,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
           protocol = FakeProtocol.ZERO,
           stage = B,
           attempt = 1,
-          editVersion = testClock.last().toEpochMilli()
+          editVersion = testClock.last().toEpochMilli(),
+          globalId = "2002"
         )
       val computation =
         computationMutations.insertComputation(
@@ -1075,7 +1081,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
           stage = B,
           creationTime = testClock.last().toGcloudTimestamp(),
           updateTime = testClock.last().toGcloudTimestamp(),
-          globalId = "2002",
+          globalId = token.globalId,
           lockOwner = WRITE_NULL_STRING,
           lockExpirationTime = WRITE_NULL_TIMESTAMP,
           details = FAKE_COMPUTATION_DETAILS
@@ -1162,7 +1168,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
         protocol = FakeProtocol.ZERO,
         stage = C,
         attempt = 2,
-        editVersion = lastUpdated.toEpochMilli()
+        editVersion = lastUpdated.toEpochMilli(),
+        globalId = "55"
       )
     val computation =
       computationMutations.insertComputation(
@@ -1171,7 +1178,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
         updateTime = lastUpdated.toGcloudTimestamp(),
         protocol = token.protocol,
         stage = token.stage,
-        globalId = "55",
+        globalId = token.globalId,
         lockOwner = "PeterSpacemen",
         lockExpirationTime = lockExpires.toGcloudTimestamp(),
         details = FAKE_COMPUTATION_DETAILS
@@ -1224,7 +1231,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
         protocol = FakeProtocol.ZERO,
         stage = C,
         attempt = 2,
-        editVersion = lastUpdated.toEpochMilli()
+        editVersion = lastUpdated.toEpochMilli(),
+        globalId = "55"
       )
     val computation =
       computationMutations.insertComputation(
@@ -1233,7 +1241,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
         updateTime = lastUpdated.toGcloudTimestamp(),
         protocol = token.protocol,
         stage = token.stage,
-        globalId = "55",
+        globalId = token.globalId,
         lockOwner = "PeterSpacemen",
         lockExpirationTime = lockExpires.toGcloudTimestamp(),
         details = FAKE_COMPUTATION_DETAILS
@@ -1351,7 +1359,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
         protocol = FakeProtocol.ZERO,
         stage = C,
         attempt = 2,
-        editVersion = lastUpdated.toEpochMilli()
+        editVersion = lastUpdated.toEpochMilli(),
+        globalId = "55"
       )
     val computation =
       computationMutations.insertComputation(
@@ -1360,7 +1369,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
         updateTime = lastUpdated.toGcloudTimestamp(),
         protocol = token.protocol,
         stage = token.stage,
-        globalId = "55",
+        globalId = token.globalId,
         lockOwner = "PeterSpacemen",
         lockExpirationTime = lockExpires.toGcloudTimestamp(),
         details = FAKE_COMPUTATION_DETAILS
@@ -1456,7 +1465,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
         protocol = FakeProtocol.ZERO,
         stage = C,
         attempt = 2,
-        editVersion = testClock.last().toEpochMilli()
+        editVersion = testClock.last().toEpochMilli(),
+        globalId = "55"
       )
     val computation =
       computationMutations.insertComputation(
@@ -1465,7 +1475,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
         updateTime = testClock.last().toGcloudTimestamp(),
         protocol = token.protocol,
         stage = C,
-        globalId = "55",
+        globalId = token.globalId,
         lockOwner = WRITE_NULL_STRING,
         lockExpirationTime = testClock.last().toGcloudTimestamp(),
         details = FAKE_COMPUTATION_DETAILS
@@ -1574,7 +1584,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
         protocol = FakeProtocol.ZERO,
         stage = C,
         attempt = 1,
-        editVersion = testClock.last().toEpochMilli()
+        editVersion = testClock.last().toEpochMilli(),
+        globalId = globalId
       )
     val computation =
       computationMutations.insertComputation(
@@ -1668,7 +1679,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
           protocol = FakeProtocol.ZERO,
           stage = C,
           attempt = 1,
-          editVersion = testClock.last().toEpochMilli()
+          editVersion = testClock.last().toEpochMilli(),
+          globalId = "55"
         )
       assertFailsWith(IllegalArgumentException::class, "Invalid initial stage") {
         database.endComputation(token, B, EndComputationReason.CANCELED, FAKE_COMPUTATION_DETAILS)
