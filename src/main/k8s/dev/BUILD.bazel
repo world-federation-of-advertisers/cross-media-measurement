@@ -303,6 +303,18 @@ cue_dump(
 )
 
 kustomization_dir(
+    name = "synthetic_generator_config_files",
+    testonly = True,
+    srcs = [
+        "synthetic_generator_config_files_kustomization.yaml",
+        "//src/main/k8s/testing/data:synthetic_generation_specs",
+    ],
+    renames = {
+        "synthetic_generator_config_files_kustomization.yaml": "kustomization.yaml",
+    },
+)
+
+kustomization_dir(
     name = "synthetic_generator_edp_simulators",
     testonly = True,
     srcs = [
@@ -312,6 +324,7 @@ kustomization_dir(
     generate_kustomization = True,
     tags = ["manual"],
     deps = [
+        ":synthetic_generator_config_files",
         "//src/main/k8s/testing/secretfiles:kustomization",
     ],
 )

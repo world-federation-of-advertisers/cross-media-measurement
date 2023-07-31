@@ -259,7 +259,6 @@ kt_jvm_library(
     deps = [
         ":edp_simulator_runner",
         ":synthetic_generator_event_query",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:event_group_metadata",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],

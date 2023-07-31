@@ -1,10 +1,10 @@
-# Copyright 2022 The Cross-Media Measurement Authors
+# Copyright 2023 The Cross-Media Measurement Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,9 +15,6 @@
 configMapGenerator:
 - name: config-files
   files:
-  - authority_key_identifier_to_principal_map.textproto
-  - encryption_key_pair_config.textproto
-  - metric_spec_config.textproto
   - synthetic_population_spec.textproto
   - synthetic_event_group_spec_1.textproto
   - synthetic_event_group_spec_2.textproto
