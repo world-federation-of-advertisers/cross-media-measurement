@@ -104,7 +104,7 @@ class EdpSimulatorFlags {
   @CommandLine.Option(
     names = ["--composition-mechanism"],
     description = ["Composition mechanism in Privacy Budget Manager"],
-    defaultValue = "DP_ADVANCED",
+    defaultValue = "ACDP",
   )
   lateinit var compositionMechanism: CompositionMechanism
     private set

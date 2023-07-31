@@ -12,7 +12,7 @@ protocol_config {
   }
   elliptic_curve_id: 415
   maximum_frequency: 10
-  noise_mechanism: GEOMETRIC
+  noise_mechanism: DISCRETE_GAUSSIAN
 }
 duchy_protocol_config {
   mpc_noise {

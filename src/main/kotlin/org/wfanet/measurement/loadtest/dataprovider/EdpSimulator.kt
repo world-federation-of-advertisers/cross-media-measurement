@@ -1237,7 +1237,6 @@ class EdpSimulator(
   /**
    * Build [Measurement.Result] of the measurement type specified in [MeasurementSpec].
    *
-   * @param requisition Requisition.
    * @param measurementSpec Measurement spec.
    * @param samples sampled events.
    * @return [Measurement.Result].
@@ -1376,10 +1375,10 @@ class EdpSimulator(
     val preferences =
       when (compositionMechanism) {
         CompositionMechanism.DP_ADVANCED -> {
-          DIRECT_REACH_AND_FREQUENCY_NOISE_MECHANISM_PREFERENCES
+          DIRECT_MEASUREMENT_DP_NOISE_MECHANISM_PREFERENCES
         }
         CompositionMechanism.ACDP -> {
-          DIRECT_REACH_AND_FREQUENCY_ACDP_NOISE_MECHANISM_PREFERENCES
+          DIRECT_MEASUREMENT_ACDP_NOISE_MECHANISM_PREFERENCES
         }
       }
 
@@ -1397,7 +1396,15 @@ class EdpSimulator(
   private fun selectImpressionNoiseMechanism(
     options: Set<DirectNoiseMechanism>
   ): DirectNoiseMechanism {
-    val preferences = listOf(DirectNoiseMechanism.NONE)
+    val preferences =
+      when (compositionMechanism) {
+        CompositionMechanism.DP_ADVANCED -> {
+          DIRECT_MEASUREMENT_DP_NOISE_MECHANISM_PREFERENCES
+        }
+        CompositionMechanism.ACDP -> {
+          DIRECT_MEASUREMENT_ACDP_NOISE_MECHANISM_PREFERENCES
+        }
+      }
 
     return preferences.firstOrNull { preference -> options.contains(preference) }
       ?: throw RequisitionRefusalException(
@@ -1414,7 +1421,15 @@ class EdpSimulator(
   private fun selectWatchDurationNoiseMechanism(
     options: Set<DirectNoiseMechanism>
   ): DirectNoiseMechanism {
-    val preferences = listOf(DirectNoiseMechanism.NONE)
+    val preferences =
+      when (compositionMechanism) {
+        CompositionMechanism.DP_ADVANCED -> {
+          DIRECT_MEASUREMENT_DP_NOISE_MECHANISM_PREFERENCES
+        }
+        CompositionMechanism.ACDP -> {
+          DIRECT_MEASUREMENT_ACDP_NOISE_MECHANISM_PREFERENCES
+        }
+      }
 
     return preferences.firstOrNull { preference -> options.contains(preference) }
       ?: throw RequisitionRefusalException(
@@ -1506,16 +1521,17 @@ class EdpSimulator(
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-    // The noise mechanisms for reach and frequency are in order of preference.
-    private val DIRECT_REACH_AND_FREQUENCY_NOISE_MECHANISM_PREFERENCES =
+    // The direct noise mechanisms for DP_ADVANCED composition in PBM for direct measurements in
+    // order of preference.
+    private val DIRECT_MEASUREMENT_DP_NOISE_MECHANISM_PREFERENCES =
       listOf(
         DirectNoiseMechanism.CONTINUOUS_LAPLACE,
         DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
       )
-    // The direct noise mechanisms for ACDP composition in PBM for reach and frequency in order
+    // The direct noise mechanisms for ACDP composition in PBM for direct measurements in order
     // of preference. Currently, ACDP composition only supports CONTINUOUS_GAUSSIAN noise for direct
-    // measurements
-    private val DIRECT_REACH_AND_FREQUENCY_ACDP_NOISE_MECHANISM_PREFERENCES =
+    // measurements.
+    private val DIRECT_MEASUREMENT_ACDP_NOISE_MECHANISM_PREFERENCES =
       listOf(
         DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
       )

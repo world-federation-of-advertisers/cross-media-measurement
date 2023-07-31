@@ -280,7 +280,7 @@ class PrivacyBudgetLedgerTest {
 
       // chargeInAcdp is no op when privacyBucketGroups is empty
       ledger.chargeInAcdp(createReference(0), setOf(), setOf(acdpCharge))
-      // The acdp charges succeed and fills the Privacy Budget.
+      // The acdpCharges succeed and fills the Privacy Budget.
       ledger.chargeInAcdp(createReference(1), setOf(bucket), setOf(acdpCharge))
 
       // The next acdpCharge should exceed the budget.
@@ -306,9 +306,9 @@ class PrivacyBudgetLedgerTest {
         )
       val acdpCharge = AcdpCharge(0.04, 5.0E-6)
 
-      // The acdp charges succeed and doesn't charge anything.
+      // The acdpCharges succeed and doesn't charge anything.
       ledger.chargeInAcdp(createReference(0), setOf(bucket), setOf())
-      // The acdp charges succeed and fills the Privacy Budget.
+      // The acdpCharges succeed and fills the Privacy Budget.
       ledger.chargeInAcdp(createReference(1), setOf(bucket), setOf(acdpCharge))
 
       // Next acdpCharge should exceed the budget.
@@ -339,7 +339,7 @@ class PrivacyBudgetLedgerTest {
       }
 
       assertFailsWith<PrivacyBudgetManagerException> {
-        ledger.chargeInAcdp(createReference(30), setOf(bucket), setOf(acdpCharge))
+        ledger.chargeInAcdp(createReference(10), setOf(bucket), setOf(acdpCharge))
       }
     }
 
@@ -358,7 +358,7 @@ class PrivacyBudgetLedgerTest {
         0.1f
       )
     val acdpCharge = AcdpCharge(0.04, 5.0E-6)
-    // Only the first acdp charge would fill the budget, rest are not processed by the ledger
+    // Only the first acdpCharge would fill the budget, rest are not processed by the ledger
     for (i in 1..100) {
       ledger.chargeInAcdp(createReference(0), setOf(bucket), setOf(acdpCharge))
     }
@@ -381,7 +381,7 @@ class PrivacyBudgetLedgerTest {
         )
       val acdpCharge = AcdpCharge(0.04, 5.0E-6)
 
-      // The acdp charge succeed and fills the Privacy Budget.
+      // The acdpCharge succeed and fills the Privacy Budget.
       ledger.chargeInAcdp(createReference(0), setOf(bucket), setOf(acdpCharge))
 
       assertFailsWith<PrivacyBudgetManagerException> {
@@ -390,10 +390,10 @@ class PrivacyBudgetLedgerTest {
 
       // The refund opens up Privacy Budget.
       ledger.chargeInAcdp(createReference(2, true), setOf(bucket), setOf(acdpCharge))
-      // Thus, this charge succeeds and fills the budget.
+      // Thus, this acdpCharge succeeds and fills the budget.
       ledger.chargeInAcdp(createReference(3), setOf(bucket), setOf(acdpCharge))
 
-      // Then this charge fails.
+      // Then this acdpCharge fails.
       assertFailsWith<PrivacyBudgetManagerException> {
         ledger.chargeInAcdp(createReference(4), setOf(bucket), setOf(acdpCharge))
       }
@@ -415,7 +415,7 @@ class PrivacyBudgetLedgerTest {
           0.1f
         )
 
-      // The charges succeed and fills the privacy budget.
+      // The acdpCharges succeed and fills the privacy budget.
       ledger.chargeInAcdp(createReference(0), setOf(bucket), setOf(AcdpCharge(0.04, 5.0E-6)))
       ledger.chargeInAcdp(createReference(1), setOf(bucket), setOf(AcdpCharge(0.05, 5.0E-6)))
       ledger.chargeInAcdp(createReference(2), setOf(bucket), setOf(AcdpCharge(0.06, 5.0E-6)))
@@ -455,18 +455,18 @@ class PrivacyBudgetLedgerTest {
         )
 
       val acdpCharge = AcdpCharge(0.04, 5.0E-6)
-      // The charges succeed and fills the Privacy Budget.
+      // The acdpCharges succeed and fills the Privacy Budget.
       ledger.chargeInAcdp(createReference(0), setOf(bucket1), setOf(acdpCharge))
       ledger.chargeInAcdp(createReference(1), setOf(bucket2), setOf(acdpCharge))
       ledger.chargeInAcdp(createReference(2), setOf(bucket1), setOf(acdpCharge))
       ledger.chargeInAcdp(createReference(3), setOf(bucket2), setOf(acdpCharge))
 
-      // DpCharge should exceed the budget.
+      // acdpCharge should exceed the budget.
       assertFailsWith<PrivacyBudgetManagerException> {
         ledger.chargeInAcdp(createReference(4), setOf(bucket1), setOf(acdpCharge))
       }
 
-      // DpCharge should exceed the budget.
+      // acdpCharge should exceed the budget.
       assertFailsWith<PrivacyBudgetManagerException> {
         ledger.chargeInAcdp(createReference(5), setOf(bucket2), setOf(acdpCharge))
       }
