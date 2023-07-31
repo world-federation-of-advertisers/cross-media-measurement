@@ -245,12 +245,17 @@ private const val MODEL_LINE_ACTIVE_END_TIME = "2030-05-24T05:00:00.000Z"
 private const val MODEL_OUTAGE_ACTIVE_START_TIME = "2026-05-24T05:00:00.000Z"
 private const val MODEL_OUTAGE_ACTIVE_END_TIME = "2026-05-29T05:00:00.000Z"
 
-private const val MODEL_ROLLOUT_ACTIVE_START_TIME = "2026-05-24T05:00:00.000Z"
-private const val MODEL_ROLLOUT_ACTIVE_START_DATE = "2026-05-24"
-private const val MODEL_ROLLOUT_ACTIVE_END_TIME = "2026-09-24T05:00:00.000Z"
-private const val MODEL_ROLLOUT_ACTIVE_END_DATE = "2026-09-24"
-private const val MODEL_ROLLOUT_FREEZE_TIME = "2026-07-24T05:00:00.000Z"
-private const val MODEL_ROLLOUT_FREEZE_DATE = "2026-07-24"
+private val MODEL_ROLLOUT_ACTIVE_START_DATE = date {
+  year = 2026
+  month = 5
+  day = 24
+}
+private val MODEL_ROLLOUT_ACTIVE_END_DATE = date {
+  year = 2026
+  month = 9
+  day = 24
+}
+private const val MODEL_ROLLOUT_FREEZE_DATE = "2026-07-24T05:00:00.000Z"
 
 private val DATA_PROVIDER = dataProvider {
   name = DATA_PROVIDER_NAME
@@ -320,8 +325,8 @@ private val MODEL_SHARD = modelShard {
 private val MODEL_ROLLOUT = modelRollout {
   name = MODEL_ROLLOUT_NAME
   gradualRolloutPeriod = dateInterval {
-    this.startDate = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toDate()
-    this.endDate = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toDate()
+    this.startDate = MODEL_ROLLOUT_ACTIVE_START_DATE
+    this.endDate = MODEL_ROLLOUT_ACTIVE_END_DATE
   }
   previousModelRollout = "previous model"
   modelRelease = MODEL_RELEASE_NAME
@@ -330,10 +335,10 @@ private val MODEL_ROLLOUT = modelRollout {
 private val MODEL_ROLLOUT_WITH_FREEZE_TIME = modelRollout {
   name = MODEL_ROLLOUT_NAME
   gradualRolloutPeriod = dateInterval {
-    this.startDate = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toDate()
-    this.endDate = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toDate()
+    this.startDate = MODEL_ROLLOUT_ACTIVE_START_DATE
+    this.endDate = MODEL_ROLLOUT_ACTIVE_END_DATE
   }
-  rolloutFreezeDate = Instant.parse(MODEL_ROLLOUT_FREEZE_TIME).toDate()
+  rolloutFreezeDate = Instant.parse(MODEL_ROLLOUT_FREEZE_DATE).toDate()
   previousModelRollout = "previous model"
   modelRelease = MODEL_RELEASE_NAME
 }
@@ -1628,8 +1633,8 @@ class MeasurementSystemTest {
           "model-rollouts",
           "create",
           "--parent=$MODEL_LINE_NAME",
-          "--rollout-start-date=$MODEL_ROLLOUT_ACTIVE_START_DATE",
-          "--rollout-end-date=$MODEL_ROLLOUT_ACTIVE_END_DATE",
+          "--rollout-start-date=2026-05-24",
+          "--rollout-end-date=2026-09-24",
           "--model-release=$MODEL_RELEASE_NAME",
         )
     callCli(args)
@@ -1645,8 +1650,8 @@ class MeasurementSystemTest {
           parent = MODEL_LINE_NAME
           modelRollout = modelRollout {
             gradualRolloutPeriod = dateInterval {
-              startDate = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toDate()
-              endDate = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toDate()
+              startDate = MODEL_ROLLOUT_ACTIVE_START_DATE
+              endDate = MODEL_ROLLOUT_ACTIVE_END_DATE
             }
             modelRelease = MODEL_RELEASE_NAME
           }
@@ -1664,8 +1669,8 @@ class MeasurementSystemTest {
           "--parent=$MODEL_LINE_NAME",
           "--page-size=10",
           "--page-token=token",
-          "--rollout-period-overlapping-start-date=$MODEL_ROLLOUT_ACTIVE_START_DATE",
-          "--rollout-period-overlapping-end-date=$MODEL_ROLLOUT_ACTIVE_END_DATE"
+          "--rollout-period-overlapping-start-date=2026-05-24",
+          "--rollout-period-overlapping-end-date=2026-09-24"
         )
     callCli(args)
 
@@ -1683,8 +1688,8 @@ class MeasurementSystemTest {
           filter =
             ListModelRolloutsRequestKt.filter {
               rolloutPeriodOverlapping = dateInterval {
-                startDate = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toDate()
-                endDate = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toDate()
+                startDate = MODEL_ROLLOUT_ACTIVE_START_DATE
+                endDate = MODEL_ROLLOUT_ACTIVE_END_DATE
               }
             }
         }
@@ -1699,7 +1704,7 @@ class MeasurementSystemTest {
           "model-rollouts",
           "schedule",
           "--name=$MODEL_ROLLOUT_NAME",
-          "--freeze-time=$MODEL_ROLLOUT_FREEZE_DATE",
+          "--freeze-time=2026-07-24",
         )
     callCli(args)
 
@@ -1712,7 +1717,7 @@ class MeasurementSystemTest {
       .isEqualTo(
         scheduleModelRolloutFreezeRequest {
           name = MODEL_ROLLOUT_NAME
-          rolloutFreezeDate = Instant.parse(MODEL_ROLLOUT_FREEZE_TIME).toDate()
+          rolloutFreezeDate = Instant.parse(MODEL_ROLLOUT_FREEZE_DATE).toDate()
         }
       )
   }

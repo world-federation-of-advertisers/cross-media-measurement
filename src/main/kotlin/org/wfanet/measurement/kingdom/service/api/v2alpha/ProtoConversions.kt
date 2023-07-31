@@ -14,14 +14,9 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
-import com.google.protobuf.Timestamp
-import com.google.protobuf.timestamp
 import com.google.protobuf.util.Timestamps
-import com.google.type.Date
 import com.google.type.date
 import com.google.type.interval
-import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneOffset
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -88,7 +83,10 @@ import org.wfanet.measurement.api.v2alpha.reachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.DifferentialPrivacyParams as InternalDifferentialPrivacyParams
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
 import org.wfanet.measurement.internal.kingdom.Exchange as InternalExchange
@@ -476,15 +474,23 @@ fun InternalModelRollout.toModelRollout(): ModelRollout {
         .toName()
 
     if (Timestamps.compare(source.rolloutPeriodStartTime, source.rolloutPeriodEndTime) == 0) {
-      instantRolloutDate = source.rolloutPeriodStartTime.toDate()
+      instantRolloutDate =
+        source.rolloutPeriodStartTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate().toProtoDate()
     } else {
       gradualRolloutPeriod = dateInterval {
-        startDate = source.rolloutPeriodStartTime.toDate()
-        endDate = source.rolloutPeriodEndTime.toDate()
+        startDate =
+          source.rolloutPeriodStartTime
+            .toInstant()
+            .atZone(ZoneOffset.UTC)
+            .toLocalDate()
+            .toProtoDate()
+        endDate =
+          source.rolloutPeriodEndTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate().toProtoDate()
       }
     }
 
-    rolloutFreezeDate = source.rolloutFreezeTime.toDate()
+    rolloutFreezeDate =
+      source.rolloutFreezeTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate().toProtoDate()
     if (source.externalPreviousModelRolloutId != 0L) {
       previousModelRollout =
         ModelRolloutKey(
@@ -522,19 +528,44 @@ fun ModelRollout.toInternal(
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     when (publicModelRollout.rolloutDeployPeriodCase) {
       ModelRollout.RolloutDeployPeriodCase.GRADUAL_ROLLOUT_PERIOD -> {
-        rolloutPeriodStartTime = publicModelRollout.gradualRolloutPeriod.startDate.toProtoTime()
-        rolloutPeriodEndTime = publicModelRollout.gradualRolloutPeriod.endDate.toProtoTime()
+        rolloutPeriodStartTime =
+          publicModelRollout.gradualRolloutPeriod.startDate
+            .toLocalDate()
+            .atStartOfDay()
+            .toInstant(ZoneOffset.UTC)
+            .toProtoTime()
+        rolloutPeriodEndTime =
+          publicModelRollout.gradualRolloutPeriod.endDate
+            .toLocalDate()
+            .atStartOfDay()
+            .toInstant(ZoneOffset.UTC)
+            .toProtoTime()
       }
       ModelRollout.RolloutDeployPeriodCase.INSTANT_ROLLOUT_DATE -> {
-        rolloutPeriodStartTime = publicModelRollout.instantRolloutDate.toProtoTime()
-        rolloutPeriodEndTime = publicModelRollout.instantRolloutDate.toProtoTime()
+        rolloutPeriodStartTime =
+          publicModelRollout.instantRolloutDate
+            .toLocalDate()
+            .atStartOfDay()
+            .toInstant(ZoneOffset.UTC)
+            .toProtoTime()
+        rolloutPeriodEndTime =
+          publicModelRollout.instantRolloutDate
+            .toLocalDate()
+            .atStartOfDay()
+            .toInstant(ZoneOffset.UTC)
+            .toProtoTime()
       }
       ModelRollout.RolloutDeployPeriodCase.ROLLOUTDEPLOYPERIOD_NOT_SET -> {
         error("RolloutDeployPeriod not set.")
       }
     }
 
-    rolloutFreezeTime = publicModelRollout.rolloutFreezeDate.toProtoTime()
+    rolloutFreezeTime =
+      publicModelRollout.rolloutFreezeDate
+        .toLocalDate()
+        .atStartOfDay()
+        .toInstant(ZoneOffset.UTC)
+        .toProtoTime()
     externalModelReleaseId = apiIdToExternalId(modelReleaseKey.modelReleaseId)
   }
 }
@@ -922,26 +953,5 @@ fun InternalEventGroup.State.toV2Alpha(): EventGroup.State {
     InternalEventGroup.State.ACTIVE -> EventGroup.State.ACTIVE
     InternalEventGroup.State.DELETED -> EventGroup.State.DELETED
     InternalEventGroup.State.UNRECOGNIZED -> error("Invalid InternalEventGroup state: $this")
-  }
-}
-
-// TODO(@MarcoPremier): Move this function to common-jvm.
-private fun Date.toProtoTime(): Timestamp {
-  val localDate = LocalDate.of(year, month, day)
-  val instant = localDate.atStartOfDay().toInstant(java.time.ZoneOffset.UTC)
-  return timestamp {
-    seconds = instant.epochSecond
-    nanos = instant.nano
-  }
-}
-
-// TODO(@MarcoPremier): Move this function to common-jvm.
-private fun Timestamp.toDate(): Date {
-  val instant = Instant.ofEpochSecond(seconds, nanos.toLong())
-  val localDate = instant.atZone(ZoneOffset.UTC).toLocalDate()
-  return date {
-    year = localDate.year
-    month = localDate.monthValue
-    day = localDate.dayOfMonth
   }
 }

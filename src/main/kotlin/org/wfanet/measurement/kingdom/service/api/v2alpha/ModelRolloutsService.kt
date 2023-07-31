@@ -17,15 +17,9 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.Empty
-import com.google.protobuf.Timestamp
-import com.google.protobuf.timestamp
-import com.google.type.Date
-import com.google.type.date
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
-import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
@@ -54,6 +48,10 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.ModelRollout as InternalModelRollout
 import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequest
@@ -152,7 +150,12 @@ class ModelRolloutsService(private val internalClient: ModelRolloutsCoroutineStu
       externalModelSuiteId = apiIdToExternalId(key.modelSuiteId)
       externalModelProviderId = apiIdToExternalId(key.modelProviderId)
       externalModelRolloutId = apiIdToExternalId(key.modelRolloutId)
-      rolloutFreezeTime = request.rolloutFreezeDate.toProtoTime()
+      rolloutFreezeTime =
+        request.rolloutFreezeDate
+          .toLocalDate()
+          .atStartOfDay()
+          .toInstant(ZoneOffset.UTC)
+          .toProtoTime()
     }
 
     try {
@@ -306,9 +309,17 @@ class ModelRolloutsService(private val internalClient: ModelRolloutsCoroutineStu
             source.hasFilter() &&
               source.filter.hasRolloutPeriodOverlapping() &&
               source.filter.rolloutPeriodOverlapping.startDate ==
-                this.rolloutPeriodOverlapping.startTime.toDate() &&
+                this.rolloutPeriodOverlapping.startTime
+                  .toInstant()
+                  .atZone(ZoneOffset.UTC)
+                  .toLocalDate()
+                  .toProtoDate() &&
               source.filter.rolloutPeriodOverlapping.endDate ==
-                this.rolloutPeriodOverlapping.endTime.toDate()
+                this.rolloutPeriodOverlapping.endTime
+                  .toInstant()
+                  .atZone(ZoneOffset.UTC)
+                  .toLocalDate()
+                  .toProtoDate()
           ) {
             "Arguments must be kept the same when using a page token"
           }
@@ -331,8 +342,18 @@ class ModelRolloutsService(private val internalClient: ModelRolloutsCoroutineStu
         this.externalModelLineId = externalModelLineId
         if (source.hasFilter() && source.filter.hasRolloutPeriodOverlapping()) {
           this.rolloutPeriodOverlapping = interval {
-            startTime = source.filter.rolloutPeriodOverlapping.startDate.toProtoTime()
-            endTime = source.filter.rolloutPeriodOverlapping.endDate.toProtoTime()
+            startTime =
+              source.filter.rolloutPeriodOverlapping.startDate
+                .toLocalDate()
+                .atStartOfDay()
+                .toInstant(ZoneOffset.UTC)
+                .toProtoTime()
+            endTime =
+              source.filter.rolloutPeriodOverlapping.endDate
+                .toLocalDate()
+                .atStartOfDay()
+                .toInstant(ZoneOffset.UTC)
+                .toProtoTime()
           }
         }
       }
@@ -368,27 +389,6 @@ class ModelRolloutsService(private val internalClient: ModelRolloutsCoroutineStu
           }
         }
       }
-    }
-  }
-
-  // TODO(@MarcoPremier): Move this function to common-jvm.
-  private fun Timestamp.toDate(): Date {
-    val instant = Instant.ofEpochSecond(seconds, nanos.toLong())
-    val localDate = instant.atZone(ZoneOffset.UTC).toLocalDate()
-    return date {
-      year = localDate.year
-      month = localDate.monthValue
-      day = localDate.dayOfMonth
-    }
-  }
-
-  // TODO(@MarcoPremier): Move this function to common-jvm.
-  private fun Date.toProtoTime(): Timestamp {
-    val localDate = LocalDate.of(year, month, day)
-    val instant = localDate.atStartOfDay().toInstant(java.time.ZoneOffset.UTC)
-    return timestamp {
-      seconds = instant.epochSecond
-      nanos = instant.nano
     }
   }
 }
