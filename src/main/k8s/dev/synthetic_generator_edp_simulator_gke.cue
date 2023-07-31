@@ -28,6 +28,7 @@ _populationSpec: "/etc/\(#AppName)/config-files/synthetic_population_spec.textpr
 _eventGroupSpecs: [
 	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_1.textproto",
 	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_2.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_3.textproto",
 ]
 
 edp_simulators: {
