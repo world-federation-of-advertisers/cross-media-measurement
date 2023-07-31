@@ -13,6 +13,6 @@
 // limitations under the License.
 
 export type Demo = {
-    cat: string,
-    val: number,
-}
+  cat: string; // The category of the value
+  val: number; // The value
+};
