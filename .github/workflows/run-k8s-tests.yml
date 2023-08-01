@@ -48,19 +48,21 @@ jobs:
 
     - name: Write ~/.bazelrc
       env:
-        STORAGE_BUCKET: ${{ vars.STORAGE_BUCKET }}
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
         MC_NAME: ${{ vars.MC_NAME }}
         MC_API_KEY: ${{ secrets.MC_API_KEY }}
+        BIGQUERY_DATASET: ${{ vars.BIGQUERY_DATASET }}
+        BIGQUERY_TABLE: ${{ vars.BIGQUERY_TABLE }}
       run: |
         cat << EOF > ~/.bazelrc
         build -c opt 
         build --host_platform //build/platforms:ubuntu_20_04
-        build --define google_cloud_project=$GCLOUD_PROJECT
         build --define kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET
-        build --define simulator_storage_bucket=$STORAGE_BUCKET
         build --define mc_name=$MC_NAME
         build --define mc_api_key=$MC_API_KEY
+        build --define google_cloud_project=$GCLOUD_PROJECT
+        build --define bigquery_dataset=$BIGQUERY_DATASET
+        build --define bigquery_table=$BIGQUERY_TABLE
         build --test_env=GOOGLE_APPLICATION_CREDENTIALS
         EOF
 
@@ -82,7 +84,7 @@ jobs:
       id: run-tests
       run: >
         bazelisk test
-        //src/test/kotlin/org/wfanet/measurement/integration/k8s:GcsCorrectnessTest
+        //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGeneratorCorrectnessTest
         --test_output=streamed
 
     - name: Upload Bazel testlogs
