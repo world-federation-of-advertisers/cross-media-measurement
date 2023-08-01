@@ -30,7 +30,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
-import org.wfanet.measurement.loadtest.config.EventGroupMetadata
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
@@ -86,7 +85,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventQuery =
       MetadataSyntheticGeneratorEventQuery(
-        EventGroupMetadata.UK_POPULATION,
+        SyntheticGenerationSpecs.POPULATION_SPEC,
         InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY
       )
     mcSimulator =

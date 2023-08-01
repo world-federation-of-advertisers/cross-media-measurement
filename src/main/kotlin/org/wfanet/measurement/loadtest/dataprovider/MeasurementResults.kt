@@ -16,15 +16,17 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+/** Utilities for computing Measurement results. */
 object MeasurementResults {
   data class ReachAndFrequency(val reach: Int, val relativeFrequencyDistribution: Map<Int, Double>)
 
+  /** Computes reach and frequency using the "deterministic count distinct" methodology. */
   fun computeReachAndFrequency(
     sampledVids: Iterable<Long>,
     maxFrequency: Int = Int.MAX_VALUE
   ): ReachAndFrequency {
-    val eventsPerVid = sampledVids.groupingBy { it }.eachCount()
-    val reach = eventsPerVid.keys.size
+    val eventsPerVid: Map<Long, Int> = sampledVids.groupingBy { it }.eachCount()
+    val reach: Int = eventsPerVid.keys.size
 
     val frequencyHistogram = mutableMapOf<Int, Int>()
     for (count in eventsPerVid.values) {
@@ -35,6 +37,7 @@ object MeasurementResults {
     return ReachAndFrequency(reach, frequencyHistogram.mapValues { it.value.toDouble() / reach })
   }
 
+  /** Computes reach using the "deterministic count distinct" methodology. */
   fun computeReach(sampledVids: Iterable<Long>): Int {
     return sampledVids.distinct().size
   }

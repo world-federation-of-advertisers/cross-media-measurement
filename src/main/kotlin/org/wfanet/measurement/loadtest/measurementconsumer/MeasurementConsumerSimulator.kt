@@ -330,7 +330,7 @@ class MeasurementConsumerSimulator(
     assertThat(actualResult).reachValue().isWithinPercent(10.0).of(expectedResult.reach.value)
     assertThat(actualResult)
       .frequencyDistribution()
-      .isWithin(0.06)
+      .isWithin(0.05)
       .of(expectedResult.frequency.relativeFrequencyDistributionMap)
   }
 

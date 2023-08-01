@@ -150,9 +150,8 @@ class EdpSimulator(
   private val privacyBudgetManager: PrivacyBudgetManager,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   private val directNoiseMechanism: DirectNoiseMechanism,
-  private val eventGroupMetadata: Message,
   private val sketchEncrypter: SketchEncrypter = SketchEncrypter.Default,
-  private val random: Random = Random.Default,
+  private val random: Random = Random,
 ) {
   /** A sequence of operations done in the simulator. */
   suspend fun run() {
@@ -165,7 +164,7 @@ class EdpSimulator(
    *
    * TODO(@SanjayVas): Create multiple EventGroups with different synthetic data specs.
    */
-  suspend fun ensureEventGroup(): EventGroup {
+  suspend fun ensureEventGroup(eventGroupMetadata: Message): EventGroup {
     val measurementConsumer: MeasurementConsumer =
       try {
         measurementConsumersStub.getMeasurementConsumer(
@@ -180,10 +179,16 @@ class EdpSimulator(
       getCertificate(measurementConsumer.certificate)
     )
 
-    val descriptorResource: EventGroupMetadataDescriptor = ensureMetadataDescriptor()
+    val descriptorResource: EventGroupMetadataDescriptor =
+      ensureMetadataDescriptor(eventGroupMetadata.descriptorForType)
 
     val eventGroupReferenceId = "$SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX-${edpData.displayName}"
-    return ensureEventGroup(measurementConsumer, eventGroupReferenceId, descriptorResource)
+    return ensureEventGroup(
+      measurementConsumer,
+      eventGroupReferenceId,
+      eventGroupMetadata,
+      descriptorResource
+    )
   }
 
   /**
@@ -193,6 +198,7 @@ class EdpSimulator(
   private suspend fun ensureEventGroup(
     measurementConsumer: MeasurementConsumer,
     eventGroupReferenceId: String,
+    eventGroupMetadata: Message,
     descriptorResource: EventGroupMetadataDescriptor,
   ): EventGroup {
     val existingEventGroup: EventGroup? = getEventGroupByReferenceId(eventGroupReferenceId)
@@ -273,8 +279,9 @@ class EdpSimulator(
     return response.eventGroupsList.find { it.eventGroupReferenceId == eventGroupReferenceId }
   }
 
-  private suspend fun ensureMetadataDescriptor(): EventGroupMetadataDescriptor {
-    val metadataDescriptor: Descriptors.Descriptor = eventGroupMetadata.descriptorForType
+  private suspend fun ensureMetadataDescriptor(
+    metadataDescriptor: Descriptors.Descriptor
+  ): EventGroupMetadataDescriptor {
     val descriptorSet = ProtoReflection.buildFileDescriptorSet(metadataDescriptor)
     val descriptorResource =
       try {

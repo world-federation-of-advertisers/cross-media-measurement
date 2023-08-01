@@ -31,15 +31,13 @@ _duchyPublicApiTarget:   string @tag("duchy_public_api_target")
 objectSets: [ for edp in edp_simulators {[edp.deployment]}] +
 	[ for edp in edp_simulators {edp.networkPolicies}]
 
-#EdpConfig: {
-	publisherId: int
-}
 _edpConfigs: [...#EdpConfig]
 _edpConfigs: [
 	for i, name in _edpResourceNames {
-		publisherId:  i + 1
+		let Number = i + 1
+
 		resourceName: name
-		displayName:  "edp\(publisherId)"
+		displayName:  "edp\(Number)"
 	},
 ]
 

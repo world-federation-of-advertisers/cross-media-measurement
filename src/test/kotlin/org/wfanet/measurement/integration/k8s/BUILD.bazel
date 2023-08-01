@@ -38,7 +38,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/k8s/testing:port_forwarder",
         "//src/main/kotlin/org/wfanet/measurement/common/k8s/testing:processes",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:event_group_metadata",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:synthetic_generation_specs",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:vid_sampling",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:simulator",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:synthetic_generator_event_query",
@@ -58,7 +58,7 @@ kt_jvm_library(
     srcs = ["SyntheticGeneratorCorrectnessTest.kt"],
     deps = [
         ":abstract_correctness_test",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:event_group_metadata",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:synthetic_generation_specs",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:vid_sampling",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:synthetic_generator_event_query",
         "//src/main/proto/wfa/measurement/integration/k8s/testing:correctness_test_config_kt_jvm_proto",
