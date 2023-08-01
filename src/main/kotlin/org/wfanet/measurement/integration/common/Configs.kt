@@ -46,8 +46,6 @@ private val SECRET_FILES_PATH: Path =
     )
   )
 
-private const val TEMPLATE_PREFIX = "wfa.measurement.api.v2alpha.event_templates.testing"
-
 val DUCHY_ID_CONFIG: DuchyIdConfig =
   loadTextProto("duchy_id_config.textproto", DuchyIdConfig.getDefaultInstance())
 val AGGREGATOR_PROTOCOLS_SETUP_CONFIG: ProtocolsSetupConfig =
@@ -86,17 +84,6 @@ val ALL_DUCHIES =
 val ALL_EDP_DISPLAY_NAMES = listOf("edp1", "edp2", "edp3")
 const val DUCHY_MILL_PARALLELISM = 3
 
-/**
- * Values of this map are anded to create the event filter to be sent to the EDPs.
- *
- * For purposes of this simulation, all of the EDPs register the same templates and receive the same
- * filter from the MC.
- */
-val EVENT_TEMPLATES_TO_FILTERS_MAP =
-  mapOf(
-    "$TEMPLATE_PREFIX.Video" to "video_ad.viewed_fraction > 0.25",
-    "$TEMPLATE_PREFIX.Person" to "person.gender == $TEMPLATE_PREFIX.Person.Gender.MALE"
-  )
 const val MC_DISPLAY_NAME = "mc"
 
 @Blocking

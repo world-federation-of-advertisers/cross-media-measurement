@@ -679,3 +679,18 @@ kt_jvm_grpc_proto_library(
     name = "model_shards_service_kt_jvm_grpc_proto",
     srcs = [":model_shards_service_proto"],
 )
+
+java_proto_library(
+    name = "date_interval_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:date_interval_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "date_interval_kt_jvm_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:date_interval_proto",
+    ],
+    deps = [":date_interval_java_proto"],
+)

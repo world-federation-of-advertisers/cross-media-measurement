@@ -30,9 +30,10 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
+import org.wfanet.measurement.loadtest.config.EventGroupMetadata
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
-import org.wfanet.measurement.loadtest.storage.SketchStore
+import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.storage.StorageClient
 
 /**
@@ -78,11 +79,16 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
   @Before
   fun startDaemons() {
     inProcessCmmsComponents.startDaemons()
-    initFrontendSimulator()
+    initMcSimulator()
   }
 
-  private fun initFrontendSimulator() {
+  private fun initMcSimulator() {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val eventQuery =
+      MetadataSyntheticGeneratorEventQuery(
+        EventGroupMetadata.UK_POPULATION,
+        InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY
+      )
     mcSimulator =
       MeasurementConsumerSimulator(
         MeasurementConsumerData(
@@ -95,13 +101,11 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         publicDataProvidersClient,
         publicEventGroupsClient,
         publicMeasurementsClient,
-        publicRequisitionsClient,
         publicMeasurementConsumersClient,
         publicCertificatesClient,
-        SketchStore(storageClient),
         RESULT_POLLING_DELAY,
         InProcessCmmsComponents.TRUSTED_CERTIFICATES,
-        EVENT_TEMPLATES_TO_FILTERS_MAP
+        eventQuery
       )
   }
 

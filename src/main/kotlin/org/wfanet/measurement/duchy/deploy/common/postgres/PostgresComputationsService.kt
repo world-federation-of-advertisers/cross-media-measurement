@@ -33,10 +33,12 @@ import org.wfanet.measurement.duchy.deploy.common.postgres.writers.ClaimWork
 import org.wfanet.measurement.duchy.deploy.common.postgres.writers.CreateComputation
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
+import org.wfanet.measurement.duchy.service.internal.ComputationAlreadyExistsException
 import org.wfanet.measurement.duchy.service.internal.ComputationDetailsNotFoundException
 import org.wfanet.measurement.duchy.service.internal.ComputationInitialStageInvalidException
 import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
 import org.wfanet.measurement.duchy.service.internal.computations.toClaimWorkResponse
+import org.wfanet.measurement.duchy.service.internal.computations.toCreateComputationResponse
 import org.wfanet.measurement.duchy.service.internal.computations.toGetComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
 import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
@@ -50,7 +52,6 @@ import org.wfanet.measurement.internal.duchy.CreateComputationResponse
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest.KeyCase
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
-import org.wfanet.measurement.internal.duchy.createComputationResponse
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
@@ -61,7 +62,7 @@ import org.wfanet.measurement.system.v1alpha.stageAttempt
 /** Implementation of the Computations service for Postgres database. */
 class PostgresComputationsService(
   private val computationTypeEnumHelper: ComputationTypeEnumHelper<ComputationType>,
-  private val protocolStageEnumHelper:
+  private val protocolStagesEnumHelper:
     ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>,
   private val computationProtocolStageDetailsHelper:
     ComputationProtocolStageDetailsHelper<
@@ -75,6 +76,8 @@ class PostgresComputationsService(
   private val defaultLockDuration: Duration = Duration.ofMinutes(5),
 ) : ComputationsCoroutineImplBase() {
 
+  private val computationReader = ComputationReader(protocolStagesEnumHelper)
+
   override suspend fun createComputation(
     request: CreateComputationRequest
   ): CreateComputationResponse {
@@ -82,29 +85,30 @@ class PostgresComputationsService(
       "global_computation_id is not specified."
     }
 
-    val computationToken =
-      try {
-        CreateComputation(
-            request.globalComputationId,
-            request.computationType,
-            protocolStageEnumHelper.getValidInitialStage(request.computationType).first(),
-            request.stageDetails,
-            request.computationDetails,
-            request.requisitionsList,
-            clock,
-            computationTypeEnumHelper,
-            protocolStageEnumHelper,
-            computationProtocolStageDetailsHelper
-          )
-          .execute(client, idGenerator)
+    try {
+      CreateComputation(
+          request.globalComputationId,
+          request.computationType,
+          protocolStagesEnumHelper.getValidInitialStage(request.computationType).first(),
+          request.stageDetails,
+          request.computationDetails,
+          request.requisitionsList,
+          clock,
+          computationTypeEnumHelper,
+          protocolStagesEnumHelper,
+          computationProtocolStageDetailsHelper
+        )
+        .execute(client, idGenerator)
+    } catch (ex: ComputationInitialStageInvalidException) {
+      throw ex.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (ex: ComputationAlreadyExistsException) {
+      throw ex.asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+    }
 
-        ComputationReader(protocolStageEnumHelper)
-          .readComputationToken(client, request.globalComputationId)
-          ?: failGrpc(Status.INTERNAL) { "Created computation not found." }
-      } catch (ex: ComputationInitialStageInvalidException) {
-        throw ex.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-    return createComputationResponse { token = computationToken }
+    val token =
+      computationReader.readComputationToken(client, request.globalComputationId)
+        ?: failGrpc(Status.INTERNAL) { "Created computation not found." }
+    return token.toCreateComputationResponse()
   }
 
   override suspend fun claimWork(request: ClaimWorkRequest): ClaimWorkResponse {
@@ -114,12 +118,13 @@ class PostgresComputationsService(
       if (request.hasLockDuration()) request.lockDuration.toDuration() else defaultLockDuration
     val claimed =
       try {
-        ClaimWork<ComputationType, ComputationStageDetails, ComputationStage, ComputationDetails>(
+        ClaimWork(
             request.computationType,
             request.owner,
             lockDuration,
+            clock,
             computationTypeEnumHelper,
-            protocolStageEnumHelper,
+            protocolStagesEnumHelper,
           )
           .execute(client, idGenerator)
       } catch (e: ComputationNotFoundException) {
@@ -128,9 +133,9 @@ class PostgresComputationsService(
         throw e.asStatusRuntimeException(Status.Code.INTERNAL)
       }
 
-    return if (claimed != null) {
+    return claimed?.let {
       val token =
-        ComputationReader(protocolStageEnumHelper).readComputationToken(client, claimed)
+        ComputationReader(protocolStagesEnumHelper).readComputationToken(client, it)
           ?: failGrpc(Status.INTERNAL) { "Claimed computation $claimed not found." }
 
       sendStatusUpdateToKingdom(
@@ -141,21 +146,20 @@ class PostgresComputationsService(
         )
       )
       token.toClaimWorkResponse()
-    } else {
-      ClaimWorkResponse.getDefaultInstance()
     }
+      ?: ClaimWorkResponse.getDefaultInstance()
   }
 
   override suspend fun getComputationToken(
     request: GetComputationTokenRequest
   ): GetComputationTokenResponse {
-    val reader = ComputationReader(protocolStageEnumHelper)
     val token =
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (request.keyCase) {
         KeyCase.GLOBAL_COMPUTATION_ID ->
-          reader.readComputationToken(client, request.globalComputationId)
-        KeyCase.REQUISITION_KEY -> reader.readComputationToken(client, request.requisitionKey)
+          computationReader.readComputationToken(client, request.globalComputationId)
+        KeyCase.REQUISITION_KEY ->
+          computationReader.readComputationToken(client, request.requisitionKey)
         KeyCase.KEY_NOT_SET -> failGrpc(Status.INVALID_ARGUMENT) { "key not set" }
       }
         ?: failGrpc(Status.NOT_FOUND) { "Computation not found" }
