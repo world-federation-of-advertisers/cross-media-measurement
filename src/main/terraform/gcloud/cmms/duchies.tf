@@ -49,7 +49,7 @@ module "highmem_node_pools" {
   cluster         = each.value
   name            = "highmem"
   service_account = module.common.cluster_service_account
-  machine_type    = "t2d-standard-4"
+  machine_type    = "t2d-standard-8"
   max_node_count  = 2
   spot            = true
 }
