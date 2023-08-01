@@ -179,7 +179,7 @@ object ReachOnlyLiquidLegionsV2Starter {
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_INPUTS,
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE,
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.COMPLETE -> {
-        logger.info(
+        logger.warning(
           "[id=${token.globalComputationId}]: not updating," +
             " stage '$stage' is after WAIT_REQUISITIONS_AND_KEY_SET"
         )
@@ -199,7 +199,7 @@ object ReachOnlyLiquidLegionsV2Starter {
     computationStorageClient: ComputationsGrpcKt.ComputationsCoroutineStub
   ) {
     require(token.computationDetails.hasReachOnlyLiquidLegionsV2()) {
-      "Liquid Legions V2 computation required"
+      "Reach-Only Liquid Legions V2 computation required"
     }
 
     val stage = token.computationStage.reachOnlyLiquidLegionsSketchAggregationV2
@@ -232,7 +232,7 @@ object ReachOnlyLiquidLegionsV2Starter {
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_INPUTS,
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE,
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.COMPLETE -> {
-        logger.info(
+        logger.warning(
           "[id=${token.globalComputationId}]: not starting," +
             " stage '$stage' is after WAIT_TO_START"
         )
