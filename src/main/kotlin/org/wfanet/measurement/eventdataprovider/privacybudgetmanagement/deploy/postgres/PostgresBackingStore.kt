@@ -341,11 +341,7 @@ class PostgresBackingStoreTransactionContext(
       """
         .trimIndent()
 
-    // If reference is refund, subtract the acdpCharge balance.
-    val queryTotalRho: Double =
-      if (reference.isRefund) -acdpCharges.sumOf { it.rho } else acdpCharges.sumOf { it.rho }
-    val queryTotalTheta: Double =
-      if (reference.isRefund) -acdpCharges.sumOf { it.theta } else acdpCharges.sumOf { it.theta }
+    val queryTotalAcdpCharge = getQueryTotalAcdpCharge(acdpCharges, reference.isRefund)
 
     val statement: PreparedStatement = connection.prepareStatement(insertEntrySql)
 
@@ -355,10 +351,10 @@ class PostgresBackingStoreTransactionContext(
       statement.setString(3, queryBucketGroup.ageGroup.string)
       statement.setString(4, queryBucketGroup.gender.string)
       statement.setFloat(5, queryBucketGroup.vidSampleStart)
-      statement.setDouble(6, queryTotalRho)
-      statement.setDouble(7, queryTotalTheta)
-      statement.setDouble(8, queryTotalRho)
-      statement.setDouble(9, queryTotalTheta)
+      statement.setDouble(6, queryTotalAcdpCharge.rho)
+      statement.setDouble(7, queryTotalAcdpCharge.theta)
+      statement.setDouble(8, queryTotalAcdpCharge.rho)
+      statement.setDouble(9, queryTotalAcdpCharge.theta)
       statement.addBatch()
       // execute every 1000 rows or fewer
       if (index % MAX_BATCH_INSERT == 0 || index == privacyBucketGroups.size - 1) {

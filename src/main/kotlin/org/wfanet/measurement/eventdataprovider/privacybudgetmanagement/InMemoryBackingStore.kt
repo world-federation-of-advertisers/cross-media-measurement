@@ -30,7 +30,7 @@ import java.time.Instant
  * 3) Where multiple tasks are not expected to update it.
  */
 open class InMemoryBackingStore : PrivacyBudgetLedgerBackingStore {
-  protected val balances:
+  protected val dpBalances:
     MutableMap<PrivacyBucketGroup, MutableMap<DpCharge, PrivacyBudgetBalanceEntry>> =
     mutableMapOf()
   protected val acdpBalances: MutableMap<PrivacyBucketGroup, AcdpCharge> = mutableMapOf()
@@ -38,19 +38,19 @@ open class InMemoryBackingStore : PrivacyBudgetLedgerBackingStore {
     mutableMapOf()
 
   override fun startTransaction(): InMemoryBackingStoreTransactionContext =
-    InMemoryBackingStoreTransactionContext(referenceLedger, balances, acdpBalances)
+    InMemoryBackingStoreTransactionContext(referenceLedger, dpBalances, acdpBalances)
 
   override fun close() {}
 }
 
 class InMemoryBackingStoreTransactionContext(
   private val referenceLedger: MutableMap<String, MutableList<PrivacyBudgetLedgerEntry>>,
-  private val balances:
+  private val dpBalances:
     MutableMap<PrivacyBucketGroup, MutableMap<DpCharge, PrivacyBudgetBalanceEntry>>,
   private val acdpBalances: MutableMap<PrivacyBucketGroup, AcdpCharge>
 ) : PrivacyBudgetLedgerTransactionContext {
 
-  private var transactionBalances = balances.toMutableMap()
+  private var transactionDpBalances = dpBalances.toMutableMap()
   private var transactionAcdpBalances = acdpBalances.toMutableMap()
   private var transactionReferenceLedger = referenceLedger.toMutableMap()
 
@@ -82,7 +82,7 @@ class InMemoryBackingStoreTransactionContext(
   override suspend fun findIntersectingBalanceEntries(
     privacyBucketGroup: PrivacyBucketGroup,
   ): List<PrivacyBudgetBalanceEntry> {
-    return transactionBalances.getOrDefault(privacyBucketGroup, mapOf()).values.toList()
+    return transactionDpBalances.getOrDefault(privacyBucketGroup, mapOf()).values.toList()
   }
 
   override suspend fun findAcdpBalanceEntry(
@@ -101,18 +101,18 @@ class InMemoryBackingStoreTransactionContext(
     // Update the balance for all the charges.
     for (queryBucketGroup in privacyBucketGroups) {
       for (dpCharge in dpCharges) {
-        val balanceEntries = transactionBalances.getOrPut(queryBucketGroup) { mutableMapOf() }
+        val dpBalanceEntries = transactionDpBalances.getOrPut(queryBucketGroup) { mutableMapOf() }
 
-        val balanceEntry =
-          balanceEntries.getOrPut(dpCharge) {
+        val dpBalanceEntry =
+          dpBalanceEntries.getOrPut(dpCharge) {
             PrivacyBudgetBalanceEntry(queryBucketGroup, dpCharge, 0)
           }
-        balanceEntries[dpCharge] =
+        dpBalanceEntries[dpCharge] =
           PrivacyBudgetBalanceEntry(
             queryBucketGroup,
             dpCharge,
-            if (reference.isRefund) balanceEntry.repetitionCount - 1
-            else balanceEntry.repetitionCount + 1
+            if (reference.isRefund) dpBalanceEntry.repetitionCount - 1
+            else dpBalanceEntry.repetitionCount + 1
           )
       }
     }
@@ -126,11 +126,7 @@ class InMemoryBackingStoreTransactionContext(
     acdpCharges: Set<AcdpCharge>,
     reference: Reference
   ) {
-    // If reference is refund, subtract the acdpCharge balance.
-    val queryTotalRho: Double =
-      if (reference.isRefund) -acdpCharges.sumOf { it.rho } else acdpCharges.sumOf { it.rho }
-    val queryTotalTheta: Double =
-      if (reference.isRefund) -acdpCharges.sumOf { it.theta } else acdpCharges.sumOf { it.theta }
+    val queryTotalAcdpCharge = getQueryTotalAcdpCharge(acdpCharges, reference.isRefund)
 
     // Update the acdpCharge balance for all the buckets.
     for (queryBucketGroup in privacyBucketGroups) {
@@ -138,8 +134,8 @@ class InMemoryBackingStoreTransactionContext(
 
       val totalAcdpCharge =
         AcdpCharge(
-          queryTotalRho + acdpBalanceEntry.acdpCharge.rho,
-          queryTotalTheta + acdpBalanceEntry.acdpCharge.theta,
+          queryTotalAcdpCharge.rho + acdpBalanceEntry.acdpCharge.rho,
+          queryTotalAcdpCharge.theta + acdpBalanceEntry.acdpCharge.theta,
         )
 
       transactionAcdpBalances[queryBucketGroup] = totalAcdpCharge
@@ -153,8 +149,8 @@ class InMemoryBackingStoreTransactionContext(
     referenceLedger.clear()
     referenceLedger.putAll(transactionReferenceLedger)
 
-    balances.clear()
-    balances.putAll(transactionBalances)
+    dpBalances.clear()
+    dpBalances.putAll(transactionDpBalances)
 
     acdpBalances.clear()
     acdpBalances.putAll(transactionAcdpBalances)

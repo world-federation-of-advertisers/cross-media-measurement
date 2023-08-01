@@ -113,6 +113,16 @@ interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
     reference: Reference
   )
 
+  fun getQueryTotalAcdpCharge(acdpCharges: Set<AcdpCharge>, isRefund: Boolean): AcdpCharge {
+    // If reference is refund, subtract the acdpCharge balance.
+    val totalRho: Double =
+      if (isRefund) -acdpCharges.sumOf { it.rho } else acdpCharges.sumOf { it.rho }
+    val totalTheta: Double =
+      if (isRefund) -acdpCharges.sumOf { it.theta } else acdpCharges.sumOf { it.theta }
+
+    return AcdpCharge(totalRho, totalTheta)
+  }
+
   /**
    * Returns whether this backing store has a ledger entry for [reference].
    *
