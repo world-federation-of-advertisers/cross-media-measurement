@@ -316,34 +316,11 @@ object ReachOnlyLiquidLegionsV2Starter {
                     }
                     globalReachDpNoise = reach.privacyParams.toDuchyDifferentialPrivacyParams()
                   }
-                  MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-                    val reachAndFrequency = measurementSpec.reachAndFrequency
-                    require(reachAndFrequency.reachPrivacyParams.delta > 0) {
-                      "RoLLv2 requires that reach_privacy_params.delta be greater than 0"
-                    }
-                    require(reachAndFrequency.reachPrivacyParams.epsilon > MIN_REACH_EPSILON) {
-                      "RoLLv2 requires that reach_privacy_params.epsilon be greater than $MIN_REACH_EPSILON"
-                    }
-                    require(reachAndFrequency.frequencyPrivacyParams.delta > 0) {
-                      "RoLLv2 requires that frequency_privacy_params.delta be greater than 0"
-                    }
-                    require(
-                      reachAndFrequency.frequencyPrivacyParams.epsilon > MIN_FREQUENCY_EPSILON
-                    ) {
-                      "RoLLv2 requires that frequency_privacy_params.epsilon be greater than " +
-                        "$MIN_FREQUENCY_EPSILON"
-                    }
-                    globalReachDpNoise =
-                      reachAndFrequency.reachPrivacyParams.toDuchyDifferentialPrivacyParams()
-                    this@liquidLegionsV2NoiseConfig.frequencyNoiseConfig =
-                      reachAndFrequency.frequencyPrivacyParams.toDuchyDifferentialPrivacyParams()
-                  }
+                  MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY,
                   MeasurementSpec.MeasurementTypeCase.IMPRESSION,
                   MeasurementSpec.MeasurementTypeCase.DURATION,
                   MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> {
-                    throw IllegalArgumentException(
-                      "Missing Reach and ReachAndFrequency in the measurementSpec."
-                    )
+                    throw IllegalArgumentException("Missing Reach in the measurementSpec.")
                   }
                 }
               }
