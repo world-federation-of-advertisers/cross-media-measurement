@@ -14,10 +14,12 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import java.io.File
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.loadtest.config.EventGroupMetadata
+import org.wfanet.measurement.common.parseTextProto
 import picocli.CommandLine
 
 @CommandLine.Command(
@@ -28,16 +30,34 @@ import picocli.CommandLine
 )
 /** Implementation of [EdpSimulatorRunner] using [SyntheticGeneratorEventQuery]. */
 class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
+  @CommandLine.Option(
+    names = ["--population-spec"],
+    description = ["Path to SyntheticPopulationSpec message in text format."],
+    required = true,
+  )
+  private lateinit var populationSpecFile: File
+
+  @CommandLine.Option(
+    names = ["--event-group-spec"],
+    description = ["Path to SyntheticEventGroupSpec message in text format."],
+    required = true,
+  )
+  private lateinit var eventGroupSpecFile: File
 
   override fun run() {
+    val populationSpec =
+      parseTextProto(populationSpecFile, SyntheticPopulationSpec.getDefaultInstance())
+    val eventGroupSpec =
+      parseTextProto(eventGroupSpecFile, SyntheticEventGroupSpec.getDefaultInstance())
+
     val eventQuery =
-      object : SyntheticGeneratorEventQuery(EventGroupMetadata.UK_POPULATION) {
+      object : SyntheticGeneratorEventQuery(populationSpec) {
         override fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec {
-          return EventGroupMetadata.SYNTHETIC_DATA_SPEC
+          return eventGroupSpec
         }
       }
 
-    run(eventQuery, EventGroupMetadata.SYNTHETIC_DATA_SPEC)
+    run(eventQuery, eventGroupSpec)
   }
 }
 

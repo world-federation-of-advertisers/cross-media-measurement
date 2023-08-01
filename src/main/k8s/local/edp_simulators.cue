@@ -30,16 +30,25 @@ _secret_name: string @tag("secret_name")
 objectSets: [ for simulator in edpSimulators {[simulator.deployment]}] +
 	[ for simulator in edpSimulators {simulator.networkPolicies}]
 
+_populationSpec: "/etc/\(#AppName)/config-files/synthetic_population_spec.textproto"
+_eventGroupSpecs: [
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_1.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_2.textproto",
+]
+
 #EdpConfig: {
-	publisherId: int
+	eventGroupSpec: string
 }
 
 _edpConfigs: [...#EdpConfig]
 _edpConfigs: [
 	for i, name in _edpResourceNames {
-		publisherId:  i + 1
-		resourceName: name
-		displayName:  "edp\(publisherId)"
+		let SpecIndex = mod(i, len(_eventGroupSpecs))
+		let Number = i + 1
+
+		resourceName:   name
+		displayName:    "edp\(Number)"
+		eventGroupSpec: _eventGroupSpecs[SpecIndex]
 	},
 ]
 
@@ -52,12 +61,17 @@ edpSimulators: {
 			_mc_resource_name:          _mc_name
 			_duchy_public_api_target:   #Worker1PublicApiTarget
 			_kingdom_public_api_target: #KingdomPublicApiTarget
+			_additional_args: [
+				"--population-spec=\(_populationSpec)",
+				"--event-group-spec=\(edpConfig.eventGroupSpec)",
+			]
 
 			deployment: spec: template: spec: {
 				_dependencies: [
 					"v2alpha-public-api-server",
 					"worker1-requisition-fulfillment-server",
 				]
+				_mounts: "config-files": #ConfigMapMount
 			}
 		}
 	}

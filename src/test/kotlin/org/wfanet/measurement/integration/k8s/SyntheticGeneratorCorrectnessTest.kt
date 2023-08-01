@@ -35,7 +35,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.loadtest.config.EventGroupMetadata
+import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
@@ -43,7 +43,7 @@ import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGene
 
 /**
  * Test for correctness of an existing CMMS on Kubernetes where the EDP simulators use
- * [SyntheticGeneratorEventQuery].
+ * [SyntheticGeneratorEventQuery] with [SyntheticGenerationSpecs.POPULATION_SPEC].
  *
  * This currently assumes that the CMMS instance is using the certificates and keys from this Bazel
  * workspace.
@@ -91,7 +91,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
 
       val eventQuery: SyntheticGeneratorEventQuery =
         MetadataSyntheticGeneratorEventQuery(
-          EventGroupMetadata.UK_POPULATION,
+          SyntheticGenerationSpecs.POPULATION_SPEC,
           MC_ENCRYPTION_PRIVATE_KEY
         )
       return MeasurementConsumerSimulator(
