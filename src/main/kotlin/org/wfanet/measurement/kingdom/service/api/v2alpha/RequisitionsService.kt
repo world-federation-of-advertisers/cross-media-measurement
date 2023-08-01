@@ -391,6 +391,13 @@ private fun DuchyValue.toDuchyEntryValue(externalDuchyId: String): DuchyEntry.Va
             signature = value.liquidLegionsV2.elGamalPublicKeySignature
           }
         }
+      DuchyValue.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> reachOnlyLiquidLegionsV2 =
+          liquidLegionsV2 {
+            elGamalPublicKey = signedData {
+              data = value.reachOnlyLiquidLegionsV2.elGamalPublicKey
+              signature = value.reachOnlyLiquidLegionsV2.elGamalPublicKeySignature
+            }
+          }
       DuchyValue.ProtocolCase.PROTOCOL_NOT_SET -> {}
     }
   }

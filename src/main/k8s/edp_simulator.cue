@@ -29,8 +29,6 @@ package k8s
 	let DisplayName = _edpConfig.displayName
 
 	_imageConfig: #ImageConfig
-	_blob_storage_flags: [...string]
-
 	_additional_args: [...string]
 
 	deployment: #Deployment & {
