@@ -36,6 +36,9 @@ object ComputationProtocolStageDetails :
           stage,
           computationDetails
         )
+      ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+        ReachOnlyLiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details
+          .validateRoleForStage(stage, computationDetails)
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }
@@ -47,6 +50,9 @@ object ComputationProtocolStageDetails :
         LiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details.afterTransitionForStage(
           stage
         )
+      ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+        ReachOnlyLiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details
+          .afterTransitionForStage(stage)
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }
@@ -59,6 +65,9 @@ object ComputationProtocolStageDetails :
     return when (stage.stageCase) {
       ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         LiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details
+          .outputBlobNumbersForStage(stage, computationDetails)
+      ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+        ReachOnlyLiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details
           .outputBlobNumbersForStage(stage, computationDetails)
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
@@ -75,6 +84,11 @@ object ComputationProtocolStageDetails :
           stage,
           computationDetails
         )
+      ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+        ReachOnlyLiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details.detailsFor(
+          stage,
+          computationDetails
+        )
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }
@@ -84,6 +98,10 @@ object ComputationProtocolStageDetails :
     return when (protocol) {
       ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         LiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details.parseDetails(bytes)
+      ComputationType.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+        ReachOnlyLiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details.parseDetails(
+          bytes
+        )
       ComputationType.UNSPECIFIED,
       ComputationType.UNRECOGNIZED -> error("invalid protocol")
     }
