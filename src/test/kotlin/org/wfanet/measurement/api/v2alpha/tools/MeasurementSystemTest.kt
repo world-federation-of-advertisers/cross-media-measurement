@@ -24,7 +24,6 @@ import com.google.protobuf.duration
 import com.google.protobuf.empty
 import com.google.protobuf.timestamp
 import com.google.protobuf.value
-import com.google.type.Date
 import com.google.type.date
 import com.google.type.interval
 import io.grpc.Server
@@ -35,7 +34,6 @@ import java.io.File
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
 import java.time.Instant
-import java.time.ZoneOffset
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -255,7 +253,11 @@ private val MODEL_ROLLOUT_ACTIVE_END_DATE = date {
   month = 9
   day = 24
 }
-private const val MODEL_ROLLOUT_FREEZE_DATE = "2026-07-24T05:00:00.000Z"
+private val MODEL_ROLLOUT_FREEZE_DATE = date {
+  year = 2026
+  month = 7
+  day = 24
+}
 
 private val DATA_PROVIDER = dataProvider {
   name = DATA_PROVIDER_NAME
@@ -338,7 +340,7 @@ private val MODEL_ROLLOUT_WITH_FREEZE_TIME = modelRollout {
     this.startDate = MODEL_ROLLOUT_ACTIVE_START_DATE
     this.endDate = MODEL_ROLLOUT_ACTIVE_END_DATE
   }
-  rolloutFreezeDate = Instant.parse(MODEL_ROLLOUT_FREEZE_DATE).toDate()
+  rolloutFreezeDate = MODEL_ROLLOUT_FREEZE_DATE
   previousModelRollout = "previous model"
   modelRelease = MODEL_RELEASE_NAME
 }
@@ -1717,7 +1719,7 @@ class MeasurementSystemTest {
       .isEqualTo(
         scheduleModelRolloutFreezeRequest {
           name = MODEL_ROLLOUT_NAME
-          rolloutFreezeDate = Instant.parse(MODEL_ROLLOUT_FREEZE_DATE).toDate()
+          rolloutFreezeDate = MODEL_ROLLOUT_FREEZE_DATE
         }
       )
   }
@@ -1944,14 +1946,4 @@ private fun getEncryptedResult(
 ): ByteString {
   val signedResult = signResult(result, AGGREGATOR_SIGNING_KEY)
   return encryptResult(signedResult, publicKey)
-}
-
-// TODO(@MarcoPremier): Move this function to common-jvm.
-private fun Instant.toDate(): Date {
-  val localDate = this.atZone(ZoneOffset.UTC).toLocalDate()
-  return date {
-    year = localDate.year
-    month = localDate.monthValue
-    day = localDate.dayOfMonth
-  }
 }

@@ -20,13 +20,11 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Empty
 import com.google.protobuf.Timestamp
-import com.google.type.Date
 import com.google.type.date
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
-import java.time.ZoneOffset
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -115,8 +113,23 @@ private val EXTERNAL_MODEL_RELEASE_ID =
 private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
 private val ROLLOUT_PERIOD_START_TIME: Instant = Instant.ofEpochSecond(86400)
+private val ROLLOUT_PERIOD_START_DATE = date {
+  year = 1970
+  month = 1
+  day = 2
+}
 private val ROLLOUT_PERIOD_END_TIME: Instant = Instant.ofEpochSecond(172800)
+private val ROLLOUT_PERIOD_END_DATE = date {
+  year = 1970
+  month = 1
+  day = 3
+}
 private val ROLLOUT_FREEZE_TIME: Instant = Instant.ofEpochSecond(86400)
+private val ROLLOUT_FREEZE_DATE = date {
+  year = 1970
+  month = 1
+  day = 2
+}
 
 private val INTERNAL_MODEL_ROLLOUT: InternalModelRollout = internalModelRollout {
   externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
@@ -135,10 +148,10 @@ private val INTERNAL_MODEL_ROLLOUT: InternalModelRollout = internalModelRollout 
 private val MODEL_ROLLOUT: ModelRollout = modelRollout {
   name = MODEL_ROLLOUT_NAME_2
   gradualRolloutPeriod = dateInterval {
-    startDate = ROLLOUT_PERIOD_START_TIME.toDate()
-    endDate = ROLLOUT_PERIOD_END_TIME.toDate()
+    startDate = ROLLOUT_PERIOD_START_DATE
+    endDate = ROLLOUT_PERIOD_END_DATE
   }
-  rolloutFreezeDate = ROLLOUT_FREEZE_TIME.toDate()
+  rolloutFreezeDate = ROLLOUT_FREEZE_DATE
   previousModelRollout = MODEL_ROLLOUT_NAME
   modelRelease = MODEL_RELEASE_NAME
   createTime = CREATE_TIME
@@ -147,8 +160,8 @@ private val MODEL_ROLLOUT: ModelRollout = modelRollout {
 
 private val MODEL_ROLLOUT_2: ModelRollout = modelRollout {
   name = MODEL_ROLLOUT_NAME_2
-  instantRolloutDate = ROLLOUT_PERIOD_START_TIME.toDate()
-  rolloutFreezeDate = ROLLOUT_FREEZE_TIME.toDate()
+  instantRolloutDate = ROLLOUT_PERIOD_START_DATE
+  rolloutFreezeDate = ROLLOUT_FREEZE_DATE
   previousModelRollout = MODEL_ROLLOUT_NAME
   modelRelease = MODEL_RELEASE_NAME_2
   createTime = CREATE_TIME
@@ -370,7 +383,7 @@ class ModelRolloutsServiceTest {
   fun `scheduleModelRolloutFreeze returns model rollout with rollout freeze time`() {
     val request = scheduleModelRolloutFreezeRequest {
       name = MODEL_ROLLOUT_NAME
-      rolloutFreezeDate = ROLLOUT_FREEZE_TIME.toDate()
+      rolloutFreezeDate = ROLLOUT_FREEZE_DATE
     }
 
     val result =
@@ -378,7 +391,7 @@ class ModelRolloutsServiceTest {
         runBlocking { service.scheduleModelRolloutFreeze(request) }
       }
 
-    val expected = MODEL_ROLLOUT.copy { rolloutFreezeDate = ROLLOUT_FREEZE_TIME.toDate() }
+    val expected = MODEL_ROLLOUT.copy { rolloutFreezeDate = ROLLOUT_FREEZE_DATE }
 
     verifyProtoArgument(
         internalModelRolloutsMock,
@@ -404,7 +417,7 @@ class ModelRolloutsServiceTest {
         withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
           runBlocking {
             service.scheduleModelRolloutFreeze(
-              scheduleModelRolloutFreezeRequest { rolloutFreezeDate = ROLLOUT_FREEZE_TIME.toDate() }
+              scheduleModelRolloutFreezeRequest { rolloutFreezeDate = ROLLOUT_FREEZE_DATE }
             )
           }
         }
@@ -416,7 +429,7 @@ class ModelRolloutsServiceTest {
   fun `scheduleModelRolloutFreeze throws UNAUTHENTICATED when no principal is found`() {
     val request = scheduleModelRolloutFreezeRequest {
       name = MODEL_ROLLOUT_NAME
-      rolloutFreezeDate = ROLLOUT_FREEZE_TIME.toDate()
+      rolloutFreezeDate = ROLLOUT_FREEZE_DATE
     }
 
     val exception =
@@ -430,7 +443,7 @@ class ModelRolloutsServiceTest {
   fun `scheduleModelRolloutFreeze throws PERMISSION_DENIED when principal is data provider`() {
     val request = scheduleModelRolloutFreezeRequest {
       name = MODEL_ROLLOUT_NAME
-      rolloutFreezeDate = ROLLOUT_FREEZE_TIME.toDate()
+      rolloutFreezeDate = ROLLOUT_FREEZE_DATE
     }
 
     val exception =
@@ -446,7 +459,7 @@ class ModelRolloutsServiceTest {
   fun `scheduleModelRolloutFreeze throws PERMISSION_DENIED when principal is duchy`() {
     val request = scheduleModelRolloutFreezeRequest {
       name = MODEL_ROLLOUT_NAME
-      rolloutFreezeDate = ROLLOUT_FREEZE_TIME.toDate()
+      rolloutFreezeDate = ROLLOUT_FREEZE_DATE
     }
 
     val exception =
@@ -462,7 +475,7 @@ class ModelRolloutsServiceTest {
   fun `scheduleModelRolloutFreeze throws PERMISSION_DENIED when principal is measurement consumer`() {
     val request = scheduleModelRolloutFreezeRequest {
       name = MODEL_ROLLOUT_NAME
-      rolloutFreezeDate = ROLLOUT_FREEZE_TIME.toDate()
+      rolloutFreezeDate = ROLLOUT_FREEZE_DATE
     }
 
     val exception =
@@ -478,7 +491,7 @@ class ModelRolloutsServiceTest {
   fun `scheduleModelRolloutFreeze throws PERMISSION_DENIED when model provider caller doesn't match`() {
     val request = scheduleModelRolloutFreezeRequest {
       name = MODEL_ROLLOUT_NAME
-      rolloutFreezeDate = ROLLOUT_FREEZE_TIME.toDate()
+      rolloutFreezeDate = ROLLOUT_FREEZE_DATE
     }
 
     val exception =
@@ -758,8 +771,8 @@ class ModelRolloutsServiceTest {
       parent = MODEL_LINE_NAME
       filter = filter {
         rolloutPeriodOverlapping = dateInterval {
-          startDate = ROLLOUT_PERIOD_START_TIME.toDate()
-          endDate = ROLLOUT_PERIOD_END_TIME.toDate()
+          startDate = ROLLOUT_PERIOD_START_DATE
+          endDate = ROLLOUT_PERIOD_END_DATE
         }
       }
       val listModelRolloutsPageToken = listModelRolloutsPageToken {
@@ -832,8 +845,8 @@ class ModelRolloutsServiceTest {
       pageSize = 2
       filter = filter {
         rolloutPeriodOverlapping = dateInterval {
-          startDate = ROLLOUT_PERIOD_START_TIME.toDate()
-          endDate = ROLLOUT_PERIOD_END_TIME.toDate()
+          startDate = ROLLOUT_PERIOD_START_DATE
+          endDate = ROLLOUT_PERIOD_END_DATE
         }
       }
       val listModelRolloutsPageToken = listModelRolloutsPageToken {
@@ -924,8 +937,8 @@ class ModelRolloutsServiceTest {
       pageSize = 4
       filter = filter {
         rolloutPeriodOverlapping = dateInterval {
-          startDate = ROLLOUT_PERIOD_START_TIME.toDate()
-          endDate = ROLLOUT_PERIOD_END_TIME.toDate()
+          startDate = ROLLOUT_PERIOD_START_DATE
+          endDate = ROLLOUT_PERIOD_END_DATE
         }
       }
       val listModelRolloutsPageToken = listModelRolloutsPageToken {
@@ -1032,15 +1045,5 @@ class ModelRolloutsServiceTest {
             }
         }
       )
-  }
-}
-
-// TODO(@MarcoPremier): Move this function to common-jvm.
-private fun Instant.toDate(): Date {
-  val localDate = this.atZone(ZoneOffset.UTC).toLocalDate()
-  return date {
-    year = localDate.year
-    month = localDate.monthValue
-    day = localDate.dayOfMonth
   }
 }
