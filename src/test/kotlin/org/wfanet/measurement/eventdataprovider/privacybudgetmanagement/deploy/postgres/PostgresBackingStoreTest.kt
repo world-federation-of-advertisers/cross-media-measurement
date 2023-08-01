@@ -62,6 +62,7 @@ class PostgresBackingStoreTest : AbstractPrivacyBudgetLedgerStoreTest() {
           """
           DROP TABLE IF EXISTS LedgerEntries CASCADE;
           DROP TABLE IF EXISTS PrivacyBucketCharges CASCADE;
+          DROP TABLE IF EXISTS PrivacyBucketAcdpCharges CASCADE;
           DROP TYPE IF EXISTS Gender CASCADE;
           DROP TYPE IF EXISTS AgeGroup CASCADE;
         """

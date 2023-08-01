@@ -7,7 +7,6 @@ load(
     "K8S_CLIENT_VERSION",
     "OPEN_TELEMETRY_SDK_VERSION",
 )
-
 load("//build:repositories.bzl", "wfa_measurement_system_repositories")
 
 wfa_measurement_system_repositories()

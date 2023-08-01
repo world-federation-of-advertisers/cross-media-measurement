@@ -20,6 +20,7 @@ import "google/api/resource.proto";
 
 option java_package = "org.measurement.integration.k8s.testing";
 option java_multiple_files = true;
+option java_outer_classname = "CorrectnessTestConfigProto";
 
 message CorrectnessTestConfig {
   // gRPC target of Kingdom public API server.
