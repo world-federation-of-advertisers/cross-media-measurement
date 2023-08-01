@@ -219,7 +219,7 @@ class ComputationReader(
   }
 
   /**
-   * Reads a [ComputationToken] by globalComputationId.
+   * Reads a [ComputationToken] by globalComputationId in a new transaction.
    *
    * @param client The [DatabaseClient] to the Postgres database.
    * @param globalComputationId A global identifier for a computation.
@@ -263,7 +263,7 @@ class ComputationReader(
   }
 
   /**
-   * Reads a [ComputationToken] by externalRequisitionKey.
+   * Reads a [ComputationToken] by externalRequisitionKey in a new transaction.
    *
    * @param client The [DatabaseClient] to the Postgres database.
    * @param externalRequisitionKey The [ExternalRequisitionKey] for a computation.
@@ -374,6 +374,13 @@ class ComputationReader(
     return readContext.executeQuery(listUnclaimedTasksSql).consume(::buildUnclaimedTaskQueryResult)
   }
 
+  /**
+   * Reads the LockOwner and UpdateTime of a computation.
+   *
+   * @param readContext The transaction context for reading from the Postgres database.
+   * @param computationId The local identifier for a computation.
+   * @return [LockOwnerQueryResult] if computation is found, otherwise null.
+   */
   suspend fun readLockOwner(readContext: ReadContext, computationId: Long): LockOwnerQueryResult? {
     val readLockOwnerSql =
       boundStatement(

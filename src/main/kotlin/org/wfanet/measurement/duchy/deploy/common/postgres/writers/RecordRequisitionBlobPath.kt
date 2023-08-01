@@ -18,7 +18,7 @@ import java.time.Clock
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationReader
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.RequisitionReader
-import org.wfanet.measurement.duchy.service.internal.UnknownDataError
+import org.wfanet.measurement.duchy.service.internal.DataCorruptedException
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 
@@ -60,6 +60,6 @@ class RecordRequisitionBlobPath(
     )
 
     return computationReader.readComputationToken(transactionContext, externalRequisitionKey)
-      ?: throw UnknownDataError()
+      ?: throw DataCorruptedException()
   }
 }

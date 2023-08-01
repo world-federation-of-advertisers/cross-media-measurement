@@ -20,7 +20,7 @@ import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.duchy.db.computation.ComputationEditToken
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationReader
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.RequisitionReader
-import org.wfanet.measurement.duchy.service.internal.UnknownDataError
+import org.wfanet.measurement.duchy.service.internal.DataCorruptedException
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.RequisitionEntry
 
@@ -63,6 +63,6 @@ class UpdateComputationDetails<ProtocolT, StageT, ComputationDT : Message>(
     updateComputation(localId = token.localId, updateTime = writeTime, details = computationDetails)
 
     return computationReader.readComputationToken(transactionContext, token.globalId)
-      ?: throw UnknownDataError()
+      ?: throw DataCorruptedException()
   }
 }

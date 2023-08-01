@@ -21,7 +21,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationBlobReferenceReader
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationReader
-import org.wfanet.measurement.duchy.service.internal.UnknownDataError
+import org.wfanet.measurement.duchy.service.internal.DataCorruptedException
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationToken
 
@@ -74,6 +74,6 @@ class RecordOutputBlobPath<ProtocolT, StageT>(
     )
 
     return computationReader.readComputationToken(transactionContext, token.globalId)
-      ?: throw UnknownDataError()
+      ?: throw DataCorruptedException()
   }
 }

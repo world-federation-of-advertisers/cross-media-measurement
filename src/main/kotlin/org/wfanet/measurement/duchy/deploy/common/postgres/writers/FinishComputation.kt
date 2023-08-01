@@ -24,7 +24,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnum
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationReader
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationStageAttemptReader
-import org.wfanet.measurement.duchy.service.internal.UnknownDataError
+import org.wfanet.measurement.duchy.service.internal.DataCorruptedException
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.copy
@@ -138,7 +138,7 @@ class FinishComputation<ProtocolT, StageT, ComputationDT : Message, StageDT : Me
       }
 
     return computationReader.readComputationToken(transactionContext, token.globalId)
-      ?: throw UnknownDataError()
+      ?: throw DataCorruptedException()
   }
 
   companion object {

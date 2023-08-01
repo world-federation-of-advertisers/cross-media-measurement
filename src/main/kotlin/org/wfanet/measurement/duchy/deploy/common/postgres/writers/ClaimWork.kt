@@ -24,7 +24,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationReader
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationStageAttemptReader
 import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
-import org.wfanet.measurement.duchy.service.internal.UnknownDataError
+import org.wfanet.measurement.duchy.service.internal.DataCorruptedException
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.copy
@@ -44,6 +44,7 @@ import org.wfanet.measurement.internal.duchy.copy
  * Throws following exceptions on [execute]:
  * * [ComputationNotFoundException] when computation could not be found
  * * [IllegalStateException] when computation details could not be found
+ * * [DataCorruptedException] when data is corrupted
  */
 class ClaimWork<ProtocolT, StageT>(
   private val protocol: ProtocolT,
@@ -68,7 +69,7 @@ class ClaimWork<ProtocolT, StageT>(
       .firstOrNull()
       ?.let {
         computationReader.readComputationToken(transactionContext, it.globalId)
-          ?: throw UnknownDataError()
+          ?: throw DataCorruptedException()
       }
   }
 
@@ -81,7 +82,7 @@ class ClaimWork<ProtocolT, StageT>(
   ): Boolean {
     val currentLockOwner =
       computationReader.readLockOwner(transactionContext, unclaimedTask.computationId)
-        ?: throw UnknownDataError()
+        ?: throw DataCorruptedException()
     // Verify that the row hasn't been updated since the previous, non-transactional read.
     // If it has been updated since that time the lock should not be acquired.
     if (currentLockOwner.updateTime != unclaimedTask.updateTime) return false

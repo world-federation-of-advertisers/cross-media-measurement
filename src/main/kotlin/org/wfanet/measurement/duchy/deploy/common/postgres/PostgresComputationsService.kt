@@ -16,7 +16,6 @@ package org.wfanet.measurement.duchy.deploy.common.postgres
 
 import com.google.protobuf.Empty
 import io.grpc.Status
-import io.grpc.StatusException
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Level
@@ -53,7 +52,7 @@ import org.wfanet.measurement.duchy.service.internal.ComputationAlreadyExistsExc
 import org.wfanet.measurement.duchy.service.internal.ComputationDetailsNotFoundException
 import org.wfanet.measurement.duchy.service.internal.ComputationInitialStageInvalidException
 import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
-import org.wfanet.measurement.duchy.service.internal.UnknownDataError
+import org.wfanet.measurement.duchy.service.internal.DataCorruptedException
 import org.wfanet.measurement.duchy.service.internal.computations.toAdvanceComputationStageResponse
 import org.wfanet.measurement.duchy.service.internal.computations.toClaimWorkResponse
 import org.wfanet.measurement.duchy.service.internal.computations.toCreateComputationResponse
@@ -96,7 +95,6 @@ import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsResponse
 import org.wfanet.measurement.internal.duchy.getComputationIdsResponse
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.internal.duchy.purgeComputationsResponse
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
@@ -155,7 +153,7 @@ class PostgresComputationsService(
         throw ex.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       } catch (ex: ComputationAlreadyExistsException) {
         throw ex.asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
-      } catch (ex: UnknownDataError) {
+      } catch (ex: DataCorruptedException) {
         throw ex.asStatusRuntimeException(Status.Code.INTERNAL)
       }
 
@@ -223,25 +221,13 @@ class PostgresComputationsService(
         request.localComputationId
       )
     for (blobKey in computationBlobKeys) {
-      try {
-        computationStore.get(blobKey)?.delete()
-      } catch (e: StatusException) {
-        if (e.status.code != Status.Code.NOT_FOUND) {
-          throw e
-        }
-      }
+      computationStore.get(blobKey)?.delete()
     }
 
     val requisitionBlobKeys =
       requisitionReader.readRequisitionBlobKeys(client.singleUse(), request.localComputationId)
     for (blobKey in requisitionBlobKeys) {
-      try {
-        requisitionStore.get(blobKey)?.delete()
-      } catch (e: StatusException) {
-        if (e.status.code != Status.NOT_FOUND.code) {
-          throw e
-        }
-      }
+      requisitionStore.get(blobKey)?.delete()
     }
 
     DeleteComputation(request.localComputationId).execute(client, idGenerator)
@@ -277,28 +263,6 @@ class PostgresComputationsService(
       }
       for (globalId in globalIds) {
         val token = computationReader.readComputationToken(client, globalId) ?: continue
-        val computationStageEnum = token.computationStage
-        val endComputationStage = getEndingComputationStage(computationStageEnum)
-
-        if (!isTerminated(computationStageEnum)) {
-          FinishComputation(
-              token.toDatabaseEditToken(),
-              endingStage = endComputationStage,
-              endComputationReason = EndComputationReason.FAILED,
-              computationDetails = token.computationDetails,
-              clock = clock,
-              protocolStagesEnumHelper = protocolStagesEnumHelper,
-              protocolStageDetailsHelper = computationProtocolStageDetailsHelper,
-              computationReader = computationReader,
-            )
-            .execute(client, idGenerator)
-          sendStatusUpdateToKingdom(
-            newCreateComputationLogEntryRequest(
-              token.globalComputationId,
-              endComputationStage,
-            )
-          )
-        }
         DeleteComputation(token.localComputationId).execute(client, idGenerator)
         deleted += 1
       }
@@ -330,7 +294,7 @@ class PostgresComputationsService(
             computationReader = computationReader,
           )
           .execute(client, idGenerator)
-      } catch (ex: UnknownDataError) {
+      } catch (ex: DataCorruptedException) {
         throw ex.asStatusRuntimeException(Status.Code.INTERNAL)
       }
 
@@ -361,7 +325,7 @@ class PostgresComputationsService(
             computationReader = computationReader
           )
           .execute(client, idGenerator)
-      } catch (ex: UnknownDataError) {
+      } catch (ex: DataCorruptedException) {
         throw ex.asStatusRuntimeException(Status.Code.INTERNAL)
       }
 
@@ -381,7 +345,7 @@ class PostgresComputationsService(
             computationReader = computationReader,
           )
           .execute(client, idGenerator)
-      } catch (ex: UnknownDataError) {
+      } catch (ex: DataCorruptedException) {
         throw ex.asStatusRuntimeException(Status.Code.INTERNAL)
       }
 
@@ -423,7 +387,7 @@ class PostgresComputationsService(
             computationReader = computationReader,
           )
           .execute(client, idGenerator)
-      } catch (ex: UnknownDataError) {
+      } catch (ex: DataCorruptedException) {
         throw ex.asStatusRuntimeException(Status.Code.INTERNAL)
       }
 
@@ -473,7 +437,7 @@ class PostgresComputationsService(
             computationReader = computationReader,
           )
           .execute(client, idGenerator)
-      } catch (ex: UnknownDataError) {
+      } catch (ex: DataCorruptedException) {
         throw ex.asStatusRuntimeException(Status.Code.INTERNAL)
       }
 

@@ -16,7 +16,6 @@ package org.wfanet.measurement.duchy.service.internal.computations
 
 import com.google.protobuf.Empty
 import io.grpc.Status
-import io.grpc.StatusException
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Level
@@ -73,8 +72,8 @@ import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
 class ComputationsService(
   private val computationsDatabase: ComputationsDatabase,
   private val computationLogEntriesClient: ComputationLogEntriesCoroutineStub,
-  private val computationStorageClient: ComputationStore,
-  private val requisitionStorageClient: RequisitionStore,
+  private val computationStore: ComputationStore,
+  private val requisitionStore: RequisitionStore,
   private val duchyName: String,
   private val clock: Clock = Clock.systemUTC(),
   private val defaultLockDuration: Duration = Duration.ofMinutes(5),
@@ -134,23 +133,11 @@ class ComputationsService(
   private suspend fun deleteComputation(localId: Long) {
     val computationBlobKeys = computationsDatabase.readComputationBlobKeys(localId)
     for (blobKey in computationBlobKeys) {
-      try {
-        computationStorageClient.get(blobKey)?.delete()
-      } catch (e: StatusException) {
-        if (e.status.code != Status.Code.NOT_FOUND) {
-          throw e
-        }
-      }
+      computationStore.get(blobKey)?.delete()
     }
     val requisitionBlobKeys = computationsDatabase.readRequisitionBlobKeys(localId)
     for (blobKey in requisitionBlobKeys) {
-      try {
-        requisitionStorageClient.get(blobKey)?.delete()
-      } catch (e: StatusException) {
-        if (e.status.code != Status.NOT_FOUND.code) {
-          throw e
-        }
-      }
+      requisitionStore.get(blobKey)?.delete()
     }
     computationsDatabase.deleteComputation(localId)
   }
@@ -185,20 +172,6 @@ class ComputationsService(
       }
       for (globalId in globalIds) {
         val token = computationsDatabase.readComputationToken(globalId) ?: continue
-        if (!isTerminated(token)) {
-          computationsDatabase.endComputation(
-            token.toDatabaseEditToken(),
-            getEndingComputationStage(token),
-            EndComputationReason.FAILED,
-            token.computationDetails
-          )
-          sendStatusUpdateToKingdom(
-            newCreateComputationLogEntryRequest(
-              token.globalComputationId,
-              getEndingComputationStage(token),
-            )
-          )
-        }
         deleteComputation(token.localComputationId)
         deleted += 1
       }
