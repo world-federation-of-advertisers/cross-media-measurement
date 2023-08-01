@@ -24,6 +24,7 @@ import com.google.protobuf.duration
 import com.google.protobuf.empty
 import com.google.protobuf.timestamp
 import com.google.protobuf.value
+import com.google.type.date
 import com.google.type.interval
 import io.grpc.Server
 import io.grpc.ServerInterceptors
@@ -128,6 +129,7 @@ import org.wfanet.measurement.api.v2alpha.createModelOutageRequest
 import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.createModelShardRequest
 import org.wfanet.measurement.api.v2alpha.dataProvider
+import org.wfanet.measurement.api.v2alpha.dateInterval
 import org.wfanet.measurement.api.v2alpha.deleteModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
@@ -241,9 +243,21 @@ private const val MODEL_LINE_ACTIVE_END_TIME = "2030-05-24T05:00:00.000Z"
 private const val MODEL_OUTAGE_ACTIVE_START_TIME = "2026-05-24T05:00:00.000Z"
 private const val MODEL_OUTAGE_ACTIVE_END_TIME = "2026-05-29T05:00:00.000Z"
 
-private const val MODEL_ROLLOUT_ACTIVE_START_TIME = "2026-05-24T05:00:00.000Z"
-private const val MODEL_ROLLOUT_ACTIVE_END_TIME = "2026-09-24T05:00:00.000Z"
-private const val MODEL_ROLLOUT_FREEZE_TIME = "2026-07-24T05:00:00.000Z"
+private val MODEL_ROLLOUT_ACTIVE_START_DATE = date {
+  year = 2026
+  month = 5
+  day = 24
+}
+private val MODEL_ROLLOUT_ACTIVE_END_DATE = date {
+  year = 2026
+  month = 9
+  day = 24
+}
+private val MODEL_ROLLOUT_FREEZE_DATE = date {
+  year = 2026
+  month = 7
+  day = 24
+}
 
 private val DATA_PROVIDER = dataProvider {
   name = DATA_PROVIDER_NAME
@@ -312,9 +326,9 @@ private val MODEL_SHARD = modelShard {
 
 private val MODEL_ROLLOUT = modelRollout {
   name = MODEL_ROLLOUT_NAME
-  gradualRolloutPeriod = interval {
-    startTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime()
-    endTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime()
+  gradualRolloutPeriod = dateInterval {
+    this.startDate = MODEL_ROLLOUT_ACTIVE_START_DATE
+    this.endDate = MODEL_ROLLOUT_ACTIVE_END_DATE
   }
   previousModelRollout = "previous model"
   modelRelease = MODEL_RELEASE_NAME
@@ -322,11 +336,11 @@ private val MODEL_ROLLOUT = modelRollout {
 
 private val MODEL_ROLLOUT_WITH_FREEZE_TIME = modelRollout {
   name = MODEL_ROLLOUT_NAME
-  gradualRolloutPeriod = interval {
-    startTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime()
-    endTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime()
+  gradualRolloutPeriod = dateInterval {
+    this.startDate = MODEL_ROLLOUT_ACTIVE_START_DATE
+    this.endDate = MODEL_ROLLOUT_ACTIVE_END_DATE
   }
-  rolloutFreezeTime = Instant.parse(MODEL_ROLLOUT_FREEZE_TIME).toProtoTime()
+  rolloutFreezeDate = MODEL_ROLLOUT_FREEZE_DATE
   previousModelRollout = "previous model"
   modelRelease = MODEL_RELEASE_NAME
 }
@@ -1621,8 +1635,8 @@ class MeasurementSystemTest {
           "model-rollouts",
           "create",
           "--parent=$MODEL_LINE_NAME",
-          "--rollout-start-time=$MODEL_ROLLOUT_ACTIVE_START_TIME",
-          "--rollout-end-time=$MODEL_ROLLOUT_ACTIVE_END_TIME",
+          "--rollout-start-date=2026-05-24",
+          "--rollout-end-date=2026-09-24",
           "--model-release=$MODEL_RELEASE_NAME",
         )
     callCli(args)
@@ -1637,9 +1651,9 @@ class MeasurementSystemTest {
         createModelRolloutRequest {
           parent = MODEL_LINE_NAME
           modelRollout = modelRollout {
-            gradualRolloutPeriod = interval {
-              startTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime()
-              endTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime()
+            gradualRolloutPeriod = dateInterval {
+              startDate = MODEL_ROLLOUT_ACTIVE_START_DATE
+              endDate = MODEL_ROLLOUT_ACTIVE_END_DATE
             }
             modelRelease = MODEL_RELEASE_NAME
           }
@@ -1657,8 +1671,8 @@ class MeasurementSystemTest {
           "--parent=$MODEL_LINE_NAME",
           "--page-size=10",
           "--page-token=token",
-          "--rollout-period-overlapping-start-time=$MODEL_ROLLOUT_ACTIVE_START_TIME",
-          "--rollout-period-overlapping-end-time=$MODEL_ROLLOUT_ACTIVE_END_TIME"
+          "--rollout-period-overlapping-start-date=2026-05-24",
+          "--rollout-period-overlapping-end-date=2026-09-24"
         )
     callCli(args)
 
@@ -1675,9 +1689,9 @@ class MeasurementSystemTest {
           pageToken = "token"
           filter =
             ListModelRolloutsRequestKt.filter {
-              rolloutPeriodOverlapping = interval {
-                startTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_START_TIME).toProtoTime()
-                endTime = Instant.parse(MODEL_ROLLOUT_ACTIVE_END_TIME).toProtoTime()
+              rolloutPeriodOverlapping = dateInterval {
+                startDate = MODEL_ROLLOUT_ACTIVE_START_DATE
+                endDate = MODEL_ROLLOUT_ACTIVE_END_DATE
               }
             }
         }
@@ -1692,7 +1706,7 @@ class MeasurementSystemTest {
           "model-rollouts",
           "schedule",
           "--name=$MODEL_ROLLOUT_NAME",
-          "--freeze-time=$MODEL_ROLLOUT_FREEZE_TIME",
+          "--freeze-time=2026-07-24",
         )
     callCli(args)
 
@@ -1705,7 +1719,7 @@ class MeasurementSystemTest {
       .isEqualTo(
         scheduleModelRolloutFreezeRequest {
           name = MODEL_ROLLOUT_NAME
-          rolloutFreezeTime = Instant.parse(MODEL_ROLLOUT_FREEZE_TIME).toProtoTime()
+          rolloutFreezeDate = MODEL_ROLLOUT_FREEZE_DATE
         }
       )
   }

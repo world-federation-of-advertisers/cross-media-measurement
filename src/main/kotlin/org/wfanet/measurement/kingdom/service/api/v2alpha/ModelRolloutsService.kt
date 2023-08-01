@@ -17,9 +17,10 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.Empty
-import com.google.protobuf.util.Timestamps
+import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
+import java.time.ZoneOffset
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.CreateModelRolloutRequest
@@ -47,6 +48,10 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.ModelRollout as InternalModelRollout
 import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequest
@@ -145,7 +150,12 @@ class ModelRolloutsService(private val internalClient: ModelRolloutsCoroutineStu
       externalModelSuiteId = apiIdToExternalId(key.modelSuiteId)
       externalModelProviderId = apiIdToExternalId(key.modelProviderId)
       externalModelRolloutId = apiIdToExternalId(key.modelRolloutId)
-      rolloutFreezeTime = request.rolloutFreezeTime
+      rolloutFreezeTime =
+        request.rolloutFreezeDate
+          .toLocalDate()
+          .atStartOfDay()
+          .toInstant(ZoneOffset.UTC)
+          .toProtoTime()
     }
 
     try {
@@ -298,14 +308,18 @@ class ModelRolloutsService(private val internalClient: ModelRolloutsCoroutineStu
           grpcRequire(
             source.hasFilter() &&
               source.filter.hasRolloutPeriodOverlapping() &&
-              Timestamps.compare(
-                source.filter.rolloutPeriodOverlapping.startTime,
+              source.filter.rolloutPeriodOverlapping.startDate ==
                 this.rolloutPeriodOverlapping.startTime
-              ) == 0 &&
-              Timestamps.compare(
-                source.filter.rolloutPeriodOverlapping.endTime,
+                  .toInstant()
+                  .atZone(ZoneOffset.UTC)
+                  .toLocalDate()
+                  .toProtoDate() &&
+              source.filter.rolloutPeriodOverlapping.endDate ==
                 this.rolloutPeriodOverlapping.endTime
-              ) == 0
+                  .toInstant()
+                  .atZone(ZoneOffset.UTC)
+                  .toLocalDate()
+                  .toProtoDate()
           ) {
             "Arguments must be kept the same when using a page token"
           }
@@ -327,7 +341,20 @@ class ModelRolloutsService(private val internalClient: ModelRolloutsCoroutineStu
         this.externalModelSuiteId = externalModelSuiteId
         this.externalModelLineId = externalModelLineId
         if (source.hasFilter() && source.filter.hasRolloutPeriodOverlapping()) {
-          this.rolloutPeriodOverlapping = source.filter.rolloutPeriodOverlapping
+          this.rolloutPeriodOverlapping = interval {
+            startTime =
+              source.filter.rolloutPeriodOverlapping.startDate
+                .toLocalDate()
+                .atStartOfDay()
+                .toInstant(ZoneOffset.UTC)
+                .toProtoTime()
+            endTime =
+              source.filter.rolloutPeriodOverlapping.endDate
+                .toLocalDate()
+                .atStartOfDay()
+                .toInstant(ZoneOffset.UTC)
+                .toProtoTime()
+          }
         }
       }
     }

@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Empty
 import com.google.protobuf.Timestamp
+import com.google.type.date
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -45,6 +46,7 @@ import org.wfanet.measurement.api.v2alpha.ModelRolloutKey
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
+import org.wfanet.measurement.api.v2alpha.dateInterval
 import org.wfanet.measurement.api.v2alpha.deleteModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsPageToken
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
@@ -110,18 +112,33 @@ private val EXTERNAL_MODEL_RELEASE_ID =
 
 private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
-private val ROLLOUT_PERIOD_START_TIME: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
-private val ROLLOUT_PERIOD_END_TIME: Timestamp = Instant.ofEpochSecond(789).toProtoTime()
-private val ROLLOUT_FREEZE_TIME: Timestamp = Instant.ofEpochSecond(678).toProtoTime()
+private val ROLLOUT_PERIOD_START_TIME: Instant = Instant.ofEpochSecond(86400)
+private val ROLLOUT_PERIOD_START_DATE = date {
+  year = 1970
+  month = 1
+  day = 2
+}
+private val ROLLOUT_PERIOD_END_TIME: Instant = Instant.ofEpochSecond(172800)
+private val ROLLOUT_PERIOD_END_DATE = date {
+  year = 1970
+  month = 1
+  day = 3
+}
+private val ROLLOUT_FREEZE_TIME: Instant = Instant.ofEpochSecond(86400)
+private val ROLLOUT_FREEZE_DATE = date {
+  year = 1970
+  month = 1
+  day = 2
+}
 
 private val INTERNAL_MODEL_ROLLOUT: InternalModelRollout = internalModelRollout {
   externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
   externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
   externalModelLineId = EXTERNAL_MODEL_LINE_ID
   externalModelRolloutId = EXTERNAL_MODEL_ROLLOUT_ID_2
-  rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME
-  rolloutPeriodEndTime = ROLLOUT_PERIOD_END_TIME
-  rolloutFreezeTime = ROLLOUT_FREEZE_TIME
+  rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME.toProtoTime()
+  rolloutPeriodEndTime = ROLLOUT_PERIOD_END_TIME.toProtoTime()
+  rolloutFreezeTime = ROLLOUT_FREEZE_TIME.toProtoTime()
   externalPreviousModelRolloutId = EXTERNAL_MODEL_ROLLOUT_ID
   externalModelReleaseId = EXTERNAL_MODEL_RELEASE_ID
   createTime = CREATE_TIME
@@ -130,11 +147,11 @@ private val INTERNAL_MODEL_ROLLOUT: InternalModelRollout = internalModelRollout 
 
 private val MODEL_ROLLOUT: ModelRollout = modelRollout {
   name = MODEL_ROLLOUT_NAME_2
-  gradualRolloutPeriod = interval {
-    startTime = ROLLOUT_PERIOD_START_TIME
-    endTime = ROLLOUT_PERIOD_END_TIME
+  gradualRolloutPeriod = dateInterval {
+    startDate = ROLLOUT_PERIOD_START_DATE
+    endDate = ROLLOUT_PERIOD_END_DATE
   }
-  rolloutFreezeTime = ROLLOUT_FREEZE_TIME
+  rolloutFreezeDate = ROLLOUT_FREEZE_DATE
   previousModelRollout = MODEL_ROLLOUT_NAME
   modelRelease = MODEL_RELEASE_NAME
   createTime = CREATE_TIME
@@ -143,8 +160,8 @@ private val MODEL_ROLLOUT: ModelRollout = modelRollout {
 
 private val MODEL_ROLLOUT_2: ModelRollout = modelRollout {
   name = MODEL_ROLLOUT_NAME_2
-  instantRolloutTime = ROLLOUT_PERIOD_START_TIME
-  rolloutFreezeTime = ROLLOUT_FREEZE_TIME
+  instantRolloutDate = ROLLOUT_PERIOD_START_DATE
+  rolloutFreezeDate = ROLLOUT_FREEZE_DATE
   previousModelRollout = MODEL_ROLLOUT_NAME
   modelRelease = MODEL_RELEASE_NAME_2
   createTime = CREATE_TIME
@@ -165,7 +182,9 @@ class ModelRolloutsServiceTest {
         }
       }
     onBlocking { scheduleModelRolloutFreeze(any()) }
-      .thenReturn(INTERNAL_MODEL_ROLLOUT.copy { rolloutFreezeTime = ROLLOUT_FREEZE_TIME })
+      .thenReturn(
+        INTERNAL_MODEL_ROLLOUT.copy { rolloutFreezeTime = ROLLOUT_FREEZE_TIME.toProtoTime() }
+      )
     onBlocking { deleteModelRollout(any()) }.thenReturn(INTERNAL_MODEL_ROLLOUT)
     onBlocking { streamModelRollouts(any()) }
       .thenReturn(
@@ -364,7 +383,7 @@ class ModelRolloutsServiceTest {
   fun `scheduleModelRolloutFreeze returns model rollout with rollout freeze time`() {
     val request = scheduleModelRolloutFreezeRequest {
       name = MODEL_ROLLOUT_NAME
-      rolloutFreezeTime = ROLLOUT_FREEZE_TIME
+      rolloutFreezeDate = ROLLOUT_FREEZE_DATE
     }
 
     val result =
@@ -372,7 +391,7 @@ class ModelRolloutsServiceTest {
         runBlocking { service.scheduleModelRolloutFreeze(request) }
       }
 
-    val expected = MODEL_ROLLOUT.copy { rolloutFreezeTime = ROLLOUT_FREEZE_TIME }
+    val expected = MODEL_ROLLOUT.copy { rolloutFreezeDate = ROLLOUT_FREEZE_DATE }
 
     verifyProtoArgument(
         internalModelRolloutsMock,
@@ -384,7 +403,7 @@ class ModelRolloutsServiceTest {
           externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
           externalModelLineId = EXTERNAL_MODEL_LINE_ID
           externalModelRolloutId = EXTERNAL_MODEL_ROLLOUT_ID
-          rolloutFreezeTime = ROLLOUT_FREEZE_TIME
+          rolloutFreezeTime = ROLLOUT_FREEZE_TIME.toProtoTime()
         }
       )
 
@@ -398,7 +417,7 @@ class ModelRolloutsServiceTest {
         withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
           runBlocking {
             service.scheduleModelRolloutFreeze(
-              scheduleModelRolloutFreezeRequest { rolloutFreezeTime = ROLLOUT_FREEZE_TIME }
+              scheduleModelRolloutFreezeRequest { rolloutFreezeDate = ROLLOUT_FREEZE_DATE }
             )
           }
         }
@@ -410,7 +429,7 @@ class ModelRolloutsServiceTest {
   fun `scheduleModelRolloutFreeze throws UNAUTHENTICATED when no principal is found`() {
     val request = scheduleModelRolloutFreezeRequest {
       name = MODEL_ROLLOUT_NAME
-      rolloutFreezeTime = ROLLOUT_FREEZE_TIME
+      rolloutFreezeDate = ROLLOUT_FREEZE_DATE
     }
 
     val exception =
@@ -424,7 +443,7 @@ class ModelRolloutsServiceTest {
   fun `scheduleModelRolloutFreeze throws PERMISSION_DENIED when principal is data provider`() {
     val request = scheduleModelRolloutFreezeRequest {
       name = MODEL_ROLLOUT_NAME
-      rolloutFreezeTime = ROLLOUT_FREEZE_TIME
+      rolloutFreezeDate = ROLLOUT_FREEZE_DATE
     }
 
     val exception =
@@ -440,7 +459,7 @@ class ModelRolloutsServiceTest {
   fun `scheduleModelRolloutFreeze throws PERMISSION_DENIED when principal is duchy`() {
     val request = scheduleModelRolloutFreezeRequest {
       name = MODEL_ROLLOUT_NAME
-      rolloutFreezeTime = ROLLOUT_FREEZE_TIME
+      rolloutFreezeDate = ROLLOUT_FREEZE_DATE
     }
 
     val exception =
@@ -456,7 +475,7 @@ class ModelRolloutsServiceTest {
   fun `scheduleModelRolloutFreeze throws PERMISSION_DENIED when principal is measurement consumer`() {
     val request = scheduleModelRolloutFreezeRequest {
       name = MODEL_ROLLOUT_NAME
-      rolloutFreezeTime = ROLLOUT_FREEZE_TIME
+      rolloutFreezeDate = ROLLOUT_FREEZE_DATE
     }
 
     val exception =
@@ -472,7 +491,7 @@ class ModelRolloutsServiceTest {
   fun `scheduleModelRolloutFreeze throws PERMISSION_DENIED when model provider caller doesn't match`() {
     val request = scheduleModelRolloutFreezeRequest {
       name = MODEL_ROLLOUT_NAME
-      rolloutFreezeTime = ROLLOUT_FREEZE_TIME
+      rolloutFreezeDate = ROLLOUT_FREEZE_DATE
     }
 
     val exception =
@@ -728,7 +747,7 @@ class ModelRolloutsServiceTest {
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
         externalModelLineId = EXTERNAL_MODEL_LINE_ID
         lastModelRollout = previousPageEnd {
-          rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME
+          rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME.toProtoTime()
           externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
           externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
           externalModelLineId = EXTERNAL_MODEL_LINE_ID
@@ -751,9 +770,9 @@ class ModelRolloutsServiceTest {
     val request = listModelRolloutsRequest {
       parent = MODEL_LINE_NAME
       filter = filter {
-        rolloutPeriodOverlapping = interval {
-          startTime = ROLLOUT_PERIOD_START_TIME
-          endTime = ROLLOUT_PERIOD_END_TIME
+        rolloutPeriodOverlapping = dateInterval {
+          startDate = ROLLOUT_PERIOD_START_DATE
+          endDate = ROLLOUT_PERIOD_END_DATE
         }
       }
       val listModelRolloutsPageToken = listModelRolloutsPageToken {
@@ -762,11 +781,11 @@ class ModelRolloutsServiceTest {
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
         externalModelLineId = EXTERNAL_MODEL_LINE_ID
         rolloutPeriodOverlapping = interval {
-          startTime = ROLLOUT_PERIOD_START_TIME
-          endTime = ROLLOUT_FREEZE_TIME
+          startTime = ROLLOUT_PERIOD_START_TIME.toProtoTime()
+          endTime = ROLLOUT_FREEZE_TIME.toProtoTime()
         }
         lastModelRollout = previousPageEnd {
-          rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME
+          rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME.toProtoTime()
           externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
           externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
           externalModelLineId = EXTERNAL_MODEL_LINE_ID
@@ -796,11 +815,11 @@ class ModelRolloutsServiceTest {
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
         externalModelLineId = EXTERNAL_MODEL_LINE_ID
         rolloutPeriodOverlapping = interval {
-          startTime = ROLLOUT_PERIOD_START_TIME
-          endTime = ROLLOUT_PERIOD_END_TIME
+          startTime = ROLLOUT_PERIOD_START_TIME.toProtoTime()
+          endTime = ROLLOUT_PERIOD_END_TIME.toProtoTime()
         }
         lastModelRollout = previousPageEnd {
-          rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME
+          rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME.toProtoTime()
           externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
           externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
           externalModelLineId = EXTERNAL_MODEL_LINE_ID
@@ -825,9 +844,9 @@ class ModelRolloutsServiceTest {
       parent = MODEL_LINE_NAME
       pageSize = 2
       filter = filter {
-        rolloutPeriodOverlapping = interval {
-          startTime = ROLLOUT_PERIOD_START_TIME
-          endTime = ROLLOUT_PERIOD_END_TIME
+        rolloutPeriodOverlapping = dateInterval {
+          startDate = ROLLOUT_PERIOD_START_DATE
+          endDate = ROLLOUT_PERIOD_END_DATE
         }
       }
       val listModelRolloutsPageToken = listModelRolloutsPageToken {
@@ -836,11 +855,11 @@ class ModelRolloutsServiceTest {
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
         externalModelLineId = EXTERNAL_MODEL_LINE_ID
         rolloutPeriodOverlapping = interval {
-          startTime = ROLLOUT_PERIOD_START_TIME
-          endTime = ROLLOUT_PERIOD_END_TIME
+          startTime = ROLLOUT_PERIOD_START_TIME.toProtoTime()
+          endTime = ROLLOUT_PERIOD_END_TIME.toProtoTime()
         }
         lastModelRollout = previousPageEnd {
-          rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME
+          rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME.toProtoTime()
           externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
           externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
           externalModelLineId = EXTERNAL_MODEL_LINE_ID
@@ -864,11 +883,11 @@ class ModelRolloutsServiceTest {
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
         externalModelLineId = EXTERNAL_MODEL_LINE_ID
         rolloutPeriodOverlapping = interval {
-          startTime = ROLLOUT_PERIOD_START_TIME
-          endTime = ROLLOUT_PERIOD_END_TIME
+          startTime = ROLLOUT_PERIOD_START_TIME.toProtoTime()
+          endTime = ROLLOUT_PERIOD_END_TIME.toProtoTime()
         }
         lastModelRollout = previousPageEnd {
-          rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME
+          rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME.toProtoTime()
           externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
           externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
           externalModelLineId = EXTERNAL_MODEL_LINE_ID
@@ -894,11 +913,11 @@ class ModelRolloutsServiceTest {
               externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
               externalModelLineId = EXTERNAL_MODEL_LINE_ID
               rolloutPeriod = rolloutPeriod {
-                rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME
-                rolloutPeriodEndTime = ROLLOUT_PERIOD_END_TIME
+                rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME.toProtoTime()
+                rolloutPeriodEndTime = ROLLOUT_PERIOD_END_TIME.toProtoTime()
               }
               after = afterFilter {
-                rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME
+                rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME.toProtoTime()
                 externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
                 externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
                 externalModelLineId = EXTERNAL_MODEL_LINE_ID
@@ -917,9 +936,9 @@ class ModelRolloutsServiceTest {
       parent = MODEL_LINE_NAME
       pageSize = 4
       filter = filter {
-        rolloutPeriodOverlapping = interval {
-          startTime = ROLLOUT_PERIOD_START_TIME
-          endTime = ROLLOUT_PERIOD_END_TIME
+        rolloutPeriodOverlapping = dateInterval {
+          startDate = ROLLOUT_PERIOD_START_DATE
+          endDate = ROLLOUT_PERIOD_END_DATE
         }
       }
       val listModelRolloutsPageToken = listModelRolloutsPageToken {
@@ -928,11 +947,11 @@ class ModelRolloutsServiceTest {
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
         externalModelLineId = EXTERNAL_MODEL_LINE_ID
         rolloutPeriodOverlapping = interval {
-          startTime = ROLLOUT_PERIOD_START_TIME
-          endTime = ROLLOUT_PERIOD_END_TIME
+          startTime = ROLLOUT_PERIOD_START_TIME.toProtoTime()
+          endTime = ROLLOUT_PERIOD_END_TIME.toProtoTime()
         }
         lastModelRollout = previousPageEnd {
-          rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME
+          rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME.toProtoTime()
           externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
           externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
           externalModelLineId = EXTERNAL_MODEL_LINE_ID
@@ -962,11 +981,11 @@ class ModelRolloutsServiceTest {
               externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
               externalModelLineId = EXTERNAL_MODEL_LINE_ID
               rolloutPeriod = rolloutPeriod {
-                rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME
-                rolloutPeriodEndTime = ROLLOUT_PERIOD_END_TIME
+                rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME.toProtoTime()
+                rolloutPeriodEndTime = ROLLOUT_PERIOD_END_TIME.toProtoTime()
               }
               after = afterFilter {
-                rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME
+                rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME.toProtoTime()
                 externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
                 externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
                 externalModelLineId = EXTERNAL_MODEL_LINE_ID
@@ -987,7 +1006,7 @@ class ModelRolloutsServiceTest {
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
         externalModelLineId = EXTERNAL_MODEL_LINE_ID
         lastModelRollout = previousPageEnd {
-          rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME
+          rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME.toProtoTime()
           externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
           externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
           externalModelLineId = EXTERNAL_MODEL_LINE_ID
@@ -1017,7 +1036,7 @@ class ModelRolloutsServiceTest {
               externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
               externalModelLineId = EXTERNAL_MODEL_LINE_ID
               after = afterFilter {
-                rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME
+                rolloutPeriodStartTime = ROLLOUT_PERIOD_START_TIME.toProtoTime()
                 externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
                 externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
                 externalModelLineId = EXTERNAL_MODEL_LINE_ID
