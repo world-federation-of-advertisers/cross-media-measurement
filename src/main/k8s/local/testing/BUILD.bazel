@@ -51,6 +51,7 @@ kustomization_dir(
     name = "config_files",
     srcs = [
         "config_files_kustomization.yaml",
+        "//src/main/k8s/testing/data:synthetic_generation_specs",
     ],
     renames = {"config_files_kustomization.yaml": "kustomization.yaml"},
 )

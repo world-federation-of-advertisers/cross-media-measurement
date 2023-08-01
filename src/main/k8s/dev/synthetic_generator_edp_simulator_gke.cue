@@ -24,13 +24,29 @@ _resourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	}
 }
 
+_populationSpec: "/etc/\(#AppName)/config-files/synthetic_population_spec.textproto"
+_eventGroupSpecs: [
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_1.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_2.textproto",
+]
+
 edp_simulators: {
-	for edp in _edpConfigs {
+	for i, edp in _edpConfigs {
+		let SpecIndex = mod(i, len(_eventGroupSpecs))
+		let EventGroupSpec = _eventGroupSpecs[SpecIndex]
+
 		"\(edp.displayName)": {
 			_imageConfig: repoSuffix: "simulator/synthetic-generator-edp"
+			_additional_args: [
+				"--population-spec=\(_populationSpec)",
+				"--event-group-spec=\(EventGroupSpec)",
+			]
 			deployment: {
 				_container: {
 					resources: _resourceRequirements
+				}
+				spec: template: spec: {
+					_mounts: "config-files": #ConfigMapMount
 				}
 			}
 		}
