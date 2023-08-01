@@ -24,9 +24,13 @@ option java_multiple_files = true;
 message ProtocolsSetupConfig {
   // LiquidLegionsV2 specific configuration
   LiquidLegionsV2SetupConfig liquid_legions_v2 = 1;
+
+  // ReachOnlyLiquidLegionsV2 specific configuration
+  LiquidLegionsV2SetupConfig reach_only_liquid_legions_v2 = 2;
 }
 
-// LiquidLegionsV2 specific configuration
+// LiquidLegionsV2 protocols specific configuration. Also used for reach-only
+// llv2.
 message LiquidLegionsV2SetupConfig {
   enum RoleInComputation {
     // Never set intentionally

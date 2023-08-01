@@ -25,7 +25,7 @@ option java_package = "org.wfanet.measurement.internal.duchy.protocol";
 option java_multiple_files = true;
 
 // Proto messages wrapping the input arguments or output results of the liquid
-// legion v2 (three round) MPC protocol encryption methods, which are to be
+// legions v2 (three round) MPC protocol encryption methods, which are to be
 // called via JNI in the Mill. Note that these protos contain sensitive data,
 // e.g., private keys used in the ciphers. So they SHOULD NOT be written into
 // any logs or leave the running process.

@@ -82,7 +82,7 @@ message ComputationParticipant {
     // Duchy's root certificate.
     bytes duchy_certificate_der = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-    // Parameters for the Liquid Legions v2 protocol.
+    // Parameters for the Liquid Legions v2 protocols.
     message LiquidLegionsV2 {
       // Serialized `ElGamalPublicKey` message from public API.
       bytes el_gamal_public_key = 1 [(google.api.field_behavior) = REQUIRED];
@@ -96,6 +96,9 @@ message ComputationParticipant {
     oneof protocol {
       // Requisition parameters for the Liquid Legions v2 protocol.
       LiquidLegionsV2 liquid_legions_v2 = 3;
+
+      // Requisition parameters for the Reach-Only Liquid Legions v2 protocol.
+      LiquidLegionsV2 reach_only_liquid_legions_v2 = 4;
     }
   }
   // Parameters needed for `Requisition` to be made available in public API.

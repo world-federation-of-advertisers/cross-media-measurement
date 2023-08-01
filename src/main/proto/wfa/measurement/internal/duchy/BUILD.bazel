@@ -31,6 +31,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:reach_only_liquid_legions_v2_proto",
     ],
 )
 
@@ -52,6 +53,7 @@ proto_library(
     deps = [
         ":crypto_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:reach_only_liquid_legions_v2_proto",
     ],
 )
 

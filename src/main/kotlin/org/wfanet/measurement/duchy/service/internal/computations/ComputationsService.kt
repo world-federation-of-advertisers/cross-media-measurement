@@ -66,6 +66,7 @@ import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathResponse
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsResponse
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.purgeComputationsResponse
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
@@ -374,6 +375,9 @@ class ComputationsService(
       ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         token.computationStage.liquidLegionsSketchAggregationV2 ==
           LiquidLegionsSketchAggregationV2.Stage.COMPLETE
+      ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+        token.computationStage.reachOnlyLiquidLegionsSketchAggregationV2 ==
+          ReachOnlyLiquidLegionsSketchAggregationV2.Stage.COMPLETE
       ComputationStage.StageCase.STAGE_NOT_SET -> false
     }
   }
@@ -383,6 +387,8 @@ class ComputationsService(
     return when (token.computationStage.stageCase) {
       ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         LiquidLegionsSketchAggregationV2.Stage.COMPLETE.toProtocolStage()
+      ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+        ReachOnlyLiquidLegionsSketchAggregationV2.Stage.COMPLETE.toProtocolStage()
       ComputationStage.StageCase.STAGE_NOT_SET -> error("protocol not set")
     }
   }
@@ -406,5 +412,7 @@ private fun ComputationStage.toComputationType() =
   when (stageCase) {
     ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
       ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+    ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+      ComputationType.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
     else -> failGrpc { "Computation type for $this is unknown" }
   }

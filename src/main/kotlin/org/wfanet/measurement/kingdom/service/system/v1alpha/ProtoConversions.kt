@@ -39,6 +39,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntryKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.RequisitionKey
@@ -109,10 +110,17 @@ fun InternalComputationParticipant.toSystemComputationParticipant(): Computation
           duchyCertificateDer = duchyCertificate.details.x509Der
         }
         if (details.hasLiquidLegionsV2()) {
-          liquidLegionsV2Builder.apply {
-            elGamalPublicKey = details.liquidLegionsV2.elGamalPublicKey
-            elGamalPublicKeySignature = details.liquidLegionsV2.elGamalPublicKeySignature
-          }
+          liquidLegionsV2 =
+            ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
+              elGamalPublicKey = details.liquidLegionsV2.elGamalPublicKey
+              elGamalPublicKeySignature = details.liquidLegionsV2.elGamalPublicKeySignature
+            }
+        } else if (details.hasReachOnlyLiquidLegionsV2()) {
+          reachOnlyLiquidLegionsV2 =
+            ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
+              elGamalPublicKey = details.reachOnlyLiquidLegionsV2.elGamalPublicKey
+              elGamalPublicKeySignature = details.reachOnlyLiquidLegionsV2.elGamalPublicKeySignature
+            }
         }
       }
       if (hasFailureLogEntry()) {
@@ -250,27 +258,27 @@ fun buildMpcProtocolConfig(
       mpcProtocolConfig {
         reachOnlyLiquidLegionsV2 = liquidLegionsV2 {
           sketchParams = liquidLegionsSketchParams {
-            decayRate = protocolConfig.liquidLegionsV2.sketchParams.decayRate
-            maxSize = protocolConfig.liquidLegionsV2.sketchParams.maxSize
+            decayRate = protocolConfig.reachOnlyLiquidLegionsV2.sketchParams.decayRate
+            maxSize = protocolConfig.reachOnlyLiquidLegionsV2.sketchParams.maxSize
           }
           mpcNoise = mpcNoise {
             blindedHistogramNoise =
-              duchyProtocolConfig.liquidLegionsV2.mpcNoise.blindedHistogramNoise
+              duchyProtocolConfig.reachOnlyLiquidLegionsV2.mpcNoise.blindedHistogramNoise
                 .toSystemDifferentialPrivacyParams()
             publisherNoise =
-              duchyProtocolConfig.liquidLegionsV2.mpcNoise.noiseForPublisherNoise
+              duchyProtocolConfig.reachOnlyLiquidLegionsV2.mpcNoise.noiseForPublisherNoise
                 .toSystemDifferentialPrivacyParams()
           }
-          ellipticCurveId = protocolConfig.liquidLegionsV2.ellipticCurveId
+          ellipticCurveId = protocolConfig.reachOnlyLiquidLegionsV2.ellipticCurveId
           // Use `GEOMETRIC` for unspecified InternalNoiseMechanism for old Measurements.
           noiseMechanism =
             if (
-              protocolConfig.liquidLegionsV2.noiseMechanism ==
+              protocolConfig.reachOnlyLiquidLegionsV2.noiseMechanism ==
                 InternalProtocolConfig.NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED
             ) {
               NoiseMechanism.GEOMETRIC
             } else {
-              protocolConfig.liquidLegionsV2.noiseMechanism.toSystemNoiseMechanism()
+              protocolConfig.reachOnlyLiquidLegionsV2.noiseMechanism.toSystemNoiseMechanism()
             }
         }
       }

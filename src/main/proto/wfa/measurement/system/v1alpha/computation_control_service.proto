@@ -48,6 +48,9 @@ message AdvanceComputationRequest {
     oneof protocol {
       // The LiquidLegionsV2 (three-round) protocol.
       LiquidLegionsV2 liquid_legions_v2 = 2;
+
+      // The ReachOnlyLiquidLegionsV2 (one-round) protocol.
+      ReachOnlyLiquidLegionsV2 reach_only_liquid_legions_v2 = 3;
     }
   }
 
@@ -82,6 +85,24 @@ message LiquidLegionsV2 {
     EXECUTION_PHASE_TWO_INPUT = 3;
     // The input for the execution phase three.
     EXECUTION_PHASE_THREE_INPUT = 4;
+  }
+  // Payload data description
+  Description description = 1;
+}
+
+// Parameters for the Reach-Only Liquid Legions v2 protocol.
+//
+// (-- api-linter: core::0123::resource-annotation=disabled
+//     aip.dev/not-precedent: This is not a resource message. --)
+message ReachOnlyLiquidLegionsV2 {
+  // The description of the data in the payload.
+  enum Description {
+    // The data type is unknown. This is never set intentionally.
+    DESCRIPTION_UNSPECIFIED = 0;
+    // The input for the setup phase.
+    SETUP_PHASE_INPUT = 1;
+    // The input for the execution phase.
+    EXECUTION_PHASE_INPUT = 2;
   }
   // Payload data description
   Description description = 1;

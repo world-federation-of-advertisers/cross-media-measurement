@@ -54,12 +54,38 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "ReachOnlyLiquidLegionsSketchAggregationV2ProtocolEnumStagesTest",
+    srcs = ["ReachOnlyLiquidLegionsSketchAggregationV2ProtocolEnumStagesTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.db.computation.ReachOnlyLiquidLegionsSketchAggregationV2ProtocolEnumStagesTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:reach_only_liquid_legions_v2_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
     name = "LiquidLegionsSketchAggregationV2ProtocolEnumStagesDetailsTest",
     srcs = ["LiquidLegionsSketchAggregationV2ProtocolEnumStagesDetailsTest.kt"],
     test_class = "org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationV2ProtocolEnumStagesDetailsTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "ReachOnlyLiquidLegionsSketchAggregationV2ProtocolEnumStagesDetailsTest",
+    srcs = ["ReachOnlyLiquidLegionsSketchAggregationV2ProtocolEnumStagesDetailsTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.db.computation.ReachOnlyLiquidLegionsSketchAggregationV2ProtocolEnumStagesDetailsTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:reach_only_liquid_legions_v2_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/junit",
