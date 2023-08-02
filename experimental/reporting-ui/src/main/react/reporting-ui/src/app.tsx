@@ -14,7 +14,7 @@
 
 import React from 'react';
 import Logo from './logo';
-import './App.css';
+import './app.css';
 
 function App() {
   return (
