@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {memoizePromiseFn} from './memoize';
+import {Memoizer} from './memoize';
 import {
   GetReportRequest,
   GetReportResponse,
@@ -23,6 +23,7 @@ import {
 import {IReportingApi} from './IReportingApi';
 
 export class ReportingApi {
+  memoizer: Memoizer = new Memoizer();
   reports: Report[] = [];
 
   constructor(private api: IReportingApi) {}
@@ -36,7 +37,7 @@ export class ReportingApi {
   }
 
   getReport(req: GetReportRequest): Promise<GetReportResponse> {
-    const getCached = memoizePromiseFn(this.api.getReport);
+    const getCached = this.memoizer.memoizePromiseFn(this.api.getReport);
 
     return getCached(req);
   }
