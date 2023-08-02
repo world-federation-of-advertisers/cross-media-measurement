@@ -421,6 +421,30 @@ class EdpSimulator(
     }
   }
 
+  /** Verify duchy entries' certificates. Return true for valid or false for invalid. */
+  private suspend fun verifyDuchyEntries(
+    requisition: Requisition,
+    protocol: ProtocolConfig.Protocol.ProtocolCase
+  ): Boolean {
+    try {
+      for (duchyEntry in requisition.duchiesList) {
+        val duchyCertificate: Certificate = getCertificate(duchyEntry.value.duchyCertificate)
+        verifyDuchyEntry(duchyEntry, duchyCertificate, protocol)
+      }
+      return true
+    } catch (e: InvalidConsentSignalException) {
+      logger.log(Level.WARNING, e) {
+        "Consent signaling verification failed for ${requisition.name}"
+      }
+      refuseRequisition(
+        requisition.name,
+        Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID,
+        e.message.orEmpty()
+      )
+      return false
+    }
+  }
+
   private fun verifyEncryptionPublicKey(
     signedEncryptionPublicKey: SignedData,
     measurementConsumerCertificate: Certificate
@@ -520,29 +544,33 @@ class EdpSimulator(
             continue
           }
           if (protocols.any { it.hasLiquidLegionsV2() }) {
-            try {
-              for (duchyEntry in requisition.duchiesList) {
-                val duchyCertificate: Certificate =
-                  getCertificate(duchyEntry.value.duchyCertificate)
-                verifyDuchyEntry(
-                  duchyEntry,
-                  duchyCertificate,
-                  ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2
-                )
-              }
-            } catch (e: InvalidConsentSignalException) {
-              logger.log(Level.WARNING, e) {
-                "Consent signaling verification failed for ${requisition.name}"
-              }
-              refuseRequisition(
-                requisition.name,
-                Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID,
-                e.message.orEmpty()
+            if (
+              !verifyDuchyEntries(
+                requisition,
+                ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2
               )
+            ) {
               continue
             }
 
-            fulfillRequisitionForReachAndFrequencyMeasurement(
+            fulfillRequisitionForLiquidLegionsV2Measurement(
+              requisition,
+              measurementSpec,
+              requisitionFingerprint,
+              requisitionSpec.nonce,
+              eventGroupSpecs
+            )
+            continue
+          } else if (protocols.any { it.hasReachOnlyLiquidLegionsV2() }) {
+            if (
+              !verifyDuchyEntries(
+                requisition,
+                ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2
+              )
+            ) {
+              continue
+            }
+            fulfillRequisitionForReachOnlyLiquidLegionsV2Measurement(
               requisition,
               measurementSpec,
               requisitionFingerprint,
@@ -677,22 +705,17 @@ class EdpSimulator(
   private fun encryptSketch(
     sketch: Sketch,
     combinedPublicKey: AnySketchElGamalPublicKey,
-    protocolConfig: ProtocolConfig.LiquidLegionsV2
+    protocolConfig: ProtocolConfig.Protocol
   ): ByteString {
     logger.info("Encrypting Sketch...")
-    return sketchEncrypter.encrypt(
-      sketch,
-      protocolConfig.ellipticCurveId,
-      combinedPublicKey,
-      protocolConfig.maximumFrequency
-    )
+    return sketchEncrypter.encrypt(sketch, combinedPublicKey, protocolConfig)
   }
 
   /**
-   * Calculate reach and frequency for measurement with multiple EDPs by creating encrypted sketch
-   * and send to Duchy to perform MPC and fulfillRequisition
+   * Fulfill Liquid Legions V2 Measurement's Requisition by creating an encrypted sketch and send to
+   * the duchy.
    */
-  private suspend fun fulfillRequisitionForReachAndFrequencyMeasurement(
+  private suspend fun fulfillRequisitionForLiquidLegionsV2Measurement(
     requisition: Requisition,
     measurementSpec: MeasurementSpec,
     requisitionFingerprint: ByteString,
@@ -730,7 +753,59 @@ class EdpSimulator(
         return
       }
 
-    val encryptedSketch = encryptSketch(sketch, combinedPublicKey, liquidLegionsV2)
+    val encryptedSketch = encryptSketch(sketch, combinedPublicKey, llv2Protocol)
+    fulfillRequisition(requisition.name, requisitionFingerprint, nonce, encryptedSketch)
+  }
+
+  /**
+   * Fulfill Reach-Only Liquid Legions V2 Measurement's Requisition by creating an encrypted sketch
+   * and send to the duchy.
+   */
+  private suspend fun fulfillRequisitionForReachOnlyLiquidLegionsV2Measurement(
+    requisition: Requisition,
+    measurementSpec: MeasurementSpec,
+    requisitionFingerprint: ByteString,
+    nonce: Long,
+    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>
+  ) {
+    val roLlv2Protocol: ProtocolConfig.Protocol =
+      requireNotNull(
+        requisition.protocolConfig.protocolsList.find { protocol ->
+          protocol.hasReachOnlyLiquidLegionsV2()
+        }
+      ) {
+        "Protocol with ReachOnlyLiquidLegionsV2 is missing"
+      }
+    val reachOnlyLiquidLegionsV2: ProtocolConfig.ReachOnlyLiquidLegionsV2 =
+      roLlv2Protocol.reachOnlyLiquidLegionsV2
+    val combinedPublicKey =
+      requisition.getCombinedPublicKey(reachOnlyLiquidLegionsV2.ellipticCurveId)
+
+    val sketch =
+      try {
+        generateSketch(
+          requisition.name,
+          reachOnlyLiquidLegionsV2.sketchParams.toSketchConfig(),
+          measurementSpec,
+          eventGroupSpecs
+        )
+      } catch (e: EventFilterValidationException) {
+        refuseRequisition(
+          requisition.name,
+          Requisition.Refusal.Justification.SPEC_INVALID,
+          "Invalid event filter (${e.code}): ${e.code.description}"
+        )
+        logger.log(
+          Level.WARNING,
+          "RequisitionFulfillmentWorkflow failed due to invalid event filter",
+          e
+        )
+        return
+      }
+
+    logger.info("Writing sketch to storage")
+
+    val encryptedSketch = encryptSketch(sketch, combinedPublicKey, roLlv2Protocol)
     fulfillRequisition(requisition.name, requisitionFingerprint, nonce, encryptedSketch)
   }
 

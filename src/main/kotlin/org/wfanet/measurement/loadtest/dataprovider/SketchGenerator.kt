@@ -28,6 +28,7 @@ import org.wfanet.anysketch.sketchConfig
 import org.wfanet.anysketch.uniformDistribution
 import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.ReachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.loadtest.config.VidSampling
 
 class SketchGenerator(
@@ -90,6 +91,21 @@ fun LiquidLegionsSketchParams.toSketchConfig(): SketchConfig {
         name = "Frequency"
         aggregator = SketchConfig.ValueSpec.Aggregator.SUM
         distribution = distribution { oracle = oracleDistribution { key = "frequency" } }
+      }
+  }
+}
+
+fun ReachOnlyLiquidLegionsSketchParams.toSketchConfig(): SketchConfig {
+  return sketchConfig {
+    indexes +=
+      SketchConfigKt.indexSpec {
+        name = "Index"
+        distribution = distribution {
+          exponential = exponentialDistribution {
+            rate = decayRate
+            numValues = maxSize
+          }
+        }
       }
   }
 }

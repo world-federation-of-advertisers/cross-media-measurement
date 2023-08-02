@@ -1175,9 +1175,8 @@ class EdpSimulatorTest {
       object : SketchEncrypter {
         override fun encrypt(
           sketch: Sketch,
-          ellipticCurveId: Int,
           encryptionKey: ElGamalPublicKey,
-          maximumValue: Int,
+          protocol: ProtocolConfig.Protocol,
         ): ByteString {
           return sketch.toByteString()
         }

@@ -26,6 +26,7 @@ import org.wfanet.anysketch.crypto.EncryptSketchResponse
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
 import org.wfanet.anysketch.crypto.combineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.encryptSketchRequest
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.loadLibrary
 
 /** An encrypter for [Sketch] instances. */
@@ -33,9 +34,8 @@ interface SketchEncrypter {
   /** Encrypts a sketch. */
   fun encrypt(
     sketch: Sketch,
-    ellipticCurveId: Int,
     encryptionKey: ElGamalPublicKey,
-    maximumValue: Int,
+    protocol: ProtocolConfig.Protocol,
   ): ByteString
 
   companion object {
@@ -85,17 +85,23 @@ interface SketchEncrypter {
 private class SketchEncrypterImpl : SketchEncrypter {
   override fun encrypt(
     sketch: Sketch,
-    ellipticCurveId: Int,
     encryptionKey: ElGamalPublicKey,
-    maximumValue: Int,
+    protocol: ProtocolConfig.Protocol,
   ): ByteString {
     val request = encryptSketchRequest {
       this.sketch = sketch
       elGamalKeys = encryptionKey
-      curveId = ellipticCurveId.toLong()
-      this.maximumValue = maximumValue
-      this.destroyedRegisterStrategy =
-        EncryptSketchRequest.DestroyedRegisterStrategy.FLAGGED_KEY // for LLv2 protocol
+      when (protocol.protocolCase) {
+        ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2 -> {
+          curveId = protocol.liquidLegionsV2.ellipticCurveId.toLong()
+          maximumValue = protocol.liquidLegionsV2.maximumFrequency
+          destroyedRegisterStrategy = EncryptSketchRequest.DestroyedRegisterStrategy.FLAGGED_KEY
+        }
+        ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
+          curveId = protocol.reachOnlyLiquidLegionsV2.ellipticCurveId.toLong()
+        }
+        else -> error("Protocol type not supported for encryptSketch.")
+      }
     }
     val response =
       EncryptSketchResponse.parseFrom(SketchEncrypterAdapter.EncryptSketch(request.toByteArray()))
