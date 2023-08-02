@@ -17,8 +17,10 @@ import java.sql.Connection
 import java.sql.PreparedStatement
 import java.sql.ResultSet
 import java.sql.Statement
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.DpCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetAcdpBalanceEntry
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetBalanceEntry
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerTransactionContext
@@ -113,10 +115,8 @@ class PostgresBackingStoreTransactionContext(
   }
 
   override suspend fun hasLedgerEntry(reference: Reference): Boolean {
-    val lastReference = getLastReference(reference.measurementConsumerId, reference.referenceId)
-    if (lastReference == null) {
-      return false
-    }
+    val lastReference =
+      getLastReference(reference.measurementConsumerId, reference.referenceId) ?: return false
     return reference.isRefund == lastReference
   }
 
@@ -159,6 +159,54 @@ class PostgresBackingStoreTransactionContext(
           )
         }
         return entries
+      }
+    }
+  }
+
+  override suspend fun findAcdpBalanceEntry(
+    privacyBucketGroup: PrivacyBucketGroup,
+  ): PrivacyBudgetAcdpBalanceEntry {
+    throwIfTransactionHasEnded(listOf(privacyBucketGroup))
+    assert(privacyBucketGroup.startingDate == privacyBucketGroup.endingDate)
+
+    val selectBucketSql =
+      """
+        SELECT
+          Rho,
+          Theta
+        FROM PrivacyBucketAcdpCharges
+        WHERE
+          MeasurementConsumerId = ?
+          AND Date = ?
+          AND AgeGroup = CAST(? AS AgeGroup)
+          AND Gender = CAST(? AS Gender)
+          AND VidStart = ?
+      """
+        .trimIndent()
+
+    connection.prepareStatement(selectBucketSql).use { statement: PreparedStatement ->
+      statement.setString(1, privacyBucketGroup.measurementConsumerId)
+      statement.setObject(2, privacyBucketGroup.startingDate)
+      statement.setString(3, privacyBucketGroup.ageGroup.string)
+      statement.setString(4, privacyBucketGroup.gender.string)
+      statement.setFloat(5, privacyBucketGroup.vidSampleStart)
+
+      statement.executeQuery().use { rs: ResultSet ->
+        var acdpBalanceEntry: PrivacyBudgetAcdpBalanceEntry =
+          PrivacyBudgetAcdpBalanceEntry(
+            privacyBucketGroup,
+            AcdpCharge(0.0, 0.0),
+          )
+
+        if (rs.next()) {
+          acdpBalanceEntry =
+            PrivacyBudgetAcdpBalanceEntry(
+              privacyBucketGroup,
+              AcdpCharge(rs.getDouble("Rho"), rs.getDouble("Theta")),
+            )
+        }
+
+        return acdpBalanceEntry
       }
     }
   }
@@ -236,7 +284,7 @@ class PostgresBackingStoreTransactionContext(
       statement.setFloat(7, privacyBudgetBalanceEntry.dpCharge.epsilon)
       statement.setInt(8, if (refundCharge) -1 else 1) // update RepetitionCount
       statement.addBatch()
-      // execute every 1000 rows or less
+      // execute every 1000 rows or fewer
       if (index % MAX_BATCH_INSERT == 0 || index == privacyBudgetBalanceEntries.size - 1) {
         statement.executeBatch()
       }
@@ -254,6 +302,66 @@ class PostgresBackingStoreTransactionContext(
       },
       reference.isRefund
     )
+    addLedgerEntry(reference)
+  }
+
+  override suspend fun addAcdpLedgerEntries(
+    privacyBucketGroups: Set<PrivacyBucketGroup>,
+    acdpCharges: Set<AcdpCharge>,
+    reference: Reference
+  ) {
+    throwIfTransactionHasEnded(privacyBucketGroups.toList())
+
+    val insertEntrySql =
+      """
+        INSERT into PrivacyBucketAcdpCharges (
+          MeasurementConsumerId,
+          Date,
+          AgeGroup,
+          Gender,
+          VidStart,
+          Rho,
+          Theta
+        ) VALUES (
+          ?,
+          ?,
+          CAST(? AS AgeGroup),
+          CAST(? AS Gender),
+          ?,
+          ?,
+          ?
+          )
+      ON CONFLICT (MeasurementConsumerId,
+          Date,
+          AgeGroup,
+          Gender,
+          VidStart)
+      DO
+         UPDATE SET Rho = ? + PrivacyBucketAcdpCharges.Rho, Theta = ? + PrivacyBucketAcdpCharges.Theta;
+      """
+        .trimIndent()
+
+    val queryTotalAcdpCharge = getQueryTotalAcdpCharge(acdpCharges, reference.isRefund)
+
+    val statement: PreparedStatement = connection.prepareStatement(insertEntrySql)
+
+    privacyBucketGroups.forEachIndexed { index, queryBucketGroup ->
+      statement.setString(1, queryBucketGroup.measurementConsumerId)
+      statement.setObject(2, queryBucketGroup.startingDate)
+      statement.setString(3, queryBucketGroup.ageGroup.string)
+      statement.setString(4, queryBucketGroup.gender.string)
+      statement.setFloat(5, queryBucketGroup.vidSampleStart)
+      statement.setDouble(6, queryTotalAcdpCharge.rho)
+      statement.setDouble(7, queryTotalAcdpCharge.theta)
+      statement.setDouble(8, queryTotalAcdpCharge.rho)
+      statement.setDouble(9, queryTotalAcdpCharge.theta)
+      statement.addBatch()
+      // execute every 1000 rows or fewer
+      if (index % MAX_BATCH_INSERT == 0 || index == privacyBucketGroups.size - 1) {
+        statement.executeBatch()
+      }
+    }
+
     addLedgerEntry(reference)
   }
 

@@ -25,29 +25,33 @@ import java.time.Instant
  * This Backing store simple and fast.It is small enough to fit in memory. Thus, can be a good fit
  * for use cases such as:
  * 1) Privacy Budget Management for small number of Measurement Consumers (<10).
- * 2) Feeding all of the charges in a single run such as estimating total consumption for a known
- *    set of queries.
+ * 2) Feeding all the charges in a single run such as estimating total consumption for a known set
+ *    of queries.
  * 3) Where multiple tasks are not expected to update it.
  */
 open class InMemoryBackingStore : PrivacyBudgetLedgerBackingStore {
-  protected val balances:
+  protected val dpBalances:
     MutableMap<PrivacyBucketGroup, MutableMap<DpCharge, PrivacyBudgetBalanceEntry>> =
     mutableMapOf()
+  protected val acdpBalances: MutableMap<PrivacyBucketGroup, AcdpCharge> = mutableMapOf()
   private val referenceLedger: MutableMap<String, MutableList<PrivacyBudgetLedgerEntry>> =
     mutableMapOf()
 
   override fun startTransaction(): InMemoryBackingStoreTransactionContext =
-    InMemoryBackingStoreTransactionContext(balances, referenceLedger)
+    InMemoryBackingStoreTransactionContext(referenceLedger, dpBalances, acdpBalances)
 
   override fun close() {}
 }
 
 class InMemoryBackingStoreTransactionContext(
-  val balances: MutableMap<PrivacyBucketGroup, MutableMap<DpCharge, PrivacyBudgetBalanceEntry>>,
-  val referenceLedger: MutableMap<String, MutableList<PrivacyBudgetLedgerEntry>>,
+  private val referenceLedger: MutableMap<String, MutableList<PrivacyBudgetLedgerEntry>>,
+  private val dpBalances:
+    MutableMap<PrivacyBucketGroup, MutableMap<DpCharge, PrivacyBudgetBalanceEntry>>,
+  private val acdpBalances: MutableMap<PrivacyBucketGroup, AcdpCharge>
 ) : PrivacyBudgetLedgerTransactionContext {
 
-  private var transactionBalances = balances.toMutableMap()
+  private var transactionDpBalances = dpBalances.toMutableMap()
+  private var transactionAcdpBalances = acdpBalances.toMutableMap()
   private var transactionReferenceLedger = referenceLedger.toMutableMap()
 
   // Adds a new row to the ledger referencing an element that caused charges to the store this key
@@ -67,22 +71,26 @@ class InMemoryBackingStoreTransactionContext(
 
   override suspend fun hasLedgerEntry(reference: Reference): Boolean {
     val lastEntry =
-      transactionReferenceLedger
-        .get(reference.measurementConsumerId)
+      transactionReferenceLedger[reference.measurementConsumerId]
         ?.filter { it.referenceId == reference.referenceId }
-        ?.sortedByDescending { it.createTime }
-        ?.firstOrNull()
+        ?.maxByOrNull { it.createTime }
+        ?: return false
 
-    if (lastEntry == null) {
-      return false
-    }
     return lastEntry.isRefund == reference.isRefund
   }
 
   override suspend fun findIntersectingBalanceEntries(
     privacyBucketGroup: PrivacyBucketGroup,
   ): List<PrivacyBudgetBalanceEntry> {
-    return transactionBalances.getOrDefault(privacyBucketGroup, mapOf()).values.toList()
+    return transactionDpBalances.getOrDefault(privacyBucketGroup, mapOf()).values.toList()
+  }
+
+  override suspend fun findAcdpBalanceEntry(
+    privacyBucketGroup: PrivacyBucketGroup,
+  ): PrivacyBudgetAcdpBalanceEntry {
+    val acdpCharge = transactionAcdpBalances.getOrDefault(privacyBucketGroup, AcdpCharge(0.0, 0.0))
+
+    return PrivacyBudgetAcdpBalanceEntry(privacyBucketGroup, acdpCharge)
   }
 
   override suspend fun addLedgerEntries(
@@ -93,21 +101,19 @@ class InMemoryBackingStoreTransactionContext(
     // Update the balance for all the charges.
     for (queryBucketGroup in privacyBucketGroups) {
       for (dpCharge in dpCharges) {
-        val balanceEntries = transactionBalances.getOrPut(queryBucketGroup) { mutableMapOf() }
+        val dpBalanceEntries = transactionDpBalances.getOrPut(queryBucketGroup) { mutableMapOf() }
 
-        val balanceEntry =
-          balanceEntries.getOrPut(dpCharge) {
+        val dpBalanceEntry =
+          dpBalanceEntries.getOrPut(dpCharge) {
             PrivacyBudgetBalanceEntry(queryBucketGroup, dpCharge, 0)
           }
-        balanceEntries.put(
-          dpCharge,
+        dpBalanceEntries[dpCharge] =
           PrivacyBudgetBalanceEntry(
             queryBucketGroup,
             dpCharge,
-            if (reference.isRefund) balanceEntry.repetitionCount - 1
-            else balanceEntry.repetitionCount + 1
+            if (reference.isRefund) dpBalanceEntry.repetitionCount - 1
+            else dpBalanceEntry.repetitionCount + 1
           )
-        )
       }
     }
 
@@ -115,12 +121,39 @@ class InMemoryBackingStoreTransactionContext(
     addReferenceEntry(reference)
   }
 
+  override suspend fun addAcdpLedgerEntries(
+    privacyBucketGroups: Set<PrivacyBucketGroup>,
+    acdpCharges: Set<AcdpCharge>,
+    reference: Reference
+  ) {
+    val queryTotalAcdpCharge = getQueryTotalAcdpCharge(acdpCharges, reference.isRefund)
+
+    // Update the acdpCharge balance for all the buckets.
+    for (queryBucketGroup in privacyBucketGroups) {
+      val acdpBalanceEntry: PrivacyBudgetAcdpBalanceEntry = findAcdpBalanceEntry(queryBucketGroup)
+
+      val totalAcdpCharge =
+        AcdpCharge(
+          queryTotalAcdpCharge.rho + acdpBalanceEntry.acdpCharge.rho,
+          queryTotalAcdpCharge.theta + acdpBalanceEntry.acdpCharge.theta,
+        )
+
+      transactionAcdpBalances[queryBucketGroup] = totalAcdpCharge
+    }
+
+    // Record the reference for these dpCharges.
+    addReferenceEntry(reference)
+  }
+
   override suspend fun commit() {
     referenceLedger.clear()
     referenceLedger.putAll(transactionReferenceLedger)
 
-    balances.clear()
-    balances.putAll(transactionBalances)
+    dpBalances.clear()
+    dpBalances.putAll(transactionDpBalances)
+
+    acdpBalances.clear()
+    acdpBalances.putAll(transactionAcdpBalances)
   }
 
   override fun close() {}
