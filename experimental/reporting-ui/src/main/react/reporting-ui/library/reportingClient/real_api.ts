@@ -18,7 +18,7 @@ import {
   InitApiProps,
   ListReportsResponse,
 } from './models';
-import {ReportingClient} from './ReportingClient';
+import {ReportingClient} from './reporting_client';
 import path from 'path';
 
 export class RealApi implements ReportingClient {
