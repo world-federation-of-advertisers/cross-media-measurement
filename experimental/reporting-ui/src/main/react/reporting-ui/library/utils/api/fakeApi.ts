@@ -300,7 +300,7 @@ export class FakeApi implements IReportingApi {
     console.log(props);
   }
 
-  async listReports(): Promise<ListReportsResponse> {
+  listReports(): Promise<ListReportsResponse> {
     return new Promise(resolve =>
       resolve({
         reports: this.reports,
@@ -308,11 +308,11 @@ export class FakeApi implements IReportingApi {
     );
   }
 
-  async createReport(): Promise<void> {
+  createReport(): Promise<void> {
     return new Promise(r => r());
   }
 
-  async getReport(req: GetReportRequest): Promise<GetReportResponse> {
+  getReport(req: GetReportRequest): Promise<GetReportResponse> {
     return new Promise(r => {
       const rep = this.reports.find(x => x.id === req.id);
       r({
