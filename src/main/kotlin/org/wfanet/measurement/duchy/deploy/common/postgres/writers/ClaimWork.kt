@@ -24,7 +24,6 @@ import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationReader
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationStageAttemptReader
 import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
-import org.wfanet.measurement.duchy.service.internal.DataCorruptedException
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.copy
@@ -68,8 +67,7 @@ class ClaimWork<ProtocolT, StageT>(
       // If the value is null, no tasks were claimed.
       .firstOrNull()
       ?.let {
-        computationReader.readComputationToken(transactionContext, it.globalId)
-          ?: throw DataCorruptedException()
+        checkNotNull(computationReader.readComputationToken(transactionContext, it.globalId))
       }
   }
 
@@ -81,8 +79,7 @@ class ClaimWork<ProtocolT, StageT>(
     unclaimedTask: ComputationReader.UnclaimedTaskQueryResult
   ): Boolean {
     val currentLockOwner =
-      computationReader.readLockOwner(transactionContext, unclaimedTask.computationId)
-        ?: throw DataCorruptedException()
+      checkNotNull(computationReader.readLockOwner(transactionContext, unclaimedTask.computationId))
     // Verify that the row hasn't been updated since the previous, non-transactional read.
     // If it has been updated since that time the lock should not be acquired.
     if (currentLockOwner.updateTime != unclaimedTask.updateTime) return false

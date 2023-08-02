@@ -21,7 +21,6 @@ import org.wfanet.measurement.duchy.db.computation.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationBlobReferenceReader
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationReader
-import org.wfanet.measurement.duchy.service.internal.DataCorruptedException
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationToken
 
@@ -56,11 +55,11 @@ class RecordOutputBlobPath<ProtocolT, StageT>(
           transactionContext,
           localId,
           stageLongValue,
-          blobRef.idInRelationalDatabase
+          blobRef.idInRelationalDatabase,
         )
         ?: error(
           "No ComputationBlobReferences row for " +
-            "($localId, $stage, ${blobRef.idInRelationalDatabase})"
+            "($localId, $stage, ${blobRef.idInRelationalDatabase})",
         )
     require(type == ComputationBlobDependency.OUTPUT) { "Cannot write to $type blob" }
 
@@ -70,10 +69,9 @@ class RecordOutputBlobPath<ProtocolT, StageT>(
       localId = localId,
       stage = stageLongValue,
       blobId = blobRef.idInRelationalDatabase,
-      pathToBlob = blobRef.key
+      pathToBlob = blobRef.key,
     )
 
-    return computationReader.readComputationToken(transactionContext, token.globalId)
-      ?: throw DataCorruptedException()
+    return checkNotNull(computationReader.readComputationToken(transactionContext, token.globalId))
   }
 }

@@ -101,10 +101,3 @@ class ComputationAlreadyExistsException(
   override val context
     get() = mapOf("global_computation_id" to globalComputationId)
 }
-
-class DataCorruptedException(
-  message: String = "Data corrupted for unknown reasons",
-) : DuchyInternalException(ErrorCode.DATA_CORRUPTED, message) {
-  override val context: Map<String, String>
-    get() = emptyMap()
-}

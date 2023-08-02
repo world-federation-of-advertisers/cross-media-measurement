@@ -23,7 +23,6 @@ import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationReader
 import org.wfanet.measurement.duchy.service.internal.ComputationAlreadyExistsException
 import org.wfanet.measurement.duchy.service.internal.ComputationInitialStageInvalidException
-import org.wfanet.measurement.duchy.service.internal.DataCorruptedException
 import org.wfanet.measurement.duchy.service.internal.DuchyInternalException
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
@@ -112,7 +111,6 @@ class CreateComputation<ProtocolT : Any, ComputationDT : Message, StageT : Any, 
       )
     }
 
-    return computationReader.readComputationToken(transactionContext, globalId)
-      ?: throw DataCorruptedException()
+    return checkNotNull(computationReader.readComputationToken(transactionContext, globalId))
   }
 }

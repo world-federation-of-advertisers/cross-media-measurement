@@ -52,7 +52,6 @@ import org.wfanet.measurement.duchy.service.internal.ComputationAlreadyExistsExc
 import org.wfanet.measurement.duchy.service.internal.ComputationDetailsNotFoundException
 import org.wfanet.measurement.duchy.service.internal.ComputationInitialStageInvalidException
 import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
-import org.wfanet.measurement.duchy.service.internal.DataCorruptedException
 import org.wfanet.measurement.duchy.service.internal.computations.toAdvanceComputationStageResponse
 import org.wfanet.measurement.duchy.service.internal.computations.toClaimWorkResponse
 import org.wfanet.measurement.duchy.service.internal.computations.toCreateComputationResponse
@@ -110,7 +109,10 @@ class PostgresComputationsService(
     ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>,
   private val computationProtocolStageDetailsHelper:
     ComputationProtocolStageDetailsHelper<
-      ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
+      ComputationType,
+      ComputationStage,
+      ComputationStageDetails,
+      ComputationDetails,
     >,
   private val client: DatabaseClient,
   private val idGenerator: IdGenerator,
@@ -127,7 +129,7 @@ class PostgresComputationsService(
   private val requisitionReader = RequisitionReader()
 
   override suspend fun createComputation(
-    request: CreateComputationRequest
+    request: CreateComputationRequest,
   ): CreateComputationResponse {
     grpcRequire(request.globalComputationId.isNotEmpty()) {
       "global_computation_id is not specified."
@@ -146,15 +148,13 @@ class PostgresComputationsService(
             computationTypeEnumHelper,
             protocolStagesEnumHelper,
             computationProtocolStageDetailsHelper,
-            computationReader
+            computationReader,
           )
           .execute(client, idGenerator)
       } catch (ex: ComputationInitialStageInvalidException) {
         throw ex.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       } catch (ex: ComputationAlreadyExistsException) {
         throw ex.asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
-      } catch (ex: DataCorruptedException) {
-        throw ex.asStatusRuntimeException(Status.Code.INTERNAL)
       }
 
     return token.toCreateComputationResponse()
@@ -188,8 +188,8 @@ class PostgresComputationsService(
         newCreateComputationLogEntryRequest(
           claimedToken.globalComputationId,
           claimedToken.computationStage,
-          claimedToken.attempt.toLong()
-        )
+          claimedToken.attempt.toLong(),
+        ),
       )
       return claimedToken.toClaimWorkResponse()
     }
@@ -198,7 +198,7 @@ class PostgresComputationsService(
   }
 
   override suspend fun getComputationToken(
-    request: GetComputationTokenRequest
+    request: GetComputationTokenRequest,
   ): GetComputationTokenResponse {
     val token =
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -218,7 +218,7 @@ class PostgresComputationsService(
     val computationBlobKeys =
       computationBlobReferenceReader.readComputationBlobKeys(
         client.singleUse(),
-        request.localComputationId
+        request.localComputationId,
       )
     for (blobKey in computationBlobKeys) {
       computationStore.get(blobKey)?.delete()
@@ -235,15 +235,15 @@ class PostgresComputationsService(
   }
 
   override suspend fun purgeComputations(
-    request: PurgeComputationsRequest
+    request: PurgeComputationsRequest,
   ): PurgeComputationsResponse {
     grpcRequire(
       request.stagesList.all {
         protocolStagesEnumHelper.validTerminalStage(
           protocolStagesEnumHelper.stageToProtocol(it),
-          it
+          it,
         )
-      }
+      },
     ) {
       "Requested stage list contains non terminal stage."
     }
@@ -253,7 +253,7 @@ class PostgresComputationsService(
         computationReader.readGlobalComputationIds(
           client.singleUse(),
           request.stagesList,
-          request.updatedBefore.toInstant()
+          request.updatedBefore.toInstant(),
         )
       if (!request.force) {
         return purgeComputationsResponse {
@@ -262,9 +262,8 @@ class PostgresComputationsService(
         }
       }
       for (globalId in globalIds) {
-        val token = computationReader.readComputationToken(client, globalId) ?: continue
-        DeleteComputation(token.localComputationId).execute(client, idGenerator)
-        deleted += 1
+        val numOfRowsDeleted = DeleteComputation(globalId).execute(client, idGenerator)
+        deleted += numOfRowsDeleted.toInt()
       }
     } catch (e: Exception) {
       logger.log(Level.WARNING, "Exception during Computations cleaning. $e")
@@ -273,87 +272,75 @@ class PostgresComputationsService(
   }
 
   override suspend fun finishComputation(
-    request: FinishComputationRequest
+    request: FinishComputationRequest,
   ): FinishComputationResponse {
     val token =
-      try {
-        FinishComputation(
-            request.token.toDatabaseEditToken(),
-            endingStage = request.endingComputationStage,
-            endComputationReason =
-              when (request.reason) {
-                ComputationDetails.CompletedReason.SUCCEEDED -> EndComputationReason.SUCCEEDED
-                ComputationDetails.CompletedReason.FAILED -> EndComputationReason.FAILED
-                ComputationDetails.CompletedReason.CANCELED -> EndComputationReason.CANCELED
-                else -> error("Unknown CompletedReason ${request.reason}")
-              },
-            computationDetails = request.token.computationDetails,
-            clock = clock,
-            protocolStagesEnumHelper = protocolStagesEnumHelper,
-            protocolStageDetailsHelper = computationProtocolStageDetailsHelper,
-            computationReader = computationReader,
-          )
-          .execute(client, idGenerator)
-      } catch (ex: DataCorruptedException) {
-        throw ex.asStatusRuntimeException(Status.Code.INTERNAL)
-      }
+      FinishComputation(
+          request.token.toDatabaseEditToken(),
+          endingStage = request.endingComputationStage,
+          endComputationReason =
+            when (request.reason) {
+              ComputationDetails.CompletedReason.SUCCEEDED -> EndComputationReason.SUCCEEDED
+              ComputationDetails.CompletedReason.FAILED -> EndComputationReason.FAILED
+              ComputationDetails.CompletedReason.CANCELED -> EndComputationReason.CANCELED
+              else -> error("Unknown CompletedReason ${request.reason}")
+            },
+          computationDetails = request.token.computationDetails,
+          clock = clock,
+          protocolStagesEnumHelper = protocolStagesEnumHelper,
+          protocolStageDetailsHelper = computationProtocolStageDetailsHelper,
+          computationReader = computationReader,
+        )
+        .execute(client, idGenerator)
 
     sendStatusUpdateToKingdom(
       newCreateComputationLogEntryRequest(
         request.token.globalComputationId,
-        request.endingComputationStage
-      )
+        request.endingComputationStage,
+      ),
     )
 
     return token.toFinishComputationResponse()
   }
 
   override suspend fun updateComputationDetails(
-    request: UpdateComputationDetailsRequest
+    request: UpdateComputationDetailsRequest,
   ): UpdateComputationDetailsResponse {
     require(request.token.computationDetails.protocolCase == request.details.protocolCase) {
       "The protocol type cannot change."
     }
 
     val token =
-      try {
-        UpdateComputationDetails(
-            token = request.token.toDatabaseEditToken(),
-            clock = clock,
-            computationDetails = request.details,
-            requisitionEntries = request.requisitionsList,
-            computationReader = computationReader
-          )
-          .execute(client, idGenerator)
-      } catch (ex: DataCorruptedException) {
-        throw ex.asStatusRuntimeException(Status.Code.INTERNAL)
-      }
+      UpdateComputationDetails(
+          token = request.token.toDatabaseEditToken(),
+          clock = clock,
+          computationDetails = request.details,
+          requisitionEntries = request.requisitionsList,
+          computationReader = computationReader,
+        )
+        .execute(client, idGenerator)
 
     return token.toUpdateComputationDetailsResponse()
   }
 
   override suspend fun recordOutputBlobPath(
-    request: RecordOutputBlobPathRequest
+    request: RecordOutputBlobPathRequest,
   ): RecordOutputBlobPathResponse {
     val token =
-      try {
-        RecordOutputBlobPath(
-            token = request.token.toDatabaseEditToken(),
-            clock = clock,
-            blobRef = BlobRef(request.outputBlobId, request.blobPath),
-            protocolStagesEnumHelper = protocolStagesEnumHelper,
-            computationReader = computationReader,
-          )
-          .execute(client, idGenerator)
-      } catch (ex: DataCorruptedException) {
-        throw ex.asStatusRuntimeException(Status.Code.INTERNAL)
-      }
+      RecordOutputBlobPath(
+          token = request.token.toDatabaseEditToken(),
+          clock = clock,
+          blobRef = BlobRef(request.outputBlobId, request.blobPath),
+          protocolStagesEnumHelper = protocolStagesEnumHelper,
+          computationReader = computationReader,
+        )
+        .execute(client, idGenerator)
 
     return token.toRecordOutputBlobPathResponse()
   }
 
   override suspend fun advanceComputationStage(
-    request: AdvanceComputationStageRequest
+    request: AdvanceComputationStageRequest,
   ): AdvanceComputationStageResponse {
     val lockExtension: Duration =
       if (request.hasLockExtension()) request.lockExtension.toDuration() else defaultLockDuration
@@ -367,49 +354,45 @@ class PostgresComputationsService(
           AfterTransition.CONTINUE_WORKING
         else ->
           error(
-            "Unsupported AdvanceComputationStageRequest.AfterTransition '${request.afterTransition}'. "
+            "Unsupported AdvanceComputationStageRequest.AfterTransition '${request.afterTransition}'. ",
           )
       }
 
     val token =
-      try {
-        AdvanceComputationStage(
-            request.token.toDatabaseEditToken(),
-            nextStage = request.nextComputationStage,
-            nextStageDetails = request.stageDetails,
-            inputBlobPaths = request.inputBlobsList,
-            passThroughBlobPaths = request.passThroughBlobsList,
-            outputBlobs = request.outputBlobs,
-            afterTransition = afterTransition,
-            lockExtension = lockExtension,
-            clock = clock,
-            protocolStagesEnumHelper = protocolStagesEnumHelper,
-            computationReader = computationReader,
-          )
-          .execute(client, idGenerator)
-      } catch (ex: DataCorruptedException) {
-        throw ex.asStatusRuntimeException(Status.Code.INTERNAL)
-      }
+      AdvanceComputationStage(
+          request.token.toDatabaseEditToken(),
+          nextStage = request.nextComputationStage,
+          nextStageDetails = request.stageDetails,
+          inputBlobPaths = request.inputBlobsList,
+          passThroughBlobPaths = request.passThroughBlobsList,
+          outputBlobs = request.outputBlobs,
+          afterTransition = afterTransition,
+          lockExtension = lockExtension,
+          clock = clock,
+          protocolStagesEnumHelper = protocolStagesEnumHelper,
+          computationReader = computationReader,
+        )
+        .execute(client, idGenerator)
 
     sendStatusUpdateToKingdom(
       newCreateComputationLogEntryRequest(
         request.token.globalComputationId,
-        request.nextComputationStage
-      )
+        request.nextComputationStage,
+      ),
     )
 
     return token.toAdvanceComputationStageResponse()
   }
 
   override suspend fun getComputationIds(
-    request: GetComputationIdsRequest
+    request: GetComputationIdsRequest,
   ): GetComputationIdsResponse {
     val ids = computationReader.readGlobalComputationIds(client.singleUse(), request.stagesList)
     return getComputationIdsResponse { globalIds += ids }
   }
 
   override suspend fun enqueueComputation(
-    request: EnqueueComputationRequest
+    request: EnqueueComputationRequest,
   ): EnqueueComputationResponse {
     grpcRequire(request.delaySecond >= 0) {
       "DelaySecond ${request.delaySecond} should be non-negative."
@@ -425,21 +408,17 @@ class PostgresComputationsService(
   }
 
   override suspend fun recordRequisitionBlobPath(
-    request: RecordRequisitionBlobPathRequest
+    request: RecordRequisitionBlobPathRequest,
   ): RecordRequisitionBlobPathResponse {
     val token =
-      try {
-        RecordRequisitionBlobPath(
-            clock = clock,
-            localId = request.token.localComputationId,
-            externalRequisitionKey = request.key,
-            pathToBlob = request.blobPath,
-            computationReader = computationReader,
-          )
-          .execute(client, idGenerator)
-      } catch (ex: DataCorruptedException) {
-        throw ex.asStatusRuntimeException(Status.Code.INTERNAL)
-      }
+      RecordRequisitionBlobPath(
+          clock = clock,
+          localId = request.token.localComputationId,
+          externalRequisitionKey = request.key,
+          pathToBlob = request.blobPath,
+          computationReader = computationReader,
+        )
+        .execute(client, idGenerator)
 
     return token.toRecordRequisitionBlobPathResponse()
   }
@@ -447,7 +426,7 @@ class PostgresComputationsService(
   private fun newCreateComputationLogEntryRequest(
     globalId: String,
     computationStage: ComputationStage,
-    attempt: Long = 0L
+    attempt: Long = 0L,
   ): CreateComputationLogEntryRequest {
     return createComputationLogEntryRequest {
       parent = ComputationParticipantKey(globalId, duchyName).toName()
