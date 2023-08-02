@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {
-  Demo,
+  Demographic,
   Overview,
   SummaryPublisherData,
   TargetReach,
@@ -31,6 +31,6 @@ export type Report = {
   targetXmediaReachByFreq: TargetReach[];
   totalReach: Reach[];
   targetReach: Reach[];
-  demo: Demo[];
+  demo: Demographic[];
   uniqueReachByPlatform: UniqueReach[];
 };

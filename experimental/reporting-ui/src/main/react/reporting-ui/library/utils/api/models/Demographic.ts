@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export type Demo = {
+export type Demographic = {
   cat: string; // The category of the value
   val: number; // The value
 };
