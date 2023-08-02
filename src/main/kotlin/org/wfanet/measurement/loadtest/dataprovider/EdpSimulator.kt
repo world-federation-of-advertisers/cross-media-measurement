@@ -390,7 +390,10 @@ class EdpSimulator(
     duchyCertificate: Certificate,
     protocol: ProtocolConfig.Protocol.ProtocolCase
   ) {
-    require(protocol == ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2) {
+    require(
+      protocol == ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2 ||
+        protocol == ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2
+    ) {
       "Unsupported protocol $protocol"
     }
 
