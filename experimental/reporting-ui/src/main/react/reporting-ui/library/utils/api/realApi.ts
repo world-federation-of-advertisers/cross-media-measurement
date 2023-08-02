@@ -32,24 +32,18 @@ export class RealApi implements IReportingApi {
   }
 
   async listReports(): Promise<ListReportsResponse> {
-    return fetch(path.join(this.baseUrl.toString(), '/api/reports'))
-      .then(res => res.json())
-      .then(() => {
-        // TODO: Translate result
-        return {
-          reports: [],
-        };
-      });
+    const res = await fetch(path.join(this.baseUrl.toString(), '/api/reports'));
+    await res.json();
+    return {
+      reports: [],
+    };
   }
 
   async getReport(req: GetReportRequest): Promise<GetReportResponse> {
-    return fetch(path.join(this.baseUrl.toString(), '/api/reports', req.id))
-      .then(res => res.json())
-      .then(() => {
-        // TODO: Translate result
-        return {
-          report: undefined,
-        };
-      });
+    const res = await fetch(path.join(this.baseUrl.toString(), '/api/reports', req.id));
+    await res.json();
+    return {
+      report: undefined,
+    };
   }
 }
