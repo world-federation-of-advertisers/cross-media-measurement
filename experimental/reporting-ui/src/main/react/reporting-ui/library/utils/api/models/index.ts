@@ -17,7 +17,7 @@ export type {GetReportRequest} from './GetReportRequest';
 export type {GetReportResponse} from './GetReportResponse';
 export type {InitApiProps} from './InitApiProps';
 export type {Report} from './Report';
-export type {Demo} from './Demo';
+export type {Demographic} from './Demographic';
 export type {Overview} from './Overview';
 export type {Reach, TargetReach} from './Reach';
 export type {SummaryPublisherData} from './SummaryPublisherData';
