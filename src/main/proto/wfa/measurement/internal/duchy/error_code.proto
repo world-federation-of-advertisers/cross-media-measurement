@@ -39,7 +39,4 @@ enum ErrorCode {
 
   /** Computation with the same global ID already exists. */
   COMPUTATION_ALREADY_EXISTS = 6;
-
-  /** Data corrupted for unknown reasons. */
-  DATA_CORRUPTED = 7;
 }
