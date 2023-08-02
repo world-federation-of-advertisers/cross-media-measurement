@@ -12,24 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-const cache = new Map();
-export const memoizePromiseFn = fn => {
-  return (...args) => {
-    const key = JSON.stringify(args);
+import {
+  GetReportRequest,
+  GetReportResponse,
+  ListReportsResponse,
+  InitApiProps,
+} from './models';
 
-    if (cache.has(key)) {
-      return cache.get(key);
-    }
-
-    cache.set(
-      key,
-      fn(...args).catch(error => {
-        // Delete cache entry if API call fails
-        cache.delete(key);
-        return Promise.reject(error);
-      })
-    );
-
-    return cache.get(key);
-  };
-};
+export interface IReportingClient {
+  init(props: InitApiProps): void;
+  listReports(): Promise<ListReportsResponse>;
+  getReport(req: GetReportRequest): Promise<GetReportResponse>;
+}
