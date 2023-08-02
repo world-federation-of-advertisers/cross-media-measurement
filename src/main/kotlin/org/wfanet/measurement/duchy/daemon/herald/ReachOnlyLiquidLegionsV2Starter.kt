@@ -287,7 +287,7 @@ object ReachOnlyLiquidLegionsV2Starter {
     }
 
     return ReachOnlyLiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.parameters {
-      reachOnlyLiquidLegionsSketch = liquidLegionsSketchParameters {
+      sketchParameters = liquidLegionsSketchParameters {
         decayRate = mpcProtocolConfig.reachOnlyLiquidLegionsV2.sketchParams.decayRate
         size = mpcProtocolConfig.reachOnlyLiquidLegionsV2.sketchParams.maxSize
       }

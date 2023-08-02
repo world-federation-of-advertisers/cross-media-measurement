@@ -401,7 +401,7 @@ class HeraldTest {
   }
 
   @Test
-  fun `syncStatuses creates a new llv2 computations`() = runTest {
+  fun `syncStatuses creates new llv2 computations`() = runTest {
     val confirmingKnown =
       buildComputationAtKingdom("1", Computation.State.PENDING_REQUISITION_PARAMS)
 
@@ -498,7 +498,7 @@ class HeraldTest {
   }
 
   @Test
-  fun `syncStatuses creates new a llv2 computations for reach-only`() = runTest {
+  fun `syncStatuses creates new llv2 computations for reach-only`() = runTest {
     val confirmingKnown =
       buildComputationAtKingdom(
         "1",
@@ -596,7 +596,7 @@ class HeraldTest {
   }
 
   @Test
-  fun `syncStatuses creates new a rollv2 computations for reach-only`() = runTest {
+  fun `syncStatuses creates new rollv2 computations for reach-only`() = runTest {
     val confirmingKnown =
       buildComputationAtKingdom(
         "1",
@@ -667,7 +667,7 @@ class HeraldTest {
               role = RoleInComputation.AGGREGATOR
               parameters =
                 ReachOnlyLiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.parameters {
-                  reachOnlyLiquidLegionsSketch = liquidLegionsSketchParameters {
+                  sketchParameters = liquidLegionsSketchParameters {
                     decayRate = 12.0
                     size = 100_000L
                   }

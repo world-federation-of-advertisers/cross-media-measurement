@@ -101,7 +101,7 @@ message ReachOnlyLiquidLegionsSketchAggregationV2 {
     message Parameters {
       // Parameters used for reachOnlyLiquidLegions sketch creation and
       // estimation.
-      LiquidLegionsSketchParameters reach_only_liquid_legions_sketch = 1;
+      LiquidLegionsSketchParameters sketch_parameters = 1;
       // Noise parameters selected for the ReachOnlyLiquidLegionV2 MPC protocol.
       LiquidLegionsV2NoiseConfig noise = 2;
       // ID of the OpenSSL built-in elliptic curve. For example, 415 for the
