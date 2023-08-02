@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export type {ListReportsResponse} from './ListReportsResponse';
-export type {GetReportRequest} from './GetReportRequest';
-export type {GetReportResponse} from './GetReportResponse';
-export type {InitApiProps} from './InitApiProps';
-export type {Report} from './Report';
-export type {Demographic} from './Demographic';
-export type {Overview} from './Overview';
-export type {Reach, TargetReach} from './Reach';
-export type {SummaryPublisherData} from './SummaryPublisherData';
-export type {UniqueReach} from './UniqueReach';
+export type {ListReportsResponse} from './list_reports_response';
+export type {GetReportRequest} from './get_report_request';
+export type {GetReportResponse} from './get_report_response';
+export type {InitApiProps} from './init_api_props';
+export type {Report} from './report';
+export type {Demographic} from './demographic';
+export type {Overview} from './overview';
+export type {Reach, TargetReach} from './reach';
+export type {SummaryPublisherData} from './summary_publisher_data';
+export type {UniqueReach} from './unique_reach';

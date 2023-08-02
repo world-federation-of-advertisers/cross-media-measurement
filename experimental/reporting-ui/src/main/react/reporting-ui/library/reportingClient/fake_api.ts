@@ -20,7 +20,7 @@ import {
   Report,
   UniqueReach,
 } from './models';
-import {ReportingClient} from './ReportingClient';
+import {ReportingClient} from './reporting_client';
 
 function regenerateTimeData() {
   const chartData: UniqueReach[] = [];

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Report} from './Report';
+import {Report} from './report';
 
-export type ListReportsResponse = {
-  reports: Report[];
+export type GetReportResponse = {
+  report?: Report;
 };
