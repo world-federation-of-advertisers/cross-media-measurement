@@ -12,15 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  GetReportRequest,
-  GetReportResponse,
-  ListReportsResponse,
-  InitApiProps,
-} from './models';
+// Return a function that is wrapped with the memoization logic
+export class Memoizer {
+  cache: Map<string, any> = new Map();
 
-export interface IReportingApi {
-  init(props: InitApiProps): void;
-  listReports(): Promise<ListReportsResponse>;
-  getReport(req: GetReportRequest): Promise<GetReportResponse>;
-}
+  memoizePromiseFn = fn => {
+    return (...args) => {
+      const key = JSON.stringify(args);
+  
+      if (this.cache.has(key)) {
+        return this.cache.get(key);
+      }
+  
+      this.cache.set(
+        key,
+        fn(...args).catch(error => {
+          // Delete cache entry if API call fails
+          this.cache.delete(key);
+          return Promise.reject(error);
+        })
+      );
+  
+      return this.cache.get(key);
+    };
+  };
+};
