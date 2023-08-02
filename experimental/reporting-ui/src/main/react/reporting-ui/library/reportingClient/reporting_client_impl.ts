@@ -20,7 +20,7 @@ import {
   ListReportsResponse,
   Report,
 } from './models';
-import {ReportingClient} from './ReportingClient';
+import {ReportingClient} from './reporting_client';
 
 export class ReportingApi {
   memoizer: Memoizer = new Memoizer();
