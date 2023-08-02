@@ -105,13 +105,13 @@ import org.wfanet.measurement.system.v1alpha.stageAttempt
 class PostgresComputationsService(
   private val computationTypeEnumHelper: ComputationTypeEnumHelper<ComputationType>,
   private val protocolStagesEnumHelper:
-  ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>,
+    ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>,
   private val computationProtocolStageDetailsHelper:
-  ComputationProtocolStageDetailsHelper<
-    ComputationType,
-    ComputationStage,
-    ComputationStageDetails,
-    ComputationDetails,
+    ComputationProtocolStageDetailsHelper<
+      ComputationType,
+      ComputationStage,
+      ComputationStageDetails,
+      ComputationDetails,
     >,
   private val client: DatabaseClient,
   private val idGenerator: IdGenerator,
@@ -137,18 +137,18 @@ class PostgresComputationsService(
     val token =
       try {
         CreateComputation(
-          request.globalComputationId,
-          request.computationType,
-          protocolStagesEnumHelper.getValidInitialStage(request.computationType).first(),
-          request.stageDetails,
-          request.computationDetails,
-          request.requisitionsList,
-          clock,
-          computationTypeEnumHelper,
-          protocolStagesEnumHelper,
-          computationProtocolStageDetailsHelper,
-          computationReader,
-        )
+            request.globalComputationId,
+            request.computationType,
+            protocolStagesEnumHelper.getValidInitialStage(request.computationType).first(),
+            request.stageDetails,
+            request.computationDetails,
+            request.requisitionsList,
+            clock,
+            computationTypeEnumHelper,
+            protocolStagesEnumHelper,
+            computationProtocolStageDetailsHelper,
+            computationReader,
+          )
           .execute(client, idGenerator)
       } catch (ex: ComputationInitialStageInvalidException) {
         throw ex.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -167,14 +167,14 @@ class PostgresComputationsService(
     val claimedToken =
       try {
         ClaimWork(
-          request.computationType,
-          request.owner,
-          lockDuration,
-          clock,
-          computationTypeEnumHelper,
-          protocolStagesEnumHelper,
-          computationReader,
-        )
+            request.computationType,
+            request.owner,
+            lockDuration,
+            clock,
+            computationTypeEnumHelper,
+            protocolStagesEnumHelper,
+            computationReader,
+          )
           .execute(client, idGenerator)
       } catch (e: ComputationNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
@@ -204,10 +204,8 @@ class PostgresComputationsService(
       when (request.keyCase) {
         KeyCase.GLOBAL_COMPUTATION_ID ->
           computationReader.readComputationToken(client, request.globalComputationId)
-
         KeyCase.REQUISITION_KEY ->
           computationReader.readComputationToken(client, request.requisitionKey)
-
         KeyCase.KEY_NOT_SET -> failGrpc(Status.INVALID_ARGUMENT) { "key not set" }
       }
         ?: failGrpc(Status.NOT_FOUND) { "Computation not found" }
@@ -250,11 +248,12 @@ class PostgresComputationsService(
     }
     val purgeResult =
       PurgeComputations(
-        request.stagesList,
-        request.updatedBefore.toInstant(),
-        request.force,
-        computationReader
-      ).execute(client, idGenerator)
+          request.stagesList,
+          request.updatedBefore.toInstant(),
+          request.force,
+          computationReader
+        )
+        .execute(client, idGenerator)
 
     return purgeComputationsResponse {
       purgeCount = purgeResult.purgeCount
@@ -267,21 +266,21 @@ class PostgresComputationsService(
   ): FinishComputationResponse {
     val token =
       FinishComputation(
-        request.token.toDatabaseEditToken(),
-        endingStage = request.endingComputationStage,
-        endComputationReason =
-        when (request.reason) {
-          ComputationDetails.CompletedReason.SUCCEEDED -> EndComputationReason.SUCCEEDED
-          ComputationDetails.CompletedReason.FAILED -> EndComputationReason.FAILED
-          ComputationDetails.CompletedReason.CANCELED -> EndComputationReason.CANCELED
-          else -> error("Unknown CompletedReason ${request.reason}")
-        },
-        computationDetails = request.token.computationDetails,
-        clock = clock,
-        protocolStagesEnumHelper = protocolStagesEnumHelper,
-        protocolStageDetailsHelper = computationProtocolStageDetailsHelper,
-        computationReader = computationReader,
-      )
+          request.token.toDatabaseEditToken(),
+          endingStage = request.endingComputationStage,
+          endComputationReason =
+            when (request.reason) {
+              ComputationDetails.CompletedReason.SUCCEEDED -> EndComputationReason.SUCCEEDED
+              ComputationDetails.CompletedReason.FAILED -> EndComputationReason.FAILED
+              ComputationDetails.CompletedReason.CANCELED -> EndComputationReason.CANCELED
+              else -> error("Unknown CompletedReason ${request.reason}")
+            },
+          computationDetails = request.token.computationDetails,
+          clock = clock,
+          protocolStagesEnumHelper = protocolStagesEnumHelper,
+          protocolStageDetailsHelper = computationProtocolStageDetailsHelper,
+          computationReader = computationReader,
+        )
         .execute(client, idGenerator)
 
     sendStatusUpdateToKingdom(
@@ -303,12 +302,12 @@ class PostgresComputationsService(
 
     val token =
       UpdateComputationDetails(
-        token = request.token.toDatabaseEditToken(),
-        clock = clock,
-        computationDetails = request.details,
-        requisitionEntries = request.requisitionsList,
-        computationReader = computationReader,
-      )
+          token = request.token.toDatabaseEditToken(),
+          clock = clock,
+          computationDetails = request.details,
+          requisitionEntries = request.requisitionsList,
+          computationReader = computationReader,
+        )
         .execute(client, idGenerator)
 
     return token.toUpdateComputationDetailsResponse()
@@ -319,12 +318,12 @@ class PostgresComputationsService(
   ): RecordOutputBlobPathResponse {
     val token =
       RecordOutputBlobPath(
-        token = request.token.toDatabaseEditToken(),
-        clock = clock,
-        blobRef = BlobRef(request.outputBlobId, request.blobPath),
-        protocolStagesEnumHelper = protocolStagesEnumHelper,
-        computationReader = computationReader,
-      )
+          token = request.token.toDatabaseEditToken(),
+          clock = clock,
+          blobRef = BlobRef(request.outputBlobId, request.blobPath),
+          protocolStagesEnumHelper = protocolStagesEnumHelper,
+          computationReader = computationReader,
+        )
         .execute(client, idGenerator)
 
     return token.toRecordOutputBlobPathResponse()
@@ -339,13 +338,10 @@ class PostgresComputationsService(
       when (request.afterTransition) {
         AdvanceComputationStageRequest.AfterTransition.ADD_UNCLAIMED_TO_QUEUE ->
           AfterTransition.ADD_UNCLAIMED_TO_QUEUE
-
         AdvanceComputationStageRequest.AfterTransition.DO_NOT_ADD_TO_QUEUE ->
           AfterTransition.DO_NOT_ADD_TO_QUEUE
-
         AdvanceComputationStageRequest.AfterTransition.RETAIN_AND_EXTEND_LOCK ->
           AfterTransition.CONTINUE_WORKING
-
         else ->
           error(
             "Unsupported AdvanceComputationStageRequest.AfterTransition '${request.afterTransition}'. ",
@@ -354,18 +350,18 @@ class PostgresComputationsService(
 
     val token =
       AdvanceComputationStage(
-        request.token.toDatabaseEditToken(),
-        nextStage = request.nextComputationStage,
-        nextStageDetails = request.stageDetails,
-        inputBlobPaths = request.inputBlobsList,
-        passThroughBlobPaths = request.passThroughBlobsList,
-        outputBlobs = request.outputBlobs,
-        afterTransition = afterTransition,
-        lockExtension = lockExtension,
-        clock = clock,
-        protocolStagesEnumHelper = protocolStagesEnumHelper,
-        computationReader = computationReader,
-      )
+          request.token.toDatabaseEditToken(),
+          nextStage = request.nextComputationStage,
+          nextStageDetails = request.stageDetails,
+          inputBlobPaths = request.inputBlobsList,
+          passThroughBlobPaths = request.passThroughBlobsList,
+          outputBlobs = request.outputBlobs,
+          afterTransition = afterTransition,
+          lockExtension = lockExtension,
+          clock = clock,
+          protocolStagesEnumHelper = protocolStagesEnumHelper,
+          computationReader = computationReader,
+        )
         .execute(client, idGenerator)
 
     sendStatusUpdateToKingdom(
@@ -392,11 +388,11 @@ class PostgresComputationsService(
       "DelaySecond ${request.delaySecond} should be non-negative."
     }
     EnqueueComputation(
-      request.token.localComputationId,
-      request.token.version,
-      request.delaySecond.toLong(),
-      clock,
-    )
+        request.token.localComputationId,
+        request.token.version,
+        request.delaySecond.toLong(),
+        clock,
+      )
       .execute(client, idGenerator)
     return EnqueueComputationResponse.getDefaultInstance()
   }
@@ -406,12 +402,12 @@ class PostgresComputationsService(
   ): RecordRequisitionBlobPathResponse {
     val token =
       RecordRequisitionBlobPath(
-        clock = clock,
-        localId = request.token.localComputationId,
-        externalRequisitionKey = request.key,
-        pathToBlob = request.blobPath,
-        computationReader = computationReader,
-      )
+          clock = clock,
+          localId = request.token.localComputationId,
+          externalRequisitionKey = request.key,
+          pathToBlob = request.blobPath,
+          computationReader = computationReader,
+        )
         .execute(client, idGenerator)
 
     return token.toRecordRequisitionBlobPathResponse()
