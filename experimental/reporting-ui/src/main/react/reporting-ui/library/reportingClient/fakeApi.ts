@@ -20,7 +20,7 @@ import {
   Report,
   UniqueReach,
 } from './models';
-import {IReportingApi} from './IReportingApi';
+import {ReportingClient} from './ReportingClient';
 
 function regenerateTimeData() {
   const chartData: UniqueReach[] = [];
@@ -43,7 +43,7 @@ function regenerateTimeData() {
   return chartData;
 }
 
-export class FakeApi implements IReportingApi {
+export class FakeApi implements ReportingClient {
   reports: Report[];
 
   constructor() {
