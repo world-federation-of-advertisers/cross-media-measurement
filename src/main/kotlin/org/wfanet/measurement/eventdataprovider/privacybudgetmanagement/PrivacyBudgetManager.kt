@@ -48,7 +48,7 @@ class PrivacyBudgetManager(
    *   to the database.
    */
   suspend fun chargingWillExceedPrivacyBudget(query: Query) =
-    ledger.chargingWillExceedPrivacyBudget(
+    ledger.chargingWillExceedPrivacyBudgetInDp(
       filter.getPrivacyBucketGroups(query.reference.measurementConsumerId, query.landscapeMask),
       setOf(query.dpCharge)
     )
@@ -67,7 +67,7 @@ class PrivacyBudgetManager(
    *   exceptions could include a failure to commit the transaction to the database.
    */
   suspend fun chargePrivacyBudget(query: Query) =
-    ledger.charge(
+    ledger.chargeInDp(
       query.reference,
       filter.getPrivacyBucketGroups(query.reference.measurementConsumerId, query.landscapeMask),
       setOf(query.dpCharge)
