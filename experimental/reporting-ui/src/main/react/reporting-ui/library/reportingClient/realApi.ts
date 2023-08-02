@@ -18,10 +18,10 @@ import {
   InitApiProps,
   ListReportsResponse,
 } from './models';
-import {IReportingApi} from './IReportingApi';
+import {ReportingClient} from './ReportingClient';
 import path from 'path';
 
-export class RealApi implements IReportingApi {
+export class RealApi implements ReportingClient {
   // eslint-disable-next-line node/no-unsupported-features/node-builtins
   baseUrl: URL = new URL('');
 

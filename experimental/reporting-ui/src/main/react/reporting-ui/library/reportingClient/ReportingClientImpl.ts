@@ -20,13 +20,13 @@ import {
   ListReportsResponse,
   Report,
 } from './models';
-import {IReportingApi} from './IReportingApi';
+import {ReportingClient} from './ReportingClient';
 
 export class ReportingApi {
   memoizer: Memoizer = new Memoizer();
   reports: Report[] = [];
 
-  constructor(private api: IReportingApi) {}
+  constructor(private api: ReportingClient) {}
 
   init(props: InitApiProps): void {
     this.api.init(props);
