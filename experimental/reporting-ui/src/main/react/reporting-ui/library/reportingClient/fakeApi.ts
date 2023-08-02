@@ -301,23 +301,18 @@ export class FakeApi implements ReportingClient {
   }
 
   listReports(): Promise<ListReportsResponse> {
-    return new Promise(resolve =>
-      resolve({
-        reports: this.reports,
-      })
-    );
+    return Promise.resolve({reports: this.reports});
   }
 
   createReport(): Promise<void> {
-    return new Promise(r => r());
+    return Promise.resolve();
   }
 
   getReport(req: GetReportRequest): Promise<GetReportResponse> {
-    return new Promise(r => {
-      const rep = this.reports.find(x => x.id === req.id);
-      r({
-        report: rep,
-      });
-    });
+    const rep = this.reports.find(x => x.id === req.id);
+    const result = {
+      report: rep,
+    };
+    return Promise.resolve(result);
   }
 }
