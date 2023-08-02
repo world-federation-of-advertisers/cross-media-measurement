@@ -33,17 +33,19 @@ export class RealApi implements ReportingClient {
 
   async listReports(): Promise<ListReportsResponse> {
     const res = await fetch(path.join(this.baseUrl.toString(), '/api/reports'));
-    await res.json();
-    return {
-      reports: [],
-    };
+    const reports = await res.json();
+    const response = Object.freeze({
+      reports,
+    })
+    return response;
   }
 
   async getReport(req: GetReportRequest): Promise<GetReportResponse> {
     const res = await fetch(path.join(this.baseUrl.toString(), '/api/reports', req.id));
-    await res.json();
-    return {
-      report: undefined,
-    };
+    const report = await res.json();
+    const response = Object.freeze({
+      report,
+    })
+    return response;
   }
 }
