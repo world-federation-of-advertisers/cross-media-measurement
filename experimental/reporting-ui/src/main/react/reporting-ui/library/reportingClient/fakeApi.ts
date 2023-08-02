@@ -301,7 +301,8 @@ export class FakeApi implements ReportingClient {
   }
 
   listReports(): Promise<ListReportsResponse> {
-    return Promise.resolve({reports: this.reports});
+    const response = Object.freeze({reports: this.reports})
+    return Promise.resolve(response);
   }
 
   createReport(): Promise<void> {
@@ -310,9 +311,9 @@ export class FakeApi implements ReportingClient {
 
   getReport(req: GetReportRequest): Promise<GetReportResponse> {
     const rep = this.reports.find(x => x.id === req.id);
-    const result = {
+    const response = Object.freeze({
       report: rep,
-    };
-    return Promise.resolve(result);
+    });
+    return Promise.resolve(response);
   }
 }
