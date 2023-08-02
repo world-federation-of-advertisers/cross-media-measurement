@@ -16,29 +16,10 @@ package org.wfanet.measurement.duchy.deploy.common.postgres.writers
 
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 
-/** [PostgresWriter] to delete a computation by its localComputationId or globalComputationId. */
-class DeleteComputation : PostgresWriter<Long> {
-
-  private var globalId: String? = null
-  private var localId: Long? = null
-
-  constructor(globalId: String) : super() {
-    this.globalId = globalId
-  }
-
-  constructor(localId: Long) : super() {
-    this.localId = localId
-  }
+/** [PostgresWriter] to delete a computation by its localComputationId. */
+class DeleteComputation(private val localId: Long) : PostgresWriter<Long>() {
 
   override suspend fun TransactionScope.runTransaction(): Long {
-    if (localId != null) {
-      return deleteComputationByLocalId(localId!!)
-    }
-
-    if (globalId != null) {
-      return deleteComputationByGlobalId(globalId!!)
-    }
-
-    return 0
+    return deleteComputationByLocalId(localId)
   }
 }
