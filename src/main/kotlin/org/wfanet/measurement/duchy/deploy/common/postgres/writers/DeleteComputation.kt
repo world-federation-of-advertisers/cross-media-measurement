@@ -38,5 +38,7 @@ class DeleteComputation : PostgresWriter<Long> {
     if (globalId != null) {
       return deleteComputationByGlobalId(globalId!!)
     }
+
+    return 0
   }
 }

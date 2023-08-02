@@ -62,7 +62,6 @@ import org.wfanet.measurement.duchy.service.internal.computations.toRecordRequis
 import org.wfanet.measurement.duchy.service.internal.computations.toUpdateComputationDetailsResponse
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.storage.RequisitionStore
-import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageResponse
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
@@ -93,7 +92,6 @@ import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathResponse
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsResponse
 import org.wfanet.measurement.internal.duchy.getComputationIdsResponse
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.purgeComputationsResponse
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
@@ -449,25 +447,6 @@ class PostgresComputationsService(
       computationLogEntriesClient.createComputationLogEntry(request)
     } catch (ignored: Exception) {
       logger.log(Level.WARNING, "Failed to update status change to the kingdom. $ignored")
-    }
-  }
-
-  private fun isTerminated(computationStage: ComputationStage): Boolean {
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-    return when (computationStage.stageCase) {
-      ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
-        computationStage.liquidLegionsSketchAggregationV2 ==
-          LiquidLegionsSketchAggregationV2.Stage.COMPLETE
-      ComputationStage.StageCase.STAGE_NOT_SET -> false
-    }
-  }
-
-  private fun getEndingComputationStage(computationStage: ComputationStage): ComputationStage {
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-    return when (computationStage.stageCase) {
-      ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
-        LiquidLegionsSketchAggregationV2.Stage.COMPLETE.toProtocolStage()
-      ComputationStage.StageCase.STAGE_NOT_SET -> error("protocol not set")
     }
   }
 

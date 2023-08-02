@@ -30,6 +30,7 @@ import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration as systemDuration
 import java.time.Instant
+import java.time.LocalDate
 import kotlin.properties.Delegates
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -93,6 +94,7 @@ import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.createModelShardRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
+import org.wfanet.measurement.api.v2alpha.dateInterval
 import org.wfanet.measurement.api.v2alpha.deleteModelOutageRequest
 import org.wfanet.measurement.api.v2alpha.deleteModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.deleteModelShardRequest
@@ -144,6 +146,7 @@ import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
@@ -1770,23 +1773,23 @@ private class ModelRollouts {
     )
     modelLineName: String,
     @Option(
-      names = ["--rollout-start-time"],
-      description = ["Start time of model rollout in ISO 8601 format of UTC"],
+      names = ["--rollout-start-date"],
+      description = ["Start date of model rollout in ISO 8601 format of UTC"],
       required = false,
     )
-    rolloutStartTime: Instant? = null,
+    rolloutStartDate: LocalDate? = null,
     @Option(
-      names = ["--rollout-end-time"],
-      description = ["End time of model rollout in ISO 8601 format of UTC"],
+      names = ["--rollout-end-date"],
+      description = ["End date of model rollout in ISO 8601 format of UTC"],
       required = false,
     )
-    rolloutEndTime: Instant? = null,
+    rolloutEndDate: LocalDate? = null,
     @Option(
-      names = ["--instant-rollout-time"],
-      description = ["Instant rollout time of model rollout in ISO 8601 format of UTC"],
+      names = ["--instant-rollout-date"],
+      description = ["Instant rollout date of model rollout in ISO 8601 format of UTC"],
       required = false,
     )
-    instantRolloutTime: Instant? = null,
+    instantRolloutDate: LocalDate? = null,
     @Option(
       names = ["--model-release"],
       description = ["The `ModelRelease` this model rollout refers to."],
@@ -1795,22 +1798,22 @@ private class ModelRollouts {
     modelRolloutRelease: String,
   ) {
 
-    if (instantRolloutTime == null && (rolloutStartTime == null || rolloutEndTime == null)) {
+    if (instantRolloutDate == null && (rolloutStartDate == null || rolloutEndDate == null)) {
       throw ParameterException(
         parentCommand.commandLine,
-        "Both `rolloutStartTime` and `rolloutEndTime` must be set when `instantRolloutTime` is not."
+        "Both `rolloutStartDate` and `rolloutEndDate` must be set when `instantRolloutDate` is not."
       )
     }
 
     val request = createModelRolloutRequest {
       parent = modelLineName
       modelRollout = modelRollout {
-        if (instantRolloutTime != null) {
-          this.instantRolloutTime = instantRolloutTime.toProtoTime()
+        if (instantRolloutDate != null) {
+          this.instantRolloutDate = instantRolloutDate.toProtoDate()
         } else {
-          gradualRolloutPeriod = interval {
-            startTime = rolloutStartTime!!.toProtoTime()
-            endTime = rolloutEndTime!!.toProtoTime()
+          gradualRolloutPeriod = dateInterval {
+            this.startDate = rolloutStartDate!!.toProtoDate()
+            this.endDate = rolloutEndDate!!.toProtoDate()
           }
         }
         modelRelease = modelRolloutRelease
@@ -1849,30 +1852,30 @@ private class ModelRollouts {
     )
     listPageToken: String,
     @Option(
-      names = ["--rollout-period-overlapping-start-time"],
+      names = ["--rollout-period-overlapping-start-date"],
       description =
-        ["Start time of overlapping period for desired model rollouts in ISO 8601 format of UTC"],
+        ["Start date of overlapping period for desired model rollouts in ISO 8601 format of UTC"],
       required = false,
     )
-    rolloutPeriodStartTime: Instant? = null,
+    rolloutPeriodOverlappingStartDate: LocalDate? = null,
     @Option(
-      names = ["--rollout-period-overlapping-end-time"],
+      names = ["--rollout-period-overlapping-end-date"],
       description =
-        ["End time of overlapping period for desired model rollouts in ISO 8601 format of UTC"],
+        ["End date of overlapping period for desired model rollouts in ISO 8601 format of UTC"],
       required = false,
     )
-    rolloutPeriodEndTime: Instant? = null,
+    rolloutPeriodOverlappingEndDate: LocalDate? = null,
   ) {
     val request = listModelRolloutsRequest {
       parent = modelLineName
       pageSize = listPageSize
       pageToken = listPageToken
-      if (rolloutPeriodStartTime != null && rolloutPeriodEndTime != null) {
+      if (rolloutPeriodOverlappingStartDate != null && rolloutPeriodOverlappingEndDate != null) {
         filter =
           ListModelRolloutsRequestKt.filter {
-            rolloutPeriodOverlapping = interval {
-              startTime = rolloutPeriodStartTime.toProtoTime()
-              endTime = rolloutPeriodEndTime.toProtoTime()
+            rolloutPeriodOverlapping = dateInterval {
+              this.startDate = rolloutPeriodOverlappingStartDate.toProtoDate()
+              this.endDate = rolloutPeriodOverlappingEndDate.toProtoDate()
             }
           }
       }
@@ -1895,11 +1898,11 @@ private class ModelRollouts {
       description = ["The rollout freeze time to be set in ISO 8601 format of UTC."],
       required = true,
     )
-    freezeTime: Instant,
+    freezeDate: LocalDate,
   ) {
     val request = scheduleModelRolloutFreezeRequest {
       name = modelRolloutName
-      rolloutFreezeTime = freezeTime.toProtoTime()
+      this.rolloutFreezeDate = freezeDate.toProtoDate()
     }
     val outputModelRollout =
       runBlocking(parentCommand.rpcDispatcher) {
@@ -1907,7 +1910,7 @@ private class ModelRollouts {
       }
 
     println(
-      "Freeze time ${outputModelRollout.rolloutFreezeTime} has been set for ${outputModelRollout.name}."
+      "Freeze date ${outputModelRollout.rolloutFreezeDate} has been set for ${outputModelRollout.name}."
     )
   }
 
@@ -1928,12 +1931,12 @@ private class ModelRollouts {
 
   private fun printModelRollout(modelRollout: ModelRollout) {
     println("NAME - ${modelRollout.name}")
-    if (modelRollout.hasInstantRolloutTime()) {
-      println("INSTANT ROLLOUT TIME- ${modelRollout.instantRolloutTime}")
+    if (modelRollout.hasInstantRolloutDate()) {
+      println("INSTANT ROLLOUT DATE- ${modelRollout.instantRolloutDate}")
     } else {
       println("GRADUAL ROLLOUT PERIOD- ${modelRollout.gradualRolloutPeriod}")
     }
-    println("ROLLOUT FREEZE TIME - ${modelRollout.rolloutFreezeTime}")
+    println("ROLLOUT FREEZE DATE - ${modelRollout.rolloutFreezeDate}")
     println("PREVIOUS MODEL ROLLOUT - ${modelRollout.previousModelRollout}")
     println("MODEL RELEASE - ${modelRollout.modelRelease}")
     println("CREATE TIME - ${modelRollout.createTime}")

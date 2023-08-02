@@ -18,15 +18,21 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest.Header.ProtocolCase
+import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequestKt
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
+import org.wfanet.measurement.system.v1alpha.ReachOnlyLiquidLegionsV2
+import org.wfanet.measurement.system.v1alpha.liquidLegionsV2
+import org.wfanet.measurement.system.v1alpha.reachOnlyLiquidLegionsV2
 
 /** True if the protocol specified in the header is asynchronous. */
 fun AdvanceComputationRequest.Header.isForAsyncComputation(): Boolean =
   when (protocolCase) {
-    ProtocolCase.LIQUID_LEGIONS_V2 -> true
+    ProtocolCase.LIQUID_LEGIONS_V2,
+    ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> true
     else -> failGrpc { "Unknown protocol $protocolCase" }
   }
 
@@ -34,6 +40,7 @@ fun AdvanceComputationRequest.Header.isForAsyncComputation(): Boolean =
 fun AdvanceComputationRequest.Header.stageExpectingInput(): ComputationStage =
   when (protocolCase) {
     ProtocolCase.LIQUID_LEGIONS_V2 -> liquidLegionsV2.stageExpectingInput()
+    ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> reachOnlyLiquidLegionsV2.stageExpectingInput()
     else -> failGrpc { "Unknown protocol $protocolCase" }
   }
 
@@ -50,14 +57,33 @@ private fun LiquidLegionsV2.stageExpectingInput(): ComputationStage =
     else -> failGrpc { "Unknown LiquidLegionsV2 payload description '$description'." }
   }.toProtocolStage()
 
+private fun ReachOnlyLiquidLegionsV2.stageExpectingInput(): ComputationStage =
+  when (description) {
+    ReachOnlyLiquidLegionsV2.Description.SETUP_PHASE_INPUT ->
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS
+    ReachOnlyLiquidLegionsV2.Description.EXECUTION_PHASE_INPUT ->
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_INPUTS
+    else -> failGrpc { "Unknown ReachOnlyLiquidLegionsV2 payload description '$description'." }
+  }.toProtocolStage()
+
 /** Creates an [AdvanceComputationRequest.Header] for a liquid legions v2 computation. */
 fun advanceComputationHeader(
   liquidLegionsV2ContentDescription: LiquidLegionsV2.Description,
   globalComputationId: String
 ): AdvanceComputationRequest.Header =
-  AdvanceComputationRequest.Header.newBuilder()
-    .apply {
-      name = ComputationKey(globalComputationId).toName()
-      liquidLegionsV2Builder.description = liquidLegionsV2ContentDescription
+  AdvanceComputationRequestKt.header {
+    name = ComputationKey(globalComputationId).toName()
+    liquidLegionsV2 = liquidLegionsV2 { description = liquidLegionsV2ContentDescription }
+  }
+
+/** Creates an [AdvanceComputationRequest.Header] for a reach-only liquid legions v2 computation. */
+fun advanceComputationHeader(
+  reachOnlyLiquidLegionsV2ContentDescription: ReachOnlyLiquidLegionsV2.Description,
+  globalComputationId: String
+): AdvanceComputationRequest.Header =
+  AdvanceComputationRequestKt.header {
+    name = ComputationKey(globalComputationId).toName()
+    reachOnlyLiquidLegionsV2 = reachOnlyLiquidLegionsV2 {
+      description = reachOnlyLiquidLegionsV2ContentDescription
     }
-    .build()
+  }

@@ -34,5 +34,7 @@ fun ComputationStage.toComputationType() =
   when (stageCase) {
     ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
       ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+    ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+      ComputationType.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
     else -> ComputationType.UNRECOGNIZED
   }

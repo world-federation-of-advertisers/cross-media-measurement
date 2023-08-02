@@ -4,7 +4,7 @@ js_library(
     name = "jest_files",
     srcs = ["__mocks__/styleMock.ts"],
     visibility = [
-        "//src/test/react/reporting-ui:__subpackages__",
+        "//experimental/reporting-ui/src/test/react/reporting-ui:__subpackages__",
     ],
 )
 
@@ -12,6 +12,6 @@ js_library(
     name = "jest_base_config",
     srcs = ["jest_base.config.js"],
     visibility = [
-        "//src/test/react/reporting-ui:__subpackages__",
+        "//experimental/reporting-ui/src/test/react/reporting-ui:__subpackages__",
     ],
 )
