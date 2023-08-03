@@ -32,9 +32,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.protoTimestamp
-import org.wfanet.measurement.duchy.daemon.utils.MeasurementType
 import org.wfanet.measurement.duchy.daemon.utils.key
-import org.wfanet.measurement.duchy.daemon.utils.toMeasurementType
 import org.wfanet.measurement.duchy.service.internal.computations.toGetTokenRequest
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
@@ -229,16 +227,22 @@ class Herald(
     val globalId: String = systemComputation.key.computationId
     logger.info("[id=$globalId] Creating Computation...")
     try {
-      when (systemComputation.toMeasurementType()) {
-        MeasurementType.REACH,
-        MeasurementType.REACH_AND_FREQUENCY -> {
+      when (systemComputation.mpcProtocolConfig.protocolCase) {
+        Computation.MpcProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2 ->
           LiquidLegionsV2Starter.createComputation(
             internalComputationsClient,
             systemComputation,
             protocolsSetupConfig.liquidLegionsV2,
             blobStorageBucket
           )
-        }
+        Computation.MpcProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
+          ReachOnlyLiquidLegionsV2Starter.createComputation(
+            internalComputationsClient,
+            systemComputation,
+            protocolsSetupConfig.reachOnlyLiquidLegionsV2,
+            blobStorageBucket
+          )
+        else -> error("Unknown or unsupported protocol for creation.")
       }
       logger.info("[id=$globalId]: Created Computation")
     } catch (e: StatusException) {
@@ -302,6 +306,13 @@ class Herald(
             systemComputation,
             protocolsSetupConfig.liquidLegionsV2.externalAggregatorDuchyId
           )
+        ComputationDetails.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
+          ReachOnlyLiquidLegionsV2Starter.updateRequisitionsAndKeySets(
+            token,
+            internalComputationsClient,
+            systemComputation,
+            protocolsSetupConfig.reachOnlyLiquidLegionsV2.externalAggregatorDuchyId
+          )
         else -> error("Unknown or unsupported protocol.")
       }
       logger.info("[id=$globalId]: Confirmed Computation")
@@ -317,6 +328,8 @@ class Herald(
       when (token.computationDetails.protocolCase) {
         ComputationDetails.ProtocolCase.LIQUID_LEGIONS_V2 ->
           LiquidLegionsV2Starter.startComputation(token, internalComputationsClient)
+        ComputationDetails.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
+          ReachOnlyLiquidLegionsV2Starter.startComputation(token, internalComputationsClient)
         else -> error("Unknown or unsupported protocol.")
       }
       logger.info("[id=$globalId]: Started Computation")
@@ -365,8 +378,10 @@ class Herald(
       } ?: return
 
     if (
-      token.computationDetails.hasLiquidLegionsV2() &&
-        token.computationStage == LiquidLegionsV2Starter.TERMINAL_STAGE
+      (token.computationDetails.hasLiquidLegionsV2() &&
+        token.computationStage == LiquidLegionsV2Starter.TERMINAL_STAGE) ||
+        (token.computationDetails.hasReachOnlyLiquidLegionsV2() &&
+          token.computationStage == ReachOnlyLiquidLegionsV2Starter.TERMINAL_STAGE)
     ) {
       return
     }
@@ -376,6 +391,8 @@ class Herald(
       endingComputationStage =
         when (token.computationDetails.protocolCase) {
           ComputationDetails.ProtocolCase.LIQUID_LEGIONS_V2 -> LiquidLegionsV2Starter.TERMINAL_STAGE
+          ComputationDetails.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
+            ReachOnlyLiquidLegionsV2Starter.TERMINAL_STAGE
           else -> error { "Unknown or unsupported protocol." }
         }
       reason = ComputationDetails.CompletedReason.FAILED

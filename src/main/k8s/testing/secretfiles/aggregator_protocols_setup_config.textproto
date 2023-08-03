@@ -4,3 +4,7 @@ liquid_legions_v2 {
   role: AGGREGATOR
   external_aggregator_duchy_id: "aggregator"
 }
+reach_only_liquid_legions_v2 {
+  role: AGGREGATOR
+  external_aggregator_duchy_id: "aggregator"
+}
