@@ -19,20 +19,19 @@ import {
   ListReportsResponse,
 } from './models';
 import {ReportingClient} from './reporting_client';
-import path from 'path';
 
 export class RealApi implements ReportingClient {
   // eslint-disable-next-line node/no-unsupported-features/node-builtins
-  baseUrl: URL = new URL('');
+  baseUrl: URL;
 
-  constructor() {}
-
-  init(props: InitApiProps): void {
+  constructor(props: InitApiProps) {
     this.baseUrl = props.endpoint;
   }
 
+  init(props: InitApiProps): void { }
+
   async listReports(): Promise<ListReportsResponse> {
-    const res = await fetch(path.join(this.baseUrl.toString(), '/api/reports'));
+    const res = await fetch(this.baseUrl!.toString() + '/api/reports');
     const reports = await res.json();
     const response = Object.freeze({
       reports,
@@ -41,7 +40,7 @@ export class RealApi implements ReportingClient {
   }
 
   async getReport(req: GetReportRequest): Promise<GetReportResponse> {
-    const res = await fetch(path.join(this.baseUrl.toString(), '/api/reports', req.id));
+    const res = await fetch(this.baseUrl!.toString() + '/api/reports' + req.id);
     const report = await res.json();
     const response = Object.freeze({
       report,
