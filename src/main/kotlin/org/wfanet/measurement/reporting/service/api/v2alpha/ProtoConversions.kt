@@ -331,9 +331,7 @@ fun InternalMetricSpec.ImpressionCountParams.toImpression(): MeasurementSpec.Imp
 /** Builds a [MeasurementSpec.ReachAndFrequency] for watch duration. */
 fun InternalMetricSpec.WatchDurationParams.toDuration(): MeasurementSpec.Duration {
   val source = this
-  return MeasurementSpecKt.duration {
-    privacyParams = source.privacyParams.toCmmsPrivacyParams()
-  }
+  return MeasurementSpecKt.duration { privacyParams = source.privacyParams.toCmmsPrivacyParams() }
 }
 
 /** Converts a CMM [Measurement.Failure] to an [InternalMeasurement.Failure]. */

@@ -114,8 +114,7 @@ class MetricSpecDefaultsTest {
             epsilon = METRIC_SPEC_CONFIG.frequencyHistogramParams.frequencyPrivacyParams.epsilon
             delta = METRIC_SPEC_CONFIG.frequencyHistogramParams.frequencyPrivacyParams.delta
           }
-        maxFrequency =
-          METRIC_SPEC_CONFIG.frequencyHistogramParams.maxFrequency
+        maxFrequency = METRIC_SPEC_CONFIG.frequencyHistogramParams.maxFrequency
       }
       vidSamplingInterval =
         MetricSpecKt.vidSamplingInterval {
@@ -140,8 +139,7 @@ class MetricSpecDefaultsTest {
             epsilon = METRIC_SPEC_CONFIG.frequencyHistogramParams.frequencyPrivacyParams.epsilon * 2
             delta = METRIC_SPEC_CONFIG.frequencyHistogramParams.frequencyPrivacyParams.delta * 2
           }
-        maxFrequency =
-          METRIC_SPEC_CONFIG.frequencyHistogramParams.maxFrequency * 2
+        maxFrequency = METRIC_SPEC_CONFIG.frequencyHistogramParams.maxFrequency * 2
       }
       vidSamplingInterval =
         MetricSpecKt.vidSamplingInterval {
