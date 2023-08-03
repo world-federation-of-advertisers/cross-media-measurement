@@ -342,6 +342,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
                 .value
           }
       }
+    // TODO(@tristanvuong2021): Assert using variance
     assertThat(actualResult).reachValue().isWithinPercent(10.0).of(expectedResult.reach.value)
   }
 
@@ -505,6 +506,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
                 .value
           }
       }
+    // TODO(@tristanvuong2021): Assert using variance
     assertThat(actualResult)
       .reachValue()
       .isWithinPercent(0.5)
@@ -536,7 +538,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet2 = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group == ${Person.AgeGroup.YEARS_35_TO_54_VALUE}"
+      filter = "person.gender == ${Person.Gender.FEMALE_VALUE}"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
     }
 
@@ -616,6 +618,22 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
+    val vids =
+      SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
+        eventGroup,
+        "(${primitiveReportingSet.filter}) && (${primitiveReportingSet2.filter})",
+        EVENT_RANGE.toInterval()
+      )
+    val sampledVids =
+      vids.calculateSampledVids(
+        report.reportingMetricEntriesList[0]
+          .value
+          .metricCalculationSpecsList[0]
+          .metricSpecsList[0]
+          .vidSamplingInterval
+      )
+    val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+
     val actualResult =
       MeasurementKt.result {
         reach =
@@ -628,7 +646,8 @@ abstract class InProcessLifeOfAReportIntegrationTest {
                 .value
           }
       }
-    assertThat(actualResult).reachValue().isWithinPercent(500.0).of(1)
+    // TODO(@tristanvuong2021): Assert using variance
+    assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
   }
 
   @Test
@@ -727,6 +746,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
         MeasurementKt.result {
           reach = MeasurementKt.ResultKt.reach { value = resultAttribute.metricResult.reach.value }
         }
+      // TODO(@tristanvuong2021): Assert using variance
       assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
     }
   }
@@ -817,6 +837,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
         MeasurementKt.result {
           reach = MeasurementKt.ResultKt.reach { value = resultAttribute.metricResult.reach.value }
         }
+      // TODO(@tristanvuong2021): Assert using variance
       if (
         Timestamps.compare(
           resultAttribute.timeInterval.startTime,
@@ -913,6 +934,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
         MeasurementKt.result {
           reach = MeasurementKt.ResultKt.reach { value = resultAttribute.metricResult.reach.value }
         }
+      // TODO(@tristanvuong2021): Assert using variance
       if (
         Timestamps.compare(
           resultAttribute.timeInterval.startTime,
@@ -1010,6 +1032,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
         MeasurementKt.result {
           reach = MeasurementKt.ResultKt.reach { value = resultAttribute.metricResult.reach.value }
         }
+      // TODO(@tristanvuong2021): Assert using variance
       assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
     }
   }
@@ -1100,6 +1123,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
           reach = MeasurementKt.ResultKt.reach { value = resultAttribute.metricResult.reach.value }
         }
 
+      // TODO(@tristanvuong2021): Assert using variance
       if (resultAttribute.groupingPredicatesList.contains(grouping1Predicate1)) {
         if (resultAttribute.groupingPredicatesList.contains(grouping2Predicate1)) {
           assertThat(actualResult).reachValue().isWithinPercent(500.0).of(1)
@@ -1288,6 +1312,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
       MeasurementKt.result {
         reach = MeasurementKt.ResultKt.reach { value = retrievedMetric.result.reach.value }
       }
+    // TODO(@tristanvuong2021): Assert using variance
     assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
   }
 
@@ -1375,6 +1400,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
             )
           }
       }
+    // TODO(@tristanvuong2021): Assert using variance
     assertThat(actualResult)
       .frequencyDistribution()
       .isWithin(0.01)
@@ -1549,6 +1575,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
       MeasurementKt.result {
         reach = MeasurementKt.ResultKt.reach { value = retrievedMetric.result.reach.value }
       }
+    // TODO(@tristanvuong2021): Assert using variance
     assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
   }
 
@@ -1745,10 +1772,10 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
   private fun calculateExpectedReachAndFrequencyMeasurementResult(
     sampledVids: Sequence<Long>,
-    maximumFrequencyPerUser: Int
+    maxFrequency: Int
   ): Measurement.Result {
     val reachAndFrequency =
-      MeasurementResults.computeReachAndFrequency(sampledVids.asIterable(), maximumFrequencyPerUser)
+      MeasurementResults.computeReachAndFrequency(sampledVids.asIterable(), maxFrequency)
     return MeasurementKt.result {
       reach = MeasurementKt.ResultKt.reach { value = reachAndFrequency.reach.toLong() }
       frequency =
