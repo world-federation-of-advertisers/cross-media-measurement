@@ -84,8 +84,8 @@ abstract class ComputationsServer : Runnable {
       ComputationsService(
         computationsDatabase = computationsDatabase,
         computationLogEntriesClient = computationLogEntriesClient,
-        computationStorageClient = ComputationStore(storageClient),
-        requisitionStorageClient = RequisitionStore(storageClient),
+        computationStore = ComputationStore(storageClient),
+        requisitionStore = RequisitionStore(storageClient),
         duchyName = flags.duchy.duchyName
       )
 

@@ -28,9 +28,9 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
 import org.wfanet.measurement.duchy.db.computation.BlobRef
+import org.wfanet.measurement.duchy.db.computation.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor
-import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.gcloud.common.gcloudTimestamp
 import org.wfanet.measurement.gcloud.common.toGcloudByteArray
