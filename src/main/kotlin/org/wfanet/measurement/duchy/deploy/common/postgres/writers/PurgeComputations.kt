@@ -27,7 +27,7 @@ class PurgeComputations(
 ) : PostgresWriter<PurgeComputations.PurgeResult>() {
   data class PurgeResult(
     val purgeCount: Int,
-    val purgeSamples: Set<String>? = null,
+    val purgeSamples: Set<String> = emptySet(),
   )
 
   override suspend fun TransactionScope.runTransaction(): PurgeResult {

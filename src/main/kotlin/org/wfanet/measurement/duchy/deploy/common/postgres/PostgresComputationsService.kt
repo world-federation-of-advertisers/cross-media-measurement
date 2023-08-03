@@ -257,7 +257,7 @@ class PostgresComputationsService(
 
     return purgeComputationsResponse {
       purgeCount = purgeResult.purgeCount
-      purgeResult.purgeSamples?.forEach { purgeSample += it }
+      purgeSample += purgeResult.purgeSamples
     }
   }
 
