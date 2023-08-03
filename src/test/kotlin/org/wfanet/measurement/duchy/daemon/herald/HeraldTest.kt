@@ -49,6 +49,7 @@ import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams as cmmsDifferentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.elGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -67,7 +68,6 @@ import org.wfanet.measurement.duchy.service.internal.computations.newPassThrough
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.duchy.toProtocolStage
-import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationDetailsKt.kingdomComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase as InternalComputationsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub as InternalComputationsCoroutineStub
@@ -79,27 +79,26 @@ import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
-import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
+import org.wfanet.measurement.internal.duchy.config.liquidLegionsV2SetupConfig
+import org.wfanet.measurement.internal.duchy.config.protocolsSetupConfig
 import org.wfanet.measurement.internal.duchy.deleteComputationRequest
 import org.wfanet.measurement.internal.duchy.differentialPrivacyParams as duchyDifferentialPrivacyParams
+import org.wfanet.measurement.internal.duchy.elGamalPublicKey as internalElgamalPublicKey
 import org.wfanet.measurement.internal.duchy.getComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.getContinuationTokenResponse
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_REQUISITIONS_AND_KEY_SET
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.parameters
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfigKt.reachNoiseConfig
+import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2Kt
 import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsSketchParameters
 import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsV2NoiseConfig
 import org.wfanet.measurement.internal.duchy.setContinuationTokenRequest
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.measurement.system.v1alpha.Computation
+import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig
 import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.NoiseMechanism as SystemNoiseMechanism
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.liquidLegionsSketchParams
@@ -112,6 +111,8 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant as SystemComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt.RequisitionParamsKt
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt.requisitionParams
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase as SystemComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineImplBase as SystemComputationsCoroutineImplBase
@@ -120,6 +121,7 @@ import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
 import org.wfanet.measurement.system.v1alpha.computation
+import org.wfanet.measurement.system.v1alpha.computationParticipant as systemComputationParticipant
 import org.wfanet.measurement.system.v1alpha.computationParticipant
 import org.wfanet.measurement.system.v1alpha.copy
 import org.wfanet.measurement.system.v1alpha.differentialPrivacyParams as systemDifferentialPrivacyParams
@@ -176,7 +178,7 @@ private val PUBLIC_API_REACH_ONLY_MEASUREMENT_SPEC = measurementSpec {
 private val SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC: ByteString =
   PUBLIC_API_REACH_ONLY_MEASUREMENT_SPEC.toByteString()
 
-private val MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
+private val LLV2_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
   liquidLegionsV2 = liquidLegionsV2 {
     sketchParams = liquidLegionsSketchParams {
       decayRate = 12.0
@@ -198,38 +200,79 @@ private val MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
   }
 }
 
+private val RO_LLV2_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
+  reachOnlyLiquidLegionsV2 = liquidLegionsV2 {
+    sketchParams = liquidLegionsSketchParams {
+      decayRate = 12.0
+      maxSize = 100_000
+    }
+    mpcNoise = mpcNoise {
+      blindedHistogramNoise = systemDifferentialPrivacyParams {
+        epsilon = 3.1
+        delta = 3.2
+      }
+      publisherNoise = systemDifferentialPrivacyParams {
+        epsilon = 4.1
+        delta = 4.2
+      }
+    }
+    ellipticCurveId = 415
+    noiseMechanism = SystemNoiseMechanism.GEOMETRIC
+  }
+}
+
 private const val AGGREGATOR_DUCHY_ID = "aggregator_duchy"
 private const val AGGREGATOR_HERALD_ID = "aggregator_herald"
 private const val NON_AGGREGATOR_DUCHY_ID = "worker_duchy"
 private const val NON_AGGREGATOR_HERALD_ID = "worker_herald"
 
-private val AGGREGATOR_PROTOCOLS_SETUP_CONFIG =
-  ProtocolsSetupConfig.newBuilder()
-    .apply {
-      liquidLegionsV2Builder.apply {
-        role = RoleInComputation.AGGREGATOR
-        externalAggregatorDuchyId = DUCHY_ONE
-      }
-    }
-    .build()
-private val NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG =
-  ProtocolsSetupConfig.newBuilder()
-    .apply {
-      liquidLegionsV2Builder.apply {
-        role = RoleInComputation.NON_AGGREGATOR
-        externalAggregatorDuchyId = DUCHY_ONE
-      }
-    }
-    .build()
+private val AGGREGATOR_PROTOCOLS_SETUP_CONFIG = protocolsSetupConfig {
+  liquidLegionsV2 = liquidLegionsV2SetupConfig {
+    role = RoleInComputation.AGGREGATOR
+    externalAggregatorDuchyId = DUCHY_ONE
+  }
+  reachOnlyLiquidLegionsV2 = liquidLegionsV2SetupConfig {
+    role = RoleInComputation.AGGREGATOR
+    externalAggregatorDuchyId = DUCHY_ONE
+  }
+}
 
-private val AGGREGATOR_COMPUTATION_DETAILS =
-  ComputationDetails.newBuilder()
-    .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.AGGREGATOR } }
-    .build()
-private val NON_AGGREGATOR_COMPUTATION_DETAILS =
-  ComputationDetails.newBuilder()
-    .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.NON_AGGREGATOR } }
-    .build()
+private val NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG = protocolsSetupConfig {
+  liquidLegionsV2 = liquidLegionsV2SetupConfig {
+    role = RoleInComputation.NON_AGGREGATOR
+    externalAggregatorDuchyId = DUCHY_ONE
+  }
+  reachOnlyLiquidLegionsV2 = liquidLegionsV2SetupConfig {
+    role = RoleInComputation.NON_AGGREGATOR
+    externalAggregatorDuchyId = DUCHY_ONE
+  }
+}
+
+private val LLV2_AGGREGATOR_COMPUTATION_DETAILS = computationDetails {
+  liquidLegionsV2 =
+    LiquidLegionsSketchAggregationV2Kt.computationDetails { role = RoleInComputation.AGGREGATOR }
+}
+
+private val LLV2_NON_AGGREGATOR_COMPUTATION_DETAILS = computationDetails {
+  liquidLegionsV2 =
+    LiquidLegionsSketchAggregationV2Kt.computationDetails {
+      role = RoleInComputation.NON_AGGREGATOR
+    }
+}
+
+private val RO_LLV2_AGGREGATOR_COMPUTATION_DETAILS = computationDetails {
+  reachOnlyLiquidLegionsV2 =
+    ReachOnlyLiquidLegionsSketchAggregationV2Kt.computationDetails {
+      role = RoleInComputation.AGGREGATOR
+    }
+}
+
+private val RO_LLV2_NON_AGGREGATOR_COMPUTATION_DETAILS = computationDetails {
+  reachOnlyLiquidLegionsV2 =
+    ReachOnlyLiquidLegionsSketchAggregationV2Kt.computationDetails {
+      role = RoleInComputation.NON_AGGREGATOR
+    }
+}
 
 private const val COMPUTATION_GLOBAL_ID = "123"
 
@@ -358,7 +401,7 @@ class HeraldTest {
   }
 
   @Test
-  fun `syncStatuses creates new computations`() = runTest {
+  fun `syncStatuses creates new llv2 computations`() = runTest {
     val confirmingKnown =
       buildComputationAtKingdom("1", Computation.State.PENDING_REQUISITION_PARAMS)
 
@@ -376,8 +419,8 @@ class HeraldTest {
 
     fakeComputationDatabase.addComputation(
       globalId = confirmingKnown.key.computationId,
-      stage = INITIALIZATION_PHASE.toProtocolStage(),
-      computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
+      stage = LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage(),
+      computationDetails = LLV2_AGGREGATOR_COMPUTATION_DETAILS,
       blobs = listOf(newInputBlobMetadata(0L, "input-blob"), newEmptyOutputBlobMetadata(1L))
     )
 
@@ -393,9 +436,9 @@ class HeraldTest {
       )
       .containsExactly(
         confirmingKnown.key.computationId.toLong(),
-        INITIALIZATION_PHASE.toProtocolStage(),
+        LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage(),
         confirmingUnknown.key.computationId.toLong(),
-        INITIALIZATION_PHASE.toProtocolStage()
+        LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage()
       )
 
     assertThat(
@@ -419,42 +462,43 @@ class HeraldTest {
           liquidLegionsV2 =
             LiquidLegionsSketchAggregationV2Kt.computationDetails {
               role = RoleInComputation.AGGREGATOR
-              parameters = parameters {
-                maximumFrequency = 10
-                liquidLegionsSketch = liquidLegionsSketchParameters {
-                  decayRate = 12.0
-                  size = 100_000L
-                }
-                noise = liquidLegionsV2NoiseConfig {
-                  reachNoiseConfig = reachNoiseConfig {
-                    blindHistogramNoise = duchyDifferentialPrivacyParams {
-                      epsilon = 3.1
-                      delta = 3.2
-                    }
-                    noiseForPublisherNoise = duchyDifferentialPrivacyParams {
-                      epsilon = 4.1
-                      delta = 4.2
-                    }
-                    globalReachDpNoise = duchyDifferentialPrivacyParams {
-                      epsilon = 1.1
-                      delta = 1.2
-                    }
+              parameters =
+                LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.parameters {
+                  maximumFrequency = 10
+                  liquidLegionsSketch = liquidLegionsSketchParameters {
+                    decayRate = 12.0
+                    size = 100_000L
                   }
-                  frequencyNoiseConfig = duchyDifferentialPrivacyParams {
-                    epsilon = 2.1
-                    delta = 2.2
+                  noise = liquidLegionsV2NoiseConfig {
+                    reachNoiseConfig = reachNoiseConfig {
+                      blindHistogramNoise = duchyDifferentialPrivacyParams {
+                        epsilon = 3.1
+                        delta = 3.2
+                      }
+                      noiseForPublisherNoise = duchyDifferentialPrivacyParams {
+                        epsilon = 4.1
+                        delta = 4.2
+                      }
+                      globalReachDpNoise = duchyDifferentialPrivacyParams {
+                        epsilon = 1.1
+                        delta = 1.2
+                      }
+                    }
+                    frequencyNoiseConfig = duchyDifferentialPrivacyParams {
+                      epsilon = 2.1
+                      delta = 2.2
+                    }
+                    noiseMechanism = LiquidLegionsV2NoiseConfig.NoiseMechanism.GEOMETRIC
                   }
-                  noiseMechanism = LiquidLegionsV2NoiseConfig.NoiseMechanism.GEOMETRIC
+                  ellipticCurveId = 415
                 }
-                ellipticCurveId = 415
-              }
             }
         }
       )
   }
 
   @Test
-  fun `syncStatuses creates new computations for reach-only`() = runTest {
+  fun `syncStatuses creates new llv2 computations for reach-only`() = runTest {
     val confirmingKnown =
       buildComputationAtKingdom(
         "1",
@@ -477,8 +521,8 @@ class HeraldTest {
 
     fakeComputationDatabase.addComputation(
       globalId = confirmingKnown.key.computationId,
-      stage = INITIALIZATION_PHASE.toProtocolStage(),
-      computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
+      stage = LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage(),
+      computationDetails = LLV2_AGGREGATOR_COMPUTATION_DETAILS,
       blobs = listOf(newInputBlobMetadata(0L, "input-blob"), newEmptyOutputBlobMetadata(1L))
     )
 
@@ -494,9 +538,9 @@ class HeraldTest {
       )
       .containsExactly(
         confirmingKnown.key.computationId.toLong(),
-        INITIALIZATION_PHASE.toProtocolStage(),
+        LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage(),
         confirmingUnknown.key.computationId.toLong(),
-        INITIALIZATION_PHASE.toProtocolStage()
+        LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage()
       )
 
     assertThat(
@@ -520,38 +564,139 @@ class HeraldTest {
           liquidLegionsV2 =
             LiquidLegionsSketchAggregationV2Kt.computationDetails {
               role = RoleInComputation.AGGREGATOR
-              parameters = parameters {
-                maximumFrequency = 10
-                liquidLegionsSketch = liquidLegionsSketchParameters {
-                  decayRate = 12.0
-                  size = 100_000L
-                }
-                noise = liquidLegionsV2NoiseConfig {
-                  noiseMechanism = LiquidLegionsV2NoiseConfig.NoiseMechanism.GEOMETRIC
-                  reachNoiseConfig = reachNoiseConfig {
-                    blindHistogramNoise = duchyDifferentialPrivacyParams {
-                      epsilon = 3.1
-                      delta = 3.2
-                    }
-                    noiseForPublisherNoise = duchyDifferentialPrivacyParams {
-                      epsilon = 4.1
-                      delta = 4.2
-                    }
-                    globalReachDpNoise = duchyDifferentialPrivacyParams {
-                      epsilon = 1.1
-                      delta = 1.2
+              parameters =
+                LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.parameters {
+                  maximumFrequency = 10
+                  liquidLegionsSketch = liquidLegionsSketchParameters {
+                    decayRate = 12.0
+                    size = 100_000L
+                  }
+                  noise = liquidLegionsV2NoiseConfig {
+                    noiseMechanism = LiquidLegionsV2NoiseConfig.NoiseMechanism.GEOMETRIC
+                    reachNoiseConfig = reachNoiseConfig {
+                      blindHistogramNoise = duchyDifferentialPrivacyParams {
+                        epsilon = 3.1
+                        delta = 3.2
+                      }
+                      noiseForPublisherNoise = duchyDifferentialPrivacyParams {
+                        epsilon = 4.1
+                        delta = 4.2
+                      }
+                      globalReachDpNoise = duchyDifferentialPrivacyParams {
+                        epsilon = 1.1
+                        delta = 1.2
+                      }
                     }
                   }
+                  ellipticCurveId = 415
                 }
-                ellipticCurveId = 415
-              }
             }
         }
       )
   }
 
   @Test
-  fun `syncStatuses update llv2 computations in WAIT_REQUISITIONS_AND_KEY_SET`() = runTest {
+  fun `syncStatuses creates new rollv2 computations for reach-only`() = runTest {
+    val confirmingKnown =
+      buildComputationAtKingdom(
+        "1",
+        Computation.State.PENDING_REQUISITION_PARAMS,
+        serializedMeasurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC,
+        mpcProtocolConfig = RO_LLV2_MPC_PROTOCOL_CONFIG
+      )
+
+    val systemApiRequisitions1 =
+      REACH_ONLY_REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+    val systemApiRequisitions2 =
+      REACH_ONLY_REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+    val confirmingUnknown =
+      buildComputationAtKingdom(
+        "2",
+        Computation.State.PENDING_REQUISITION_PARAMS,
+        listOf(systemApiRequisitions1, systemApiRequisitions2),
+        serializedMeasurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC,
+        mpcProtocolConfig = RO_LLV2_MPC_PROTOCOL_CONFIG
+      )
+    mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
+
+    fakeComputationDatabase.addComputation(
+      globalId = confirmingKnown.key.computationId,
+      stage =
+        ReachOnlyLiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage(),
+      computationDetails = RO_LLV2_AGGREGATOR_COMPUTATION_DETAILS,
+      blobs = listOf(newInputBlobMetadata(0L, "input-blob"), newEmptyOutputBlobMetadata(1L))
+    )
+
+    aggregatorHerald.syncStatuses()
+
+    verifyBlocking(continuationTokensService, atLeastOnce()) {
+      setContinuationToken(eq(setContinuationTokenRequest { this.token = "2" }))
+    }
+    assertThat(
+        fakeComputationDatabase.mapValues { (_, fakeComputation) ->
+          fakeComputation.computationStage
+        }
+      )
+      .containsExactly(
+        confirmingKnown.key.computationId.toLong(),
+        ReachOnlyLiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage(),
+        confirmingUnknown.key.computationId.toLong(),
+        ReachOnlyLiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage()
+      )
+
+    assertThat(
+        fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.requisitionsList
+      )
+      .containsExactly(
+        REACH_ONLY_REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED),
+        REACH_ONLY_REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED)
+      )
+    assertThat(
+        fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
+      )
+      .isEqualTo(
+        computationDetails {
+          blobsStoragePrefix = "computation-blob-storage/2"
+          kingdomComputation = kingdomComputationDetails {
+            publicApiVersion = PUBLIC_API_VERSION
+            measurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC
+            measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+          }
+          reachOnlyLiquidLegionsV2 =
+            ReachOnlyLiquidLegionsSketchAggregationV2Kt.computationDetails {
+              role = RoleInComputation.AGGREGATOR
+              parameters =
+                ReachOnlyLiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.parameters {
+                  sketchParameters = liquidLegionsSketchParameters {
+                    decayRate = 12.0
+                    size = 100_000L
+                  }
+                  noise = liquidLegionsV2NoiseConfig {
+                    noiseMechanism = LiquidLegionsV2NoiseConfig.NoiseMechanism.GEOMETRIC
+                    reachNoiseConfig = reachNoiseConfig {
+                      blindHistogramNoise = duchyDifferentialPrivacyParams {
+                        epsilon = 3.1
+                        delta = 3.2
+                      }
+                      noiseForPublisherNoise = duchyDifferentialPrivacyParams {
+                        epsilon = 4.1
+                        delta = 4.2
+                      }
+                      globalReachDpNoise = duchyDifferentialPrivacyParams {
+                        epsilon = 1.1
+                        delta = 1.2
+                      }
+                    }
+                  }
+                  ellipticCurveId = 415
+                }
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `syncStatuses confirms participants for llv2 computations`() = runTest {
     val globalId = "123456"
     val systemApiRequisitions1 =
       REQUISITION_1.toSystemRequisition(globalId, Requisition.State.FULFILLED, DUCHY_ONE)
@@ -636,8 +781,9 @@ class HeraldTest {
 
     fakeComputationDatabase.addComputation(
       globalId = globalId,
-      stage = WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage(),
-      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
+      stage =
+        LiquidLegionsSketchAggregationV2.Stage.WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage(),
+      computationDetails = LLV2_NON_AGGREGATOR_COMPUTATION_DETAILS,
       requisitions =
         listOf(
           REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED),
@@ -659,11 +805,11 @@ class HeraldTest {
 
     val duchyComputationToken = fakeComputationDatabase.readComputationToken(globalId)!!
     assertThat(duchyComputationToken.computationStage)
-      .isEqualTo(CONFIRMATION_PHASE.toProtocolStage())
+      .isEqualTo(LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE.toProtocolStage())
     assertThat(duchyComputationToken.computationDetails.liquidLegionsV2.participantList)
       .isEqualTo(
         mutableListOf(
-          ComputationParticipant.newBuilder()
+          LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant.newBuilder()
             .apply {
               duchyId = DUCHY_THREE
               publicKeyBuilder.apply {
@@ -675,7 +821,7 @@ class HeraldTest {
               duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_3")
             }
             .build(),
-          ComputationParticipant.newBuilder()
+          LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant.newBuilder()
             .apply {
               duchyId = DUCHY_TWO
               publicKeyBuilder.apply {
@@ -687,7 +833,7 @@ class HeraldTest {
               duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_2")
             }
             .build(),
-          ComputationParticipant.newBuilder()
+          LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant.newBuilder()
             .apply {
               duchyId = DUCHY_ONE
               publicKeyBuilder.apply {
@@ -709,7 +855,148 @@ class HeraldTest {
   }
 
   @Test
-  fun `syncStatuses starts computations in wait_to_start`() = runTest {
+  fun `syncStatuses confirms participants for rollv2 computations`() = runTest {
+    val globalId = "123456"
+    val systemApiRequisitions1 =
+      REQUISITION_1.toSystemRequisition(globalId, Requisition.State.FULFILLED, DUCHY_ONE)
+    val systemApiRequisitions2 =
+      REQUISITION_2.toSystemRequisition(globalId, Requisition.State.FULFILLED, DUCHY_TWO)
+    val v2alphaApiElgamalPublicKey1 = elGamalPublicKey {
+      generator = ByteString.copyFromUtf8("generator_1")
+      element = ByteString.copyFromUtf8("element_1")
+    }
+    val v2alphaApiElgamalPublicKey2 = elGamalPublicKey {
+      generator = ByteString.copyFromUtf8("generator_2")
+      element = ByteString.copyFromUtf8("element_2")
+    }
+    val v2alphaApiElgamalPublicKey3 = elGamalPublicKey {
+      generator = ByteString.copyFromUtf8("generator_3")
+      element = ByteString.copyFromUtf8("element_3")
+    }
+    val systemComputationParticipant1 = systemComputationParticipant {
+      name = ComputationParticipantKey(globalId, DUCHY_ONE).toName()
+      requisitionParams = requisitionParams {
+        duchyCertificate = "duchyCertificate_1"
+        duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_1")
+        reachOnlyLiquidLegionsV2 =
+          RequisitionParamsKt.liquidLegionsV2 {
+            elGamalPublicKey = v2alphaApiElgamalPublicKey1.toByteString()
+            elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_1")
+          }
+      }
+    }
+    val systemComputationParticipant2 = systemComputationParticipant {
+      name = ComputationParticipantKey(globalId, DUCHY_TWO).toName()
+      requisitionParams = requisitionParams {
+        duchyCertificate = "duchyCertificate_2"
+        duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_2")
+        reachOnlyLiquidLegionsV2 =
+          RequisitionParamsKt.liquidLegionsV2 {
+            elGamalPublicKey = v2alphaApiElgamalPublicKey2.toByteString()
+            elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_2")
+          }
+      }
+    }
+    val systemComputationParticipant3 = systemComputationParticipant {
+      name = ComputationParticipantKey(globalId, DUCHY_THREE).toName()
+      requisitionParams = requisitionParams {
+        duchyCertificate = "duchyCertificate_3"
+        duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_3")
+        reachOnlyLiquidLegionsV2 =
+          RequisitionParamsKt.liquidLegionsV2 {
+            elGamalPublicKey = v2alphaApiElgamalPublicKey3.toByteString()
+            elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_3")
+          }
+      }
+    }
+    val waitingRequisitionsAndKeySet =
+      buildComputationAtKingdom(
+        globalId,
+        Computation.State.PENDING_PARTICIPANT_CONFIRMATION,
+        listOf(systemApiRequisitions1, systemApiRequisitions2),
+        listOf(
+          systemComputationParticipant1,
+          systemComputationParticipant2,
+          systemComputationParticipant3
+        )
+      )
+
+    mockStreamActiveComputationsToReturn(waitingRequisitionsAndKeySet)
+
+    fakeComputationDatabase.addComputation(
+      globalId = globalId,
+      stage =
+        ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_REQUISITIONS_AND_KEY_SET
+          .toProtocolStage(),
+      computationDetails = RO_LLV2_NON_AGGREGATOR_COMPUTATION_DETAILS,
+      requisitions =
+        listOf(
+          REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED),
+          REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED)
+        )
+    )
+
+    aggregatorHerald.syncStatuses()
+
+    verifyBlocking(continuationTokensService, atLeastOnce()) {
+      setContinuationToken(
+        eq(
+          setContinuationTokenRequest {
+            this.token = waitingRequisitionsAndKeySet.continuationToken()
+          }
+        )
+      )
+    }
+
+    val duchyComputationToken = fakeComputationDatabase.readComputationToken(globalId)!!
+    assertThat(duchyComputationToken.computationStage)
+      .isEqualTo(
+        ReachOnlyLiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE.toProtocolStage()
+      )
+    assertThat(duchyComputationToken.computationDetails.reachOnlyLiquidLegionsV2.participantList)
+      .isEqualTo(
+        listOf(
+          ReachOnlyLiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.computationParticipant {
+            duchyId = DUCHY_THREE
+            publicKey = internalElgamalPublicKey {
+              generator = ByteString.copyFromUtf8("generator_3")
+              element = ByteString.copyFromUtf8("element_3")
+            }
+            elGamalPublicKey = v2alphaApiElgamalPublicKey3.toByteString()
+            elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_3")
+            duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_3")
+          },
+          ReachOnlyLiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.computationParticipant {
+            duchyId = DUCHY_TWO
+            publicKey = internalElgamalPublicKey {
+              generator = ByteString.copyFromUtf8("generator_2")
+              element = ByteString.copyFromUtf8("element_2")
+            }
+            elGamalPublicKey = v2alphaApiElgamalPublicKey2.toByteString()
+            elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_2")
+            duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_2")
+          },
+          ReachOnlyLiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.computationParticipant {
+            duchyId = DUCHY_ONE
+            publicKey = internalElgamalPublicKey {
+              generator = ByteString.copyFromUtf8("generator_1")
+              element = ByteString.copyFromUtf8("element_1")
+            }
+            elGamalPublicKey = v2alphaApiElgamalPublicKey1.toByteString()
+            elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_1")
+            duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_1")
+          }
+        )
+      )
+    assertThat(duchyComputationToken.requisitionsList)
+      .containsExactly(
+        REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_ONE),
+        REQUISITION_2.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_TWO)
+      )
+  }
+
+  @Test
+  fun `syncStatuses starts llv2 computations`() = runTest {
     val waitingToStart =
       buildComputationAtKingdom(COMPUTATION_GLOBAL_ID, Computation.State.PENDING_COMPUTATION)
     val addingNoise = buildComputationAtKingdom("231313", Computation.State.PENDING_COMPUTATION)
@@ -717,15 +1004,15 @@ class HeraldTest {
 
     fakeComputationDatabase.addComputation(
       globalId = waitingToStart.key.computationId,
-      stage = WAIT_TO_START.toProtocolStage(),
-      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
+      stage = LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START.toProtocolStage(),
+      computationDetails = LLV2_NON_AGGREGATOR_COMPUTATION_DETAILS,
       blobs = listOf(newPassThroughBlobMetadata(0L, "local-copy-of-sketches"))
     )
 
     fakeComputationDatabase.addComputation(
       globalId = addingNoise.key.computationId,
-      stage = SETUP_PHASE.toProtocolStage(),
-      computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
+      stage = LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE.toProtocolStage(),
+      computationDetails = LLV2_AGGREGATOR_COMPUTATION_DETAILS,
       blobs =
         listOf(newInputBlobMetadata(0L, "inputs-to-add-noise"), newEmptyOutputBlobMetadata(1L))
     )
@@ -742,9 +1029,49 @@ class HeraldTest {
       )
       .containsExactly(
         waitingToStart.key.computationId.toLong(),
-        SETUP_PHASE.toProtocolStage(),
+        LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE.toProtocolStage(),
         addingNoise.key.computationId.toLong(),
-        SETUP_PHASE.toProtocolStage()
+        LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE.toProtocolStage()
+      )
+  }
+
+  @Test
+  fun `syncStatuses starts rollv2 computations`() = runTest {
+    val waitingToStart =
+      buildComputationAtKingdom(COMPUTATION_GLOBAL_ID, Computation.State.PENDING_COMPUTATION)
+    val addingNoise = buildComputationAtKingdom("231313", Computation.State.PENDING_COMPUTATION)
+    mockStreamActiveComputationsToReturn(waitingToStart, addingNoise)
+
+    fakeComputationDatabase.addComputation(
+      globalId = waitingToStart.key.computationId,
+      stage = ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START.toProtocolStage(),
+      computationDetails = RO_LLV2_NON_AGGREGATOR_COMPUTATION_DETAILS,
+      blobs = listOf(newPassThroughBlobMetadata(0L, "local-copy-of-sketches"))
+    )
+
+    fakeComputationDatabase.addComputation(
+      globalId = addingNoise.key.computationId,
+      stage = ReachOnlyLiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE.toProtocolStage(),
+      computationDetails = RO_LLV2_AGGREGATOR_COMPUTATION_DETAILS,
+      blobs =
+        listOf(newInputBlobMetadata(0L, "inputs-to-add-noise"), newEmptyOutputBlobMetadata(1L))
+    )
+
+    aggregatorHerald.syncStatuses()
+
+    verifyBlocking(continuationTokensService, atLeastOnce()) {
+      setContinuationToken(eq(setContinuationTokenRequest { this.token = "231313" }))
+    }
+    assertThat(
+        fakeComputationDatabase.mapValues { (_, fakeComputation) ->
+          fakeComputation.computationStage
+        }
+      )
+      .containsExactly(
+        waitingToStart.key.computationId.toLong(),
+        ReachOnlyLiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE.toProtocolStage(),
+        addingNoise.key.computationId.toLong(),
+        ReachOnlyLiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE.toProtocolStage()
       )
   }
 
@@ -769,8 +1096,8 @@ class HeraldTest {
     }
     fakeComputationDatabase.addComputation(
       globalId = computation.key.computationId,
-      stage = INITIALIZATION_PHASE.toProtocolStage(),
-      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
+      stage = LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage(),
+      computationDetails = LLV2_NON_AGGREGATOR_COMPUTATION_DETAILS,
       blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
     )
 
@@ -786,22 +1113,23 @@ class HeraldTest {
       )
       .containsExactly(
         computation.key.computationId.toLong(),
-        INITIALIZATION_PHASE.toProtocolStage()
+        LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage()
       )
 
     // Update the state.
     fakeComputationDatabase.remove(computation.key.computationId.toLong())
     fakeComputationDatabase.addComputation(
       globalId = computation.key.computationId,
-      stage = WAIT_TO_START.toProtocolStage(),
-      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
+      stage = LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START.toProtocolStage(),
+      computationDetails = LLV2_NON_AGGREGATOR_COMPUTATION_DETAILS,
       blobs = listOf(newPassThroughBlobMetadata(0L, "local-copy-of-sketches"))
     )
     // Verify that next attempt succeeds.
     syncResult.await()
     val finalComputation =
       assertNotNull(fakeComputationDatabase[computation.key.computationId.toLong()])
-    assertThat(finalComputation.computationStage).isEqualTo(SETUP_PHASE.toProtocolStage())
+    assertThat(finalComputation.computationStage)
+      .isEqualTo(LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE.toProtocolStage())
   }
 
   @Test
@@ -825,8 +1153,8 @@ class HeraldTest {
 
     fakeComputationDatabase.addComputation(
       globalId = computation.key.computationId,
-      stage = INITIALIZATION_PHASE.toProtocolStage(),
-      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
+      stage = LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage(),
+      computationDetails = LLV2_NON_AGGREGATOR_COMPUTATION_DETAILS,
       blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
     )
 
@@ -952,7 +1280,7 @@ class HeraldTest {
             token = computationToken {
               globalComputationId = request.globalComputationId
               localComputationId = request.globalComputationId.toLong()
-              computationDetails = AGGREGATOR_COMPUTATION_DETAILS
+              computationDetails = LLV2_AGGREGATOR_COMPUTATION_DETAILS
             }
           }
         }
@@ -1015,6 +1343,7 @@ class HeraldTest {
     systemApiRequisitions: List<Requisition> = listOf(),
     systemComputationParticipant: List<SystemComputationParticipant> = listOf(),
     serializedMeasurementSpec: ByteString = SERIALIZED_MEASUREMENT_SPEC,
+    mpcProtocolConfig: MpcProtocolConfig = LLV2_MPC_PROTOCOL_CONFIG
   ): Computation {
     return computation {
       name = ComputationKey(globalId).toName()
@@ -1023,7 +1352,7 @@ class HeraldTest {
       state = stateAtKingdom
       requisitions += systemApiRequisitions
       computationParticipants += systemComputationParticipant
-      mpcProtocolConfig = MPC_PROTOCOL_CONFIG
+      this.mpcProtocolConfig = mpcProtocolConfig
     }
   }
 
