@@ -5,7 +5,7 @@ kt_jvm_library(
     srcs = glob(["*Service.kt"]),
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/common/deploy/postgres:__pkg__",
-        "//src/test/kotlin/org/wfanet/measurement/duchy/deploy/postgres:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres:__pkg__",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/readers",

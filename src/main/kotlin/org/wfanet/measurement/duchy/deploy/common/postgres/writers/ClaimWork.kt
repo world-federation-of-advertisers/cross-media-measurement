@@ -16,19 +16,16 @@ package org.wfanet.measurement.duchy.deploy.common.postgres.writers
 
 import java.time.Clock
 import java.time.Duration
-import java.time.Instant
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.firstOrNull
-import org.wfanet.measurement.common.db.r2dbc.ResultRow
-import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
-import org.wfanet.measurement.duchy.db.computation.ComputationStageLongValues
 import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
+import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationReader
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationStageAttemptReader
 import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
+import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.copy
 
 /**
@@ -46,6 +43,7 @@ import org.wfanet.measurement.internal.duchy.copy
  * Throws following exceptions on [execute]:
  * * [ComputationNotFoundException] when computation could not be found
  * * [IllegalStateException] when computation details could not be found
+ * * [DataCorruptedException] when data is corrupted
  */
 class ClaimWork<ProtocolT, StageT>(
   private val protocol: ProtocolT,
@@ -54,36 +52,13 @@ class ClaimWork<ProtocolT, StageT>(
   private val clock: Clock,
   private val computationTypeEnumHelper: ComputationTypeEnumHelper<ProtocolT>,
   private val protocolStagesEnumHelper: ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
-) : PostgresWriter<String?>() {
+  private val computationReader: ComputationReader,
+) : PostgresWriter<ComputationToken?>() {
 
-  private data class UnclaimedTaskQueryResult<StageT>(
-    val computationId: Long,
-    val globalId: String,
-    val computationStage: StageT,
-    val creationTime: Instant,
-    val updateTime: Instant,
-    val nextAttempt: Long
-  )
-
-  private fun buildUnclaimedTaskQueryResult(row: ResultRow): UnclaimedTaskQueryResult<StageT> =
-    UnclaimedTaskQueryResult(
-      row["ComputationId"],
-      row["GlobalComputationId"],
-      protocolStagesEnumHelper.longValuesToComputationStageEnum(
-        ComputationStageLongValues(row["Protocol"], row["ComputationStage"])
-      ),
-      row["CreationTime"],
-      row["UpdateTime"],
-      row["NextAttempt"]
-    )
-
-  private data class LockOwnerQueryResult(val lockOwner: String?, val updateTime: Instant)
-
-  private fun buildLockOwnerQueryResult(row: ResultRow): LockOwnerQueryResult =
-    LockOwnerQueryResult(lockOwner = row["LockOwner"], updateTime = row["UpdateTime"])
-
-  override suspend fun TransactionScope.runTransaction(): String? {
-    return listUnclaimedTasks(protocol, clock.instant())
+  override suspend fun TransactionScope.runTransaction(): ComputationToken? {
+    val protocolEnum = computationTypeEnumHelper.protocolEnumToLong(protocol)
+    return computationReader
+      .listUnclaimedTasks(transactionContext, protocolEnum, clock.instant())
       // First the possible tasks to claim are selected from the computations table, then for each
       // item in the list we try to claim the lock in a transaction which will only succeed if the
       // lock is still available. This pattern means only the item which is being updated
@@ -91,37 +66,9 @@ class ClaimWork<ProtocolT, StageT>(
       .filter { claim(it) }
       // If the value is null, no tasks were claimed.
       .firstOrNull()
-      ?.globalId
-  }
-
-  private suspend fun TransactionScope.listUnclaimedTasks(
-    protocol: ProtocolT,
-    timestamp: Instant
-  ): Flow<UnclaimedTaskQueryResult<StageT>> {
-    val listUnclaimedTasksSql =
-      boundStatement(
-        """
-      SELECT c.ComputationId,  c.GlobalComputationId,
-             c.Protocol, c.ComputationStage, c.UpdateTime,
-             c.CreationTime, cs.NextAttempt
-      FROM Computations AS c
-        JOIN ComputationStages AS cs
-      ON c.ComputationId = cs.ComputationId
-        AND c.ComputationStage = cs.ComputationStage
-      WHERE c.Protocol = $1
-        AND c.LockExpirationTime IS NOT NULL
-        AND c.LockExpirationTime <= $2
-      ORDER BY c.CreationTime ASC, c.LockExpirationTime ASC, c.UpdateTime ASC
-      LIMIT 50;
-      """
-      ) {
-        bind("$1", computationTypeEnumHelper.protocolEnumToLong(protocol))
-        bind("$2", timestamp)
+      ?.let {
+        checkNotNull(computationReader.readComputationToken(transactionContext, it.globalId))
       }
-
-    return transactionContext
-      .executeQuery(listUnclaimedTasksSql)
-      .consume(::buildUnclaimedTaskQueryResult)
   }
 
   /**
@@ -129,9 +76,10 @@ class ClaimWork<ProtocolT, StageT>(
    * lock is acquired a new row is written to the ComputationStageAttempts table.
    */
   private suspend fun TransactionScope.claim(
-    unclaimedTask: UnclaimedTaskQueryResult<StageT>
+    unclaimedTask: ComputationReader.UnclaimedTaskQueryResult
   ): Boolean {
-    val currentLockOwner = readLockOwner(unclaimedTask.computationId)
+    val currentLockOwner =
+      checkNotNull(computationReader.readLockOwner(transactionContext, unclaimedTask.computationId))
     // Verify that the row hasn't been updated since the previous, non-transactional read.
     // If it has been updated since that time the lock should not be acquired.
     if (currentLockOwner.updateTime != unclaimedTask.updateTime) return false
@@ -143,10 +91,7 @@ class ClaimWork<ProtocolT, StageT>(
       ownerId,
       writeTime.plus(lockDuration)
     )
-    val stageLongValue =
-      protocolStagesEnumHelper
-        .computationStageEnumToLongValues(unclaimedTask.computationStage)
-        .stage
+    val stageLongValue = unclaimedTask.computationStage
 
     insertComputationStageAttempt(
       unclaimedTask.computationId,
@@ -187,24 +132,5 @@ class ClaimWork<ProtocolT, StageT>(
     }
     // The lock was acquired.
     return true
-  }
-
-  private suspend fun TransactionScope.readLockOwner(computationId: Long): LockOwnerQueryResult {
-    val readLockOwnerSql =
-      boundStatement(
-        """
-      SELECT LockOwner, UpdateTime
-      FROM Computations
-      WHERE
-        ComputationId = $1;
-      """
-      ) {
-        bind("$1", computationId)
-      }
-    return transactionContext
-      .executeQuery(readLockOwnerSql)
-      .consume(::buildLockOwnerQueryResult)
-      .firstOrNull()
-      ?: throw ComputationNotFoundException(computationId)
   }
 }

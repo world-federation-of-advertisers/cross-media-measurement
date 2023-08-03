@@ -20,12 +20,14 @@ import java.time.Duration
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
+import org.wfanet.measurement.duchy.db.computation.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
-import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationBlobReferenceReader
+import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationReader
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationStageAttemptReader
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
+import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.copy
 
 /**
@@ -53,8 +55,9 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
   private val lockExtension: Duration,
   private val clock: Clock,
   private val protocolStagesEnumHelper: ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
-) : PostgresWriter<Unit>() {
-  override suspend fun TransactionScope.runTransaction() {
+  private val computationReader: ComputationReader,
+) : PostgresWriter<ComputationToken>() {
+  override suspend fun TransactionScope.runTransaction(): ComputationToken {
     val currentStage = token.stage
     val localId = token.localId
     val editVersion = token.editVersion
@@ -186,5 +189,7 @@ class AdvanceComputationStage<ProtocolT, StageT, StageDT : Message>(
         dependencyType = ComputationBlobDependency.OUTPUT
       )
     }
+
+    return checkNotNull(computationReader.readComputationToken(transactionContext, token.globalId))
   }
 }

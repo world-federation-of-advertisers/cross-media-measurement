@@ -17,7 +17,10 @@ package org.wfanet.measurement.duchy.deploy.common.postgres.writers
 import com.google.protobuf.Message
 import java.time.Clock
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
+import org.wfanet.measurement.duchy.db.computation.ComputationEditToken
+import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationReader
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.RequisitionReader
+import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.RequisitionEntry
 
 /**
@@ -32,15 +35,15 @@ import org.wfanet.measurement.internal.duchy.RequisitionEntry
  * Throws following exceptions on [execute]:
  * * [IllegalStateException] when arguments does not meet requirement
  */
-class UpdateComputationDetails<ComputationDT : Message>(
-  private val localId: Long,
-  private val editVersion: Long,
+class UpdateComputationDetails<ProtocolT, StageT, ComputationDT : Message>(
+  private val token: ComputationEditToken<ProtocolT, StageT>,
   private val computationDetails: ComputationDT,
   private val requisitionEntries: List<RequisitionEntry>,
   private val clock: Clock,
-) : PostgresWriter<Unit>() {
-  override suspend fun TransactionScope.runTransaction() {
-    checkComputationUnmodified(localId, editVersion)
+  private val computationReader: ComputationReader,
+) : PostgresWriter<ComputationToken>() {
+  override suspend fun TransactionScope.runTransaction(): ComputationToken {
+    checkComputationUnmodified(token.localId, token.editVersion)
 
     val writeTime = clock.instant()
     requisitionEntries.forEach {
@@ -56,6 +59,8 @@ class UpdateComputationDetails<ComputationDT : Message>(
         updateTime = writeTime
       )
     }
-    updateComputation(localId = localId, updateTime = writeTime, details = computationDetails)
+    updateComputation(localId = token.localId, updateTime = writeTime, details = computationDetails)
+
+    return checkNotNull(computationReader.readComputationToken(transactionContext, token.globalId))
   }
 }
