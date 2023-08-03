@@ -14,14 +14,13 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import './index.css';
-import App from './app';
-import reportWebVitals from './report_web_vitals';
-import AppConfig from '../library/initialize';
-import { RealApi } from '../library/reportingClient/real_api';
+import '../../../../../main/react/reporting-ui/src/index.css';
+import App from '../../../../../main/react/reporting-ui/src/app';
+import AppConfig from '../../../../../main/react/reporting-ui/library/initialize';
+import { FakeApi } from './fake_api';
 
 const configProps = {
-  reportingApi: new RealApi({endpoint: new URL('http://localhost:3000')})
+  reportingApi: new FakeApi()
 }
 
 AppConfig.initialize(configProps);
@@ -32,8 +31,3 @@ root.render(
     <App />
   </React.StrictMode>
 );
-
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
-reportWebVitals(null);
