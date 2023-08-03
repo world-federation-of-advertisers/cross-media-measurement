@@ -33,6 +33,9 @@ class PrivacyBudgetLedger(
    *   unsuccessful. Possible causes could include exceeding available privacy budget or an
    *   inability to commit an update to the database.
    */
+  @Deprecated(
+    "Should be removed after completely switching to Gaussian noise and ACDP composition",
+  )
   suspend fun charge(
     reference: Reference,
     privacyBucketGroups: Set<PrivacyBucketGroup>,
@@ -98,6 +101,9 @@ class PrivacyBudgetLedger(
    * @throws PrivacyBudgetManagerException if there is an error committing the transaction to the
    *   database.
    */
+  @Deprecated(
+    "Should be removed after completely switching to Gaussian noise and ACDP composition",
+  )
   suspend fun chargingWillExceedPrivacyBudget(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     dpCharges: Set<DpCharge>
