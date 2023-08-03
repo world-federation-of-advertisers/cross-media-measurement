@@ -585,7 +585,7 @@ class EdpSimulatorTest {
     }
 
     val balanceLedger: Map<PrivacyBucketGroup, MutableMap<DpCharge, PrivacyBudgetBalanceEntry>> =
-      backingStore.getBalancesMap()
+      backingStore.getDpBalancesMap()
 
     // Verify that each bucket is only charged once.
     for (bucketBalances in balanceLedger.values) {
