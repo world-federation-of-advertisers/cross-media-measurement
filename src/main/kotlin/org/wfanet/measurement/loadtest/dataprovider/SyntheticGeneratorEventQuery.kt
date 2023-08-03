@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
-import com.google.protobuf.Descriptors
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -28,25 +27,23 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 /** [EventQuery] that uses [SyntheticDataGeneration]. */
 abstract class SyntheticGeneratorEventQuery(
   private val populationSpec: SyntheticPopulationSpec,
-) : EventQuery {
+) : EventQuery<TestEvent> {
   /** Returns the synthetic data spec for [eventGroup]. */
   abstract fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec
 
-  override fun getUserVirtualIds(eventGroupSpec: EventQuery.EventGroupSpec): Sequence<Long> {
+  override fun getLabeledEvents(
+    eventGroupSpec: EventQuery.EventGroupSpec
+  ): Sequence<LabeledEvent<TestEvent>> {
     val timeRange = eventGroupSpec.spec.collectionInterval.toRange()
     val syntheticDataSpec: SyntheticEventGroupSpec = getSyntheticDataSpec(eventGroupSpec.eventGroup)
-    val program: Program = EventQuery.compileProgram(eventGroupSpec.spec.filter, EVENT_MESSAGE_TYPE)
+    val program: Program =
+      EventQuery.compileProgram(eventGroupSpec.spec.filter, TestEvent.getDescriptor())
     return SyntheticDataGeneration.generateEvents(
-        EVENT_MESSAGE_TYPE,
+        TestEvent.getDefaultInstance(),
         populationSpec,
         syntheticDataSpec
       )
       .filter { it.timestamp in timeRange }
-      .filter { EventFilters.matches(it.event, program) }
-      .map { it.vid }
-  }
-
-  companion object {
-    private val EVENT_MESSAGE_TYPE: Descriptors.Descriptor = TestEvent.getDescriptor()
+      .filter { EventFilters.matches(it.message, program) }
   }
 }
