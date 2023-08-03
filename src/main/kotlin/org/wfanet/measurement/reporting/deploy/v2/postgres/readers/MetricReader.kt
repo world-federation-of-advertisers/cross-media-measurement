@@ -107,7 +107,7 @@ class MetricReader(private val readContext: ReadContext) {
       Metrics.FrequencyDifferentialPrivacyEpsilon,
       Metrics.FrequencyDifferentialPrivacyDelta,
       Metrics.MaximumFrequencyPerUser,
-      Metrics.MaximumWatchDurationPerUser,
+      Metrics.MaxFrequency,
       Metrics.VidSamplingIntervalStart,
       Metrics.VidSamplingIntervalWidth,
       Metrics.CreateTime,
@@ -368,7 +368,7 @@ class MetricReader(private val readContext: ReadContext) {
       val frequencyDifferentialPrivacyEpsilon: Double? = row["FrequencyDifferentialPrivacyEpsilon"]
       val frequencyDifferentialPrivacyDelta: Double? = row["FrequencyDifferentialPrivacyDelta"]
       val maximumFrequencyPerUser: Int? = row["MaximumFrequencyPerUser"]
-      val maximumWatchDurationPerUser: Int? = row["MaximumWatchDurationPerUser"]
+      val maxFrequency: Int? = row["MaxFrequency"]
       val vidSamplingStart: Float = row["VidSamplingIntervalStart"]
       val vidSamplingWidth: Float = row["VidSamplingIntervalWidth"]
       val createTime: Instant = row["CreateTime"]
@@ -415,7 +415,7 @@ class MetricReader(private val readContext: ReadContext) {
                 if (
                   frequencyDifferentialPrivacyDelta == null ||
                     frequencyDifferentialPrivacyEpsilon == null ||
-                    maximumFrequencyPerUser == null
+                    maxFrequency == null
                 ) {
                   throw IllegalStateException()
                 }
@@ -432,7 +432,7 @@ class MetricReader(private val readContext: ReadContext) {
                         epsilon = frequencyDifferentialPrivacyEpsilon
                         delta = frequencyDifferentialPrivacyDelta
                       }
-                    this.maximumFrequencyPerUser = maximumFrequencyPerUser
+                    this.maxFrequency = maxFrequency
                   }
               }
               MetricSpec.TypeCase.IMPRESSION_COUNT -> {
@@ -451,10 +451,6 @@ class MetricReader(private val readContext: ReadContext) {
                   }
               }
               MetricSpec.TypeCase.WATCH_DURATION -> {
-                if (maximumWatchDurationPerUser == null) {
-                  throw IllegalStateException()
-                }
-
                 watchDuration =
                   MetricSpecKt.watchDurationParams {
                     privacyParams =
@@ -462,7 +458,6 @@ class MetricReader(private val readContext: ReadContext) {
                         epsilon = differentialPrivacyEpsilon
                         delta = differentialPrivacyDelta
                       }
-                    this.maximumWatchDurationPerUser = maximumWatchDurationPerUser
                   }
               }
               MetricSpec.TypeCase.TYPE_NOT_SET -> throw IllegalStateException()

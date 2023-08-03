@@ -149,9 +149,6 @@ fun MetricSpec.WatchDurationParams.toInternal(): InternalMetricSpec.WatchDuratio
   }
   return InternalMetricSpecKt.watchDurationParams {
     privacyParams = source.privacyParams.toInternal()
-    if (source.hasMaximumWatchDurationPerUser()) {
-      maximumWatchDurationPerUser = source.maximumWatchDurationPerUser
-    }
   }
 }
 
@@ -195,8 +192,8 @@ fun MetricSpec.FrequencyHistogramParams.toInternal(): InternalMetricSpec.Frequen
   return InternalMetricSpecKt.frequencyHistogramParams {
     reachPrivacyParams = source.reachPrivacyParams.toInternal()
     frequencyPrivacyParams = source.frequencyPrivacyParams.toInternal()
-    if (source.hasMaximumFrequencyPerUser()) {
-      maximumFrequencyPerUser = source.maximumFrequencyPerUser
+    if (source.hasMaxFrequency()) {
+      maxFrequency = source.maxFrequency
     }
   }
 }
@@ -255,7 +252,7 @@ fun InternalMetricSpec.toMetricSpec(): MetricSpec {
       InternalMetricSpec.TypeCase.FREQUENCY_HISTOGRAM ->
         frequencyHistogram =
           MetricSpecKt.frequencyHistogramParams {
-            maximumFrequencyPerUser = source.frequencyHistogram.maximumFrequencyPerUser
+            maxFrequency = source.frequencyHistogram.maxFrequency
             reachPrivacyParams = source.frequencyHistogram.reachPrivacyParams.toPrivacyParams()
             frequencyPrivacyParams =
               source.frequencyHistogram.frequencyPrivacyParams.toPrivacyParams()
@@ -269,7 +266,6 @@ fun InternalMetricSpec.toMetricSpec(): MetricSpec {
       InternalMetricSpec.TypeCase.WATCH_DURATION ->
         watchDuration =
           MetricSpecKt.watchDurationParams {
-            maximumWatchDurationPerUser = source.watchDuration.maximumWatchDurationPerUser
             privacyParams = source.watchDuration.privacyParams.toPrivacyParams()
           }
       InternalMetricSpec.TypeCase.TYPE_NOT_SET ->
@@ -319,7 +315,7 @@ fun InternalMetricSpec.FrequencyHistogramParams.toReachAndFrequency():
   return MeasurementSpecKt.reachAndFrequency {
     reachPrivacyParams = source.reachPrivacyParams.toCmmsPrivacyParams()
     frequencyPrivacyParams = source.frequencyPrivacyParams.toCmmsPrivacyParams()
-    maximumFrequencyPerUser = source.maximumFrequencyPerUser
+    maximumFrequencyPerUser = source.maxFrequency
   }
 }
 
@@ -337,7 +333,6 @@ fun InternalMetricSpec.WatchDurationParams.toDuration(): MeasurementSpec.Duratio
   val source = this
   return MeasurementSpecKt.duration {
     privacyParams = source.privacyParams.toCmmsPrivacyParams()
-    maximumWatchDurationPerUser = source.maximumWatchDurationPerUser
   }
 }
 

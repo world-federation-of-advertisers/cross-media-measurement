@@ -58,7 +58,7 @@ message MetricSpec {
     //
     // Counts with frequency higher than `max_frequency` will be aggregated
     // together. If not set, the default value will be used and outputted here.
-    optional int32 maximum_frequency_per_user = 3;
+    optional int32 max_frequency = 3;
   }
   // Parameters that are used to generate `Impression Count` metric.
   message ImpressionCountParams {
@@ -83,14 +83,6 @@ message MetricSpec {
     // Differential privacy parameters.
     DifferentialPrivacyParams privacy_params = 1
         [(google.api.field_behavior) = REQUIRED];
-    // Maximum watch duration per user in second that will be included in this
-    // metric.
-    //
-    // Recommended maximum_watch_duration_per_user = cap on the total watch
-    // duration of all the impressions of a user = 4000 sec for the case with
-    // over 1M audience size. Enforced on a per EDP basis.
-    // If not set, the default value will be used and outputted here.
-    optional int32 maximum_watch_duration_per_user = 2;
   }
 
   // Types of metric with parameters.

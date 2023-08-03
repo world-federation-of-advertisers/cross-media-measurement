@@ -48,7 +48,7 @@ message MetricSpecConfig {
     //
     // Counts with frequency higher than `max_frequency` will be aggregated
     // together.
-    int32 maximum_frequency_per_user = 3;
+    int32 max_frequency = 3;
   }
   // Parameters that are used to generate `Impression Count` metric.
   message ImpressionCountParams {
@@ -68,9 +68,6 @@ message MetricSpecConfig {
   message WatchDurationParams {
     // Differential privacy parameters.
     DifferentialPrivacyParams privacy_params = 1;
-    // Maximum watch duration per user in second that will be included in this
-    // metric. Enforced on a per EDP basis.
-    int32 maximum_watch_duration_per_user = 2;
   }
 
   // Parameters for generating the count of unique audiences reached given a set

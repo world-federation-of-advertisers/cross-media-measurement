@@ -141,11 +141,11 @@ private fun MetricSpec.FrequencyHistogramParams.withDefaults(
         metricSpecConfig.frequencyHistogramParams.frequencyPrivacyParams.epsilon,
         metricSpecConfig.frequencyHistogramParams.frequencyPrivacyParams.delta
       )
-    maximumFrequencyPerUser =
-      if (hasMaximumFrequencyPerUser()) {
-        maximumFrequencyPerUser
+    maxFrequency =
+      if (hasMaxFrequency()) {
+        maxFrequency
       } else {
-        metricSpecConfig.frequencyHistogramParams.maximumFrequencyPerUser
+        metricSpecConfig.frequencyHistogramParams.maxFrequency
       }
   }
 }
@@ -170,12 +170,6 @@ private fun MetricSpec.WatchDurationParams.withDefaults(
         metricSpecConfig.watchDurationParams.privacyParams.epsilon,
         metricSpecConfig.watchDurationParams.privacyParams.delta
       )
-    maximumWatchDurationPerUser =
-      if (hasMaximumWatchDurationPerUser()) {
-        maximumWatchDurationPerUser
-      } else {
-        metricSpecConfig.watchDurationParams.maximumWatchDurationPerUser
-      }
   }
 }
 

@@ -41,7 +41,7 @@ private const val REACH_FREQUENCY_VID_SAMPLING_WIDTH = 5.0f / NUMBER_VID_BUCKETS
 private const val REACH_FREQUENCY_VID_SAMPLING_START = 48.0f / NUMBER_VID_BUCKETS
 private const val REACH_FREQUENCY_REACH_EPSILON = 0.0033
 private const val REACH_FREQUENCY_FREQUENCY_EPSILON = 0.115
-private const val REACH_FREQUENCY_MAXIMUM_FREQUENCY_PER_USER = 10
+private const val REACH_FREQUENCY_MAX_FREQUENCY = 10
 
 private const val IMPRESSION_VID_SAMPLING_WIDTH = 62.0f / NUMBER_VID_BUCKETS
 private const val IMPRESSION_VID_SAMPLING_START = 143.0f / NUMBER_VID_BUCKETS
@@ -51,7 +51,6 @@ private const val IMPRESSION_MAXIMUM_FREQUENCY_PER_USER = 60
 private const val WATCH_DURATION_VID_SAMPLING_WIDTH = 95.0f / NUMBER_VID_BUCKETS
 private const val WATCH_DURATION_VID_SAMPLING_START = 205.0f / NUMBER_VID_BUCKETS
 private const val WATCH_DURATION_EPSILON = 0.001
-private const val MAXIMUM_WATCH_DURATION_PER_USER = 4000
 
 private const val DIFFERENTIAL_PRIVACY_DELTA = 1e-12
 
@@ -115,8 +114,8 @@ class MetricSpecDefaultsTest {
             epsilon = METRIC_SPEC_CONFIG.frequencyHistogramParams.frequencyPrivacyParams.epsilon
             delta = METRIC_SPEC_CONFIG.frequencyHistogramParams.frequencyPrivacyParams.delta
           }
-        maximumFrequencyPerUser =
-          METRIC_SPEC_CONFIG.frequencyHistogramParams.maximumFrequencyPerUser
+        maxFrequency =
+          METRIC_SPEC_CONFIG.frequencyHistogramParams.maxFrequency
       }
       vidSamplingInterval =
         MetricSpecKt.vidSamplingInterval {
@@ -141,8 +140,8 @@ class MetricSpecDefaultsTest {
             epsilon = METRIC_SPEC_CONFIG.frequencyHistogramParams.frequencyPrivacyParams.epsilon * 2
             delta = METRIC_SPEC_CONFIG.frequencyHistogramParams.frequencyPrivacyParams.delta * 2
           }
-        maximumFrequencyPerUser =
-          METRIC_SPEC_CONFIG.frequencyHistogramParams.maximumFrequencyPerUser * 2
+        maxFrequency =
+          METRIC_SPEC_CONFIG.frequencyHistogramParams.maxFrequency * 2
       }
       vidSamplingInterval =
         MetricSpecKt.vidSamplingInterval {
@@ -207,8 +206,6 @@ class MetricSpecDefaultsTest {
             epsilon = METRIC_SPEC_CONFIG.watchDurationParams.privacyParams.epsilon
             delta = METRIC_SPEC_CONFIG.watchDurationParams.privacyParams.delta
           }
-        maximumWatchDurationPerUser =
-          METRIC_SPEC_CONFIG.watchDurationParams.maximumWatchDurationPerUser
       }
       vidSamplingInterval =
         MetricSpecKt.vidSamplingInterval {
@@ -228,8 +225,6 @@ class MetricSpecDefaultsTest {
             epsilon = METRIC_SPEC_CONFIG.watchDurationParams.privacyParams.epsilon * 2
             delta = METRIC_SPEC_CONFIG.watchDurationParams.privacyParams.delta * 2
           }
-        maximumWatchDurationPerUser =
-          METRIC_SPEC_CONFIG.watchDurationParams.maximumWatchDurationPerUser * 2
       }
       vidSamplingInterval =
         MetricSpecKt.vidSamplingInterval {
@@ -420,7 +415,7 @@ class MetricSpecDefaultsTest {
               epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
               delta = DIFFERENTIAL_PRIVACY_DELTA
             }
-          maximumFrequencyPerUser = REACH_FREQUENCY_MAXIMUM_FREQUENCY_PER_USER
+          maxFrequency = REACH_FREQUENCY_MAX_FREQUENCY
         }
       frequencyHistogramVidSamplingInterval =
         MetricSpecConfigKt.vidSamplingInterval {
@@ -450,7 +445,6 @@ class MetricSpecDefaultsTest {
               epsilon = WATCH_DURATION_EPSILON
               delta = DIFFERENTIAL_PRIVACY_DELTA
             }
-          maximumWatchDurationPerUser = MAXIMUM_WATCH_DURATION_PER_USER
         }
       watchDurationVidSamplingInterval =
         MetricSpecConfigKt.vidSamplingInterval {

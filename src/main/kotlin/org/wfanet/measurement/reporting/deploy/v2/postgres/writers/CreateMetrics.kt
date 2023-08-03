@@ -166,7 +166,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
           FrequencyDifferentialPrivacyEpsilon,
           FrequencyDifferentialPrivacyDelta,
           MaximumFrequencyPerUser,
-          MaximumWatchDurationPerUser,
+          MaxFrequency,
           VidSamplingIntervalStart,
           VidSamplingIntervalWidth,
           CreateTime,
@@ -207,8 +207,8 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                   bind("$10", frequencyHistogram.reachPrivacyParams.delta)
                   bind("$11", frequencyHistogram.frequencyPrivacyParams.epsilon)
                   bind("$12", frequencyHistogram.reachPrivacyParams.delta)
-                  bind("$13", frequencyHistogram.maximumFrequencyPerUser)
-                  bind<Long?>("$14", null)
+                  bind<Long?>("$13", null)
+                  bind("$14", frequencyHistogram.maxFrequency)
                 }
                 MetricSpec.TypeCase.REACH -> {
                   val reach = it.metric.metricSpec.reach
@@ -235,7 +235,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                   bind<Double?>("$11", null)
                   bind<Double?>("$12", null)
                   bind<Long?>("$13", null)
-                  bind("$14", watchDuration.maximumWatchDurationPerUser)
+                  bind<Long?>("$14", null)
                 }
                 MetricSpec.TypeCase.TYPE_NOT_SET -> {}
               }

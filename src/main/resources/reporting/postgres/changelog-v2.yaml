@@ -22,3 +22,7 @@ databaseChangeLog:
 - include:
     file: create-v2-reporting-schema.sql
     relativeToChangeLogFile: true
+
+- include:
+    file: fix-metric-spec-columns-in-metrics-table.sql
+    relativeToChangeLogFile: true

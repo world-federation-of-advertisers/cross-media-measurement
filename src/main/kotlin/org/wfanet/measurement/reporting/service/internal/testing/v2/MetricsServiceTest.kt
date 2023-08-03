@@ -204,7 +204,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 epsilon = 1.0
                 delta = 2.0
               }
-            maximumFrequencyPerUser = 5
+            maxFrequency = 5
           }
         vidSamplingInterval =
           MetricSpecKt.vidSamplingInterval {
@@ -396,7 +396,6 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 epsilon = 1.0
                 delta = 2.0
               }
-            maximumWatchDurationPerUser = 100
           }
         vidSamplingInterval =
           MetricSpecKt.vidSamplingInterval {
@@ -492,7 +491,6 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 epsilon = 1.0
                 delta = 2.0
               }
-            maximumWatchDurationPerUser = 100
           }
         vidSamplingInterval =
           MetricSpecKt.vidSamplingInterval {
@@ -562,7 +560,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 epsilon = 1.0
                 delta = 2.0
               }
-            maximumFrequencyPerUser = 5
+            maxFrequency = 5
           }
         vidSamplingInterval =
           MetricSpecKt.vidSamplingInterval {
@@ -673,7 +671,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                   epsilon = 1.0
                   delta = 2.0
                 }
-              maximumFrequencyPerUser = 5
+              maxFrequency = 5
             }
           vidSamplingInterval =
             MetricSpecKt.vidSamplingInterval {
@@ -783,7 +781,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 epsilon = 3.0
                 delta = 4.0
               }
-            maximumFrequencyPerUser = 5
+            maxFrequency = 5
           }
         vidSamplingInterval =
           MetricSpecKt.vidSamplingInterval {
@@ -854,7 +852,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 epsilon = 1.0
                 delta = 2.0
               }
-            maximumFrequencyPerUser = 5
+            maxFrequency = 5
           }
         vidSamplingInterval =
           MetricSpecKt.vidSamplingInterval {
@@ -1168,7 +1166,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 epsilon = 1.0
                 delta = 2.0
               }
-            maximumFrequencyPerUser = 5
+            maxFrequency = 5
           }
         vidSamplingInterval =
           MetricSpecKt.vidSamplingInterval {
@@ -1239,7 +1237,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 epsilon = 1.0
                 delta = 2.0
               }
-            maximumFrequencyPerUser = 5
+            maxFrequency = 5
           }
         vidSamplingInterval =
           MetricSpecKt.vidSamplingInterval {
@@ -1316,7 +1314,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 epsilon = 1.0
                 delta = 2.0
               }
-            maximumFrequencyPerUser = 5
+            maxFrequency = 5
           }
         vidSamplingInterval =
           MetricSpecKt.vidSamplingInterval {
@@ -1404,7 +1402,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                   epsilon = 1.0
                   delta = 2.0
                 }
-              maximumFrequencyPerUser = 5
+              maxFrequency = 5
             }
           vidSamplingInterval =
             MetricSpecKt.vidSamplingInterval {
@@ -1501,7 +1499,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                   epsilon = 1.0
                   delta = 2.0
                 }
-              maximumFrequencyPerUser = 5
+              maxFrequency = 5
             }
           vidSamplingInterval =
             MetricSpecKt.vidSamplingInterval {
@@ -1591,7 +1589,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                   epsilon = 1.0
                   delta = 2.0
                 }
-              maximumFrequencyPerUser = 5
+              maxFrequency = 5
             }
           vidSamplingInterval =
             MetricSpecKt.vidSamplingInterval {
@@ -1670,7 +1668,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                   epsilon = 1.0
                   delta = 2.0
                 }
-              maximumFrequencyPerUser = 5
+              maxFrequency = 5
             }
           vidSamplingInterval =
             MetricSpecKt.vidSamplingInterval {
@@ -1748,7 +1746,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 epsilon = 1.0
                 delta = 2.0
               }
-            maximumFrequencyPerUser = 5
+            maxFrequency = 5
           }
         vidSamplingInterval =
           MetricSpecKt.vidSamplingInterval {
@@ -1828,7 +1826,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                   epsilon = 1.0
                   delta = 2.0
                 }
-              maximumFrequencyPerUser = 5
+              maxFrequency = 5
             }
           vidSamplingInterval =
             MetricSpecKt.vidSamplingInterval {
@@ -1909,7 +1907,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                   epsilon = 1.0
                   delta = 2.0
                 }
-              maximumFrequencyPerUser = 5
+              maxFrequency = 5
             }
           vidSamplingInterval =
             MetricSpecKt.vidSamplingInterval {
@@ -1989,7 +1987,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                   epsilon = 1.0
                   delta = 2.0
                 }
-              maximumFrequencyPerUser = 5
+              maxFrequency = 5
             }
           vidSamplingInterval =
             MetricSpecKt.vidSamplingInterval {
@@ -2068,7 +2066,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 epsilon = 1.0
                 delta = 2.0
               }
-            maximumFrequencyPerUser = 5
+            maxFrequency = 5
           }
         vidSamplingInterval =
           MetricSpecKt.vidSamplingInterval {
@@ -2180,7 +2178,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                       epsilon = 1.0
                       delta = 2.0
                     }
-                  maximumFrequencyPerUser = 5
+                  maxFrequency = 5
                 }
               vidSamplingInterval =
                 MetricSpecKt.vidSamplingInterval {
@@ -2262,7 +2260,6 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                       epsilon = 1.0
                       delta = 2.0
                     }
-                  maximumWatchDurationPerUser = 100
                 }
               vidSamplingInterval =
                 MetricSpecKt.vidSamplingInterval {
