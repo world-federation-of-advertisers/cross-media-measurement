@@ -19,15 +19,16 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 
 @RunWith(JUnit4::class)
 class PrivacyBudgetLedgerTest {
 
   @Test
-  fun `chargeInDp works when privacy bucket groups are empty`() =
+  fun `charge works when privacy bucket groups are empty`() =
     runBlocking<Unit> {
       val backingStore = InMemoryBackingStore()
-      val ledger = PrivacyBudgetLedger(backingStore, 1.0f, 0.01f)
+      val ledger = PrivacyBudgetLedger(backingStore, DpParams(1.0, 0.01))
       val bucket =
         PrivacyBucketGroup(
           "ACME",
@@ -41,20 +42,20 @@ class PrivacyBudgetLedgerTest {
       val dpCharge = DpCharge(1.0f, 0.01f)
 
       // The charges succeed and fills the Privacy Budget.
-      ledger.chargeInDp(createReference(0), setOf<PrivacyBucketGroup>(), setOf(dpCharge))
-      ledger.chargeInDp(createReference(1), setOf(bucket), setOf(dpCharge))
+      ledger.charge(createReference(0), setOf<PrivacyBucketGroup>(), setOf(dpCharge))
+      ledger.charge(createReference(1), setOf(bucket), setOf(dpCharge))
 
       // DpCharge should exceed the budget.
       assertFailsWith<PrivacyBudgetManagerException> {
-        ledger.chargeInDp(createReference(2), setOf(bucket), setOf(DpCharge(0.0001f, 0.0001f)))
+        ledger.charge(createReference(2), setOf(bucket), setOf(DpCharge(0.0001f, 0.0001f)))
       }
     }
 
   @Test
-  fun `chargeInDp works when dpCharge list is empty`() =
+  fun `charge works when dpCharge list is empty`() =
     runBlocking<Unit> {
       val backingStore = InMemoryBackingStore()
-      val ledger = PrivacyBudgetLedger(backingStore, 1.0f, 0.01f)
+      val ledger = PrivacyBudgetLedger(backingStore, DpParams(1.0, 0.01))
       val bucket =
         PrivacyBucketGroup(
           "ACME",
@@ -68,22 +69,22 @@ class PrivacyBudgetLedgerTest {
       val dpCharge = DpCharge(1.0f, 0.01f)
 
       // The charges succeed and doesn't charge anything.
-      ledger.chargeInDp(createReference(0), setOf(bucket), setOf())
+      ledger.charge(createReference(0), setOf(bucket), setOf())
       // The charges succeed and fills the Privacy Budget.
-      ledger.chargeInDp(createReference(1), setOf(bucket), setOf(dpCharge))
+      ledger.charge(createReference(1), setOf(bucket), setOf(dpCharge))
 
       // DpCharge should exceed the budget.
       assertFailsWith<PrivacyBudgetManagerException> {
-        ledger.chargeInDp(createReference(2), setOf(bucket), setOf(DpCharge(0.0001f, 0.0001f)))
+        ledger.charge(createReference(2), setOf(bucket), setOf(DpCharge(0.0001f, 0.0001f)))
       }
     }
 
   @Test
-  fun `chargeInDp same value repeatedly`() =
+  fun `charge same value repeatedly`() =
     runBlocking<Unit> {
       // See the second test in AdvancedCompositionTest`advanced composition`
       val backingStore = InMemoryBackingStore()
-      val ledger = PrivacyBudgetLedger(backingStore, 21.5f, 0.06f)
+      val ledger = PrivacyBudgetLedger(backingStore, DpParams(21.5, 0.06))
       val bucket =
         PrivacyBucketGroup(
           "ACME",
@@ -97,18 +98,18 @@ class PrivacyBudgetLedgerTest {
       val dpCharge = DpCharge(1.0f, 0.001f)
       // The charges succeed and fills the Privacy Budget.
       for (i in 1..29) {
-        ledger.chargeInDp(createReference(i), setOf(bucket), setOf(dpCharge))
+        ledger.charge(createReference(i), setOf(bucket), setOf(dpCharge))
       }
       assertFailsWith<PrivacyBudgetManagerException> {
-        ledger.chargeInDp(createReference(30), setOf(bucket), setOf(dpCharge))
+        ledger.charge(createReference(30), setOf(bucket), setOf(dpCharge))
       }
     }
 
   @Test
-  fun `chargeInDp with the same reference key are no op`() = runBlocking {
+  fun `charge with the same reference key are no op`() = runBlocking {
     // See the second test in AdvancedCompositionTest`advanced composition`
     val backingStore = InMemoryBackingStore()
-    val ledger = PrivacyBudgetLedger(backingStore, 21.5f, 0.06f)
+    val ledger = PrivacyBudgetLedger(backingStore, DpParams(21.5, 0.06))
     val bucket =
       PrivacyBucketGroup(
         "ACME",
@@ -122,7 +123,7 @@ class PrivacyBudgetLedgerTest {
     val dpCharge = DpCharge(1.0f, 0.001f)
     // Only the first charge would fill the budget, rest are not processed by the ledger
     for (i in 1..100) {
-      ledger.chargeInDp(createReference(0), setOf(bucket), setOf(dpCharge))
+      ledger.charge(createReference(0), setOf(bucket), setOf(dpCharge))
     }
   }
 
@@ -131,7 +132,7 @@ class PrivacyBudgetLedgerTest {
     runBlocking<Unit> {
       // See the second test in AdvancedCompositionTest`advanced composition`
       val backingStore = InMemoryBackingStore()
-      val ledger = PrivacyBudgetLedger(backingStore, 21.5f, 0.06f)
+      val ledger = PrivacyBudgetLedger(backingStore, DpParams(21.5, 0.06))
       val bucket =
         PrivacyBucketGroup(
           "ACME",
@@ -145,28 +146,28 @@ class PrivacyBudgetLedgerTest {
       val dpCharge = DpCharge(1.0f, 0.001f)
       // The charges succeed and fills the Privacy Budget.
       for (i in 1..29) {
-        ledger.chargeInDp(createReference(i), setOf(bucket), setOf(dpCharge))
+        ledger.charge(createReference(i), setOf(bucket), setOf(dpCharge))
       }
       assertFailsWith<PrivacyBudgetManagerException> {
-        ledger.chargeInDp(createReference(30), setOf(bucket), setOf(dpCharge))
+        ledger.charge(createReference(30), setOf(bucket), setOf(dpCharge))
       }
 
       // The refund opens up Privacy Budget.
-      ledger.chargeInDp(createReference(31, true), setOf(bucket), setOf(dpCharge))
+      ledger.charge(createReference(31, true), setOf(bucket), setOf(dpCharge))
       // Thus, this charge succeeds and fills the budget.
-      ledger.chargeInDp(createReference(32), setOf(bucket), setOf(dpCharge))
+      ledger.charge(createReference(32), setOf(bucket), setOf(dpCharge))
 
       // Then this charge fails.
       assertFailsWith<PrivacyBudgetManagerException> {
-        ledger.chargeInDp(createReference(33), setOf(bucket), setOf(dpCharge))
+        ledger.charge(createReference(33), setOf(bucket), setOf(dpCharge))
       }
     }
 
   @Test
-  fun `chargeInDp different values and dp budget is exceeded`() =
+  fun `charge different values and dp budget is exceeded`() =
     runBlocking<Unit> {
       val backingStore = InMemoryBackingStore()
-      val ledger = PrivacyBudgetLedger(backingStore, 1.0001f, 0.01f)
+      val ledger = PrivacyBudgetLedger(backingStore, DpParams(1.0001, 0.01))
       val bucket =
         PrivacyBucketGroup(
           "ACME",
@@ -179,22 +180,22 @@ class PrivacyBudgetLedgerTest {
         )
 
       // The charges succeed and fills the Privacy Budget.
-      ledger.chargeInDp(createReference(0), setOf(bucket), setOf(DpCharge(0.4f, 0.001f)))
-      ledger.chargeInDp(createReference(1), setOf(bucket), setOf(DpCharge(0.3f, 0.001f)))
-      ledger.chargeInDp(createReference(2), setOf(bucket), setOf(DpCharge(0.2f, 0.001f)))
-      ledger.chargeInDp(createReference(3), setOf(bucket), setOf(DpCharge(0.1f, 0.001f)))
+      ledger.charge(createReference(0), setOf(bucket), setOf(DpCharge(0.4f, 0.001f)))
+      ledger.charge(createReference(1), setOf(bucket), setOf(DpCharge(0.3f, 0.001f)))
+      ledger.charge(createReference(2), setOf(bucket), setOf(DpCharge(0.2f, 0.001f)))
+      ledger.charge(createReference(3), setOf(bucket), setOf(DpCharge(0.1f, 0.001f)))
 
       // DpCharge should exceed the budget.
       assertFailsWith<PrivacyBudgetManagerException> {
-        ledger.chargeInDp(createReference(4), setOf(bucket), setOf(DpCharge(0.1f, 0.001f)))
+        ledger.charge(createReference(4), setOf(bucket), setOf(DpCharge(0.1f, 0.001f)))
       }
     }
 
   @Test
-  fun `chargeInDp multiple buckets and dp budget is exceeded`() =
+  fun `charge multiple buckets and dp budget is exceeded`() =
     runBlocking<Unit> {
       val backingStore = InMemoryBackingStore()
-      val ledger = PrivacyBudgetLedger(backingStore, 1.0001f, 0.01f)
+      val ledger = PrivacyBudgetLedger(backingStore, DpParams(1.0001, 0.01))
       val bucket1 =
         PrivacyBucketGroup(
           "ACME",
@@ -217,27 +218,27 @@ class PrivacyBudgetLedgerTest {
         )
 
       // The charges succeed and fills the Privacy Budget.
-      ledger.chargeInDp(createReference(0), setOf(bucket1), setOf(DpCharge(0.5f, 0.001f)))
-      ledger.chargeInDp(createReference(1), setOf(bucket2), setOf(DpCharge(0.5f, 0.001f)))
-      ledger.chargeInDp(createReference(2), setOf(bucket1), setOf(DpCharge(0.5f, 0.001f)))
-      ledger.chargeInDp(createReference(3), setOf(bucket2), setOf(DpCharge(0.5f, 0.001f)))
+      ledger.charge(createReference(0), setOf(bucket1), setOf(DpCharge(0.5f, 0.001f)))
+      ledger.charge(createReference(1), setOf(bucket2), setOf(DpCharge(0.5f, 0.001f)))
+      ledger.charge(createReference(2), setOf(bucket1), setOf(DpCharge(0.5f, 0.001f)))
+      ledger.charge(createReference(3), setOf(bucket2), setOf(DpCharge(0.5f, 0.001f)))
 
       // DpCharge should exceed the budget.
       assertFailsWith<PrivacyBudgetManagerException> {
-        ledger.chargeInDp(createReference(4), setOf(bucket1), setOf(DpCharge(0.5f, 0.001f)))
+        ledger.charge(createReference(4), setOf(bucket1), setOf(DpCharge(0.5f, 0.001f)))
       }
 
       // DpCharge should exceed the budget.
       assertFailsWith<PrivacyBudgetManagerException> {
-        ledger.chargeInDp(createReference(5), setOf(bucket2), setOf(DpCharge(0.5f, 0.001f)))
+        ledger.charge(createReference(5), setOf(bucket2), setOf(DpCharge(0.5f, 0.001f)))
       }
     }
 
   @Test
-  fun `chargeInDp list of values and dp budget is exceeded`() =
+  fun `charge list of values and dp budget is exceeded`() =
     runBlocking<Unit> {
       val backingStore = InMemoryBackingStore()
-      val ledger = PrivacyBudgetLedger(backingStore, 1.0001f, 0.01f)
+      val ledger = PrivacyBudgetLedger(backingStore, DpParams(1.0001, 0.01))
       val bucket =
         PrivacyBucketGroup(
           "ACME",
@@ -252,11 +253,11 @@ class PrivacyBudgetLedgerTest {
       val chargeList = setOf(DpCharge(0.5f, 0.001f), DpCharge(0.3f, 0.001f), DpCharge(0.2f, 0.001f))
 
       // The dpCharges succeed and fills the Privacy Budget.
-      ledger.chargeInDp(createReference(0), setOf(bucket), chargeList)
+      ledger.charge(createReference(0), setOf(bucket), chargeList)
 
       // Next dpCharge should exceed the budget.
       assertFailsWith<PrivacyBudgetManagerException> {
-        ledger.chargeInDp(createReference(1), setOf(bucket), setOf(DpCharge(0.1f, 0.001f)))
+        ledger.charge(createReference(1), setOf(bucket), setOf(DpCharge(0.1f, 0.001f)))
       }
     }
 
@@ -264,7 +265,7 @@ class PrivacyBudgetLedgerTest {
   fun `chargeInAcdp works when privacyBucketGroups are empty`() =
     runBlocking<Unit> {
       val backingStore = InMemoryBackingStore()
-      val ledger = PrivacyBudgetLedger(backingStore, 3.0f, 2E-4f)
+      val ledger = PrivacyBudgetLedger(backingStore, DpParams(3.0, 2E-4))
       val bucket =
         PrivacyBucketGroup(
           "ACME",
@@ -292,7 +293,7 @@ class PrivacyBudgetLedgerTest {
   fun `chargeInAcdp works when acdpCharge list is empty`() =
     runBlocking<Unit> {
       val backingStore = InMemoryBackingStore()
-      val ledger = PrivacyBudgetLedger(backingStore, 3.0f, 2E-4f)
+      val ledger = PrivacyBudgetLedger(backingStore, DpParams(3.0, 2E-4))
       val bucket =
         PrivacyBucketGroup(
           "ACME",
@@ -320,7 +321,7 @@ class PrivacyBudgetLedgerTest {
   fun `chargeInAcdp the same value repeatedly and works`() =
     runBlocking<Unit> {
       val backingStore = InMemoryBackingStore()
-      val ledger = PrivacyBudgetLedger(backingStore, 3.0f, 2E-3f)
+      val ledger = PrivacyBudgetLedger(backingStore, DpParams(3.0, 2E-3))
       val bucket =
         PrivacyBucketGroup(
           "ACME",
@@ -345,7 +346,7 @@ class PrivacyBudgetLedgerTest {
   @Test
   fun `chargeInAcdp with the same reference key are no op`() = runBlocking {
     val backingStore = InMemoryBackingStore()
-    val ledger = PrivacyBudgetLedger(backingStore, 3.0f, 2E-4f)
+    val ledger = PrivacyBudgetLedger(backingStore, DpParams(3.0, 2E-4))
     val bucket =
       PrivacyBucketGroup(
         "ACME",
@@ -367,7 +368,7 @@ class PrivacyBudgetLedgerTest {
   fun `refund of the acdp charge works`() =
     runBlocking<Unit> {
       val backingStore = InMemoryBackingStore()
-      val ledger = PrivacyBudgetLedger(backingStore, 3.0f, 2E-4f)
+      val ledger = PrivacyBudgetLedger(backingStore, DpParams(3.0, 2E-4))
       val bucket =
         PrivacyBucketGroup(
           "ACME",
@@ -402,7 +403,7 @@ class PrivacyBudgetLedgerTest {
   fun `chargeInAcdp with different values and acdp budget is exceeded`() =
     runBlocking<Unit> {
       val backingStore = InMemoryBackingStore()
-      val ledger = PrivacyBudgetLedger(backingStore, 3.0f, 5E-4f)
+      val ledger = PrivacyBudgetLedger(backingStore, DpParams(3.0, 5E-4))
       val bucket =
         PrivacyBucketGroup(
           "ACME",
@@ -431,7 +432,7 @@ class PrivacyBudgetLedgerTest {
   fun `chargeInAcdp multiple buckets and acdp budget is exceeded`() =
     runBlocking<Unit> {
       val backingStore = InMemoryBackingStore()
-      val ledger = PrivacyBudgetLedger(backingStore, 3.0f, 2.5E-4f)
+      val ledger = PrivacyBudgetLedger(backingStore, DpParams(3.0, 2.5E-4))
       val bucket1 =
         PrivacyBucketGroup(
           "ACME",
@@ -475,7 +476,7 @@ class PrivacyBudgetLedgerTest {
   fun `chargeInAcdp list of values and acdp budget is exceeded`() =
     runBlocking<Unit> {
       val backingStore = InMemoryBackingStore()
-      val ledger = PrivacyBudgetLedger(backingStore, 3.0f, 5E-4f)
+      val ledger = PrivacyBudgetLedger(backingStore, DpParams(3.0, 5E-4))
       val bucket =
         PrivacyBucketGroup(
           "ACME",

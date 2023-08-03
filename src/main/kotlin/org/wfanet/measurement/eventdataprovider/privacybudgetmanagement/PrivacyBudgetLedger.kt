@@ -14,22 +14,26 @@
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 import kotlin.math.abs
+import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 
 /** Manages and updates privacy budget data. */
 class PrivacyBudgetLedger(
   private val backingStore: PrivacyBudgetLedgerBackingStore,
-  private val maximumTotalEpsilon: Float,
-  private val maximumTotalDelta: Float
+  private val maximumTotalDpParams: DpParams,
 ) {
   /**
    * For each PrivacyBucketGroup in the list of PrivacyBucketGroups, adds each of the DpCharges to
-   * that group.
+   * that group and check privacy budget usage using Advanced composition.
+   *
+   * This charge method only supports Laplace Differential Privacy noise and should be deprecated
+   * once the system is completely migrated to Gaussian Differential Privacy noise and ACDP
+   * composition.
    *
    * @throws PrivacyBudgetManagerException if the attempt to charge the privacy bucket groups was
    *   unsuccessful. Possible causes could include exceeding available privacy budget or an
    *   inability to commit an update to the database.
    */
-  suspend fun chargeInDp(
+  suspend fun charge(
     reference: Reference,
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     dpCharges: Set<DpCharge>,
@@ -40,7 +44,7 @@ class PrivacyBudgetLedger(
 
     backingStore.startTransaction().use { context: PrivacyBudgetLedgerTransactionContext ->
       // First check if the budget would be exceeded if dpCharges were to be applied.
-      checkPrivacyBudgetExceededInDp(context, reference, privacyBucketGroups, dpCharges)
+      checkPrivacyBudgetExceeded(context, reference, privacyBucketGroups, dpCharges)
 
       // Then charge the buckets
       context.addLedgerEntries(privacyBucketGroups, dpCharges, reference)
@@ -51,7 +55,8 @@ class PrivacyBudgetLedger(
 
   /**
    * For each PrivacyBucketGroup in the list of PrivacyBucketGroups, adds each of the AcdpCharges to
-   * that group.
+   * that group and check privacy budget usage using ACDP composition. It only supports Gaussian
+   * Differential Privacy noise.
    *
    * @throws PrivacyBudgetManagerException if the attempt to charge the PrivacyBucketGroups was
    *   unsuccessful. Possible causes could include exceeding available privacy budget or an
@@ -87,10 +92,13 @@ class PrivacyBudgetLedger(
    * For each PrivacyBucketGroup in the list of PrivacyBucketGroups, checks if adding each of the
    * DpCharges to that group would make anyone of them exceed their budget.
    *
+   * This method only supports Laplace Differential Privacy noise and should be deprecated once the
+   * system is completely migrated to Gaussian Differential Privacy noise and ACDP composition.
+   *
    * @throws PrivacyBudgetManagerException if there is an error committing the transaction to the
    *   database.
    */
-  suspend fun chargingWillExceedPrivacyBudgetInDp(
+  suspend fun chargingWillExceedPrivacyBudget(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     dpCharges: Set<DpCharge>
   ): Boolean {
@@ -100,7 +108,7 @@ class PrivacyBudgetLedger(
 
     backingStore.startTransaction().use { context: PrivacyBudgetLedgerTransactionContext ->
       // Check if the budget would be exceeded if dpCharges were to be applied.
-      if (getExceededPrivacyBucketsInDp(context, privacyBucketGroups, dpCharges).isNotEmpty()) {
+      if (getExceededPrivacyBuckets(context, privacyBucketGroups, dpCharges).isNotEmpty()) {
         return true
       }
     }
@@ -110,7 +118,8 @@ class PrivacyBudgetLedger(
 
   /**
    * For each PrivacyBucketGroup in the list of PrivacyBucketGroups, checks if adding each of the
-   * AcdpCharges to that group would make anyone of them exceed their budget.
+   * AcdpCharges to that group would make anyone of them exceed their budget. It only supports
+   * Gaussian Differential Privacy noise.
    *
    * @throws PrivacyBudgetManagerException if there is an error committing the transaction to the
    *   database.
@@ -133,7 +142,7 @@ class PrivacyBudgetLedger(
     return false
   }
 
-  private suspend fun checkPrivacyBudgetExceededInDp(
+  private suspend fun checkPrivacyBudgetExceeded(
     context: PrivacyBudgetLedgerTransactionContext,
     reference: Reference,
     privacyBucketGroups: Set<PrivacyBucketGroup>,
@@ -146,7 +155,7 @@ class PrivacyBudgetLedger(
 
     // Then check if charging the buckets would exceed privacy budget
     if (!reference.isRefund) {
-      checkPrivacyBudgetExceededInDp(context, privacyBucketGroups, dpCharges)
+      checkPrivacyBudgetExceeded(context, privacyBucketGroups, dpCharges)
     }
   }
 
@@ -167,12 +176,12 @@ class PrivacyBudgetLedger(
     }
   }
 
-  private suspend fun checkPrivacyBudgetExceededInDp(
+  private suspend fun checkPrivacyBudgetExceeded(
     context: PrivacyBudgetLedgerTransactionContext,
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     dpCharges: Set<DpCharge>,
   ) {
-    val failedBucketList = getExceededPrivacyBucketsInDp(context, privacyBucketGroups, dpCharges)
+    val failedBucketList = getExceededPrivacyBuckets(context, privacyBucketGroups, dpCharges)
     if (failedBucketList.isNotEmpty()) {
       throw PrivacyBudgetManagerException(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
     }
@@ -190,13 +199,13 @@ class PrivacyBudgetLedger(
     }
   }
 
-  private suspend fun getExceededPrivacyBucketsInDp(
+  private suspend fun getExceededPrivacyBuckets(
     context: PrivacyBudgetLedgerTransactionContext,
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     dpCharges: Set<DpCharge>
   ): List<PrivacyBucketGroup> =
     privacyBucketGroups.filter {
-      privacyBudgetIsExceededInDp(context.findIntersectingBalanceEntries(it).toSet(), dpCharges)
+      privacyBudgetIsExceeded(context.findIntersectingBalanceEntries(it).toSet(), dpCharges)
     }
 
   private suspend fun getExceededPrivacyBucketsInAcdp(
@@ -218,16 +227,18 @@ class PrivacyBudgetLedger(
     Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
       DpCharge(chargeEpsilon, chargeDelta),
       numCharges,
-      maximumTotalDelta
-    ) > maximumTotalEpsilon
+      maximumTotalDpParams.delta.toFloat()
+    ) > maximumTotalDpParams.epsilon.toFloat()
 
   private fun exceedsUnderSimpleComposition(dpCharges: List<DpChargeWithRepetitions>) =
-    (dpCharges.sumOf { it.totalEpsilon() } > maximumTotalEpsilon.toDouble()) ||
-      (dpCharges.sumOf { it.totalDelta() } > maximumTotalDelta.toDouble())
+    (dpCharges.sumOf { it.totalEpsilon() } > maximumTotalDpParams.epsilon) ||
+      (dpCharges.sumOf { it.totalDelta() } > maximumTotalDpParams.delta)
 
   private fun exceedsUnderAcdpComposition(acdpCharges: List<AcdpCharge>) =
-    (Composition.totalPrivacyBudgetUsageUnderAcdpComposition(acdpCharges, maximumTotalEpsilon) >
-      maximumTotalDelta)
+    (Composition.totalPrivacyBudgetUsageUnderAcdpComposition(
+      acdpCharges,
+      maximumTotalDpParams.epsilon
+    ) > maximumTotalDpParams.delta)
 
   /**
    * Tests whether a given privacy bucket is exceeded.
@@ -238,7 +249,7 @@ class PrivacyBudgetLedger(
    * @return true if adding the charges would cause the total privacy budget usage for this bucket
    *   to be exceeded.
    */
-  private fun privacyBudgetIsExceededInDp(
+  private fun privacyBudgetIsExceeded(
     balanceEntries: Set<PrivacyBudgetBalanceEntry>,
     dpCharges: Set<DpCharge>
   ): Boolean {

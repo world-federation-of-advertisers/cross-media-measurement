@@ -74,9 +74,9 @@ class CompositionTest {
   @Test
   fun acdpCompositionComputationWorksAsExpectedForSingleAcdpCharge() {
     val acdpCharges = listOf(AcdpCharge(0.1, 1E-5))
-    val targetEpsilon = 3.0f
+    val targetEpsilon = 3.0
     val delta = Composition.totalPrivacyBudgetUsageUnderAcdpComposition(acdpCharges, targetEpsilon)
-    val expectedDelta = 2.1085539E-4f
+    val expectedDelta = 2.108553871763024E-4
 
     assertThat(delta).isEqualTo(expectedDelta)
   }
@@ -84,10 +84,10 @@ class CompositionTest {
   @Test
   fun acdpCompositionComputationWorksAsExpectedForSingleAcdpChargeAndSmallerEpsilonAndTheta() {
     val acdpCharges = listOf(AcdpCharge(0.3, 1E-12))
-    val targetEpsilon = 0.5f
+    val targetEpsilon = 0.5
     // (exp(epsilon) + 1) * theta  = 2.6487212181091307E-12
     val delta = Composition.totalPrivacyBudgetUsageUnderAcdpComposition(acdpCharges, targetEpsilon)
-    val expectedDelta = 0.26509577f
+    val expectedDelta = 0.26509576368586407
 
     assertThat(delta).isEqualTo(expectedDelta)
   }
@@ -95,9 +95,9 @@ class CompositionTest {
   @Test
   fun acdpCompositionComputationWorksAsExpectedForMultipleAcdpCharges() {
     val acdpCharges = listOf(AcdpCharge(0.04, 0.5E-5), AcdpCharge(0.06, 0.5E-5))
-    val targetEpsilon = 3.0f
+    val targetEpsilon = 3.0
     val delta = Composition.totalPrivacyBudgetUsageUnderAcdpComposition(acdpCharges, targetEpsilon)
-    val expectedDelta = 2.1085539E-4f
+    val expectedDelta = 2.108553871763024E-4
 
     assertThat(delta).isEqualTo(expectedDelta)
   }
