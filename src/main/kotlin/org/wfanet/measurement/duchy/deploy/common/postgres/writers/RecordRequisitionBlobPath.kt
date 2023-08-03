@@ -16,7 +16,9 @@ package org.wfanet.measurement.duchy.deploy.common.postgres.writers
 
 import java.time.Clock
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
+import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationReader
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.RequisitionReader
+import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 
 /**
@@ -35,8 +37,9 @@ class RecordRequisitionBlobPath(
   private val externalRequisitionKey: ExternalRequisitionKey,
   private val pathToBlob: String,
   private val clock: Clock,
-) : PostgresWriter<Unit>() {
-  override suspend fun TransactionScope.runTransaction() {
+  private val computationReader: ComputationReader,
+) : PostgresWriter<ComputationToken>() {
+  override suspend fun TransactionScope.runTransaction(): ComputationToken {
     require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
     val requisition: RequisitionReader.RequisitionResult =
       RequisitionReader().readRequisitionByExternalKey(transactionContext, externalRequisitionKey)
@@ -53,6 +56,10 @@ class RecordRequisitionBlobPath(
       requisitionFingerprint = externalRequisitionKey.requisitionFingerprint,
       pathToBlob = pathToBlob,
       updateTime = writeTime
+    )
+
+    return checkNotNull(
+      computationReader.readComputationToken(transactionContext, externalRequisitionKey)
     )
   }
 }

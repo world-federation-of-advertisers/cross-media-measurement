@@ -240,3 +240,47 @@ suspend fun PostgresWriter.TransactionScope.checkComputationUnmodified(
     )
   }
 }
+
+/**
+ * Deletes a computation by local identifier
+ *
+ * @param localId local identifier of a computation
+ * @return number of rows deleted
+ */
+suspend fun PostgresWriter.TransactionScope.deleteComputationByLocalId(
+  localId: Long,
+): Long {
+  val sql =
+    boundStatement(
+      """
+        DELETE FROM Computations
+        WHERE ComputationId = $1
+      """
+        .trimIndent()
+    ) {
+      bind("$1", localId)
+    }
+  return transactionContext.executeStatement(sql).numRowsUpdated
+}
+
+/**
+ * Deletes a computation by local identifier
+ *
+ * @param globalId global identifier of a computation
+ * @return number of rows deleted
+ */
+suspend fun PostgresWriter.TransactionScope.deleteComputationByGlobalId(
+  globalId: String,
+): Long {
+  val sql =
+    boundStatement(
+      """
+        DELETE FROM Computations
+        WHERE GlobalComputationId = $1
+      """
+        .trimIndent()
+    ) {
+      bind("$1", globalId)
+    }
+  return transactionContext.executeStatement(sql).numRowsUpdated
+}

@@ -20,11 +20,13 @@ import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
+import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationReader
 import org.wfanet.measurement.duchy.service.internal.ComputationAlreadyExistsException
 import org.wfanet.measurement.duchy.service.internal.ComputationInitialStageInvalidException
 import org.wfanet.measurement.duchy.service.internal.DuchyInternalException
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
+import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.RequisitionEntry
 
 /**
@@ -46,7 +48,7 @@ import org.wfanet.measurement.internal.duchy.RequisitionEntry
  * * [ComputationAlreadyExistsException] when there exists a computation with this
  *   globalComputationId
  */
-class CreateComputation<ProtocolT, ComputationDT : Message, StageT, StageDT : Message>(
+class CreateComputation<ProtocolT : Any, ComputationDT : Message, StageT : Any, StageDT : Message>(
   private val globalId: String,
   private val protocol: ProtocolT,
   private val initialStage: StageT,
@@ -59,9 +61,10 @@ class CreateComputation<ProtocolT, ComputationDT : Message, StageT, StageDT : Me
     ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
   private val computationProtocolStageDetailsHelper:
     ComputationProtocolStageDetailsHelper<ProtocolT, StageT, StageDT, ComputationDT>,
-) : PostgresWriter<Unit>() {
+  private val computationReader: ComputationReader,
+) : PostgresWriter<ComputationToken>() {
 
-  override suspend fun TransactionScope.runTransaction() {
+  override suspend fun TransactionScope.runTransaction(): ComputationToken {
     if (!computationProtocolStagesEnumHelper.validInitialStage(protocol, initialStage)) {
       throw ComputationInitialStageInvalidException(protocol.toString(), initialStage.toString())
     }
@@ -107,5 +110,7 @@ class CreateComputation<ProtocolT, ComputationDT : Message, StageT, StageDT : Me
         updateTime = writeTimestamp
       )
     }
+
+    return checkNotNull(computationReader.readComputationToken(transactionContext, globalId))
   }
 }
