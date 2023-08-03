@@ -22,7 +22,7 @@ import {
 } from './models';
 import {ReportingClient} from './reporting_client';
 
-export class ReportingApi {
+export class ReportingClientImpl {
   memoizer: Memoizer = new Memoizer();
   reports: Report[] = [];
 
