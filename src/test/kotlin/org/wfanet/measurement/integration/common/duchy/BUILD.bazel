@@ -8,6 +8,7 @@ kt_jvm_library(
     ],
     visibility = [
         "//src/test/kotlin/org/wfanet/measurement/integration/gcloud:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/integration/postgres:__pkg__",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
