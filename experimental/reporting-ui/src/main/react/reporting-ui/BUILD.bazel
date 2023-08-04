@@ -40,7 +40,6 @@ webpack_bundle(
         ":webpack_config",
         "//:tsconfig",
         "//experimental/reporting-ui/src/main/react/reporting-ui/public",
-        "//experimental/reporting-ui/src/main/react/reporting-ui/src:src_files",
     ],
     node_modules = "//:node_modules",
     output_dir = True,
@@ -48,6 +47,7 @@ webpack_bundle(
     deps = [
         ":build_node_deps",
         "//experimental/reporting-ui/src/main/react/reporting-ui/library:src_ts",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/src:src_ts",
     ],
 )
 
