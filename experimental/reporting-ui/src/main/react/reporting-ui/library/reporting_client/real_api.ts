@@ -28,10 +28,8 @@ export class RealApi implements ReportingClient {
     this.baseUrl = props.endpoint;
   }
 
-  init(props: InitApiProps): void { }
-
   async listReports(): Promise<ListReportsResponse> {
-    const res = await fetch(this.baseUrl!.toString() + '/api/reports');
+    const res = await fetch(this.baseUrl.toString() + '/api/reports');
     const reports = await res.json();
     const response = Object.freeze({
       reports,
@@ -40,7 +38,7 @@ export class RealApi implements ReportingClient {
   }
 
   async getReport(req: GetReportRequest): Promise<GetReportResponse> {
-    const res = await fetch(this.baseUrl!.toString() + '/api/reports' + req.id);
+    const res = await fetch(this.baseUrl.toString() + '/api/reports' + req.id);
     const report = await res.json();
     const response = Object.freeze({
       report,

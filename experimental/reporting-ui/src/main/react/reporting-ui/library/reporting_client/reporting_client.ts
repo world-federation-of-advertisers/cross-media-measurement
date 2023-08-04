@@ -16,11 +16,9 @@ import {
   GetReportRequest,
   GetReportResponse,
   ListReportsResponse,
-  InitApiProps,
 } from './models';
 
 export interface ReportingClient {
-  init(props: InitApiProps): void;
   listReports(): Promise<ListReportsResponse>;
   getReport(req: GetReportRequest): Promise<GetReportResponse>;
 }
