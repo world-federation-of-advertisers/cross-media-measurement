@@ -1,6 +1,7 @@
 load("@wfa_rules_cue//cue:defs.bzl", "cue_library")
 load(
     "//build:variables.bzl",
+    "AWS_SETTINGS",
     "DUCHY_K8S_SETTINGS",
     "GCLOUD_SETTINGS",
     "IMAGE_REPOSITORY_SETTINGS",
@@ -159,6 +160,65 @@ cue_dump(
     ],
 )
 
+cue_dump(
+    name = "worker2_duchy_aws_eks",
+    srcs = ["duchy_aws_eks.cue"],
+    cue_tags = {
+        "duchy_name": "worker2",
+        "duchy_protocols_setup_config": "non_aggregator_protocols_setup_config.textproto",
+        "secret_name": SECRET_NAME,
+        "certificate_id": DUCHY_K8S_SETTINGS.certificate_id,
+        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
+        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+        "postgres_host": AWS_SETTINGS.postgres_host,
+        "postgres_port": AWS_SETTINGS.postgres_port,
+        "postgres_user": AWS_SETTINGS.postgres_user,
+        "postgres_password": AWS_SETTINGS.postgres_password,
+        "s3_bucket": AWS_SETTINGS.s3_bucket,
+        "s3_region": AWS_SETTINGS.s3_region,
+        "kingdom_system_api_target": KINGDOM_K8S_SETTINGS.system_api_target,
+    },
+    tags = ["manual"],
+    deps = [
+        ":base_gke",
+        ":config",
+        "//src/main/k8s:base",
+        "//src/main/k8s:duchy",
+        "//src/main/k8s:postgres_duchy",
+    ],
+)
+
+cue_dump(
+    name = "worker3_duchy_aws_eks",
+    srcs = ["duchy_aws_eks.cue"],
+    cue_tags = {
+        "duchy_name": "worker3",
+        "duchy_protocols_setup_config": "non_aggregator_protocols_setup_config.textproto",
+        "secret_name": SECRET_NAME,
+        "certificate_id": DUCHY_K8S_SETTINGS.certificate_id,
+        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
+        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+        "postgres_host": AWS_SETTINGS.postgres_host,
+        "postgres_port": AWS_SETTINGS.postgres_port,
+        "postgres_user": AWS_SETTINGS.postgres_user,
+        "postgres_password": AWS_SETTINGS.postgres_password,
+        "s3_bucket": AWS_SETTINGS.s3_bucket,
+        "s3_region": AWS_SETTINGS.s3_region,
+        "kingdom_system_api_target": KINGDOM_K8S_SETTINGS.system_api_target,
+    },
+    tags = ["manual"],
+    deps = [
+        ":base_gke",
+        ":config",
+        "//src/main/k8s:base",
+        "//src/main/k8s:duchy",
+        "//src/main/k8s:postgres_duchy",
+        "//src/main/k8s:spanner_duchy",
+    ],
+)
+
 expand_template(
     name = "gen_aggregator_secret_kustomization",
     out = "aggregator_secret_kustomization.yaml",
@@ -189,6 +249,16 @@ expand_template(
     template = "duchy_secret_kustomization.tmpl.yaml",
 )
 
+expand_template(
+    name = "gen_worker3_secret_kustomization",
+    out = "worker3_secret_kustomization.yaml",
+    substitutions = {
+        "{duchy_id}": "worker3",
+        "{duchy_role}": "non_aggregator",
+    },
+    template = "duchy_secret_kustomization.tmpl.yaml",
+)
+
 kustomization_dir(
     name = "aggregator_duchy_secret",
     srcs = [":aggregator_secret_kustomization.yaml"],
@@ -205,6 +275,12 @@ kustomization_dir(
     name = "worker2_duchy_secret",
     srcs = [":worker2_secret_kustomization.yaml"],
     renames = {"worker2_secret_kustomization.yaml": "kustomization.yaml"},
+)
+
+kustomization_dir(
+    name = "worker3_duchy_secret",
+    srcs = [":worker3_secret_kustomization.yaml"],
+    renames = {"worker3_secret_kustomization.yaml": "kustomization.yaml"},
 )
 
 kustomization_dir(
@@ -246,6 +322,34 @@ kustomization_dir(
     deps = [
         ":config_files",
         ":worker2_duchy_secret",
+    ],
+)
+
+kustomization_dir(
+    name = "worker2_duchy_aws",
+    srcs = [
+        "resource_requirements.yaml",
+        ":worker2_duchy_aws_eks",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+    deps = [
+        ":config_files",
+        ":worker2_duchy_secret",
+    ],
+)
+
+kustomization_dir(
+    name = "worker3_duchy",
+    srcs = [
+        "resource_requirements.yaml",
+        ":worker3_duchy_aws_eks",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+    deps = [
+        ":config_files",
+        ":worker3_duchy_secret",
     ],
 )
 

@@ -18,7 +18,7 @@ package k8s
 	#Duchy
 
 	_duchy:          _duchy
-	_postgresConfig: #PostgresConfig
+	_postgresConfig: #PostgresConfig | #AwsPostgresConfig
 
 	_imageSuffixes: {
 		"\(_duchy_data_server_name)":    string | *"duchy/postgres-duchy-data"
