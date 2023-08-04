@@ -1,5 +1,5 @@
-import { ReportingClient } from "./reportingClient/reporting_client"
-import { ReportingClientImpl } from "./reportingClient/reporting_client_impl";
+import { ReportingClient } from "./reporting_client/reporting_client"
+import { ReportingClientImpl } from "./reporting_client/reporting_client_impl";
 
 type ConfigProps = {
   reportingApi: ReportingClient,
