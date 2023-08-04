@@ -22,7 +22,7 @@ option java_package = "org.wfanet.measurement.internal.duchy.protocol";
 option java_multiple_files = true;
 
 // Configuration for various noises added by the MPC workers in the
-// LiquidLegionV2 protocol.
+// LiquidLegionV2 protocols. Also used by reach-only protocol.
 message LiquidLegionsV2NoiseConfig {
   message ReachNoiseConfig {
     // DP params for the blind histogram noise register.
@@ -44,6 +44,7 @@ message LiquidLegionsV2NoiseConfig {
 
   // Differential privacy parameters for noise tuples.
   // Same value is used for both (0, R, R) and (R, R, R) tuples.
+  // Ignored by reach-only protocol.
   DifferentialPrivacyParams frequency_noise_config = 2;
 
   // The mechanism used to generate noise in computations.

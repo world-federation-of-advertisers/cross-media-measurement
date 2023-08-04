@@ -53,6 +53,7 @@ message ComputationParticipant {
   }
   State state = 6;
 
+  // Details of Liquid Legions V2 protocols.
   message LiquidLegionsV2Details {
     // Serialized `ElGamalPublicKey` message from public API.
     bytes el_gamal_public_key = 1;
@@ -62,6 +63,8 @@ message ComputationParticipant {
   message Details {
     oneof protocol {
       LiquidLegionsV2Details liquid_legions_v2 = 1;
+
+      LiquidLegionsV2Details reach_only_liquid_legions_v2 = 2;
     }
   }
   Details details = 7;

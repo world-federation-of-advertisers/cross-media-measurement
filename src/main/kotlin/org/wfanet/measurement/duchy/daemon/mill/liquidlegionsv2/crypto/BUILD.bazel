@@ -4,11 +4,30 @@ package(default_visibility = ["//visibility:public"])
 
 kt_jvm_library(
     name = "liquidlegionsv2encryption",
-    srcs = glob(["*.kt"]),
+    srcs = [
+        "LiquidLegionsV2Encryption.kt",
+        "JniLiquidLegionsV2Encryption.kt",
+    ],
     deps = [
         "//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_encryption_methods_kt_jvm_proto",
         "//src/main/swig/protocol/liquidlegionsv2:liquid_legions_v2_encryption_utility",
+        "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "reachonlyliquidlegionsv2encryption",
+    srcs = [
+        "ReachOnlyLiquidLegionsV2Encryption.kt",
+        "JniReachOnlyLiquidLegionsV2Encryption.kt",
+    ],
+    deps = [
+        "//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:reach_only_liquid_legions_v2_encryption_methods_kt_jvm_proto",
+        "//src/main/swig/protocol/reachonlyliquidlegionsv2:reach_only_liquid_legions_v2_encryption_utility",
         "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",

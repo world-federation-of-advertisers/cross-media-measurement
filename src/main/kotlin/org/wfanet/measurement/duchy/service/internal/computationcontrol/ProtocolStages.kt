@@ -20,7 +20,8 @@ import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationToken
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
 
 class IllegalStageException(val computationStage: ComputationStage, buildMessage: () -> String) :
   IllegalArgumentException(buildMessage())
@@ -45,6 +46,8 @@ sealed class ProtocolStages(val stageType: ComputationStage.StageCase) {
     fun forStageType(stageType: ComputationStage.StageCase): ProtocolStages? {
       return when (stageType) {
         ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 -> LiquidLegionsV2Stages()
+        ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+          ReachOnlyLiquidLegionsV2Stages()
         ComputationStage.StageCase.STAGE_NOT_SET -> null
       }
     }
@@ -59,7 +62,7 @@ class LiquidLegionsV2Stages() :
     dataOrigin: String
   ): ComputationStageBlobMetadata =
     when (val protocolStage = token.computationStage.liquidLegionsSketchAggregationV2) {
-      Stage.WAIT_SETUP_PHASE_INPUTS -> {
+      LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS -> {
         // Get the blob id by looking up the sender in the stage specific details.
         val stageDetails = token.stageSpecificDetails.liquidLegionsV2.waitSetupPhaseInputsDetails
         val blobId = checkNotNull(stageDetails.externalDuchyLocalBlobIdMap[dataOrigin])
@@ -67,20 +70,21 @@ class LiquidLegionsV2Stages() :
           it.dependencyType == ComputationBlobDependency.OUTPUT && it.blobId == blobId
         }
       }
-      Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS,
-      Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS,
-      Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS -> token.singleOutputBlobMetadata()
-      Stage.INITIALIZATION_PHASE,
-      Stage.WAIT_REQUISITIONS_AND_KEY_SET,
-      Stage.CONFIRMATION_PHASE,
-      Stage.WAIT_TO_START,
-      Stage.SETUP_PHASE,
-      Stage.EXECUTION_PHASE_ONE,
-      Stage.EXECUTION_PHASE_TWO,
-      Stage.EXECUTION_PHASE_THREE,
-      Stage.COMPLETE,
-      Stage.STAGE_UNSPECIFIED,
-      Stage.UNRECOGNIZED ->
+      LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS,
+      LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS,
+      LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS ->
+        token.singleOutputBlobMetadata()
+      LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE,
+      LiquidLegionsSketchAggregationV2.Stage.WAIT_REQUISITIONS_AND_KEY_SET,
+      LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE,
+      LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START,
+      LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE,
+      LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE,
+      LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_TWO,
+      LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_THREE,
+      LiquidLegionsSketchAggregationV2.Stage.COMPLETE,
+      LiquidLegionsSketchAggregationV2.Stage.STAGE_UNSPECIFIED,
+      LiquidLegionsSketchAggregationV2.Stage.UNRECOGNIZED ->
         throw IllegalStageException(token.computationStage) {
           "Unexpected $stageType stage: $protocolStage"
         }
@@ -91,21 +95,83 @@ class LiquidLegionsV2Stages() :
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enums fields cannot be null.
     return when (val protocolStage = stage.liquidLegionsSketchAggregationV2) {
-      Stage.WAIT_SETUP_PHASE_INPUTS -> Stage.SETUP_PHASE
-      Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS -> Stage.EXECUTION_PHASE_ONE
-      Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS -> Stage.EXECUTION_PHASE_TWO
-      Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS -> Stage.EXECUTION_PHASE_THREE
-      Stage.INITIALIZATION_PHASE,
-      Stage.WAIT_REQUISITIONS_AND_KEY_SET,
-      Stage.CONFIRMATION_PHASE,
-      Stage.WAIT_TO_START,
-      Stage.SETUP_PHASE,
-      Stage.EXECUTION_PHASE_ONE,
-      Stage.EXECUTION_PHASE_TWO,
-      Stage.EXECUTION_PHASE_THREE,
-      Stage.COMPLETE,
-      Stage.STAGE_UNSPECIFIED,
-      Stage.UNRECOGNIZED ->
+      LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS ->
+        LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE
+      LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS ->
+        LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE
+      LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS ->
+        LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_TWO
+      LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS ->
+        LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_THREE
+      LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE,
+      LiquidLegionsSketchAggregationV2.Stage.WAIT_REQUISITIONS_AND_KEY_SET,
+      LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE,
+      LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START,
+      LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE,
+      LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE,
+      LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_TWO,
+      LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_THREE,
+      LiquidLegionsSketchAggregationV2.Stage.COMPLETE,
+      LiquidLegionsSketchAggregationV2.Stage.STAGE_UNSPECIFIED,
+      LiquidLegionsSketchAggregationV2.Stage.UNRECOGNIZED ->
+        throw IllegalStageException(stage) { "Next $stageType stage unknown for $protocolStage" }
+    }.toProtocolStage()
+  }
+}
+
+/** [ProtocolStages] for the Reach-Only Liquid Legions v2 protocol. */
+class ReachOnlyLiquidLegionsV2Stages() :
+  ProtocolStages(ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2) {
+  override fun outputBlob(
+    token: ComputationToken,
+    dataOrigin: String
+  ): ComputationStageBlobMetadata =
+    when (val protocolStage = token.computationStage.reachOnlyLiquidLegionsSketchAggregationV2) {
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS -> {
+        // Get the blob id by looking up the sender in the stage specific details.
+        val stageDetails =
+          token.stageSpecificDetails.reachOnlyLiquidLegionsV2.waitSetupPhaseInputsDetails
+        val blobId = checkNotNull(stageDetails.externalDuchyLocalBlobIdMap[dataOrigin])
+        token.blobsList.single {
+          it.dependencyType == ComputationBlobDependency.OUTPUT && it.blobId == blobId
+        }
+      }
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_INPUTS ->
+        token.singleOutputBlobMetadata()
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE,
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_REQUISITIONS_AND_KEY_SET,
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE,
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START,
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE,
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE,
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.COMPLETE,
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.STAGE_UNSPECIFIED,
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.UNRECOGNIZED ->
+        throw IllegalStageException(token.computationStage) {
+          "Unexpected $stageType stage: $protocolStage"
+        }
+    }
+
+  override fun nextStage(stage: ComputationStage): ComputationStage {
+    require(
+      stage.stageCase == ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+    )
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enums fields cannot be null.
+    return when (val protocolStage = stage.reachOnlyLiquidLegionsSketchAggregationV2) {
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS ->
+        ReachOnlyLiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_INPUTS ->
+        ReachOnlyLiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE,
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_REQUISITIONS_AND_KEY_SET,
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE,
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START,
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE,
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE,
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.COMPLETE,
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.STAGE_UNSPECIFIED,
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.UNRECOGNIZED ->
         throw IllegalStageException(stage) { "Next $stageType stage unknown for $protocolStage" }
     }.toProtocolStage()
   }

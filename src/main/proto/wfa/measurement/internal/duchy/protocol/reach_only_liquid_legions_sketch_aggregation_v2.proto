@@ -99,9 +99,10 @@ message ReachOnlyLiquidLegionsSketchAggregationV2 {
 
     // Parameters used in this computation.
     message Parameters {
-      // Parameters used for liquidLegions sketch creation and estimation.
-      LiquidLegionsSketchParameters liquid_legions_sketch = 1;
-      // Noise parameters selected for the LiquidLegionV2 MPC protocol.
+      // Parameters used for reachOnlyLiquidLegions sketch creation and
+      // estimation.
+      LiquidLegionsSketchParameters reach_only_liquid_legions_sketch = 1;
+      // Noise parameters selected for the ReachOnlyLiquidLegionV2 MPC protocol.
       LiquidLegionsV2NoiseConfig noise = 2;
       // ID of the OpenSSL built-in elliptic curve. For example, 415 for the
       // prime256v1 curve. Required. Immutable.
