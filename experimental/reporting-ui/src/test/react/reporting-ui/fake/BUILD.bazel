@@ -1,15 +1,15 @@
-load("@aspect_rules_webpack//webpack:defs.bzl", "webpack_bundle", "webpack_devserver")
+load("@aspect_rules_webpack//webpack:defs.bzl", "webpack_devserver")
 
 webpack_devserver(
-    name = "webpack_devserver",
+    name = "webpack_testserver",
     data = [
-        ":src/index.tsx",
         ":src/fake_api.ts",
+        ":src/index.tsx",
         "//:tsconfig",
-        "//experimental/reporting-ui/src/main/react/reporting-ui/public",
-        "//experimental/reporting-ui/src/main/react/reporting-ui/src:src_files",
         "//experimental/reporting-ui/src/main/react/reporting-ui:build_node_deps",
         "//experimental/reporting-ui/src/main/react/reporting-ui/library:src_files",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/public",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/src:src_files",
     ],
     node_modules = "//:node_modules",
     webpack_config = ":webpack.config.js",
