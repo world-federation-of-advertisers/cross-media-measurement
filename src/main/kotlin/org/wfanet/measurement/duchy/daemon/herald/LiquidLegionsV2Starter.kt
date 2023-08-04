@@ -197,7 +197,7 @@ object LiquidLegionsV2Starter {
 
       // For weird stages, we throw.
       Stage.UNRECOGNIZED,
-      Stage.STAGE_UNKNOWN -> {
+      Stage.STAGE_UNSPECIFIED -> {
         error("[id=${token.globalComputationId}]: Unrecognized stage '$stage'")
       }
     }
@@ -254,7 +254,7 @@ object LiquidLegionsV2Starter {
 
       // For weird stages, we throw.
       Stage.UNRECOGNIZED,
-      Stage.STAGE_UNKNOWN -> {
+      Stage.STAGE_UNSPECIFIED -> {
         error("[id=${token.globalComputationId}]: Unrecognized stage '$stage'")
       }
     }

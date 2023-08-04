@@ -83,7 +83,7 @@ class LiquidLegionsV2Stages() :
       LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_TWO,
       LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_THREE,
       LiquidLegionsSketchAggregationV2.Stage.COMPLETE,
-      LiquidLegionsSketchAggregationV2.Stage.STAGE_UNKNOWN,
+      LiquidLegionsSketchAggregationV2.Stage.STAGE_UNSPECIFIED,
       LiquidLegionsSketchAggregationV2.Stage.UNRECOGNIZED ->
         throw IllegalStageException(token.computationStage) {
           "Unexpected $stageType stage: $protocolStage"
@@ -112,7 +112,7 @@ class LiquidLegionsV2Stages() :
       LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_TWO,
       LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_THREE,
       LiquidLegionsSketchAggregationV2.Stage.COMPLETE,
-      LiquidLegionsSketchAggregationV2.Stage.STAGE_UNKNOWN,
+      LiquidLegionsSketchAggregationV2.Stage.STAGE_UNSPECIFIED,
       LiquidLegionsSketchAggregationV2.Stage.UNRECOGNIZED ->
         throw IllegalStageException(stage) { "Next $stageType stage unknown for $protocolStage" }
     }.toProtocolStage()

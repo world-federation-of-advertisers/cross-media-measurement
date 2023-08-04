@@ -28,7 +28,7 @@ option java_multiple_files = true;
 message LiquidLegionsSketchAggregationV2 {
   enum Stage {
     // The computation stage is unknown. This is never set intentionally.
-    STAGE_UNKNOWN = 0;
+    STAGE_UNSPECIFIED = 0;
 
     // The worker is in the initialization phase.
     // More specifically, each worker will create a new ElGamal key pair solely
