@@ -18,11 +18,12 @@ import './index.css';
 import App from './app';
 import reportWebVitals from './report_web_vitals';
 import AppConfig from '../library/initialize';
-import { RealApi } from '../library/reporting_client/real_api';
+import {RealApi} from '../library/reporting_client/real_api';
 
 const configProps = {
-  reportingApi: new RealApi({endpoint: new URL('http://localhost:3000')})
-}
+  // eslint-disable-next-line node/no-unsupported-features/node-builtins
+  reportingApi: new RealApi({endpoint: new URL('http://localhost:3000')}),
+};
 
 AppConfig.initialize(configProps);
 
