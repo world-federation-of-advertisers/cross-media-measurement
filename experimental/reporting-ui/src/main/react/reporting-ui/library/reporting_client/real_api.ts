@@ -33,7 +33,7 @@ export class RealApi implements ReportingClient {
     const reports = await res.json();
     const response = Object.freeze({
       reports,
-    })
+    });
     return response;
   }
 
@@ -42,7 +42,7 @@ export class RealApi implements ReportingClient {
     const report = await res.json();
     const response = Object.freeze({
       report,
-    })
+    });
     return response;
   }
 }
