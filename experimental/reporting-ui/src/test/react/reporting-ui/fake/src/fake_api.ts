@@ -19,8 +19,8 @@ import {
   ListReportsResponse,
   Report,
   UniqueReach,
-} from '../../../../../main/react/reporting-ui/library/reportingClient/models';
-import { ReportingClient } from '../../../../../main/react/reporting-ui/library/reportingClient/reporting_client';
+} from '../../../../../main/react/reporting-ui/library/reporting_client/models';
+import { ReportingClient } from '../../../../../main/react/reporting-ui/library/reporting_client/reporting_client';
 
 function regenerateTimeData() {
   const chartData: UniqueReach[] = [];
@@ -294,10 +294,6 @@ export class FakeApi implements ReportingClient {
         status: 'status',
       },
     ];
-  }
-
-  init(props: InitApiProps): void {
-    console.log(props);
   }
 
   listReports(): Promise<ListReportsResponse> {
