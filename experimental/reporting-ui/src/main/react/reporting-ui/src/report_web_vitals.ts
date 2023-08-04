@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/* eslint-disable  @typescript-eslint/no-explicit-any */
 const reportWebVitals = (onPerfEntry: any) => {
   if (onPerfEntry && onPerfEntry instanceof Function) {
     import('web-vitals').then(({getCLS, getFID, getFCP, getLCP, getTTFB}) => {
