@@ -8,15 +8,12 @@ package(
     ],
 )
 
-SRC_PATTERNS = [
-    "*.ts",
-]
-
 js_library(
     name = "src_files",
-    srcs = glob(
-        include = SRC_PATTERNS,
-    ),
+    srcs = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui/library/assets/fonts:asset_files",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/library/assets/icons:src_files",
+    ],
 )
 
 ts_project(
@@ -26,7 +23,6 @@ ts_project(
     resolve_json_module = True,
     tsconfig = "//:tsconfig",
     deps = [
-        "//experimental/reporting-ui/src/main/react/reporting-ui/library/assets:src_ts",
-        "//experimental/reporting-ui/src/main/react/reporting-ui/library/reporting_client:src_ts",
+        "//:node_modules/react",
     ],
 )
