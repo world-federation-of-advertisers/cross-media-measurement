@@ -14,13 +14,33 @@
 
 package org.wfanet.measurement.duchy.deploy.common.postgres.readers
 
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
+import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 
 /** Performs read operations on ComputationStageAttempts tables */
 class ComputationStageAttemptReader {
+
+  data class UnfinishedAttempt(
+    val computationId: Long,
+    val protocol: Long,
+    val computationStage: Long,
+    val attempt: Long,
+    val details: ComputationStageAttemptDetails
+  ) {
+    constructor(
+      row: ResultRow
+    ) : this(
+      computationId = row["ComputationId"],
+      protocol = row["Protocol"],
+      computationStage = row["ComputationStage"],
+      attempt = row["Attempt"],
+      details = row.getProtoMessage("Details", ComputationStageAttemptDetails.parser())
+    )
+  }
 
   /**
    * Reads a [ComputationStageAttemptDetails] by localComputationId and stage.
@@ -58,5 +78,23 @@ class ComputationStageAttemptReader {
       .executeQuery(readComputationStageDetailsSql)
       .consume { it.getProtoMessage("Details", ComputationStageAttemptDetails.parser()) }
       .firstOrNull()
+  }
+
+  suspend fun readUnfinishedAttempts(
+    readContext: ReadContext,
+    localComputationId: Long
+  ): Flow<UnfinishedAttempt> {
+    val sql =
+      boundStatement(
+        """
+      SELECT ComputationId, ComputationStage, Attempt, Details
+      FROM ComputationStageAttempts
+      WHERE ComputationId = $1
+        AND EndTime IS NULL
+      """
+      ) {
+        bind("$1", localComputationId)
+      }
+    return readContext.executeQuery(sql).consume(::UnfinishedAttempt)
   }
 }

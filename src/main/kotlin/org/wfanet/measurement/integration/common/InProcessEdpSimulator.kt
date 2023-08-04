@@ -19,10 +19,10 @@ import io.grpc.Channel
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
-import java.util.Random
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.coroutines.CoroutineContext
+import kotlin.random.Random
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -30,12 +30,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
+import org.jetbrains.annotations.Blocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
@@ -45,21 +48,17 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
 import org.wfanet.measurement.loadtest.dataprovider.EdpData
 import org.wfanet.measurement.loadtest.dataprovider.EdpSimulator
-import org.wfanet.measurement.loadtest.dataprovider.RandomEventQuery
-import org.wfanet.measurement.loadtest.dataprovider.SketchGenerationParams
-import org.wfanet.measurement.loadtest.storage.SketchStore
-import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 
 /** An in process EDP simulator. */
 class InProcessEdpSimulator(
   val displayName: String,
   resourceName: String,
   mcResourceName: String,
-  storageClient: StorageClient,
   kingdomPublicApiChannel: Channel,
   duchyPublicApiChannel: Channel,
-  eventTemplateNames: List<String>,
   trustedCertificates: Map<ByteString, X509Certificate>,
+  private val syntheticDataSpec: SyntheticEventGroupSpec,
   coroutineContext: CoroutineContext = Dispatchers.Default,
 ) {
   private val loggingName = "${javaClass.simpleName} $displayName"
@@ -89,10 +88,11 @@ class InProcessEdpSimulator(
         RequisitionsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
       requisitionFulfillmentStub =
         RequisitionFulfillmentCoroutineStub(duchyPublicApiChannel).withPrincipalName(resourceName),
-      sketchStore = SketchStore(storageClient),
-      eventQuery = RandomEventQuery(SketchGenerationParams(reach = 1000, universeSize = 10_000)),
+      eventQuery =
+        object : SyntheticGeneratorEventQuery(SyntheticGenerationSpecs.POPULATION_SPEC) {
+          override fun getSyntheticDataSpec(eventGroup: EventGroup) = syntheticDataSpec
+        },
       throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-      eventTemplateNames = eventTemplateNames,
       privacyBudgetManager =
         PrivacyBudgetManager(
           PrivacyBucketFilter(TestPrivacyBucketMapper()),
@@ -101,8 +101,8 @@ class InProcessEdpSimulator(
           100.0f
         ),
       trustedCertificates = trustedCertificates,
-      random,
-      DIRECT_NOISE_MECHANISM
+      DIRECT_NOISE_MECHANISM,
+      random = random
     )
 
   private lateinit var edpJob: Job
@@ -115,9 +115,10 @@ class InProcessEdpSimulator(
     edpJob.cancelAndJoin()
   }
 
-  suspend fun createEventGroup() = delegate.createEventGroup()
+  suspend fun ensureEventGroup() = delegate.ensureEventGroup(syntheticDataSpec)
 
   /** Builds a [EdpData] object for the Edp with a certain [displayName] and [resourceName]. */
+  @Blocking
   private fun createEdpData(displayName: String, resourceName: String) =
     EdpData(
       name = resourceName,

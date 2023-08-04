@@ -64,73 +64,28 @@ from the Kustomization directory:
 kubectl apply -k src/main/k8s/dev/kingdom
 ```
 
-## Deploy EDP simulators
+## Configure event data source
 
-The correctness test assumes that you have six Event Data Provider (EDP)
-simulators running, each acting as a different fake `DataProvider`. All of these
-must write their sketches to a single Google Cloud Storage bucket.
+There are two data sources that can be used for
+[test events](../../src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/test_event.proto):
 
-### Initial Setup
+1.  Synthetic generator
 
-1.  Create a Cloud Storage bucket
+    Events are generated according to
+    [simulator synthetic data specifications](../../src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto),
+    consisting of a single `SyntheticPopulationSpec` and a
+    `SyntheticEventGroupSpec` for each `EventGroup`. There are default
+    specifications included, but you can replace these with your own after
+    before you apply the K8s Kustomization.
 
-    This can be done from the
-    [Console](https://console.cloud.google.com/storage/browser). Note that
-    bucket names are public, globally unique, and cannot be changed once
-    created. See
-    [Bucket naming guidelines](https://cloud.google.com/storage/docs/naming-buckets).
+2.  BigQuery table
 
-    As the data in this bucket need not be exposed to the public internet,
-    select "Enforce public access prevention on this bucket".
+    Events are read from a Google Cloud BigQuery table. See the section below on
+    how to populate the table.
 
-1.  Create a K8s cluster
+### Populate BigQuery table
 
-    The simulators can run in their own cluster. You can use the Google Cloud
-    SDK to create a new one, substituting your own
-    [Use least privilege service account](https://cloud.google.com/kubernetes-engine/docs/how-to/hardening-your-cluster#use_least_privilege_sa)
-    address:
-
-    ```shell
-    gcloud container clusters create simulators \
-    --service-account="gke-cluster@halo-cmm-demo.iam.gserviceaccount.com" \
-    --num-nodes=4 --enable-autoscaling --min-nodes=4 --max-nodes=8 \
-    --machine-type=e2-small
-    ```
-
-    Point your KUBECONFIG to this cluster:
-
-    ```shell
-    gcloud container clusters get-credentials simulators
-    ```
-
-1.  Create a `simulator` K8s service account
-
-    The underlying IAM service account must be able to access the Cloud Storage
-    bucket, create BigQuery jobs, and access the `labelled_events` BigQuery
-    table. See the [configuration guide](cluster-config.md#workload-identity)
-    for details.
-
-### Build and push simulator image
-
-If you aren't using pre-built release images, you can build the image yourself
-from source and push them to a container registry. For example, if you're using
-the [Google Container Registry](https://cloud.google.com/container-registry),
-you would specify `gcr.io` as your container registry and your Cloud project
-name as your image repository prefix.
-
-Assuming a project named `halo-cmm-demo` and an image tag `build-0001`, run the
-following to build and push the image:
-
-```shell
-bazel run -c opt //src/main/docker:push_gcs_edp_simulator_runner_image \
-  --define container_registry=gcr.io \
-  --define image_repo_prefix=halo-cmm-demo --define image_tag=build-0001
-```
-
-### Prepare EDP test data
-
-The EDP simulators read their labelled events from a dataset in Google Cloud
-BigQuery. We can upload pre-generated synthetic test data from the
+We can upload pre-generated synthetic test data from the
 [synthetic-labelled-events.csv](../../src/main/k8s/testing/data/synthetic-labelled-events.csv)
 file.
 
@@ -164,52 +119,156 @@ You will need to ensure that the simulator service account has access to this
 table. See
 [Granting BigQuery table access](cluster-config.md#granting-bigquery-table-access).
 
-Now this synthetic test data is ready to use in the correctness test.
+## Deploy EDP simulators
+
+The correctness test assumes that you have six Event Data Provider (EDP)
+simulators running, each acting as a different fake `DataProvider`.
+
+### Initial setup
+
+1.  Create a K8s cluster
+
+    The simulators can run in their own cluster. You can use the Google Cloud
+    SDK to create a new one, substituting your own
+    [Use least privilege service account](https://cloud.google.com/kubernetes-engine/docs/how-to/hardening-your-cluster#use_least_privilege_sa)
+    address:
+
+    ```shell
+    gcloud container clusters create simulators \
+    --service-account="gke-cluster@halo-cmm-demo.iam.gserviceaccount.com" \
+    --num-nodes=4 --enable-autoscaling --min-nodes=4 --max-nodes=8 \
+    --machine-type=e2-small
+    ```
+
+    Point your KUBECONFIG to this cluster:
+
+    ```shell
+    gcloud container clusters get-credentials simulators
+    ```
+
+1.  Create a `simulator` K8s service account
+
+    The underlying IAM service account must be able to create BigQuery jobs and
+    access the `labelled_events` BigQuery table. See the
+    [configuration guide](cluster-config.md#workload-identity) for details.
+
+### Build and push simulator image
+
+If you aren't using pre-built release images, you can build the image yourself
+from source and push them to a container registry. For example, if you're using
+the [Google Container Registry](https://cloud.google.com/container-registry),
+you would specify `gcr.io` as your container registry and your Cloud project
+name as your image repository prefix.
+
+The build target to use depends on the event data source. Assuming a project
+named `halo-cmm-demo` and an image tag `build-0001`, run the following to build
+and push the image:
+
+*   Synthetic generator
+
+    ```shell
+    bazel run -c opt //src/main/docker:push_synthetic_generator_edp_simulator_runner_image \
+      --define container_registry=gcr.io \
+      --define image_repo_prefix=halo-cmm-demo --define image_tag=build-0001
+    ```
+
+*   BigQuery
+
+    ```shell
+    bazel run -c opt //src/main/docker:push_bigquery_edp_simulator_runner_image \
+      --define container_registry=gcr.io \
+      --define image_repo_prefix=halo-cmm-demo --define image_tag=build-0001
+    ```
 
 ### Generate K8s Kustomization
 
 Run the following, substituting your own values:
 
-```shell
-bazel build //src/main/k8s/dev:edp_simulators.tar \
-  --define=google_cloud_project=halo-cmm-demo \
-  --define=simulator_storage_bucket=halo-cmm-demo-bucket \
-  --define=kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
-  --define=duchy_public_api_target=public.worker1.dev.halo-cmm.org:8443 \
-  --define=mc_name=measurementConsumers/TGWOaWehLQ8 \
-  --define=edp1_name=dataProviders/HRL1wWehTSM \
-  --define=edp2_name=dataProviders/djQdz2ehSSE \
-  --define=edp3_name=dataProviders/SQ99TmehSA8 \
-  --define=edp4_name=dataProviders/TBZkB5heuL0 \
-  --define=edp5_name=dataProviders/HOCBxZheuS8 \
-  --define=edp6_name=dataProviders/VGExFmehRhY \
-  --define container_registry=gcr.io \
-  --define image_repo_prefix=halo-cmm-demo --define image_tag=build-0001
-```
+*   Synthetic generator
+
+    ```shell
+    bazel build //src/main/k8s/dev:synthetic_generator_edp_simulators.tar \
+    --define=kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
+    --define=duchy_public_api_target=public.worker1.dev.halo-cmm.org:8443 \
+    --define=mc_name=measurementConsumers/TGWOaWehLQ8 \
+    --define=edp1_name=dataProviders/HRL1wWehTSM \
+    --define=edp2_name=dataProviders/djQdz2ehSSE \
+    --define=edp3_name=dataProviders/SQ99TmehSA8 \
+    --define=edp4_name=dataProviders/TBZkB5heuL0 \
+    --define=edp5_name=dataProviders/HOCBxZheuS8 \
+    --define=edp6_name=dataProviders/VGExFmehRhY \
+    --define container_registry=gcr.io \
+    --define image_repo_prefix=halo-cmm-demo --define image_tag=build-0001
+    ```
+
+    The resulting archive will contain `SyntheticEventGroupSpec` messages in
+    text format under `src/main/k8s/dev/synthetic_generator_config_files/`.
+    These can be replaced in order to customize the synthetic generator.
+
+*   BigQuery
+
+    ```shell
+    bazel build //src/main/k8s/dev:bigquery_edp_simulators.tar \
+      --define=kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
+      --define=duchy_public_api_target=public.worker1.dev.halo-cmm.org:8443 \
+      --define=mc_name=measurementConsumers/TGWOaWehLQ8 \
+      --define=edp1_name=dataProviders/HRL1wWehTSM \
+      --define=edp2_name=dataProviders/djQdz2ehSSE \
+      --define=edp3_name=dataProviders/SQ99TmehSA8 \
+      --define=edp4_name=dataProviders/TBZkB5heuL0 \
+      --define=edp5_name=dataProviders/HOCBxZheuS8 \
+      --define=edp6_name=dataProviders/VGExFmehRhY \
+      --define container_registry=gcr.io \
+      --define=google_cloud_project=halo-cmm-demo \
+      --define=bigquery_dataset=demo \
+      --define=bigquery_table=labelled_events \
+      --define image_repo_prefix=halo-cmm-demo --define image_tag=build-0001
+    ```
 
 Extract the generated archive to some directory.
 
 ### Apply K8s Kustomization
 
-From the Kustomization directory, run:
+From the Kustomization directory, run
 
-```shell
-kubectl apply -k src/main/k8s/dev/edp_simulators
-```
+*   Synthetic generator
+
+    ```shell
+    kubectl apply -k src/main/k8s/dev/synthetic_generator_edp_simulators
+    ```
+
+*   BigQuery
+
+    ```shell
+    kubectl apply -k src/main/k8s/dev/bigquery_edp_simulators
+    ```
 
 ## Run the correctness test
 
 Run the following, substituting your own values:
 
-```shell
-bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:GcsCorrectnessTest
-  --test_output=streamed \
-  --define=kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
-  --define=google_cloud_project=halo-cmm-demo \
-  --define=simulator_storage_bucket=cmm-demo-simulators \
-  --define=mc_name=measurementConsumers/Rcn7fKd25C8 \
-  --define=mc_api_key=W9q4zad246g
-```
+*   Synthetic generator
+
+    ```shell
+    bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGeneratorCorrectnessTest
+    --test_output=streamed \
+    --define=kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
+    --define=mc_name=measurementConsumers/Rcn7fKd25C8 \
+    --define=mc_api_key=W9q4zad246g
+    ```
+
+*   BigQuery
+
+    ```shell
+    bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:BigQueryCorrectnessTest
+      --test_output=streamed \
+      --define=kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
+      --define=mc_name=measurementConsumers/Rcn7fKd25C8 \
+      --define=mc_api_key=W9q4zad246g \
+      --define=google_cloud_project=halo-cmm-demo \
+      --define=bigquery_dataset=demo \
+      --define=bigquery_table=labelled_events
+    ```
 
 The test generally takes around 6 minutes to complete, since that is how long
 the MPC protocol takes to finish. Eventually, you should see logs like this

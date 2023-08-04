@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
-import com.google.common.truth.Correspondence
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.FieldScopes
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
@@ -23,6 +22,7 @@ import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.type.interval
 import io.grpc.Status
+import java.lang.UnsupportedOperationException
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
@@ -31,11 +31,11 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.random.Random
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
-import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
@@ -43,31 +43,24 @@ import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
-import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
-import org.wfanet.anysketch.AnySketch
-import org.wfanet.anysketch.AnySketch.Register
 import org.wfanet.anysketch.Sketch
-import org.wfanet.anysketch.SketchConfig.ValueSpec.Aggregator
-import org.wfanet.anysketch.SketchConfigKt.indexSpec
-import org.wfanet.anysketch.SketchConfigKt.valueSpec
-import org.wfanet.anysketch.SketchProtos
-import org.wfanet.anysketch.distribution
-import org.wfanet.anysketch.exponentialDistribution
-import org.wfanet.anysketch.oracleDistribution
-import org.wfanet.anysketch.sketchConfig
-import org.wfanet.anysketch.uniformDistribution
-import org.wfanet.estimation.VidSampler
+import org.wfanet.anysketch.crypto.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.CreateEventGroupMetadataDescriptorRequest
+import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
-import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt
+import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
@@ -75,6 +68,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -90,20 +84,27 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.UpdateEventGroupMetadataDescriptorRequest
+import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.elGamalPublicKey
-import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.eventGroup
-import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpecKt
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessage
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.copy
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Banner
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Video
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
+import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
@@ -111,8 +112,10 @@ import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
+import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
 import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
@@ -130,9 +133,12 @@ import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
+import org.wfanet.measurement.consent.client.duchy.computeRequisitionFingerprint
 import org.wfanet.measurement.consent.client.duchy.signElgamalPublicKey
+import org.wfanet.measurement.consent.client.measurementconsumer.decryptMetadata
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
@@ -149,16 +155,12 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestInMemoryBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
-import org.wfanet.measurement.loadtest.config.EventFilters.VID_SAMPLER_HASH_FUNCTION
+import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
+import org.wfanet.measurement.loadtest.config.EventGroupMetadata
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
-import org.wfanet.measurement.loadtest.storage.SketchStore
-import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
-private const val TEMPLATE_PREFIX = "wfa.measurement.api.v2alpha.event_templates.testing"
 private const val MC_ID = "mc"
 private const val MC_NAME = "measurementConsumers/$MC_ID"
-private val EVENT_TEMPLATES =
-  listOf("$TEMPLATE_PREFIX.Video", "$TEMPLATE_PREFIX.BannerAd", "$TEMPLATE_PREFIX.Person")
 private const val EDP_DISPLAY_NAME = "edp1"
 private val SECRET_FILES_PATH: Path =
   checkNotNull(
@@ -171,31 +173,6 @@ private const val EDP_NAME = "dataProviders/someDataProvider"
 private const val LLV2_DECAY_RATE = 12.0
 private const val LLV2_MAX_SIZE = 100_000L
 
-private val SKETCH_CONFIG = sketchConfig {
-  indexes += indexSpec {
-    name = "Index"
-    distribution = distribution {
-      exponential = exponentialDistribution {
-        rate = LLV2_DECAY_RATE
-        numValues = LLV2_MAX_SIZE
-      }
-    }
-  }
-  values += valueSpec {
-    name = "SamplingIndicator"
-    aggregator = Aggregator.UNIQUE
-    distribution = distribution {
-      uniform = uniformDistribution {
-        numValues = 10_000_000 // 10M
-      }
-    }
-  }
-  values += valueSpec {
-    name = "Frequency"
-    aggregator = Aggregator.SUM
-    distribution = distribution { oracle = oracleDistribution { key = "frequency" } }
-  }
-}
 private val MEASUREMENT_CONSUMER_CERTIFICATE_DER =
   SECRET_FILES_PATH.resolve("mc_cs_cert.der").toFile().readByteString()
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
@@ -206,12 +183,6 @@ private val MEASUREMENT_CONSUMER_CERTIFICATE = certificate {
   name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
   x509Der = MEASUREMENT_CONSUMER_CERTIFICATE_DER
 }
-private val MEASUREMENT_PUBLIC_KEY =
-  encryptionPublicKey {
-      format = EncryptionPublicKey.Format.TINK_KEYSET
-      data = SECRET_FILES_PATH.resolve("${MC_ID}_enc_public.tink").toFile().readByteString()
-    }
-    .toByteString()
 
 private val CONSENT_SIGNALING_ELGAMAL_PUBLIC_KEY = elGamalPublicKey {
   ellipticCurveId = 415
@@ -223,23 +194,8 @@ private val LAST_EVENT_DATE = LocalDate.now()
 private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
 private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
 
-private val REQUISITION_ONE_SPEC = requisitionSpec {
-  eventGroups += eventGroupEntry {
-    key = "eventGroup/name"
-    value =
-      RequisitionSpecKt.EventGroupEntryKt.value {
-        collectionInterval = interval {
-          startTime = TIME_RANGE.start.toProtoTime()
-          endTime = TIME_RANGE.endExclusive.toProtoTime()
-        }
-        filter = eventFilter { expression = "person.age_group == 1 && person.gender == 2" }
-      }
-  }
-  measurementPublicKey = MEASUREMENT_PUBLIC_KEY
-  nonce = Random.Default.nextLong()
-}
 private const val DUCHY_ID = "worker1"
-private const val RANDOM_SEED: Long = 1
+private const val RANDOM_SEED: Long = 0
 private val DIRECT_NOISE_MECHANISM = DirectNoiseMechanism.LAPLACE
 
 @RunWith(JUnit4::class)
@@ -269,31 +225,26 @@ class EdpSimulatorTest {
         val request = invocation.getArgument<GetEventGroupRequest>(0)
         eventGroup {
           name = request.name
-          eventGroupReferenceId = TestIdentifiers.EVENT_GROUP_REFERENCE_ID_PREFIX
+          eventGroupReferenceId = TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
         }
       }
   }
   private val eventGroupMetadataDescriptorsServiceMock:
-    EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase =
+    EventGroupMetadataDescriptorsCoroutineImplBase =
     mockService {
       onBlocking { createEventGroupMetadataDescriptor(any()) }
-        .thenReturn(
-          eventGroupMetadataDescriptor {
-            name = "dataProviders/foo/eventGroupMetadataDescriptors/bar"
-          }
-        )
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<CreateEventGroupMetadataDescriptorRequest>(0)
+          request.eventGroupMetadataDescriptor.copy { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME }
+        }
     }
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { listRequisitions(any()) }
-      .thenReturn(listRequisitionsResponse { requisitions += REQUISITION_ONE })
+      .thenReturn(listRequisitionsResponse { requisitions += REQUISITION })
     onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
   }
-  private val requisitionFulfillmentServiceMock: RequisitionFulfillmentCoroutineImplBase =
-    mockService()
 
-  @get:Rule val temporaryFolder: TemporaryFolder = TemporaryFolder()
-
-  private lateinit var sketchStore: SketchStore
+  private val fakeRequisitionFulfillmentService = FakeRequisitionFulfillmentService()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -302,12 +253,7 @@ class EdpSimulatorTest {
     addService(eventGroupsServiceMock)
     addService(eventGroupMetadataDescriptorsServiceMock)
     addService(requisitionsServiceMock)
-    addService(requisitionFulfillmentServiceMock)
-  }
-
-  @Before
-  fun initSketchStore() {
-    sketchStore = SketchStore(FileSystemStorageClient(temporaryFolder.root))
+    addService(fakeRequisitionFulfillmentService)
   }
 
   private val measurementConsumersStub by lazy {
@@ -338,24 +284,6 @@ class EdpSimulatorTest {
   private val privacyBudgetManager =
     PrivacyBudgetManager(PrivacyBucketFilter(TestPrivacyBucketMapper()), backingStore, 10.0f, 0.02f)
 
-  private fun getExpectedResult(
-    matchingVids: Iterable<Long>,
-    vidSamplingIntervalStart: Float,
-    vidSamplingIntervalWidth: Float
-  ): AnySketch {
-    val vidSampler = VidSampler(VID_SAMPLER_HASH_FUNCTION)
-    val expectedResult: AnySketch = SketchProtos.toAnySketch(SKETCH_CONFIG)
-
-    matchingVids.forEach {
-      if (
-        vidSampler.vidIsInSamplingBucket(it, vidSamplingIntervalStart, vidSamplingIntervalWidth)
-      ) {
-        expectedResult.insert(it, mapOf("frequency" to 1L))
-      }
-    }
-    return expectedResult
-  }
-
   private fun generateEvents(
     vidRange: LongRange,
     date: LocalDate,
@@ -377,200 +305,429 @@ class EdpSimulatorTest {
   }
 
   @Test
-  fun `Does nothing for requisitions with different Measumrent Consumer Id`() {
-    runBlocking {
-      val allEvents =
-        generateEvents(
-          1L..10L,
-          FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_18_TO_34,
-          Person.Gender.FEMALE
-        ) +
-          generateEvents(
-            11L..15L,
-            FIRST_EVENT_DATE,
-            Person.AgeGroup.YEARS_35_TO_54,
-            Person.Gender.FEMALE
-          ) +
-          generateEvents(
-            16L..20L,
-            FIRST_EVENT_DATE,
-            Person.AgeGroup.YEARS_55_PLUS,
-            Person.Gender.FEMALE
-          ) +
-          generateEvents(
-            21L..25L,
-            FIRST_EVENT_DATE,
-            Person.AgeGroup.YEARS_18_TO_34,
-            Person.Gender.MALE
-          ) +
-          generateEvents(
-            26L..30L,
-            FIRST_EVENT_DATE,
-            Person.AgeGroup.YEARS_35_TO_54,
-            Person.Gender.MALE
-          )
+  fun `ensureEventGroup creates EventGroup and EventGroupMetadataDescriptor`() {
+    val edpSimulator =
+      EdpSimulator(
+        EDP_DATA,
+        MEASUREMENT_CONSUMER_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        InMemoryEventQuery(emptyList()),
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        DIRECT_NOISE_MECHANISM,
+      )
 
-      val random = java.util.Random()
+    runBlocking { edpSimulator.ensureEventGroup(SYNTHETIC_DATA_SPEC) }
 
-      val edpSimulator =
-        EdpSimulator(
-          EDP_DATA,
-          "measurementConsumers/differentMcId",
-          measurementConsumersStub,
-          certificatesStub,
-          eventGroupsStub,
-          eventGroupMetadataDescriptorsStub,
-          requisitionsStub,
-          requisitionFulfillmentStub,
-          sketchStore,
-          InMemoryEventQuery(allEvents),
-          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-          EVENT_TEMPLATES,
-          privacyBudgetManager,
-          TRUSTED_CERTIFICATES,
-          random,
-          DIRECT_NOISE_MECHANISM
-        )
-      edpSimulator.createEventGroup()
-      edpSimulator.executeRequisitionFulfillingWorkflow()
-      val storedSketch = sketchStore.get(REQUISITION_ONE)?.read()?.flatten()
-      assertThat(storedSketch).isNull()
-    }
+    // Verify metadata descriptor set contains synthetic data spec.
+    val createDescriptorRequest: CreateEventGroupMetadataDescriptorRequest =
+      verifyAndCapture(
+        eventGroupMetadataDescriptorsServiceMock,
+        EventGroupMetadataDescriptorsCoroutineImplBase::createEventGroupMetadataDescriptor
+      )
+    val descriptors =
+      ProtoReflection.buildDescriptors(
+        listOf(createDescriptorRequest.eventGroupMetadataDescriptor.descriptorSet)
+      )
+    assertThat(descriptors.map { it.fullName })
+      .contains(SyntheticEventGroupSpec.getDescriptor().fullName)
+
+    // Verify EventGroup metadata.
+    val createRequest: CreateEventGroupRequest =
+      verifyAndCapture(eventGroupsServiceMock, EventGroupsCoroutineImplBase::createEventGroup)
+    val metadata: EventGroup.Metadata =
+      decryptMetadata(createRequest.eventGroup.encryptedMetadata, MC_PRIVATE_KEY)
+    assertThat(metadata.eventGroupMetadataDescriptor)
+      .isEqualTo(EVENT_GROUP_METADATA_DESCRIPTOR_NAME)
+    assertThat(metadata.metadata.unpack(SyntheticEventGroupSpec::class.java))
+      .isEqualTo(SYNTHETIC_DATA_SPEC)
+
+    // Verify EventGroup has correct template types.
+    assertThat(createRequest.eventGroup.eventTemplatesList.map { it.type })
+      .containsAtLeast(
+        Person.getDescriptor().fullName,
+        Video.getDescriptor().fullName,
+        Banner.getDescriptor().fullName
+      )
   }
 
   @Test
-  fun `filters events, charges privacy budget and generates sketch successfully`() {
-    runBlocking {
-      val matchingEvents =
-        generateEvents(
-          1L..10L,
-          FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_18_TO_34,
-          Person.Gender.FEMALE
+  fun `ensureEventGroup updates EventGroup`() {
+    eventGroupsServiceMock.stub {
+      onBlocking { listEventGroups(any()) }
+        .thenReturn(
+          listEventGroupsResponse {
+            eventGroups += eventGroup {
+              name = EVENT_GROUP_NAME
+              measurementConsumer = MEASUREMENT_CONSUMER_NAME
+              eventGroupReferenceId =
+                "${TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX}-${EDP_DATA.displayName}"
+            }
+          }
         )
-      val nonMatchingEvents =
+    }
+    val edpSimulator =
+      EdpSimulator(
+        EDP_DATA,
+        MEASUREMENT_CONSUMER_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        InMemoryEventQuery(emptyList()),
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        DIRECT_NOISE_MECHANISM,
+      )
+
+    runBlocking { edpSimulator.ensureEventGroup(SYNTHETIC_DATA_SPEC) }
+
+    // Verify EventGroup metadata has correct type.
+    val updateRequest: UpdateEventGroupRequest =
+      verifyAndCapture(eventGroupsServiceMock, EventGroupsCoroutineImplBase::updateEventGroup)
+    val metadata: EventGroup.Metadata =
+      decryptMetadata(updateRequest.eventGroup.encryptedMetadata, MC_PRIVATE_KEY)
+    assertThat(metadata.eventGroupMetadataDescriptor)
+      .isEqualTo(EVENT_GROUP_METADATA_DESCRIPTOR_NAME)
+    assertThat(metadata.metadata.unpack(SyntheticEventGroupSpec::class.java))
+      .isEqualTo(SYNTHETIC_DATA_SPEC)
+
+    // Verify EventGroup has correct template types.
+    assertThat(updateRequest.eventGroup.eventTemplatesList.map { it.type })
+      .containsAtLeast(
+        Person.getDescriptor().fullName,
+        Video.getDescriptor().fullName,
+        Banner.getDescriptor().fullName
+      )
+  }
+
+  @Test
+  fun `ensureEventGroup updates EventGroupMetadataDescriptor`() {
+    eventGroupMetadataDescriptorsServiceMock.stub {
+      onBlocking { createEventGroupMetadataDescriptor(any()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<CreateEventGroupMetadataDescriptorRequest>(0)
+          request.eventGroupMetadataDescriptor.copy {
+            descriptorSet =
+              ProtoReflection.buildFileDescriptorSet(TestMetadataMessage.getDescriptor())
+          }
+        }
+    }
+    val edpSimulator =
+      EdpSimulator(
+        EDP_DATA,
+        MEASUREMENT_CONSUMER_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        InMemoryEventQuery(emptyList()),
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        DIRECT_NOISE_MECHANISM,
+      )
+
+    runBlocking { edpSimulator.ensureEventGroup(SYNTHETIC_DATA_SPEC) }
+
+    val updateRequest: UpdateEventGroupMetadataDescriptorRequest =
+      verifyAndCapture(
+        eventGroupMetadataDescriptorsServiceMock,
+        EventGroupMetadataDescriptorsCoroutineImplBase::updateEventGroupMetadataDescriptor
+      )
+    assertThat(updateRequest.eventGroupMetadataDescriptor.descriptorSet)
+      .isEqualTo(ProtoReflection.buildFileDescriptorSet(SyntheticEventGroupSpec.getDescriptor()))
+  }
+
+  @Test
+  fun `ignores Requisitions for other MeasurementConsumers`() {
+    val allEvents =
+      generateEvents(
+        1L..10L,
+        FIRST_EVENT_DATE,
+        Person.AgeGroup.YEARS_18_TO_34,
+        Person.Gender.FEMALE
+      ) +
         generateEvents(
           11L..15L,
           FIRST_EVENT_DATE,
           Person.AgeGroup.YEARS_35_TO_54,
           Person.Gender.FEMALE
         ) +
-          generateEvents(
-            16L..20L,
-            FIRST_EVENT_DATE,
-            Person.AgeGroup.YEARS_55_PLUS,
-            Person.Gender.FEMALE
-          ) +
-          generateEvents(
-            21L..25L,
-            FIRST_EVENT_DATE,
-            Person.AgeGroup.YEARS_18_TO_34,
-            Person.Gender.MALE
-          ) +
-          generateEvents(
-            26L..30L,
-            FIRST_EVENT_DATE,
-            Person.AgeGroup.YEARS_35_TO_54,
-            Person.Gender.MALE
-          )
-
-      val allEvents = matchingEvents + nonMatchingEvents
-      val random = java.util.Random()
-
-      val edpSimulator =
-        EdpSimulator(
-          EDP_DATA,
-          MC_NAME,
-          measurementConsumersStub,
-          certificatesStub,
-          eventGroupsStub,
-          eventGroupMetadataDescriptorsStub,
-          requisitionsStub,
-          requisitionFulfillmentStub,
-          sketchStore,
-          InMemoryEventQuery(allEvents),
-          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-          EVENT_TEMPLATES,
-          privacyBudgetManager,
-          TRUSTED_CERTIFICATES,
-          random,
-          DIRECT_NOISE_MECHANISM
+        generateEvents(
+          16L..20L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_55_PLUS,
+          Person.Gender.FEMALE
+        ) +
+        generateEvents(
+          21L..25L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_18_TO_34,
+          Person.Gender.MALE
+        ) +
+        generateEvents(
+          26L..30L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_35_TO_54,
+          Person.Gender.MALE
         )
-      edpSimulator.createEventGroup()
-      edpSimulator.executeRequisitionFulfillingWorkflow()
-      val storedSketch = sketchStore.get(REQUISITION_ONE)?.read()?.flatten()
-      assertThat(storedSketch).isNotNull()
 
-      val anySketchResult = SketchProtos.toAnySketch(Sketch.parseFrom(storedSketch))
-
-      val vidSamplingIntervalStart = 0.0f
-      val vidSamplingIntervalWidth = PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-
-      assertAnySketchEquals(
-        anySketchResult,
-        getExpectedResult((1L..10L), vidSamplingIntervalStart, vidSamplingIntervalWidth)
+    val edpSimulator =
+      EdpSimulator(
+        EDP_DATA,
+        "measurementConsumers/differentMcId",
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        InMemoryEventQuery(allEvents),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        DIRECT_NOISE_MECHANISM,
       )
 
-      val balanceLedger: Map<PrivacyBucketGroup, MutableMap<DpCharge, PrivacyBudgetBalanceEntry>> =
-        backingStore.getBalancesMap()
-
-      // Verify that each bucket is only charged once.
-      for (bucketBalances in balanceLedger.values) {
-        assertThat(bucketBalances).hasSize(1)
-        for (balanceEntry in bucketBalances.values) {
-          assertThat(balanceEntry.repetitionCount).isEqualTo(1)
-        }
-      }
-
-      // The list of all the charged privacy bucket groups should be correct based on the filter.
-      assertThat(balanceLedger.keys)
-        .containsExactly(
-          PrivacyBucketGroup(
-            MC_NAME,
-            FIRST_EVENT_DATE,
-            FIRST_EVENT_DATE,
-            PrivacyLandscapeAge.RANGE_18_34,
-            PrivacyLandscapeGender.FEMALE,
-            0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LAST_EVENT_DATE,
-            LAST_EVENT_DATE,
-            PrivacyLandscapeAge.RANGE_18_34,
-            PrivacyLandscapeGender.FEMALE,
-            0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            FIRST_EVENT_DATE,
-            FIRST_EVENT_DATE,
-            PrivacyLandscapeAge.RANGE_18_34,
-            PrivacyLandscapeGender.FEMALE,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LAST_EVENT_DATE,
-            LAST_EVENT_DATE,
-            PrivacyLandscapeAge.RANGE_18_34,
-            PrivacyLandscapeGender.FEMALE,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-        )
+    runBlocking {
+      edpSimulator.ensureEventGroup(SYNTHETIC_DATA_SPEC)
+      edpSimulator.executeRequisitionFulfillingWorkflow()
     }
+
+    assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
+    verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
+  }
+
+  @Test
+  fun `charges privacy budget`() {
+    val measurementSpec =
+      MEASUREMENT_SPEC.copy {
+        vidSamplingInterval =
+          vidSamplingInterval.copy {
+            start = 0.0f
+            width = PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          }
+      }
+    val requisition =
+      REQUISITION.copy {
+        this.measurementSpec = signMeasurementSpec(measurementSpec, MC_SIGNING_KEY)
+      }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+    val matchingEvents =
+      generateEvents(
+        1L..10L,
+        FIRST_EVENT_DATE,
+        Person.AgeGroup.YEARS_18_TO_34,
+        Person.Gender.FEMALE
+      )
+    val nonMatchingEvents =
+      generateEvents(
+        11L..15L,
+        FIRST_EVENT_DATE,
+        Person.AgeGroup.YEARS_35_TO_54,
+        Person.Gender.FEMALE
+      ) +
+        generateEvents(
+          16L..20L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_55_PLUS,
+          Person.Gender.FEMALE
+        ) +
+        generateEvents(
+          21L..25L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_18_TO_34,
+          Person.Gender.MALE
+        ) +
+        generateEvents(
+          26L..30L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_35_TO_54,
+          Person.Gender.MALE
+        )
+
+    val allEvents = matchingEvents + nonMatchingEvents
+
+    val edpSimulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        InMemoryEventQuery(allEvents),
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        DIRECT_NOISE_MECHANISM,
+      )
+    runBlocking {
+      edpSimulator.ensureEventGroup(TEST_METADATA)
+      edpSimulator.executeRequisitionFulfillingWorkflow()
+    }
+
+    val balanceLedger: Map<PrivacyBucketGroup, MutableMap<DpCharge, PrivacyBudgetBalanceEntry>> =
+      backingStore.getDpBalancesMap()
+
+    // Verify that each bucket is only charged once.
+    for (bucketBalances in balanceLedger.values) {
+      assertThat(bucketBalances).hasSize(1)
+      for (balanceEntry in bucketBalances.values) {
+        assertThat(balanceEntry.repetitionCount).isEqualTo(1)
+      }
+    }
+
+    // The list of all the charged privacy bucket groups should be correct based on the filter.
+    assertThat(balanceLedger.keys)
+      .containsExactly(
+        PrivacyBucketGroup(
+          MC_NAME,
+          FIRST_EVENT_DATE,
+          FIRST_EVENT_DATE,
+          PrivacyLandscapeAge.RANGE_18_34,
+          PrivacyLandscapeGender.FEMALE,
+          0.0f,
+          PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          MC_NAME,
+          LAST_EVENT_DATE,
+          LAST_EVENT_DATE,
+          PrivacyLandscapeAge.RANGE_18_34,
+          PrivacyLandscapeGender.FEMALE,
+          0.0f,
+          PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          MC_NAME,
+          FIRST_EVENT_DATE,
+          FIRST_EVENT_DATE,
+          PrivacyLandscapeAge.RANGE_18_34,
+          PrivacyLandscapeGender.FEMALE,
+          PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+          PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          MC_NAME,
+          LAST_EVENT_DATE,
+          LAST_EVENT_DATE,
+          PrivacyLandscapeAge.RANGE_18_34,
+          PrivacyLandscapeGender.FEMALE,
+          PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+          PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+      )
+  }
+
+  @Test
+  fun `fulfills reach and frequency Requisition`() {
+    val events =
+      generateEvents(
+        1L..10L,
+        FIRST_EVENT_DATE,
+        Person.AgeGroup.YEARS_18_TO_34,
+        Person.Gender.FEMALE
+      ) +
+        generateEvents(
+          11L..15L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_35_TO_54,
+          Person.Gender.FEMALE
+        ) +
+        generateEvents(
+          16L..20L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_55_PLUS,
+          Person.Gender.FEMALE
+        ) +
+        generateEvents(
+          21L..25L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_18_TO_34,
+          Person.Gender.MALE
+        ) +
+        generateEvents(
+          26L..30L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_35_TO_54,
+          Person.Gender.MALE
+        )
+    val eventQuery = InMemoryEventQuery(events)
+    val edpSimulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        eventQuery,
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        DIRECT_NOISE_MECHANISM,
+        sketchEncrypter = fakeSketchEncrypter,
+      )
+
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
+
+    val requests: List<FulfillRequisitionRequest> =
+      fakeRequisitionFulfillmentService.fullfillRequisitionInvocations.single().requests
+    val header: FulfillRequisitionRequest.Header = requests.first().header
+    assertThat(header)
+      .isEqualTo(
+        FulfillRequisitionRequestKt.header {
+          name = REQUISITION.name
+          requisitionFingerprint =
+            computeRequisitionFingerprint(
+              REQUISITION.measurementSpec.data,
+              Hashing.hashSha256(REQUISITION.encryptedRequisitionSpec)
+            )
+          nonce = REQUISITION_SPEC.nonce
+        }
+      )
+
+    // Injection of fake encrypter means this is should just be the serialized Sketch.
+    // TODO(world-federation-of-advertisers/any-sketch-java#16): Consider verifying the decrypted
+    // sketch instead.
+    val encryptedSketch: ByteString = requests.drop(1).map { it.bodyChunk.data }.flatten()
+    val expectedSketch =
+      SketchGenerator(
+          eventQuery,
+          LIQUID_LEGIONS_SKETCH_PARAMS.toSketchConfig(),
+          MEASUREMENT_SPEC.vidSamplingInterval,
+        )
+        .generate(
+          REQUISITION_SPEC.eventGroupsList.map {
+            EventQuery.EventGroupSpec(eventGroup { name = it.key }, it.value)
+          }
+        )
+    assertThat(Sketch.parseFrom(encryptedSketch)).isEqualTo(expectedSketch)
   }
 
   @Test
   fun `refuses requisition when DuchyEntry verification fails`() {
-    val throttlerMock = mock<Throttler>()
     val eventQueryMock = mock<EventQuery>()
-    val random = java.util.Random()
     val simulator =
       EdpSimulator(
         EDP_DATA,
@@ -581,17 +738,14 @@ class EdpSimulatorTest {
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
         requisitionFulfillmentStub,
-        sketchStore,
         eventQueryMock,
-        throttlerMock,
-        listOf(),
+        dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        random,
-        DIRECT_NOISE_MECHANISM
+        DIRECT_NOISE_MECHANISM,
       )
     val requisition =
-      REQUISITION_ONE.copy {
+      REQUISITION.copy {
         duchies[0] =
           duchies[0].copy {
             value =
@@ -626,13 +780,12 @@ class EdpSimulatorTest {
         }
       )
     assertThat(refuseRequest.refusal.message).contains(DUCHY_NAME)
-    verifyBlocking(requisitionFulfillmentServiceMock, never()) { fulfillRequisition(any()) }
+    assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
     verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
   }
 
   @Test
   fun `refuses Requisition when EventGroup not found`() {
-    val throttlerMock = mock<Throttler>()
     val eventQueryMock = mock<EventQuery>()
     val simulator =
       EdpSimulator(
@@ -644,14 +797,11 @@ class EdpSimulatorTest {
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
         requisitionFulfillmentStub,
-        sketchStore,
         eventQueryMock,
-        throttlerMock,
-        listOf(),
+        dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        java.util.Random(),
-        DIRECT_NOISE_MECHANISM
+        DIRECT_NOISE_MECHANISM,
       )
     eventGroupsServiceMock.stub {
       onBlocking { getEventGroup(any()) }.thenThrow(Status.NOT_FOUND.asRuntimeException())
@@ -669,21 +819,22 @@ class EdpSimulatorTest {
       )
       .isEqualTo(
         refuseRequisitionRequest {
-          name = REQUISITION_ONE.name
+          name = REQUISITION.name
           refusal = refusal { justification = Refusal.Justification.SPEC_INVALID }
         }
       )
-    assertThat(refuseRequest.refusal.message)
-      .contains(REQUISITION_ONE_SPEC.eventGroupsList.first().key)
-    verifyBlocking(requisitionFulfillmentServiceMock, never()) { fulfillRequisition(any()) }
+    assertThat(refuseRequest.refusal.message).contains(REQUISITION_SPEC.eventGroupsList.first().key)
+    assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
     verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
   }
 
   @Test
-  fun `fulfill direct reach and frequency requisition correctly with sampling rate equal to 1`() {
-    val throttlerMock = mock<Throttler>()
-    val eventQuery = RandomEventQuery(SketchGenerationParams(reach = 1000, universeSize = 10000))
-    val random = java.util.Random(RANDOM_SEED)
+  fun `fulfills direct reach and frequency Requisition`() {
+    val requisition = DIRECT_REQUISITION
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
     val simulator =
       EdpSimulator(
         EDP_DATA,
@@ -694,71 +845,39 @@ class EdpSimulatorTest {
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
         requisitionFulfillmentStub,
-        sketchStore,
-        eventQuery,
-        throttlerMock,
-        listOf(),
+        syntheticGeneratorEventQuery,
+        dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        random,
-        DIRECT_NOISE_MECHANISM
+        DIRECT_NOISE_MECHANISM,
+        random = Random(RANDOM_SEED)
       )
-
-    val vidSamplingIntervalWidth = 1f
-    val newMeasurementSpec =
-      MEASUREMENT_SPEC.copy {
-        vidSamplingInterval = vidSamplingInterval.copy { width = vidSamplingIntervalWidth }
-      }
-    val requisition =
-      REQUISITION_ONE.copy {
-        name = "requisition_direct"
-        protocolConfig =
-          protocolConfig.copy {
-            protocols += ProtocolConfigKt.protocol { direct = ProtocolConfigKt.direct {} }
-          }
-        measurementSpec = signMeasurementSpec(newMeasurementSpec, MC_SIGNING_KEY)
-      }
-
-    requisitionsServiceMock.stub {
-      onBlocking { requisitionsServiceMock.listRequisitions(any()) }
-        .thenReturn(listRequisitionsResponse { requisitions += requisition })
-    }
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
 
-    val fulfillDirectRequisitionRequest: FulfillDirectRequisitionRequest =
+    val request: FulfillDirectRequisitionRequest =
       verifyAndCapture(
         requisitionsServiceMock,
         RequisitionsCoroutineImplBase::fulfillDirectRequisition
       )
-
-    val signedResult = decryptResult(fulfillDirectRequisitionRequest.encryptedData, MC_PRIVATE_KEY)
-    val reachAndFrequencyResult = Measurement.Result.parseFrom(signedResult.data)
-
-    val expectedReachValue = 949L
-    val expectedFrequencyMap =
-      mapOf(
-        1L to 0.949211534397318,
-        2L to 0.04754642580128393,
-        3L to 6.245356676193781E-4,
-        4L to 0.003942332254929154
-      )
-
-    assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedReachValue)
-    reachAndFrequencyResult.frequency.relativeFrequencyDistributionMap.forEach {
-      (frequency, percentage) ->
-      assertThat(percentage).isEqualTo(expectedFrequencyMap[frequency])
-    }
-
-    verifyBlocking(requisitionFulfillmentServiceMock, never()) { fulfillRequisition(any()) }
-    verifyBlocking(requisitionsServiceMock, times(1)) { fulfillDirectRequisition(any()) }
+    val result =
+      Measurement.Result.parseFrom(decryptResult(request.encryptedData, MC_PRIVATE_KEY).data)
+    assertThat(result).reachValue().isEqualTo(2000L)
+    assertThat(result).frequencyDistribution().isWithin(0.001).of(mapOf(2L to 0.5, 4L to 0.5))
   }
 
   @Test
-  fun `fulfill direct reach-only requisition correctly with sampling rate equal to 1`() {
-    val throttlerMock = mock<Throttler>()
-    val eventQuery = RandomEventQuery(SketchGenerationParams(reach = 1000, universeSize = 10000))
-    val random = java.util.Random(RANDOM_SEED)
+  fun `fulfills direct reach and frequency Requisition with sampling rate less than 1`() {
+    val measurementSpec =
+      MEASUREMENT_SPEC.copy { vidSamplingInterval = vidSamplingInterval.copy { width = 0.1f } }
+    val requisition =
+      DIRECT_REQUISITION.copy {
+        this.measurementSpec = signMeasurementSpec(measurementSpec, MC_SIGNING_KEY)
+      }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
     val simulator =
       EdpSimulator(
         EDP_DATA,
@@ -769,65 +888,41 @@ class EdpSimulatorTest {
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
         requisitionFulfillmentStub,
-        sketchStore,
-        eventQuery,
-        throttlerMock,
-        listOf(),
+        syntheticGeneratorEventQuery,
+        dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        random,
-        DIRECT_NOISE_MECHANISM
+        DIRECT_NOISE_MECHANISM,
+        random = Random(RANDOM_SEED)
       )
-
-    val vidSamplingIntervalWidth = 1f
-    val newMeasurementSpec =
-      MEASUREMENT_SPEC.copy {
-        clearReachAndFrequency()
-        reach = reach { privacyParams = differentialPrivacyParams { epsilon = 1.0 } }
-        vidSamplingInterval = vidSamplingInterval.copy { width = vidSamplingIntervalWidth }
-      }
-    val requisition =
-      REQUISITION_ONE.copy {
-        name = "requisition_direct_reach_only"
-        protocolConfig =
-          protocolConfig.copy {
-            protocols += ProtocolConfigKt.protocol { direct = ProtocolConfigKt.direct {} }
-          }
-        measurementSpec = signMeasurementSpec(newMeasurementSpec, MC_SIGNING_KEY)
-      }
-
-    requisitionsServiceMock.stub {
-      onBlocking { requisitionsServiceMock.listRequisitions(any()) }
-        .thenReturn(listRequisitionsResponse { requisitions += requisition })
-    }
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
 
-    val fulfillDirectRequisitionRequest: FulfillDirectRequisitionRequest =
+    val request: FulfillDirectRequisitionRequest =
       verifyAndCapture(
         requisitionsServiceMock,
         RequisitionsCoroutineImplBase::fulfillDirectRequisition
       )
-
-    val signedResult = decryptResult(fulfillDirectRequisitionRequest.encryptedData, MC_PRIVATE_KEY)
-    val reachAndFrequencyResult = Measurement.Result.parseFrom(signedResult.data)
-
-    val expectedReachValue = 949L
-    val expectedFrequencyMap = mapOf<Long, Double>()
-
-    assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedReachValue)
-    assertThat(reachAndFrequencyResult.frequency.relativeFrequencyDistributionMap)
-      .isEqualTo(expectedFrequencyMap)
-
-    verifyBlocking(requisitionFulfillmentServiceMock, never()) { fulfillRequisition(any()) }
-    verifyBlocking(requisitionsServiceMock, times(1)) { fulfillDirectRequisition(any()) }
+    val result =
+      Measurement.Result.parseFrom(decryptResult(request.encryptedData, MC_PRIVATE_KEY).data)
+    assertThat(result).reachValue().isEqualTo(1920)
+    assertThat(result)
+      .frequencyDistribution()
+      .isWithin(0.00001)
+      .of(mapOf(2L to 0.5010227687681921, 4L to 0.5072032690534161))
   }
 
   @Test
-  fun `fulfill direct reach and frequency requisition correctly with sampling rate smaller than 1`() {
-    val throttlerMock = mock<Throttler>()
-    val eventQuery = RandomEventQuery(SketchGenerationParams(reach = 1000, universeSize = 10000))
-    val random = java.util.Random(RANDOM_SEED)
+  fun `fulfills direct reach-only Requisition`() {
+    val measurementSpec = REACH_ONLY_MEASUREMENT_SPEC
+    val requisition =
+      DIRECT_REQUISITION.copy {
+        this.measurementSpec = signMeasurementSpec(measurementSpec, MC_SIGNING_KEY)
+      }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
     val simulator =
       EdpSimulator(
         EDP_DATA,
@@ -838,71 +933,41 @@ class EdpSimulatorTest {
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
         requisitionFulfillmentStub,
-        sketchStore,
-        eventQuery,
-        throttlerMock,
-        listOf(),
+        syntheticGeneratorEventQuery,
+        dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        random,
-        DIRECT_NOISE_MECHANISM
+        DIRECT_NOISE_MECHANISM,
+        random = Random(RANDOM_SEED)
       )
-
-    val vidSamplingIntervalWidth = 0.1f
-    val newMeasurementSpec =
-      MEASUREMENT_SPEC.copy {
-        vidSamplingInterval = vidSamplingInterval.copy { width = vidSamplingIntervalWidth }
-      }
-    val requisition =
-      REQUISITION_ONE.copy {
-        name = "requisition_direct"
-        protocolConfig =
-          protocolConfig.copy {
-            protocols += ProtocolConfigKt.protocol { direct = ProtocolConfigKt.direct {} }
-          }
-        measurementSpec = signMeasurementSpec(newMeasurementSpec, MC_SIGNING_KEY)
-      }
-
-    requisitionsServiceMock.stub {
-      onBlocking { requisitionsServiceMock.listRequisitions(any()) }
-        .thenReturn(listRequisitionsResponse { requisitions += requisition })
-    }
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
 
-    val fulfillDirectRequisitionRequest: FulfillDirectRequisitionRequest =
+    val request: FulfillDirectRequisitionRequest =
       verifyAndCapture(
         requisitionsServiceMock,
         RequisitionsCoroutineImplBase::fulfillDirectRequisition
       )
-
-    val signedResult = decryptResult(fulfillDirectRequisitionRequest.encryptedData, MC_PRIVATE_KEY)
-    val reachAndFrequencyResult = Measurement.Result.parseFrom(signedResult.data)
-
-    // vidList is first filtered by vidSampler and noised reach is scaled by sampling rate which is
-    // vidSamplingInterval.
-    val expectedReachValue = 1020L
-    val expectedFrequencyMap =
-      mapOf(
-        1L to 0.978448491598576,
-        2L to 0.010995667504102432,
-      )
-
-    assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedReachValue)
-    reachAndFrequencyResult.frequency.relativeFrequencyDistributionMap.forEach {
-      (frequency, percentage) ->
-      assertThat(percentage).isEqualTo(expectedFrequencyMap[frequency])
-    }
-
-    verifyBlocking(requisitionFulfillmentServiceMock, never()) { fulfillRequisition(any()) }
-    verifyBlocking(requisitionsServiceMock, times(1)) { fulfillDirectRequisition(any()) }
+    val result =
+      Measurement.Result.parseFrom(decryptResult(request.encryptedData, MC_PRIVATE_KEY).data)
+    assertThat(result).reachValue().isEqualTo(2000L)
+    assertThat(result.hasFrequency()).isFalse()
   }
 
   @Test
-  fun `fulfill direct reach-only requisition correctly with sampling rate smaller than 1`() {
-    val throttlerMock = mock<Throttler>()
-    val eventQuery = RandomEventQuery(SketchGenerationParams(reach = 1000, universeSize = 10000))
-    val random = java.util.Random(RANDOM_SEED)
+  fun `fulfills direct reach-only Requisition with sampling rate less than 1`() {
+    val measurementSpec =
+      REACH_ONLY_MEASUREMENT_SPEC.copy {
+        vidSamplingInterval = vidSamplingInterval.copy { width = 0.1f }
+      }
+    val requisition =
+      DIRECT_REQUISITION.copy {
+        this.measurementSpec = signMeasurementSpec(measurementSpec, MC_SIGNING_KEY)
+      }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
     val simulator =
       EdpSimulator(
         EDP_DATA,
@@ -913,62 +978,47 @@ class EdpSimulatorTest {
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
         requisitionFulfillmentStub,
-        sketchStore,
-        eventQuery,
-        throttlerMock,
-        listOf(),
+        syntheticGeneratorEventQuery,
+        dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        random,
-        DIRECT_NOISE_MECHANISM
+        DIRECT_NOISE_MECHANISM,
+        random = Random(RANDOM_SEED)
       )
-
-    val vidSamplingIntervalWidth = 0.1f
-    val newMeasurementSpec =
-      MEASUREMENT_SPEC.copy {
-        reach = reach { privacyParams = differentialPrivacyParams { epsilon = 1.0 } }
-        vidSamplingInterval = vidSamplingInterval.copy { width = vidSamplingIntervalWidth }
-      }
-    val requisition =
-      REQUISITION_ONE.copy {
-        name = "requisition_direct_reach_only"
-        protocolConfig =
-          protocolConfig.copy {
-            protocols += ProtocolConfigKt.protocol { direct = ProtocolConfigKt.direct {} }
-          }
-        measurementSpec = signMeasurementSpec(newMeasurementSpec, MC_SIGNING_KEY)
-      }
-
-    requisitionsServiceMock.stub {
-      onBlocking { requisitionsServiceMock.listRequisitions(any()) }
-        .thenReturn(listRequisitionsResponse { requisitions += requisition })
-    }
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
 
-    val fulfillDirectRequisitionRequest: FulfillDirectRequisitionRequest =
+    val request: FulfillDirectRequisitionRequest =
       verifyAndCapture(
         requisitionsServiceMock,
         RequisitionsCoroutineImplBase::fulfillDirectRequisition
       )
+    val result =
+      Measurement.Result.parseFrom(decryptResult(request.encryptedData, MC_PRIVATE_KEY).data)
+    assertThat(result).reachValue().isEqualTo(1920)
+    assertThat(result.hasFrequency()).isFalse()
+  }
 
-    val signedResult = decryptResult(fulfillDirectRequisitionRequest.encryptedData, MC_PRIVATE_KEY)
-    val reachAndFrequencyResult = Measurement.Result.parseFrom(signedResult.data)
+  private class FakeRequisitionFulfillmentService : RequisitionFulfillmentCoroutineImplBase() {
+    data class FulfillRequisitionInvocation(val requests: List<FulfillRequisitionRequest>)
 
-    // vidList is first filtered by vidSampler and noised reach is scaled by sampling rate which is
-    // vidSamplingInterval.
-    val expectedReachValue = 1020L
-    val expectedFrequencyMap = mapOf<Long, Double>()
+    private val _fullfillRequisitionInvocations = mutableListOf<FulfillRequisitionInvocation>()
+    val fullfillRequisitionInvocations: List<FulfillRequisitionInvocation>
+      get() = _fullfillRequisitionInvocations
 
-    assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedReachValue)
-    assertThat(reachAndFrequencyResult.frequency.relativeFrequencyDistributionMap)
-      .isEqualTo(expectedFrequencyMap)
-
-    verifyBlocking(requisitionFulfillmentServiceMock, never()) { fulfillRequisition(any()) }
-    verifyBlocking(requisitionsServiceMock, times(1)) { fulfillDirectRequisition(any()) }
+    override suspend fun fulfillRequisition(
+      requests: Flow<FulfillRequisitionRequest>
+    ): FulfillRequisitionResponse {
+      // Consume flow before returning.
+      _fullfillRequisitionInvocations.add(FulfillRequisitionInvocation(requests.toList()))
+      return FulfillRequisitionResponse.getDefaultInstance()
+    }
   }
 
   companion object {
+    private const val EVENT_GROUP_METADATA_DESCRIPTOR_NAME =
+      "dataProviders/foo/eventGroupMetadataDescriptors/bar"
+
     private val MC_SIGNING_KEY = loadSigningKey("${MC_ID}_cs_cert.der", "${MC_ID}_cs_private.der")
     private val DUCHY_SIGNING_KEY =
       loadSigningKey("${DUCHY_ID}_cs_cert.der", "${DUCHY_ID}_cs_private.der")
@@ -979,32 +1029,59 @@ class EdpSimulatorTest {
       x509Der = DUCHY_SIGNING_KEY.certificate.encoded.toByteString()
     }
 
-    private val MEASUREMENT_SPEC = measurementSpec {
-      measurementPublicKey = org.wfanet.measurement.loadtest.dataprovider.MEASUREMENT_PUBLIC_KEY
-      reachAndFrequency = reachAndFrequency {
-        reachPrivacyParams = differentialPrivacyParams { epsilon = 1.0 }
-        frequencyPrivacyParams = differentialPrivacyParams { epsilon = 1.0 }
-      }
-      vidSamplingInterval = vidSamplingInterval {
-        start = 0.0f
-        width = PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-      }
-      nonceHashes += Hashing.hashSha256(REQUISITION_ONE_SPEC.nonce)
-    }
-
     private val MC_PUBLIC_KEY =
       loadPublicKey(SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile())
         .toEncryptionPublicKey()
     private val MC_PRIVATE_KEY =
       loadPrivateKey(SECRET_FILES_PATH.resolve("mc_enc_private.tink").toFile())
-    private val MEASUREMENT_PUBLIC_KEY =
+    private val DATA_PROVIDER_PUBLIC_KEY =
       loadPublicKey(SECRET_FILES_PATH.resolve("${EDP_DISPLAY_NAME}_enc_public.tink").toFile())
         .toEncryptionPublicKey()
-    private val ENCRYPTED_REQUISITION_ONE_SPEC =
+
+    private const val EVENT_GROUP_NAME = "$EDP_NAME/eventGroups/name"
+    private val REQUISITION_SPEC = requisitionSpec {
+      eventGroups += eventGroupEntry {
+        key = EVENT_GROUP_NAME
+        value =
+          RequisitionSpecKt.EventGroupEntryKt.value {
+            collectionInterval = interval {
+              startTime = TIME_RANGE.start.toProtoTime()
+              endTime = TIME_RANGE.endExclusive.toProtoTime()
+            }
+            filter = eventFilter {
+              expression =
+                "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE} && " +
+                  "person.gender == ${Person.Gender.FEMALE_VALUE}"
+            }
+          }
+      }
+      measurementPublicKey = MC_PUBLIC_KEY.toByteString()
+      nonce = Random.Default.nextLong()
+    }
+    private val ENCRYPTED_REQUISITION_SPEC =
       encryptRequisitionSpec(
-        signRequisitionSpec(REQUISITION_ONE_SPEC, MC_SIGNING_KEY),
-        MEASUREMENT_PUBLIC_KEY
+        signRequisitionSpec(REQUISITION_SPEC, MC_SIGNING_KEY),
+        DATA_PROVIDER_PUBLIC_KEY
       )
+
+    private val OUTPUT_DP_PARAMS = differentialPrivacyParams { epsilon = 1.0 }
+    private val MEASUREMENT_SPEC = measurementSpec {
+      measurementPublicKey = MC_PUBLIC_KEY.toByteString()
+      reachAndFrequency = reachAndFrequency {
+        reachPrivacyParams = OUTPUT_DP_PARAMS
+        frequencyPrivacyParams = OUTPUT_DP_PARAMS
+      }
+      vidSamplingInterval = vidSamplingInterval {
+        start = 0.0f
+        width = 1.0f
+      }
+      nonceHashes += Hashing.hashSha256(REQUISITION_SPEC.nonce)
+    }
+    private val REACH_ONLY_MEASUREMENT_SPEC =
+      MEASUREMENT_SPEC.copy {
+        clearReachAndFrequency()
+        reach = reach { privacyParams = OUTPUT_DP_PARAMS }
+      }
 
     private val EDP_DATA =
       EdpData(
@@ -1014,23 +1091,25 @@ class EdpSimulatorTest {
         loadSigningKey("${EDP_DISPLAY_NAME}_cs_cert.der", "${EDP_DISPLAY_NAME}_cs_private.der")
       )
 
-    private val REQUISITION_ONE = requisition {
-      name = "requisition_one"
+    private val LIQUID_LEGIONS_SKETCH_PARAMS = liquidLegionsSketchParams {
+      decayRate = LLV2_DECAY_RATE
+      maxSize = LLV2_MAX_SIZE
+      samplingIndicatorSize = 10_000_000
+    }
+
+    private val REQUISITION = requisition {
+      name = "${EDP_NAME}/requisitions/foo"
       measurement = MEASUREMENT_NAME
       state = Requisition.State.UNFULFILLED
       measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
       measurementSpec = signMeasurementSpec(MEASUREMENT_SPEC, MC_SIGNING_KEY)
-      encryptedRequisitionSpec = ENCRYPTED_REQUISITION_ONE_SPEC
+      encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
       protocolConfig = protocolConfig {
         protocols +=
           ProtocolConfigKt.protocol {
             liquidLegionsV2 =
               ProtocolConfigKt.liquidLegionsV2 {
-                sketchParams = liquidLegionsSketchParams {
-                  decayRate = LLV2_DECAY_RATE
-                  maxSize = LLV2_MAX_SIZE
-                  samplingIndicatorSize = 10_000_000
-                }
+                sketchParams = LIQUID_LEGIONS_SKETCH_PARAMS
                 ellipticCurveId = 415
                 maximumFrequency = 12
               }
@@ -1047,10 +1126,62 @@ class EdpSimulatorTest {
         }
       }
     }
+    private val DIRECT_REQUISITION =
+      REQUISITION.copy {
+        protocolConfig =
+          protocolConfig.copy {
+            protocols.clear()
+            protocols +=
+              ProtocolConfigKt.protocol { direct = ProtocolConfig.Direct.getDefaultInstance() }
+          }
+      }
 
     private val TRUSTED_CERTIFICATES: Map<ByteString, X509Certificate> =
       readCertificateCollection(SECRET_FILES_PATH.resolve("edp_trusted_certs.pem").toFile())
         .associateBy { requireNotNull(it.authorityKeyIdentifier) }
+
+    private val TEST_METADATA = EventGroupMetadata.testMetadata(1)
+
+    private val SYNTHETIC_DATA_SPEC =
+      SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS.first().copy {
+        dateSpecs.forEachIndexed { index, dateSpec ->
+          dateSpecs[index] =
+            dateSpec.copy {
+              dateRange =
+                SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+                  start = FIRST_EVENT_DATE.toProtoDate()
+                  endExclusive = (LAST_EVENT_DATE.plusDays(1)).toProtoDate()
+                }
+            }
+        }
+      }
+    private val syntheticGeneratorEventQuery =
+      object : SyntheticGeneratorEventQuery(SyntheticGenerationSpecs.POPULATION_SPEC) {
+        override fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec {
+          return SYNTHETIC_DATA_SPEC
+        }
+      }
+
+    /** Dummy [Throttler] for satisfying signatures without being used. */
+    private val dummyThrottler =
+      object : Throttler {
+        override suspend fun <T> onReady(block: suspend () -> T): T {
+          throw UnsupportedOperationException("Should not be called")
+        }
+      }
+
+    /** [SketchEncrypter] that does not encrypt, just returning the plaintext. */
+    private val fakeSketchEncrypter =
+      object : SketchEncrypter {
+        override fun encrypt(
+          sketch: Sketch,
+          ellipticCurveId: Int,
+          encryptionKey: ElGamalPublicKey,
+          maximumValue: Int,
+        ): ByteString {
+          return sketch.toByteString()
+        }
+      }
 
     private fun loadSigningKey(
       certDerFileName: String,
@@ -1064,22 +1195,6 @@ class EdpSimulatorTest {
 
     private fun loadEncryptionPrivateKey(fileName: String): TinkPrivateKeyHandle {
       return loadPrivateKey(SECRET_FILES_PATH.resolve(fileName).toFile())
-    }
-
-    private val EQUIVALENCE: Correspondence<Register?, Register?> =
-      Correspondence.from(EdpSimulatorTest::registersEquivalent, "is equivalent to")
-
-    private fun registersEquivalent(result: Register?, expected: Register?): Boolean {
-      if (result == null || expected == null) {
-        return result == expected
-      }
-      return result.index == expected.index &&
-        result.values.containsAll(expected.values) &&
-        expected.values.containsAll(result.values)
-    }
-
-    private fun assertAnySketchEquals(sketch: AnySketch, other: AnySketch) {
-      assertThat(sketch).comparingElementsUsing(EQUIVALENCE).containsExactlyElementsIn(other)
     }
   }
 }

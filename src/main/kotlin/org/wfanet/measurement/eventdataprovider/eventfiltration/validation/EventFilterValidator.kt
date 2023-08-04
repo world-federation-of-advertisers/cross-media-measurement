@@ -218,7 +218,7 @@ object EventFilterValidator {
       return if (negate) negate() else this
     }
     // Operative comparison node, valid statement that should not be altered.
-    return this
+    return if (negate) negate() else this
   }
 
   private fun getAst(celExpression: String, env: Env): Ast {

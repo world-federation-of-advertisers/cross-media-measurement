@@ -70,16 +70,16 @@ class InProcessCmmsComponents(
   }
 
   private val edpSimulators: List<InProcessEdpSimulator> by lazy {
-    edpDisplayNameToResourceNameMap.map { (displayName, resourceName) ->
+    edpDisplayNameToResourceNameMap.entries.mapIndexed { index, (displayName, resourceName) ->
+      val specIndex = index % SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS.size
       InProcessEdpSimulator(
         displayName = displayName,
         resourceName = resourceName,
         mcResourceName = mcResourceName,
-        storageClient = storageClient,
         kingdomPublicApiChannel = kingdom.publicApiChannel,
         duchyPublicApiChannel = duchies[1].publicApiChannel,
-        eventTemplateNames = EVENT_TEMPLATES_TO_FILTERS_MAP.keys.toList(),
         trustedCertificates = TRUSTED_CERTIFICATES,
+        SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS[specIndex],
       )
     }
   }
@@ -156,7 +156,7 @@ class InProcessCmmsComponents(
   fun startDaemons() = runBlocking {
     // Create all resources
     createAllResources()
-    eventGroups = edpSimulators.map { it.createEventGroup() }
+    eventGroups = edpSimulators.map { it.ensureEventGroup() }
 
     // Start daemons. Mills and EDP simulators can only be started after resources have been
     // created.

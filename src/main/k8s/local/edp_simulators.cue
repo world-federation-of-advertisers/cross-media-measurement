@@ -30,16 +30,25 @@ _secret_name: string @tag("secret_name")
 objectSets: [ for simulator in edpSimulators {[simulator.deployment]}] +
 	[ for simulator in edpSimulators {simulator.networkPolicies}]
 
+_populationSpec: "/etc/\(#AppName)/config-files/synthetic_population_spec.textproto"
+_eventGroupSpecs: [
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_1.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_2.textproto",
+]
+
 #EdpConfig: {
-	publisherId: int
+	eventGroupSpec: string
 }
 
 _edpConfigs: [...#EdpConfig]
 _edpConfigs: [
 	for i, name in _edpResourceNames {
-		publisherId:  i + 1
-		resourceName: name
-		displayName:  "edp\(publisherId)"
+		let SpecIndex = mod(i, len(_eventGroupSpecs))
+		let Number = i + 1
+
+		resourceName:   name
+		displayName:    "edp\(Number)"
+		eventGroupSpec: _eventGroupSpecs[SpecIndex]
 	},
 ]
 
@@ -47,14 +56,14 @@ edpSimulators: {
 	for edpConfig in _edpConfigs {
 		"\(edpConfig.displayName)": #EdpSimulator & {
 			_edpConfig: edpConfig
-			_imageConfig: repoSuffix: "simulator/local-edp"
+			_imageConfig: repoSuffix: "simulator/synthetic-generator-edp"
 			_edp_secret_name:           _secret_name
 			_mc_resource_name:          _mc_name
 			_duchy_public_api_target:   #Worker1PublicApiTarget
 			_kingdom_public_api_target: #KingdomPublicApiTarget
-			_blob_storage_flags: [
-				"--forwarded-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
-				"--forwarded-storage-cert-host=localhost",
+			_additional_args: [
+				"--population-spec=\(_populationSpec)",
+				"--event-group-spec=\(edpConfig.eventGroupSpec)",
 			]
 
 			deployment: spec: template: spec: {
@@ -62,6 +71,7 @@ edpSimulators: {
 					"v2alpha-public-api-server",
 					"worker1-requisition-fulfillment-server",
 				]
+				_mounts: "config-files": #ConfigMapMount
 			}
 		}
 	}

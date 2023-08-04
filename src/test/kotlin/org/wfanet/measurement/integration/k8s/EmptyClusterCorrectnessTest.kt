@@ -54,7 +54,6 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.jceProvider
@@ -67,20 +66,18 @@ import org.wfanet.measurement.common.k8s.testing.Processes
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.MC_DISPLAY_NAME
+import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.integration.common.createEntityContent
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadTestCertDerFile
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
-import org.wfanet.measurement.internal.testing.ForwardedStorageGrpcKt
-import org.wfanet.measurement.loadtest.config.EventFilters
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
+import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.loadtest.resourcesetup.ResourceSetup
 import org.wfanet.measurement.loadtest.resourcesetup.Resources
-import org.wfanet.measurement.loadtest.storage.SketchStore
-import org.wfanet.measurement.storage.forwarded.ForwardedStorageClient
 
 /**
  * Test for correctness of the CMMS on a single "empty" Kubernetes cluster using the `local`
@@ -246,30 +243,12 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       val publicApiForwarder = PortForwarder(kingdomPublicPod, SERVER_PORT)
       portForwarders.add(publicApiForwarder)
 
-      val forwardedStoragePod: V1Pod =
-        k8sClient
-          .listPodsByMatchLabels(
-            k8sClient.waitUntilDeploymentReady(FORWARDED_STORAGE_DEPLOYMENT_NAME)
-          )
-          .items
-          .first()
-      val storageForwarder = PortForwarder(forwardedStoragePod, SERVER_PORT)
-      portForwarders.add(storageForwarder)
-
       val publicApiAddress: InetSocketAddress =
         withContext(Dispatchers.IO) { publicApiForwarder.start() }
       val publicApiChannel: Channel =
         buildMutualTlsChannel(publicApiAddress.toTarget(), MEASUREMENT_CONSUMER_SIGNING_CERTS)
           .also { channels.add(it) }
           .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
-      val storageAddress: InetSocketAddress =
-        withContext(Dispatchers.IO) { storageForwarder.start() }
-      val storageChannel: Channel =
-        buildMutualTlsChannel(storageAddress.toTarget(), KINGDOM_SIGNING_CERTS)
-          .also { channels.add(it) }
-          .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
-      val storageClient =
-        ForwardedStorageClient(ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(storageChannel))
       val eventGroupsClient = EventGroupsGrpcKt.EventGroupsCoroutineStub(publicApiChannel)
 
       return MeasurementConsumerSimulator(
@@ -278,13 +257,14 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
           eventGroupsClient,
           MeasurementsGrpcKt.MeasurementsCoroutineStub(publicApiChannel),
-          RequisitionsGrpcKt.RequisitionsCoroutineStub(publicApiChannel),
           MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(publicApiChannel),
           CertificatesGrpcKt.CertificatesCoroutineStub(publicApiChannel),
-          SketchStore(storageClient),
           Duration.ofSeconds(10L),
           MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
-          EventFilters.EVENT_TEMPLATES_TO_FILTERS_MAP
+          MetadataSyntheticGeneratorEventQuery(
+            SyntheticGenerationSpecs.POPULATION_SPEC,
+            MC_ENCRYPTION_PRIVATE_KEY
+          ),
         )
         .also {
           try {
@@ -473,7 +453,6 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private val DEFAULT_RPC_DEADLINE = Duration.ofSeconds(30)
     private const val KINGDOM_INTERNAL_DEPLOYMENT_NAME = "gcp-kingdom-data-server-deployment"
     private const val KINGDOM_PUBLIC_DEPLOYMENT_NAME = "v2alpha-public-api-server-deployment"
-    private const val FORWARDED_STORAGE_DEPLOYMENT_NAME = "fake-storage-server-deployment"
     private const val NUM_DATA_PROVIDERS = 6
     private val EDP_DISPLAY_NAMES: List<String> = (1..NUM_DATA_PROVIDERS).map { "edp$it" }
     private val READY_TIMEOUT = Duration.ofMinutes(2L)

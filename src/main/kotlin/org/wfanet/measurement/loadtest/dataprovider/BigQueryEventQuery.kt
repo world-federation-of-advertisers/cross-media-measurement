@@ -27,6 +27,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 import java.util.logging.Logger
+import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
@@ -37,16 +38,18 @@ import org.wfanet.measurement.common.toRange
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 /** Fulfill the query by querying the specified BigQuery table. */
-class BigQueryEventQuery(
+abstract class BigQueryEventQuery(
   private val bigQuery: BigQuery,
   private val datasetName: String,
   private val tableName: String,
-  private val publisherId: Int,
 ) : EventQuery {
+
+  protected abstract fun getPublisherId(eventGroup: EventGroup): Int
 
   override fun getUserVirtualIds(eventGroupSpec: EventQuery.EventGroupSpec): Sequence<Long> {
     val timeRange: OpenEndTimeRange = eventGroupSpec.spec.collectionInterval.toRange()
-    val queryConfig: QueryJobConfiguration = buildQueryConfig(publisherId, timeRange)
+    val queryConfig: QueryJobConfiguration =
+      buildQueryConfig(getPublisherId(eventGroupSpec.eventGroup), timeRange)
 
     bigQuery.query(queryConfig)
 
@@ -150,6 +153,17 @@ class BigQueryEventQuery(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+  }
+}
+
+class SinglePublisherBigQueryEventQuery(
+  bigQuery: BigQuery,
+  datasetName: String,
+  tableName: String,
+  private val publisherId: Int
+) : BigQueryEventQuery(bigQuery, datasetName, tableName) {
+  override fun getPublisherId(eventGroup: EventGroup): Int {
+    return publisherId
   }
 }
 

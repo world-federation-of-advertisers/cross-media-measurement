@@ -14,9 +14,10 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.protobuf.Message
 import io.grpc.ManagedChannel
 import java.time.Clock
-import java.util.Random
+import kotlin.random.Random
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
@@ -29,19 +30,16 @@ import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.loadtest.config.EventFilters.EVENT_TEMPLATES_TO_FILTERS_MAP
 import org.wfanet.measurement.loadtest.config.PrivacyBudgets.createNoOpPrivacyBudgetManager
-import org.wfanet.measurement.loadtest.storage.SketchStore
-import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
 
 /** The base class of the EdpSimulator runner. */
-abstract class EdpSimulatorRunner : Runnable {
+abstract class EdpSimulatorRunner() : Runnable {
   @CommandLine.Mixin
   protected lateinit var flags: EdpSimulatorFlags
     private set
 
-  protected fun run(storageClient: StorageClient, eventQuery: EventQuery) {
+  protected fun run(eventQuery: EventQuery, eventGroupMetadata: Message) {
     val clientCerts =
       SigningCerts.fromPemFiles(
         certificateFile = flags.tlsFlags.certFile,
@@ -84,7 +82,7 @@ abstract class EdpSimulatorRunner : Runnable {
       if (randomSeed != null) {
         Random(randomSeed)
       } else {
-        Random()
+        Random.Default
       }
 
     val edpSimulator =
@@ -97,17 +95,15 @@ abstract class EdpSimulatorRunner : Runnable {
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
         requisitionFulfillmentStub,
-        SketchStore(storageClient),
         eventQuery,
         MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
-        eventTemplateNames = EVENT_TEMPLATES_TO_FILTERS_MAP.keys.toList(),
         createNoOpPrivacyBudgetManager(),
         clientCerts.trustedCertificates,
-        random,
-        flags.directNoiseMechanism
+        flags.directNoiseMechanism,
+        random = random
       )
     runBlocking {
-      edpSimulator.createEventGroup()
+      edpSimulator.ensureEventGroup(eventGroupMetadata)
       edpSimulator.run()
     }
   }
