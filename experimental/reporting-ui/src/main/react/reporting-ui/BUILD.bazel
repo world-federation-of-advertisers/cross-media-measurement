@@ -39,7 +39,6 @@ webpack_bundle(
     srcs = [
         ":webpack_config",
         "//:tsconfig",
-        "//experimental/reporting-ui/src/main/react/reporting-ui/library:src_files",
         "//experimental/reporting-ui/src/main/react/reporting-ui/public",
         "//experimental/reporting-ui/src/main/react/reporting-ui/src:src_files",
     ],
@@ -48,6 +47,7 @@ webpack_bundle(
     webpack_config = ":webpack_config",
     deps = [
         ":build_node_deps",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/library:src_ts",
     ],
 )
 
@@ -56,9 +56,9 @@ webpack_devserver(
     data = [
         ":build_node_deps",
         "//:tsconfig",
-        "//experimental/reporting-ui/src/main/react/reporting-ui/library:src_files",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/library:src_ts",
         "//experimental/reporting-ui/src/main/react/reporting-ui/public",
-        "//experimental/reporting-ui/src/main/react/reporting-ui/src:src_files",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/src:src_ts",
     ],
     node_modules = "//:node_modules",
     webpack_config = ":webpack_config",
