@@ -87,7 +87,6 @@ import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
-import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
@@ -797,7 +796,6 @@ abstract class InProcessLifeOfAReportIntegrationTest {
         }
       timeIntervals = timeIntervals {
         timeIntervals += EVENT_RANGE.toInterval()
-
         timeIntervals += eventRange2.toInterval()
       }
     }
@@ -1011,23 +1009,23 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
-    val vids =
-      SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
-        eventGroup,
-        primitiveReportingSet.filter,
-        EVENT_RANGE.toInterval()
-      )
-    val sampledVids =
-      vids.calculateSampledVids(
-        report.reportingMetricEntriesList[0]
-          .value
-          .metricCalculationSpecsList[0]
-          .metricSpecsList[0]
-          .vidSamplingInterval
-      )
-    val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
-
     for (resultAttribute in retrievedReport.metricCalculationResultsList[0].resultAttributesList) {
+      val vids =
+        SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
+          eventGroup,
+          primitiveReportingSet.filter,
+          resultAttribute.timeInterval
+        )
+      val sampledVids =
+        vids.calculateSampledVids(
+          report.reportingMetricEntriesList[0]
+            .value
+            .metricCalculationSpecsList[0]
+            .metricSpecsList[0]
+            .vidSamplingInterval
+        )
+      val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+
       val actualResult =
         MeasurementKt.result {
           reach = MeasurementKt.ResultKt.reach { value = resultAttribute.metricResult.reach.value }
@@ -1126,9 +1124,27 @@ abstract class InProcessLifeOfAReportIntegrationTest {
       // TODO(@tristanvuong2021): Assert using variance
       if (resultAttribute.groupingPredicatesList.contains(grouping1Predicate1)) {
         if (resultAttribute.groupingPredicatesList.contains(grouping2Predicate1)) {
-          assertThat(actualResult).reachValue().isWithinPercent(500.0).of(1)
+          val vids =
+            SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
+              eventGroup,
+              "${primitiveReportingSet.filter} && $grouping1Predicate1 && $grouping2Predicate1",
+              EVENT_RANGE.toInterval()
+            )
+          val sampledVids = vids.calculateSampledVids(vidSamplingInterval)
+          val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+
+          assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
         } else {
-          assertThat(actualResult).reachValue().isWithinPercent(500.0).of(1)
+          val vids =
+            SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
+              eventGroup,
+              "${primitiveReportingSet.filter} && $grouping1Predicate1 && $grouping2Predicate2",
+              EVENT_RANGE.toInterval()
+            )
+          val sampledVids = vids.calculateSampledVids(vidSamplingInterval)
+          val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+
+          assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
         }
       } else {
         if (resultAttribute.groupingPredicatesList.contains(grouping2Predicate1)) {
@@ -1383,12 +1399,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
       )
 
     val reach =
-      retrievedMetric.result.frequencyHistogram.binsList
-        .reduce { acc, bin ->
-          acc.copy { binResult = acc.binResult.copy { value += bin.binResult.value } }
-        }
-        .binResult
-        .value
+      retrievedMetric.result.frequencyHistogram.binsList.sumOf { bin -> bin.binResult.value }
     val actualResult =
       MeasurementKt.result {
         frequency =

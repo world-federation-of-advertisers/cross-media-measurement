@@ -76,4 +76,34 @@ date_specs {
       }
     }
   }
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 9000000
+        end_exclusive: 9001000
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.25
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 25000000
+        end_exclusive: 25001000
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.25
+        }
+      }
+    }
+  }
 }
