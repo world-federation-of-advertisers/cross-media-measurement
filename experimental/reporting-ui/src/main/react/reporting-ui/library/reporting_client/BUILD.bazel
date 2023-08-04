@@ -18,8 +18,8 @@ js_library(
         include = SRC_PATTERNS,
     ),
     deps = [
-        "//experimental/reporting-ui/src/main/react/reporting-ui/library/reporting_client/models:src_files"
-    ]
+        "//experimental/reporting-ui/src/main/react/reporting-ui/library/reporting_client/models:src_files",
+    ],
 )
 
 ts_project(
