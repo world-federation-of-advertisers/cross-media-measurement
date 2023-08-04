@@ -82,6 +82,7 @@ import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.timeIntervals
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
 
 /**
  * Test that everything is wired up properly.
@@ -93,7 +94,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
   abstract val kingdomDataServicesRule: ProviderRule<DataServices>
 
   /** Provides a function from Duchy to the dependencies needed to start the Duchy to the test. */
-  abstract val duchyDependenciesRule: ProviderRule<(String) -> InProcessDuchy.DuchyDependencies>
+  abstract val duchyDependenciesRule: ProviderRule<(String, ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>
 
   abstract val storageClient: StorageClient
 

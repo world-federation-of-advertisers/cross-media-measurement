@@ -1,0 +1,1235 @@
+diff --git a/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/BUILD.bazel b/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/BUILD.bazel
+index b5ec45da5..9a85315dc 100644
+--- a/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/BUILD.bazel
++++ b/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/BUILD.bazel
+@@ -4,7 +4,6 @@ kt_jvm_library(
+     name = "services",
+     srcs = glob(["*Service.kt"]),
+     visibility = [
+-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/service:__pkg__",
+         "//src/test/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres:__pkg__",
+     ],
+     deps = [
+diff --git a/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/testing/BUILD.bazel b/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/testing/BUILD.bazel
+index d3fc119e0..1390b9370 100644
+--- a/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/testing/BUILD.bazel
++++ b/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/testing/BUILD.bazel
+@@ -4,7 +4,6 @@ package(
+     default_testonly = True,
+     default_visibility = [
+         "//src/test/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres:__subpackages__",
+-        "//src/test/kotlin/org/wfanet/measurement/integration/common/duchy:__pkg__",
+     ],
+ )
+ 
+diff --git a/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/tools/BUILD.bazel b/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/tools/BUILD.bazel
+deleted file mode 100644
+index bb5d2d017..000000000
+--- a/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/tools/BUILD.bazel
++++ /dev/null
+@@ -1,20 +0,0 @@
+-load("@rules_java//java:defs.bzl", "java_binary")
+-load("//src/main/docker:macros.bzl", "java_image")
+-
+-java_binary(
+-    name = "UpdateSchema",
+-    args = ["--changelog=duchy/postgres/changelog.yaml"],
+-    main_class = "org.wfanet.measurement.common.db.postgres.tools.UpdateSchema",
+-    resources = ["//src/main/resources/duchy/postgres"],
+-    runtime_deps = [
+-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/postgres/tools:update_schema",
+-    ],
+-)
+-
+-java_image(
+-    name = "update_schema_image",
+-    args = ["--changelog=duchy/postgres/changelog.yaml"],
+-    binary = ":UpdateSchema",
+-    main_class = "org.wfanet.measurement.common.db.postgres.tools.UpdateSchema",
+-    visibility = ["//src:docker_image_deployment"],
+-)
+diff --git a/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server/BUILD.bazel b/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server/BUILD.bazel
+index 472934405..5c2c72a76 100644
+--- a/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server/BUILD.bazel
++++ b/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server/BUILD.bazel
+@@ -131,23 +131,3 @@ java_image(
+     main_class = "org.wfanet.measurement.duchy.deploy.common.server.ForwardedStorageRequisitionFulfillmentServerKt",
+     visibility = ["//src:docker_image_deployment"],
+ )
+-
+-kt_jvm_library(
+-    name = "duchy_data_server",
+-    srcs = ["DuchyDataServer.kt"],
+-    visibility = [
+-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__",
+-        "//src/main/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
+-    ],
+-    deps = [
+-        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common:flags",
+-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/service:duchy_data_services",
+-        "//src/main/proto/wfa/measurement/system/v1alpha:computation_log_entries_service_kt_jvm_grpc_proto",
+-        "@wfa_common_jvm//imports/java/picocli",
+-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+-    ],
+-)
+diff --git a/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server/DuchyDataServer.kt b/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server/DuchyDataServer.kt
+deleted file mode 100644
+index 91a1fa984..000000000
+--- a/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server/DuchyDataServer.kt
++++ /dev/null
+@@ -1,82 +0,0 @@
+-// Copyright 2023 The Cross-Media Measurement Authors
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License");
+-// you may not use this file except in compliance with the License.
+-// You may obtain a copy of the License at
+-//
+-//      http://www.apache.org/licenses/LICENSE-2.0
+-//
+-// Unless required by applicable law or agreed to in writing, software
+-// distributed under the License is distributed on an "AS IS" BASIS,
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-// See the License for the specific language governing permissions and
+-// limitations under the License.
+-
+-package org.wfanet.measurement.duchy.deploy.common.server
+-
+-import io.grpc.ManagedChannel
+-import org.wfanet.measurement.common.crypto.SigningCerts
+-import kotlin.reflect.full.declaredMemberProperties
+-import kotlinx.coroutines.runInterruptible
+-import org.wfanet.measurement.common.grpc.CommonServer
+-import org.wfanet.measurement.common.identity.DuchyInfoFlags
+-import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
+-import org.wfanet.measurement.duchy.deploy.common.SystemApiFlags
+-import picocli.CommandLine
+-import java.time.Duration
+-import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+-import org.wfanet.measurement.common.grpc.withShutdownTimeout
+-import org.wfanet.measurement.common.identity.withDuchyId
+-import org.wfanet.measurement.duchy.deploy.common.service.DuchyDataServices
+-import org.wfanet.measurement.duchy.deploy.common.service.toList
+-import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
+-
+-abstract class DuchyDataServer : Runnable {
+-  @CommandLine.Mixin
+-  lateinit var serverFlags: CommonServer.Flags
+-    private set
+-
+-  @CommandLine.Mixin
+-  lateinit var duchyFlags: CommonDuchyFlags
+-    private set
+-
+-  @CommandLine.Mixin
+-  lateinit var duchyInfoFlags: DuchyInfoFlags
+-    private set
+-
+-  @CommandLine.Option(
+-    names = ["--channel-shutdown-timeout"],
+-    defaultValue = "3s",
+-    description = ["How long to allow for the gRPC channel to shutdown."],
+-    required = true
+-  )
+-  lateinit var channelShutdownTimeout: Duration
+-    private set
+-
+-  @CommandLine.Mixin
+-  lateinit var systemApiFlags: SystemApiFlags
+-    private set
+-
+-  val clientCerts =
+-    SigningCerts.fromPemFiles(
+-      certificateFile = serverFlags.tlsFlags.certFile,
+-      privateKeyFile = serverFlags.tlsFlags.privateKeyFile,
+-      trustedCertCollectionFile = serverFlags.tlsFlags.certCollectionFile
+-    )
+-  val channel: ManagedChannel =
+-    buildMutualTlsChannel(systemApiFlags.target, clientCerts, systemApiFlags.certHost)
+-      .withShutdownTimeout(channelShutdownTimeout)
+-
+-  val computationLogEntriesClient =
+-    ComputationLogEntriesCoroutineStub(channel).withDuchyId(duchyFlags.duchyName)
+-
+-  protected suspend fun run(services: DuchyDataServices) {
+-    val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services.toList())
+-
+-    runInterruptible { server.start().blockUntilShutdown() }
+-  }
+-
+-  companion object {
+-    const val SERVICE_NAME = "Computations"
+-  }
+-}
+diff --git a/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server/postgres/BUILD.bazel b/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server/postgres/BUILD.bazel
+deleted file mode 100644
+index e765ea21d..000000000
+--- a/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server/postgres/BUILD.bazel
++++ /dev/null
+@@ -1,30 +0,0 @@
+-load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+-load("@rules_java//java:defs.bzl", "java_binary")
+-load("//src/main/docker:macros.bzl", "java_image")
+-
+-kt_jvm_library(
+-    name = "postgres_duchy_data_server",
+-    srcs = ["PostgresDuchyDataServer.kt"],
+-    deps = [
+-        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
+-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:duchy_data_server",
+-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/service:postgres_duchy_data_services",
+-        "@wfa_common_jvm//imports/java/picocli",
+-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/postgres:flags",
+-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres",
+-    ],
+-)
+-
+-java_binary(
+-    name = "PostgresDuchyDataServer",
+-    main_class = "org.wfanet.measurement.duchy.deploy.postgres.server.PostgresDuchyDataServer",
+-    runtime_deps = [":postgres_duchy_data_server"],
+-)
+-
+-java_image(
+-    name = "postgres_duchy_data_server_image",
+-    binary = ":PostgresDuchyDataServer",
+-    main_class = "org.wfanet.measurement.duchy.deploy.postgres.server.PostgresDuchyDataServerKt",
+-    visibility = ["//src:docker_image_deployment"],
+-)
+diff --git a/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server/postgres/PostgresDuchyDataServer.kt b/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server/postgres/PostgresDuchyDataServer.kt
+deleted file mode 100644
+index 77c42fc10..000000000
+--- a/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server/postgres/PostgresDuchyDataServer.kt
++++ /dev/null
+@@ -1,55 +0,0 @@
+-// Copyright 2023 The Cross-Media Measurement Authors
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License");
+-// you may not use this file except in compliance with the License.
+-// You may obtain a copy of the License at
+-//
+-//      http://www.apache.org/licenses/LICENSE-2.0
+-//
+-// Unless required by applicable law or agreed to in writing, software
+-// distributed under the License is distributed on an "AS IS" BASIS,
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-// See the License for the specific language governing permissions and
+-// limitations under the License.
+-
+-package org.wfanet.measurement.duchy.deploy.postgres.server
+-
+-import java.time.Clock
+-import kotlinx.coroutines.runBlocking
+-
+-import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
+-import org.wfanet.measurement.common.identity.RandomIdGenerator
+-import org.wfanet.measurement.duchy.deploy.common.server.DuchyDataServer
+-import org.wfanet.measurement.duchy.deploy.common.service.PostgresDuchyDataServices
+-import org.wfanet.measurement.common.db.postgres.PostgresFlags
+-import org.wfanet.measurement.storage.StorageClient
+-import picocli.CommandLine
+-
+-/** Implementation of [DuchyDataServer] using Postgres. */
+-@CommandLine.Command(
+-  name = "PostgresDuchyDataServer",
+-  description = ["Start the internal Duchy data-layer services in a single blocking server."],
+-  mixinStandardHelpOptions = true,
+-  showDefaultValues = true
+-)
+-abstract class PostgresDuchyDataServer : DuchyDataServer() {
+-  @CommandLine.Mixin
+-  private lateinit var postgresFlags: PostgresFlags
+-
+-  protected fun run(storageClient: StorageClient) = runBlocking {
+-    val clock = Clock.systemUTC()
+-    val idGenerator = RandomIdGenerator(clock)
+-
+-    val client = PostgresDatabaseClient.fromFlags(postgresFlags)
+-
+-    run(
+-      PostgresDuchyDataServices.create(
+-        storageClient,
+-        computationLogEntriesClient,
+-        duchyFlags.duchyName,
+-        idGenerator,
+-        client
+-      )
+-    )
+-  }
+-}
+diff --git a/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/service/BUILD.bazel b/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/service/BUILD.bazel
+deleted file mode 100644
+index 8d17de728..000000000
+--- a/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/service/BUILD.bazel
++++ /dev/null
+@@ -1,48 +0,0 @@
+-load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+-
+-kt_jvm_library(
+-    name = "duchy_data_services",
+-    srcs = ["DuchyDataServices.kt"],
+-    visibility = [
+-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:__pkg__",
+-        "//src/test/kotlin/org/wfanet/measurement/integration/common/duchy:__pkg__",
+-    ],
+-    deps = [
+-        "//src/main/proto/wfa/measurement/internal/duchy:computation_stats_service_kt_jvm_grpc_proto",
+-        "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc_proto",
+-        "//src/main/proto/wfa/measurement/internal/duchy:continuation_tokens_service_kt_jvm_grpc_proto",
+-    ],
+-)
+-
+-kt_jvm_library(
+-    name = "postgres_duchy_data_services",
+-    srcs = ["PostgresDuchyDataServices.kt"],
+-    visibility = [
+-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:__pkg__",
+-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/postgres/server:__pkg__",
+-        "//src/test/kotlin/org/wfanet/measurement/integration/common/duchy:__pkg__",
+-    ],
+-    deps = [
+-        ":duchy_data_services",
+-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres:services",
+-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc",
+-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+-    ],
+-)
+-
+-kt_jvm_library(
+-    name = "spanner_duchy_data_services",
+-    srcs = ["SpannerDuchyDataServices.kt"],
+-    visibility = [
+-        "//src/test/kotlin/org/wfanet/measurement/integration/common/duchy:__pkg__",
+-    ],
+-    deps = [
+-        ":duchy_data_services",
+-        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
+-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computation",
+-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/continuationtoken:service",
+-        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computations",
+-        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computationstats:service",
+-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc",
+-    ],
+-)
+diff --git a/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/service/DuchyDataServices.kt b/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/service/DuchyDataServices.kt
+deleted file mode 100644
+index bd1363148..000000000
+--- a/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/service/DuchyDataServices.kt
++++ /dev/null
+@@ -1,31 +0,0 @@
+-// Copyright 2023 The Cross-Media Measurement Authors
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License");
+-// you may not use this file except in compliance with the License.
+-// You may obtain a copy of the License at
+-//
+-//      http://www.apache.org/licenses/LICENSE-2.0
+-//
+-// Unless required by applicable law or agreed to in writing, software
+-// distributed under the License is distributed on an "AS IS" BASIS,
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-// See the License for the specific language governing permissions and
+-// limitations under the License.
+-
+-package org.wfanet.measurement.duchy.deploy.common.service
+-
+-import io.grpc.BindableService
+-import kotlin.reflect.full.declaredMemberProperties
+-import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineImplBase
+-import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
+-import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineImplBase
+-
+-data class DuchyDataServices(
+-  val computationsService: ComputationsCoroutineImplBase,
+-  val computationStatsService: ComputationStatsCoroutineImplBase,
+-  val continuationTokensService: ContinuationTokensCoroutineImplBase
+-)
+-
+-fun DuchyDataServices.toList(): List<BindableService> {
+-  return DuchyDataServices::class.declaredMemberProperties.map { it.get(this) as BindableService }
+-}
+diff --git a/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/service/PostgresDuchyDataServices.kt b/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/service/PostgresDuchyDataServices.kt
+deleted file mode 100644
+index 52347ec4c..000000000
+--- a/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/service/PostgresDuchyDataServices.kt
++++ /dev/null
+@@ -1,70 +0,0 @@
+-// Copyright 2023 The Cross-Media Measurement Authors
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License");
+-// you may not use this file except in compliance with the License.
+-// You may obtain a copy of the License at
+-//
+-//      http://www.apache.org/licenses/LICENSE-2.0
+-//
+-// Unless required by applicable law or agreed to in writing, software
+-// distributed under the License is distributed on an "AS IS" BASIS,
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-// See the License for the specific language governing permissions and
+-// limitations under the License.
+-
+-package org.wfanet.measurement.duchy.deploy.common.service
+-
+-import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
+-import org.wfanet.measurement.common.identity.IdGenerator
+-import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
+-import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
+-import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
+-import org.wfanet.measurement.duchy.deploy.common.postgres.PostgresComputationStatsService
+-import org.wfanet.measurement.duchy.deploy.common.postgres.PostgresComputationsService
+-import org.wfanet.measurement.duchy.deploy.common.postgres.PostgresContinuationTokensService
+-import org.wfanet.measurement.duchy.storage.ComputationStore
+-import org.wfanet.measurement.duchy.storage.RequisitionStore
+-import org.wfanet.measurement.internal.duchy.ComputationDetails
+-import org.wfanet.measurement.internal.duchy.ComputationStage
+-import org.wfanet.measurement.internal.duchy.ComputationStageDetails
+-import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+-import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
+-import java.time.Clock
+-import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
+-import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
+-import org.wfanet.measurement.duchy.db.computation.ComputationTypes
+-import org.wfanet.measurement.storage.StorageClient
+-
+-object PostgresDuchyDataServices {
+-  @JvmStatic
+-  fun create(
+-    storageClient: StorageClient,
+-    computationLogEntriesClient: ComputationLogEntriesCoroutineStub,
+-    duchyName: String,
+-    idGenerator: IdGenerator,
+-    client: DatabaseClient
+-  ): DuchyDataServices {
+-    val computationTypeEnumHelper: ComputationTypeEnumHelper<ComputationType> = ComputationTypes
+-    val protocolStagesEnumHelper: ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage> = ComputationProtocolStages
+-    val computationProtocolStageDetailsHelper: ComputationProtocolStageDetailsHelper<
+-      ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
+-      > = ComputationProtocolStageDetails
+-
+-    return DuchyDataServices(
+-      PostgresComputationsService(
+-        computationTypeEnumHelper = computationTypeEnumHelper,
+-        protocolStagesEnumHelper = protocolStagesEnumHelper,
+-        computationProtocolStageDetailsHelper = computationProtocolStageDetailsHelper,
+-        computationStorageClient = ComputationStore(storageClient),
+-        requisitionStorageClient = RequisitionStore(storageClient),
+-        computationLogEntriesClient = computationLogEntriesClient,
+-        duchyName = duchyName,
+-        clock = Clock.systemUTC(),
+-        client = client,
+-        idGenerator = idGenerator,
+-      ),
+-      PostgresComputationStatsService(client, idGenerator),
+-      PostgresContinuationTokensService(client, idGenerator)
+-    )
+-  }
+-}
+diff --git a/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/service/SpannerDuchyDataServices.kt b/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/service/SpannerDuchyDataServices.kt
+deleted file mode 100644
+index 10138cec3..000000000
+--- a/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/service/SpannerDuchyDataServices.kt
++++ /dev/null
+@@ -1,105 +0,0 @@
+-// Copyright 2023 The Cross-Media Measurement Authors
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License");
+-// you may not use this file except in compliance with the License.
+-// You may obtain a copy of the License at
+-//
+-//      http://www.apache.org/licenses/LICENSE-2.0
+-//
+-// Unless required by applicable law or agreed to in writing, software
+-// distributed under the License is distributed on an "AS IS" BASIS,
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-// See the License for the specific language governing permissions and
+-// limitations under the License.
+-
+-package org.wfanet.measurement.duchy.deploy.common.service
+-
+-import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
+-import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
+-import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
+-import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
+-import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
+-import org.wfanet.measurement.duchy.db.computation.ComputationTypes
+-import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
+-import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseReader
+-import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor
+-import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.ComputationMutations
+-import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseReader
+-import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseTransactor
+-import org.wfanet.measurement.duchy.deploy.gcloud.spanner.continuationtoken.SpannerContinuationTokensService
+-import org.wfanet.measurement.duchy.storage.ComputationStore
+-import org.wfanet.measurement.duchy.storage.RequisitionStore
+-import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+-import org.wfanet.measurement.internal.duchy.ComputationDetails
+-import org.wfanet.measurement.internal.duchy.ComputationStage
+-import org.wfanet.measurement.internal.duchy.ComputationStageDetails
+-import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+-import org.wfanet.measurement.duchy.service.internal.computations.ComputationsService
+-import org.wfanet.measurement.duchy.service.internal.computationstats.ComputationStatsService
+-import org.wfanet.measurement.storage.StorageClient
+-import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
+-
+-private typealias ComputationsDb =
+-  ComputationsDatabaseTransactor<
+-    ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
+-    >
+-
+-object SpannerDuchyDataServices {
+-  @JvmStatic
+-  fun create(
+-    storageClient: StorageClient,
+-    computationLogEntriesClient: ComputationLogEntriesCoroutineStub,
+-    duchyName: String,
+-    databaseClient: AsyncDatabaseClient
+-  ): DuchyDataServices {
+-
+-    val computationTypeEnumHelper: ComputationTypeEnumHelper<ComputationType> = ComputationTypes
+-    val protocolStagesEnumHelper: ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage> =
+-      ComputationProtocolStages
+-    val computationProtocolStageDetailsHelper: ComputationProtocolStageDetailsHelper<
+-      ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
+-      > = ComputationProtocolStageDetails
+-
+-    val computationReader =
+-      GcpSpannerComputationsDatabaseReader(databaseClient, protocolStagesEnumHelper)
+-    val computationDb = GcpSpannerComputationsDatabaseTransactor(
+-      databaseClient = databaseClient,
+-      computationMutations =
+-      ComputationMutations(
+-        computationTypeEnumHelper,
+-        protocolStagesEnumHelper,
+-        computationProtocolStageDetailsHelper
+-      )
+-    )
+-    val computationsDatabase = newComputationsDatabase(
+-      computationReader,
+-      computationDb,
+-      protocolStagesEnumHelper
+-    )
+-    return DuchyDataServices(
+-      ComputationsService(
+-        computationsDatabase = computationsDatabase,
+-        computationLogEntriesClient = computationLogEntriesClient,
+-        computationStorageClient = ComputationStore(storageClient),
+-        requisitionStorageClient = RequisitionStore(storageClient),
+-        duchyName = duchyName
+-      ),
+-      ComputationStatsService(computationsDatabase),
+-      SpannerContinuationTokensService(databaseClient)
+-    )
+-  }
+-
+-  private fun newComputationsDatabase(
+-    computationsDatabaseReader: ComputationsDatabaseReader,
+-    computationDb: ComputationsDb,
+-    protocolStagesEnumHelper: ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>,
+-  ): ComputationsDatabase {
+-    return object :
+-      ComputationsDatabase,
+-      ComputationsDatabaseReader by computationsDatabaseReader,
+-      ComputationsDb by computationDb,
+-      ComputationProtocolStagesEnumHelper<
+-        ComputationType, ComputationStage
+-        > by protocolStagesEnumHelper {}
+-  }
+-}
+diff --git a/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/testing/BUILD.bazel b/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/testing/BUILD.bazel
+index 0b19e63c7..b9ae470a0 100644
+--- a/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/testing/BUILD.bazel
++++ b/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/testing/BUILD.bazel
+@@ -4,7 +4,6 @@ package(
+     default_testonly = True,
+     default_visibility = [
+         "//src/test/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner:__subpackages__",
+-        "//src/test/kotlin/org/wfanet/measurement/integration/common/duchy:__pkg__",
+         "//src/test/kotlin/org/wfanet/measurement/integration/gcloud:__pkg__",
+     ],
+ )
+diff --git a/src/main/kotlin/org/wfanet/measurement/integration/common/BUILD.bazel b/src/main/kotlin/org/wfanet/measurement/integration/common/BUILD.bazel
+index d9c31d149..72847243c 100644
+--- a/src/main/kotlin/org/wfanet/measurement/integration/common/BUILD.bazel
++++ b/src/main/kotlin/org/wfanet/measurement/integration/common/BUILD.bazel
+@@ -125,7 +125,6 @@ kt_jvm_library(
+         "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
+         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/herald",
+         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2:liquid_legions_v2_mill",
+-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:duchy_data_server",
+         "@wfa_common_jvm//imports/java/io/grpc:api",
+         "@wfa_common_jvm//imports/java/io/grpc:core",
+         "@wfa_common_jvm//imports/java/io/grpc/testing",
+@@ -191,7 +190,6 @@ kt_jvm_library(
+     deps = [
+         ":all_kingdom_services",
+         ":in_process_cmms_components",
+-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:duchy_data_server",
+         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
+         "//src/main/kotlin/org/wfanet/measurement/loadtest/frontend:frontend_simulator",
+         "//src/main/kotlin/org/wfanet/measurement/loadtest/storage",
+diff --git a/src/main/kotlin/org/wfanet/measurement/integration/common/InProcessCmmsComponents.kt b/src/main/kotlin/org/wfanet/measurement/integration/common/InProcessCmmsComponents.kt
+index 48be302dd..42d7e5749 100644
+--- a/src/main/kotlin/org/wfanet/measurement/integration/common/InProcessCmmsComponents.kt
++++ b/src/main/kotlin/org/wfanet/measurement/integration/common/InProcessCmmsComponents.kt
+@@ -32,7 +32,6 @@ import org.wfanet.measurement.common.identity.DuchyInfo
+ import org.wfanet.measurement.common.testing.ProviderRule
+ import org.wfanet.measurement.common.testing.chainRulesSequentially
+ import org.wfanet.measurement.config.DuchyCertConfig
+-import org.wfanet.measurement.duchy.deploy.common.server.DuchyDataServer
+ import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+ import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
+ import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
+@@ -41,11 +40,10 @@ import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
+ import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
+ import org.wfanet.measurement.loadtest.resourcesetup.ResourceSetup
+ import org.wfanet.measurement.storage.StorageClient
+-import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
+ 
+ class InProcessCmmsComponents(
+   private val kingdomDataServicesRule: ProviderRule<DataServices>,
+-  private val duchyDependenciesRule: ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>,
++  private val duchyDependenciesRule: ProviderRule<(String) -> InProcessDuchy.DuchyDependencies>,
+   private val storageClient: StorageClient,
+ ) : TestRule {
+   private val kingdomDataServices: DataServices
+@@ -63,7 +61,7 @@ class InProcessCmmsComponents(
+       InProcessDuchy(
+         externalDuchyId = it,
+         kingdomSystemApiChannel = kingdom.systemApiChannel,
+-        duchyDependenciesRule = duchyDependenciesRule,
++        duchyDependenciesProvider = { duchyDependenciesRule.value(it) },
+         trustedCertificates = TRUSTED_CERTIFICATES,
+         verboseGrpcLogging = false,
+       )
+diff --git a/src/main/kotlin/org/wfanet/measurement/integration/common/InProcessDuchy.kt b/src/main/kotlin/org/wfanet/measurement/integration/common/InProcessDuchy.kt
+index f59fabbd9..4cc49eacc 100644
+--- a/src/main/kotlin/org/wfanet/measurement/integration/common/InProcessDuchy.kt
++++ b/src/main/kotlin/org/wfanet/measurement/integration/common/InProcessDuchy.kt
+@@ -51,13 +51,18 @@ import org.wfanet.measurement.duchy.daemon.mill.Certificate
+ import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
+ import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniLiquidLegionsV2Encryption
+ import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
++import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
+ import org.wfanet.measurement.duchy.service.api.v2alpha.RequisitionFulfillmentService
+ import org.wfanet.measurement.duchy.service.internal.computationcontrol.AsyncComputationControlService
++import org.wfanet.measurement.duchy.service.internal.computations.ComputationsService
++import org.wfanet.measurement.duchy.service.internal.computationstats.ComputationStatsService
+ import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlService
++import org.wfanet.measurement.duchy.storage.ComputationStore
+ import org.wfanet.measurement.duchy.storage.RequisitionStore
+ import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
+ import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
+ import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
++import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineImplBase
+ import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
+ import org.wfanet.measurement.storage.StorageClient
+ import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub as SystemComputationControlCoroutineStub
+@@ -65,40 +70,34 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.Computa
+ import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
+ import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
+ import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub as SystemRequisitionsCoroutineStub
+-import org.wfanet.measurement.common.testing.ProviderRule
+-import org.wfanet.measurement.duchy.deploy.common.service.DuchyDataServices
+ 
+ /**
+  * TestRule that starts and stops all Duchy gRPC services and daemons.
+  *
+  * @param externalDuchyId the external ID of this duchy
+  * @param kingdomSystemApiChannel a gRPC channel to the Kingdom
+- * @param duchyDependenciesRule provides the data services and storage client
++ * @param duchyDependenciesProvider provides the backends and other inputs required to start a Duchy
+  * @param verboseGrpcLogging whether to do verboseGrpcLogging
+  */
+ class InProcessDuchy(
+   val externalDuchyId: String,
+   val kingdomSystemApiChannel: Channel,
+-  val duchyDependenciesRule: ProviderRule<(String, SystemComputationLogEntriesCoroutineStub) -> DuchyDependencies>,
++  duchyDependenciesProvider: () -> DuchyDependencies,
+   private val trustedCertificates: Map<ByteString, X509Certificate>,
+   val verboseGrpcLogging: Boolean = true,
+   daemonContext: CoroutineContext = Dispatchers.Default,
+ ) : TestRule {
+   data class DuchyDependencies(
+-    val duchyDataServices: DuchyDataServices,
++    val computationsDatabase: ComputationsDatabase,
+     val storageClient: StorageClient,
++    val continuationTokensService: ContinuationTokensCoroutineImplBase,
+   )
+ 
+   private val daemonScope = CoroutineScope(daemonContext)
+   private lateinit var heraldJob: Job
+   private lateinit var llv2MillJob: Job
+ 
+-  private val duchyDependencies by lazy {
+-    duchyDependenciesRule.value(
+-      externalDuchyId,
+-      systemComputationLogEntriesClient
+-    )
+-  }
++  private val duchyDependencies by lazy { duchyDependenciesProvider() }
+ 
+   private val systemComputationsClient by lazy {
+     SystemComputationsCoroutineStub(kingdomSystemApiChannel).withDuchyId(externalDuchyId)
+@@ -125,18 +124,26 @@ class InProcessDuchy(
+ 
+   private val computationsServer =
+     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+-      addService(duchyDependencies.duchyDataServices.computationsService)
+-      addService(duchyDependencies.duchyDataServices.computationStatsService)
+-      addService(duchyDependencies.duchyDataServices.continuationTokensService)
++      addService(
++        ComputationsService(
++          duchyDependencies.computationsDatabase,
++          systemComputationLogEntriesClient,
++          ComputationStore(duchyDependencies.storageClient),
++          RequisitionStore(duchyDependencies.storageClient),
++          externalDuchyId,
++        )
++      )
++      addService(ComputationStatsService(duchyDependencies.computationsDatabase))
++      addService(duchyDependencies.continuationTokensService)
+     }
+   private val requisitionFulfillmentServer =
+     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+       addService(
+         RequisitionFulfillmentService(
+-          systemRequisitionsClient,
+-          computationsClient,
+-          RequisitionStore(duchyDependencies.storageClient)
+-        )
++            systemRequisitionsClient,
++            computationsClient,
++            RequisitionStore(duchyDependencies.storageClient)
++          )
+           .withMetadataPrincipalIdentities()
+       )
+     }
+diff --git a/src/main/kotlin/org/wfanet/measurement/integration/common/InProcessLifeOfAMeasurementIntegrationTest.kt b/src/main/kotlin/org/wfanet/measurement/integration/common/InProcessLifeOfAMeasurementIntegrationTest.kt
+index 148f15f2e..5f6adbdbe 100644
+--- a/src/main/kotlin/org/wfanet/measurement/integration/common/InProcessLifeOfAMeasurementIntegrationTest.kt
++++ b/src/main/kotlin/org/wfanet/measurement/integration/common/InProcessLifeOfAMeasurementIntegrationTest.kt
+@@ -34,7 +34,6 @@ import org.wfanet.measurement.loadtest.frontend.FrontendSimulator
+ import org.wfanet.measurement.loadtest.frontend.MeasurementConsumerData
+ import org.wfanet.measurement.loadtest.storage.SketchStore
+ import org.wfanet.measurement.storage.StorageClient
+-import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
+ 
+ /**
+  * Test that everything is wired up properly.
+@@ -46,7 +45,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
+   abstract val kingdomDataServicesRule: ProviderRule<DataServices>
+ 
+   /** Provides a function from Duchy to the dependencies needed to start the Duchy to the test. */
+-  abstract val duchyDependenciesRule: ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>
++  abstract val duchyDependenciesRule: ProviderRule<(String) -> InProcessDuchy.DuchyDependencies>
+ 
+   abstract val storageClient: StorageClient
+ 
+diff --git a/src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2/InProcessLifeOfAReportIntegrationTest.kt b/src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2/InProcessLifeOfAReportIntegrationTest.kt
+index 7a08b11c1..8d7d2ac43 100644
+--- a/src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2/InProcessLifeOfAReportIntegrationTest.kt
++++ b/src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2/InProcessLifeOfAReportIntegrationTest.kt
+@@ -82,7 +82,6 @@ import org.wfanet.measurement.reporting.v2alpha.report
+ import org.wfanet.measurement.reporting.v2alpha.reportingSet
+ import org.wfanet.measurement.reporting.v2alpha.timeIntervals
+ import org.wfanet.measurement.storage.StorageClient
+-import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
+ 
+ /**
+  * Test that everything is wired up properly.
+@@ -94,7 +93,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
+   abstract val kingdomDataServicesRule: ProviderRule<DataServices>
+ 
+   /** Provides a function from Duchy to the dependencies needed to start the Duchy to the test. */
+-  abstract val duchyDependenciesRule: ProviderRule<(String, ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>
++  abstract val duchyDependenciesRule: ProviderRule<(String) -> InProcessDuchy.DuchyDependencies>
+ 
+   abstract val storageClient: StorageClient
+ 
+diff --git a/src/test/kotlin/org/wfanet/measurement/integration/common/duchy/BUILD.bazel b/src/test/kotlin/org/wfanet/measurement/integration/common/duchy/BUILD.bazel
+deleted file mode 100644
+index ee25ffef2..000000000
+--- a/src/test/kotlin/org/wfanet/measurement/integration/common/duchy/BUILD.bazel
++++ /dev/null
+@@ -1,45 +0,0 @@
+-load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+-load("@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
+-
+-kt_jvm_library(
+-    name = "spanner_duchy_dependency_provider_rule",
+-    testonly = True,
+-    srcs = [
+-        "SpannerDuchyDependencyProviderRule.kt",
+-    ],
+-    visibility = [
+-        "//src/test/kotlin/org/wfanet/measurement/integration/gcloud:__pkg__",
+-    ],
+-    deps = [
+-        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
+-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/service:spanner_duchy_data_services",
+-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computation",
+-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/continuationtoken:service",
+-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/testing",
+-        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_duchy",
+-        "@wfa_common_jvm//imports/java/com/google/cloud/storage/contrib/nio",
+-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
+-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+-    ],
+-)
+-
+-kt_jvm_library(
+-    name = "postgres_duchy_dependency_provider_rule",
+-    testonly = True,
+-    srcs = [
+-        "PostgresDuchyDependencyProviderRule.kt",
+-    ],
+-    visibility = [
+-        "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
+-    ],
+-    deps = [
+-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/testing",
+-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/service:postgres_duchy_data_services",
+-        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_duchy",
+-        "@wfa_common_jvm//imports/java/com/google/cloud/storage/contrib/nio",
+-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:embedded_postgres",
+-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/common",
+-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
+-    ],
+-)
+diff --git a/src/test/kotlin/org/wfanet/measurement/integration/common/duchy/PostgresDuchyDependencyProviderRule.kt b/src/test/kotlin/org/wfanet/measurement/integration/common/duchy/PostgresDuchyDependencyProviderRule.kt
+deleted file mode 100644
+index bbdd0acf2..000000000
+--- a/src/test/kotlin/org/wfanet/measurement/integration/common/duchy/PostgresDuchyDependencyProviderRule.kt
++++ /dev/null
+@@ -1,64 +0,0 @@
+-// Copyright 2023 The Cross-Media Measurement Authors
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License");
+-// you may not use this file except in compliance with the License.
+-// You may obtain a copy of the License at
+-//
+-//      http://www.apache.org/licenses/LICENSE-2.0
+-//
+-// Unless required by applicable law or agreed to in writing, software
+-// distributed under the License is distributed on an "AS IS" BASIS,
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-// See the License for the specific language governing permissions and
+-// limitations under the License.
+-
+-package org.wfanet.measurement.integration.common.duchy
+-
+-import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
+-import java.time.Clock
+-import org.junit.runner.Description
+-import org.junit.runners.model.Statement
+-import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
+-import org.wfanet.measurement.common.testing.ProviderRule
+-import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+-import org.wfanet.measurement.integration.common.InProcessDuchy
+-import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
+-import org.wfanet.measurement.common.db.r2dbc.postgres.testing.EmbeddedPostgresDatabaseProvider
+-import org.wfanet.measurement.common.identity.RandomIdGenerator
+-import org.wfanet.measurement.duchy.deploy.common.service.PostgresDuchyDataServices
+-import org.wfanet.measurement.duchy.deploy.common.postgres.testing.Schemata
+-
+-class PostgresDuchyDependencyProviderRule(duchies: Iterable<String>) :
+-  ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies> {
+-  private val computationsDatabases: Map<String, PostgresDatabaseClient> =
+-    duchies.associateWith { EmbeddedPostgresDatabaseProvider(Schemata.DUCHY_CHANGELOG_PATH).createNewDatabase() }
+-
+-  private fun buildDuchyDependencies(
+-    duchyId: String,
+-    logEntryClient: ComputationLogEntriesCoroutineStub
+-  ): InProcessDuchy.DuchyDependencies {
+-    val computationsDatabase =
+-      computationsDatabases[duchyId]
+-        ?: error("Missing Computations Spanner database for duchy $duchyId")
+-    val storageClient = GcsStorageClient(LocalStorageHelper.getOptions().service, "bucket-$duchyId")
+-
+-    val duchyDataServices = PostgresDuchyDataServices.create(
+-      storageClient = storageClient,
+-      computationLogEntriesClient = logEntryClient,
+-      duchyName = duchyId,
+-      idGenerator = RandomIdGenerator(Clock.systemUTC()),
+-      client = computationsDatabase,
+-    )
+-    return InProcessDuchy.DuchyDependencies(
+-      duchyDataServices,
+-      storageClient
+-    )
+-  }
+-
+-  override val value: (String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies
+-    get() = ::buildDuchyDependencies
+-
+-  override fun apply(base: Statement, description: Description): Statement {
+-    return base
+-  }
+-}
+diff --git a/src/test/kotlin/org/wfanet/measurement/integration/common/duchy/SpannerDuchyDependencyProviderRule.kt b/src/test/kotlin/org/wfanet/measurement/integration/common/duchy/SpannerDuchyDependencyProviderRule.kt
+deleted file mode 100644
+index d1d1a39c3..000000000
+--- a/src/test/kotlin/org/wfanet/measurement/integration/common/duchy/SpannerDuchyDependencyProviderRule.kt
++++ /dev/null
+@@ -1,62 +0,0 @@
+-// Copyright 2020 The Cross-Media Measurement Authors
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License");
+-// you may not use this file except in compliance with the License.
+-// You may obtain a copy of the License at
+-//
+-//      http://www.apache.org/licenses/LICENSE-2.0
+-//
+-// Unless required by applicable law or agreed to in writing, software
+-// distributed under the License is distributed on an "AS IS" BASIS,
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-// See the License for the specific language governing permissions and
+-// limitations under the License.
+-
+-package org.wfanet.measurement.integration.common.duchy
+-
+-import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
+-import org.junit.runner.Description
+-import org.junit.runners.model.Statement
+-import org.wfanet.measurement.common.testing.ProviderRule
+-import org.wfanet.measurement.common.testing.chainRulesSequentially
+-import org.wfanet.measurement.duchy.deploy.common.service.SpannerDuchyDataServices
+-import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.Schemata
+-import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+-import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
+-import org.wfanet.measurement.integration.common.InProcessDuchy
+-import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
+-
+-class SpannerDuchyDependencyProviderRule(duchies: Iterable<String>) :
+-  ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies> {
+-  private val computationsDatabaseRules: Map<String, SpannerEmulatorDatabaseRule> =
+-    duchies.associateWith { SpannerEmulatorDatabaseRule(Schemata.DUCHY_CHANGELOG_PATH) }
+-
+-  private fun buildDuchyDependencies(
+-    duchyId: String,
+-    logEntryClient: ComputationLogEntriesCoroutineStub
+-  ): InProcessDuchy.DuchyDependencies {
+-    val computationsDatabase =
+-      computationsDatabaseRules[duchyId]
+-        ?: error("Missing Computations Spanner database for duchy $duchyId")
+-    val storageClient = GcsStorageClient(LocalStorageHelper.getOptions().service, "bucket-$duchyId")
+-
+-    val duchyDataServices = SpannerDuchyDataServices.create(
+-      storageClient,
+-      logEntryClient,
+-      duchyId,
+-      computationsDatabase.databaseClient
+-    )
+-    return InProcessDuchy.DuchyDependencies(
+-      duchyDataServices,
+-      storageClient
+-    )
+-  }
+-
+-  override val value: (String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies
+-    get() = ::buildDuchyDependencies
+-
+-  override fun apply(base: Statement, description: Description): Statement {
+-    return chainRulesSequentially(computationsDatabaseRules.values.toList())
+-      .apply(base, description)
+-  }
+-}
+diff --git a/src/test/kotlin/org/wfanet/measurement/integration/gcloud/BUILD.bazel b/src/test/kotlin/org/wfanet/measurement/integration/gcloud/BUILD.bazel
+index 7de3cc494..9de06a0cf 100644
+--- a/src/test/kotlin/org/wfanet/measurement/integration/gcloud/BUILD.bazel
++++ b/src/test/kotlin/org/wfanet/measurement/integration/gcloud/BUILD.bazel
+@@ -1,6 +1,29 @@
+ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+ load("@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
+ 
++kt_jvm_library(
++    name = "duchy_provider_rule",
++    testonly = True,
++    srcs = [
++        "DuchyDependencyProviderRule.kt",
++    ],
++    visibility = [
++        "//src/test/kotlin/org/wfanet/measurement/integration/gcloud:__pkg__",
++        "//src/test/kotlin/org/wfanet/measurement/integration/postgres:__pkg__",
++    ],
++    deps = [
++        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill:mill_base",
++        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
++        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computation",
++        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/continuationtoken:service",
++        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/testing",
++        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_duchy",
++        "@wfa_common_jvm//imports/java/com/google/cloud/storage/contrib/nio",
++        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
++        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
++    ],
++)
++
+ kt_jvm_library(
+     name = "kingdom_provider_rule",
+     testonly = True,
+@@ -32,29 +55,15 @@ spanner_emulator_test(
+ )
+ 
+ spanner_emulator_test(
+-    name = "GCloudSpannerInProcessLifeOfAMeasurementIntegrationTest",
+-    size = "large",
+-    srcs = ["GCloudSpannerInProcessLifeOfAMeasurementIntegrationTest.kt"],
+-    tags = ["cpu:2"],
+-    test_class = "org.wfanet.measurement.integration.gcloud.GCloudSpannerInProcessLifeOfAMeasurementIntegrationTest",
+-    deps = [
+-        ":kingdom_provider_rule",
+-        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_life_of_a_measurement_integration_test",
+-        "//src/test/kotlin/org/wfanet/measurement/integration/common/duchy:spanner_duchy_dependency_provider_rule",
+-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/debug",
+-    ],
+-)
+-
+-spanner_emulator_test(
+-    name = "GCloudPostgresInProcessLifeOfAMeasurementIntegrationTest",
++    name = "GCloudInProcessLifeOfAMeasurementIntegrationTest",
+     size = "large",
+-    srcs = ["GCloudPostgresInProcessLifeOfAMeasurementIntegrationTest.kt"],
++    srcs = ["GCloudInProcessLifeOfAMeasurementIntegrationTest.kt"],
+     tags = ["cpu:2"],
+-    test_class = "org.wfanet.measurement.integration.gcloud.GCloudPostgresInProcessLifeOfAMeasurementIntegrationTest",
++    test_class = "org.wfanet.measurement.integration.gcloud.GCloudInProcessLifeOfAMeasurementIntegrationTest",
+     deps = [
++        ":duchy_provider_rule",
+         ":kingdom_provider_rule",
+         "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_life_of_a_measurement_integration_test",
+-        "//src/test/kotlin/org/wfanet/measurement/integration/common/duchy:postgres_duchy_dependency_provider_rule",
+         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/debug",
+     ],
+ )
+diff --git a/src/test/kotlin/org/wfanet/measurement/integration/gcloud/DuchyDependencyProviderRule.kt b/src/test/kotlin/org/wfanet/measurement/integration/gcloud/DuchyDependencyProviderRule.kt
+new file mode 100644
+index 000000000..8ec9f0661
+--- /dev/null
++++ b/src/test/kotlin/org/wfanet/measurement/integration/gcloud/DuchyDependencyProviderRule.kt
+@@ -0,0 +1,101 @@
++// Copyright 2020 The Cross-Media Measurement Authors
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//      http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++package org.wfanet.measurement.integration.gcloud
++
++import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
++import org.junit.runner.Description
++import org.junit.runners.model.Statement
++import org.wfanet.measurement.common.testing.ProviderRule
++import org.wfanet.measurement.common.testing.chainRulesSequentially
++import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
++import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
++import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
++import org.wfanet.measurement.duchy.db.computation.ComputationTypes
++import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
++import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseReader
++import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor
++import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.ComputationMutations
++import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseReader
++import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseTransactor
++import org.wfanet.measurement.duchy.deploy.gcloud.spanner.continuationtoken.SpannerContinuationTokensService
++import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.Schemata
++import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
++import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
++import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
++import org.wfanet.measurement.integration.common.InProcessDuchy
++import org.wfanet.measurement.internal.duchy.ComputationDetails
++import org.wfanet.measurement.internal.duchy.ComputationStage
++import org.wfanet.measurement.internal.duchy.ComputationStageDetails
++import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
++import org.wfanet.measurement.storage.StorageClient
++
++private typealias ComputationsDb =
++  ComputationsDatabaseTransactor<
++    ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
++  >
++
++class DuchyDependencyProviderRule(duchies: Iterable<String>) :
++  ProviderRule<(String) -> InProcessDuchy.DuchyDependencies> {
++  override val value: (String) -> InProcessDuchy.DuchyDependencies = this::buildDuchyDependencies
++
++  private val computationsDatabaseRules: Map<String, SpannerEmulatorDatabaseRule> =
++    duchies.associateWith { SpannerEmulatorDatabaseRule(Schemata.DUCHY_CHANGELOG_PATH) }
++
++  private fun buildDuchyDependencies(duchyId: String): InProcessDuchy.DuchyDependencies {
++    val computationsDatabase =
++      computationsDatabaseRules[duchyId]
++        ?: error("Missing Computations Spanner database for duchy $duchyId")
++
++    return InProcessDuchy.DuchyDependencies(
++      buildComputationsDb(computationsDatabase.databaseClient),
++      buildStorageClient(duchyId),
++      SpannerContinuationTokensService(computationsDatabase.databaseClient)
++    )
++  }
++
++  private fun buildComputationsDb(
++    computationsDatabaseClient: AsyncDatabaseClient
++  ): ComputationsDatabase {
++    val readOnlyDb =
++      GcpSpannerComputationsDatabaseReader(computationsDatabaseClient, ComputationProtocolStages)
++    val computationsDb: ComputationsDb =
++      GcpSpannerComputationsDatabaseTransactor(
++        databaseClient = computationsDatabaseClient,
++        computationMutations =
++          ComputationMutations(
++            ComputationTypes,
++            ComputationProtocolStages,
++            ComputationProtocolStageDetails
++          )
++      )
++
++    return object :
++      ComputationsDatabase,
++      ComputationsDatabaseReader by readOnlyDb,
++      ComputationsDb by computationsDb,
++      ComputationProtocolStagesEnumHelper<
++        ComputationType, ComputationStage
++      > by ComputationProtocolStages {}
++  }
++
++  private fun buildStorageClient(duchyId: String): StorageClient {
++    return GcsStorageClient(LocalStorageHelper.getOptions().service, "bucket-$duchyId")
++  }
++
++  override fun apply(base: Statement, description: Description): Statement {
++    return chainRulesSequentially(computationsDatabaseRules.values.toList())
++      .apply(base, description)
++  }
++}
+diff --git a/src/test/kotlin/org/wfanet/measurement/integration/gcloud/GCloudSpannerInProcessLifeOfAMeasurementIntegrationTest.kt b/src/test/kotlin/org/wfanet/measurement/integration/gcloud/GCloudInProcessLifeOfAMeasurementIntegrationTest.kt
+similarity index 80%
+rename from src/test/kotlin/org/wfanet/measurement/integration/gcloud/GCloudSpannerInProcessLifeOfAMeasurementIntegrationTest.kt
+rename to src/test/kotlin/org/wfanet/measurement/integration/gcloud/GCloudInProcessLifeOfAMeasurementIntegrationTest.kt
+index 67193696f..3d2b8c7d0 100644
+--- a/src/test/kotlin/org/wfanet/measurement/integration/gcloud/GCloudSpannerInProcessLifeOfAMeasurementIntegrationTest.kt
++++ b/src/test/kotlin/org/wfanet/measurement/integration/gcloud/GCloudInProcessLifeOfAMeasurementIntegrationTest.kt
+@@ -1,4 +1,4 @@
+-// Copyright 2023 The Cross-Media Measurement Authors
++// Copyright 2020 The Cross-Media Measurement Authors
+ //
+ // Licensed under the Apache License, Version 2.0 (the "License");
+ // you may not use this file except in compliance with the License.
+@@ -20,20 +20,19 @@ import org.junit.Rule
+ import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+ import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
+ import org.wfanet.measurement.integration.common.InProcessLifeOfAMeasurementIntegrationTest
+-import org.wfanet.measurement.integration.common.duchy.SpannerDuchyDependencyProviderRule
+ import org.wfanet.measurement.storage.StorageClient
+ 
+ /**
+- * Implementation of [InProcessLifeOfAMeasurementIntegrationTest] for GCloud backends with Spanner
+- * database.
++ * Implementation of [InProcessLifeOfAMeasurementIntegrationTest] for GCloud backends (Spanner,
++ * GCS).
+  */
+-class GCloudSpannerInProcessLifeOfAMeasurementIntegrationTest :
++class GCloudInProcessLifeOfAMeasurementIntegrationTest :
+   InProcessLifeOfAMeasurementIntegrationTest() {
+ 
+   @get:Rule val timeout = CoroutinesTimeout.seconds(90)
+ 
+   override val kingdomDataServicesRule by lazy { KingdomDataServicesProviderRule() }
+-  override val duchyDependenciesRule by lazy { SpannerDuchyDependencyProviderRule(ALL_DUCHY_NAMES) }
++  override val duchyDependenciesRule by lazy { DuchyDependencyProviderRule(ALL_DUCHY_NAMES) }
+   override val storageClient: StorageClient by lazy {
+     GcsStorageClient(LocalStorageHelper.getOptions().service, "bucket-simulator")
+   }
+diff --git a/src/test/kotlin/org/wfanet/measurement/integration/gcloud/GCloudPostgresInProcessLifeOfAMeasurementIntegrationTest.kt b/src/test/kotlin/org/wfanet/measurement/integration/gcloud/GCloudPostgresInProcessLifeOfAMeasurementIntegrationTest.kt
+deleted file mode 100644
+index 569cd1b2e..000000000
+--- a/src/test/kotlin/org/wfanet/measurement/integration/gcloud/GCloudPostgresInProcessLifeOfAMeasurementIntegrationTest.kt
++++ /dev/null
+@@ -1,44 +0,0 @@
+-/*
+- * Copyright 2023 The Cross-Media Measurement Authors
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License");
+- * you may not use this file except in compliance with the License.
+- * You may obtain a copy of the License at
+- *
+- *     http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-package org.wfanet.measurement.integration.gcloud
+-
+-import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
+-import kotlinx.coroutines.debug.junit4.CoroutinesTimeout
+-import org.junit.Rule
+-import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+-import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
+-import org.wfanet.measurement.integration.common.InProcessLifeOfAMeasurementIntegrationTest
+-import org.wfanet.measurement.integration.common.duchy.PostgresDuchyDependencyProviderRule
+-import org.wfanet.measurement.storage.StorageClient
+-
+-
+-/**
+- * Implementation of [InProcessLifeOfAMeasurementIntegrationTest] for GCloud backends with Postgres
+- * database.
+- */
+-class GCloudPostgresInProcessLifeOfAMeasurementIntegrationTest:
+-  InProcessLifeOfAMeasurementIntegrationTest() {
+-
+-  @get:Rule
+-  val timeout = CoroutinesTimeout.seconds(90)
+-
+-  override val kingdomDataServicesRule by lazy { KingdomDataServicesProviderRule() }
+-  override val duchyDependenciesRule by lazy { PostgresDuchyDependencyProviderRule(ALL_DUCHY_NAMES) }
+-  override val storageClient: StorageClient by lazy {
+-    GcsStorageClient(LocalStorageHelper.getOptions().service, "bucket-simulator")
+-  }
+-}
+diff --git a/src/test/kotlin/org/wfanet/measurement/integration/postgres/V2PostgresInProcessLifeOfAReportIntegrationTest.kt b/src/test/kotlin/org/wfanet/measurement/integration/postgres/V2PostgresInProcessLifeOfAReportIntegrationTest.kt
+index 0bd6dd88b..65d973d7b 100644
+--- a/src/test/kotlin/org/wfanet/measurement/integration/postgres/V2PostgresInProcessLifeOfAReportIntegrationTest.kt
++++ b/src/test/kotlin/org/wfanet/measurement/integration/postgres/V2PostgresInProcessLifeOfAReportIntegrationTest.kt
+@@ -24,14 +24,13 @@ import org.wfanet.measurement.common.testing.ProviderRule
+ import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+ import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
+ import org.wfanet.measurement.integration.common.InProcessDuchy
+-import org.wfanet.measurement.integration.common.duchy.PostgresDuchyDependencyProviderRule
+ import org.wfanet.measurement.integration.common.reporting.v2.InProcessLifeOfAReportIntegrationTest
++import org.wfanet.measurement.integration.gcloud.DuchyDependencyProviderRule
+ import org.wfanet.measurement.integration.gcloud.KingdomDataServicesProviderRule
+ import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
+ import org.wfanet.measurement.reporting.deploy.v2.common.server.postgres.PostgresServices
+ import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata
+ import org.wfanet.measurement.storage.StorageClient
+-import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
+ 
+ /** Implementation of [InProcessLifeOfAReportIntegrationTest] for Postgres. */
+ class V2PostgresInProcessLifeOfAReportIntegrationTest : InProcessLifeOfAReportIntegrationTest() {
+@@ -41,8 +40,8 @@ class V2PostgresInProcessLifeOfAReportIntegrationTest : InProcessLifeOfAReportIn
+ 
+   /** Provides a function from Duchy to the dependencies needed to start the Duchy to the test. */
+   override val duchyDependenciesRule:
+-    ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies> by lazy {
+-    PostgresDuchyDependencyProviderRule(ALL_DUCHY_NAMES)
++    ProviderRule<(String) -> InProcessDuchy.DuchyDependencies> by lazy {
++    DuchyDependencyProviderRule(ALL_DUCHY_NAMES)
+   }
+ 
+   override val storageClient: StorageClient by lazy {
