@@ -14,11 +14,15 @@
 
 package org.wfanet.measurement.duchy.deploy.common.service
 
+import java.time.Clock
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
+import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
+import org.wfanet.measurement.duchy.db.computation.ComputationTypes
 import org.wfanet.measurement.duchy.deploy.common.postgres.PostgresComputationStatsService
 import org.wfanet.measurement.duchy.deploy.common.postgres.PostgresComputationsService
 import org.wfanet.measurement.duchy.deploy.common.postgres.PostgresContinuationTokensService
@@ -28,12 +32,8 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
-import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
-import java.time.Clock
-import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
-import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
-import org.wfanet.measurement.duchy.db.computation.ComputationTypes
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
 object PostgresDuchyDataServices {
   @JvmStatic
@@ -45,10 +45,14 @@ object PostgresDuchyDataServices {
     client: DatabaseClient
   ): DuchyDataServices {
     val computationTypeEnumHelper: ComputationTypeEnumHelper<ComputationType> = ComputationTypes
-    val protocolStagesEnumHelper: ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage> = ComputationProtocolStages
-    val computationProtocolStageDetailsHelper: ComputationProtocolStageDetailsHelper<
-      ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
-      > = ComputationProtocolStageDetails
+    val protocolStagesEnumHelper:
+      ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage> =
+      ComputationProtocolStages
+    val computationProtocolStageDetailsHelper:
+      ComputationProtocolStageDetailsHelper<
+        ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
+      > =
+      ComputationProtocolStageDetails
 
     return DuchyDataServices(
       PostgresComputationsService(

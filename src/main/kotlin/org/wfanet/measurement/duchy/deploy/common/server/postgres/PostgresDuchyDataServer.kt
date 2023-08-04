@@ -16,12 +16,11 @@ package org.wfanet.measurement.duchy.deploy.postgres.server
 
 import java.time.Clock
 import kotlinx.coroutines.runBlocking
-
+import org.wfanet.measurement.common.db.postgres.PostgresFlags
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.duchy.deploy.common.server.DuchyDataServer
 import org.wfanet.measurement.duchy.deploy.common.service.PostgresDuchyDataServices
-import org.wfanet.measurement.common.db.postgres.PostgresFlags
 import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
 
@@ -33,8 +32,7 @@ import picocli.CommandLine
   showDefaultValues = true
 )
 abstract class PostgresDuchyDataServer : DuchyDataServer() {
-  @CommandLine.Mixin
-  private lateinit var postgresFlags: PostgresFlags
+  @CommandLine.Mixin private lateinit var postgresFlags: PostgresFlags
 
   protected fun run(storageClient: StorageClient) = runBlocking {
     val clock = Clock.systemUTC()

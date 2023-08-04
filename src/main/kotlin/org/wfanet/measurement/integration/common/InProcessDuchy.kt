@@ -43,6 +43,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.testing.withMetadataDuchyIdentities
 import org.wfanet.measurement.common.identity.withDuchyId
+import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.daemon.herald.ContinuationTokenManager
@@ -51,6 +52,7 @@ import org.wfanet.measurement.duchy.daemon.mill.Certificate
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniLiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
+import org.wfanet.measurement.duchy.deploy.common.service.DuchyDataServices
 import org.wfanet.measurement.duchy.service.api.v2alpha.RequisitionFulfillmentService
 import org.wfanet.measurement.duchy.service.internal.computationcontrol.AsyncComputationControlService
 import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlService
@@ -65,8 +67,6 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.Computa
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub as SystemRequisitionsCoroutineStub
-import org.wfanet.measurement.common.testing.ProviderRule
-import org.wfanet.measurement.duchy.deploy.common.service.DuchyDataServices
 
 /**
  * TestRule that starts and stops all Duchy gRPC services and daemons.
@@ -79,7 +79,8 @@ import org.wfanet.measurement.duchy.deploy.common.service.DuchyDataServices
 class InProcessDuchy(
   val externalDuchyId: String,
   val kingdomSystemApiChannel: Channel,
-  val duchyDependenciesRule: ProviderRule<(String, SystemComputationLogEntriesCoroutineStub) -> DuchyDependencies>,
+  val duchyDependenciesRule:
+    ProviderRule<(String, SystemComputationLogEntriesCoroutineStub) -> DuchyDependencies>,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   val verboseGrpcLogging: Boolean = true,
   daemonContext: CoroutineContext = Dispatchers.Default,
@@ -94,10 +95,7 @@ class InProcessDuchy(
   private lateinit var llv2MillJob: Job
 
   private val duchyDependencies by lazy {
-    duchyDependenciesRule.value(
-      externalDuchyId,
-      systemComputationLogEntriesClient
-    )
+    duchyDependenciesRule.value(externalDuchyId, systemComputationLogEntriesClient)
   }
 
   private val systemComputationsClient by lazy {
@@ -133,10 +131,10 @@ class InProcessDuchy(
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       addService(
         RequisitionFulfillmentService(
-          systemRequisitionsClient,
-          computationsClient,
-          RequisitionStore(duchyDependencies.storageClient)
-        )
+            systemRequisitionsClient,
+            computationsClient,
+            RequisitionStore(duchyDependencies.storageClient)
+          )
           .withMetadataPrincipalIdentities()
       )
     }

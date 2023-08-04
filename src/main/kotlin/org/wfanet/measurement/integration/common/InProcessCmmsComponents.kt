@@ -32,7 +32,6 @@ import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.DuchyCertConfig
-import org.wfanet.measurement.duchy.deploy.common.server.DuchyDataServer
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
@@ -46,7 +45,8 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.Computa
 
 class InProcessCmmsComponents(
   private val kingdomDataServicesRule: ProviderRule<DataServices>,
-  private val duchyDependenciesRule: ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>,
+  private val duchyDependenciesRule:
+    ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>,
   private val storageClient: StorageClient,
 ) : TestRule {
   private val kingdomDataServices: DataServices
