@@ -3,15 +3,9 @@ load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
 
 package(
     default_visibility = [
-        "//experimental/reporting-ui/src/main/react/reporting-ui:__subpackages__",
         "//experimental/reporting-ui/src/test/react/reporting-ui:__subpackages__",
     ],
 )
-
-ASSET_PATTERNS = [
-    "*.svg",
-    "*.css",
-]
 
 SRC_PATTERNS = [
     "*.tsx",
@@ -26,7 +20,7 @@ js_library(
 js_library(
     name = "src_files",
     srcs = glob(
-        include = SRC_PATTERNS + ASSET_PATTERNS,
+        include = SRC_PATTERNS,
     ),
 )
 
@@ -39,7 +33,7 @@ ts_project(
     deps = [
         "//:node_modules/react",
         "//:node_modules/react-dom",
-        "//:node_modules/web-vitals",
         "//experimental/reporting-ui/src/main/react/reporting-ui/library:src_ts",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/src:src_ts",
     ],
 )
