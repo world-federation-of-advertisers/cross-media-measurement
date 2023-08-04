@@ -26,7 +26,7 @@ ts_project(
     resolve_json_module = True,
     tsconfig = "//:tsconfig",
     deps = [
-        "//experimental/reporting-ui/src/main/react/reporting-ui/library/assets:src_ts",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/library/assets/icons:src_ts",
         "//experimental/reporting-ui/src/main/react/reporting-ui/library/reporting_client:src_ts",
     ],
 )
