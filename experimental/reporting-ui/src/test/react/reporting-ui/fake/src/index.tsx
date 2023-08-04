@@ -17,11 +17,11 @@ import ReactDOM from 'react-dom/client';
 import '../../../../../main/react/reporting-ui/src/index.css';
 import App from '../../../../../main/react/reporting-ui/src/app';
 import AppConfig from '../../../../../main/react/reporting-ui/library/initialize';
-import { FakeApi } from './fake_api';
+import {FakeApi} from './fake_api';
 
 const configProps = {
-  reportingApi: new FakeApi()
-}
+  reportingApi: new FakeApi(),
+};
 
 AppConfig.initialize(configProps);
 
