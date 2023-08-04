@@ -7,7 +7,6 @@ load(
     "K8S_CLIENT_VERSION",
     "OPEN_TELEMETRY_SDK_VERSION",
 )
-
 load("//build:repositories.bzl", "wfa_measurement_system_repositories")
 
 wfa_measurement_system_repositories()
@@ -117,6 +116,8 @@ MAVEN_ARTIFACTS_DICT = dict(common_jvm_maven_artifacts_dict().items() + {
     "software.amazon.awssdk:sts": AWS_SDK_VERSION,
     "software.amazon.awssdk:auth": AWS_SDK_VERSION,
     "software.amazon.awssdk:acmpca": AWS_SDK_VERSION,
+    "software.amazon.awssdk:regions": AWS_SDK_VERSION,
+    "software.amazon.awssdk:services": AWS_SDK_VERSION,
 }.items())
 
 EXCLUDED_MAVEN_ARTIFACTS = [x for x in COMMON_JVM_EXCLUDED_ARTIFACTS if x != "org.slf4j:slf4j-log4j12"] + ["org.apache.beam:beam-sdks-java-io-kafka"]

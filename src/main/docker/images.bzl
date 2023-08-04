@@ -128,6 +128,31 @@ GKE_IMAGES = [
     ),
 ]
 
+# List of specs for all Docker containers to push to a container registry.
+# These are only used on AWS ECR.
+AWS_ECR_IMAGES = [
+    struct(
+        name = "duchy_s3_computation_control_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/aws/server:s3_computation_control_server_image",
+        repository = _PREFIX + "/duchy/computation-control",
+    ),
+    struct(
+        name = "duchy_s3_postgres_duchy_data_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/aws/server:s3_postgres_duchy_data_server_image",
+        repository = _PREFIX + "/duchy/postgres-duchy-data",
+    ),
+    struct(
+        name = "duchy_s3_requisition_fulfillment_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/aws/server:s3_requisition_fulfillment_server_image",
+        repository = _PREFIX + "/duchy/requisition-fulfillment",
+    ),
+    struct(
+        name = "duchy_s3_liquid_legions_v2_mill_daemon_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/aws/daemon/mill/liquidlegionsv2:s3_liquid_legions_v2_mill_daemon_image",
+        repository = _PREFIX + "/duchy/liquid-legions-v2-mill",
+    ),
+]
+
 # List of image build rules that are only used locally (e.g. in Kind).
 LOCAL_IMAGES = [
     struct(
@@ -242,3 +267,5 @@ ALL_LOCAL_IMAGES = COMMON_IMAGES + LOCAL_IMAGES + REPORTING_COMMON_IMAGES + REPO
 ALL_IMAGES = COMMON_IMAGES + LOCAL_IMAGES + GKE_IMAGES + REPORTING_COMMON_IMAGES + REPORTING_LOCAL_IMAGES + REPORTING_GKE_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_LOCAL_IMAGES + REPORTING_V2_GKE_IMAGES
 
 ALL_REPORTING_GKE_IMAGES = REPORTING_COMMON_IMAGES + REPORTING_GKE_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_GKE_IMAGES
+
+ALL_AWS_ECR_IMAGES = COMMON_IMAGES + AWS_ECR_IMAGES

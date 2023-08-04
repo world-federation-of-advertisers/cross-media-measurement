@@ -62,3 +62,25 @@ package k8s
 	instance: string @tag("postgres_instance")
 	region:   string @tag("postgres_region")
 }
+
+#AwsPostgresConfig: {
+	host:     string @tag("postgres_host")
+	port:     string @tag("postgres_port")
+	username: string @tag("postgres_user")
+	password: string @tag("postgres_password")
+  flags: [
+		"--postgres-host=" + host,
+		"--postgres-port=" + port,
+		"--postgres-user=" + username,
+		"--postgres-password=" + password,
+	]
+}
+
+#AwsS3Config: {
+	bucket: string @tag("s3_bucket")
+	region: string @tag("s3_region")
+	flags: [
+		"--s3-storage-bucket=" + bucket,
+		"--s3-region=" + region,
+	]
+}
