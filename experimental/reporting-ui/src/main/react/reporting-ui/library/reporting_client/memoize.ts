@@ -14,16 +14,17 @@
 
 // Return a function that is wrapped with the memoization logic
 export class Memoizer {
+  /* eslint-disable  @typescript-eslint/no-explicit-any */
   cache: Map<string, any> = new Map();
 
   memoizePromiseFn = fn => {
     return (...args) => {
       const key = JSON.stringify(args);
-  
+
       if (this.cache.has(key)) {
         return this.cache.get(key);
       }
-  
+
       this.cache.set(
         key,
         fn(...args).catch(error => {
@@ -32,8 +33,8 @@ export class Memoizer {
           return Promise.reject(error);
         })
       );
-  
+
       return this.cache.get(key);
     };
   };
-};
+}
