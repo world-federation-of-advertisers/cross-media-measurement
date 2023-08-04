@@ -15,12 +15,11 @@
 import {
   GetReportRequest,
   GetReportResponse,
-  InitApiProps,
   ListReportsResponse,
   Report,
   UniqueReach,
 } from '../../../../../main/react/reporting-ui/library/reporting_client/models';
-import { ReportingClient } from '../../../../../main/react/reporting-ui/library/reporting_client/reporting_client';
+import {ReportingClient} from '../../../../../main/react/reporting-ui/library/reporting_client/reporting_client';
 
 function regenerateTimeData() {
   const chartData: UniqueReach[] = [];
@@ -297,7 +296,7 @@ export class FakeApi implements ReportingClient {
   }
 
   listReports(): Promise<ListReportsResponse> {
-    const response = Object.freeze({reports: this.reports})
+    const response = Object.freeze({reports: this.reports});
     return Promise.resolve(response);
   }
 
