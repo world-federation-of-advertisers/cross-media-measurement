@@ -16,21 +16,14 @@ import {Memoizer} from './memoize';
 import {
   GetReportRequest,
   GetReportResponse,
-  InitApiProps,
   ListReportsResponse,
-  Report,
 } from './models';
 import {ReportingClient} from './reporting_client';
 
 export class ReportingClientImpl {
   memoizer: Memoizer = new Memoizer();
-  reports: Report[] = [];
 
   constructor(private api: ReportingClient) {}
-
-  init(props: InitApiProps): void {
-    this.api.init(props);
-  }
 
   listReports(): Promise<ListReportsResponse> {
     return this.api.listReports();

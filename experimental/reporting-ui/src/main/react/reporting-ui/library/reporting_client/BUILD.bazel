@@ -17,6 +17,9 @@ js_library(
     srcs = glob(
         include = SRC_PATTERNS,
     ),
+    deps = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui/library/reporting_client/models:src_files"
+    ]
 )
 
 ts_project(
@@ -26,7 +29,6 @@ ts_project(
     resolve_json_module = True,
     tsconfig = "//:tsconfig",
     deps = [
-        "//experimental/reporting-ui/src/main/react/reporting-ui/library/assets:src_ts",
-        "//experimental/reporting-ui/src/main/react/reporting-ui/library/reporting_client:src_ts",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/library/reporting_client/models:src_ts",
     ],
 )
