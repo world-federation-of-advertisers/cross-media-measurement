@@ -159,9 +159,7 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
           try {
             it.toV2Alpha()
           } catch (e: Throwable) {
-            failGrpc(Status.INVALID_ARGUMENT) {
-              e.message ?: "Failed to convert ProtocolConfig ExchangeStep"
-            }
+            failGrpc(Status.INVALID_ARGUMENT) { e.message ?: "Failed to convert ExchangeStep" }
           }
         }
       nextPageToken = results.last().updateTime.toByteArray().base64UrlEncode()

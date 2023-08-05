@@ -99,7 +99,6 @@ abstract class EdpSimulatorRunner() : Runnable {
         MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
         createNoOpPrivacyBudgetManager(),
         clientCerts.trustedCertificates,
-        flags.directNoiseMechanism,
         random = random
       )
     runBlocking {
