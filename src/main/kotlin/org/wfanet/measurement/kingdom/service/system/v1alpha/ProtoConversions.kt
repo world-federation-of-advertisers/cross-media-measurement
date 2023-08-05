@@ -26,6 +26,7 @@ import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig as InternalDu
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.system.v1alpha.Computation
@@ -390,7 +391,10 @@ fun InternalNoiseMechanism.toSystemNoiseMechanism(): NoiseMechanism {
   return when (this) {
     InternalNoiseMechanism.GEOMETRIC -> NoiseMechanism.GEOMETRIC
     InternalNoiseMechanism.DISCRETE_GAUSSIAN -> NoiseMechanism.DISCRETE_GAUSSIAN
+    InternalNoiseMechanism.CONTINUOUS_LAPLACE,
+    InternalNoiseMechanism.CONTINUOUS_GAUSSIAN,
     InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
+    ProtocolConfig.NoiseMechanism.NONE,
     InternalNoiseMechanism.UNRECOGNIZED -> error("invalid internal noise mechanism.")
   }
 }

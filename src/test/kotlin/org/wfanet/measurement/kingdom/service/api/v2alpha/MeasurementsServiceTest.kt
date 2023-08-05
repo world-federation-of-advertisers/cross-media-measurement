@@ -170,6 +170,7 @@ class MeasurementsServiceTest {
     service =
       MeasurementsService(
         MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
+        NOISE_MECHANISMS
       )
   }
 
@@ -419,6 +420,28 @@ class MeasurementsServiceTest {
             internalMeasurement.copy {
               clearExternalMeasurementId()
               clearUpdateTime()
+
+              details =
+                details.copy {
+                  protocolConfig = internalProtocolConfig {
+                    direct =
+                      InternalProtocolConfigKt.direct {
+                        noiseMechanisms += INTERNAL_NOISE_MECHANISMS
+                        deterministicCountDistinct =
+                          InternalProtocolConfigKt.DirectKt.deterministicCountDistinct {}
+                        liquidLegionsCountDistinct =
+                          InternalProtocolConfigKt.DirectKt.liquidLegionsCountDistinct {}
+                        deterministicDistribution =
+                          InternalProtocolConfigKt.DirectKt.deterministicDistribution {
+                            maximumFrequency = DEFAULT_MAXIMUM_FREQUENCY_DIRECT_DISTRIBUTION
+                          }
+                        liquidLegionsDistribution =
+                          InternalProtocolConfigKt.DirectKt.liquidLegionsDistribution {
+                            maximumFrequency = DEFAULT_MAXIMUM_FREQUENCY_DIRECT_DISTRIBUTION
+                          }
+                      }
+                  }
+                }
             }
         }
       )
@@ -496,6 +519,17 @@ class MeasurementsServiceTest {
             internalMeasurement.copy {
               clearExternalMeasurementId()
               clearUpdateTime()
+
+              details =
+                details.copy {
+                  protocolConfig = internalProtocolConfig {
+                    direct =
+                      InternalProtocolConfigKt.direct {
+                        noiseMechanisms += INTERNAL_NOISE_MECHANISMS
+                        deterministicCount = InternalProtocolConfigKt.DirectKt.deterministicCount {}
+                      }
+                  }
+                }
             }
         }
       )
@@ -573,6 +607,17 @@ class MeasurementsServiceTest {
             internalMeasurement.copy {
               clearExternalMeasurementId()
               clearUpdateTime()
+
+              details =
+                details.copy {
+                  protocolConfig = internalProtocolConfig {
+                    direct =
+                      InternalProtocolConfigKt.direct {
+                        noiseMechanisms += INTERNAL_NOISE_MECHANISMS
+                        deterministicSum = InternalProtocolConfigKt.DirectKt.deterministicSum {}
+                      }
+                  }
+                }
             }
         }
       )
@@ -1669,6 +1714,20 @@ class MeasurementsServiceTest {
         true
       )
     }
+
+    private val NOISE_MECHANISMS =
+      listOf(
+        ProtocolConfig.NoiseMechanism.NONE,
+        ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE,
+        ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
+      )
+
+    private val INTERNAL_NOISE_MECHANISMS =
+      listOf(
+        InternalProtocolConfig.NoiseMechanism.NONE,
+        InternalProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE,
+        InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
+      )
 
     private val DIFFERENTIAL_PRIVACY_PARAMS = differentialPrivacyParams {
       epsilon = 1.0

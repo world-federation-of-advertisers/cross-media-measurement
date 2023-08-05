@@ -78,6 +78,8 @@ import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.deterministicCountDistinct
+import org.wfanet.measurement.api.v2alpha.deterministicDistribution
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
@@ -915,6 +917,13 @@ class EdpSimulator(
     measurementSpec: MeasurementSpec,
     sampledVids: Iterable<Long>,
   ): Measurement.Result {
+    val noiseMechanism =
+      when (directNoiseMechanism) {
+        DirectNoiseMechanism.NONE -> ProtocolConfig.NoiseMechanism.NONE
+        DirectNoiseMechanism.LAPLACE -> ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE
+        DirectNoiseMechanism.GAUSSIAN -> ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+      }
+
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
     return when (measurementSpec.measurementTypeCase) {
       MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
@@ -938,9 +947,15 @@ class EdpSimulator(
           (sampledNoisedReachValue / measurementSpec.vidSamplingInterval.width).toLong()
 
         MeasurementKt.result {
-          reach = reach { value = scaledNoisedReachValue }
+          reach = reach {
+            value = scaledNoisedReachValue
+            this.noiseMechanism = noiseMechanism
+            deterministicCountDistinct = deterministicCountDistinct {}
+          }
           frequency = frequency {
             relativeFrequencyDistribution.putAll(noisedFrequencyMap.mapKeys { it.key.toLong() })
+            this.noiseMechanism = noiseMechanism
+            deterministicDistribution = deterministicDistribution {}
           }
         }
       }
@@ -956,7 +971,13 @@ class EdpSimulator(
         val scaledNoisedReachValue =
           (sampledNoisedReachValue / measurementSpec.vidSamplingInterval.width).toLong()
 
-        MeasurementKt.result { reach = reach { value = scaledNoisedReachValue } }
+        MeasurementKt.result {
+          reach = reach {
+            value = scaledNoisedReachValue
+            this.noiseMechanism = noiseMechanism
+            deterministicCountDistinct = deterministicCountDistinct {}
+          }
+        }
       }
       MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> {
         error("Measurement type not set.")
@@ -975,6 +996,9 @@ class EdpSimulator(
           // Use externalDataProviderId since it's a known value the FrontendSimulator can verify.
           // TODO: Calculate impression from data.
           value = apiIdToExternalId(DataProviderKey.fromName(edpData.name)!!.dataProviderId)
+          noiseMechanism = ProtocolConfig.NoiseMechanism.NONE
+          // TODO(@riemanli): specify impression computation methodology once the real impression
+          // calculation is done.
         }
       }
 
@@ -993,6 +1017,9 @@ class EdpSimulator(
             // Use externalDataProviderId since it's a known value the FrontendSimulator can verify.
             seconds = apiIdToExternalId(DataProviderKey.fromName(edpData.name)!!.dataProviderId)
           }
+          noiseMechanism = ProtocolConfig.NoiseMechanism.NONE
+          // TODO(@riemanli): specify duration computation methodology once the real duration
+          // calculation is done.
         }
       }
 
