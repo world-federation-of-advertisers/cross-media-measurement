@@ -71,6 +71,12 @@ import ("strings")
 
 	_open_id_redirect_uri_flag: "--open-id-redirect-uri=https://localhost:2048"
 
+	_directNoiseMechanismFlags: [
+		"--direct-noise-mechanism=NONE",
+		"--direct-noise-mechanism=CONTINUOUS_LAPLACE",
+		"--direct-noise-mechanism=CONTINUOUS_GAUSSIAN",
+	]
+
 	_kingdomCompletedMeasurementsTimeToLiveFlag:            "--time-to-live=\(_completedMeasurementsTimeToLive)"
 	_kingdomCompletedMeasurementsDryRunRetentionPolicyFlag: "--dry-run=\(_completedMeasurementsDryRun)"
 	_kingdomPendingMeasurementsTimeToLiveFlag:              "--time-to-live=\(_pendingMeasurementsTimeToLive)"
@@ -168,7 +174,7 @@ import ("strings")
 					_akid_to_principal_map_file_flag,
 					_open_id_redirect_uri_flag,
 					_duchy_info_config_flag,
-				] + Container._commonServerFlags
+				] + _directNoiseMechanismFlags + Container._commonServerFlags
 			}
 			spec: template: spec: {
 				_mounts: "config-files": #ConfigMapMount
