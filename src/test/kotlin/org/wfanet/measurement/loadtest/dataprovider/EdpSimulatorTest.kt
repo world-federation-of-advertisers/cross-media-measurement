@@ -155,6 +155,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestInMemoryBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
+import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.loadtest.config.EventGroupMetadata
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
 
@@ -320,10 +321,9 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         DIRECT_NOISE_MECHANISM,
-        SYNTHETIC_DATA_SPEC,
       )
 
-    runBlocking { edpSimulator.ensureEventGroup() }
+    runBlocking { edpSimulator.ensureEventGroup(SYNTHETIC_DATA_SPEC) }
 
     // Verify metadata descriptor set contains synthetic data spec.
     val createDescriptorRequest: CreateEventGroupMetadataDescriptorRequest =
@@ -387,10 +387,9 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         DIRECT_NOISE_MECHANISM,
-        SYNTHETIC_DATA_SPEC,
       )
 
-    runBlocking { edpSimulator.ensureEventGroup() }
+    runBlocking { edpSimulator.ensureEventGroup(SYNTHETIC_DATA_SPEC) }
 
     // Verify EventGroup metadata has correct type.
     val updateRequest: UpdateEventGroupRequest =
@@ -438,10 +437,9 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         DIRECT_NOISE_MECHANISM,
-        SYNTHETIC_DATA_SPEC,
       )
 
-    runBlocking { edpSimulator.ensureEventGroup() }
+    runBlocking { edpSimulator.ensureEventGroup(SYNTHETIC_DATA_SPEC) }
 
     val updateRequest: UpdateEventGroupMetadataDescriptorRequest =
       verifyAndCapture(
@@ -501,11 +499,10 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         DIRECT_NOISE_MECHANISM,
-        TEST_METADATA,
       )
 
     runBlocking {
-      edpSimulator.ensureEventGroup()
+      edpSimulator.ensureEventGroup(SYNTHETIC_DATA_SPEC)
       edpSimulator.executeRequisitionFulfillingWorkflow()
     }
 
@@ -581,15 +578,14 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         DIRECT_NOISE_MECHANISM,
-        TEST_METADATA,
       )
     runBlocking {
-      edpSimulator.ensureEventGroup()
+      edpSimulator.ensureEventGroup(TEST_METADATA)
       edpSimulator.executeRequisitionFulfillingWorkflow()
     }
 
     val balanceLedger: Map<PrivacyBucketGroup, MutableMap<DpCharge, PrivacyBudgetBalanceEntry>> =
-      backingStore.getBalancesMap()
+      backingStore.getDpBalancesMap()
 
     // Verify that each bucket is only charged once.
     for (bucketBalances in balanceLedger.values) {
@@ -690,7 +686,6 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         DIRECT_NOISE_MECHANISM,
-        TEST_METADATA,
         sketchEncrypter = fakeSketchEncrypter,
       )
 
@@ -748,7 +743,6 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         DIRECT_NOISE_MECHANISM,
-        TEST_METADATA,
       )
     val requisition =
       REQUISITION.copy {
@@ -808,7 +802,6 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         DIRECT_NOISE_MECHANISM,
-        TEST_METADATA,
       )
     eventGroupsServiceMock.stub {
       onBlocking { getEventGroup(any()) }.thenThrow(Status.NOT_FOUND.asRuntimeException())
@@ -857,7 +850,6 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         DIRECT_NOISE_MECHANISM,
-        SYNTHETIC_DATA_SPEC,
         random = Random(RANDOM_SEED)
       )
 
@@ -901,7 +893,6 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         DIRECT_NOISE_MECHANISM,
-        SYNTHETIC_DATA_SPEC,
         random = Random(RANDOM_SEED)
       )
 
@@ -914,11 +905,11 @@ class EdpSimulatorTest {
       )
     val result =
       Measurement.Result.parseFrom(decryptResult(request.encryptedData, MC_PRIVATE_KEY).data)
-    assertThat(result).reachValue().isEqualTo(2100L)
+    assertThat(result).reachValue().isEqualTo(1920)
     assertThat(result)
       .frequencyDistribution()
       .isWithin(0.00001)
-      .of(mapOf(2L to 0.5771255790642518, 4L to 0.4303953698012185))
+      .of(mapOf(2L to 0.5010227687681921, 4L to 0.5072032690534161))
   }
 
   @Test
@@ -947,7 +938,6 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         DIRECT_NOISE_MECHANISM,
-        SYNTHETIC_DATA_SPEC,
         random = Random(RANDOM_SEED)
       )
 
@@ -993,7 +983,6 @@ class EdpSimulatorTest {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         DIRECT_NOISE_MECHANISM,
-        SYNTHETIC_DATA_SPEC,
         random = Random(RANDOM_SEED)
       )
 
@@ -1006,7 +995,7 @@ class EdpSimulatorTest {
       )
     val result =
       Measurement.Result.parseFrom(decryptResult(request.encryptedData, MC_PRIVATE_KEY).data)
-    assertThat(result).reachValue().isEqualTo(2100L)
+    assertThat(result).reachValue().isEqualTo(1920)
     assertThat(result.hasFrequency()).isFalse()
   }
 
@@ -1154,7 +1143,7 @@ class EdpSimulatorTest {
     private val TEST_METADATA = EventGroupMetadata.testMetadata(1)
 
     private val SYNTHETIC_DATA_SPEC =
-      EventGroupMetadata.SYNTHETIC_DATA_SPEC.copy {
+      SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS.first().copy {
         dateSpecs.forEachIndexed { index, dateSpec ->
           dateSpecs[index] =
             dateSpec.copy {
@@ -1167,7 +1156,7 @@ class EdpSimulatorTest {
         }
       }
     private val syntheticGeneratorEventQuery =
-      object : SyntheticGeneratorEventQuery(EventGroupMetadata.UK_POPULATION) {
+      object : SyntheticGeneratorEventQuery(SyntheticGenerationSpecs.POPULATION_SPEC) {
         override fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec {
           return SYNTHETIC_DATA_SPEC
         }

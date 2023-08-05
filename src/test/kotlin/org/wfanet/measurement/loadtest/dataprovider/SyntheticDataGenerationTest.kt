@@ -18,6 +18,7 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.truth.Truth.assertThat
 import com.google.type.date
+import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.test.assertFailsWith
@@ -36,6 +37,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.banner
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.video
+import org.wfanet.measurement.common.toProtoDuration
 
 @RunWith(JUnit4::class)
 class SyntheticDataGenerationTest {
@@ -259,6 +261,71 @@ class SyntheticDataGenerationTest {
     }
 
     assertThat(parsedLabeledEvents).containsExactlyElementsIn(expectedTestEvents)
+  }
+
+  @Test
+  fun `generateEvents returns messages with a Duration field`() {
+    val populationSpec = syntheticPopulationSpec {
+      vidRange = vidRange {
+        start = 1L
+        endExclusive = 11L
+      }
+      populationFields += "person.gender"
+      nonPopulationFields += "video_ad.length"
+
+      subPopulations +=
+        SyntheticPopulationSpecKt.subPopulation {
+          vidSubRange = this@syntheticPopulationSpec.vidRange
+          populationFieldsValues["person.gender"] = fieldValue {
+            enumValue = Person.Gender.FEMALE_VALUE
+          }
+        }
+    }
+    val videoLength = Duration.ofMinutes(5).toProtoDuration()
+    val eventGroupSpec = syntheticEventGroupSpec {
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 7
+                day = 30
+              }
+              endExclusive = date {
+                year = 2023
+                month = 7
+                day = 31
+              }
+            }
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = populationSpec.vidRange
+                  nonPopulationFieldValues["video_ad.length"] = fieldValue {
+                    durationValue = videoLength
+                  }
+                }
+            }
+        }
+    }
+
+    val testEvents: List<TestEvent> =
+      SyntheticDataGeneration.generateEvents(TEST_EVENT_DESCRIPTOR, populationSpec, eventGroupSpec)
+        .map { TestEvent.parseFrom(it.event.toByteString()) }
+        .toList()
+
+    assertThat(testEvents).hasSize(10)
+    assertThat(testEvents)
+      .contains(
+        testEvent {
+          person = person { gender = Person.Gender.FEMALE }
+          videoAd = video { length = videoLength }
+        }
+      )
   }
 
   @Test

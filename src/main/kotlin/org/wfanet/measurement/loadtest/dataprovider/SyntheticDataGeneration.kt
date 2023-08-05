@@ -133,6 +133,8 @@ object SyntheticDataGeneration {
           FieldValue.ValueCase.FLOAT_VALUE -> fieldValue.floatValue
           FieldValue.ValueCase.INT32_VALUE -> fieldValue.int32Value
           FieldValue.ValueCase.INT64_VALUE -> fieldValue.int64Value
+          FieldValue.ValueCase.DURATION_VALUE -> fieldValue.durationValue
+          FieldValue.ValueCase.TIMESTAMP_VALUE -> fieldValue.timestampValue
           FieldValue.ValueCase.VALUE_NOT_SET -> throw IllegalArgumentException()
         }
 

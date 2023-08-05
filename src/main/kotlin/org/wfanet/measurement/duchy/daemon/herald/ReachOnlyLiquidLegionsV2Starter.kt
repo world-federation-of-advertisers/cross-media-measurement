@@ -179,7 +179,7 @@ object ReachOnlyLiquidLegionsV2Starter {
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_INPUTS,
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE,
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.COMPLETE -> {
-        logger.info(
+        logger.warning(
           "[id=${token.globalComputationId}]: not updating," +
             " stage '$stage' is after WAIT_REQUISITIONS_AND_KEY_SET"
         )
@@ -199,7 +199,7 @@ object ReachOnlyLiquidLegionsV2Starter {
     computationStorageClient: ComputationsGrpcKt.ComputationsCoroutineStub
   ) {
     require(token.computationDetails.hasReachOnlyLiquidLegionsV2()) {
-      "Liquid Legions V2 computation required"
+      "Reach-Only Liquid Legions V2 computation required"
     }
 
     val stage = token.computationStage.reachOnlyLiquidLegionsSketchAggregationV2
@@ -232,7 +232,7 @@ object ReachOnlyLiquidLegionsV2Starter {
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_INPUTS,
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE,
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.COMPLETE -> {
-        logger.info(
+        logger.warning(
           "[id=${token.globalComputationId}]: not starting," +
             " stage '$stage' is after WAIT_TO_START"
         )
@@ -287,7 +287,7 @@ object ReachOnlyLiquidLegionsV2Starter {
     }
 
     return ReachOnlyLiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.parameters {
-      reachOnlyLiquidLegionsSketch = liquidLegionsSketchParameters {
+      sketchParameters = liquidLegionsSketchParameters {
         decayRate = mpcProtocolConfig.reachOnlyLiquidLegionsV2.sketchParams.decayRate
         size = mpcProtocolConfig.reachOnlyLiquidLegionsV2.sketchParams.maxSize
       }
@@ -316,34 +316,11 @@ object ReachOnlyLiquidLegionsV2Starter {
                     }
                     globalReachDpNoise = reach.privacyParams.toDuchyDifferentialPrivacyParams()
                   }
-                  MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-                    val reachAndFrequency = measurementSpec.reachAndFrequency
-                    require(reachAndFrequency.reachPrivacyParams.delta > 0) {
-                      "RoLLv2 requires that reach_privacy_params.delta be greater than 0"
-                    }
-                    require(reachAndFrequency.reachPrivacyParams.epsilon > MIN_REACH_EPSILON) {
-                      "RoLLv2 requires that reach_privacy_params.epsilon be greater than $MIN_REACH_EPSILON"
-                    }
-                    require(reachAndFrequency.frequencyPrivacyParams.delta > 0) {
-                      "RoLLv2 requires that frequency_privacy_params.delta be greater than 0"
-                    }
-                    require(
-                      reachAndFrequency.frequencyPrivacyParams.epsilon > MIN_FREQUENCY_EPSILON
-                    ) {
-                      "RoLLv2 requires that frequency_privacy_params.epsilon be greater than " +
-                        "$MIN_FREQUENCY_EPSILON"
-                    }
-                    globalReachDpNoise =
-                      reachAndFrequency.reachPrivacyParams.toDuchyDifferentialPrivacyParams()
-                    this@liquidLegionsV2NoiseConfig.frequencyNoiseConfig =
-                      reachAndFrequency.frequencyPrivacyParams.toDuchyDifferentialPrivacyParams()
-                  }
+                  MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY,
                   MeasurementSpec.MeasurementTypeCase.IMPRESSION,
                   MeasurementSpec.MeasurementTypeCase.DURATION,
                   MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> {
-                    throw IllegalArgumentException(
-                      "Missing Reach and ReachAndFrequency in the measurementSpec."
-                    )
+                    throw IllegalArgumentException("Missing Reach in the measurementSpec.")
                   }
                 }
               }

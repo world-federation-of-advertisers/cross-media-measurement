@@ -16,17 +16,12 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha.event_group_metadata.testing;
 
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
 import "google/type/date.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha.event_group_metadata.testing";
 option java_multiple_files = true;
-
-// The specification of synthetic EventGroups created from a shared synthetic
-// virtual population.
-message SimulatorSyntheticDataSpec {
-  repeated SyntheticEventGroupSpec event_group_spec = 1;
-  SyntheticPopulationSpec population = 2;
-}
 
 // A sequence of VIDs represented with a beginning and exclusive end.
 message VidRange {
@@ -34,6 +29,7 @@ message VidRange {
   int64 end_exclusive = 2;
 }
 
+// Value of an event field.
 message FieldValue {
   oneof value {
     string string_value = 1;
@@ -44,24 +40,38 @@ message FieldValue {
     float float_value = 5;
     int32 int32_value = 6;
     int64 int64_value = 7;
+    google.protobuf.Duration duration_value = 8;
+    google.protobuf.Timestamp timestamp_value = 9;
   }
 }
 
-// The specification of a synthetic virtual population.
+// The specification of a population for synthetic event generation.
 message SyntheticPopulationSpec {
+  // The overall range of VIDs for the synthetic population.
   VidRange vid_range = 1;
 
-  // Set of strings that define population data fields such as Age, Gender,
-  // and Social Grade. These should conform to a CEL expression syntax (e.g.
-  // person.age_group). These are assigned at the subpopulation level.
+  // Set of field paths within a synthetic event that pertain to the population,
+  // with `.` as the traversal operator.
+  //
+  // For example, an `age_group` field within a `person` event template would
+  // have the path `person.age_group`.
+  //
+  // The values of these fields are assigned at the sub-population level.
+  //
+  // TODO(@SanjayVas): Consider determining this set from protobuf options on
+  // event template definitions.
   repeated string population_fields = 2;
 
-  // Set of strings that define non-population data fields such as Device,
-  // Location, and Duration. These should conform to a CEL expression syntax
-  // (e.g.person.age_group). These are assigned at the impression level in the
-  // FrequencySpec.
+  // Set of field paths within a synthetic event that do not pertain to the
+  // population, with `.` as the traversal operator.
+  //
+  // For example, a `viewed_fraction` field within a `video_ad` event template
+  // would have the path `video_ad.viewed_fraction`.
+  //
+  // The values of these fields are assigned at the event level.
   repeated string non_population_fields = 3;
 
+  // A subset of the synthetic population.
   message SubPopulation {
     VidRange vid_sub_range = 1;
 
@@ -74,8 +84,10 @@ message SyntheticPopulationSpec {
   repeated SubPopulation sub_populations = 4;
 }
 
-// The specification of a synthetic EventGroup which describes all impressions
-// for specific dates.
+// The specification of an `EventGroup` for synthetic event generation.
+//
+// Each `SyntheticEventGroupSpec` implicitly references a single
+// `SyntheticPopulationSpec`.
 message SyntheticEventGroupSpec {
   string description = 1;
 
@@ -84,8 +96,9 @@ message SyntheticEventGroupSpec {
   message FrequencySpec {
     int64 frequency = 1;
 
-    // The specification of non_population_values for a VID range.
+    // The specification of non-population field values for a VID range.
     message VidRangeSpec {
+      // A range of VIDs within a single `SubPopulation`.
       VidRange vid_range = 1;
 
       // A map of `non_population_fields` from `SyntheticPopulationSpec` to

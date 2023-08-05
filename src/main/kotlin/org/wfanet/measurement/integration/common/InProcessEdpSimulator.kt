@@ -30,6 +30,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
+import org.jetbrains.annotations.Blocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
@@ -37,6 +38,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
@@ -44,7 +46,6 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemory
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
-import org.wfanet.measurement.loadtest.config.EventGroupMetadata
 import org.wfanet.measurement.loadtest.dataprovider.EdpData
 import org.wfanet.measurement.loadtest.dataprovider.EdpSimulator
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
@@ -57,6 +58,7 @@ class InProcessEdpSimulator(
   kingdomPublicApiChannel: Channel,
   duchyPublicApiChannel: Channel,
   trustedCertificates: Map<ByteString, X509Certificate>,
+  private val syntheticDataSpec: SyntheticEventGroupSpec,
   coroutineContext: CoroutineContext = Dispatchers.Default,
 ) {
   private val loggingName = "${javaClass.simpleName} $displayName"
@@ -87,9 +89,8 @@ class InProcessEdpSimulator(
       requisitionFulfillmentStub =
         RequisitionFulfillmentCoroutineStub(duchyPublicApiChannel).withPrincipalName(resourceName),
       eventQuery =
-        object : SyntheticGeneratorEventQuery(EventGroupMetadata.UK_POPULATION) {
-          override fun getSyntheticDataSpec(eventGroup: EventGroup) =
-            EventGroupMetadata.SYNTHETIC_DATA_SPEC
+        object : SyntheticGeneratorEventQuery(SyntheticGenerationSpecs.POPULATION_SPEC) {
+          override fun getSyntheticDataSpec(eventGroup: EventGroup) = syntheticDataSpec
         },
       throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
       privacyBudgetManager =
@@ -101,7 +102,6 @@ class InProcessEdpSimulator(
         ),
       trustedCertificates = trustedCertificates,
       DIRECT_NOISE_MECHANISM,
-      EventGroupMetadata.SYNTHETIC_DATA_SPEC,
       random = random
     )
 
@@ -115,9 +115,10 @@ class InProcessEdpSimulator(
     edpJob.cancelAndJoin()
   }
 
-  suspend fun createEventGroup() = delegate.ensureEventGroup()
+  suspend fun ensureEventGroup() = delegate.ensureEventGroup(syntheticDataSpec)
 
   /** Builds a [EdpData] object for the Edp with a certain [displayName] and [resourceName]. */
+  @Blocking
   private fun createEdpData(displayName: String, resourceName: String) =
     EdpData(
       name = resourceName,
