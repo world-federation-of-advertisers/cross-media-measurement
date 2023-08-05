@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.deploy.common.server
 import io.grpc.ServerServiceDefinition
 import java.io.File
 import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -109,6 +110,19 @@ private fun run(
       .withDefaultDeadline(kingdomApiServerFlags.internalApiFlags.defaultDeadlineDuration)
 
   val principalLookup = AkidPrincipalLookup(v2alphaFlags.authorityKeyIdentifierToPrincipalMapFile)
+  val noiseMechanisms = mutableListOf<ProtocolConfig.NoiseMechanism>()
+  if (v2alphaFlags.directNoiseMechanismInput.noNoise) {
+    noiseMechanisms += ProtocolConfig.NoiseMechanism.NONE
+  }
+  if (v2alphaFlags.directNoiseMechanismInput.geometryNoise) {
+    noiseMechanisms += ProtocolConfig.NoiseMechanism.GEOMETRIC
+  }
+  if (v2alphaFlags.directNoiseMechanismInput.discreteGaussianNoise) {
+    noiseMechanisms += ProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN
+  }
+  if (noiseMechanisms.size == 0) {
+    error("No noise mechanism is selected.")
+  }
 
   val internalAccountsCoroutineStub = InternalAccountsCoroutineStub(channel)
   val internalApiKeysCoroutineStub = InternalApiKeysCoroutineStub(channel)
@@ -141,9 +155,7 @@ private fun run(
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
-      MeasurementsService(
-          InternalMeasurementsCoroutineStub(channel),
-        )
+      MeasurementsService(InternalMeasurementsCoroutineStub(channel), noiseMechanisms)
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
       MeasurementConsumersService(InternalMeasurementConsumersCoroutineStub(channel))
@@ -192,6 +204,32 @@ fun main(args: Array<String>) = commandLineMain(::run, args)
 
 /** Flags specific to the V2alpha API version. */
 private class V2alphaFlags {
+  class DirectNoiseMechanismInput {
+    @CommandLine.Option(
+      names = ["--none"],
+      description = ["Allow no noise added to the result of direct computation."],
+      required = false
+    )
+    var noNoise = false
+      private set
+
+    @CommandLine.Option(
+      names = ["--geometry"],
+      description = ["Allow geometry (Laplace) noise added to the result of direct computation."],
+      required = false
+    )
+    var geometryNoise = false
+      private set
+
+    @CommandLine.Option(
+      names = ["--discrete-gaussian"],
+      description = ["Allow discrete Gaussian noise added to the result of direct computation."],
+      required = false
+    )
+    var discreteGaussianNoise = false
+      private set
+  }
+
   @CommandLine.Option(
     names = ["--authority-key-identifier-to-principal-map-file"],
     description = ["File path to a AuthorityKeyToPrincipalMap textproto"],
@@ -206,5 +244,9 @@ private class V2alphaFlags {
     required = true
   )
   lateinit var redirectUri: String
+    private set
+
+  @CommandLine.ArgGroup(exclusive = true, multiplicity = "1", heading = "Direct noise mechanisms\n")
+  lateinit var directNoiseMechanismInput: DirectNoiseMechanismInput
     private set
 }
