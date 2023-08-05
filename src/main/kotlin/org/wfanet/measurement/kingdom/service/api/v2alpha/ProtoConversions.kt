@@ -15,7 +15,6 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.util.Timestamps
-import com.google.type.date
 import com.google.type.interval
 import java.time.ZoneOffset
 import org.wfanet.measurement.api.Version
@@ -61,6 +60,7 @@ import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.protocol
@@ -107,6 +107,7 @@ import org.wfanet.measurement.internal.kingdom.ModelShard as InternalModelShard
 import org.wfanet.measurement.internal.kingdom.ModelSuite as InternalModelSuite
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
+import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt as InternalProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
@@ -119,6 +120,10 @@ import org.wfanet.measurement.internal.kingdom.modelSuite as internalModelSuite
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
+
+// (-- TODO(world-federation-of-advertisers/cross-media-measurement-api/issues/160): this value
+// won't be needed once the maximum frequency field is moved to measurement spec. --)
+const val DEFAULT_MAXIMUM_FREQUENCY_DIRECT_DISTRIBUTION = 20
 
 /** Converts an internal [InternalMeasurement.State] to a public [State]. */
 fun InternalMeasurement.State.toState(): State =
@@ -182,8 +187,20 @@ fun InternalNoiseMechanism.toNoiseMechanism(): NoiseMechanism {
   return when (this) {
     InternalNoiseMechanism.GEOMETRIC -> NoiseMechanism.GEOMETRIC
     InternalNoiseMechanism.DISCRETE_GAUSSIAN -> NoiseMechanism.DISCRETE_GAUSSIAN
+    InternalNoiseMechanism.NONE -> NoiseMechanism.NONE
     InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
     InternalNoiseMechanism.UNRECOGNIZED -> error("invalid internal noise mechanism.")
+  }
+}
+
+/** Converts a public [NoiseMechanism] to an internal [InternalNoiseMechanism]. */
+fun NoiseMechanism.toInternal(): InternalNoiseMechanism {
+  return when (this) {
+    NoiseMechanism.GEOMETRIC -> InternalNoiseMechanism.GEOMETRIC
+    NoiseMechanism.DISCRETE_GAUSSIAN -> InternalNoiseMechanism.DISCRETE_GAUSSIAN
+    NoiseMechanism.NONE -> InternalNoiseMechanism.NONE
+    NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
+    NoiseMechanism.UNRECOGNIZED -> error("invalid internal noise mechanism.")
   }
 }
 
@@ -211,10 +228,23 @@ fun InternalProtocolConfig.toProtocolConfig(
       ProtocolConfig.MeasurementType.REACH,
       ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY -> {
         if (dataProviderCount == 1) {
-          protocols += protocol { direct = direct {} }
+          protocols += protocol {
+            if (source.hasDirect()) {
+              direct = source.direct.toDirect()
+            } else {
+              // For backward compatibility
+              direct = direct {}
+            }
+          }
         } else {
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields are never null.
           when (source.protocolCase) {
+            InternalProtocolConfig.ProtocolCase.DIRECT -> {
+              error(
+                "Direct protocol of reach computation shouldn't be used when number of data " +
+                  "providers is greater than 1."
+              )
+            }
             InternalProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2 -> {
               protocols += protocol {
                 liquidLegionsV2 = liquidLegionsV2 {
@@ -284,6 +314,45 @@ fun InternalProtocolConfig.toProtocolConfig(
       }
       ProtocolConfig.MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED,
       ProtocolConfig.MeasurementType.UNRECOGNIZED -> error("Invalid MeasurementType")
+    }
+  }
+}
+
+/**
+ * Converts an internal [InternalProtocolConfig.Direct] to a public [InternalProtocolConfig.Direct].
+ */
+private fun InternalProtocolConfig.Direct.toDirect(): ProtocolConfig.Direct {
+  val source = this
+
+  return direct {
+    noiseMechanisms +=
+      source.noiseMechanismsList.map { internalNoiseMechanism ->
+        internalNoiseMechanism.toNoiseMechanism()
+      }
+
+    if (source.hasDeterministicCountDistinct()) {
+      deterministicCountDistinct = ProtocolConfigKt.DirectKt.deterministicCountDistinct {}
+    }
+    if (source.hasDeterministicDistribution()) {
+      deterministicDistribution =
+        ProtocolConfigKt.DirectKt.deterministicDistribution {
+          maximumFrequency = source.deterministicDistribution.maximumFrequency
+        }
+    }
+    if (source.hasDeterministicCount()) {
+      deterministicCount = ProtocolConfigKt.DirectKt.deterministicCount {}
+    }
+    if (source.hasDeterministicSum()) {
+      deterministicSum = ProtocolConfigKt.DirectKt.deterministicSum {}
+    }
+    if (source.hasLiquidLegionsCountDistinct()) {
+      liquidLegionsCountDistinct = ProtocolConfigKt.DirectKt.liquidLegionsCountDistinct {}
+    }
+    if (source.hasLiquidLegionsDistribution()) {
+      liquidLegionsDistribution =
+        ProtocolConfigKt.DirectKt.liquidLegionsDistribution {
+          maximumFrequency = source.liquidLegionsDistribution.maximumFrequency
+        }
     }
   }
 }
@@ -709,7 +778,8 @@ fun Map.Entry<Long, DataProviderValue>.toDataProviderEntry(): DataProviderEntry 
 fun Measurement.toInternal(
   measurementConsumerCertificateKey: MeasurementConsumerCertificateKey,
   dataProvidersMap: Map<Long, DataProviderValue>,
-  measurementSpecProto: MeasurementSpec
+  measurementSpecProto: MeasurementSpec,
+  internalNoiseMechanisms: List<InternalProtocolConfig.NoiseMechanism>
 ): InternalMeasurement {
   val publicMeasurement = this
 
@@ -746,6 +816,17 @@ fun Measurement.toInternal(
                 liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig
               }
             }
+          } else if (dataProvidersCount == 1) {
+            protocolConfig = internalProtocolConfig {
+              direct =
+                InternalProtocolConfigKt.direct {
+                  this.noiseMechanisms += internalNoiseMechanisms
+                  deterministicCountDistinct =
+                    InternalProtocolConfigKt.DirectKt.deterministicCountDistinct {}
+                  liquidLegionsCountDistinct =
+                    InternalProtocolConfigKt.DirectKt.liquidLegionsCountDistinct {}
+                }
+            }
           }
         }
         MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
@@ -757,10 +838,49 @@ fun Measurement.toInternal(
             duchyProtocolConfig = duchyProtocolConfig {
               liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig
             }
+          } else if (dataProvidersCount == 1) {
+            protocolConfig = internalProtocolConfig {
+              direct =
+                InternalProtocolConfigKt.direct {
+                  this.noiseMechanisms += internalNoiseMechanisms
+                  deterministicCountDistinct =
+                    InternalProtocolConfigKt.DirectKt.deterministicCountDistinct {}
+                  liquidLegionsCountDistinct =
+                    InternalProtocolConfigKt.DirectKt.liquidLegionsCountDistinct {}
+                  deterministicDistribution =
+                    InternalProtocolConfigKt.DirectKt.deterministicDistribution {
+                      maximumFrequency = DEFAULT_MAXIMUM_FREQUENCY_DIRECT_DISTRIBUTION
+                    }
+                  liquidLegionsDistribution =
+                    InternalProtocolConfigKt.DirectKt.liquidLegionsDistribution {
+                      maximumFrequency = DEFAULT_MAXIMUM_FREQUENCY_DIRECT_DISTRIBUTION
+                    }
+                }
+            }
           }
         }
-        MeasurementSpec.MeasurementTypeCase.IMPRESSION,
-        MeasurementSpec.MeasurementTypeCase.DURATION, -> {}
+        MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
+          if (dataProvidersCount == 1) {
+            protocolConfig = internalProtocolConfig {
+              direct =
+                InternalProtocolConfigKt.direct {
+                  this.noiseMechanisms += internalNoiseMechanisms
+                  deterministicCount = InternalProtocolConfigKt.DirectKt.deterministicCount {}
+                }
+            }
+          }
+        }
+        MeasurementSpec.MeasurementTypeCase.DURATION -> {
+          if (dataProvidersCount == 1) {
+            protocolConfig = internalProtocolConfig {
+              direct =
+                InternalProtocolConfigKt.direct {
+                  this.noiseMechanisms += internalNoiseMechanisms
+                  deterministicSum = InternalProtocolConfigKt.DirectKt.deterministicSum {}
+                }
+            }
+          }
+        }
         MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
           error("MeasurementType not set.")
       }

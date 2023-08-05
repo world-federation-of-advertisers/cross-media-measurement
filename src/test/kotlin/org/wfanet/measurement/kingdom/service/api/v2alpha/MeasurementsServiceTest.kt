@@ -170,6 +170,7 @@ class MeasurementsServiceTest {
     service =
       MeasurementsService(
         MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
+        NOISE_MECHANISMS
       )
   }
 
@@ -1669,6 +1670,13 @@ class MeasurementsServiceTest {
         true
       )
     }
+
+    private val NOISE_MECHANISMS =
+      listOf(
+        ProtocolConfig.NoiseMechanism.NONE,
+        ProtocolConfig.NoiseMechanism.GEOMETRIC,
+        ProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN,
+      )
 
     private val DIFFERENTIAL_PRIVACY_PARAMS = differentialPrivacyParams {
       epsilon = 1.0

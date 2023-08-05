@@ -84,6 +84,7 @@ import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.liquidLe
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
+import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt as InternalProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
 import org.wfanet.measurement.internal.kingdom.Requisition.State as InternalState
@@ -185,6 +186,65 @@ class RequisitionsServiceTest {
     val expected = listRequisitionsResponse {
       requisitions += REQUISITION
       requisitions += REQUISITION
+    }
+
+    val streamRequisitionRequest =
+      captureFirst<StreamRequisitionsRequest> {
+        verify(internalRequisitionMock).streamRequisitions(capture())
+      }
+
+    assertThat(streamRequisitionRequest)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        streamRequisitionsRequest {
+          limit = DEFAULT_LIMIT + 1
+          filter =
+            StreamRequisitionsRequestKt.filter {
+              externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+              externalMeasurementId = EXTERNAL_MEASUREMENT_ID
+              states += VISIBLE_REQUISITION_STATES
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listRequisitions requests internal Requisitions with direct protocol`() {
+    val internalRequisition =
+      INTERNAL_REQUISITION.copy {
+        parentMeasurement =
+          parentMeasurement.copy {
+            protocolConfig = internalProtocolConfig {
+              externalProtocolConfigId = "direct"
+              direct = internalDirectProtocolConfig
+            }
+          }
+      }
+
+    val requisition =
+      REQUISITION.copy {
+        protocolConfig =
+          protocolConfig.copy {
+            protocols.clear()
+            protocols += ProtocolConfigKt.protocol { direct = directProtocolConfig }
+          }
+      }
+
+    whenever(internalRequisitionMock.streamRequisitions(any()))
+      .thenReturn(flowOf(internalRequisition, internalRequisition))
+
+    val request = listRequisitionsRequest { parent = MEASUREMENT_NAME }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.listRequisitions(request) }
+      }
+
+    val expected = listRequisitionsResponse {
+      requisitions += requisition
+      requisitions += requisition
     }
 
     val streamRequisitionRequest =
@@ -619,43 +679,97 @@ class RequisitionsServiceTest {
     }
 
   @Test
-  fun `fulfillDirectRequisition fulfills the requisition`() = runBlocking {
-    whenever(internalRequisitionMock.fulfillRequisition(any()))
-      .thenReturn(
-        INTERNAL_REQUISITION.copy {
-          state = InternalState.FULFILLED
-          details = details { encryptedData = REQUISITION_ENCRYPTED_DATA }
-        }
-      )
+  fun `fulfillDirectRequisition fulfills the requisition when direct protocol config is not specified`() =
+    runBlocking {
+      whenever(internalRequisitionMock.fulfillRequisition(any()))
+        .thenReturn(
+          INTERNAL_REQUISITION.copy {
+            state = InternalState.FULFILLED
+            details = details { encryptedData = REQUISITION_ENCRYPTED_DATA }
+          }
+        )
 
-    val request = fulfillDirectRequisitionRequest {
-      name = REQUISITION_NAME
-      encryptedData = REQUISITION_ENCRYPTED_DATA
-      nonce = NONCE
-    }
-
-    val result =
-      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-        runBlocking { service.fulfillDirectRequisition(request) }
+      val request = fulfillDirectRequisitionRequest {
+        name = REQUISITION_NAME
+        encryptedData = REQUISITION_ENCRYPTED_DATA
+        nonce = NONCE
       }
 
-    val expected = fulfillDirectRequisitionResponse { state = State.FULFILLED }
-
-    verifyProtoArgument(internalRequisitionMock, RequisitionsCoroutineImplBase::fulfillRequisition)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(
-        internalFulfillRequisitionRequest {
-          externalRequisitionId = EXTERNAL_REQUISITION_ID
-          nonce = NONCE
-          directParams = directRequisitionParams {
-            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-            encryptedData = REQUISITION_ENCRYPTED_DATA
-          }
+      val result =
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.fulfillDirectRequisition(request) }
         }
-      )
 
-    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
-  }
+      val expected = fulfillDirectRequisitionResponse { state = State.FULFILLED }
+
+      verifyProtoArgument(
+          internalRequisitionMock,
+          RequisitionsCoroutineImplBase::fulfillRequisition
+        )
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          internalFulfillRequisitionRequest {
+            externalRequisitionId = EXTERNAL_REQUISITION_ID
+            nonce = NONCE
+            directParams = directRequisitionParams {
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+              encryptedData = REQUISITION_ENCRYPTED_DATA
+            }
+          }
+        )
+
+      assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+    }
+
+  @Test
+  fun `fulfillDirectRequisition fulfills the requisition when direct protocol config is specified`() =
+    runBlocking {
+      whenever(internalRequisitionMock.fulfillRequisition(any()))
+        .thenReturn(
+          INTERNAL_REQUISITION.copy {
+            state = InternalState.FULFILLED
+            details = details { encryptedData = REQUISITION_ENCRYPTED_DATA }
+            parentMeasurement =
+              parentMeasurement.copy {
+                protocolConfig = internalProtocolConfig {
+                  externalProtocolConfigId = "direct"
+                  direct = internalDirectProtocolConfig
+                }
+              }
+          }
+        )
+
+      val request = fulfillDirectRequisitionRequest {
+        name = REQUISITION_NAME
+        encryptedData = REQUISITION_ENCRYPTED_DATA
+        nonce = NONCE
+      }
+
+      val result =
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.fulfillDirectRequisition(request) }
+        }
+
+      val expected = fulfillDirectRequisitionResponse { state = State.FULFILLED }
+
+      verifyProtoArgument(
+          internalRequisitionMock,
+          RequisitionsCoroutineImplBase::fulfillRequisition
+        )
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          internalFulfillRequisitionRequest {
+            externalRequisitionId = EXTERNAL_REQUISITION_ID
+            nonce = NONCE
+            directParams = directRequisitionParams {
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+              encryptedData = REQUISITION_ENCRYPTED_DATA
+            }
+          }
+        )
+
+      assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+    }
 
   @Test
   fun `fulfillDirectRequisition throw INVALID_ARGUMENT when name is unspecified`() = runBlocking {
@@ -737,6 +851,7 @@ class RequisitionsServiceTest {
   }
 
   companion object {
+    private const val DEFAULT_MAXIMUM_FREQUENCY_DIRECT_DISTRIBUTION = 10
     private val MEASUREMENT_SPEC = measurementSpec {
       measurementPublicKey = UPDATE_TIME.toByteString()
       reachAndFrequency =
@@ -753,6 +868,38 @@ class RequisitionsServiceTest {
       vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval { width = 1.0f }
       nonceHashes += ByteString.copyFromUtf8("foo")
     }
+
+    val directProtocolConfig =
+      ProtocolConfigKt.direct {
+        noiseMechanisms += ProtocolConfig.NoiseMechanism.GEOMETRIC
+        noiseMechanisms += ProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN
+        deterministicCountDistinct = ProtocolConfigKt.DirectKt.deterministicCountDistinct {}
+        liquidLegionsCountDistinct = ProtocolConfigKt.DirectKt.liquidLegionsCountDistinct {}
+        deterministicDistribution =
+          ProtocolConfigKt.DirectKt.deterministicDistribution {
+            maximumFrequency = DEFAULT_MAXIMUM_FREQUENCY_DIRECT_DISTRIBUTION
+          }
+        liquidLegionsDistribution =
+          ProtocolConfigKt.DirectKt.liquidLegionsDistribution {
+            maximumFrequency = DEFAULT_MAXIMUM_FREQUENCY_DIRECT_DISTRIBUTION
+          }
+      }
+
+    val internalDirectProtocolConfig =
+      InternalProtocolConfigKt.direct {
+        noiseMechanisms += InternalProtocolConfig.NoiseMechanism.GEOMETRIC
+        noiseMechanisms += InternalProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN
+        deterministicCountDistinct = InternalProtocolConfigKt.DirectKt.deterministicCountDistinct {}
+        liquidLegionsCountDistinct = InternalProtocolConfigKt.DirectKt.liquidLegionsCountDistinct {}
+        deterministicDistribution =
+          InternalProtocolConfigKt.DirectKt.deterministicDistribution {
+            maximumFrequency = DEFAULT_MAXIMUM_FREQUENCY_DIRECT_DISTRIBUTION
+          }
+        liquidLegionsDistribution =
+          InternalProtocolConfigKt.DirectKt.liquidLegionsDistribution {
+            maximumFrequency = DEFAULT_MAXIMUM_FREQUENCY_DIRECT_DISTRIBUTION
+          }
+      }
 
     private val INTERNAL_REQUISITION: InternalRequisition = internalRequisition {
       externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID

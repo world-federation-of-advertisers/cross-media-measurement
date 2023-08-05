@@ -160,7 +160,7 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
             it.toV2Alpha()
           } catch (e: Throwable) {
             failGrpc(Status.INVALID_ARGUMENT) {
-              e.message ?: "Failed to convert ProtocolConfig ExchangeStep"
+              e.message ?: "Failed to convert ExchangeStep"
             }
           }
         }

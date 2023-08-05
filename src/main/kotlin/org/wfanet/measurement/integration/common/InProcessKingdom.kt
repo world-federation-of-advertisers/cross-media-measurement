@@ -62,6 +62,7 @@ import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationLogEntri
 import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationParticipantsService as SystemComputationParticipantsService
 import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationsService as SystemComputationsService
 import org.wfanet.measurement.kingdom.service.system.v1alpha.RequisitionsService as SystemRequisitionsService
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourceSetup
 
 /** TestRule that starts and stops all Kingdom gRPC services. */
@@ -150,7 +151,7 @@ class InProcessKingdom(
           EventGroupMetadataDescriptorsService(internalEventGroupMetadataDescriptorsClient)
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-          MeasurementsService(internalMeasurementsClient)
+          MeasurementsService(internalMeasurementsClient, measurementNoiseMechanisms)
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
           PublicKeysService(internalPublicKeysClient)
@@ -206,5 +207,11 @@ class InProcessKingdom(
 
     /** Default deadline for RPCs to internal server in milliseconds. */
     private const val DEFAULT_INTERNAL_DEADLINE_MILLIS = 30_000L
+    private val measurementNoiseMechanisms: List<ProtocolConfig.NoiseMechanism> =
+      listOf(
+        ProtocolConfig.NoiseMechanism.NONE,
+        ProtocolConfig.NoiseMechanism.GEOMETRIC,
+        ProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN,
+      )
   }
 }
