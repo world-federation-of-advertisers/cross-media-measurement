@@ -232,7 +232,7 @@ private val TEST_NOISE_CONFIG =
 private val ROLLV2_PARAMETERS =
   Parameters.newBuilder()
     .apply {
-      reachOnlyLiquidLegionsSketchBuilder.apply {
+      sketchParametersBuilder.apply {
         decayRate = DECAY_RATE
         size = SKETCH_SIZE
       }
@@ -1067,6 +1067,64 @@ class ReachOnlyLiquidLegionsV2MillTest {
   }
 
   @Test
+  fun `setup phase at non-aggregator using cached result`() = runBlocking {
+    // Stage 0. preparing the storage and set up mock
+    val partialToken =
+      FakeComputationsDatabase.newPartialToken(
+          localId = LOCAL_ID,
+          stage = SETUP_PHASE.toProtocolStage()
+        )
+        .build()
+    val requisitionBlobContext =
+      RequisitionBlobContext(GLOBAL_ID, REQUISITION_1.externalKey.externalRequisitionId)
+    requisitionStore.writeString(requisitionBlobContext, "local_requisition")
+    val cachedBlobContext =
+      ComputationBlobContext(GLOBAL_ID, SETUP_PHASE.toProtocolStage(), 1L)
+    computationStore.writeString(cachedBlobContext, "cached result")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
+      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
+      requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
+      blobs = listOf(cachedBlobContext.toMetadata(ComputationBlobDependency.OUTPUT))
+    )
+
+    // Stage 1. Process the above computation
+    nonAggregatorMill.pollAndProcessNextComputation()
+
+    // Stage 2. Check the status of the computation
+    assertThat(fakeComputationDb[LOCAL_ID])
+      .isEqualTo(
+        ComputationToken.newBuilder()
+          .apply {
+            globalComputationId = GLOBAL_ID
+            localComputationId = LOCAL_ID
+            attempt = 1
+            computationStage = WAIT_EXECUTION_PHASE_INPUTS.toProtocolStage()
+            addBlobsBuilder().apply {
+              dependencyType = ComputationBlobDependency.INPUT
+              blobId = 0L
+              path = cachedBlobContext.blobKey
+            }
+            addBlobsBuilder().apply {
+              dependencyType = ComputationBlobDependency.OUTPUT
+              blobId = 1L
+            }
+            version = 2 // claimTask + transitionStage
+            computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS
+            addAllRequisitions(listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3))
+          }
+          .build()
+      )
+
+    assertThat(computationControlRequests)
+      .containsExactlyElementsIn(
+        buildAdvanceComputationRequests(GLOBAL_ID, SETUP_PHASE_INPUT, "cached result")
+      )
+      .inOrder()
+  }
+
+  @Test
   fun `setup phase at non-aggregator using calculated result`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     val partialToken =
@@ -1163,6 +1221,64 @@ class ReachOnlyLiquidLegionsV2MillTest {
           parallelism = PARALLELISM
         }
       )
+  }
+
+  @Test
+  fun `setup phase at aggregator using cached result`() = runBlocking {
+    // Stage 0. preparing the storage and set up mock
+    val partialToken =
+      FakeComputationsDatabase.newPartialToken(
+          localId = LOCAL_ID,
+          stage = SETUP_PHASE.toProtocolStage()
+        )
+        .build()
+    val requisitionBlobContext =
+      RequisitionBlobContext(GLOBAL_ID, REQUISITION_1.externalKey.externalRequisitionId)
+    requisitionStore.writeString(requisitionBlobContext, "local_requisition")
+    val cachedBlobContext =
+      ComputationBlobContext(GLOBAL_ID, SETUP_PHASE.toProtocolStage(), 1L)
+    computationStore.writeString(cachedBlobContext, "cached result")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
+      computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
+      requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
+      blobs = listOf(cachedBlobContext.toMetadata(ComputationBlobDependency.OUTPUT))
+    )
+
+    // Stage 1. Process the above computation
+    nonAggregatorMill.pollAndProcessNextComputation()
+
+    // Stage 2. Check the status of the computation
+    assertThat(fakeComputationDb[LOCAL_ID])
+      .isEqualTo(
+        ComputationToken.newBuilder()
+          .apply {
+            globalComputationId = GLOBAL_ID
+            localComputationId = LOCAL_ID
+            attempt = 1
+            computationStage = WAIT_EXECUTION_PHASE_INPUTS.toProtocolStage()
+            addBlobsBuilder().apply {
+              dependencyType = ComputationBlobDependency.INPUT
+              blobId = 0L
+              path = cachedBlobContext.blobKey
+            }
+            addBlobsBuilder().apply {
+              dependencyType = ComputationBlobDependency.OUTPUT
+              blobId = 1L
+            }
+            version = 2 // claimTask + transitionStage
+            computationDetails = AGGREGATOR_COMPUTATION_DETAILS
+            addAllRequisitions(listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3))
+          }
+          .build()
+      )
+
+    assertThat(computationControlRequests)
+      .containsExactlyElementsIn(
+        buildAdvanceComputationRequests(GLOBAL_ID, EXECUTION_PHASE_INPUT, "cached result")
+      )
+      .inOrder()
   }
 
   @Test
@@ -1343,88 +1459,11 @@ class ReachOnlyLiquidLegionsV2MillTest {
             failureBuilder.apply {
               participantChildReferenceId = MILL_ID
               errorMessage =
-                "PERMANENT error: java.lang.IllegalStateException: Invalid input blob size. Input" +
+                "PERMANENT error: java.lang.IllegalArgumentException: Invalid input blob size. Input" +
                 " blob duchy_2_sketch_ has size 15 which is less than (66)."
               stageAttemptBuilder.apply {
                 stage = SETUP_PHASE.number
                 stageName = SETUP_PHASE.name
-                attemptNumber = 1
-              }
-            }
-          }
-          .build()
-      )
-  }
-
-
-
-  @Test
-  fun `execution phase at non-aggregator, failed due to invalid input blob size`() = runBlocking {
-    // Stage 0. preparing the storage and set up mock
-    val partialToken =
-      FakeComputationsDatabase.newPartialToken(
-          localId = LOCAL_ID,
-          stage = EXECUTION_PHASE.toProtocolStage()
-        )
-        .build()
-    val inputBlobContext =
-      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 0L)
-    val calculatedBlobContext =
-      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 1L)
-    computationStore.writeString(inputBlobContext, "data")
-    fakeComputationDb.addComputation(
-      partialToken.localComputationId,
-      partialToken.computationStage,
-      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
-      blobs =
-        listOf(
-          inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
-          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
-        ),
-      requisitions = REQUISITIONS
-    )
-
-    // Stage 1. Process the above computation
-    nonAggregatorMill.pollAndProcessNextComputation()
-
-    // Stage 2. Check the status of the computation
-    assertThat(fakeComputationDb[LOCAL_ID]!!)
-      .isEqualTo(
-        ComputationToken.newBuilder()
-          .apply {
-            globalComputationId = GLOBAL_ID
-            localComputationId = LOCAL_ID
-            attempt = 1
-            computationStage = COMPLETE.toProtocolStage()
-            version = 2 // claimTask + transitionStage
-            computationDetails =
-              NON_AGGREGATOR_COMPUTATION_DETAILS
-                .toBuilder()
-                .apply {
-                  endingState = CompletedReason.FAILED
-                }
-                .build()
-            addAllRequisitions(listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3))
-          }
-          .build()
-      )
-
-    verifyProtoArgument(
-        mockComputationParticipants,
-        SystemComputationParticipantsCoroutineImplBase::failComputationParticipant
-      )
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(
-        FailComputationParticipantRequest.newBuilder()
-          .apply {
-            name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName()
-            failureBuilder.apply {
-              participantChildReferenceId = MILL_ID
-              errorMessage =
-                "PERMANENT error: Invalid input blob size. Input blob data has size 4 which is less than (66)."
-              stageAttemptBuilder.apply {
-                stage = EXECUTION_PHASE.number
-                stageName = EXECUTION_PHASE.name
                 attemptNumber = 1
               }
             }
@@ -1566,7 +1605,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
   }
 
   @Test
-  fun `execution phase at aggregator, failed due to invalid input blob size`() = runBlocking {
+  fun `execution phase at non-aggregator, failed due to invalid input blob size`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
@@ -1582,7 +1621,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
-      computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
+      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
       blobs =
         listOf(
           inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
@@ -1605,7 +1644,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
             computationStage = COMPLETE.toProtocolStage()
             version = 2 // claimTask + transitionStage
             computationDetails =
-              AGGREGATOR_COMPUTATION_DETAILS
+              NON_AGGREGATOR_COMPUTATION_DETAILS
                 .toBuilder()
                 .apply {
                   endingState = CompletedReason.FAILED
@@ -1803,6 +1842,81 @@ class ReachOnlyLiquidLegionsV2MillTest {
           }
           parallelism = PARALLELISM
         }
+      )
+  }
+
+  @Test
+  fun `execution phase at aggregator, failed due to invalid input blob size`() = runBlocking {
+    // Stage 0. preparing the storage and set up mock
+    val partialToken =
+      FakeComputationsDatabase.newPartialToken(
+          localId = LOCAL_ID,
+          stage = EXECUTION_PHASE.toProtocolStage()
+        )
+        .build()
+    val inputBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 0L)
+    val calculatedBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 1L)
+    computationStore.writeString(inputBlobContext, "data")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
+      computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
+      blobs =
+        listOf(
+          inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+        ),
+      requisitions = REQUISITIONS
+    )
+
+    // Stage 1. Process the above computation
+    nonAggregatorMill.pollAndProcessNextComputation()
+
+    // Stage 2. Check the status of the computation
+    assertThat(fakeComputationDb[LOCAL_ID]!!)
+      .isEqualTo(
+        ComputationToken.newBuilder()
+          .apply {
+            globalComputationId = GLOBAL_ID
+            localComputationId = LOCAL_ID
+            attempt = 1
+            computationStage = COMPLETE.toProtocolStage()
+            version = 2 // claimTask + transitionStage
+            computationDetails =
+              AGGREGATOR_COMPUTATION_DETAILS
+                .toBuilder()
+                .apply {
+                  endingState = CompletedReason.FAILED
+                }
+                .build()
+            addAllRequisitions(listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3))
+          }
+          .build()
+      )
+
+    verifyProtoArgument(
+        mockComputationParticipants,
+        SystemComputationParticipantsCoroutineImplBase::failComputationParticipant
+      )
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        FailComputationParticipantRequest.newBuilder()
+          .apply {
+            name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName()
+            failureBuilder.apply {
+              participantChildReferenceId = MILL_ID
+              errorMessage =
+                "PERMANENT error: Invalid input blob size. Input blob data has size 4 which is less than (66)."
+              stageAttemptBuilder.apply {
+                stage = EXECUTION_PHASE.number
+                stageName = EXECUTION_PHASE.name
+                attemptNumber = 1
+              }
+            }
+          }
+          .build()
       )
   }
 }

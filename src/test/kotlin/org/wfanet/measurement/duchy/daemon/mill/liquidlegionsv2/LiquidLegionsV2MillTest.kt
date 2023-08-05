@@ -256,7 +256,7 @@ private val LLV2_PARAMETERS =
   Parameters.newBuilder()
     .apply {
       maximumFrequency = MAX_FREQUENCY
-      liquidLegionsSketchBuilder.apply {
+      sketchParametersBuilder.apply {
         decayRate = DECAY_RATE
         size = SKETCH_SIZE
       }

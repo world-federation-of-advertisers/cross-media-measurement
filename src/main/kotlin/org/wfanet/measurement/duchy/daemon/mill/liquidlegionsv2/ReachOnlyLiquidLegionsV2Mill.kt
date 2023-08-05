@@ -464,7 +464,8 @@ class ReachOnlyLiquidLegionsV2Mill(
             .readAllRequisitionBlobs(token, duchyId)
             .concat(readAndCombineAllInputBlobsSetupPhaseAtAggregator(token, workerStubs.size))
             .toCompleteReachOnlySetupPhaseAtAggregatorRequest(rollv2Details, token.requisitionsCount)
-        val cryptoResult: CompleteReachOnlySetupPhaseResponse = cryptoWorker.completeReachOnlySetupPhaseAtAggregator(request)
+        val cryptoResult: CompleteReachOnlySetupPhaseResponse =
+          cryptoWorker.completeReachOnlySetupPhaseAtAggregator(request)
         logStageDurationMetric(
           token,
           CRYPTO_LIB_CPU_DURATION,
@@ -539,7 +540,8 @@ class ReachOnlyLiquidLegionsV2Mill(
     val measurementSpec =
       MeasurementSpec.parseFrom(token.computationDetails.kingdomComputation.measurementSpec)
     val inputBlob = readAndCombineAllInputBlobs(token, 1)
-    require(inputBlob.size() < kBytesPerCipherText) { "Invalid input blob size. Input blob ${inputBlob.toStringUtf8()} has size ${inputBlob.size()} which is less than ($kBytesPerCipherText)." }
+    require(inputBlob.size() >= kBytesPerCipherText) { "Invalid input blob size. Input blob ${inputBlob.toStringUtf8()} has size ${inputBlob.size()} which is less than ($kBytesPerCipherText)." }
+    var reach = 0L
     val (bytes, nextToken) =
       existingOutputOr(token) {
         val request = completeReachOnlyExecutionPhaseAtAggregatorRequest {
@@ -554,8 +556,8 @@ class ReachOnlyLiquidLegionsV2Mill(
             }
           }
           liquidLegionsParameters = liquidLegionsSketchParameters {
-            decayRate = rollv2Parameters.reachOnlyLiquidLegionsSketch.decayRate
-            size = rollv2Parameters.reachOnlyLiquidLegionsSketch.size
+            decayRate = rollv2Parameters.sketchParameters.decayRate
+            size = rollv2Parameters.sketchParameters.size
           }
           vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width
           if (noiseConfig.hasReachNoiseConfig()) {
@@ -582,10 +584,10 @@ class ReachOnlyLiquidLegionsV2Mill(
           cryptoResult.elapsedCpuTimeMillis,
           executionPhaseCryptoCpuTimeDurationHistogram
         )
+        reach = cryptoResult.reach
         cryptoResult.toByteString()
       }
 
-    val reach = CompleteReachOnlyExecutionPhaseAtAggregatorResponse.parseFrom(bytes.flatten()).reach
     sendResultToKingdom(token, ReachResult(reach))
     return completeComputation(nextToken, CompletedReason.SUCCEEDED)
   }
@@ -596,7 +598,7 @@ class ReachOnlyLiquidLegionsV2Mill(
     val rollv2Details = token.computationDetails.reachOnlyLiquidLegionsV2
     require(NON_AGGREGATOR == rollv2Details.role) { "invalid role for this function." }
     val inputBlob = readAndCombineAllInputBlobs(token, 1)
-    require(inputBlob.size() < kBytesPerCipherText) { "Invalid input blob size. Input blob ${inputBlob.toStringUtf8()} has size ${inputBlob.size()} which is less than ($kBytesPerCipherText)." }
+    require(inputBlob.size() >= kBytesPerCipherText) { "Invalid input blob size. Input blob ${inputBlob.toStringUtf8()} has size ${inputBlob.size()} which is less than ($kBytesPerCipherText)." }
     val (bytes, nextToken) =
       existingOutputOr(token) {
         val cryptoResult: CompleteReachOnlyExecutionPhaseResponse =
@@ -750,7 +752,7 @@ class ReachOnlyLiquidLegionsV2Mill(
     var combinedRegisterVector = ByteString.EMPTY
     var combinedNoiseCiphertext = ByteString.EMPTY
     for (str in blobMap.values) {
-      require(str.size() < kBytesPerCipherText) { "Invalid input blob size. Input blob ${str.toStringUtf8()} has size ${str.size()} which is less than ($kBytesPerCipherText)." }
+      require(str.size() >= kBytesPerCipherText) { "Invalid input blob size. Input blob ${str.toStringUtf8()} has size ${str.size()} which is less than ($kBytesPerCipherText)." }
       combinedRegisterVector = combinedRegisterVector.concat(str.substring(0, str.size() - kBytesPerCipherText))
       combinedNoiseCiphertext = combinedNoiseCiphertext.concat(str.substring(str.size() - kBytesPerCipherText, str.size()))
     }
