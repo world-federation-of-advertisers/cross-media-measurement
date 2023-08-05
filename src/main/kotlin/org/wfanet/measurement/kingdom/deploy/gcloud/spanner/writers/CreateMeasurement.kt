@@ -88,8 +88,9 @@ class CreateMeasurement(private val request: CreateMeasurementRequest) :
       ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
         createComputedMeasurement(request.measurement, measurementConsumerId)
       }
-      ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET ->
+      ProtocolConfig.ProtocolCase.DIRECT ->
         createDirectMeasurement(request.measurement, measurementConsumerId)
+      ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Protocol is not set.")
     }
   }
 
