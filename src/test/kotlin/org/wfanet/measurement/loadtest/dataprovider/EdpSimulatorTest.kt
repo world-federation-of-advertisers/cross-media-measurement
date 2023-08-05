@@ -197,6 +197,7 @@ private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..
 private const val DUCHY_ID = "worker1"
 private const val RANDOM_SEED: Long = 0
 private val DIRECT_NOISE_MECHANISM = DirectNoiseMechanism.LAPLACE
+private val CMMS_DIRECT_NOISE_MECHANISM = ProtocolConfig.NoiseMechanism.GEOMETRIC
 
 @RunWith(JUnit4::class)
 class EdpSimulatorTest {
@@ -858,6 +859,10 @@ class EdpSimulatorTest {
       )
     val result =
       Measurement.Result.parseFrom(decryptResult(request.encryptedData, MC_PRIVATE_KEY).data)
+    assertThat(result.reach.noiseMechanism == CMMS_DIRECT_NOISE_MECHANISM)
+    assertThat(result.reach.hasDeterministicCountDistinct())
+    assertThat(result.frequency.noiseMechanism == CMMS_DIRECT_NOISE_MECHANISM)
+    assertThat(result.frequency.hasDeterministicDistribution())
     assertThat(result).reachValue().isEqualTo(2000L)
     assertThat(result).frequencyDistribution().isWithin(0.001).of(mapOf(2L to 0.5, 4L to 0.5))
   }
@@ -901,6 +906,11 @@ class EdpSimulatorTest {
       )
     val result =
       Measurement.Result.parseFrom(decryptResult(request.encryptedData, MC_PRIVATE_KEY).data)
+
+    assertThat(result.reach.noiseMechanism == CMMS_DIRECT_NOISE_MECHANISM)
+    assertThat(result.reach.hasDeterministicCountDistinct())
+    assertThat(result.frequency.noiseMechanism == CMMS_DIRECT_NOISE_MECHANISM)
+    assertThat(result.frequency.hasDeterministicDistribution())
     assertThat(result).reachValue().isEqualTo(1920)
     assertThat(result)
       .frequencyDistribution()
@@ -946,6 +956,9 @@ class EdpSimulatorTest {
       )
     val result =
       Measurement.Result.parseFrom(decryptResult(request.encryptedData, MC_PRIVATE_KEY).data)
+
+    assertThat(result.reach.noiseMechanism == CMMS_DIRECT_NOISE_MECHANISM)
+    assertThat(result.reach.hasDeterministicCountDistinct())
     assertThat(result).reachValue().isEqualTo(2000L)
     assertThat(result.hasFrequency()).isFalse()
   }
@@ -991,6 +1004,9 @@ class EdpSimulatorTest {
       )
     val result =
       Measurement.Result.parseFrom(decryptResult(request.encryptedData, MC_PRIVATE_KEY).data)
+
+    assertThat(result.reach.noiseMechanism == CMMS_DIRECT_NOISE_MECHANISM)
+    assertThat(result.reach.hasDeterministicCountDistinct())
     assertThat(result).reachValue().isEqualTo(1920)
     assertThat(result.hasFrequency()).isFalse()
   }
