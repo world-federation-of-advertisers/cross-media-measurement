@@ -38,11 +38,13 @@ def wfa_measurement_system_repositories():
         version = "0.10.0",
     )
 
+    # DO_NOT_SUBMIT(world-federation-of-advertisers/cross-media-measurement-api/#163):
+    # switch to a release version before submitting the PR.
     wfa_repo_archive(
         name = "wfa_measurement_proto",
         repo = "cross-media-measurement-api",
-        sha256 = "1d829e7d95e6dedea1a4ea746e5613915dd60ca095b7b35bdcf19fa067697f2a",
-        version = "0.39.2",
+        sha256 = "c69c98ca1591e60cb300fcdde18e5ae9018fc77106c4924cbec684d0fec717f9",
+        commit = "cc2d72101932b11d9eb64ef6f2e80a04b8c8e0be",
     )
 
     wfa_repo_archive(

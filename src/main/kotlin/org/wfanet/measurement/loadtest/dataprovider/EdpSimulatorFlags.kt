@@ -17,7 +17,6 @@ package org.wfanet.measurement.loadtest.dataprovider
 import java.io.File
 import java.time.Duration
 import org.wfanet.measurement.common.grpc.TlsFlags
-import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.CompositionMechanism
 import org.wfanet.measurement.loadtest.KingdomPublicApiFlags
 import org.wfanet.measurement.loadtest.RequisitionFulfillmentServiceFlags
@@ -100,14 +99,6 @@ class EdpSimulatorFlags {
     required = false,
   )
   var randomSeed: Long? = null
-    private set
-
-  @CommandLine.Option(
-    names = ["--direct-noise-mechanism"],
-    description = ["Differential privacy noise mechanism for direct measurements"],
-    defaultValue = "LAPLACE",
-  )
-  lateinit var directNoiseMechanism: DirectNoiseMechanism
     private set
 
   @CommandLine.Option(

@@ -17,17 +17,12 @@ package org.wfanet.measurement.eventdataprovider.noiser
 /** Internal Differential Privacy(DP) parameters. */
 data class DpParams(val epsilon: Double, val delta: Double)
 
-/**
- * Noise mechanism for generating publisher noise for direct measurements.
- *
- * TODO(@iverson52000): Move this to public API if EDP needs to report back the direct noise
- *   mechanism for PBM tracking. NONE mechanism is testing only and should not move to public API.
- */
+/** Noise mechanism for generating publisher noise for direct measurements. */
 enum class DirectNoiseMechanism {
   /** NONE mechanism is testing only. */
   NONE,
-  LAPLACE,
-  GAUSSIAN,
+  CONTINUOUS_LAPLACE,
+  CONTINUOUS_GAUSSIAN,
 }
 
 /** A base Noiser interface for direct measurements. */

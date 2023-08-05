@@ -98,7 +98,9 @@ import org.wfanet.measurement.internal.kingdom.MeasurementKt as InternalMeasurem
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt as InternalProtocolConfigKt
+import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt.direct
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest as internalCancelMeasurementRequest
@@ -171,6 +173,7 @@ class MeasurementsServiceTest {
     service =
       MeasurementsService(
         MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
+        NOISE_MECHANISMS
       )
   }
 
@@ -409,7 +412,20 @@ class MeasurementsServiceTest {
         runBlocking { service.createMeasurement(request) }
       }
 
-    assertThat(response).ignoringRepeatedFieldOrder().isEqualTo(measurement)
+    assertThat(response)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        measurement.copy {
+          protocolConfig =
+            protocolConfig.copy {
+              protocols.clear()
+              protocols +=
+                ProtocolConfigKt.protocol {
+                  direct = DEFAULT_DIRECT_REACH_AND_FREQUENCY_PROTOCOL_CONFIG
+                }
+            }
+        }
+      )
     verifyProtoArgument(
         internalMeasurementsMock,
         MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
@@ -420,6 +436,13 @@ class MeasurementsServiceTest {
             internalMeasurement.copy {
               clearExternalMeasurementId()
               clearUpdateTime()
+
+              details =
+                details.copy {
+                  protocolConfig = internalProtocolConfig {
+                    direct = DEFAULT_INTERNAL_DIRECT_REACH_AND_FREQUENCY_PROTOCOL_CONFIG
+                  }
+                }
             }
         }
       )
@@ -486,7 +509,18 @@ class MeasurementsServiceTest {
         runBlocking { service.createMeasurement(request) }
       }
 
-    assertThat(response).ignoringRepeatedFieldOrder().isEqualTo(measurement)
+    assertThat(response)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        measurement.copy {
+          protocolConfig =
+            protocolConfig.copy {
+              protocols.clear()
+              protocols +=
+                ProtocolConfigKt.protocol { direct = DEFAULT_DIRECT_IMPRESSION_PROTOCOL_CONFIG }
+            }
+        }
+      )
     verifyProtoArgument(
         internalMeasurementsMock,
         MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
@@ -497,6 +531,13 @@ class MeasurementsServiceTest {
             internalMeasurement.copy {
               clearExternalMeasurementId()
               clearUpdateTime()
+
+              details =
+                details.copy {
+                  protocolConfig = internalProtocolConfig {
+                    direct = DEFAULT_INTERNAL_DIRECT_IMPRESSION_PROTOCOL_CONFIG
+                  }
+                }
             }
         }
       )
@@ -563,7 +604,18 @@ class MeasurementsServiceTest {
         runBlocking { service.createMeasurement(request) }
       }
 
-    assertThat(response).ignoringRepeatedFieldOrder().isEqualTo(measurement)
+    assertThat(response)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        measurement.copy {
+          protocolConfig =
+            protocolConfig.copy {
+              protocols.clear()
+              protocols +=
+                ProtocolConfigKt.protocol { direct = DEFAULT_DIRECT_WATCH_DURATION_PROTOCOL_CONFIG }
+            }
+        }
+      )
     verifyProtoArgument(
         internalMeasurementsMock,
         MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
@@ -574,6 +626,13 @@ class MeasurementsServiceTest {
             internalMeasurement.copy {
               clearExternalMeasurementId()
               clearUpdateTime()
+
+              details =
+                details.copy {
+                  protocolConfig = internalProtocolConfig {
+                    direct = DEFAULT_INTERNAL_DIRECT_WATCH_DURATION_PROTOCOL_CONFIG
+                  }
+                }
             }
         }
       )
@@ -1771,6 +1830,20 @@ class MeasurementsServiceTest {
       )
     }
 
+    private val NOISE_MECHANISMS =
+      listOf(
+        ProtocolConfig.NoiseMechanism.NONE,
+        ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE,
+        ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
+      )
+
+    private val INTERNAL_NOISE_MECHANISMS =
+      listOf(
+        InternalNoiseMechanism.NONE,
+        InternalNoiseMechanism.CONTINUOUS_LAPLACE,
+        InternalNoiseMechanism.CONTINUOUS_GAUSSIAN,
+      )
+
     private val DIFFERENTIAL_PRIVACY_PARAMS = differentialPrivacyParams {
       epsilon = 1.0
       delta = 1.0
@@ -1789,7 +1862,7 @@ class MeasurementsServiceTest {
             epsilon = 2.1
             delta = 3.3
           }
-          noiseMechanism = InternalProtocolConfig.NoiseMechanism.GEOMETRIC
+          noiseMechanism = InternalNoiseMechanism.GEOMETRIC
         }
     }
 
@@ -1829,7 +1902,7 @@ class MeasurementsServiceTest {
             epsilon = 2.1
             delta = 3.3
           }
-          noiseMechanism = InternalProtocolConfig.NoiseMechanism.GEOMETRIC
+          noiseMechanism = InternalNoiseMechanism.GEOMETRIC
         }
     }
 
@@ -2002,6 +2075,52 @@ class MeasurementsServiceTest {
                 message = MEASUREMENT.failure.message
               }
           }
+      }
+    private val DEFAULT_INTERNAL_DIRECT_NOISE_MECHANISMS: List<InternalNoiseMechanism> =
+      listOf(
+        InternalNoiseMechanism.NONE,
+        InternalNoiseMechanism.CONTINUOUS_LAPLACE,
+        InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
+      )
+
+    private val DEFAULT_INTERNAL_DIRECT_REACH_PROTOCOL_CONFIG: InternalProtocolConfig.Direct =
+      direct {
+        noiseMechanisms += DEFAULT_INTERNAL_DIRECT_NOISE_MECHANISMS
+        deterministicCountDistinct =
+          InternalProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
+        liquidLegionsCountDistinct =
+          InternalProtocolConfig.Direct.LiquidLegionsCountDistinct.getDefaultInstance()
+      }
+
+    private val DEFAULT_INTERNAL_DIRECT_REACH_AND_FREQUENCY_PROTOCOL_CONFIG:
+      InternalProtocolConfig.Direct =
+      direct {
+        noiseMechanisms += DEFAULT_INTERNAL_DIRECT_NOISE_MECHANISMS
+        deterministicCountDistinct =
+          InternalProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
+        liquidLegionsCountDistinct =
+          InternalProtocolConfig.Direct.LiquidLegionsCountDistinct.getDefaultInstance()
+        deterministicDistribution =
+          InternalProtocolConfigKt.DirectKt.deterministicDistribution {
+            maximumFrequency = DEFAULT_MAXIMUM_FREQUENCY_DIRECT_DISTRIBUTION
+          }
+        liquidLegionsDistribution =
+          InternalProtocolConfigKt.DirectKt.liquidLegionsDistribution {
+            maximumFrequency = DEFAULT_MAXIMUM_FREQUENCY_DIRECT_DISTRIBUTION
+          }
+      }
+
+    private val DEFAULT_INTERNAL_DIRECT_IMPRESSION_PROTOCOL_CONFIG: InternalProtocolConfig.Direct =
+      direct {
+        noiseMechanisms += DEFAULT_INTERNAL_DIRECT_NOISE_MECHANISMS
+        deterministicCount = InternalProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
+      }
+
+    private val DEFAULT_INTERNAL_DIRECT_WATCH_DURATION_PROTOCOL_CONFIG:
+      InternalProtocolConfig.Direct =
+      direct {
+        noiseMechanisms += DEFAULT_INTERNAL_DIRECT_NOISE_MECHANISMS
+        deterministicSum = InternalProtocolConfig.Direct.DeterministicSum.getDefaultInstance()
       }
   }
 }
