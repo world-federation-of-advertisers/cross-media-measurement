@@ -1,4 +1,4 @@
-# Liquid Legions V2 Encryption Utility Java Library
+# Reach Only Liquid Legions V2 Encryption Utility Java Library
 
 The ReachOnlyLiquidLegionsV2EncryptionUtility java class is auto-generated from
 the reach_only_liquid_legions_v2_encryption_utility.swig definition. The

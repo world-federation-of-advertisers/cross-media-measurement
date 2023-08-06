@@ -30,7 +30,8 @@ import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlySetupPhas
 import org.wfanet.measurement.internal.duchy.protocol.reachonlyliquidlegionsv2.ReachOnlyLiquidLegionsV2EncryptionUtility
 
 /**
- * A [ReachOnlyLiquidLegionsV2Encryption] implementation using the JNI [ReachOnlyLiquidLegionsV2EncryptionUtility].
+ * A [ReachOnlyLiquidLegionsV2Encryption] implementation using the JNI
+ * [ReachOnlyLiquidLegionsV2EncryptionUtility].
  */
 class JniReachOnlyLiquidLegionsV2Encryption : ReachOnlyLiquidLegionsV2Encryption {
 
@@ -38,19 +39,27 @@ class JniReachOnlyLiquidLegionsV2Encryption : ReachOnlyLiquidLegionsV2Encryption
     request: CompleteReachOnlyInitializationPhaseRequest
   ): CompleteReachOnlyInitializationPhaseResponse {
     return CompleteReachOnlyInitializationPhaseResponse.parseFrom(
-      ReachOnlyLiquidLegionsV2EncryptionUtility.completeReachOnlyInitializationPhase(request.toByteArray())
+      ReachOnlyLiquidLegionsV2EncryptionUtility.completeReachOnlyInitializationPhase(
+        request.toByteArray()
+      )
     )
   }
 
-  override fun completeReachOnlySetupPhase(request: CompleteReachOnlySetupPhaseRequest): CompleteReachOnlySetupPhaseResponse {
+  override fun completeReachOnlySetupPhase(
+    request: CompleteReachOnlySetupPhaseRequest
+  ): CompleteReachOnlySetupPhaseResponse {
     return CompleteReachOnlySetupPhaseResponse.parseFrom(
       ReachOnlyLiquidLegionsV2EncryptionUtility.completeReachOnlySetupPhase(request.toByteArray())
     )
   }
 
-  override fun completeReachOnlySetupPhaseAtAggregator(request: CompleteReachOnlySetupPhaseRequest): CompleteReachOnlySetupPhaseResponse {
+  override fun completeReachOnlySetupPhaseAtAggregator(
+    request: CompleteReachOnlySetupPhaseRequest
+  ): CompleteReachOnlySetupPhaseResponse {
     return CompleteReachOnlySetupPhaseResponse.parseFrom(
-      ReachOnlyLiquidLegionsV2EncryptionUtility.completeReachOnlySetupPhaseAtAggregator(request.toByteArray())
+      ReachOnlyLiquidLegionsV2EncryptionUtility.completeReachOnlySetupPhaseAtAggregator(
+        request.toByteArray()
+      )
     )
   }
 
@@ -58,7 +67,9 @@ class JniReachOnlyLiquidLegionsV2Encryption : ReachOnlyLiquidLegionsV2Encryption
     request: CompleteReachOnlyExecutionPhaseRequest
   ): CompleteReachOnlyExecutionPhaseResponse {
     return CompleteReachOnlyExecutionPhaseResponse.parseFrom(
-      ReachOnlyLiquidLegionsV2EncryptionUtility.completeReachOnlyExecutionPhase(request.toByteArray())
+      ReachOnlyLiquidLegionsV2EncryptionUtility.completeReachOnlyExecutionPhase(
+        request.toByteArray()
+      )
     )
   }
 
@@ -66,7 +77,9 @@ class JniReachOnlyLiquidLegionsV2Encryption : ReachOnlyLiquidLegionsV2Encryption
     request: CompleteReachOnlyExecutionPhaseAtAggregatorRequest
   ): CompleteReachOnlyExecutionPhaseAtAggregatorResponse {
     return CompleteReachOnlyExecutionPhaseAtAggregatorResponse.parseFrom(
-      ReachOnlyLiquidLegionsV2EncryptionUtility.completeReachOnlyExecutionPhaseAtAggregator(request.toByteArray())
+      ReachOnlyLiquidLegionsV2EncryptionUtility.completeReachOnlyExecutionPhaseAtAggregator(
+        request.toByteArray()
+      )
     )
   }
 
@@ -82,7 +95,8 @@ class JniReachOnlyLiquidLegionsV2Encryption : ReachOnlyLiquidLegionsV2Encryption
     init {
       loadLibrary(
         name = "reach_only_liquid_legions_v2_encryption_utility",
-        directoryPath = Paths.get("wfa_measurement_system/src/main/swig/protocol/reachonlyliquidlegionsv2")
+        directoryPath =
+          Paths.get("wfa_measurement_system/src/main/swig/protocol/reachonlyliquidlegionsv2")
       )
       loadLibrary(
         name = "sketch_encrypter_adapter",

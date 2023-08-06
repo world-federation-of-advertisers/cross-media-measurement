@@ -16,13 +16,12 @@ package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import java.nio.file.Paths
-import kotlin.test.assertFailsWith
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.anysketch.Sketch
-import org.wfanet.anysketch.SketchConfig.ValueSpec.Aggregator
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
 import org.wfanet.anysketch.crypto.EncryptSketchRequest
@@ -52,9 +51,7 @@ class ReachOnlyLiquidLegionsV2EncryptionUtilityTest {
   }
 
   private fun Sketch.Builder.addRegister(index: Long) {
-    addRegistersBuilder().also {
-      it.index = index
-    }
+    addRegistersBuilder().also { it.index = index }
   }
 
   //  Helper function to go through the entire Liquid Legions V2 protocol using the input data.
@@ -72,7 +69,8 @@ class ReachOnlyLiquidLegionsV2EncryptionUtilityTest {
     val completeReachOnlySetupPhaseResponse1 =
       CompleteReachOnlySetupPhaseResponse.parseFrom(
         ReachOnlyLiquidLegionsV2EncryptionUtility.completeReachOnlySetupPhase(
-          completeReachOnlySetupPhaseRequest1.toByteArray())
+          completeReachOnlySetupPhaseRequest1.toByteArray()
+        )
       )
     // Setup phase at Duchy 2 (NON_AGGREGATOR). Duchy 2 does not receive any sketche.
     val completeReachOnlySetupPhaseRequest2 = completeReachOnlySetupPhaseRequest {
@@ -83,25 +81,29 @@ class ReachOnlyLiquidLegionsV2EncryptionUtilityTest {
     val completeReachOnlySetupPhaseResponse2 =
       CompleteReachOnlySetupPhaseResponse.parseFrom(
         ReachOnlyLiquidLegionsV2EncryptionUtility.completeReachOnlySetupPhase(
-          completeReachOnlySetupPhaseRequest2.toByteArray())
+          completeReachOnlySetupPhaseRequest2.toByteArray()
+        )
       )
     // Setup phase at Duchy 3 (AGGREGATOR). Aggregator receives the combined register vector and
     // the concatenated excessive noise ciphertexts.
     val completeReachOnlySetupPhaseRequest3 = completeReachOnlySetupPhaseRequest {
       combinedRegisterVector =
         completeReachOnlySetupPhaseResponse1.combinedRegisterVector.concat(
-          completeReachOnlySetupPhaseResponse2.combinedRegisterVector)
+          completeReachOnlySetupPhaseResponse2.combinedRegisterVector
+        )
       curveId = CURVE_ID
       compositeElGamalPublicKey = CLIENT_EL_GAMAL_KEYS
       serializedExcessiveNoiseCiphertext =
         completeReachOnlySetupPhaseResponse1.serializedExcessiveNoiseCiphertext.concat(
-          completeReachOnlySetupPhaseResponse2.serializedExcessiveNoiseCiphertext)
+          completeReachOnlySetupPhaseResponse2.serializedExcessiveNoiseCiphertext
+        )
       parallelism = PARALLELISM
     }
     val completeReachOnlySetupPhaseResponse3 =
       CompleteReachOnlySetupPhaseResponse.parseFrom(
         ReachOnlyLiquidLegionsV2EncryptionUtility.completeReachOnlySetupPhase(
-          completeReachOnlySetupPhaseRequest3.toByteArray())
+          completeReachOnlySetupPhaseRequest3.toByteArray()
+        )
       )
 
     // Execution phase at duchy 1 (non-aggregator).
@@ -185,8 +187,13 @@ class ReachOnlyLiquidLegionsV2EncryptionUtilityTest {
       EncryptSketchResponse.parseFrom(SketchEncrypterAdapter.EncryptSketch(request.toByteArray()))
     val encryptedSketch = response.encryptedSketch
     val result = goThroughEntireMpcProtocol(encryptedSketch).reach
-    val expectedResult = Estimators.EstimateCardinalityLiquidLegions(
-      DECAY_RATE, LIQUID_LEGIONS_SIZE, 4, VID_SAMPLING_INTERVAL_WIDTH.toDouble())
+    val expectedResult =
+      Estimators.EstimateCardinalityLiquidLegions(
+        DECAY_RATE,
+        LIQUID_LEGIONS_SIZE,
+        4,
+        VID_SAMPLING_INTERVAL_WIDTH.toDouble()
+      )
     assertEquals(expectedResult, result)
   }
 
@@ -194,7 +201,9 @@ class ReachOnlyLiquidLegionsV2EncryptionUtilityTest {
   fun `completeReachOnlySetupPhase fails with invalid request message`() {
     val exception =
       assertFailsWith(RuntimeException::class) {
-        ReachOnlyLiquidLegionsV2EncryptionUtility.completeReachOnlySetupPhase("something not a proto".toByteArray())
+        ReachOnlyLiquidLegionsV2EncryptionUtility.completeReachOnlySetupPhase(
+          "something not a proto".toByteArray()
+        )
       }
     assertThat(exception).hasMessageThat().contains("Failed to parse")
   }
@@ -231,10 +240,7 @@ class ReachOnlyLiquidLegionsV2EncryptionUtilityTest {
         "sketch_encrypter_adapter",
         Paths.get("any_sketch_java/src/main/java/org/wfanet/anysketch/crypto")
       )
-      loadLibrary(
-        "estimators",
-        Paths.get("any_sketch_java/src/main/java/org/wfanet/estimation")
-      )
+      loadLibrary("estimators", Paths.get("any_sketch_java/src/main/java/org/wfanet/estimation"))
     }
 
     private const val DECAY_RATE = 12.0

@@ -5,8 +5,8 @@ package(default_visibility = ["//visibility:public"])
 kt_jvm_library(
     name = "liquidlegionsv2encryption",
     srcs = [
-        "LiquidLegionsV2Encryption.kt",
         "JniLiquidLegionsV2Encryption.kt",
+        "LiquidLegionsV2Encryption.kt",
     ],
     deps = [
         "//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_kt_jvm_proto",
@@ -21,8 +21,8 @@ kt_jvm_library(
 kt_jvm_library(
     name = "reachonlyliquidlegionsv2encryption",
     srcs = [
-        "ReachOnlyLiquidLegionsV2Encryption.kt",
         "JniReachOnlyLiquidLegionsV2Encryption.kt",
+        "ReachOnlyLiquidLegionsV2Encryption.kt",
     ],
     deps = [
         "//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_kt_jvm_proto",

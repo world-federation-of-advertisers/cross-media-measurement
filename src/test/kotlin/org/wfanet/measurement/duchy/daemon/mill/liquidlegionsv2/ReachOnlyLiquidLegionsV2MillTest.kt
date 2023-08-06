@@ -103,6 +103,7 @@ import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlyInitializ
 import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlyInitializationPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlySetupPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlySetupPhaseResponse
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2.ComputationDetails.Parameters
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2.Stage.COMPLETE
@@ -115,9 +116,7 @@ import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSket
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2Kt
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig
 import org.wfanet.measurement.internal.duchy.protocol.completeReachOnlyExecutionPhaseAtAggregatorRequest
-import org.wfanet.measurement.internal.duchy.protocol.completeReachOnlyExecutionPhaseAtAggregatorResponse
 import org.wfanet.measurement.internal.duchy.protocol.completeReachOnlyExecutionPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeReachOnlySetupPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.copy
@@ -167,7 +166,8 @@ private const val LOCAL_ID = 1234L
 private const val GLOBAL_ID = LOCAL_ID.toString()
 
 private const val CIPHERTEXT_SIZE = 66
-private const val NOISE_CIPHERTEXT = "abcdefghijklmnopqrstuvwxyz0123456abcdefghijklmnopqrstuvwxyz0123456"
+private const val NOISE_CIPHERTEXT =
+  "abcdefghijklmnopqrstuvwxyz0123456abcdefghijklmnopqrstuvwxyz0123456"
 private val SERIALIZED_NOISE_CIPHERTEXT = ByteString.copyFromUtf8(NOISE_CIPHERTEXT)
 
 private val DUCHY_ONE_KEY_PAIR =
@@ -800,7 +800,9 @@ class ReachOnlyLiquidLegionsV2MillTest {
 
     assertThat(cryptoRequest)
       .isEqualTo(
-        CompleteReachOnlyInitializationPhaseRequest.newBuilder().apply { curveId = CURVE_ID }.build()
+        CompleteReachOnlyInitializationPhaseRequest.newBuilder()
+          .apply { curveId = CURVE_ID }
+          .build()
       )
   }
 
@@ -813,7 +815,9 @@ class ReachOnlyLiquidLegionsV2MillTest {
       REQUISITION_2.copy { details = details.copy { externalFulfillingDuchyId = DUCHY_ONE_NAME } }
     val computationDetailsWithoutPublicKey =
       AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
-        .apply { reachOnlyLiquidLegionsV2Builder.clearCombinedPublicKey().clearPartiallyCombinedPublicKey() }
+        .apply {
+          reachOnlyLiquidLegionsV2Builder.clearCombinedPublicKey().clearPartiallyCombinedPublicKey()
+        }
         .build()
     fakeComputationDb.addComputation(
       globalId = GLOBAL_ID,
@@ -880,7 +884,9 @@ class ReachOnlyLiquidLegionsV2MillTest {
     // Stage 0. preparing the storage and set up mock
     val computationDetailsWithoutPublicKey =
       NON_AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
-        .apply { reachOnlyLiquidLegionsV2Builder.clearCombinedPublicKey().clearPartiallyCombinedPublicKey() }
+        .apply {
+          reachOnlyLiquidLegionsV2Builder.clearCombinedPublicKey().clearPartiallyCombinedPublicKey()
+        }
         .build()
     fakeComputationDb.addComputation(
       globalId = GLOBAL_ID,
@@ -935,7 +941,9 @@ class ReachOnlyLiquidLegionsV2MillTest {
     // Stage 0. preparing the storage and set up mock
     val computationDetailsWithoutPublicKey =
       AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
-        .apply { reachOnlyLiquidLegionsV2Builder.clearCombinedPublicKey().clearPartiallyCombinedPublicKey() }
+        .apply {
+          reachOnlyLiquidLegionsV2Builder.clearCombinedPublicKey().clearPartiallyCombinedPublicKey()
+        }
         .build()
     fakeComputationDb.addComputation(
       globalId = GLOBAL_ID,
@@ -1078,8 +1086,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     val requisitionBlobContext =
       RequisitionBlobContext(GLOBAL_ID, REQUISITION_1.externalKey.externalRequisitionId)
     requisitionStore.writeString(requisitionBlobContext, "local_requisition")
-    val cachedBlobContext =
-      ComputationBlobContext(GLOBAL_ID, SETUP_PHASE.toProtocolStage(), 1L)
+    val cachedBlobContext = ComputationBlobContext(GLOBAL_ID, SETUP_PHASE.toProtocolStage(), 1L)
     computationStore.writeString(cachedBlobContext, "cached result")
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
@@ -1235,8 +1242,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     val requisitionBlobContext =
       RequisitionBlobContext(GLOBAL_ID, REQUISITION_1.externalKey.externalRequisitionId)
     requisitionStore.writeString(requisitionBlobContext, "local_requisition")
-    val cachedBlobContext =
-      ComputationBlobContext(GLOBAL_ID, SETUP_PHASE.toProtocolStage(), 1L)
+    val cachedBlobContext = ComputationBlobContext(GLOBAL_ID, SETUP_PHASE.toProtocolStage(), 1L)
     computationStore.writeString(cachedBlobContext, "cached result")
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
@@ -1352,7 +1358,9 @@ class ReachOnlyLiquidLegionsV2MillTest {
       )
 
     assertThat(computationStore.get(blobKey)?.readToString())
-      .isEqualTo("local_requisition_duchy_2_sketch_duchy_3_sketch_-completeReachOnlySetupPhase-encryptedNoise")
+      .isEqualTo(
+        "local_requisition_duchy_2_sketch_duchy_3_sketch_-completeReachOnlySetupPhase-encryptedNoise"
+      )
 
     assertThat(computationControlRequests)
       .containsExactlyElementsIn(
@@ -1386,7 +1394,8 @@ class ReachOnlyLiquidLegionsV2MillTest {
             }
           }
           compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
-          serializedExcessiveNoiseCiphertext =  SERIALIZED_NOISE_CIPHERTEXT.concat(SERIALIZED_NOISE_CIPHERTEXT)
+          serializedExcessiveNoiseCiphertext =
+            SERIALIZED_NOISE_CIPHERTEXT.concat(SERIALIZED_NOISE_CIPHERTEXT)
           parallelism = PARALLELISM
         }
       )
@@ -1411,8 +1420,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
-      computationDetails =
-        AGGREGATOR_COMPUTATION_DETAILS,
+      computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
       blobs =
         listOf(
           newInputBlobMetadata(0L, inputBlob0Context.blobKey),
@@ -1436,11 +1444,8 @@ class ReachOnlyLiquidLegionsV2MillTest {
             computationStage = COMPLETE.toProtocolStage()
             version = 2 // claimTask + transitionStage
             computationDetails =
-              AGGREGATOR_COMPUTATION_DETAILS
-                .toBuilder()
-                .apply {
-                  endingState = CompletedReason.FAILED
-                }
+              AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
+                .apply { endingState = CompletedReason.FAILED }
                 .build()
             addAllRequisitions(listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3))
           }
@@ -1460,7 +1465,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
               participantChildReferenceId = MILL_ID
               errorMessage =
                 "PERMANENT error: java.lang.IllegalArgumentException: Invalid input blob size. Input" +
-                " blob duchy_2_sketch_ has size 15 which is less than (66)."
+                  " blob duchy_2_sketch_ has size 15 which is less than (66)."
               stageAttemptBuilder.apply {
                 stage = SETUP_PHASE.number
                 stageName = SETUP_PHASE.name
@@ -1481,17 +1486,14 @@ class ReachOnlyLiquidLegionsV2MillTest {
           stage = EXECUTION_PHASE.toProtocolStage()
         )
         .build()
-    val inputBlobContext =
-      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 0L)
+    val inputBlobContext = ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 0L)
     computationStore.writeString(inputBlobContext, "sketch" + NOISE_CIPHERTEXT)
-    val cachedBlobContext =
-      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 1L)
+    val cachedBlobContext = ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 1L)
     computationStore.writeString(cachedBlobContext, "cached result")
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
-      computationDetails =
-        NON_AGGREGATOR_COMPUTATION_DETAILS,
+      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
       blobs =
         listOf(
           inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
@@ -1513,8 +1515,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
           computationStage = COMPLETE.toProtocolStage()
           version = 2 // claimTask + transitionStage
           computationDetails =
-            NON_AGGREGATOR_COMPUTATION_DETAILS
-              .toBuilder()
+            NON_AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
               .apply { endingState = CompletedReason.SUCCEEDED }
               .build()
           requisitions += REQUISITIONS
@@ -1537,8 +1538,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
           stage = EXECUTION_PHASE.toProtocolStage()
         )
         .build()
-    val inputBlobContext =
-      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 0L)
+    val inputBlobContext = ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 0L)
     val calculatedBlobContext =
       ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 1L)
     computationStore.writeString(inputBlobContext, "data" + NOISE_CIPHERTEXT)
@@ -1581,8 +1581,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
             computationStage = COMPLETE.toProtocolStage()
             version = 3 // claimTask + writeOutputBlob + transitionStage
             computationDetails =
-              NON_AGGREGATOR_COMPUTATION_DETAILS
-                .toBuilder()
+              NON_AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
                 .apply { endingState = CompletedReason.SUCCEEDED }
                 .build()
             addAllRequisitions(REQUISITIONS)
@@ -1613,8 +1612,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
           stage = EXECUTION_PHASE.toProtocolStage()
         )
         .build()
-    val inputBlobContext =
-      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 0L)
+    val inputBlobContext = ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 0L)
     val calculatedBlobContext =
       ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 1L)
     computationStore.writeString(inputBlobContext, "data")
@@ -1644,11 +1642,8 @@ class ReachOnlyLiquidLegionsV2MillTest {
             computationStage = COMPLETE.toProtocolStage()
             version = 2 // claimTask + transitionStage
             computationDetails =
-              NON_AGGREGATOR_COMPUTATION_DETAILS
-                .toBuilder()
-                .apply {
-                  endingState = CompletedReason.FAILED
-                }
+              NON_AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
+                .apply { endingState = CompletedReason.FAILED }
                 .build()
             addAllRequisitions(listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3))
           }
@@ -1688,17 +1683,14 @@ class ReachOnlyLiquidLegionsV2MillTest {
           stage = EXECUTION_PHASE.toProtocolStage()
         )
         .build()
-    val inputBlobContext =
-      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 0L)
+    val inputBlobContext = ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 0L)
     computationStore.writeString(inputBlobContext, "sketch" + NOISE_CIPHERTEXT)
-    val cachedBlobContext =
-      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 1L)
+    val cachedBlobContext = ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 1L)
     computationStore.writeString(cachedBlobContext, "cached result")
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
-      computationDetails =
-        AGGREGATOR_COMPUTATION_DETAILS,
+      computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
       blobs =
         listOf(
           inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
@@ -1720,8 +1712,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
           computationStage = COMPLETE.toProtocolStage()
           version = 2 // claimTask + transitionStage
           computationDetails =
-            AGGREGATOR_COMPUTATION_DETAILS
-              .toBuilder()
+            AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
               .apply { endingState = CompletedReason.SUCCEEDED }
               .build()
           requisitions += REQUISITIONS
@@ -1745,8 +1736,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
             measurementSpec = SERIALIZED_MEASUREMENT_SPEC_WITH_VID_SAMPLING_WIDTH
           }
       }
-    val inputBlobContext =
-      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 0L)
+    val inputBlobContext = ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 0L)
     val calculatedBlobContext =
       ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 1L)
     computationStore.writeString(inputBlobContext, "data" + NOISE_CIPHERTEXT)
@@ -1854,8 +1844,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
           stage = EXECUTION_PHASE.toProtocolStage()
         )
         .build()
-    val inputBlobContext =
-      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 0L)
+    val inputBlobContext = ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 0L)
     val calculatedBlobContext =
       ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 1L)
     computationStore.writeString(inputBlobContext, "data")
@@ -1885,11 +1874,8 @@ class ReachOnlyLiquidLegionsV2MillTest {
             computationStage = COMPLETE.toProtocolStage()
             version = 2 // claimTask + transitionStage
             computationDetails =
-              AGGREGATOR_COMPUTATION_DETAILS
-                .toBuilder()
-                .apply {
-                  endingState = CompletedReason.FAILED
-                }
+              AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
+                .apply { endingState = CompletedReason.FAILED }
                 .build()
             addAllRequisitions(listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3))
           }

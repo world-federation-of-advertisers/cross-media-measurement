@@ -18,22 +18,18 @@ import com.google.protobuf.ByteString
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.metrics.LongHistogram
 import io.opentelemetry.api.metrics.Meter
-import java.nio.file.Paths
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
-import kotlin.math.min
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
-import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.identity.DuchyInfo
-import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.consent.client.duchy.encryptResult
 import org.wfanet.measurement.consent.client.duchy.signElgamalPublicKey
@@ -51,11 +47,11 @@ import org.wfanet.measurement.duchy.daemon.utils.toAnySketchElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toCmmsElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaEncryptionPublicKey
+import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.service.internal.computations.outputPathList
 import org.wfanet.measurement.duchy.service.system.v1alpha.advanceComputationHeader
 import org.wfanet.measurement.duchy.toProtocolStage
-import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
 import org.wfanet.measurement.internal.duchy.ComputationDetails.KingdomComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
@@ -77,13 +73,11 @@ import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlySetupPhas
 import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlySetupPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant
-import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2.ComputationDetails.Parameters
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.internal.duchy.protocol.completeReachOnlyExecutionPhaseAtAggregatorRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeReachOnlySetupPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.globalReachDpNoiseBaseline
 import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsSketchParameters
-import org.wfanet.measurement.internal.duchy.protocol.perBucketFrequencyDpNoiseBaseline
 import org.wfanet.measurement.internal.duchy.protocol.reachNoiseDifferentialPrivacyParams
 import org.wfanet.measurement.internal.duchy.protocol.registerNoiseGenerationParameters
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
@@ -185,10 +179,11 @@ class ReachOnlyLiquidLegionsV2Mill(
       Pair(Stage.SETUP_PHASE, AGGREGATOR) to ::completeReachOnlySetupPhaseAtAggregator,
       Pair(Stage.SETUP_PHASE, NON_AGGREGATOR) to ::completeReachOnlySetupPhaseAtNonAggregator,
       Pair(Stage.EXECUTION_PHASE, AGGREGATOR) to ::completeReachOnlyExecutionPhaseAtAggregator,
-      Pair(Stage.EXECUTION_PHASE, NON_AGGREGATOR) to ::completeReachOnlyExecutionPhaseAtNonAggregator,
+      Pair(Stage.EXECUTION_PHASE, NON_AGGREGATOR) to
+        ::completeReachOnlyExecutionPhaseAtNonAggregator,
     )
 
-  private val kBytesPerCipherText = 66;
+  private val kBytesPerCipherText = 66
 
   override suspend fun processComputationImpl(token: ComputationToken) {
     require(token.computationDetails.hasReachOnlyLiquidLegionsV2()) {
@@ -267,7 +262,9 @@ class ReachOnlyLiquidLegionsV2Mill(
                 it.details =
                   token.computationDetails
                     .toBuilder()
-                    .apply { reachOnlyLiquidLegionsV2Builder.localElgamalKey = cryptoResult.elGamalKeyPair }
+                    .apply {
+                      reachOnlyLiquidLegionsV2Builder.localElgamalKey = cryptoResult.elGamalKeyPair
+                    }
                     .build()
               }
               .build()
@@ -431,7 +428,8 @@ class ReachOnlyLiquidLegionsV2Mill(
         when (checkNotNull(token.computationDetails.reachOnlyLiquidLegionsV2.role)) {
           AGGREGATOR -> Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
           NON_AGGREGATOR -> Stage.WAIT_TO_START.toProtocolStage()
-          else -> error("Unknown role: ${latestToken.computationDetails.reachOnlyLiquidLegionsV2.role}")
+          else ->
+            error("Unknown role: ${latestToken.computationDetails.reachOnlyLiquidLegionsV2.role}")
         }
     )
   }
@@ -454,7 +452,9 @@ class ReachOnlyLiquidLegionsV2Mill(
     }
   }
 
-  private suspend fun completeReachOnlySetupPhaseAtAggregator(token: ComputationToken): ComputationToken {
+  private suspend fun completeReachOnlySetupPhaseAtAggregator(
+    token: ComputationToken
+  ): ComputationToken {
     val rollv2Details = token.computationDetails.reachOnlyLiquidLegionsV2
     require(AGGREGATOR == rollv2Details.role) { "invalid role for this function." }
     val (bytes, nextToken) =
@@ -463,7 +463,10 @@ class ReachOnlyLiquidLegionsV2Mill(
           dataClients
             .readAllRequisitionBlobs(token, duchyId)
             .concat(readAndCombineAllInputBlobsSetupPhaseAtAggregator(token, workerStubs.size))
-            .toCompleteReachOnlySetupPhaseAtAggregatorRequest(rollv2Details, token.requisitionsCount)
+            .toCompleteReachOnlySetupPhaseAtAggregatorRequest(
+              rollv2Details,
+              token.requisitionsCount
+            )
         val cryptoResult: CompleteReachOnlySetupPhaseResponse =
           cryptoWorker.completeReachOnlySetupPhaseAtAggregator(request)
         logStageDurationMetric(
@@ -493,7 +496,9 @@ class ReachOnlyLiquidLegionsV2Mill(
     )
   }
 
-  private suspend fun completeReachOnlySetupPhaseAtNonAggregator(token: ComputationToken): ComputationToken {
+  private suspend fun completeReachOnlySetupPhaseAtNonAggregator(
+    token: ComputationToken
+  ): ComputationToken {
     val rollv2Details = token.computationDetails.reachOnlyLiquidLegionsV2
     require(NON_AGGREGATOR == rollv2Details.role) { "invalid role for this function." }
     val (bytes, nextToken) =
@@ -502,7 +507,8 @@ class ReachOnlyLiquidLegionsV2Mill(
           dataClients
             .readAllRequisitionBlobs(token, duchyId)
             .toCompleteReachOnlySetupPhaseRequest(rollv2Details, token.requisitionsCount)
-        val cryptoResult: CompleteReachOnlySetupPhaseResponse = cryptoWorker.completeReachOnlySetupPhase(request)
+        val cryptoResult: CompleteReachOnlySetupPhaseResponse =
+          cryptoWorker.completeReachOnlySetupPhase(request)
         logStageDurationMetric(
           token,
           CRYPTO_LIB_CPU_DURATION,
@@ -510,7 +516,7 @@ class ReachOnlyLiquidLegionsV2Mill(
           setupPhaseCryptoCpuTimeDurationHistogram
         )
         // The nextToken consists of the CRV and the noise ciphertext.
-        cryptoResult.combinedRegisterVector.concat(cryptoResult.serializedExcessiveNoiseCiphertext);
+        cryptoResult.combinedRegisterVector.concat(cryptoResult.serializedExcessiveNoiseCiphertext)
       }
 
     sendAdvanceComputationRequest(
@@ -540,7 +546,10 @@ class ReachOnlyLiquidLegionsV2Mill(
     val measurementSpec =
       MeasurementSpec.parseFrom(token.computationDetails.kingdomComputation.measurementSpec)
     val inputBlob = readAndCombineAllInputBlobs(token, 1)
-    require(inputBlob.size() >= kBytesPerCipherText) { "Invalid input blob size. Input blob ${inputBlob.toStringUtf8()} has size ${inputBlob.size()} which is less than ($kBytesPerCipherText)." }
+    require(inputBlob.size() >= kBytesPerCipherText) {
+      ("Invalid input blob size. Input blob ${inputBlob.toStringUtf8()} has size " +
+        "${inputBlob.size()} which is less than ($kBytesPerCipherText).")
+    }
     var reach = 0L
     val (bytes, nextToken) =
       existingOutputOr(token) {
@@ -548,7 +557,8 @@ class ReachOnlyLiquidLegionsV2Mill(
           combinedRegisterVector = inputBlob.substring(0, inputBlob.size() - kBytesPerCipherText)
           localElGamalKeyPair = rollv2Details.localElgamalKey
           curveId = rollv2Details.parameters.ellipticCurveId.toLong()
-          serializedExcessiveNoiseCiphertext = inputBlob.substring(inputBlob.size() - kBytesPerCipherText, inputBlob.size())
+          serializedExcessiveNoiseCiphertext =
+            inputBlob.substring(inputBlob.size() - kBytesPerCipherText, inputBlob.size())
           if (rollv2Parameters.noise.hasReachNoiseConfig()) {
             reachDpNoiseBaseline = globalReachDpNoiseBaseline {
               contributorsCount = workerStubs.size + 1
@@ -598,17 +608,22 @@ class ReachOnlyLiquidLegionsV2Mill(
     val rollv2Details = token.computationDetails.reachOnlyLiquidLegionsV2
     require(NON_AGGREGATOR == rollv2Details.role) { "invalid role for this function." }
     val inputBlob = readAndCombineAllInputBlobs(token, 1)
-    require(inputBlob.size() >= kBytesPerCipherText) { "Invalid input blob size. Input blob ${inputBlob.toStringUtf8()} has size ${inputBlob.size()} which is less than ($kBytesPerCipherText)." }
+    require(inputBlob.size() >= kBytesPerCipherText) {
+      ("Invalid input blob size. Input blob ${inputBlob.toStringUtf8()} has size " +
+        "${inputBlob.size()} which is less than ($kBytesPerCipherText).")
+    }
     val (bytes, nextToken) =
       existingOutputOr(token) {
         val cryptoResult: CompleteReachOnlyExecutionPhaseResponse =
           cryptoWorker.completeReachOnlyExecutionPhase(
             CompleteReachOnlyExecutionPhaseRequest.newBuilder()
               .apply {
-                combinedRegisterVector = inputBlob.substring(0, inputBlob.size() - kBytesPerCipherText)
+                combinedRegisterVector =
+                  inputBlob.substring(0, inputBlob.size() - kBytesPerCipherText)
                 localElGamalKeyPair = rollv2Details.localElgamalKey
                 curveId = rollv2Details.parameters.ellipticCurveId.toLong()
-                serializedExcessiveNoiseCiphertext = inputBlob.substring(inputBlob.size() - kBytesPerCipherText, inputBlob.size())
+                serializedExcessiveNoiseCiphertext =
+                  inputBlob.substring(inputBlob.size() - kBytesPerCipherText, inputBlob.size())
                 parallelism = this@ReachOnlyLiquidLegionsV2Mill.parallelism
               }
               .build()
@@ -716,7 +731,11 @@ class ReachOnlyLiquidLegionsV2Mill(
     val noiseConfig = rollv2Details.parameters.noise
     val combinedInputBlobs = this@toCompleteReachOnlySetupPhaseAtAggregatorRequest
     return completeReachOnlySetupPhaseRequest {
-      combinedRegisterVector = combinedInputBlobs.substring(0, combinedInputBlobs.size() - workerStubs.size*kBytesPerCipherText)
+      combinedRegisterVector =
+        combinedInputBlobs.substring(
+          0,
+          combinedInputBlobs.size() - workerStubs.size * kBytesPerCipherText
+        )
       curveId = rollv2Details.parameters.ellipticCurveId.toLong()
       if (noiseConfig.hasReachNoiseConfig()) {
         noiseParameters = registerNoiseGenerationParameters {
@@ -733,7 +752,11 @@ class ReachOnlyLiquidLegionsV2Mill(
         noiseMechanism = rollv2Details.parameters.noise.noiseMechanism
       }
       compositeElGamalPublicKey = rollv2Details.combinedPublicKey
-      serializedExcessiveNoiseCiphertext = combinedInputBlobs.substring(combinedInputBlobs.size() - workerStubs.size*kBytesPerCipherText, combinedInputBlobs.size())
+      serializedExcessiveNoiseCiphertext =
+        combinedInputBlobs.substring(
+          combinedInputBlobs.size() - workerStubs.size * kBytesPerCipherText,
+          combinedInputBlobs.size()
+        )
       parallelism = this@ReachOnlyLiquidLegionsV2Mill.parallelism
     }
   }
@@ -752,9 +775,14 @@ class ReachOnlyLiquidLegionsV2Mill(
     var combinedRegisterVector = ByteString.EMPTY
     var combinedNoiseCiphertext = ByteString.EMPTY
     for (str in blobMap.values) {
-      require(str.size() >= kBytesPerCipherText) { "Invalid input blob size. Input blob ${str.toStringUtf8()} has size ${str.size()} which is less than ($kBytesPerCipherText)." }
-      combinedRegisterVector = combinedRegisterVector.concat(str.substring(0, str.size() - kBytesPerCipherText))
-      combinedNoiseCiphertext = combinedNoiseCiphertext.concat(str.substring(str.size() - kBytesPerCipherText, str.size()))
+      require(str.size() >= kBytesPerCipherText) {
+        ("Invalid input blob size. Input blob ${str.toStringUtf8()} has size " +
+          "${str.size()} which is less than ($kBytesPerCipherText).")
+      }
+      combinedRegisterVector =
+        combinedRegisterVector.concat(str.substring(0, str.size() - kBytesPerCipherText))
+      combinedNoiseCiphertext =
+        combinedNoiseCiphertext.concat(str.substring(str.size() - kBytesPerCipherText, str.size()))
     }
     return combinedRegisterVector.concat(combinedNoiseCiphertext)
   }
