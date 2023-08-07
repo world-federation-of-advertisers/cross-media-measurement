@@ -8,38 +8,14 @@ package(
     ],
 )
 
-ASSET_PATTERNS = [
-    "*.svg",
-    "*.css",
-]
-
-SRC_PATTERNS = [
-    "*.tsx",
-    "*.ts",
-]
-
 js_library(
-    name = "entry_point",
-    srcs = ["index.tsx"],
-)
-
-js_library(
-    name = "src_files",
-    srcs = glob(
-        include = SRC_PATTERNS + ASSET_PATTERNS,
-    ),
-)
-
-ts_project(
-    name = "src_ts",
-    srcs = [":src_files"],
-    declaration = True,
-    resolve_json_module = True,
-    tsconfig = "//:tsconfig",
-    deps = [
-        "//:node_modules/react",
-        "//:node_modules/react-dom",
-        "//:node_modules/web-vitals",
-        "//experimental/reporting-ui/src/main/react/reporting-ui/library:src_ts",
+    name = "src",
+    srcs = [
+        "app.css",
+        "app.tsx",
+        "index.css",
+        "index.tsx",
+        "logo.tsx",
+        "report_web_vitals.ts",
     ],
 )
