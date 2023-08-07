@@ -1,32 +1,23 @@
 load("@aspect_rules_js//js:defs.bzl", "js_library")
-load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
 
 package(
     default_visibility = [
-        "//experimental/reporting-ui/src/main/react/reporting-ui:__subpackages__",
-        "//experimental/reporting-ui/src/test/react/reporting-ui:__subpackages__",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/library:__subpackages__",
     ],
 )
 
-SRC_PATTERNS = [
-    "*.tsx",
-    "*.ts",
-]
-
 js_library(
-    name = "src_files",
-    srcs = glob(
-        include = SRC_PATTERNS,
-    ),
-)
-
-ts_project(
-    name = "src_ts",
-    srcs = [":src_files"],
-    declaration = True,
-    resolve_json_module = True,
-    tsconfig = "//:tsconfig",
-    deps = [
-        "//:node_modules/react",
+    name = "icons",
+    srcs = [
+        "add.tsx",
+        "download.tsx",
+        "filter_chart.tsx",
+        "filter.tsx",
+        "index.ts",
+        "logo.tsx",
+        "menu.tsx",
+        "options.tsx",
+        "square.tsx",
+        "trailing.tsx",
     ],
 )
