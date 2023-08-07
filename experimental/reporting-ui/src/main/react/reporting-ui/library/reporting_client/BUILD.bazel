@@ -3,32 +3,19 @@ load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
 
 package(
     default_visibility = [
-        "//experimental/reporting-ui/src/main/react/reporting-ui:__subpackages__",
-        "//experimental/reporting-ui/src/test/react/reporting-ui:__subpackages__",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/library:__subpackages__",
     ],
 )
-
-SRC_PATTERNS = [
-    "*.ts",
-]
 
 js_library(
-    name = "src_files",
-    srcs = glob(
-        include = SRC_PATTERNS,
-    ),
-    deps = [
-        "//experimental/reporting-ui/src/main/react/reporting-ui/library/reporting_client/models:src_files",
+    name = "reporting_client",
+    srcs = [
+        "memoize.ts",
+        "real_api.ts",
+        "reporting_client_impl.ts",
+        "reporting_client.ts",
     ],
-)
-
-ts_project(
-    name = "src_ts",
-    srcs = [":src_files"],
-    declaration = True,
-    resolve_json_module = True,
-    tsconfig = "//:tsconfig",
     deps = [
-        "//experimental/reporting-ui/src/main/react/reporting-ui/library/reporting_client/models:src_ts",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/library/reporting_client/models",
     ],
 )

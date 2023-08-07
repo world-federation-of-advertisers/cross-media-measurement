@@ -7,33 +7,16 @@ package(
     ],
 )
 
-SRC_PATTERNS = [
-    "*.tsx",
-    "*.ts",
-]
-
 js_library(
-    name = "entry_point",
-    srcs = ["index.tsx"],
-)
-
-js_library(
-    name = "src_files",
-    srcs = glob(
-        include = SRC_PATTERNS,
-    ),
-)
-
-ts_project(
-    name = "src_ts",
-    srcs = [":src_files"],
-    declaration = True,
-    resolve_json_module = True,
-    tsconfig = "//:tsconfig",
+    name = "src",
+    srcs = [
+        "fake_api.ts",
+        "index.tsx",
+    ],
     deps = [
         "//:node_modules/react",
         "//:node_modules/react-dom",
-        "//experimental/reporting-ui/src/main/react/reporting-ui/library:src_ts",
-        "//experimental/reporting-ui/src/main/react/reporting-ui/src:src_ts",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/library",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/src",
     ],
 )
