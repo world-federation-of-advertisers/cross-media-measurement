@@ -4,11 +4,11 @@ webpack_devserver(
     name = "webpack_testserver",
     data = [
         "//:tsconfig",
-        "//experimental/reporting-ui/src/test/react/reporting-ui/fake/src",
         "//experimental/reporting-ui/src/main/react/reporting-ui:build_node_deps",
         "//experimental/reporting-ui/src/main/react/reporting-ui/library",
         "//experimental/reporting-ui/src/main/react/reporting-ui/public",
         "//experimental/reporting-ui/src/main/react/reporting-ui/src",
+        "//experimental/reporting-ui/src/test/react/reporting-ui/fake/src",
     ],
     node_modules = "//:node_modules",
     webpack_config = ":webpack.config.js",
