@@ -25,117 +25,248 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
 
-private const val MEASUREMENT_CONSUMER_ID = "ACME"
-private const val FILTER_EXPRESSION = "person.gender==1 && person.age_group==1"
-
 @RunWith(JUnit4::class)
 class PrivacyBudgetManagerTest {
-  private val today: LocalDateTime = LocalDate.now().atTime(4, 20)
-  private val yesterday: LocalDateTime = today.minusDays(1)
-  private val startOfTomorrow: LocalDateTime = today.plusDays(1).toLocalDate().atStartOfDay()
-  private val timeRange =
-    OpenEndTimeRange(yesterday.toInstant(ZoneOffset.UTC), startOfTomorrow.toInstant(ZoneOffset.UTC))
-
-  private val privacyBucketFilter = PrivacyBucketFilter(TestPrivacyBucketMapper())
-
-  private fun createQuery(referenceId: String, expression: String = FILTER_EXPRESSION) =
-    Query(
-      Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
-      LandscapeMask(listOf(EventGroupSpec(expression, timeRange)), 0.01f, 0.02f),
-      DpCharge(0.6f, 0.02f)
-    )
-
-  private suspend fun PrivacyBudgetManager.assertChargeExceedsPrivacyBudget(
-    query: Query,
-  ) {
-    val exception = assertFailsWith<PrivacyBudgetManagerException> { chargePrivacyBudget(query) }
-    assertThat(exception.errorType)
-      .isEqualTo(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
-  }
 
   @Test
-  fun `charge throws PRIVACY_BUDGET_EXCEEDED when given a large single charge`() = runBlocking {
-    val backingStore = InMemoryBackingStore()
-    val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 1.0f, 0.01f)
-    val exception =
-      assertFailsWith<PrivacyBudgetManagerException> {
-        pbm.chargePrivacyBudget(createQuery("referenceId1"))
-      }
-    assertThat(exception.errorType)
-      .isEqualTo(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
-  }
+  fun `chargePrivacyBudget throws PRIVACY_BUDGET_EXCEEDED when given a large single dpCharge`() =
+    runBlocking {
+      val backingStore = InMemoryBackingStore()
+      val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 1.0f, 0.01f)
+      val exception =
+        assertFailsWith<PrivacyBudgetManagerException> {
+          pbm.chargePrivacyBudget(createDpQuery("referenceId1"))
+        }
+      assertThat(exception.errorType)
+        .isEqualTo(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
+    }
 
   @Test
-  fun `charge throws INVALID_PRIVACY_BUCKET_FILTER when given wrong event filter`() = runBlocking {
-    val backingStore = InMemoryBackingStore()
-    val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
+  fun `chargePrivacyBudget throws INVALID_PRIVACY_BUCKET_FILTER when given wrong event filter`() =
+    runBlocking {
+      val backingStore = InMemoryBackingStore()
+      val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
 
-    val exception =
-      assertFailsWith<PrivacyBudgetManagerException> {
-        pbm.chargePrivacyBudget(createQuery("referenceId", "person.age_group"))
-      }
-    assertThat(exception.errorType)
-      .isEqualTo(PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER)
-  }
+      val exception =
+        assertFailsWith<PrivacyBudgetManagerException> {
+          pbm.chargePrivacyBudget(createDpQuery("referenceId", "person.age_group"))
+        }
+      assertThat(exception.errorType)
+        .isEqualTo(PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER)
+    }
 
   @Test
-  fun `charges privacy budget for measurement`() = runBlocking {
+  fun `chargePrivacyBudget checks exceeding dp budget and will not charge`() = runBlocking {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
 
     // The charge succeeds and fills the Privacy Budget.
-    pbm.chargePrivacyBudget(createQuery("referenceId1"))
+    pbm.chargePrivacyBudget(createDpQuery("referenceId1"))
 
     // Second charge should exceed the budget.
-    pbm.assertChargeExceedsPrivacyBudget(createQuery("referenceId2"))
+    pbm.assertChargeExceedsPrivacyBudget(createDpQuery("referenceId2"))
   }
 
   @Test
-  fun `checks empty privacy budget manager and returns budget wont be exceeded`() = runBlocking {
-    val backingStore = InMemoryBackingStore()
-    val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
-    // Check returns false because charges would not have exceeded the budget.
-    assertThat(pbm.chargingWillExceedPrivacyBudget(createQuery("referenceId1"))).isFalse()
-  }
+  fun `checks empty pbm and returns dp budget won't be exceeded with chargingWillExceedPrivacyBudget`() =
+    runBlocking {
+      val backingStore = InMemoryBackingStore()
+      val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
+
+      // Check returns false because charges would not have exceeded the budget.
+      assertThat(pbm.chargingWillExceedPrivacyBudget(createDpQuery("referenceId1"))).isFalse()
+    }
 
   @Test
-  fun `checks exceeded privacy budget for measurement`() = runBlocking {
+  fun `chargingWillExceedPrivacyBudget checks exceeding dp budget`() = runBlocking {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
 
     // The charge succeeds and fills the Privacy Budget.
-    pbm.chargePrivacyBudget(createQuery("referenceId1"))
+    pbm.chargePrivacyBudget(createDpQuery("referenceId1"))
 
     // Check returns true because charges would have exceeded the budget.
-    assertThat(pbm.chargingWillExceedPrivacyBudget(createQuery("referenceId2"))).isTrue()
+    assertThat(pbm.chargingWillExceedPrivacyBudget(createDpQuery("referenceId2"))).isTrue()
   }
 
   @Test
-  fun `returns true for different reference that will be processed`() = runBlocking {
-    val backingStore = InMemoryBackingStore()
-    val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
+  fun `referenceWillBeProcessed returns true for different reference that will be processed`() =
+    runBlocking {
+      val backingStore = InMemoryBackingStore()
+      val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
 
-    // The charge succeeds and fills the Privacy Budget.
-    pbm.chargePrivacyBudget(createQuery("referenceId1"))
+      // The charge succeeds and fills the Privacy Budget.
+      pbm.chargePrivacyBudget(createDpQuery("referenceId1"))
 
-    // Check returns true because this reference was not processed before.
-    assertThat(
-        pbm.referenceWillBeProcessed(Reference(MEASUREMENT_CONSUMER_ID, "referenceId2", false))
-      )
-      .isTrue()
-  }
+      // Check returns true because this reference was not processed before.
+      assertThat(
+          pbm.referenceWillBeProcessed(Reference(MEASUREMENT_CONSUMER_ID, "referenceId2", false))
+        )
+        .isTrue()
+    }
   @Test
-  fun `returns false for same reference that will not be processed`() = runBlocking {
+  fun `referenceWillBeProcessed returns false for the same reference that will not be processed`() =
+    runBlocking {
+      val backingStore = InMemoryBackingStore()
+      val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
+
+      // The charge succeeds and fills the Privacy Budget.
+      pbm.chargePrivacyBudget(createDpQuery("referenceId1"))
+
+      // Check returns false because this reference was processed before.
+      assertThat(
+          pbm.referenceWillBeProcessed(Reference(MEASUREMENT_CONSUMER_ID, "referenceId1", false))
+        )
+        .isFalse()
+    }
+
+  @Test
+  fun `chargePrivacyBudgetInAcdp throws PRIVACY_BUDGET_EXCEEDED when given a large single acdpCharge`() =
+    runBlocking {
+      val backingStore = InMemoryBackingStore()
+      // Set maximumTotalDelta to small value
+      val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 3.0f, 2E-8f)
+
+      val exception =
+        assertFailsWith<PrivacyBudgetManagerException> {
+          pbm.chargePrivacyBudgetInAcdp(createAcdpQuery("referenceId1"))
+        }
+      assertThat(exception.errorType)
+        .isEqualTo(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
+    }
+
+  @Test
+  fun `chargePrivacyBudgetInAcdp throws INVALID_PRIVACY_BUCKET_FILTER when given wrong event filter`() =
+    runBlocking {
+      val backingStore = InMemoryBackingStore()
+      val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 3.0f, 2E-4f)
+
+      val exception =
+        assertFailsWith<PrivacyBudgetManagerException> {
+          pbm.chargePrivacyBudgetInAcdp(createAcdpQuery("referenceId", "person.age_group"))
+        }
+      assertThat(exception.errorType)
+        .isEqualTo(PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER)
+    }
+
+  @Test
+  fun `chargePrivacyBudgetInAcdp checks exceeding acdp budget and will not charge`() = runBlocking {
     val backingStore = InMemoryBackingStore()
-    val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
+    val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 3.0f, 2E-4f)
 
-    // The charge succeeds and fills the Privacy Budget.
-    pbm.chargePrivacyBudget(createQuery("referenceId1"))
+    // The acdpCharge succeeds and fills the ACDP budget.
+    pbm.chargePrivacyBudgetInAcdp(createAcdpQuery("referenceId1"))
 
-    // Check returns false because this reference was processed before.
-    assertThat(
-        pbm.referenceWillBeProcessed(Reference(MEASUREMENT_CONSUMER_ID, "referenceId1", false))
+    // Second acdpCharge should exceed the budget with computed delta = 2.1085539E-4f. See unit
+    // test in
+    // CompositionTest.kt
+    pbm.assertChargeExceedsPrivacyBudgetInAcdp(
+      AcdpQuery(
+        Reference(MEASUREMENT_CONSUMER_ID, "referenceId2", false),
+        LandscapeMask(listOf(EventGroupSpec(FILTER_EXPRESSION, timeRange)), 0.01f, 0.02f),
+        AcdpCharge(0.06, 5.0E-6),
       )
-      .isFalse()
+    )
+  }
+
+  @Test
+  fun `checks empty pbm and returns acdp budget won't be exceeded with chargingWillExceedPrivacyBudgetInAcdp`() =
+    runBlocking {
+      val backingStore = InMemoryBackingStore()
+      val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 3.0f, 2E-4f)
+
+      // Check returns false because charges would not have exceeded the ACDP budget.
+      assertThat(pbm.chargingWillExceedPrivacyBudgetInAcdp(createAcdpQuery("referenceId1")))
+        .isFalse()
+    }
+
+  @Test
+  fun `chargingWillExceedPrivacyBudgetInAcdp checks exceeding acdp budget`() = runBlocking {
+    val backingStore = InMemoryBackingStore()
+    val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 3.0f, 2E-4f)
+
+    // The acdpCharge succeeds and fills the ACDP Budget.
+    pbm.chargePrivacyBudgetInAcdp(createAcdpQuery("referenceId1"))
+
+    // Check returns true because charges would have exceeded the ACDP budget.
+    assertThat(pbm.chargingWillExceedPrivacyBudgetInAcdp(createAcdpQuery("referenceId2"))).isTrue()
+  }
+
+  @Test
+  fun `referenceWillBeProcessed returns true for different reference that will be processed for acdp`() =
+    runBlocking {
+      val backingStore = InMemoryBackingStore()
+      val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 3.0f, 2E-4f)
+
+      // The acdpCharge succeeds and fills the ACDP budget.
+      pbm.chargePrivacyBudgetInAcdp(createAcdpQuery("referenceId1"))
+
+      // Check returns true because this reference was not processed before.
+      assertThat(
+          pbm.referenceWillBeProcessed(Reference(MEASUREMENT_CONSUMER_ID, "referenceId2", false))
+        )
+        .isTrue()
+    }
+
+  @Test
+  fun `referenceWillBeProcessed returns false for the same reference that will not be processed for acdp`() =
+    runBlocking {
+      val backingStore = InMemoryBackingStore()
+      val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 3.0f, 2E-4f)
+
+      // The acdpCharge succeeds and fills the ACDP budget.
+      pbm.chargePrivacyBudgetInAcdp(createAcdpQuery("referenceId1"))
+
+      // Check returns false because this reference was processed before.
+      assertThat(
+          pbm.referenceWillBeProcessed(Reference(MEASUREMENT_CONSUMER_ID, "referenceId1", false))
+        )
+        .isFalse()
+    }
+
+  companion object {
+    private const val MEASUREMENT_CONSUMER_ID = "ACME"
+    private const val FILTER_EXPRESSION = "person.gender==1 && person.age_group==1"
+    private val today: LocalDateTime = LocalDate.now().atTime(4, 20)
+    private val yesterday: LocalDateTime = today.minusDays(1)
+    private val startOfTomorrow: LocalDateTime = today.plusDays(1).toLocalDate().atStartOfDay()
+    private val timeRange =
+      OpenEndTimeRange(
+        yesterday.toInstant(ZoneOffset.UTC),
+        startOfTomorrow.toInstant(ZoneOffset.UTC)
+      )
+    private val privacyBucketFilter = PrivacyBucketFilter(TestPrivacyBucketMapper())
+
+    private fun createDpQuery(referenceId: String, expression: String = FILTER_EXPRESSION) =
+      DpQuery(
+        Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
+        LandscapeMask(listOf(EventGroupSpec(expression, timeRange)), 0.01f, 0.02f),
+        DpCharge(0.6f, 0.02f),
+      )
+
+    private fun createAcdpQuery(referenceId: String, expression: String = FILTER_EXPRESSION) =
+      AcdpQuery(
+        Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
+        LandscapeMask(listOf(EventGroupSpec(expression, timeRange)), 0.01f, 0.02f),
+        AcdpCharge(0.04, 5.0E-6),
+      )
+
+    private suspend fun PrivacyBudgetManager.assertChargeExceedsPrivacyBudget(
+      dpQuery: DpQuery,
+    ) {
+      val exception =
+        assertFailsWith<PrivacyBudgetManagerException> { chargePrivacyBudget(dpQuery) }
+      assertThat(exception.errorType)
+        .isEqualTo(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
+    }
+
+    private suspend fun PrivacyBudgetManager.assertChargeExceedsPrivacyBudgetInAcdp(
+      acdpQuery: AcdpQuery,
+    ) {
+      val exception =
+        assertFailsWith<PrivacyBudgetManagerException> { chargePrivacyBudgetInAcdp(acdpQuery) }
+      assertThat(exception.errorType)
+        .isEqualTo(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
+    }
   }
 }
