@@ -86,7 +86,7 @@ class LiquidLegionsSketchAggregationV2ProtocolEnumStagesTest {
 
     assertFalse {
       LiquidLegionsSketchAggregationV2Protocol.EnumStages.validTransition(
-        LiquidLegionsSketchAggregationV2.Stage.STAGE_UNKNOWN,
+        LiquidLegionsSketchAggregationV2.Stage.STAGE_UNSPECIFIED,
         LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE
       )
     }

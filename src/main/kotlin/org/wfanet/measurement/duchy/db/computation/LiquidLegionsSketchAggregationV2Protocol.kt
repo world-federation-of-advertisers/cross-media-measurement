@@ -121,7 +121,7 @@ object LiquidLegionsSketchAggregationV2Protocol {
           COMPLETE -> error("Computation should be ended with call to endComputation(...)")
           // Stages that we can't transition to ever.
           UNRECOGNIZED,
-          LiquidLegionsSketchAggregationV2.Stage.STAGE_UNKNOWN,
+          LiquidLegionsSketchAggregationV2.Stage.STAGE_UNSPECIFIED,
           INITIALIZATION_PHASE -> error("Cannot make transition function to stage $stage")
         }
       }
@@ -151,7 +151,7 @@ object LiquidLegionsSketchAggregationV2Protocol {
           COMPLETE -> error("Computation should be ended with call to endComputation(...)")
           // Stages that we can't transition to ever.
           UNRECOGNIZED,
-          LiquidLegionsSketchAggregationV2.Stage.STAGE_UNKNOWN,
+          LiquidLegionsSketchAggregationV2.Stage.STAGE_UNSPECIFIED,
           INITIALIZATION_PHASE -> error("Cannot make transition function to stage $stage")
         }
       }
