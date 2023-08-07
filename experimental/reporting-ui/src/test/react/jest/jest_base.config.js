@@ -20,7 +20,7 @@ module.exports = {
     },
     moduleFileExtensions: ['ts', 'js', 'tsx'],
     moduleNameMapper: {
-        "\\.(css|scss)$": "<rootDir>/../jest/__mocks__/styleMock.ts"
+        "\\.(css|scss)$": "<rootDir>/../jest/mocks/styleMock.ts"
     },
     testMatch: [
         '<rootDir>/**/*.test.(ts|tsx)'
