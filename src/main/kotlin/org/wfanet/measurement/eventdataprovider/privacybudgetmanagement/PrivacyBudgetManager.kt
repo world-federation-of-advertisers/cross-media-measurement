@@ -12,6 +12,9 @@
  * the License.
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
+
+import org.wfanet.measurement.eventdataprovider.noiser.DpParams
+
 /**
  * This is the default value for the total amount that can be charged to a single privacy bucket.
  */
@@ -34,7 +37,11 @@ class PrivacyBudgetManager(
   val maximumTotalDelta: Float = MAXIMUM_DELTA_PER_BUCKET,
 ) {
 
-  val ledger = PrivacyBudgetLedger(backingStore, maximumPrivacyBudget, maximumTotalDelta)
+  val ledger =
+    PrivacyBudgetLedger(
+      backingStore,
+      DpParams(maximumPrivacyBudget.toDouble(), maximumTotalDelta.toDouble())
+    )
 
   /** Checks if calling charge with this [reference] will result in an update in the ledger. */
   suspend fun referenceWillBeProcessed(reference: Reference) = !ledger.hasLedgerEntry(reference)

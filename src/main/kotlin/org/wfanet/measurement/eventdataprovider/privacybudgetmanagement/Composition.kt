@@ -133,8 +133,8 @@ object Composition {
    */
   fun totalPrivacyBudgetUsageUnderAcdpComposition(
     acdpCharges: List<AcdpCharge>,
-    targetEpsilon: Float
-  ): Float {
+    targetEpsilon: Double
+  ): Double {
     val totalRho: Double = acdpCharges.sumOf { it.rho }
     val totalTheta: Double = acdpCharges.sumOf { it.theta }
 
@@ -156,6 +156,6 @@ object Composition {
         GoalType.MINIMIZE
       )
 
-    return res.value.toFloat()
+    return res.value
   }
 }
