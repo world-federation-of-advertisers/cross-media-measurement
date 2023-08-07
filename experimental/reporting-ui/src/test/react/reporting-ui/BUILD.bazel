@@ -3,14 +3,9 @@ load("@aspect_rules_jest//jest:defs.bzl", "jest_test")
 
 js_library(
     name = "test_files",
-    srcs = glob(
-        include = [
-            "*.test.tsx",
-            "*.test.ts",
-            "*.spec.tsx",
-            "*.spec.ts",
-        ],
-    ),
+    srcs = [
+        "app.test.tsx",
+    ],
 )
 
 js_library(
@@ -43,9 +38,8 @@ jest_test(
         ":test_node_deps",
         "//:tsconfig",
         "//experimental/reporting-ui/src/main/react/reporting-ui:build_node_deps",
-        "//experimental/reporting-ui/src/main/react/reporting-ui/src:src_files",
-        "//experimental/reporting-ui/src/test/react/jest:jest_base_config",
-        "//experimental/reporting-ui/src/test/react/jest:jest_files",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/src",
+        "//experimental/reporting-ui/src/test/react/jest",
     ],
     node_modules = "//:node_modules",
 )
