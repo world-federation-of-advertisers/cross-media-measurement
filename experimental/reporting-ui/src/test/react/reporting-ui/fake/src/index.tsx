@@ -16,7 +16,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import '../../../../../main/react/reporting-ui/src/index.css';
 import App from '../../../../../main/react/reporting-ui/src/app';
-import AppConfig from '../../../../../main/react/reporting-ui/library/initialize';
+import AppConfig from '../../../../../main/react/reporting-ui/client/initialize';
 import {FakeApi} from './fake_api';
 
 const configProps = {

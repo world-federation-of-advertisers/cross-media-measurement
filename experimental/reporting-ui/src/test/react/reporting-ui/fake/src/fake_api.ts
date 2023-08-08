@@ -18,8 +18,8 @@ import {
   ListReportsResponse,
   Report,
   UniqueReach,
-} from '../../../../../main/react/reporting-ui/library/reporting_client/models';
-import {ReportingClient} from '../../../../../main/react/reporting-ui/library/reporting_client/reporting_client';
+} from '../../../../../main/react/reporting-ui/model/reporting';
+import {ReportingClient} from '../../../../../main/react/reporting-ui/client/reporting/client';
 
 function regenerateTimeData() {
   const chartData: UniqueReach[] = [];

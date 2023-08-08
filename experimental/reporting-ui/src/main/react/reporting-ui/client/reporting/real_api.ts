@@ -17,8 +17,8 @@ import {
   GetReportResponse,
   InitApiProps,
   ListReportsResponse,
-} from './models';
-import {ReportingClient} from './reporting_client';
+} from '../../model/reporting';
+import {ReportingClient} from './client';
 
 export class RealApi implements ReportingClient {
   // eslint-disable-next-line node/no-unsupported-features/node-builtins
