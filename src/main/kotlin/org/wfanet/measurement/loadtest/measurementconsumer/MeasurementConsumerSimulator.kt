@@ -499,6 +499,7 @@ class MeasurementConsumerSimulator(
         getExpectedReachAndFrequencyResult(measurementInfo)
       MeasurementSpec.MeasurementTypeCase.IMPRESSION -> getExpectedImpressionResult()
       MeasurementSpec.MeasurementTypeCase.DURATION -> getExpectedDurationResult()
+      MeasurementSpec.MeasurementTypeCase.POPULATION -> getExpectedPopulationResult()
       MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
         error("measurement_type not set")
     }
@@ -509,6 +510,10 @@ class MeasurementConsumerSimulator(
   }
 
   private fun getExpectedImpressionResult(): Result {
+    TODO("Not yet implemented")
+  }
+
+  private fun getExpectedPopulationResult(): Result {
     TODO("Not yet implemented")
   }
 
