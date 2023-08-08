@@ -6,6 +6,7 @@ load("@wfa_common_jvm//build:versions.bzl", "SPANNER_EMULATOR")
 load("@wfa_common_jvm//build:defs.bzl", "expand_template")
 
 package(
+    default_testonly = True,
     default_visibility = [
         ":__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/integration/k8s:__pkg__",
@@ -182,6 +183,25 @@ cue_dump(
 )
 
 cue_dump(
+    name = "reporting_v2",
+    srcs = ["reporting_v2.cue"],
+    cue_tags = {
+        "secret_name": SECRET_NAME,
+        "db_secret_name": DB_SECRET_NAME,
+        "mc_config_secret_name": MC_CONFIG_SECRET_NAME,
+        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
+        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+    },
+    tags = ["manual"],
+    deps = [
+        ":config_cue",
+        "//src/main/k8s:postgres",
+        "//src/main/k8s:reporting_v2",
+    ],
+)
+
+cue_dump(
     name = "prometheus",
     srcs = ["prometheus.cue"],
     tags = ["manual"],
@@ -233,6 +253,8 @@ kustomization_dir(
         "config_files_kustomization.yaml",
         "empty_akid_mapping_config.textproto",
         "empty_encryption_key_pair_config.textproto",
+        "metric_spec_config.textproto",
+        "//src/main/k8s/testing/data:synthetic_generation_specs",
     ],
     renames = {
         "config_files_kustomization.yaml": "kustomization.yaml",
@@ -246,6 +268,8 @@ kustomization_dir(
     srcs = [
         "config_files_kustomization.yaml",
         ":encryption_key_pair_config.textproto",
+        ":metric_spec_config.textproto",
+        "//src/main/k8s/testing/data:synthetic_generation_specs",
     ],
     renames = {
         "config_files_kustomization.yaml": "kustomization.yaml",
@@ -275,7 +299,6 @@ kustomization_dir(
 
 kustomization_dir(
     name = "kingdom_setup",
-    testonly = True,
     srcs = [
         ":emulators",
         ":kingdom",
@@ -290,7 +313,6 @@ kustomization_dir(
 
 kustomization_dir(
     name = "cmms",
-    testonly = True,
     srcs = [
         ":duchies",
         ":edp_simulators",
@@ -309,7 +331,6 @@ kustomization_dir(
 
 kustomization_dir(
     name = "cmms_with_reporting",
-    testonly = True,
     srcs = [
         ":duchies",
         ":edp_simulators",
@@ -317,6 +338,26 @@ kustomization_dir(
         ":kingdom",
         ":postgres_database",
         ":reporting",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+    deps = [
+        ":config_files",
+        ":db_creds",
+        ":mc_config",
+        "//src/main/k8s/testing/secretfiles:kustomization",
+    ],
+)
+
+kustomization_dir(
+    name = "cmms_with_reporting_v2",
+    srcs = [
+        ":duchies",
+        ":edp_simulators",
+        ":emulators",
+        ":kingdom",
+        ":postgres_database",
+        ":reporting_v2",
     ],
     generate_kustomization = True,
     tags = ["manual"],

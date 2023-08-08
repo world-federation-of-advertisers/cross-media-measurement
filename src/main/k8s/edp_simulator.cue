@@ -28,11 +28,7 @@ package k8s
 
 	let DisplayName = _edpConfig.displayName
 
-	_imageConfig: #ImageConfig & {
-		repoSuffix: string | *"loadtest/edp-simulator"
-	}
-	_blob_storage_flags: [...string]
-
+	_imageConfig: #ImageConfig
 	_additional_args: [...string]
 
 	deployment: #Deployment & {
@@ -55,7 +51,7 @@ package k8s
 				"--kingdom-public-api-cert-host=localhost",
 				"--requisition-fulfillment-service-target=\(_duchy_public_api_target)",
 				"--requisition-fulfillment-service-cert-host=localhost",
-			] + _blob_storage_flags + _additional_args
+			] + _additional_args
 		}
 	}
 

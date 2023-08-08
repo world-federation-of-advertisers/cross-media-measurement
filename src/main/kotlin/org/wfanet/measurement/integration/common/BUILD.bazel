@@ -6,6 +6,7 @@ package(
     default_testonly = True,
     default_visibility = [
         "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
     ],
 )
 
@@ -107,6 +108,17 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "synthetic_generation_specs",
+    srcs = ["SyntheticGenerationSpecs.kt"],
+    data = ["//src/main/k8s/testing/data:synthetic_generation_specs"],
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
     name = "in_process_duchy",
     srcs = [
         "InProcessDuchy.kt",
@@ -148,10 +160,11 @@ kt_jvm_library(
     deps = [
         ":all_kingdom_services",
         ":configs",
+        ":synthetic_generation_specs",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/testing",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:edp_simulator",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/storage",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_event_query",
         "@wfa_common_jvm//imports/java/io/grpc:core",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
@@ -194,7 +207,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:duchy_data_server",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:simulator",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/storage",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:synthetic_generator_event_query",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",

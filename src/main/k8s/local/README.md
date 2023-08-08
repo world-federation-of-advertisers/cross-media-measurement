@@ -189,6 +189,9 @@ archive:
 kubectl apply -k src/main/k8s/local/cmms_with_reporting/
 ```
 
+To deploy Reporting V2, swap out `cmms_with_reporting` with
+`cmms_with_reporting_v2`.
+
 ## Enabling Metrics Collection
 
 ### Install OpenTelemetry Operator
@@ -266,24 +269,19 @@ kubectl port-forward prometheus-pod 31111:9090
 Once you have a running CMMS with EDP simulators, you can run the correctness
 test against it.
 
-You'll need access to the public API and forwarded storage servers. You can do
-this via port forwarding:
+You'll need access to the public API server. You can do this via port
+forwarding:
 
 ```shell
 kubectl port-forward --address=localhost services/v2alpha-public-api-server 8443:8443
 ```
 
-```shell
-kubectl port-forward --address=localhost services/fake-storage-server 7443:8443 &
-```
-
 Then you can run the test, substituting your own values:
 
 ```shell
-bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:ForwardedStorageCorrectnessTest
+bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGeneratorCorrectnessTest
   --test_output=streamed \
   --define=kingdom_public_api_target=localhost:8443 \
-  --define=forwarded_storage_api_target=localhost:7443 \
   --define=mc_name=measurementConsumers/Rcn7fKd25C8 \
   --define=mc_api_key=W9q4zad246g
 ```

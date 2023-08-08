@@ -22,11 +22,13 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
+import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.liquidLegionsV2Details
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as InternalComputationParticipantsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ConfirmComputationParticipantRequest as InternalConfirmComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.FailComputationParticipantRequest as InternalFailComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest as InternalSetParticipantRequisitionParamsRequest
+import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest as internalSetParticipantRequisitionParamsRequest
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant.RequisitionParams.ProtocolCase
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
@@ -73,25 +75,28 @@ class ComputationParticipantsService(
     grpcRequire(computationParticipantKey.duchyId == duchyCertificateKey.duchyId) {
       "The owners of the computation_participant and certificate don't match."
     }
-    return InternalSetParticipantRequisitionParamsRequest.newBuilder()
-      .apply {
-        externalComputationId = apiIdToExternalId(computationParticipantKey.computationId)
-        externalDuchyId = computationParticipantKey.duchyId
-        externalDuchyCertificateId = apiIdToExternalId(duchyCertificateKey.certificateId)
-        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-        when (requisitionParams.protocolCase) {
-          ProtocolCase.LIQUID_LEGIONS_V2 -> {
-            val llv2 = requisitionParams.liquidLegionsV2
-            liquidLegionsV2Builder.apply {
-              elGamalPublicKey = llv2.elGamalPublicKey
-              elGamalPublicKeySignature = llv2.elGamalPublicKeySignature
-            }
+    return internalSetParticipantRequisitionParamsRequest {
+      externalComputationId = apiIdToExternalId(computationParticipantKey.computationId)
+      externalDuchyId = computationParticipantKey.duchyId
+      externalDuchyCertificateId = apiIdToExternalId(duchyCertificateKey.certificateId)
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      when (requisitionParams.protocolCase) {
+        ProtocolCase.LIQUID_LEGIONS_V2 -> {
+          liquidLegionsV2 = liquidLegionsV2Details {
+            elGamalPublicKey = requisitionParams.liquidLegionsV2.elGamalPublicKey
+            elGamalPublicKeySignature = requisitionParams.liquidLegionsV2.elGamalPublicKeySignature
           }
-          ProtocolCase.PROTOCOL_NOT_SET ->
-            failGrpc { "protocol not set in the requisition_params." }
         }
+        ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
+          reachOnlyLiquidLegionsV2 = liquidLegionsV2Details {
+            elGamalPublicKey = requisitionParams.reachOnlyLiquidLegionsV2.elGamalPublicKey
+            elGamalPublicKeySignature =
+              requisitionParams.reachOnlyLiquidLegionsV2.elGamalPublicKeySignature
+          }
+        }
+        ProtocolCase.PROTOCOL_NOT_SET -> failGrpc { "protocol not set in the requisition_params." }
       }
-      .build()
+    }
   }
 
   private fun ConfirmComputationParticipantRequest.toInternalRequest():

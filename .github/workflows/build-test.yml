@@ -22,6 +22,10 @@ on:
     types: [opened, synchronize, edited]
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-test:
     name: Build and test
@@ -96,6 +100,7 @@ jobs:
 
       # Delete large files that are cheap to re-create.
       - name: Trim Bazel cache
+        if: github.event_name == 'push'
         run: |
           bazel_out="$(bazelisk info output_path)"
           find "${bazel_out}" -type f \( -iname '*.tar' -o -iname '*.tar.gz' \) -delete

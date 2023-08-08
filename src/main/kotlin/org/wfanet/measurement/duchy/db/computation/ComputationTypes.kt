@@ -15,6 +15,7 @@
 package org.wfanet.measurement.duchy.db.computation
 
 import org.wfanet.measurement.common.numberAsLong
+import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 
 /** Helper class for working with [ComputationType] protocols. */
@@ -28,3 +29,12 @@ object ComputationTypes : ComputationTypeEnumHelper<ComputationType> {
     return ComputationType.forNumber(value.toInt()) ?: ComputationType.UNRECOGNIZED
   }
 }
+
+fun ComputationStage.toComputationType() =
+  when (stageCase) {
+    ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+      ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+    ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+      ComputationType.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+    else -> ComputationType.UNRECOGNIZED
+  }

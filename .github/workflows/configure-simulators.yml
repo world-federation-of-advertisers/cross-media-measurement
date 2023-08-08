@@ -81,7 +81,6 @@ jobs:
     - name: Generate archives
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
-        STORAGE_BUCKET: ${{ vars.STORAGE_BUCKET }}
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
         DUCHY_PUBLIC_API_TARGET: ${{ vars.DUCHY_PUBLIC_API_TARGET }}
         MC_NAME: ${{ vars.MC_NAME }}
@@ -93,12 +92,10 @@ jobs:
         EDP6_NAME: ${{ vars.EDP6_NAME }}
       run: >
         bazelisk build 
-        //src/main/k8s/dev:edp_simulators.tar
+        //src/main/k8s/dev:synthetic_generator_edp_simulators.tar
         //src/main/k8s/testing/secretfiles:kustomization.tar
         --config ghcr
         --define "image_tag=$IMAGE_TAG"
-        --define "google_cloud_project=$GCLOUD_PROJECT"
-        --define "simulator_storage_bucket=$STORAGE_BUCKET"
         --define "kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
         --define "duchy_public_api_target=$DUCHY_PUBLIC_API_TARGET"
         --define "mc_name=$MC_NAME"
@@ -113,7 +110,7 @@ jobs:
       run: mkdir -p "$KUSTOMIZATION_PATH"
     - name: Extract Kustomization archive
       run: >
-        tar -xf "$BAZEL_BIN/src/main/k8s/dev/edp_simulators.tar"
+        tar -xf "$BAZEL_BIN/src/main/k8s/dev/synthetic_generator_edp_simulators.tar"
         -C "$KUSTOMIZATION_PATH"
 
     - name: Extract secret files archive
@@ -122,7 +119,7 @@ jobs:
         -C "$KUSTOMIZATION_PATH"
 
     - name: Export KUSTOMIZE_PATH
-      run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_simulators" >> $GITHUB_ENV
+      run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/synthetic_generator_edp_simulators" >> $GITHUB_ENV
 
     # Run kubectl diff, treating the command as succeeded even if the exit
     # code is 1 as kubectl uses this code to indicate there's a diff.

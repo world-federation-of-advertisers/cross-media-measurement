@@ -87,3 +87,13 @@ cue_library(
         ":postgres",
     ],
 )
+
+cue_library(
+    name = "reporting_v2",
+    srcs = ["reporting_v2.cue"],
+    deps = [
+        ":base",
+        ":config",
+        ":postgres",
+    ],
+)

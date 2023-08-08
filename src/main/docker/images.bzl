@@ -91,6 +91,16 @@ COMMON_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/loadtest/panelmatchresourcesetup:panel_match_resource_setup_runner_image",
         repository = _PREFIX + "/loadtest/panel-match-resource-setup",
     ),
+    struct(
+        name = "csv_edp_simulator_runner_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:csv_edp_simulator_runner_image",
+        repository = _PREFIX + "/simulator/csv-edp",
+    ),
+    struct(
+        name = "synthetic_generator_edp_simulator_runner_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_edp_simulator_runner_image",
+        repository = _PREFIX + "/simulator/synthetic-generator-edp",
+    ),
 ]
 
 # List of specs for all Docker containers to push to a container registry.
@@ -122,9 +132,9 @@ GKE_IMAGES = [
         repository = _PREFIX + "/duchy/liquid-legions-v2-mill",
     ),
     struct(
-        name = "gcs_edp_simulator_runner_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:gcs_edp_simulator_runner_image",
-        repository = _PREFIX + "/loadtest/edp-simulator",
+        name = "bigquery_edp_simulator_runner_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:bigquery_edp_simulator_runner_image",
+        repository = _PREFIX + "/simulator/bigquery-edp",
     ),
 ]
 
@@ -179,11 +189,6 @@ LOCAL_IMAGES = [
         name = "forwarded_storage_requisition_fulfillment_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:forwarded_storage_requisition_fulfillment_server_image",
         repository = _PREFIX + "/duchy/local-requisition-fulfillment",
-    ),
-    struct(
-        name = "forwarded_storage_edp_simulator_runner_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:forwarded_storage_edp_simulator_runner_image",
-        repository = _PREFIX + "/simulator/local-edp",
     ),
     struct(
         name = "fake_storage_server_image",

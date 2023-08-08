@@ -186,31 +186,44 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
 
   @Test
   fun `purgeComputations returns the matched computation IDs when force is false`() = runBlocking {
-    val computation1 = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
-    val computation2 =
-      service.createComputation(
-        DEFAULT_CREATE_COMPUTATION_REQUEST.copy {
-          globalComputationId = "5678"
-          requisitions[0] =
-            requisitions[0].copy { key = key.copy { externalRequisitionId = "5678" } }
-        }
-      )
+    val token1 = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST).token
+    val token2 =
+      service
+        .createComputation(
+          DEFAULT_CREATE_COMPUTATION_REQUEST.copy {
+            globalComputationId = "5678"
+            requisitions[0] =
+              requisitions[0].copy { key = key.copy { externalRequisitionId = "5678" } }
+          }
+        )
+        .token
+    service.finishComputation(
+      finishComputationRequest {
+        token = token1
+        endingComputationStage = Stage.COMPLETE.toProtocolStage()
+        reason = ComputationDetails.CompletedReason.SUCCEEDED
+      }
+    )
+    service.finishComputation(
+      finishComputationRequest {
+        token = token2
+        endingComputationStage = Stage.COMPLETE.toProtocolStage()
+        reason = ComputationDetails.CompletedReason.SUCCEEDED
+      }
+    )
 
     val currentTime = clock.last()
     val purgeComputationsResp =
       service.purgeComputations(
         purgeComputationsRequest {
           updatedBefore = currentTime.plusSeconds(1000L).toProtoTime()
-          stages += Stage.INITIALIZATION_PHASE.toProtocolStage()
+          stages += Stage.COMPLETE.toProtocolStage()
           force = false
         }
       )
 
     assertThat(purgeComputationsResp.purgeSampleList)
-      .containsExactly(
-        computation1.token.globalComputationId,
-        computation2.token.globalComputationId
-      )
+      .containsExactly(token1.globalComputationId, token2.globalComputationId)
     assertThat(purgeComputationsResp.purgeCount).isEqualTo(2)
   }
 
@@ -218,11 +231,21 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   fun `purgeComputations does not delete Computations when force is false`() = runBlocking {
     val createTime = clock.last()
     val createdToken = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST).token
+    val finishedToken =
+      service
+        .finishComputation(
+          finishComputationRequest {
+            token = createdToken
+            endingComputationStage = Stage.COMPLETE.toProtocolStage()
+            reason = ComputationDetails.CompletedReason.SUCCEEDED
+          }
+        )
+        .token
 
     service.purgeComputations(
       purgeComputationsRequest {
         updatedBefore = createTime.plusSeconds(1000L).toProtoTime()
-        stages += Stage.INITIALIZATION_PHASE.toProtocolStage()
+        stages += Stage.COMPLETE.toProtocolStage()
         force = false
       }
     )
@@ -234,16 +257,34 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
           )
           .token
       )
-      .isEqualTo(createdToken)
+      .isEqualTo(finishedToken)
   }
 
   @Test
   fun `purgeComputations only returns the deleted count when force is true`() = runBlocking {
-    service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
-    service.createComputation(
-      DEFAULT_CREATE_COMPUTATION_REQUEST.copy {
-        globalComputationId = "5678"
-        requisitions[0] = requisitions[0].copy { key = key.copy { externalRequisitionId = "5678" } }
+    val token1 = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST).token
+    val token2 =
+      service
+        .createComputation(
+          DEFAULT_CREATE_COMPUTATION_REQUEST.copy {
+            globalComputationId = "5678"
+            requisitions[0] =
+              requisitions[0].copy { key = key.copy { externalRequisitionId = "5678" } }
+          }
+        )
+        .token
+    service.finishComputation(
+      finishComputationRequest {
+        token = token1
+        endingComputationStage = Stage.COMPLETE.toProtocolStage()
+        reason = ComputationDetails.CompletedReason.SUCCEEDED
+      }
+    )
+    service.finishComputation(
+      finishComputationRequest {
+        token = token2
+        endingComputationStage = Stage.COMPLETE.toProtocolStage()
+        reason = ComputationDetails.CompletedReason.SUCCEEDED
       }
     )
 
@@ -252,7 +293,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
       service.purgeComputations(
         purgeComputationsRequest {
           updatedBefore = currentTime.plusSeconds(1000L).toProtoTime()
-          stages += Stage.INITIALIZATION_PHASE.toProtocolStage()
+          stages += Stage.COMPLETE.toProtocolStage()
           force = true
         }
       )
@@ -260,6 +301,23 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     assertThat(purgeComputationsResp.purgeSampleList).isEmpty()
     assertThat(purgeComputationsResp.purgeCount).isEqualTo(2)
   }
+
+  @Test
+  fun `purgeComputations throws INVALID_ARGUMENT exception when target stage is non-terminal`() =
+    runBlocking {
+      val currentTime = clock.last()
+      val purgeComputationsRequest = purgeComputationsRequest {
+        updatedBefore = currentTime.plusSeconds(1000L).toProtoTime()
+        stages += Stage.COMPLETE.toProtocolStage()
+        stages += Stage.INITIALIZATION_PHASE.toProtocolStage()
+        force = true
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.purgeComputations(purgeComputationsRequest)
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
 
   @Test
   fun `purgeComputations only deletes computations of target stages`() = runBlocking {
@@ -275,49 +333,72 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
       afterTransition = AfterTransition.RETAIN_AND_EXTEND_LOCK
     }
     service.advanceComputationStage(advanceComputationStageRequest)
-    // Creates two computations in INITIALIZATION_PHASE stage to be purged
-    val computationInInitPhase1 =
-      service.createComputation(
-        DEFAULT_CREATE_COMPUTATION_REQUEST.copy {
-          globalComputationId = "3456"
-          requisitions[0] =
-            requisitions[0].copy { key = key.copy { externalRequisitionId = "3456" } }
-        }
-      )
-    val computationInInitPhase2 =
-      service.createComputation(
-        DEFAULT_CREATE_COMPUTATION_REQUEST.copy {
-          globalComputationId = "5678"
-          requisitions[0] =
-            requisitions[0].copy { key = key.copy { externalRequisitionId = "5678" } }
-        }
-      )
+    // Creates two computations in COMPLETE stage to be purged
+    val token1 =
+      service
+        .createComputation(
+          DEFAULT_CREATE_COMPUTATION_REQUEST.copy {
+            globalComputationId = "3456"
+            requisitions[0] =
+              requisitions[0].copy { key = key.copy { externalRequisitionId = "3456" } }
+          }
+        )
+        .token
+    val token2 =
+      service
+        .createComputation(
+          DEFAULT_CREATE_COMPUTATION_REQUEST.copy {
+            globalComputationId = "5678"
+            requisitions[0] =
+              requisitions[0].copy { key = key.copy { externalRequisitionId = "5678" } }
+          }
+        )
+        .token
+    service.finishComputation(
+      finishComputationRequest {
+        token = token1
+        endingComputationStage = Stage.COMPLETE.toProtocolStage()
+        reason = ComputationDetails.CompletedReason.SUCCEEDED
+      }
+    )
+    service.finishComputation(
+      finishComputationRequest {
+        token = token2
+        endingComputationStage = Stage.COMPLETE.toProtocolStage()
+        reason = ComputationDetails.CompletedReason.SUCCEEDED
+      }
+    )
 
     val currentTime = clock.last()
     val purgeComputationsResp =
       service.purgeComputations(
         purgeComputationsRequest {
           updatedBefore = currentTime.plusSeconds(1000L).toProtoTime()
-          stages += Stage.INITIALIZATION_PHASE.toProtocolStage()
+          stages += Stage.COMPLETE.toProtocolStage()
           force = false
         }
       )
 
     assertThat(purgeComputationsResp.purgeSampleList)
-      .containsExactly(
-        computationInInitPhase1.token.globalComputationId,
-        computationInInitPhase2.token.globalComputationId
-      )
+      .containsExactly(token1.globalComputationId, token2.globalComputationId)
     assertThat(purgeComputationsResp.purgeCount).isEqualTo(2)
   }
 
   @Test
   fun `getComputationToken throws NOT_FOUND when computation is purged`() = runBlocking {
-    service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+    val createdToken = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST).token
+    service.finishComputation(
+      finishComputationRequest {
+        token = createdToken
+        endingComputationStage = Stage.COMPLETE.toProtocolStage()
+        reason = ComputationDetails.CompletedReason.SUCCEEDED
+      }
+    )
+
     val currentTime = clock.last()
     val purgeComputationsRequest = purgeComputationsRequest {
       updatedBefore = currentTime.plusSeconds(1000L).toProtoTime()
-      stages += Stage.INITIALIZATION_PHASE.toProtocolStage()
+      stages += Stage.COMPLETE.toProtocolStage()
       force = true
     }
     service.purgeComputations(purgeComputationsRequest)
