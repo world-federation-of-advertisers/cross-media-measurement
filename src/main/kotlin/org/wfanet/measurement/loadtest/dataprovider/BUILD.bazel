@@ -14,9 +14,16 @@ package(
 )
 
 kt_jvm_library(
+    name = "labeled_event",
+    srcs = ["LabeledEvent.kt"],
+    deps = ["@wfa_common_jvm//imports/java/com/google/protobuf"],
+)
+
+kt_jvm_library(
     name = "event_query",
     srcs = ["EventQuery.kt"],
     deps = [
+        ":labeled_event",
         "//imports/java/org/projectnessie/cel",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
@@ -30,6 +37,7 @@ kt_jvm_library(
     srcs = ["InMemoryEventQuery.kt"],
     deps = [
         ":event_query",
+        ":labeled_event",
         "//imports/java/org/projectnessie/cel",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
@@ -42,6 +50,7 @@ kt_jvm_library(
     srcs = ["CsvEventQuery.kt"],
     deps = [
         ":in_memory_event_query",
+        ":labeled_event",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/opencsv",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
@@ -53,10 +62,12 @@ kt_jvm_library(
     srcs = ["BigQueryEventQuery.kt"],
     deps = [
         ":event_query",
+        ":labeled_event",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/bigquery",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/common",
     ],
 )
 
@@ -65,6 +76,7 @@ kt_jvm_library(
     srcs = ["SyntheticGeneratorEventQuery.kt"],
     deps = [
         ":event_query",
+        ":labeled_event",
         ":synthetic_data_generation",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
@@ -79,6 +91,7 @@ kt_jvm_library(
         "SyntheticDataGeneration.kt",
     ],
     deps = [
+        ":labeled_event",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],

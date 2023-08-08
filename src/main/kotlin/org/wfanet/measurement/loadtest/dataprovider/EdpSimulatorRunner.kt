@@ -39,7 +39,7 @@ abstract class EdpSimulatorRunner() : Runnable {
   protected lateinit var flags: EdpSimulatorFlags
     private set
 
-  protected fun run(eventQuery: EventQuery, eventGroupMetadata: Message) {
+  protected fun run(eventQuery: EventQuery<Message>, eventGroupMetadata: Message) {
     val clientCerts =
       SigningCerts.fromPemFiles(
         certificateFile = flags.tlsFlags.certFile,

@@ -18,7 +18,6 @@ package wfa.measurement.api.v2alpha.event_templates.testing;
 
 import "eventtemplates/common_template.proto";
 import "eventtemplates/video_event_template.proto";
-import "google/protobuf/timestamp.proto";
 import "wfa/measurement/api/v2alpha/event_templates/testing/banner_ad.proto";
 import "wfa/measurement/api/v2alpha/event_templates/testing/person.proto";
 import "wfa/measurement/api/v2alpha/event_templates/testing/video.proto";
@@ -27,12 +26,10 @@ option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testin
 option java_multiple_files = true;
 
 message TestEvent {
-  google.protobuf.Timestamp time = 1;
+  Person person = 1;
+  Video video_ad = 2;
+  Banner banner_ad = 3;
 
-  Person person = 2;
-  Video video_ad = 3;
-  Banner banner_ad = 4;
-
-  eventtemplates.CommonTemplate common_template = 5;
-  eventtemplates.VideoEventTemplate video_event_template = 6;
+  eventtemplates.CommonTemplate common_template = 4;
+  eventtemplates.VideoEventTemplate video_event_template = 5;
 }

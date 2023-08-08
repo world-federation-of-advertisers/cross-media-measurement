@@ -36,17 +36,19 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.video
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.toRange
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
+import org.wfanet.measurement.gcloud.common.toInstant
 
 /** Fulfill the query by querying the specified BigQuery table. */
 abstract class BigQueryEventQuery(
   private val bigQuery: BigQuery,
   private val datasetName: String,
   private val tableName: String,
-) : EventQuery {
-
+) : EventQuery<TestEvent> {
   protected abstract fun getPublisherId(eventGroup: EventGroup): Int
 
-  override fun getUserVirtualIds(eventGroupSpec: EventQuery.EventGroupSpec): Sequence<Long> {
+  override fun getLabeledEvents(
+    eventGroupSpec: EventQuery.EventGroupSpec
+  ): Sequence<LabeledEvent<TestEvent>> {
     val timeRange: OpenEndTimeRange = eventGroupSpec.spec.collectionInterval.toRange()
     val queryConfig: QueryJobConfiguration =
       buildQueryConfig(getPublisherId(eventGroupSpec.eventGroup), timeRange)
@@ -70,9 +72,8 @@ abstract class BigQueryEventQuery(
       .getQueryResults()
       .iterateAll()
       .asSequence()
-      .map { it.toTestEvent() }
-      .filter { EventFilters.matches(it, program) }
-      .map { it.person.vid }
+      .map { it.toLabeledEvent() }
+      .filter { EventFilters.matches(it.message, program) }
   }
 
   /** Builds a query based on the parameters given. */
@@ -101,7 +102,7 @@ abstract class BigQueryEventQuery(
       .build()
   }
 
-  private fun FieldValueList.toTestEvent(): TestEvent {
+  private fun FieldValueList.toLabeledEvent(): LabeledEvent<TestEvent> {
     val gender: Person.Gender? =
       when (get("sex").stringValue) {
         "M" -> Person.Gender.MALE
@@ -126,10 +127,8 @@ abstract class BigQueryEventQuery(
         0L -> false
         else -> true
       }
-    return testEvent {
-      time = Timestamp.ofTimeMicroseconds(get("time").timestampValue).toProto()
+    val message = testEvent {
       person = person {
-        vid = get("vid").longValue
         if (gender != null) {
           this.gender = gender
         }
@@ -149,6 +148,11 @@ abstract class BigQueryEventQuery(
           }
       }
     }
+    return LabeledEvent(
+      Timestamp.ofTimeMicroseconds(get("time").timestampValue).toInstant(),
+      get("vid").longValue,
+      message
+    )
   }
 
   companion object {

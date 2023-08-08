@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.protobuf.Message
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
@@ -31,7 +32,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.loadtest.config.VidSampling
 
 class SketchGenerator(
-  private val eventQuery: EventQuery,
+  private val eventQuery: EventQuery<Message>,
   private val sketchConfig: SketchConfig,
   private val vidSamplingInterval: MeasurementSpec.VidSamplingInterval
 ) {
