@@ -48,9 +48,10 @@ def wfa_measurement_system_repositories():
 
     wfa_repo_archive(
         name = "uk_pilot_event_templates",
+        # DO_NOT_SUBMIT(world-federation-of-advertisers/uk-pilot-event-templates#5): Use version.
+        commit = "0c97370c9197b1b0da8873f615097c260f3755c7",
         repo = "uk-pilot-event-templates",
-        sha256 = "3bfdd43620bdbbf820aecba6625a758c0e7469ff92596adb9b83bb2aa8052cad",
-        version = "0.1.0",
+        sha256 = "de28afc253592226d71bedf80c2202deb0a062414048af127624d11ebfa55607",
     )
 
     wfa_repo_archive(
