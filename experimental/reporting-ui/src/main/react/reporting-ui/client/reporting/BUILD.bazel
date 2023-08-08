@@ -9,10 +9,10 @@ package(
 js_library(
     name = "reporting",
     srcs = [
+        "client.ts",
+        "client_impl.ts",
         "memoize.ts",
         "real_api.ts",
-        "client_impl.ts",
-        "client.ts",
     ],
     deps = [
         "//experimental/reporting-ui/src/main/react/reporting-ui/model/reporting",

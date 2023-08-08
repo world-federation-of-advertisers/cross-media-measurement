@@ -7,7 +7,7 @@ package(
 )
 
 js_library(
-    name = "fonts",
+    name = "font",
     srcs = glob(
         include = [
             "open-san.ttf",
