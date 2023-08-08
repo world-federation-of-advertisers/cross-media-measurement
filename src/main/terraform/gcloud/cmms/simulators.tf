@@ -34,7 +34,7 @@ module "simulators_default_node_pool" {
   name            = "default"
   cluster         = data.google_container_cluster.simulators
   service_account = module.common.cluster_service_account
-  machine_type    = "e2-medium"
+  machine_type    = "e2-standard-2"
   max_node_count  = 2
 }
 
@@ -44,7 +44,7 @@ module "simulators_spot_node_pool" {
   name            = "spot"
   cluster         = data.google_container_cluster.simulators
   service_account = module.common.cluster_service_account
-  machine_type    = "e2-custom-2-4096"
+  machine_type    = "c3-highcpu-4"
   max_node_count  = 3
   spot            = true
 }

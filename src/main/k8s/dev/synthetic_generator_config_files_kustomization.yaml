@@ -18,3 +18,4 @@ configMapGenerator:
   - synthetic_population_spec.textproto
   - synthetic_event_group_spec_1.textproto
   - synthetic_event_group_spec_2.textproto
+  - synthetic_event_group_spec_3.textproto

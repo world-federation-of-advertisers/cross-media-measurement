@@ -37,7 +37,7 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 }
 #MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu:    "800m"
+		cpu:    "3"
 		memory: "2Gi"
 	}
 	limits: {
@@ -74,6 +74,7 @@ duchy: #Duchy & {
 	_kingdom_system_api_target: #KingdomSystemApiTarget
 	_blob_storage_flags:        _cloudStorageConfig.flags
 	_verbose_grpc_logging:      "false"
+	_duchyMillParallelism:      4
 
 	deployments: {
 		"spanner-computations-server-deployment": {
