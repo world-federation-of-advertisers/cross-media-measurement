@@ -17,8 +17,8 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './app';
 import reportWebVitals from './report_web_vitals';
-import AppConfig from '../library/initialize';
-import {RealApi} from '../library/reporting_client/real_api';
+import AppConfig from './client/initialize';
+import {RealApi} from './client/reporting/real_api';
 
 const configProps = {
   // eslint-disable-next-line node/no-unsupported-features/node-builtins

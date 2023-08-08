@@ -1,0 +1,20 @@
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+
+package(
+    default_visibility = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui:__subpackages__",
+    ],
+)
+
+js_library(
+    name = "reporting",
+    srcs = [
+        "memoize.ts",
+        "real_api.ts",
+        "client_impl.ts",
+        "client.ts",
+    ],
+    deps = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui/model/reporting",
+    ],
+)

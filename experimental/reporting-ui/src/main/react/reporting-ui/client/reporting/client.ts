@@ -12,20 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { ReportingClient } from "./reporting_client/reporting_client"
-import { ReportingClientImpl } from "./reporting_client/reporting_client_impl";
+import {
+  GetReportRequest,
+  GetReportResponse,
+  ListReportsResponse,
+} from '../../model/reporting';
 
-type ConfigProps = {
-  reportingApi: ReportingClient,
+export interface ReportingClient {
+  listReports(): Promise<ListReportsResponse>;
+  getReport(req: GetReportRequest): Promise<GetReportResponse>;
 }
-
-class AppConfig {
-  reportingApi?: ReportingClient;
-
-  initialize(props:ConfigProps) {
-    this.reportingApi = new ReportingClientImpl(props.reportingApi);
-  }
-}
-
-const appConfig = new AppConfig();
-export default appConfig;
