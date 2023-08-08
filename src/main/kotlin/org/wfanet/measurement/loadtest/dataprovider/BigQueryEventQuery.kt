@@ -26,13 +26,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 import java.util.logging.Logger
-import org.halo_cmm.uk.pilot.Display.Viewability as DisplayViewability
-import org.halo_cmm.uk.pilot.DisplayKt.viewability as displayViewability
 import org.halo_cmm.uk.pilot.Event
-import org.halo_cmm.uk.pilot.Video.DigitalVideoCompletionStatus
-import org.halo_cmm.uk.pilot.Video.Viewability as VideoViewability
-import org.halo_cmm.uk.pilot.VideoKt.digitalVideoCompletionStatus
-import org.halo_cmm.uk.pilot.VideoKt.viewability as videoViewability
 import org.halo_cmm.uk.pilot.display
 import org.halo_cmm.uk.pilot.event
 import org.halo_cmm.uk.pilot.video
@@ -105,94 +99,69 @@ class BigQueryEventQuery(
       .build()
   }
 
-  private fun getDigitalVideoCompletionStatus(
-    completionStatus: String
-  ): DigitalVideoCompletionStatus? {
-    return when (completionStatus) {
-      "0% - 25%" -> digitalVideoCompletionStatus { completed0PercentPlus = true }
-      "25% - 50%" ->
-        digitalVideoCompletionStatus {
-          completed0PercentPlus = true
-          completed25PercentPlus = true
-        }
-      "50% - 75%" ->
-        digitalVideoCompletionStatus {
-          completed0PercentPlus = true
-          completed25PercentPlus = true
-          completed50PercentPlus = true
-        }
-      "75% - 100%" ->
-        digitalVideoCompletionStatus {
-          completed0PercentPlus = true
-          completed25PercentPlus = true
-          completed50PercentPlus = true
-          completed75PercentPlus = true
-        }
-      "100%" ->
-        digitalVideoCompletionStatus {
-          completed0PercentPlus = true
-          completed25PercentPlus = true
-          completed50PercentPlus = true
-          completed75PercentPlus = true
-          completed100Percent = true
-        }
-      else -> null
-    }
-  }
-
-  private fun getVideoViewability(viewability: String): VideoViewability? {
-    return when (viewability) {
-      "viewable_0_percent_to_50_percent" -> videoViewability { viewable0PercentPlus = true }
-      "viewable_50_percent_to_100_percent" ->
-        videoViewability {
-          viewable0PercentPlus = true
-          viewable50PercentPlus = true
-        }
-      "viewable_100_percent" ->
-        videoViewability {
-          viewable0PercentPlus = true
-          viewable50PercentPlus = true
-          viewable100Percent = true
-        }
-      else -> null
-    }
-  }
-
-  private fun getDisplayViewability(viewability: String): DisplayViewability? {
-    return when (viewability) {
-      "viewable_0_percent_to_50_percent" -> displayViewability { viewable0PercentPlus = true }
-      "viewable_50_percent_to_100_percent" ->
-        displayViewability {
-          viewable0PercentPlus = true
-          viewable50PercentPlus = true
-        }
-      "viewable_100_percent" ->
-        displayViewability {
-          viewable0PercentPlus = true
-          viewable50PercentPlus = true
-          viewable100Percent = true
-        }
-      else -> null
-    }
-  }
-
   private fun FieldValueList.toVidAndEvent(): VidAndEvent {
-    val digitalVideoCompletion =
-      getDigitalVideoCompletionStatus(get("digital_video_completion_status").stringValue)
-    val videoViewability = getVideoViewability(get("viewability").stringValue)
-    val displayViewability = getDisplayViewability(get("viewability").stringValue)
+    // val digitalVideoCompletion =
+    //   getDigitalVideoCompletionStatus(get("digital_video_completion_status").stringValue)
+    // val videoViewability = getVideoViewability(get("viewability").stringValue)
+    // val displayViewability = getDisplayViewability(get("viewability").stringValue)
+
+    val viewability = get("viewability").stringValue
+    val completionStatus = get("digital_video_completion_status").stringValue
     val event = event {
       video = video {
-        if (digitalVideoCompletion != null) {
-          digitalVideoCompletionStatus = digitalVideoCompletion
+        when (completionStatus) {
+          "0% - 25%" -> completed0PercentPlus = true
+          "25% - 50%" -> {
+            completed0PercentPlus = true
+            completed25PercentPlus = true
+          }
+          "50% - 75%" -> {
+            completed0PercentPlus = true
+            completed25PercentPlus = true
+            completed50PercentPlus = true
+          }
+          "75% - 100%" -> {
+            completed0PercentPlus = true
+            completed25PercentPlus = true
+            completed50PercentPlus = true
+            completed75PercentPlus = true
+          }
+          "100%" -> {
+            completed0PercentPlus = true
+            completed25PercentPlus = true
+            completed50PercentPlus = true
+            completed75PercentPlus = true
+            completed100Percent = true
+          }
+         else -> throw Exception("Unknown video completion status :  $completionStatus")
         }
-        if (videoViewability != null) {
-          viewability = videoViewability
+        when (viewability) {
+          "viewable_0_percent_to_50_percent" -> viewable0PercentPlus = true
+          "viewable_50_percent_to_100_percent" -> {
+            viewable0PercentPlus = true
+            viewable50PercentPlus = true
+          }
+          "viewable_100_percent" -> {
+            viewable0PercentPlus = true
+            viewable50PercentPlus = true
+            viewable100Percent = true
+          }
+          else -> throw Exception("Unknown video viewability :  $viewability")
         }
       }
       display = display {
-        if (displayViewability != null) {
-          viewability = displayViewability
+        when (viewability) {
+          "viewable_0_percent_to_50_percent" -> viewable0PercentPlus = true
+          "viewable_50_percent_to_100_percent" -> {
+            viewable0PercentPlus = true
+            viewable50PercentPlus = true
+          }
+          "viewable_100_percent" -> {
+            viewable0PercentPlus = true
+            viewable50PercentPlus = true
+            viewable100Percent = true
+          }
+          else -> throw Exception("Unknown display viewability :  $viewability")
         }
       }
     }
