@@ -8,11 +8,11 @@ package(
 )
 
 js_library(
-    name = "library",
+    name = "client",
     srcs = [
         "initialize.ts",
     ],
     deps = [
-        "//experimental/reporting-ui/src/main/react/reporting-ui/library/reporting_client",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/client/reporting",
     ],
 )

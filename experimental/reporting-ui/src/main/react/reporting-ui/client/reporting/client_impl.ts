@@ -12,13 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Memoizer} from './memoize';
 import {
   GetReportRequest,
   GetReportResponse,
   ListReportsResponse,
-} from './models';
+} from '../../model/reporting';
+import {ReportingClient} from './client';
 
-export interface ReportingClient {
-  listReports(): Promise<ListReportsResponse>;
-  getReport(req: GetReportRequest): Promise<GetReportResponse>;
+export class ReportingClientImpl {
+  memoizer: Memoizer = new Memoizer();
+
+  constructor(private api: ReportingClient) {}
+
+  listReports(): Promise<ListReportsResponse> {
+    return this.api.listReports();
+  }
+
+  getReport(req: GetReportRequest): Promise<GetReportResponse> {
+    const getCached = this.memoizer.memoizePromiseFn(this.api.getReport);
+
+    return getCached(req);
+  }
 }

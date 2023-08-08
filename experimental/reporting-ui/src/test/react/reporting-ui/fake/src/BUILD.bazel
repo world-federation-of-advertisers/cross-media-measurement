@@ -15,7 +15,7 @@ js_library(
     deps = [
         "//:node_modules/react",
         "//:node_modules/react-dom",
-        "//experimental/reporting-ui/src/main/react/reporting-ui/library",
-        "//experimental/reporting-ui/src/main/react/reporting-ui/src",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/client",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/model/reporting",
     ],
 )
