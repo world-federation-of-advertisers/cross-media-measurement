@@ -550,10 +550,21 @@ class EdpSimulator(
               Level.WARNING,
               "Skipping ${requisition.name}: Measurement type not supported for direct fulfillment."
             )
+            throw RequisitionRefusalException(
+              Requisition.Refusal.Justification.SPEC_INVALID,
+              "Measurement type not supported for direct fulfillment."
+            )
           }
         } else if (protocols.any { it.hasLiquidLegionsV2() }) {
-          require(measurementSpec.hasReach() || measurementSpec.hasReachAndFrequency()) {
-            "Skipping ${requisition.name}: Measurement type not supported for protocol llv2."
+          if (!measurementSpec.hasReach() && !measurementSpec.hasReachAndFrequency()) {
+            logger.log(
+              Level.WARNING,
+              "Skipping ${requisition.name}: Measurement type not supported for protocol llv2."
+            )
+            throw RequisitionRefusalException(
+              Requisition.Refusal.Justification.SPEC_INVALID,
+              "Measurement type not supported for protocol llv2."
+            )
           }
           verifyDuchyEntries(requisition, ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2)
 
@@ -565,8 +576,15 @@ class EdpSimulator(
             eventGroupSpecs
           )
         } else if (protocols.any { it.hasReachOnlyLiquidLegionsV2() }) {
-          require(measurementSpec.hasReach()) {
-            "Skipping ${requisition.name}: Measurement type not supported for protocol rollv2."
+          if (!measurementSpec.hasReach()) {
+            logger.log(
+              Level.WARNING,
+              "Skipping ${requisition.name}: Measurement type not supported for protocol rollv2."
+            )
+            throw RequisitionRefusalException(
+              Requisition.Refusal.Justification.SPEC_INVALID,
+              "Measurement type not supported for protocol rollv2."
+            )
           }
           verifyDuchyEntries(
             requisition,
@@ -584,6 +602,10 @@ class EdpSimulator(
           logger.log(
             Level.WARNING,
             "Skipping ${requisition.name}: Protocol not set or not supported."
+          )
+          throw RequisitionRefusalException(
+            Requisition.Refusal.Justification.SPEC_INVALID,
+            "Protocol not set or not supported."
           )
         }
       } catch (refusalException: RequisitionRefusalException) {
