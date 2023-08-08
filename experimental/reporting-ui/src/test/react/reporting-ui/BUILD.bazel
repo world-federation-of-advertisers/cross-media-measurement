@@ -38,7 +38,7 @@ jest_test(
         ":test_node_deps",
         "//:tsconfig",
         "//experimental/reporting-ui/src/main/react/reporting-ui:build_node_deps",
-        "//experimental/reporting-ui/src/main/react/reporting-ui/src",
+        "//experimental/reporting-ui/src/main/react/reporting-ui:src",
         "//experimental/reporting-ui/src/test/react/jest",
     ],
     node_modules = "//:node_modules",
