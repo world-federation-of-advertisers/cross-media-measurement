@@ -7,7 +7,7 @@ package(
 )
 
 js_library(
-    name = "icons",
+    name = "icon",
     srcs = [
         "add.tsx",
         "download.tsx",

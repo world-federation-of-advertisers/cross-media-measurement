@@ -1,5 +1,12 @@
 load("@aspect_rules_js//js:defs.bzl", "js_library")
 
+package(
+    default_visibility = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui:__subpackages__",
+        "//experimental/reporting-ui/src/test/react/reporting-ui:__subpackages__",
+    ],
+)
+
 js_library(
     name = "public",
     srcs = [
@@ -10,5 +17,4 @@ js_library(
         "manifest.json",
         "robots.txt",
     ],
-    visibility = ["//visibility:public"],
 )
