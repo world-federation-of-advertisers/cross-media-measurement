@@ -127,6 +127,8 @@ class PrivacyBudgetManagerTest {
       // Set maximumTotalDelta to small value
       val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 3.0f, 2E-8f)
 
+      // With AcdpCharge(rho = 0.04, theta = 5.0E-6), the converted total delta for this charge
+      // (with total epsilon = 3.0) is 1.0542768461593835E-4. See unit test in CompositionTest.kt
       val exception =
         assertFailsWith<PrivacyBudgetManagerException> {
           pbm.chargePrivacyBudgetInAcdp(createAcdpQuery("referenceId1"))
