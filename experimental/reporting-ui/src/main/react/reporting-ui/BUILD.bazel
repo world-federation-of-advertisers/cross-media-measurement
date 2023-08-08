@@ -58,7 +58,7 @@ webpack_bundle(
         "//:tsconfig",
         "//experimental/reporting-ui/src/main/react/reporting-ui/client",
         "//experimental/reporting-ui/src/main/react/reporting-ui/model/reporting",
-        "//experimental/reporting-ui/src/main/react/reporting-ui/public"
+        "//experimental/reporting-ui/src/main/react/reporting-ui/public",
     ],
     node_modules = "//:node_modules",
     output_dir = True,
@@ -76,7 +76,7 @@ webpack_devserver(
         "//:tsconfig",
         "//experimental/reporting-ui/src/main/react/reporting-ui/client",
         "//experimental/reporting-ui/src/main/react/reporting-ui/model/reporting",
-        "//experimental/reporting-ui/src/main/react/reporting-ui/public"
+        "//experimental/reporting-ui/src/main/react/reporting-ui/public",
     ],
     node_modules = "//:node_modules",
     webpack_config = ":webpack_config",
