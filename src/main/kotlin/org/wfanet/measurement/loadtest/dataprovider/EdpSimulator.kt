@@ -145,7 +145,7 @@ class EdpSimulator(
   private val eventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
   private val requisitionsStub: RequisitionsCoroutineStub,
   private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
-  private val eventQuery: EventQuery,
+  private val eventQuery: EventQuery<Message>,
   private val throttler: Throttler,
   private val privacyBudgetManager: PrivacyBudgetManager,
   private val trustedCertificates: Map<ByteString, X509Certificate>,

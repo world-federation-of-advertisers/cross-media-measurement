@@ -15,31 +15,25 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.timeOrNull
 import org.wfanet.measurement.common.OpenEndTimeRange
-import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toRange
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
+typealias LabeledTestEvent = LabeledEvent<TestEvent>
+
 /** Fulfills the query with matching events using filters. */
-open class InMemoryEventQuery(private val events: Iterable<LabelledEvent>) : EventQuery {
-  constructor(
-    events: Map<Long, List<TestEvent>>
-  ) : this(events.flatMap { (vid, events) -> events.map { event -> LabelledEvent(vid, event) } })
-
-  data class LabelledEvent(val vid: Long, val event: TestEvent)
-
-  override fun getUserVirtualIds(eventGroupSpec: EventQuery.EventGroupSpec): Sequence<Long> {
+open class InMemoryEventQuery(
+  private val labeledEvents: List<LabeledTestEvent>,
+) : EventQuery<TestEvent> {
+  override fun getLabeledEvents(
+    eventGroupSpec: EventQuery.EventGroupSpec
+  ): Sequence<LabeledTestEvent> {
     val timeRange: OpenEndTimeRange = eventGroupSpec.spec.collectionInterval.toRange()
     val program: Program =
       EventQuery.compileProgram(eventGroupSpec.spec.filter, TestEvent.getDescriptor())
 
-    return events
-      .asSequence()
-      .filter { (_, event) ->
-        checkNotNull(event.timeOrNull).toInstant() in timeRange &&
-          EventFilters.matches(event, program)
-      }
-      .map { it.vid }
+    return labeledEvents.asSequence().filter {
+      it.timestamp in timeRange && EventFilters.matches(it.message, program)
+    }
   }
 }
