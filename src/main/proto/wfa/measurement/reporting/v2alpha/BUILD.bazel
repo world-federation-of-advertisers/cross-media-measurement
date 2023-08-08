@@ -32,6 +32,28 @@ kt_jvm_proto_library(
 )
 
 proto_library(
+    name = "event_group_metadata_descriptor_proto",
+    srcs = ["event_group_metadata_descriptor.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:descriptor_proto",
+    ],
+)
+
+java_proto_library(
+    name = "event_group_metadata_descriptor_java_proto",
+    deps = [":event_group_metadata_descriptor_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "event_group_metadata_descriptor_kt_jvm_proto",
+    srcs = [":event_group_metadata_descriptor_proto"],
+    deps = [":event_group_metadata_descriptor_java_proto"],
+)
+
+proto_library(
     name = "metric_proto",
     srcs = ["metric.proto"],
     strip_import_prefix = IMPORT_PREFIX,
@@ -136,6 +158,23 @@ kt_jvm_proto_library(
 )
 
 # Services.
+
+proto_library(
+    name = "event_group_metadata_descriptors_service_proto",
+    srcs = ["event_group_metadata_descriptors_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":event_group_metadata_descriptor_proto",
+        "@com_google_googleapis//google/api:client_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "event_group_metadata_descriptors_service_kt_jvm_grpc_proto",
+    srcs = [":event_group_metadata_descriptors_service_proto"],
+)
 
 proto_library(
     name = "event_groups_service_proto",

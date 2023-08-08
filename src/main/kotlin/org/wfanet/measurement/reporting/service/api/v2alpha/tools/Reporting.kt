@@ -32,14 +32,17 @@ import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.reporting.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
+import org.wfanet.measurement.reporting.v2alpha.getEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
@@ -475,6 +478,66 @@ class EventGroupsCommand : Runnable {
   override fun run() {}
 }
 
+@CommandLine.Command(name = "get", description = ["Get event group metadata descriptor"])
+class GetEventGroupMetadataDescriptor : Runnable {
+  @CommandLine.ParentCommand private lateinit var parent: EventGroupMetadataDescriptorsCommand
+
+  @CommandLine.Parameters(
+    description = ["CMMS EventGroupMetadataDescriptor resource name"],
+  )
+  private lateinit var cmmsEventGroupMetadataDescriptorName: String
+
+  override fun run() {
+    val request = getEventGroupMetadataDescriptorRequest {
+      name = cmmsEventGroupMetadataDescriptorName
+    }
+
+    val response = runBlocking(Dispatchers.IO) { parent.eventGroupMetadataDescriptorStub.getEventGroupMetadataDescriptor(request) }
+
+    println(response)
+  }
+}
+
+@CommandLine.Command(name = "batch-get", description = ["Batch Get event group metadata descriptors"])
+class BatchGetEventGroupMetadataDescriptors : Runnable {
+  @CommandLine.ParentCommand private lateinit var parent: EventGroupMetadataDescriptorsCommand
+
+  @CommandLine.Option(
+    names = ["--cmms-event-group-metadata-descriptor"],
+    description = ["List of CMMS EventGroupMetadataDescriptors resource names"],
+    required = true,
+  )
+  private var cmmsEventGroupMetadataDescriptorNames: List<String> = mutableListOf()
+
+  override fun run() {
+    val request = batchGetEventGroupMetadataDescriptorsRequest {
+      names += cmmsEventGroupMetadataDescriptorNames
+    }
+
+    val response = runBlocking(Dispatchers.IO) { parent.eventGroupMetadataDescriptorStub.batchGetEventGroupMetadataDescriptors(request) }
+
+    println(response)
+  }
+}
+
+@CommandLine.Command(
+  name = "event-group-metadata-descriptors",
+  sortOptions = false,
+  subcommands =
+  [
+    CommandLine.HelpCommand::class,
+    GetEventGroupMetadataDescriptor::class,
+    BatchGetEventGroupMetadataDescriptors::class,
+  ]
+)
+class EventGroupMetadataDescriptorsCommand : Runnable {
+  @CommandLine.ParentCommand lateinit var parent: Reporting
+
+  val eventGroupMetadataDescriptorStub: EventGroupMetadataDescriptorsCoroutineStub by lazy { EventGroupMetadataDescriptorsCoroutineStub(parent.channel) }
+
+  override fun run() {}
+}
+
 @CommandLine.Command(
   name = "reporting",
   description = ["Reporting CLI tool"],
@@ -485,6 +548,7 @@ class EventGroupsCommand : Runnable {
       ReportingSetsCommand::class,
       ReportsCommand::class,
       EventGroupsCommand::class,
+      EventGroupMetadataDescriptorsCommand::class,
     ]
 )
 class Reporting : Runnable {
@@ -510,7 +574,7 @@ class Reporting : Runnable {
 }
 
 /**
- * Reporting Set, Report, and Event Group methods.
+ * Reporting Set, Report, Event Group, and Event Group Metadata Descriptor methods.
  *
  * Use the `help` command to see usage details.
  */

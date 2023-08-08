@@ -56,6 +56,7 @@ import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer
 import org.wfanet.measurement.reporting.service.api.v2alpha.withDefaults
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
+import org.wfanet.measurement.reporting.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
@@ -66,6 +67,7 @@ import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.reporting.v2alpha.createMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
@@ -170,6 +172,10 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
   private val publicKingdomMeasurementConsumersClient by lazy {
     MeasurementConsumersCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
+  }
+
+  private val publicEventGroupMetadataDescriptorsClient by lazy {
+    EventGroupMetadataDescriptorsCoroutineStub(reportingServer.publicApiChannel)
   }
 
   private val publicEventGroupsClient by lazy {
@@ -1531,6 +1537,37 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     assertThat(retrievedPrimitiveReportingSets).hasSize(numReportingSets)
     retrievedPrimitiveReportingSets.forEach {
       assertThat(it).ignoringFields(ReportingSet.NAME_FIELD_NUMBER).isEqualTo(primitiveReportingSet)
+    }
+  }
+
+  @Test
+  fun `retrieving metadata descriptors for event groups succeeds`() = runBlocking {
+    val eventGroups = listEventGroups()
+
+    val descriptorNames = mutableSetOf<String>()
+    for (eventGroup in eventGroups) {
+      descriptorNames.add(eventGroup.metadata.eventGroupMetadataDescriptor)
+    }
+
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val descriptors =
+      publicEventGroupMetadataDescriptorsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .batchGetEventGroupMetadataDescriptors(
+          batchGetEventGroupMetadataDescriptorsRequest {
+            names += descriptorNames
+          }
+        ).eventGroupMetadataDescriptorsList
+
+    assertThat(descriptors).hasSize(descriptorNames.size)
+
+    val retrievedDescriptorNames = mutableSetOf<String>()
+    for (descriptor in descriptors) {
+      retrievedDescriptorNames.add(descriptor.name)
+    }
+
+    for (eventGroup in eventGroups) {
+      assertThat(retrievedDescriptorNames.contains(eventGroup.metadata.eventGroupMetadataDescriptor)).isTrue()
     }
   }
 

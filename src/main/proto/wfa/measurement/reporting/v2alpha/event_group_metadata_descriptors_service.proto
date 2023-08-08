@@ -1,0 +1,67 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.v2alpha;
+
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "wfa/measurement/reporting/v2alpha/event_group_metadata_descriptor.proto";
+
+option java_package = "org.wfanet.measurement.reporting.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "EventGroupMetadataDescriptorsServiceProto";
+
+// Service for interacting with `EventGroupMetadataDescriptor` resources.
+service EventGroupMetadataDescriptors {
+  // Returns the `EventGroupMetadataDescriptor` with the specified resource
+  // name.
+  rpc GetEventGroupMetadataDescriptor(GetEventGroupMetadataDescriptorRequest)
+    returns (EventGroupMetadataDescriptor) {
+    option (google.api.method_signature) = "name";
+  }
+
+  // Batch gets `EventGroupMetadataDescriptors`s. Results in a `NOT_FOUND` error
+  // if any of the specified `EventGroupMetadataDescriptor`s does not exist.
+  rpc BatchGetEventGroupMetadataDescriptors(BatchGetEventGroupMetadataDescriptorsRequest)
+      returns (BatchGetEventGroupMetadataDescriptorsResponse) {}
+}
+
+// Request message for `GetEventGroupMetadataDescriptor` method.
+message GetEventGroupMetadataDescriptorRequest {
+  // Resource name.
+  string name = 1 [
+    (google.api.resource_reference).type =
+      "reporting.halo-cmm.org/EventGroupMetadataDescriptor",
+    (google.api.field_behavior) = REQUIRED
+  ];
+}
+
+// Request message for `BatchGetEventGroupMetadataDescriptors` method.
+message BatchGetEventGroupMetadataDescriptorsRequest {
+  // The resource names of `EventGroupMetadataDescriptor`s to retrieve.
+  repeated string names = 1 [
+    (google.api.resource_reference).type =
+      "reporting.halo-cmm.org/EventGroupMetadataDescriptor",
+    (google.api.field_behavior) = REQUIRED
+  ];
+}
+
+// Response message for `BatchGetEventGroupMetadataDescriptors` method.
+message BatchGetEventGroupMetadataDescriptorsResponse {
+  // The `EventGroupMetadataDescriptor` resources.
+  repeated EventGroupMetadataDescriptor event_group_metadata_descriptors = 1;
+}
