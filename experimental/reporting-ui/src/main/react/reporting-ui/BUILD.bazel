@@ -5,7 +5,7 @@ load("@aspect_rules_webpack//webpack:defs.bzl", "webpack_bundle", "webpack_devse
 npm_link_all_packages()
 
 js_library(
-    name = "src",
+    name = "app",
     srcs = [
         "app.css",
         "app.tsx",
@@ -21,7 +21,7 @@ js_library(
 )
 
 js_library(
-    name = "build_node_deps",
+    name = "node_deps",
     srcs = [
         "//:node_modules/babel-loader",
         "//:node_modules/css-loader",
@@ -53,7 +53,7 @@ js_library(
 webpack_bundle(
     name = "webpack_bundle",
     srcs = [
-        ":src",
+        ":app",
         ":webpack_config",
         "//:tsconfig",
         "//experimental/reporting-ui/src/main/react/reporting-ui/client",
@@ -64,15 +64,15 @@ webpack_bundle(
     output_dir = True,
     webpack_config = ":webpack_config",
     deps = [
-        ":build_node_deps",
+        ":node_deps",
     ],
 )
 
 webpack_devserver(
     name = "webpack_devserver",
     data = [
-        ":build_node_deps",
-        ":src",
+        ":node_deps",
+        ":app",
         "//:tsconfig",
         "//experimental/reporting-ui/src/main/react/reporting-ui/client",
         "//experimental/reporting-ui/src/main/react/reporting-ui/model/reporting",

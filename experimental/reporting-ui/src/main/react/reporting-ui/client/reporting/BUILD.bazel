@@ -12,7 +12,6 @@ js_library(
         "client.ts",
         "client_impl.ts",
         "memoize.ts",
-        "real_api.ts",
     ],
     deps = [
         "//experimental/reporting-ui/src/main/react/reporting-ui/model/reporting",

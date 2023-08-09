@@ -13,17 +13,16 @@
 // limitations under the License.
 
 import { ReportingClient } from "./reporting/client"
-import { ReportingClientImpl } from "./reporting/client_impl";
 
 type ConfigProps = {
-  reportingApi: ReportingClient,
+  reportingClient: ReportingClient;
 }
 
 class AppConfig {
   reportingApi?: ReportingClient;
 
   initialize(props:ConfigProps) {
-    this.reportingApi = new ReportingClientImpl(props.reportingApi);
+    this.reportingApi = props.reportingClient;
   }
 }
 
