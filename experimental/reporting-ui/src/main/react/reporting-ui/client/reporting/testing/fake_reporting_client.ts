@@ -17,6 +17,7 @@ import {
   GetReportResponse,
   ListReportsResponse,
   Report,
+  ReportState,
   UniqueReach,
 } from '../../../model/reporting';
 import {ReportingClient} from '../client';
@@ -42,7 +43,7 @@ function regenerateTimeData() {
   return chartData;
 }
 
-export class FakeApi implements ReportingClient {
+export class FakeReportingClient implements ReportingClient {
   reports: Report[];
 
   constructor() {
@@ -290,7 +291,7 @@ export class FakeApi implements ReportingClient {
           },
         ],
         uniqueReachByPlatform: regenerateTimeData(),
-        status: 'status',
+        status: ReportState.SUCCEEDED,
       },
     ];
   }

@@ -1,10 +1,14 @@
 load("@aspect_rules_js//js:defs.bzl", "js_library")
 load("@aspect_rules_webpack//webpack:defs.bzl", "webpack_devserver")
 
+package(
+    default_testonly = True,
+)
+
 js_library(
     name = "fake_app",
     srcs = [
-        "fake_api.ts",
+        "fake_reporting_client.ts",
         "index.tsx",
     ],
     deps = [
