@@ -4,6 +4,7 @@ package(
     default_testonly = True,
     default_visibility = [
         "//src/test/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/integration/common/duchy:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/integration/gcloud:__pkg__",
     ],
 )
