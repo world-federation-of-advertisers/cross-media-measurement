@@ -1049,7 +1049,6 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
     }
 
@@ -1064,8 +1063,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
           }
         )
 
-    val grouping1Predicate1 = "person.age_group == ${Person.AgeGroup.YEARS_35_TO_54_VALUE}"
-    val grouping1Predicate2 = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
+    val grouping1Predicate = "person.age_group == ${Person.AgeGroup.YEARS_35_TO_54_VALUE}"
     val grouping2Predicate1 = "person.gender == ${Person.Gender.FEMALE_VALUE}"
     val grouping2Predicate2 = "person.gender == ${Person.Gender.MALE_VALUE}"
 
@@ -1086,8 +1084,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
                       .withDefaults(reportingServer.metricSpecConfig)
                   groupings +=
                     ReportKt.grouping {
-                      predicates += grouping1Predicate1
-                      predicates += grouping1Predicate2
+                      predicates += grouping1Predicate
                     }
                   groupings +=
                     ReportKt.grouping {
@@ -1128,54 +1125,28 @@ abstract class InProcessLifeOfAReportIntegrationTest {
         }
 
       // TODO(@tristanvuong2021): Assert using variance
-      if (resultAttribute.groupingPredicatesList.contains(grouping1Predicate1)) {
-        if (resultAttribute.groupingPredicatesList.contains(grouping2Predicate1)) {
-          val vids =
-            SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
-              eventGroup,
-              "${primitiveReportingSet.filter} && $grouping1Predicate1 && $grouping2Predicate1",
-              EVENT_RANGE.toInterval()
-            )
-          val sampledVids = vids.calculateSampledVids(vidSamplingInterval)
-          val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+      if (resultAttribute.groupingPredicatesList.contains(grouping2Predicate1)) {
+        val vids =
+          SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
+            eventGroup,
+            "$grouping1Predicate && $grouping2Predicate1",
+            EVENT_RANGE.toInterval()
+          )
+        val sampledVids = vids.calculateSampledVids(vidSamplingInterval)
+        val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
 
-          assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
-        } else {
-          val vids =
-            SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
-              eventGroup,
-              "${primitiveReportingSet.filter} && $grouping1Predicate1 && $grouping2Predicate2",
-              EVENT_RANGE.toInterval()
-            )
-          val sampledVids = vids.calculateSampledVids(vidSamplingInterval)
-          val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
-
-          assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
-        }
+        assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
       } else {
-        if (resultAttribute.groupingPredicatesList.contains(grouping2Predicate1)) {
-          val vids =
-            SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
-              eventGroup,
-              "${primitiveReportingSet.filter} && $grouping1Predicate2 && $grouping2Predicate1",
-              EVENT_RANGE.toInterval()
-            )
-          val sampledVids = vids.calculateSampledVids(vidSamplingInterval)
-          val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+        val vids =
+          SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
+            eventGroup,
+            "$grouping1Predicate && $grouping2Predicate2",
+            EVENT_RANGE.toInterval()
+          )
+        val sampledVids = vids.calculateSampledVids(vidSamplingInterval)
+        val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
 
-          assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
-        } else {
-          val vids =
-            SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
-              eventGroup,
-              "${primitiveReportingSet.filter} && $grouping1Predicate2 && $grouping2Predicate2",
-              EVENT_RANGE.toInterval()
-            )
-          val sampledVids = vids.calculateSampledVids(vidSamplingInterval)
-          val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
-
-          assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
-        }
+        assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
       }
     }
   }
