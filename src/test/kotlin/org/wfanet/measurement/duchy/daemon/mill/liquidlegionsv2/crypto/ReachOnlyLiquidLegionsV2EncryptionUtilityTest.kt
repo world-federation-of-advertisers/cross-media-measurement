@@ -21,38 +21,31 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.anysketch.Sketch
-import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
+import org.wfanet.anysketch.SketchKt
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
-import org.wfanet.anysketch.crypto.EncryptSketchRequest
 import org.wfanet.anysketch.crypto.EncryptSketchRequest.DestroyedRegisterStrategy.FLAGGED_KEY
 import org.wfanet.anysketch.crypto.EncryptSketchResponse
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
+import org.wfanet.anysketch.crypto.combineElGamalPublicKeysRequest
+import org.wfanet.anysketch.crypto.encryptSketchRequest
+import org.wfanet.anysketch.sketch
 import org.wfanet.estimation.Estimators
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.duchy.daemon.utils.toAnySketchElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toCmmsElGamalPublicKey
 import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlyExecutionPhaseAtAggregatorResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlyExecutionPhaseResponse
-import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlyInitializationPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlyInitializationPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlySetupPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.completeReachOnlyExecutionPhaseAtAggregatorRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeReachOnlyExecutionPhaseRequest
+import org.wfanet.measurement.internal.duchy.protocol.completeReachOnlyInitializationPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeReachOnlySetupPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsSketchParameters
 import org.wfanet.measurement.internal.duchy.protocol.reachonlyliquidlegionsv2.ReachOnlyLiquidLegionsV2EncryptionUtility
 
 @RunWith(JUnit4::class)
 class ReachOnlyLiquidLegionsV2EncryptionUtilityTest {
-
-  private fun createEmptyReachOnlyLiquidLegionsSketch(): Sketch.Builder {
-    return Sketch.newBuilder()
-  }
-
-  private fun Sketch.Builder.addRegister(index: Long) {
-    addRegistersBuilder().also { it.index = index }
-  }
 
   //  Helper function to go through the entire Liquid Legions V2 protocol using the input data.
   //  The final relative_frequency_distribution map are returned.
@@ -163,26 +156,20 @@ class ReachOnlyLiquidLegionsV2EncryptionUtilityTest {
 
   @Test
   fun endToEnd_basicBehavior() {
-    val rawSketch =
-      createEmptyReachOnlyLiquidLegionsSketch()
-        .apply {
-          addRegister(index = 1L)
-          addRegister(index = 2L)
-          addRegister(index = 2L)
-          addRegister(index = 4L)
-          addRegister(index = 5L)
-        }
-        .build()
-    val request =
-      EncryptSketchRequest.newBuilder()
-        .apply {
-          sketch = rawSketch
-          curveId = CURVE_ID
-          maximumValue = MAX_COUNTER_VALUE
-          elGamalKeys = CLIENT_EL_GAMAL_KEYS.toAnySketchElGamalPublicKey()
-          destroyedRegisterStrategy = FLAGGED_KEY
-        }
-        .build()
+    val rawSketch = sketch {
+      registers.add(SketchKt.register { index = 1L })
+      registers.add(SketchKt.register { index = 2L })
+      registers.add(SketchKt.register { index = 2L })
+      registers.add(SketchKt.register { index = 3L })
+      registers.add(SketchKt.register { index = 4L })
+    }
+    val request = encryptSketchRequest {
+      sketch = rawSketch
+      curveId = CURVE_ID
+      maximumValue = MAX_COUNTER_VALUE
+      elGamalKeys = CLIENT_EL_GAMAL_KEYS.toAnySketchElGamalPublicKey()
+      destroyedRegisterStrategy = FLAGGED_KEY
+    }
     val response =
       EncryptSketchResponse.parseFrom(SketchEncrypterAdapter.EncryptSketch(request.toByteArray()))
     val encryptedSketch = response.encryptedSketch
@@ -252,8 +239,9 @@ class ReachOnlyLiquidLegionsV2EncryptionUtilityTest {
     private const val PARALLELISM = 3
     private const val MAX_COUNTER_VALUE = 10
 
-    private val COMPLETE_INITIALIZATION_REQUEST =
-      CompleteReachOnlyInitializationPhaseRequest.newBuilder().apply { curveId = CURVE_ID }.build()
+    private val COMPLETE_INITIALIZATION_REQUEST = completeReachOnlyInitializationPhaseRequest {
+      curveId = CURVE_ID
+    }
     private val DUCHY_1_EL_GAMAL_KEYS =
       CompleteReachOnlyInitializationPhaseResponse.parseFrom(
           ReachOnlyLiquidLegionsV2EncryptionUtility.completeReachOnlyInitializationPhase(
@@ -279,14 +267,12 @@ class ReachOnlyLiquidLegionsV2EncryptionUtilityTest {
     private val CLIENT_EL_GAMAL_KEYS =
       CombineElGamalPublicKeysResponse.parseFrom(
           SketchEncrypterAdapter.CombineElGamalPublicKeys(
-            CombineElGamalPublicKeysRequest.newBuilder()
-              .apply {
+            combineElGamalPublicKeysRequest {
                 curveId = CURVE_ID
-                addElGamalKeys(DUCHY_1_EL_GAMAL_KEYS.publicKey.toAnySketchElGamalPublicKey())
-                addElGamalKeys(DUCHY_2_EL_GAMAL_KEYS.publicKey.toAnySketchElGamalPublicKey())
-                addElGamalKeys(DUCHY_3_EL_GAMAL_KEYS.publicKey.toAnySketchElGamalPublicKey())
+                elGamalKeys.add(DUCHY_1_EL_GAMAL_KEYS.publicKey.toAnySketchElGamalPublicKey())
+                elGamalKeys.add(DUCHY_2_EL_GAMAL_KEYS.publicKey.toAnySketchElGamalPublicKey())
+                elGamalKeys.add(DUCHY_3_EL_GAMAL_KEYS.publicKey.toAnySketchElGamalPublicKey())
               }
-              .build()
               .toByteArray()
           )
         )
@@ -295,13 +281,11 @@ class ReachOnlyLiquidLegionsV2EncryptionUtilityTest {
     private val DUCHY_2_3_COMBINED_EL_GAMAL_KEYS =
       CombineElGamalPublicKeysResponse.parseFrom(
           SketchEncrypterAdapter.CombineElGamalPublicKeys(
-            CombineElGamalPublicKeysRequest.newBuilder()
-              .apply {
+            combineElGamalPublicKeysRequest {
                 curveId = CURVE_ID
-                addElGamalKeys(DUCHY_2_EL_GAMAL_KEYS.publicKey.toAnySketchElGamalPublicKey())
-                addElGamalKeys(DUCHY_3_EL_GAMAL_KEYS.publicKey.toAnySketchElGamalPublicKey())
+                elGamalKeys.add(DUCHY_2_EL_GAMAL_KEYS.publicKey.toAnySketchElGamalPublicKey())
+                elGamalKeys.add(DUCHY_3_EL_GAMAL_KEYS.publicKey.toAnySketchElGamalPublicKey())
               }
-              .build()
               .toByteArray()
           )
         )

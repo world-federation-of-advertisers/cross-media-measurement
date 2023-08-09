@@ -24,7 +24,7 @@ import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
-import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
+import org.wfanet.anysketch.crypto.combineElGamalPublicKeysRequest
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -54,40 +54,44 @@ import org.wfanet.measurement.duchy.service.system.v1alpha.advanceComputationHea
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
 import org.wfanet.measurement.internal.duchy.ComputationDetails.KingdomComputationDetails
-import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
-import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
+import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.NON_AGGREGATOR
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.UNKNOWN
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.UNRECOGNIZED
 import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlyExecutionPhaseAtAggregatorResponse
-import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlyExecutionPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlyExecutionPhaseResponse
-import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlyInitializationPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlySetupPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlySetupPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2.Stage
+import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2Kt
 import org.wfanet.measurement.internal.duchy.protocol.completeReachOnlyExecutionPhaseAtAggregatorRequest
+import org.wfanet.measurement.internal.duchy.protocol.completeReachOnlyExecutionPhaseRequest
+import org.wfanet.measurement.internal.duchy.protocol.completeReachOnlyInitializationPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeReachOnlySetupPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.globalReachDpNoiseBaseline
 import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsSketchParameters
 import org.wfanet.measurement.internal.duchy.protocol.reachNoiseDifferentialPrivacyParams
 import org.wfanet.measurement.internal.duchy.protocol.registerNoiseGenerationParameters
+import org.wfanet.measurement.internal.duchy.updateComputationDetailsRequest
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt.RequisitionParamsKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
-import org.wfanet.measurement.system.v1alpha.ConfirmComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.ReachOnlyLiquidLegionsV2
-import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequest
+import org.wfanet.measurement.system.v1alpha.confirmComputationParticipantRequest
+import org.wfanet.measurement.system.v1alpha.reachOnlyLiquidLegionsV2
+import org.wfanet.measurement.system.v1alpha.setParticipantRequisitionParamsRequest
 
 /**
  * Mill works on computations using the ReachOnlyLiquidLegionSketchAggregationProtocol.
@@ -165,10 +169,8 @@ class ReachOnlyLiquidLegionsV2Mill(
   private val executionPhaseCryptoCpuTimeDurationHistogram: LongHistogram =
     meter.histogramBuilder("execution_phase_crypto_cpu_time_duration_millis").ofLongs().build()
 
-  override val endingStage: ComputationStage =
-    ComputationStage.newBuilder()
-      .apply { reachOnlyLiquidLegionsSketchAggregationV2 = Stage.COMPLETE }
-      .build()
+  override val endingStage =
+    ReachOnlyLiquidLegionsSketchAggregationV2.Stage.COMPLETE.toProtocolStage()
 
   private val actions =
     mapOf(
@@ -176,11 +178,10 @@ class ReachOnlyLiquidLegionsV2Mill(
       Pair(Stage.INITIALIZATION_PHASE, NON_AGGREGATOR) to ::initializationPhase,
       Pair(Stage.CONFIRMATION_PHASE, AGGREGATOR) to ::confirmationPhase,
       Pair(Stage.CONFIRMATION_PHASE, NON_AGGREGATOR) to ::confirmationPhase,
-      Pair(Stage.SETUP_PHASE, AGGREGATOR) to ::completeReachOnlySetupPhaseAtAggregator,
-      Pair(Stage.SETUP_PHASE, NON_AGGREGATOR) to ::completeReachOnlySetupPhaseAtNonAggregator,
-      Pair(Stage.EXECUTION_PHASE, AGGREGATOR) to ::completeReachOnlyExecutionPhaseAtAggregator,
-      Pair(Stage.EXECUTION_PHASE, NON_AGGREGATOR) to
-        ::completeReachOnlyExecutionPhaseAtNonAggregator,
+      Pair(Stage.SETUP_PHASE, AGGREGATOR) to ::completeSetupPhaseAtAggregator,
+      Pair(Stage.SETUP_PHASE, NON_AGGREGATOR) to ::completeSetupPhaseAtNonAggregator,
+      Pair(Stage.EXECUTION_PHASE, AGGREGATOR) to ::completeExecutionPhaseAtAggregator,
+      Pair(Stage.EXECUTION_PHASE, NON_AGGREGATOR) to ::completeExecutionPhaseAtNonAggregator,
     )
 
   private val kBytesPerCipherText = 66
@@ -213,19 +214,18 @@ class ReachOnlyLiquidLegionsV2Mill(
         Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
       }
 
-    val request =
-      SetParticipantRequisitionParamsRequest.newBuilder()
-        .apply {
-          name = ComputationParticipantKey(token.globalComputationId, duchyId).toName()
-          requisitionParamsBuilder.apply {
-            duchyCertificate = consentSignalCert.name
-            reachOnlyLiquidLegionsV2Builder.apply {
+    val request = setParticipantRequisitionParamsRequest {
+      name = ComputationParticipantKey(token.globalComputationId, duchyId).toName()
+      requisitionParams =
+        ComputationParticipantKt.requisitionParams {
+          duchyCertificate = consentSignalCert.name
+          reachOnlyLiquidLegionsV2 =
+            ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
               elGamalPublicKey = signedElgamalPublicKey.data
               elGamalPublicKeySignature = signedElgamalPublicKey.signature
             }
-          }
         }
-        .build()
+    }
     systemComputationParticipantsClient.setParticipantRequisitionParams(request)
   }
 
@@ -241,10 +241,9 @@ class ReachOnlyLiquidLegionsV2Mill(
         token
       } else {
         // Generates a new set of ElGamalKeyPair.
-        val request =
-          CompleteReachOnlyInitializationPhaseRequest.newBuilder()
-            .apply { curveId = ellipticCurveId.toLong() }
-            .build()
+        val request = completeReachOnlyInitializationPhaseRequest {
+          curveId = ellipticCurveId.toLong()
+        }
         val cryptoResult = cryptoWorker.completeReachOnlyInitializationPhase(request)
         logStageDurationMetric(
           token,
@@ -256,18 +255,23 @@ class ReachOnlyLiquidLegionsV2Mill(
         // Updates the newly generated localElgamalKey to the ComputationDetails.
         dataClients.computationsClient
           .updateComputationDetails(
-            UpdateComputationDetailsRequest.newBuilder()
-              .also {
-                it.token = token
-                it.details =
-                  token.computationDetails
-                    .toBuilder()
-                    .apply {
-                      reachOnlyLiquidLegionsV2Builder.localElgamalKey = cryptoResult.elGamalKeyPair
-                    }
-                    .build()
+            updateComputationDetailsRequest {
+              this.token = token
+              this.details = computationDetails {
+                this.blobsStoragePrefix = token.computationDetails.blobsStoragePrefix
+                this.endingState = token.computationDetails.endingState
+                this.kingdomComputation = token.computationDetails.kingdomComputation
+                this.reachOnlyLiquidLegionsV2 =
+                  ReachOnlyLiquidLegionsSketchAggregationV2Kt.computationDetails {
+                    this.role = token.computationDetails.reachOnlyLiquidLegionsV2.role
+                    this.parameters = token.computationDetails.reachOnlyLiquidLegionsV2.parameters
+                    participant.addAll(
+                      token.computationDetails.reachOnlyLiquidLegionsV2.participantList
+                    )
+                    this.localElgamalKey = cryptoResult.elGamalKeyPair
+                  }
               }
-              .build()
+            }
           )
           .token
       }
@@ -354,13 +358,10 @@ class ReachOnlyLiquidLegionsV2Mill(
   }
 
   private fun List<ElGamalPublicKey>.toCombinedPublicKey(curveId: Int): ElGamalPublicKey {
-    val request =
-      CombineElGamalPublicKeysRequest.newBuilder()
-        .also {
-          it.curveId = curveId.toLong()
-          it.addAllElGamalKeys(this.map { key -> key.toAnySketchElGamalPublicKey() })
-        }
-        .build()
+    val request = combineElGamalPublicKeysRequest {
+      this.curveId = curveId.toLong()
+      this.elGamalKeys += map { it.toAnySketchElGamalPublicKey() }
+    }
     return cryptoWorker.combineElGamalPublicKeys(request).elGamalKeys.toCmmsElGamalPublicKey()
   }
 
@@ -395,21 +396,26 @@ class ReachOnlyLiquidLegionsV2Mill(
 
     return dataClients.computationsClient
       .updateComputationDetails(
-        UpdateComputationDetailsRequest.newBuilder()
-          .apply {
-            this.token = token
-            details =
-              token.computationDetails
-                .toBuilder()
-                .apply {
-                  reachOnlyLiquidLegionsV2Builder.also {
-                    it.combinedPublicKey = combinedPublicKey
-                    it.partiallyCombinedPublicKey = partiallyCombinedPublicKey
-                  }
+        updateComputationDetailsRequest {
+          this.token = token
+          details = computationDetails {
+            this.blobsStoragePrefix = token.computationDetails.blobsStoragePrefix
+            this.endingState = token.computationDetails.endingState
+            this.kingdomComputation = token.computationDetails.kingdomComputation
+            this.reachOnlyLiquidLegionsV2 =
+              ReachOnlyLiquidLegionsSketchAggregationV2Kt.computationDetails {
+                this.role = token.computationDetails.reachOnlyLiquidLegionsV2.role
+                this.parameters = token.computationDetails.reachOnlyLiquidLegionsV2.parameters
+                token.computationDetails.reachOnlyLiquidLegionsV2.participantList.forEach {
+                  this.participant += it
                 }
-                .build()
+                this.localElgamalKey =
+                  token.computationDetails.reachOnlyLiquidLegionsV2.localElgamalKey
+                this.combinedPublicKey = combinedPublicKey
+                this.partiallyCombinedPublicKey = partiallyCombinedPublicKey
+              }
           }
-          .build()
+        }
       )
       .token
   }
@@ -417,9 +423,9 @@ class ReachOnlyLiquidLegionsV2Mill(
   /** Sends confirmation to the kingdom and transits the local computation to the next stage. */
   private suspend fun passConfirmationPhase(token: ComputationToken): ComputationToken {
     systemComputationParticipantsClient.confirmComputationParticipant(
-      ConfirmComputationParticipantRequest.newBuilder()
-        .apply { name = ComputationParticipantKey(token.globalComputationId, duchyId).toName() }
-        .build()
+      confirmComputationParticipantRequest {
+        name = ComputationParticipantKey(token.globalComputationId, duchyId).toName()
+      }
     )
     val latestToken = updatePublicElgamalKey(token)
     return dataClients.transitionComputationToStage(
@@ -452,9 +458,7 @@ class ReachOnlyLiquidLegionsV2Mill(
     }
   }
 
-  private suspend fun completeReachOnlySetupPhaseAtAggregator(
-    token: ComputationToken
-  ): ComputationToken {
+  private suspend fun completeSetupPhaseAtAggregator(token: ComputationToken): ComputationToken {
     val rollv2Details = token.computationDetails.reachOnlyLiquidLegionsV2
     require(AGGREGATOR == rollv2Details.role) { "invalid role for this function." }
     val (bytes, nextToken) =
@@ -463,10 +467,7 @@ class ReachOnlyLiquidLegionsV2Mill(
           dataClients
             .readAllRequisitionBlobs(token, duchyId)
             .concat(readAndCombineAllInputBlobsSetupPhaseAtAggregator(token, workerStubs.size))
-            .toCompleteReachOnlySetupPhaseAtAggregatorRequest(
-              rollv2Details,
-              token.requisitionsCount
-            )
+            .toCompleteSetupPhaseAtAggregatorRequest(rollv2Details, token.requisitionsCount)
         val cryptoResult: CompleteReachOnlySetupPhaseResponse =
           cryptoWorker.completeReachOnlySetupPhaseAtAggregator(request)
         logStageDurationMetric(
@@ -496,9 +497,7 @@ class ReachOnlyLiquidLegionsV2Mill(
     )
   }
 
-  private suspend fun completeReachOnlySetupPhaseAtNonAggregator(
-    token: ComputationToken
-  ): ComputationToken {
+  private suspend fun completeSetupPhaseAtNonAggregator(token: ComputationToken): ComputationToken {
     val rollv2Details = token.computationDetails.reachOnlyLiquidLegionsV2
     require(NON_AGGREGATOR == rollv2Details.role) { "invalid role for this function." }
     val (bytes, nextToken) =
@@ -536,7 +535,7 @@ class ReachOnlyLiquidLegionsV2Mill(
     )
   }
 
-  private suspend fun completeReachOnlyExecutionPhaseAtAggregator(
+  private suspend fun completeExecutionPhaseAtAggregator(
     token: ComputationToken
   ): ComputationToken {
     val rollv2Details = token.computationDetails.reachOnlyLiquidLegionsV2
@@ -602,7 +601,7 @@ class ReachOnlyLiquidLegionsV2Mill(
     return completeComputation(nextToken, CompletedReason.SUCCEEDED)
   }
 
-  private suspend fun completeReachOnlyExecutionPhaseAtNonAggregator(
+  private suspend fun completeExecutionPhaseAtNonAggregator(
     token: ComputationToken
   ): ComputationToken {
     val rollv2Details = token.computationDetails.reachOnlyLiquidLegionsV2
@@ -616,17 +615,15 @@ class ReachOnlyLiquidLegionsV2Mill(
       existingOutputOr(token) {
         val cryptoResult: CompleteReachOnlyExecutionPhaseResponse =
           cryptoWorker.completeReachOnlyExecutionPhase(
-            CompleteReachOnlyExecutionPhaseRequest.newBuilder()
-              .apply {
-                combinedRegisterVector =
-                  inputBlob.substring(0, inputBlob.size() - kBytesPerCipherText)
-                localElGamalKeyPair = rollv2Details.localElgamalKey
-                curveId = rollv2Details.parameters.ellipticCurveId.toLong()
-                serializedExcessiveNoiseCiphertext =
-                  inputBlob.substring(inputBlob.size() - kBytesPerCipherText, inputBlob.size())
-                parallelism = this@ReachOnlyLiquidLegionsV2Mill.parallelism
-              }
-              .build()
+            completeReachOnlyExecutionPhaseRequest {
+              combinedRegisterVector =
+                inputBlob.substring(0, inputBlob.size() - kBytesPerCipherText)
+              localElGamalKeyPair = rollv2Details.localElgamalKey
+              curveId = rollv2Details.parameters.ellipticCurveId.toLong()
+              serializedExcessiveNoiseCiphertext =
+                inputBlob.substring(inputBlob.size() - kBytesPerCipherText, inputBlob.size())
+              parallelism = this@ReachOnlyLiquidLegionsV2Mill.parallelism
+            }
           )
         logStageDurationMetric(
           token,
@@ -724,12 +721,12 @@ class ReachOnlyLiquidLegionsV2Mill(
     }
   }
 
-  private fun ByteString.toCompleteReachOnlySetupPhaseAtAggregatorRequest(
+  private fun ByteString.toCompleteSetupPhaseAtAggregatorRequest(
     rollv2Details: ReachOnlyLiquidLegionsSketchAggregationV2.ComputationDetails,
     totalRequisitionsCount: Int
   ): CompleteReachOnlySetupPhaseRequest {
     val noiseConfig = rollv2Details.parameters.noise
-    val combinedInputBlobs = this@toCompleteReachOnlySetupPhaseAtAggregatorRequest
+    val combinedInputBlobs = this@toCompleteSetupPhaseAtAggregatorRequest
     return completeReachOnlySetupPhaseRequest {
       combinedRegisterVector =
         combinedInputBlobs.substring(

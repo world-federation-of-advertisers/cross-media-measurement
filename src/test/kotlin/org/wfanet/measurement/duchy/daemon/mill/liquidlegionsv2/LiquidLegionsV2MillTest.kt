@@ -113,7 +113,6 @@ import org.wfanet.measurement.internal.duchy.protocol.CompleteInitializationPhas
 import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.Parameters
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.COMPLETE
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE
@@ -128,6 +127,7 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.parameters
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig
 import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseOneAtAggregatorRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseOneAtAggregatorResponse
@@ -252,18 +252,15 @@ private val TEST_NOISE_CONFIG =
     }
     .build()
 
-private val LLV2_PARAMETERS =
-  Parameters.newBuilder()
-    .apply {
-      maximumFrequency = MAX_FREQUENCY
-      sketchParametersBuilder.apply {
-        decayRate = DECAY_RATE
-        size = SKETCH_SIZE
-      }
-      noise = TEST_NOISE_CONFIG
-      ellipticCurveId = CURVE_ID.toInt()
-    }
-    .build()
+private val LLV2_PARAMETERS = parameters {
+  maximumFrequency = MAX_FREQUENCY
+  sketchParameters = liquidLegionsSketchParameters {
+    decayRate = DECAY_RATE
+    size = SKETCH_SIZE
+  }
+  noise = TEST_NOISE_CONFIG
+  ellipticCurveId = CURVE_ID.toInt()
+}
 
 // In the test, use the same set of cert and encryption key for all parties.
 private const val CONSENT_SIGNALING_CERT_NAME = "Just a name"
