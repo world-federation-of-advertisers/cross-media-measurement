@@ -16,22 +16,41 @@ import {Memoizer} from './memoize';
 import {
   GetReportRequest,
   GetReportResponse,
+  InitApiProps,
   ListReportsResponse,
 } from '../../model/reporting';
 import {ReportingClient} from './client';
 
 export class ReportingClientImpl {
+  // eslint-disable-next-line node/no-unsupported-features/node-builtins
+  baseUrl: URL;
   memoizer: Memoizer = new Memoizer();
 
-  constructor(private api: ReportingClient) {}
+  constructor(props: InitApiProps) {
+    this.baseUrl = props.endpoint;
+  }
 
-  listReports(): Promise<ListReportsResponse> {
-    return this.api.listReports();
+  async listReports(): Promise<ListReportsResponse> {
+    const res = await fetch(this.baseUrl.toString() + '/api/reports');
+    const reports = await res.json();
+    const response = Object.freeze({
+      reports,
+    });
+    return response;
   }
 
   getReport(req: GetReportRequest): Promise<GetReportResponse> {
-    const getCached = this.memoizer.memoizePromiseFn(this.api.getReport);
+    const getCached = this.memoizer.memoizePromiseFn(this.getReportImpl);
 
     return getCached(req);
+  }
+
+  private async getReportImpl(req: GetReportRequest): Promise<GetReportResponse> {
+    const res = await fetch(this.baseUrl.toString() + '/api/reports' + req.id);
+    const report = await res.json();
+    const response = Object.freeze({
+      report,
+    });
+    return response;
   }
 }

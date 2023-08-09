@@ -14,16 +14,17 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import '../../../../../main/react/reporting-ui/src/index.css';
-import App from '../../../../../main/react/reporting-ui/src/app';
-import AppConfig from '../../../../../main/react/reporting-ui/client/initialize';
-import {FakeApi} from './fake_api';
+import '../../../index.css';
+import App from '../../../app';
+import AppConfig from '../../initialize';
+import { FakeApi } from './fake_api';
 
-const configProps = {
-  reportingApi: new FakeApi(),
+const config = {
+  endpoint: new URL('localhost:3000'),
+  reportingClient: new FakeApi(),
 };
 
-AppConfig.initialize(configProps);
+AppConfig.initialize(config);
 
 const root = ReactDOM.createRoot(document.getElementById('root')!);
 root.render(
