@@ -1,0 +1,45 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+kt_jvm_library(
+    name = "spanner_duchy_dependency_provider_rule",
+    testonly = True,
+    srcs = [
+        "SpannerDuchyDependencyProviderRule.kt",
+    ],
+    visibility = [
+        "//src/test/kotlin/org/wfanet/measurement/integration/gcloud:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/integration/postgres:__pkg__",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/service:spanner_duchy_data_services",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computation",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/continuationtoken:service",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/testing",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_duchy",
+        "@wfa_common_jvm//imports/java/com/google/cloud/storage/contrib/nio",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)
+
+kt_jvm_library(
+    name = "postgres_duchy_dependency_provider_rule",
+    testonly = True,
+    srcs = [
+        "PostgresDuchyDependencyProviderRule.kt",
+    ],
+    visibility = [
+        "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/service:postgres_duchy_data_services",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_duchy",
+        "@wfa_common_jvm//imports/java/com/google/cloud/storage/contrib/nio",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:embedded_postgres",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
+    ],
+)
