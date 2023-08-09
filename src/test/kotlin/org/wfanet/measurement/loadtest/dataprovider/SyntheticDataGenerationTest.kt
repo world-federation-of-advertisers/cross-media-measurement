@@ -18,6 +18,7 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.truth.Truth.assertThat
 import com.google.type.date
+import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.test.assertFailsWith
@@ -36,6 +37,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.banner
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.video
+import org.wfanet.measurement.common.toProtoDuration
 
 @RunWith(JUnit4::class)
 class SyntheticDataGenerationTest {
@@ -183,18 +185,12 @@ class SyntheticDataGenerationTest {
         }
     }
 
-    val eventSequence =
-      SyntheticDataGeneration.generateEvents(TEST_EVENT_DESCRIPTOR, population, eventGroupSpec)
-
-    val parsedLabeledEvents =
-      eventSequence
-        .map {
-          SyntheticDataGeneration.LabeledEvent(
-            it.vid,
-            it.timestamp,
-            TestEvent.parseFrom(it.event.toByteString())
-          )
-        }
+    val labeledEvents: List<LabeledEvent<TestEvent>> =
+      SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          population,
+          eventGroupSpec
+        )
         .toList()
 
     val subPopulationPerson = person {
@@ -234,31 +230,92 @@ class SyntheticDataGenerationTest {
     val timestamp = LocalDate.of(2023, 6, 27).atStartOfDay().toInstant(ZoneOffset.UTC)
     val timestamp2 = LocalDate.of(2023, 6, 28).atStartOfDay().toInstant(ZoneOffset.UTC)
 
-    val expectedTestEvents = mutableListOf<SyntheticDataGeneration.LabeledEvent>()
+    val expectedTestEvents = mutableListOf<LabeledEvent<TestEvent>>()
     repeat(2) {
       for (vid in 0L until 25L) {
-        expectedTestEvents.add(
-          SyntheticDataGeneration.LabeledEvent(vid, timestamp, expectedTestEvent)
-        )
+        expectedTestEvents.add(LabeledEvent(timestamp, vid, expectedTestEvent))
       }
       for (vid in 25L until 50L) {
-        expectedTestEvents.add(
-          SyntheticDataGeneration.LabeledEvent(vid, timestamp, expectedTestEvent2)
-        )
+        expectedTestEvents.add(LabeledEvent(timestamp, vid, expectedTestEvent2))
       }
     }
     for (vid in 50L until 75L) {
-      expectedTestEvents.add(
-        SyntheticDataGeneration.LabeledEvent(vid, timestamp, expectedTestEvent3)
-      )
+      expectedTestEvents.add(LabeledEvent(timestamp, vid, expectedTestEvent3))
     }
     for (vid in 75L until 100L) {
-      expectedTestEvents.add(
-        SyntheticDataGeneration.LabeledEvent(vid, timestamp2, expectedTestEvent4)
-      )
+      expectedTestEvents.add(LabeledEvent(timestamp2, vid, expectedTestEvent4))
     }
 
-    assertThat(parsedLabeledEvents).containsExactlyElementsIn(expectedTestEvents)
+    assertThat(labeledEvents).containsExactlyElementsIn(expectedTestEvents)
+  }
+
+  @Test
+  fun `generateEvents returns messages with a Duration field`() {
+    val populationSpec = syntheticPopulationSpec {
+      vidRange = vidRange {
+        start = 1L
+        endExclusive = 11L
+      }
+      populationFields += "person.gender"
+      nonPopulationFields += "video_ad.length"
+
+      subPopulations +=
+        SyntheticPopulationSpecKt.subPopulation {
+          vidSubRange = this@syntheticPopulationSpec.vidRange
+          populationFieldsValues["person.gender"] = fieldValue {
+            enumValue = Person.Gender.FEMALE_VALUE
+          }
+        }
+    }
+    val videoLength = Duration.ofMinutes(5).toProtoDuration()
+    val eventGroupSpec = syntheticEventGroupSpec {
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 7
+                day = 30
+              }
+              endExclusive = date {
+                year = 2023
+                month = 7
+                day = 31
+              }
+            }
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = populationSpec.vidRange
+                  nonPopulationFieldValues["video_ad.length"] = fieldValue {
+                    durationValue = videoLength
+                  }
+                }
+            }
+        }
+    }
+
+    val testEvents: List<TestEvent> =
+      SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          populationSpec,
+          eventGroupSpec
+        )
+        .map { TestEvent.parseFrom(it.message.toByteString()) }
+        .toList()
+
+    assertThat(testEvents).hasSize(10)
+    assertThat(testEvents)
+      .contains(
+        testEvent {
+          person = person { gender = Person.Gender.FEMALE }
+          videoAd = video { length = videoLength }
+        }
+      )
   }
 
   @Test
@@ -318,7 +375,11 @@ class SyntheticDataGenerationTest {
     }
 
     assertFailsWith<IllegalArgumentException> {
-      SyntheticDataGeneration.generateEvents(TEST_EVENT_DESCRIPTOR, population, eventGroupSpec)
+      SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          population,
+          eventGroupSpec
+        )
         .toList()
     }
   }
@@ -384,7 +445,11 @@ class SyntheticDataGenerationTest {
     }
 
     assertFailsWith<IllegalArgumentException> {
-      SyntheticDataGeneration.generateEvents(TEST_EVENT_DESCRIPTOR, population, eventGroupSpec)
+      SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          population,
+          eventGroupSpec
+        )
         .toList()
     }
   }
@@ -450,7 +515,11 @@ class SyntheticDataGenerationTest {
     }
 
     assertFailsWith<IllegalArgumentException> {
-      SyntheticDataGeneration.generateEvents(TEST_EVENT_DESCRIPTOR, population, eventGroupSpec)
+      SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          population,
+          eventGroupSpec
+        )
         .toList()
     }
   }
@@ -516,12 +585,12 @@ class SyntheticDataGenerationTest {
     }
 
     assertFailsWith<IllegalArgumentException> {
-      SyntheticDataGeneration.generateEvents(TEST_EVENT_DESCRIPTOR, population, eventGroupSpec)
+      SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          population,
+          eventGroupSpec
+        )
         .toList()
     }
-  }
-
-  companion object {
-    private val TEST_EVENT_DESCRIPTOR = TestEvent.getDescriptor()
   }
 }

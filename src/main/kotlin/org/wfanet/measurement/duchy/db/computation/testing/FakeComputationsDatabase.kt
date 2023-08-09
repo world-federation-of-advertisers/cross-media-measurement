@@ -21,11 +21,11 @@ import kotlin.experimental.ExperimentalTypeInference
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
 import org.wfanet.measurement.duchy.db.computation.BlobRef
+import org.wfanet.measurement.duchy.db.computation.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
-import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.db.computation.toCompletedReason
 import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutputBlobMetadata
@@ -355,7 +355,8 @@ private constructor(
               },
             stage = it.computationStage,
             attempt = it.attempt,
-            editVersion = it.version
+            editVersion = it.version,
+            globalId = it.globalComputationId,
           )
         }
         .firstOrNull()

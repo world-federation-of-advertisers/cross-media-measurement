@@ -289,19 +289,15 @@ class EdpSimulatorTest {
     date: LocalDate,
     ageGroup: Person.AgeGroup,
     gender: Person.Gender
-  ): Map<Long, List<TestEvent>> {
-    return vidRange.associateWith { vid ->
-      listOf(
-        testEvent {
-          time = date.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
-          person = person {
-            this.vid = vid
-            this.ageGroup = ageGroup
-            this.gender = gender
-          }
-        }
-      )
+  ): List<LabeledTestEvent> {
+    val timestamp = date.atStartOfDay().toInstant(ZoneOffset.UTC)
+    val message = testEvent {
+      person = person {
+        this.ageGroup = ageGroup
+        this.gender = gender
+      }
     }
+    return vidRange.map { vid -> LabeledTestEvent(timestamp, vid, message) }
   }
 
   @Test
@@ -585,7 +581,7 @@ class EdpSimulatorTest {
     }
 
     val balanceLedger: Map<PrivacyBucketGroup, MutableMap<DpCharge, PrivacyBudgetBalanceEntry>> =
-      backingStore.getBalancesMap()
+      backingStore.getDpBalancesMap()
 
     // Verify that each bucket is only charged once.
     for (bucketBalances in balanceLedger.values) {
@@ -727,7 +723,7 @@ class EdpSimulatorTest {
 
   @Test
   fun `refuses requisition when DuchyEntry verification fails`() {
-    val eventQueryMock = mock<EventQuery>()
+    val eventQueryMock = mock<EventQuery<TestEvent>>()
     val simulator =
       EdpSimulator(
         EDP_DATA,
@@ -786,7 +782,7 @@ class EdpSimulatorTest {
 
   @Test
   fun `refuses Requisition when EventGroup not found`() {
-    val eventQueryMock = mock<EventQuery>()
+    val eventQueryMock = mock<EventQuery<TestEvent>>()
     val simulator =
       EdpSimulator(
         EDP_DATA,

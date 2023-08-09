@@ -23,11 +23,9 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.video
-import org.wfanet.measurement.common.toProtoTime
 
 private const val EDP_ID_INDEX = 0
 private const val GENDER_INDEX = 2
@@ -47,7 +45,7 @@ class CsvEventQuery(publisherId: Int, file: File) :
     private val dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.UK)
 
     @Throws(IOException::class)
-    private fun readCsvFile(publisherId: Int, file: File): List<LabelledEvent> {
+    private fun readCsvFile(publisherId: Int, file: File): List<LabeledTestEvent> {
       logger.info("Reading data from CSV file: $file...")
 
       return file.reader().use { fileReader ->
@@ -56,16 +54,15 @@ class CsvEventQuery(publisherId: Int, file: File) :
           .iterator()
           .asSequence()
           .filter { row -> row[EDP_ID_INDEX].toInt() == publisherId }
-          .map { row ->
-            val event: TestEvent = parseTestEvent(row)
-            LabelledEvent(event.person.vid, event)
-          }
+          .map { row -> parseLabeledEvent(row) }
           .toList()
       }
     }
 
-    private fun parseTestEvent(row: Array<String>): TestEvent {
+    private fun parseLabeledEvent(row: Array<String>): LabeledTestEvent {
       val vid = row[VID_INDEX].toLong()
+      val timestamp =
+        LocalDate.parse(row[DATE_INDEX], dateFormatter).atStartOfDay().toInstant(ZoneOffset.UTC)
       val gender: Person.Gender? =
         when (row[GENDER_INDEX]) {
           "M" -> Person.Gender.MALE
@@ -91,14 +88,8 @@ class CsvEventQuery(publisherId: Int, file: File) :
           1 -> true
           else -> null
         }
-      return testEvent {
-        time =
-          LocalDate.parse(row[DATE_INDEX], dateFormatter)
-            .atStartOfDay()
-            .toInstant(ZoneOffset.UTC)
-            .toProtoTime()
+      val message = testEvent {
         person = person {
-          this.vid = vid
           if (gender != null) {
             this.gender = gender
           }
@@ -120,6 +111,8 @@ class CsvEventQuery(publisherId: Int, file: File) :
           }
         }
       }
+
+      return LabeledTestEvent(timestamp, vid, message)
     }
   }
 }

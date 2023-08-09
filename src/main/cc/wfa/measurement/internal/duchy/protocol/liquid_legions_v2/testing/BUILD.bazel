@@ -1,0 +1,28 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/test/cc/wfa/measurement/internal/duchy/protocol/liquid_legions_v2:__subpackages__",
+    ],
+)
+
+_INCLUDE_PREFIX = "/src/main/cc"
+
+cc_library(
+    name = "liquid_legions_v2_encryption_utility_helper",
+    srcs = [
+        "liquid_legions_v2_encryption_utility_helper.cc",
+    ],
+    hdrs = [
+        "liquid_legions_v2_encryption_utility_helper.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "//src/main/proto/wfa/measurement/internal/duchy:crypto_cc_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_cc_proto",
+        "@any_sketch//src/main/cc/any_sketch/crypto:sketch_encrypter",
+        "@any_sketch//src/main/cc/estimation:estimators",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)

@@ -16,11 +16,8 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
-import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.Descriptors.FieldDescriptor
-import com.google.protobuf.DynamicMessage
 import com.google.protobuf.Message
-import java.time.Instant
 import java.time.ZoneOffset
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SimulatorSyntheticDataSpec
@@ -33,21 +30,22 @@ import org.wfanet.measurement.common.rangeTo
 import org.wfanet.measurement.common.toLocalDate
 
 object SyntheticDataGeneration {
-  data class LabeledEvent(val vid: Long, val timestamp: Instant, val event: Message)
-
   /**
-   * Generates a sequence of [LabeledEvent].
+   * Generates a sequence of [EventQuery.LabeledEvent].
    *
    * Consumption of [Sequence] throws
    * * [IllegalArgumentException] when [SimulatorSyntheticDataSpec] is invalid, or incompatible
-   * * with the [Descriptor].
+   * * with [T].
+   *
+   * @param messageInstance an instance of the event message type [T]
+   * @param populationSpec specification of the synthetic population
+   * @param syntheticEventGroupSpec specification of the synthetic event group
    */
-  @JvmStatic
-  fun generateEvents(
-    descriptor: Descriptor,
+  fun <T : Message> generateEvents(
+    messageInstance: T,
     populationSpec: SyntheticPopulationSpec,
     syntheticEventGroupSpec: SyntheticEventGroupSpec
-  ): Sequence<LabeledEvent> {
+  ): Sequence<LabeledEvent<T>> {
     val subPopulations = populationSpec.subPopulationsList
 
     return sequence {
@@ -60,7 +58,7 @@ object SyntheticDataGeneration {
               vidRangeSpec.vidRange.findSubPopulation(subPopulations)
                 ?: throw IllegalArgumentException()
 
-            val builder = DynamicMessage.newBuilder(descriptor)
+            val builder: Message.Builder = messageInstance.newBuilderForType()
 
             populationSpec.populationFieldsList.forEach {
               val subPopulationFieldValue: FieldValue =
@@ -76,11 +74,13 @@ object SyntheticDataGeneration {
               builder.setField(fieldPath, nonPopulationFieldValue)
             }
 
-            val event: DynamicMessage = builder.build()
+            @Suppress("UNCHECKED_CAST") // Safe per protobuf API.
+            val message = builder.build() as T
+
             for (vid in vidRangeSpec.vidRange.start until vidRangeSpec.vidRange.endExclusive) {
               for (date in dateProgression) {
                 for (i in 0 until frequencySpec.frequency) {
-                  yield(LabeledEvent(vid, date.atStartOfDay().toInstant(ZoneOffset.UTC), event))
+                  yield(LabeledEvent(date.atStartOfDay().toInstant(ZoneOffset.UTC), vid, message))
                 }
               }
             }
@@ -118,7 +118,7 @@ object SyntheticDataGeneration {
    */
   private fun Message.Builder.setField(fieldPath: Collection<String>, fieldValue: FieldValue) {
     val builder = this
-    val curFieldDescriptor: FieldDescriptor =
+    val field: FieldDescriptor =
       descriptorForType.findFieldByName(fieldPath.first()) ?: throw IllegalArgumentException()
 
     if (fieldPath.size == 1) {
@@ -127,21 +127,25 @@ object SyntheticDataGeneration {
         when (fieldValue.valueCase) {
           FieldValue.ValueCase.STRING_VALUE -> fieldValue.stringValue
           FieldValue.ValueCase.BOOL_VALUE -> fieldValue.boolValue
-          FieldValue.ValueCase.ENUM_VALUE ->
-            curFieldDescriptor.enumType.findValueByNumber(fieldValue.enumValue)
+          FieldValue.ValueCase.ENUM_VALUE -> field.enumType.findValueByNumber(fieldValue.enumValue)
           FieldValue.ValueCase.DOUBLE_VALUE -> fieldValue.doubleValue
           FieldValue.ValueCase.FLOAT_VALUE -> fieldValue.floatValue
           FieldValue.ValueCase.INT32_VALUE -> fieldValue.int32Value
           FieldValue.ValueCase.INT64_VALUE -> fieldValue.int64Value
+          FieldValue.ValueCase.DURATION_VALUE -> fieldValue.durationValue
+          FieldValue.ValueCase.TIMESTAMP_VALUE -> fieldValue.timestampValue
           FieldValue.ValueCase.VALUE_NOT_SET -> throw IllegalArgumentException()
         }
 
-      builder.setField(curFieldDescriptor, value)
-
+      try {
+        builder.setField(field, value)
+      } catch (e: ClassCastException) {
+        throw IllegalArgumentException("Incorrect field value type for $fieldPath", e)
+      }
       return
     }
 
-    val nestedBuilder = builder.getFieldBuilder(curFieldDescriptor)
+    val nestedBuilder = builder.getFieldBuilder(field)
     val traversedFieldPath = fieldPath.drop(1)
     nestedBuilder.setField(traversedFieldPath, fieldValue)
   }
