@@ -30,13 +30,16 @@ import org.wfanet.measurement.common.loadLibrary
 
 /** An encrypter for [Sketch] instances. */
 interface SketchEncrypter {
-  /** Encrypts a sketch. */
+  /** Encrypts a sketch specifying maximumValue. */
   fun encrypt(
     sketch: Sketch,
     ellipticCurveId: Int,
     encryptionKey: ElGamalPublicKey,
-    maximumValue: Int,
+    maximumValue: Int
   ): ByteString
+
+  /** Encrypts a sketch without maximumValue. */
+  fun encrypt(sketch: Sketch, ellipticCurveId: Int, encryptionKey: ElGamalPublicKey): ByteString
 
   companion object {
     init {
@@ -87,15 +90,29 @@ private class SketchEncrypterImpl : SketchEncrypter {
     sketch: Sketch,
     ellipticCurveId: Int,
     encryptionKey: ElGamalPublicKey,
-    maximumValue: Int,
+    maximumValue: Int
   ): ByteString {
     val request = encryptSketchRequest {
       this.sketch = sketch
       elGamalKeys = encryptionKey
       curveId = ellipticCurveId.toLong()
       this.maximumValue = maximumValue
-      this.destroyedRegisterStrategy =
-        EncryptSketchRequest.DestroyedRegisterStrategy.FLAGGED_KEY // for LLv2 protocol
+      destroyedRegisterStrategy = EncryptSketchRequest.DestroyedRegisterStrategy.FLAGGED_KEY
+    }
+    val response =
+      EncryptSketchResponse.parseFrom(SketchEncrypterAdapter.EncryptSketch(request.toByteArray()))
+    return response.encryptedSketch
+  }
+
+  override fun encrypt(
+    sketch: Sketch,
+    ellipticCurveId: Int,
+    encryptionKey: ElGamalPublicKey
+  ): ByteString {
+    val request = encryptSketchRequest {
+      this.sketch = sketch
+      elGamalKeys = encryptionKey
+      curveId = ellipticCurveId.toLong()
     }
     val response =
       EncryptSketchResponse.parseFrom(SketchEncrypterAdapter.EncryptSketch(request.toByteArray()))
