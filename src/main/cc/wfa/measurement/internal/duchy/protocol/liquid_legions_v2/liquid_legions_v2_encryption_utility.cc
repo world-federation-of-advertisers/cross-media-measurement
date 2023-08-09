@@ -75,6 +75,31 @@ using ::wfa::measurement::common::crypto::ProtocolCryptorOptions;
 using ::wfa::measurement::internal::duchy::ElGamalPublicKey;
 using ::wfa::measurement::internal::duchy::protocol::LiquidLegionsV2NoiseConfig;
 
+// Blinds the last layer of ElGamal Encryption of register indexes, and return
+// the deterministically encrypted results.
+absl::StatusOr<std::vector<std::string>> GetBlindedRegisterIndexes(
+    absl::string_view data, MultithreadingHelper& helper) {
+  ASSIGN_OR_RETURN(size_t register_count,
+                   GetNumberOfBlocks(data, kBytesPerCipherRegister));
+  std::vector<std::string> blinded_register_indexes;
+  blinded_register_indexes.resize(register_count);
+
+  absl::AnyInvocable<absl::Status(ProtocolCryptor&, size_t)> f =
+      [&](ProtocolCryptor& cryptor, size_t index) -> absl::Status {
+    absl::string_view data_block =
+        data.substr(index * kBytesPerCipherRegister, kBytesPerCipherText);
+    ASSIGN_OR_RETURN(ElGamalCiphertext ciphertext,
+                     ExtractElGamalCiphertextFromString(data_block));
+    ASSIGN_OR_RETURN(std::string decrypted_el_gamal,
+                     cryptor.DecryptLocalElGamal(ciphertext));
+    blinded_register_indexes[index] = std::move(decrypted_el_gamal);
+    return absl::OkStatus();
+  };
+  RETURN_IF_ERROR(helper.Execute(register_count, f));
+
+  return blinded_register_indexes;
+}
+
 // Merge all the counts in each group using the SameKeyAggregation algorithm.
 // The calculated (flag_1, flag_2, flag_3, count) tuple is appended to the
 // response. 'sub_permutation' contains the locations of the registers belonging
@@ -238,39 +263,6 @@ absl::StatusOr<std::vector<ElGamalEcPointPair>> GetSameKeyAggregatorMatrixBase(
     result.push_back(std::move(next));
   }
   return std::move(result);
-}
-
-absl::Status EncryptCompositeElGamalAndAppendToString(
-    ProtocolCryptor& protocol_cryptor, CompositeType composite_type,
-    absl::string_view plaintext_ec, std::string& data) {
-  ASSIGN_OR_RETURN(
-      ElGamalCiphertext key,
-      protocol_cryptor.EncryptCompositeElGamal(plaintext_ec, composite_type));
-  data.append(key.first);
-  data.append(key.second);
-  return absl::OkStatus();
-}
-
-// Encrypts plaintext and writes bytes of the cipher text to a target string at
-// a certain position.
-// Bytes are written by replacing content of the string starting at pos. The
-// length of bytes written is kBytesPerCipherText = kBytesPerEcPoint * 2.
-// Returns a Status with code `INVALID_ARGUMENT` when the result string is not
-// long enough.
-absl::Status EncryptCompositeElGamalAndWriteToString(
-    ProtocolCryptor& protocol_cryptor, CompositeType composite_type,
-    absl::string_view plaintext_ec, size_t pos, std::string& result) {
-  if (pos + kBytesPerCipherText > result.size()) {
-    return absl::InvalidArgumentError("result is not long enough to write.");
-  }
-  ASSIGN_OR_RETURN(
-      ElGamalCiphertext key,
-      protocol_cryptor.EncryptCompositeElGamal(plaintext_ec, composite_type));
-
-  result.replace(pos, kBytesPerEcPoint, key.first);
-  result.replace(pos + kBytesPerEcPoint, kBytesPerEcPoint, key.second);
-
-  return absl::OkStatus();
 }
 
 // Adds encrypted blinded-histogram-noise registers to the end of data.
@@ -939,10 +931,9 @@ CompleteExecutionPhaseOneAtAggregator(
                    MultithreadingHelper::CreateMultithreadingHelper(
                        request.parallelism(), protocol_cryptor_options));
 
-  ASSIGN_OR_RETURN(
-      std::vector<std::string> blinded_register_indexes,
-      GetBlindedRegisterIndexes(request.combined_register_vector(),
-                                multithreading_helper->GetProtocolCryptor()));
+  ASSIGN_OR_RETURN(std::vector<std::string> blinded_register_indexes,
+                   GetBlindedRegisterIndexes(request.combined_register_vector(),
+                                             *multithreading_helper));
 
   // Create a sorting permutation of the blinded register indexes, such that we
   // don't need to modify the sketch data, whose size could be huge. We only

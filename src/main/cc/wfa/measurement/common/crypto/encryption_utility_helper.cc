@@ -14,6 +14,7 @@
 
 #include "wfa/measurement/common/crypto/encryption_utility_helper.h"
 
+#include <memory>
 #include <utility>
 
 #include "absl/status/status.h"
@@ -45,26 +46,6 @@ absl::StatusOr<ElGamalCiphertext> ExtractElGamalCiphertextFromString(
   return std::make_pair(
       std::string(str.substr(0, kBytesPerEcPoint)),
       std::string(str.substr(kBytesPerEcPoint, kBytesPerEcPoint)));
-}
-
-absl::StatusOr<std::vector<std::string>> GetBlindedRegisterIndexes(
-    absl::string_view data, ProtocolCryptor& protocol_cryptor) {
-  ASSIGN_OR_RETURN(size_t register_count,
-                   GetNumberOfBlocks(data, kBytesPerCipherRegister));
-  std::vector<std::string> blinded_register_indexes;
-  blinded_register_indexes.reserve(register_count);
-  for (size_t index = 0; index < register_count; ++index) {
-    // The size of data_block is guaranteed to be equal to
-    // kBytesPerCipherText
-    absl::string_view data_block =
-        data.substr(index * kBytesPerCipherRegister, kBytesPerCipherText);
-    ASSIGN_OR_RETURN(ElGamalCiphertext ciphertext,
-                     ExtractElGamalCiphertextFromString(data_block));
-    ASSIGN_OR_RETURN(std::string decrypted_el_gamal,
-                     protocol_cryptor.DecryptLocalElGamal(ciphertext));
-    blinded_register_indexes.push_back(std::move(decrypted_el_gamal));
-  }
-  return blinded_register_indexes;
 }
 
 absl::StatusOr<KeyCountPairCipherText> ExtractKeyCountPairFromSubstring(
@@ -121,6 +102,17 @@ absl::Status WriteEcPointPairToString(const ElGamalEcPointPair& ec_point_pair,
   return absl::OkStatus();
 }
 
+absl::StatusOr<ElGamalEcPointPair> GetEcPointPairFromString(
+    absl::string_view str, int curve_id) {
+  Context ctx;
+  ASSIGN_OR_RETURN(ECGroup ec_group, ECGroup::Create(curve_id, &ctx));
+  ASSIGN_OR_RETURN(ElGamalCiphertext ciphertext,
+                   ExtractElGamalCiphertextFromString(str));
+  ASSIGN_OR_RETURN(ElGamalEcPointPair ec_point,
+                   GetElGamalEcPoints(ciphertext, ec_group));
+  return ec_point;
+}
+
 absl::StatusOr<std::vector<std::string>> GetCountValuesPlaintext(
     int maximum_value, int curve_id) {
   if (maximum_value < 1) {
@@ -140,6 +132,33 @@ absl::StatusOr<std::vector<std::string>> GetCountValuesPlaintext(
     result.push_back(count_i_str);
   }
   return result;
+}
+
+absl::Status EncryptCompositeElGamalAndAppendToString(
+    ProtocolCryptor& protocol_cryptor, CompositeType composite_type,
+    absl::string_view plaintext_ec, std::string& data) {
+  ASSIGN_OR_RETURN(
+      ElGamalCiphertext key,
+      protocol_cryptor.EncryptCompositeElGamal(plaintext_ec, composite_type));
+  data.append(key.first);
+  data.append(key.second);
+  return absl::OkStatus();
+}
+
+absl::Status EncryptCompositeElGamalAndWriteToString(
+    ProtocolCryptor& protocol_cryptor, CompositeType composite_type,
+    absl::string_view plaintext_ec, size_t pos, std::string& result) {
+  if (pos + kBytesPerCipherText > result.size()) {
+    return absl::InvalidArgumentError("result is not long enough to write.");
+  }
+  ASSIGN_OR_RETURN(
+      ElGamalCiphertext key,
+      protocol_cryptor.EncryptCompositeElGamal(plaintext_ec, composite_type));
+
+  result.replace(pos, kBytesPerEcPoint, key.first);
+  result.replace(pos + kBytesPerEcPoint, kBytesPerEcPoint, key.second);
+
+  return absl::OkStatus();
 }
 
 }  // namespace wfa::measurement::common::crypto
