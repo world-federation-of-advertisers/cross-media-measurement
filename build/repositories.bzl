@@ -40,15 +40,10 @@ def wfa_measurement_system_repositories():
 
     # TODO: Update before merging
     wfa_repo_archive(
-        name = "wfa_measurement_proto_new",
-        repo = "cross-media-measurement-api",
-        sha256 = "6accffbd70ed2a8bd9e5fc18542fadf15eb44b1a4b36645ee9a8badb87115eab",
-        commit = "f1c2eb10900a1844f628e4090e7cdb58871609a7",
-    )
-    
-    native.local_repository(
         name = "wfa_measurement_proto",
-        path = "/home/stevenwjones/Github/cross-media-measurement-api",
+        repo = "cross-media-measurement-api",
+        sha256 = "d18d40dea14a25dffe2eb0e575aaca0504171eae7d0f92afc78feb0cb717dd51",
+        commit = "2194706d760df3ef03e44f1c393253a5cf121369",
     )
 
     wfa_repo_archive(
