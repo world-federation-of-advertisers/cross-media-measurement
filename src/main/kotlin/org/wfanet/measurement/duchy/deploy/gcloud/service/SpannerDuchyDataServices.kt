@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.common.service
+package org.wfanet.measurement.duchy.deploy.gcloud.service
 
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
@@ -23,6 +23,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationTypes
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseReader
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor
+import org.wfanet.measurement.duchy.deploy.common.service.DuchyDataServices
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.ComputationMutations
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseReader
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseTransactor
@@ -35,13 +36,16 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
-import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
 private typealias ComputationsDb =
   ComputationsDatabaseTransactor<
-    ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
+    ComputationTypeEnum.ComputationType,
+    ComputationStage,
+    ComputationStageDetails,
+    ComputationDetails
   >
 
 object SpannerDuchyDataServices {
@@ -53,13 +57,17 @@ object SpannerDuchyDataServices {
     databaseClient: AsyncDatabaseClient
   ): DuchyDataServices {
 
-    val computationTypeEnumHelper: ComputationTypeEnumHelper<ComputationType> = ComputationTypes
+    val computationTypeEnumHelper: ComputationTypeEnumHelper<ComputationTypeEnum.ComputationType> =
+      ComputationTypes
     val protocolStagesEnumHelper:
-      ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage> =
+      ComputationProtocolStagesEnumHelper<ComputationTypeEnum.ComputationType, ComputationStage> =
       ComputationProtocolStages
     val computationProtocolStageDetailsHelper:
       ComputationProtocolStageDetailsHelper<
-        ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
+        ComputationTypeEnum.ComputationType,
+        ComputationStage,
+        ComputationStageDetails,
+        ComputationDetails
       > =
       ComputationProtocolStageDetails
 
@@ -94,14 +102,14 @@ object SpannerDuchyDataServices {
     computationsDatabaseReader: ComputationsDatabaseReader,
     computationDb: ComputationsDb,
     protocolStagesEnumHelper:
-      ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>,
+      ComputationProtocolStagesEnumHelper<ComputationTypeEnum.ComputationType, ComputationStage>,
   ): ComputationsDatabase {
     return object :
       ComputationsDatabase,
       ComputationsDatabaseReader by computationsDatabaseReader,
       ComputationsDb by computationDb,
       ComputationProtocolStagesEnumHelper<
-        ComputationType, ComputationStage
+        ComputationTypeEnum.ComputationType, ComputationStage
       > by protocolStagesEnumHelper {}
   }
 }

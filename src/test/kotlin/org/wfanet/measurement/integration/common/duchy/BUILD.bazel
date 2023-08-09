@@ -12,7 +12,7 @@ kt_jvm_library(
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/service:spanner_duchy_data_services",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/service:spanner_duchy_data_services",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/continuationtoken:service",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/testing",
