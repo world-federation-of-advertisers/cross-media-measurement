@@ -38,8 +38,8 @@ module "default_node_pools" {
   cluster         = each.value
   name            = "default"
   service_account = module.common.cluster_service_account
-  machine_type    = "e2-medium"
-  max_node_count  = 3
+  machine_type    = "e2-standard-2"
+  max_node_count  = 2
 }
 
 module "highmem_node_pools" {
@@ -49,7 +49,7 @@ module "highmem_node_pools" {
   cluster         = each.value
   name            = "highmem"
   service_account = module.common.cluster_service_account
-  machine_type    = "e2-standard-2"
+  machine_type    = "c3-highcpu-4"
   max_node_count  = 2
   spot            = true
 }

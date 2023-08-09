@@ -18,14 +18,14 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec.MeasurementTypeCase
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.common.toRange
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.DpCharge
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.DpQuery
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.EventGroupSpec
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.LandscapeMask
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Query
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
 
 object PrivacyQueryMapper {
   /**
-   * Constructs a pbm specific [Query] from given proto messages.
+   * Constructs a pbm specific [DpQuery] from given proto messages.
    *
    * @param reference representing the reference key and if the charge is a refund.
    * @param measurementSpec The measurementSpec protobuf that is associated with the query. The VID
@@ -41,7 +41,7 @@ object PrivacyQueryMapper {
     reference: Reference,
     measurementSpec: MeasurementSpec,
     eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>
-  ): Query {
+  ): DpQuery {
     val dpCharge =
       when (measurementSpec.measurementTypeCase) {
         MeasurementTypeCase.REACH ->
@@ -83,7 +83,7 @@ object PrivacyQueryMapper {
           )
         else -> throw IllegalArgumentException("Measurement type not supported")
       }
-    return Query(
+    return DpQuery(
       reference,
       LandscapeMask(
         eventSpecs.map { EventGroupSpec(it.filter.expression, it.collectionInterval.toRange()) },
