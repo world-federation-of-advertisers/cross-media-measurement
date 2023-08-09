@@ -72,10 +72,11 @@ There are two data sources that can be used for
 1.  Synthetic generator
 
     Events are generated according to
-    [simulator synthetic data specs](../../src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto),
+    [simulator synthetic data specifications](../../src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto),
     consisting of a single `SyntheticPopulationSpec` and a
-    `SyntheticEventGroupSpec` for each `EventGroup`. At the moment, fixed specs
-    are used so there is nothing to configure.
+    `SyntheticEventGroupSpec` for each `EventGroup`. There are default
+    specifications included, but you can replace these with your own after
+    before you apply the K8s Kustomization.
 
 2.  BigQuery table
 
@@ -165,12 +166,11 @@ and push the image:
 
 *   Synthetic generator
 
-    ~~~shell
-      bazel run -c opt //src/main/docker:push_synthetic_generator_edp_simulator_runner_image \
-        --define container_registry=gcr.io \
-        --define image_repo_prefix=halo-cmm-demo --define image_tag=build-0001
-      ```
-    ~~~
+    ```shell
+    bazel run -c opt //src/main/docker:push_synthetic_generator_edp_simulator_runner_image \
+      --define container_registry=gcr.io \
+      --define image_repo_prefix=halo-cmm-demo --define image_tag=build-0001
+    ```
 
 *   BigQuery
 
@@ -200,6 +200,10 @@ Run the following, substituting your own values:
     --define container_registry=gcr.io \
     --define image_repo_prefix=halo-cmm-demo --define image_tag=build-0001
     ```
+
+    The resulting archive will contain `SyntheticEventGroupSpec` messages in
+    text format under `src/main/k8s/dev/synthetic_generator_config_files/`.
+    These can be replaced in order to customize the synthetic generator.
 
 *   BigQuery
 

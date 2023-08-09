@@ -64,6 +64,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.frequency
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.population
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.watchDuration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -150,9 +151,8 @@ class EdpSimulator(
   private val privacyBudgetManager: PrivacyBudgetManager,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   private val directNoiseMechanism: DirectNoiseMechanism,
-  private val eventGroupMetadata: Message,
   private val sketchEncrypter: SketchEncrypter = SketchEncrypter.Default,
-  private val random: Random = Random.Default,
+  private val random: Random = Random,
 ) {
   /** A sequence of operations done in the simulator. */
   suspend fun run() {
@@ -165,7 +165,7 @@ class EdpSimulator(
    *
    * TODO(@SanjayVas): Create multiple EventGroups with different synthetic data specs.
    */
-  suspend fun ensureEventGroup(): EventGroup {
+  suspend fun ensureEventGroup(eventGroupMetadata: Message): EventGroup {
     val measurementConsumer: MeasurementConsumer =
       try {
         measurementConsumersStub.getMeasurementConsumer(
@@ -180,10 +180,16 @@ class EdpSimulator(
       getCertificate(measurementConsumer.certificate)
     )
 
-    val descriptorResource: EventGroupMetadataDescriptor = ensureMetadataDescriptor()
+    val descriptorResource: EventGroupMetadataDescriptor =
+      ensureMetadataDescriptor(eventGroupMetadata.descriptorForType)
 
     val eventGroupReferenceId = "$SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX-${edpData.displayName}"
-    return ensureEventGroup(measurementConsumer, eventGroupReferenceId, descriptorResource)
+    return ensureEventGroup(
+      measurementConsumer,
+      eventGroupReferenceId,
+      eventGroupMetadata,
+      descriptorResource
+    )
   }
 
   /**
@@ -193,6 +199,7 @@ class EdpSimulator(
   private suspend fun ensureEventGroup(
     measurementConsumer: MeasurementConsumer,
     eventGroupReferenceId: String,
+    eventGroupMetadata: Message,
     descriptorResource: EventGroupMetadataDescriptor,
   ): EventGroup {
     val existingEventGroup: EventGroup? = getEventGroupByReferenceId(eventGroupReferenceId)
@@ -273,8 +280,9 @@ class EdpSimulator(
     return response.eventGroupsList.find { it.eventGroupReferenceId == eventGroupReferenceId }
   }
 
-  private suspend fun ensureMetadataDescriptor(): EventGroupMetadataDescriptor {
-    val metadataDescriptor: Descriptors.Descriptor = eventGroupMetadata.descriptorForType
+  private suspend fun ensureMetadataDescriptor(
+    metadataDescriptor: Descriptors.Descriptor
+  ): EventGroupMetadataDescriptor {
     val descriptorSet = ProtoReflection.buildFileDescriptorSet(metadataDescriptor)
     val descriptorResource =
       try {
@@ -545,17 +553,19 @@ class EdpSimulator(
             continue
           }
         }
-        MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
-          if (protocols.any { it.hasDirect() }) {
-            fulfillImpressionMeasurement(requisition, requisitionSpec, measurementSpec)
-            continue
-          }
-        }
+        MeasurementSpec.MeasurementTypeCase.IMPRESSION,
         MeasurementSpec.MeasurementTypeCase.DURATION -> {
           if (protocols.any { it.hasDirect() }) {
             fulfillDurationMeasurement(requisition, requisitionSpec, measurementSpec)
             continue
           }
+        }
+        MeasurementSpec.MeasurementTypeCase.POPULATION -> {
+          require(protocols.single().hasDirect()) {
+            "Population measurements must be direct"
+          }
+          fulfillPopulationMeasurement(requisition, requisitionSpec, measurementSpec)
+          continue
         }
         MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
           error("Measurement type not set for ${requisition.name}")
@@ -575,7 +585,7 @@ class EdpSimulator(
     requisitionSpec: RequisitionSpec
   ): List<EventQuery.EventGroupSpec> {
     // TODO(@SanjayVas): Cache EventGroups.
-    return requisitionSpec.eventGroupsList.map {
+    return requisitionSpec.events.eventGroupsList.map {
       val eventGroup =
         try {
           eventGroupsStub.getEventGroup(getEventGroupRequest { name = it.key })
@@ -938,7 +948,8 @@ class EdpSimulator(
         }
       }
       MeasurementSpec.MeasurementTypeCase.IMPRESSION,
-      MeasurementSpec.MeasurementTypeCase.DURATION -> {
+      MeasurementSpec.MeasurementTypeCase.DURATION,
+      MeasurementSpec.MeasurementTypeCase.POPULATION -> {
         error("Measurement type not supported.")
       }
       MeasurementSpec.MeasurementTypeCase.REACH -> {
@@ -986,6 +997,22 @@ class EdpSimulator(
             // Use externalDataProviderId since it's a known value the FrontendSimulator can verify.
             seconds = apiIdToExternalId(DataProviderKey.fromName(edpData.name)!!.dataProviderId)
           }
+        }
+      }
+
+    fulfillDirectMeasurement(requisition, measurementSpec, requisitionSpec.nonce, measurementResult)
+  }
+
+  private suspend fun fulfillPopulationMeasurement(
+    requisition: Requisition,
+    requisitionSpec: RequisitionSpec,
+    measurementSpec: MeasurementSpec
+  ) {
+    val measurementResult =
+      MeasurementKt.result {
+        population = population {
+          // Use externalDataProviderId since it's a known value the FrontendSimulator can verify.
+          value = apiIdToExternalId(DataProviderKey.fromName(edpData.name)!!.dataProviderId)
         }
       }
 

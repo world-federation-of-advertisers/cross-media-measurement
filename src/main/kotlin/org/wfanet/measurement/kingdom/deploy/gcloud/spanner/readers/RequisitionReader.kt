@@ -230,6 +230,9 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
         ComputationParticipant.Details.ProtocolCase.LIQUID_LEGIONS_V2 -> {
           liquidLegionsV2 = participantDetails.liquidLegionsV2
         }
+        ComputationParticipant.Details.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
+          reachOnlyLiquidLegionsV2 = participantDetails.reachOnlyLiquidLegionsV2
+        }
         // Protocol may only be set after computation participant sets requisition params.
         ComputationParticipant.Details.ProtocolCase.PROTOCOL_NOT_SET -> Unit
       }

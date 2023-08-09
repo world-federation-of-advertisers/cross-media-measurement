@@ -48,6 +48,9 @@ message SetParticipantRequisitionParamsRequest {
 
   oneof protocol {
     ComputationParticipant.LiquidLegionsV2Details liquid_legions_v2 = 4;
+
+    ComputationParticipant.LiquidLegionsV2Details reach_only_liquid_legions_v2 =
+        5;
   }
 }
 

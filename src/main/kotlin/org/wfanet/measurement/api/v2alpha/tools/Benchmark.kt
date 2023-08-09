@@ -77,6 +77,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt.value as eventGroupEntryValue
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
@@ -110,21 +111,21 @@ import picocli.CommandLine
 
 private class ApiFlags {
   @CommandLine.Option(
-    names = ["--kingdom-public-api-target"],
-    description = ["gRPC target (authority) of the Kingdom public API server"],
-    required = true,
+      names = ["--kingdom-public-api-target"],
+      description = ["gRPC target (authority) of the Kingdom public API server"],
+      required = true,
   )
   lateinit var apiTarget: String
     private set
 
   @CommandLine.Option(
-    names = ["--kingdom-public-api-cert-host"],
-    description =
-      [
-        "Expected hostname (DNS-ID) in the Kingdom public API server's TLS certificate.",
-        "This overrides derivation of the TLS DNS-ID from --kingdom-public-api-target.",
-      ],
-    required = false,
+      names = ["--kingdom-public-api-cert-host"],
+      description =
+          [
+              "Expected hostname (DNS-ID) in the Kingdom public API server's TLS certificate.",
+              "This overrides derivation of the TLS DNS-ID from --kingdom-public-api-target.",
+          ],
+      required = false,
   )
   var apiCertHost: String? = null
     private set
@@ -132,81 +133,76 @@ private class ApiFlags {
 
 class BaseFlags {
   @CommandLine.Option(
-    names = ["--measurement-consumer"],
-    description = ["API resource name of the MeasurementConsumer"],
-    required = true
-  )
+      names = ["--measurement-consumer"],
+      description = ["API resource name of the MeasurementConsumer"],
+      required = true)
   lateinit var measurementConsumer: String
 
   @CommandLine.Option(
-    names = ["--encryption-private-key-file"],
-    description = ["MeasurementConsumer's EncryptionPrivateKey"],
-    required = true
-  )
+      names = ["--encryption-private-key-file"],
+      description = ["MeasurementConsumer's EncryptionPrivateKey"],
+      required = true)
   lateinit var encryptionPrivateKeyFile: File
 
   val privateKeyHandle: PrivateKeyHandle by lazy { loadPrivateKey(encryptionPrivateKeyFile) }
 
   @CommandLine.Option(
-    names = ["--private-key-der-file"],
-    description = ["Private key for MeasurementConsumer"],
-    required = true
-  )
+      names = ["--private-key-der-file"],
+      description = ["Private key for MeasurementConsumer"],
+      required = true)
   lateinit var privateKeyDerFile: File
 
   @set:CommandLine.Option(
-    names = ["--vid-sampling-start"],
-    description = ["Start point of vid sampling interval for first VID bucket"],
-    required = true,
+      names = ["--vid-sampling-start"],
+      description = ["Start point of vid sampling interval for first VID bucket"],
+      required = true,
   )
   var vidSamplingStart by Delegates.notNull<Float>()
     private set
 
   @set:CommandLine.Option(
-    names = ["--vid-sampling-width"],
-    description = ["Width of vid sampling interval"],
-    required = true,
+      names = ["--vid-sampling-width"],
+      description = ["Width of vid sampling interval"],
+      required = true,
   )
   var vidSamplingWidth by Delegates.notNull<Float>()
     private set
 
   @set:CommandLine.Option(
-    names = ["--vid-bucket-count"],
-    description = ["Number of VID buckets to sample from"],
-    defaultValue = "1",
+      names = ["--vid-bucket-count"],
+      description = ["Number of VID buckets to sample from"],
+      defaultValue = "1",
   )
   var vidBucketCount by Delegates.notNull<Int>()
     private set
 
   @set:CommandLine.Option(
-    names = ["--repetition-count"],
-    description = ["Number of times the query should be repeated"],
-    defaultValue = "1",
+      names = ["--repetition-count"],
+      description = ["Number of times the query should be repeated"],
+      defaultValue = "1",
   )
   var repetitionCount by Delegates.notNull<Int>()
     private set
 
   @set:CommandLine.Option(
-    names = ["--output-file"],
-    description = ["Name of file where final results should be written"],
-    required = true
-  )
+      names = ["--output-file"],
+      description = ["Name of file where final results should be written"],
+      required = true)
   var outputFile by Delegates.notNull<String>()
     private set
 
   @set:CommandLine.Option(
-    names = ["--timeout"],
-    description = ["Maximum time to wait in seconds for a request to complete"],
-    defaultValue = "600",
+      names = ["--timeout"],
+      description = ["Maximum time to wait in seconds for a request to complete"],
+      defaultValue = "600",
   )
   var timeout by Delegates.notNull<Long>()
     private set
 
   @CommandLine.ArgGroup(
-    exclusive = true,
-    multiplicity = "1",
-    heading = "Specify one of the measurement types with its params\n"
-  )
+      exclusive = true,
+      multiplicity = "1",
+      heading = "Specify one of the measurement types with its params\n")
   lateinit var measurementTypeParams: MeasurementTypeParams
 
   @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Add DataProviders\n")
@@ -215,50 +211,50 @@ class BaseFlags {
 
 class ReachAndFrequencyParams {
   @CommandLine.Option(
-    names = ["--reach-and-frequency"],
-    description = ["Measurement Type of ReachAndFrequency"],
-    required = true,
+      names = ["--reach-and-frequency"],
+      description = ["Measurement Type of ReachAndFrequency"],
+      required = true,
   )
   var selected = false
     private set
 
   @set:CommandLine.Option(
-    names = ["--reach-privacy-epsilon"],
-    description = ["Epsilon value of reach privacy params"],
-    required = true,
+      names = ["--reach-privacy-epsilon"],
+      description = ["Epsilon value of reach privacy params"],
+      required = true,
   )
   var reachPrivacyEpsilon by Delegates.notNull<Double>()
     private set
 
   @set:CommandLine.Option(
-    names = ["--reach-privacy-delta"],
-    description = ["Delta value of reach privacy params"],
-    required = true,
+      names = ["--reach-privacy-delta"],
+      description = ["Delta value of reach privacy params"],
+      required = true,
   )
   var reachPrivacyDelta by Delegates.notNull<Double>()
     private set
 
   @set:CommandLine.Option(
-    names = ["--frequency-privacy-epsilon"],
-    description = ["Epsilon value of frequency privacy params"],
-    required = true,
+      names = ["--frequency-privacy-epsilon"],
+      description = ["Epsilon value of frequency privacy params"],
+      required = true,
   )
   var frequencyPrivacyEpsilon by Delegates.notNull<Double>()
     private set
 
   @set:CommandLine.Option(
-    names = ["--frequency-privacy-delta"],
-    description = ["Epsilon value of frequency privacy params"],
-    required = true,
+      names = ["--frequency-privacy-delta"],
+      description = ["Epsilon value of frequency privacy params"],
+      required = true,
   )
   var frequencyPrivacyDelta by Delegates.notNull<Double>()
     private set
 
   @set:CommandLine.Option(
-    names = ["--max-frequency-for-reach"],
-    description = ["Maximum frequency per user when estimating reach"],
-    required = false,
-    defaultValue = "10",
+      names = ["--max-frequency-for-reach"],
+      description = ["Maximum frequency per user when estimating reach"],
+      required = false,
+      defaultValue = "10",
   )
   var maximumFrequencyPerUser by Delegates.notNull<Int>()
     private set
@@ -266,33 +262,33 @@ class ReachAndFrequencyParams {
 
 class ImpressionParams {
   @CommandLine.Option(
-    names = ["--impression"],
-    description = ["Measurement Type of Impression"],
-    required = true,
+      names = ["--impression"],
+      description = ["Measurement Type of Impression"],
+      required = true,
   )
   var selected = false
     private set
 
   @set:CommandLine.Option(
-    names = ["--impression-privacy-epsilon"],
-    description = ["Epsilon value of impression privacy params"],
-    required = true,
+      names = ["--impression-privacy-epsilon"],
+      description = ["Epsilon value of impression privacy params"],
+      required = true,
   )
   var privacyEpsilon by Delegates.notNull<Double>()
     private set
 
   @set:CommandLine.Option(
-    names = ["--impression-privacy-delta"],
-    description = ["Epsilon value of impression privacy params"],
-    required = true,
+      names = ["--impression-privacy-delta"],
+      description = ["Epsilon value of impression privacy params"],
+      required = true,
   )
   var privacyDelta by Delegates.notNull<Double>()
     private set
 
   @set:CommandLine.Option(
-    names = ["--max-frequency"],
-    description = ["Maximum frequency per user"],
-    required = true,
+      names = ["--max-frequency"],
+      description = ["Maximum frequency per user"],
+      required = true,
   )
   var maximumFrequencyPerUser by Delegates.notNull<Int>()
     private set
@@ -300,33 +296,33 @@ class ImpressionParams {
 
 class DurationParams {
   @CommandLine.Option(
-    names = ["--duration"],
-    description = ["Measurement Type of Duration"],
-    required = true,
+      names = ["--duration"],
+      description = ["Measurement Type of Duration"],
+      required = true,
   )
   var selected = false
     private set
 
   @set:CommandLine.Option(
-    names = ["--duration-privacy-epsilon"],
-    description = ["Epsilon value of duration privacy params"],
-    required = true,
+      names = ["--duration-privacy-epsilon"],
+      description = ["Epsilon value of duration privacy params"],
+      required = true,
   )
   var privacyEpsilon by Delegates.notNull<Double>()
     private set
 
   @set:CommandLine.Option(
-    names = ["--duration-privacy-delta"],
-    description = ["Epsilon value of duration privacy params"],
-    required = true,
+      names = ["--duration-privacy-delta"],
+      description = ["Epsilon value of duration privacy params"],
+      required = true,
   )
   var privacyDelta by Delegates.notNull<Double>()
     private set
 
   @set:CommandLine.Option(
-    names = ["--max-duration"],
-    description = ["Maximum watch duration per user"],
-    required = true,
+      names = ["--max-duration"],
+      description = ["Maximum watch duration per user"],
+      required = true,
   )
   var maximumWatchDurationPerUser by Delegates.notNull<Int>()
     private set
@@ -334,52 +330,48 @@ class DurationParams {
 
 class DataProviderInput {
   @CommandLine.Option(
-    names = ["--data-provider"],
-    description = ["API resource name of the DataProvider"],
-    required = true,
+      names = ["--data-provider"],
+      description = ["API resource name of the DataProvider"],
+      required = true,
   )
   lateinit var name: String
     private set
 
   @CommandLine.ArgGroup(
-    exclusive = false,
-    multiplicity = "1..*",
-    heading = "Add EventGroups for a DataProvider\n"
-  )
+      exclusive = false, multiplicity = "1..*", heading = "Add EventGroups for a DataProvider\n")
   lateinit var eventGroupInputs: List<EventGroupInput>
     private set
 }
 
 class EventGroupInput {
   @CommandLine.Option(
-    names = ["--event-group"],
-    description = ["API resource name of the EventGroup"],
-    required = true,
+      names = ["--event-group"],
+      description = ["API resource name of the EventGroup"],
+      required = true,
   )
   lateinit var name: String
     private set
 
   @CommandLine.Option(
-    names = ["--event-filter"],
-    description = ["Raw CEL expression of EventFilter"],
-    required = false,
-    defaultValue = ""
-  )
+      names = ["--event-filter"],
+      description = ["Raw CEL expression of EventFilter"],
+      required = false,
+      defaultValue = "")
   lateinit var eventFilter: String
     private set
 
   @CommandLine.Option(
-    names = ["--event-start-time"],
-    description = ["Start time of Event range in ISO 8601 format of UTC"],
-    required = true,
+      names = ["--event-start-time"],
+      description = ["Start time of Event range in ISO 8601 format of UTC"],
+      required = true,
   )
   lateinit var eventStartTime: Instant
     private set
 
   @CommandLine.Option(
-    names = ["--event-end-time"],
-    description = ["End time of Event range in ISO 8601 format of UTC"],
-    required = true,
+      names = ["--event-end-time"],
+      description = ["End time of Event range in ISO 8601 format of UTC"],
+      required = true,
   )
   lateinit var eventEndTime: Instant
     private set
@@ -388,9 +380,7 @@ class EventGroupInput {
 class MeasurementTypeParams {
 
   @CommandLine.ArgGroup(
-    exclusive = false,
-    heading = "Measurement type ReachAndFrequency and params\n"
-  )
+      exclusive = false, heading = "Measurement type ReachAndFrequency and params\n")
   var reachAndFrequency = ReachAndFrequencyParams()
   @CommandLine.ArgGroup(exclusive = false, heading = "Measurement type Impression and params\n")
   var impression = ImpressionParams()
@@ -399,47 +389,50 @@ class MeasurementTypeParams {
 }
 
 private fun getDataProviderEntry(
-  dataProviderStub: DataProvidersCoroutineStub,
-  dataProviderInput: DataProviderInput,
-  measurementConsumerSigningKey: SigningKeyHandle,
-  measurementEncryptionPublicKey: ByteString,
-  secureRandom: SecureRandom,
-  apiAuthenticationKey: String
+    dataProviderStub: DataProvidersCoroutineStub,
+    dataProviderInput: DataProviderInput,
+    measurementConsumerSigningKey: SigningKeyHandle,
+    measurementEncryptionPublicKey: ByteString,
+    secureRandom: SecureRandom,
+    apiAuthenticationKey: String
 ): Measurement.DataProviderEntry {
   return dataProviderEntry {
     val requisitionSpec = requisitionSpec {
-      eventGroups +=
-        dataProviderInput.eventGroupInputs.map {
-          eventGroupEntry {
-            key = it.name
-            value = eventGroupEntryValue {
-              collectionInterval = interval {
-                startTime = it.eventStartTime.toProtoTime()
-                endTime = it.eventEndTime.toProtoTime()
-              }
-              if (it.eventFilter.isNotEmpty()) filter = eventFilter { expression = it.eventFilter }
-            }
+      events =
+          RequisitionSpecKt.events {
+            eventGroups +=
+                dataProviderInput.eventGroupInputs.map {
+                  eventGroupEntry {
+                    key = it.name
+                    value = eventGroupEntryValue {
+                      collectionInterval = interval {
+                        startTime = it.eventStartTime.toProtoTime()
+                        endTime = it.eventEndTime.toProtoTime()
+                      }
+                      if (it.eventFilter.isNotEmpty())
+                          filter = eventFilter { expression = it.eventFilter }
+                    }
+                  }
+                }
           }
-        }
       this.measurementPublicKey = measurementEncryptionPublicKey
       nonce = secureRandom.nextLong()
     }
 
     key = dataProviderInput.name
     val dataProvider =
-      runBlocking(Dispatchers.IO) {
-        dataProviderStub
-          .withAuthenticationKey(apiAuthenticationKey)
-          .getDataProvider(getDataProviderRequest { name = dataProviderInput.name })
-      }
+        runBlocking(Dispatchers.IO) {
+          dataProviderStub
+              .withAuthenticationKey(apiAuthenticationKey)
+              .getDataProvider(getDataProviderRequest { name = dataProviderInput.name })
+        }
     value = dataProviderEntryValue {
       dataProviderCertificate = dataProvider.certificate
       dataProviderPublicKey = dataProvider.publicKey
       encryptedRequisitionSpec =
-        encryptRequisitionSpec(
-          signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
-          EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
-        )
+          encryptRequisitionSpec(
+              signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
+              EncryptionPublicKey.parseFrom(dataProvider.publicKey.data))
       nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
     }
   }
@@ -480,18 +473,18 @@ private fun getDuration(measurementTypeParams: MeasurementTypeParams): Duration 
 }
 
 private fun getMeasurementResult(
-  resultPair: Measurement.ResultPair,
-  privateKeyHandle: PrivateKeyHandle
+    resultPair: Measurement.ResultPair,
+    privateKeyHandle: PrivateKeyHandle
 ): Measurement.Result {
   val signedResult = decryptResult(resultPair.encryptedResult, privateKeyHandle)
   return Measurement.Result.parseFrom(signedResult.data)
 }
 
 class Benchmark(
-  val flags: BaseFlags,
-  val channel: ManagedChannel,
-  val apiAuthenticationKey: String,
-  val clock: Clock
+    val flags: BaseFlags,
+    val channel: ManagedChannel,
+    val apiAuthenticationKey: String,
+    val clock: Clock
 ) {
 
   private val secureRandom = SecureRandom.getInstance("SHA1PRNG")
@@ -537,53 +530,51 @@ class Benchmark(
 
   /** Creates list of requests and sends them to the Kingdom. */
   private fun generateRequests(
-    measurementConsumerStub: MeasurementConsumersCoroutineStub,
-    measurementStub: MeasurementsCoroutineStub,
-    dataProviderStub: DataProvidersCoroutineStub
+      measurementConsumerStub: MeasurementConsumersCoroutineStub,
+      measurementStub: MeasurementsCoroutineStub,
+      dataProviderStub: DataProvidersCoroutineStub
   ) {
     val measurementConsumer =
-      runBlocking(Dispatchers.IO) {
-        measurementConsumerStub
-          .withAuthenticationKey(apiAuthenticationKey)
-          .getMeasurementConsumer(
-            getMeasurementConsumerRequest { name = flags.measurementConsumer }
-          )
-      }
+        runBlocking(Dispatchers.IO) {
+          measurementConsumerStub
+              .withAuthenticationKey(apiAuthenticationKey)
+              .getMeasurementConsumer(
+                  getMeasurementConsumerRequest { name = flags.measurementConsumer })
+        }
     val measurementConsumerCertificate = readCertificate(measurementConsumer.certificateDer)
     val measurementConsumerPrivateKey =
-      readPrivateKey(
-        flags.privateKeyDerFile.readByteString(),
-        measurementConsumerCertificate.publicKey.algorithm
-      )
+        readPrivateKey(
+            flags.privateKeyDerFile.readByteString(),
+            measurementConsumerCertificate.publicKey.algorithm)
     val measurementConsumerSigningKey =
-      SigningKeyHandle(measurementConsumerCertificate, measurementConsumerPrivateKey)
+        SigningKeyHandle(measurementConsumerCertificate, measurementConsumerPrivateKey)
     val measurementEncryptionPublicKey = measurementConsumer.publicKey.data
     val charPool = ('a'..'z').toList()
     val referenceIdBase =
-      (1..10)
-        .map { _ -> kotlin.random.Random.nextInt(0, charPool.size) }
-        .map(charPool::get)
-        .joinToString("")
+        (1..10)
+            .map { _ -> kotlin.random.Random.nextInt(0, charPool.size) }
+            .map(charPool::get)
+            .joinToString("")
 
     for (replica in 1..flags.repetitionCount) {
       val referenceId = "$referenceIdBase-$replica"
       val vidSamplingStartForMeasurement =
-        flags.vidSamplingStart +
-          kotlin.random.Random.nextInt(0, flags.vidBucketCount).toFloat() * flags.vidSamplingWidth
+          flags.vidSamplingStart +
+              kotlin.random.Random.nextInt(0, flags.vidBucketCount).toFloat() *
+                  flags.vidSamplingWidth
 
       val measurement = measurement {
         this.measurementConsumerCertificate = measurementConsumer.certificate
         dataProviders +=
-          flags.dataProviderInputs.map {
-            getDataProviderEntry(
-              dataProviderStub,
-              it,
-              measurementConsumerSigningKey,
-              measurementEncryptionPublicKey,
-              secureRandom,
-              apiAuthenticationKey
-            )
-          }
+            flags.dataProviderInputs.map {
+              getDataProviderEntry(
+                  dataProviderStub,
+                  it,
+                  measurementConsumerSigningKey,
+                  measurementEncryptionPublicKey,
+                  secureRandom,
+                  apiAuthenticationKey)
+            }
         val unsignedMeasurementSpec = measurementSpec {
           measurementPublicKey = measurementEncryptionPublicKey
           nonceHashes += this@measurement.dataProviders.map { it.value.nonceHash }
@@ -599,7 +590,7 @@ class Benchmark(
         }
 
         this.measurementSpec =
-          signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
+            signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
         measurementReferenceId = referenceId
       }
 
@@ -607,16 +598,15 @@ class Benchmark(
       task.referenceId = referenceId
 
       val response =
-        runBlocking(Dispatchers.IO) {
-          measurementStub
-            .withAuthenticationKey(apiAuthenticationKey)
-            .createMeasurement(
-              createMeasurementRequest {
-                parent = measurementConsumer.name
-                this.measurement = measurement
-              }
-            )
-        }
+          runBlocking(Dispatchers.IO) {
+            measurementStub
+                .withAuthenticationKey(apiAuthenticationKey)
+                .createMeasurement(
+                    createMeasurementRequest {
+                      parent = measurementConsumer.name
+                      this.measurement = measurement
+                    })
+          }
       println("Measurement Name: ${response.name}")
 
       task.ackTime = Instant.now(clock)
@@ -627,8 +617,8 @@ class Benchmark(
 
   /** Collects responses from tasks that have completed. */
   private fun collectCompletedTasks(
-    measurementStub: MeasurementsCoroutineStub,
-    firstInstant: Instant
+      measurementStub: MeasurementsCoroutineStub,
+      firstInstant: Instant
   ) {
     var iTask = 0
     while (iTask < taskList.size) {
@@ -637,24 +627,21 @@ class Benchmark(
       print("${(Instant.now(clock).toEpochMilli() - firstInstant.toEpochMilli()) / 1000.0} ")
       print("Trying to retrieve ${task.referenceId} ${task.measurementName}...")
       val measurement =
-        runBlocking(Dispatchers.IO) {
-          measurementStub
-            .withAuthenticationKey(apiAuthenticationKey)
-            .getMeasurement(getMeasurementRequest { name = task.measurementName })
-        }
+          runBlocking(Dispatchers.IO) {
+            measurementStub
+                .withAuthenticationKey(apiAuthenticationKey)
+                .getMeasurement(getMeasurementRequest { name = task.measurementName })
+          }
 
       val timeoutOccurred = task.requestTime.plusSeconds(flags.timeout).isBefore(Instant.now(clock))
       println("${measurement.state}")
-      if (
-        measurement.state == Measurement.State.COMPUTING && task.requisitionFulfilledTime == null
-      ) {
+      if (measurement.state == Measurement.State.COMPUTING &&
+          task.requisitionFulfilledTime == null) {
         task.requisitionFulfilledTime = Instant.now(clock)
       }
-      if (
-        (measurement.state == Measurement.State.SUCCEEDED) ||
+      if ((measurement.state == Measurement.State.SUCCEEDED) ||
           (measurement.state == Measurement.State.FAILED) ||
-          timeoutOccurred
-      ) {
+          timeoutOccurred) {
         when (measurement.state) {
           Measurement.State.SUCCEEDED -> {
             val result = getMeasurementResult(measurement.resultsList[0], flags.privateKeyHandle)
@@ -698,8 +685,7 @@ class Benchmark(
         out.print(",${(task.ackTime.toEpochMilli() - firstInstant.toEpochMilli()) / 1000.0}")
         if (task.requisitionFulfilledTime != null) {
           out.print(
-            ",${(task.requisitionFulfilledTime!!.toEpochMilli() - firstInstant.toEpochMilli()) / 1000.0}"
-          )
+              ",${(task.requisitionFulfilledTime!!.toEpochMilli() - firstInstant.toEpochMilli()) / 1000.0}")
         } else {
           out.print(",0.0")
         }
@@ -758,9 +744,9 @@ class Benchmark(
 }
 
 @CommandLine.Command(
-  name = "BenchmarkReport",
-  description = ["Benchmark report from Kingdom"],
-  sortOptions = false,
+    name = "BenchmarkReport",
+    description = ["Benchmark report from Kingdom"],
+    sortOptions = false,
 )
 class BenchmarkReport(val clock: Clock = Clock.systemUTC()) : Runnable {
   @CommandLine.Mixin private lateinit var tlsFlags: TlsFlags
@@ -768,22 +754,21 @@ class BenchmarkReport(val clock: Clock = Clock.systemUTC()) : Runnable {
   @CommandLine.Mixin private lateinit var baseFlags: BaseFlags
 
   @CommandLine.Option(
-    names = ["--api-key"],
-    description = ["API authentication key for the MeasurementConsumer"],
-    required = true,
+      names = ["--api-key"],
+      description = ["API authentication key for the MeasurementConsumer"],
+      required = true,
   )
   lateinit var apiAuthenticationKey: String
     private set
 
   val channel: ManagedChannel by lazy {
     val clientCerts =
-      SigningCerts.fromPemFiles(
-        certificateFile = tlsFlags.certFile,
-        privateKeyFile = tlsFlags.privateKeyFile,
-        trustedCertCollectionFile = tlsFlags.certCollectionFile
-      )
+        SigningCerts.fromPemFiles(
+            certificateFile = tlsFlags.certFile,
+            privateKeyFile = tlsFlags.privateKeyFile,
+            trustedCertCollectionFile = tlsFlags.certCollectionFile)
     buildMutualTlsChannel(apiFlags.apiTarget, clientCerts, apiFlags.apiCertHost)
-      .withShutdownTimeout(JavaDuration.ofSeconds(1))
+        .withShutdownTimeout(JavaDuration.ofSeconds(1))
   }
   override fun run() {
     val benchmark = Benchmark(baseFlags, channel, apiAuthenticationKey, clock)

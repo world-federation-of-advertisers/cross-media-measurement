@@ -15,7 +15,9 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.util.Timestamps
+import com.google.type.date
 import com.google.type.interval
+import java.time.ZoneOffset
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -63,6 +65,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.protocol
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.reachOnlyLiquidLegionsV2
+import org.wfanet.measurement.api.v2alpha.dateInterval
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.exchange
 import org.wfanet.measurement.api.v2alpha.exchangeStep
@@ -80,7 +83,10 @@ import org.wfanet.measurement.api.v2alpha.reachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.DifferentialPrivacyParams as InternalDifferentialPrivacyParams
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
 import org.wfanet.measurement.internal.kingdom.Exchange as InternalExchange
@@ -470,15 +476,23 @@ fun InternalModelRollout.toModelRollout(): ModelRollout {
         .toName()
 
     if (Timestamps.compare(source.rolloutPeriodStartTime, source.rolloutPeriodEndTime) == 0) {
-      instantRolloutTime = source.rolloutPeriodStartTime
+      instantRolloutDate =
+        source.rolloutPeriodStartTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate().toProtoDate()
     } else {
-      gradualRolloutPeriod = interval {
-        startTime = source.rolloutPeriodStartTime
-        endTime = source.rolloutPeriodEndTime
+      gradualRolloutPeriod = dateInterval {
+        startDate =
+          source.rolloutPeriodStartTime
+            .toInstant()
+            .atZone(ZoneOffset.UTC)
+            .toLocalDate()
+            .toProtoDate()
+        endDate =
+          source.rolloutPeriodEndTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate().toProtoDate()
       }
     }
 
-    rolloutFreezeTime = source.rolloutFreezeTime
+    rolloutFreezeDate =
+      source.rolloutFreezeTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate().toProtoDate()
     if (source.externalPreviousModelRolloutId != 0L) {
       previousModelRollout =
         ModelRolloutKey(
@@ -516,19 +530,44 @@ fun ModelRollout.toInternal(
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     when (publicModelRollout.rolloutDeployPeriodCase) {
       ModelRollout.RolloutDeployPeriodCase.GRADUAL_ROLLOUT_PERIOD -> {
-        rolloutPeriodStartTime = publicModelRollout.gradualRolloutPeriod.startTime
-        rolloutPeriodEndTime = publicModelRollout.gradualRolloutPeriod.endTime
+        rolloutPeriodStartTime =
+          publicModelRollout.gradualRolloutPeriod.startDate
+            .toLocalDate()
+            .atStartOfDay()
+            .toInstant(ZoneOffset.UTC)
+            .toProtoTime()
+        rolloutPeriodEndTime =
+          publicModelRollout.gradualRolloutPeriod.endDate
+            .toLocalDate()
+            .atStartOfDay()
+            .toInstant(ZoneOffset.UTC)
+            .toProtoTime()
       }
-      ModelRollout.RolloutDeployPeriodCase.INSTANT_ROLLOUT_TIME -> {
-        rolloutPeriodStartTime = publicModelRollout.instantRolloutTime
-        rolloutPeriodEndTime = publicModelRollout.instantRolloutTime
+      ModelRollout.RolloutDeployPeriodCase.INSTANT_ROLLOUT_DATE -> {
+        rolloutPeriodStartTime =
+          publicModelRollout.instantRolloutDate
+            .toLocalDate()
+            .atStartOfDay()
+            .toInstant(ZoneOffset.UTC)
+            .toProtoTime()
+        rolloutPeriodEndTime =
+          publicModelRollout.instantRolloutDate
+            .toLocalDate()
+            .atStartOfDay()
+            .toInstant(ZoneOffset.UTC)
+            .toProtoTime()
       }
       ModelRollout.RolloutDeployPeriodCase.ROLLOUTDEPLOYPERIOD_NOT_SET -> {
         error("RolloutDeployPeriod not set.")
       }
     }
 
-    rolloutFreezeTime = publicModelRollout.rolloutFreezeTime
+    rolloutFreezeTime =
+      publicModelRollout.rolloutFreezeDate
+        .toLocalDate()
+        .atStartOfDay()
+        .toInstant(ZoneOffset.UTC)
+        .toProtoTime()
     externalModelReleaseId = apiIdToExternalId(modelReleaseKey.modelReleaseId)
   }
 }
@@ -723,7 +762,8 @@ fun Measurement.toInternal(
           }
         }
         MeasurementSpec.MeasurementTypeCase.IMPRESSION,
-        MeasurementSpec.MeasurementTypeCase.DURATION, -> {}
+        MeasurementSpec.MeasurementTypeCase.DURATION,
+        MeasurementSpec.MeasurementTypeCase.POPULATION, -> {}
         MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
           error("MeasurementType not set.")
       }

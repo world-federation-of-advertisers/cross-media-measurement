@@ -89,7 +89,7 @@ class ComputationStageAttemptReader {
         """
       SELECT ComputationId, ComputationStage, Attempt, Details
       FROM ComputationStageAttempts
-      WHERE s.ComputationId = $1
+      WHERE ComputationId = $1
         AND EndTime IS NULL
       """
       ) {

@@ -28,11 +28,11 @@ class SpannerModelRolloutsServiceTest : ModelRolloutsServiceTest<SpannerModelRol
   @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(Schemata.KINGDOM_CHANGELOG_PATH)
 
   override fun newServices(
-    clock: Clock,
+    testClock: Clock,
     idGenerator: IdGenerator
   ): Services<SpannerModelRolloutsService> {
     val spannerServices =
-      SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient).buildDataServices()
+      SpannerDataServices(testClock, idGenerator, spannerDatabase.databaseClient).buildDataServices()
 
     return Services(
       spannerServices.modelRolloutsService as SpannerModelRolloutsService,

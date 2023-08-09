@@ -70,6 +70,10 @@ class ProtocolCryptor {
   // Encrypts the plain EcPoint using the full or partial composite ElGamal Key.
   virtual absl::StatusOr<ElGamalCiphertext> EncryptCompositeElGamal(
       absl::string_view plain_ec_point, CompositeType composite_type) = 0;
+  // Maps the integer onto the curve and then encrypts the EcPoint with the full
+  // composite ElGamal Key, returns the string representation of the ciphertext.
+  virtual absl::StatusOr<std::string> EncryptIntegerToStringCompositeElGamal(
+      int64_t value) = 0;
   // Encrypts the Identity Element using the full or partial composite ElGamal
   // Key, returns the result as an ElGamalEcPointPair.
   virtual absl::StatusOr<ElGamalEcPointPair>

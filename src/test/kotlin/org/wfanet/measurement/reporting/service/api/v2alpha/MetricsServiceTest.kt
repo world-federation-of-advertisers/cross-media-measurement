@@ -551,7 +551,7 @@ private val REQUISITION_SPECS: Map<DataProviderKey, RequisitionSpec> =
     )
     .mapValues {
       requisitionSpec {
-        eventGroups += it.value
+        events = RequisitionSpecKt.events { eventGroups += it.value }
         measurementPublicKey = MEASUREMENT_CONSUMERS.values.first().publicKey.data
         nonce = SECURE_RANDOM_OUTPUT_LONG
       }
@@ -2079,7 +2079,7 @@ class MetricsServiceTest {
             )
           val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
 
-          requisitionSpec.eventGroupsList.map { eventGroupEntry ->
+          requisitionSpec.events.eventGroupsList.map { eventGroupEntry ->
             eventGroupEntry.value.filter.expression
           }
         }

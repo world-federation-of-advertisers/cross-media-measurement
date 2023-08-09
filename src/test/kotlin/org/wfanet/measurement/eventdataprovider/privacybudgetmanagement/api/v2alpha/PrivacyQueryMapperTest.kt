@@ -43,19 +43,22 @@ private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
 private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
 
 private const val FILTER_EXPRESSION =
-  "person.gender==0 && person.age_group==0 && banner_ad.gender == 1"
+    "person.gender==0 && person.age_group==0 && banner_ad.gender == 1"
 private val REQUISITION_SPEC = requisitionSpec {
-  eventGroups += eventGroupEntry {
-    key = "eventGroups/someEventGroup"
-    value =
-      RequisitionSpecKt.EventGroupEntryKt.value {
-        collectionInterval = interval {
-          startTime = TIME_RANGE.start.toProtoTime()
-          endTime = TIME_RANGE.endExclusive.toProtoTime()
+  events =
+      RequisitionSpecKt.events {
+        eventGroups += eventGroupEntry {
+          key = "eventGroups/someEventGroup"
+          value =
+              RequisitionSpecKt.EventGroupEntryKt.value {
+                collectionInterval = interval {
+                  startTime = TIME_RANGE.start.toProtoTime()
+                  endTime = TIME_RANGE.endExclusive.toProtoTime()
+                }
+                filter = eventFilter { expression = FILTER_EXPRESSION }
+              }
         }
-        filter = eventFilter { expression = FILTER_EXPRESSION }
       }
-  }
 }
 
 private val REACH_AND_FREQ_MEASUREMENT_SPEC = measurementSpec {
@@ -113,19 +116,15 @@ class PrivacyQueryMapperTest {
     val referenceId = "RequisitioId1"
 
     assertThat(
-        getPrivacyQuery(
-          Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
-          REACH_AND_FREQ_MEASUREMENT_SPEC,
-          REQUISITION_SPEC.eventGroupsList.map { it.value }
-        )
-      )
-      .isEqualTo(
-        Query(
-          Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
-          LandscapeMask(listOf(EventGroupSpec(FILTER_EXPRESSION, TIME_RANGE)), 0.01f, 0.02f),
-          DpCharge(0.6f, 0.02f)
-        )
-      )
+            getPrivacyQuery(
+                Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
+                REACH_AND_FREQ_MEASUREMENT_SPEC,
+                REQUISITION_SPEC.events.eventGroupsList.map { it.value }))
+        .isEqualTo(
+            Query(
+                Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
+                LandscapeMask(listOf(EventGroupSpec(FILTER_EXPRESSION, TIME_RANGE)), 0.01f, 0.02f),
+                DpCharge(0.6f, 0.02f)))
   }
 
   @Test
@@ -133,19 +132,15 @@ class PrivacyQueryMapperTest {
     val referenceId = "RequisitioId1"
 
     assertThat(
-        getPrivacyQuery(
-          Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
-          DURATION_MEASUREMENT_SPEC,
-          REQUISITION_SPEC.eventGroupsList.map { it.value }
-        )
-      )
-      .isEqualTo(
-        Query(
-          Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
-          LandscapeMask(listOf(EventGroupSpec(FILTER_EXPRESSION, TIME_RANGE)), 0.0f, 0.0f),
-          DpCharge(0.3f, 0.02f)
-        )
-      )
+            getPrivacyQuery(
+                Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
+                DURATION_MEASUREMENT_SPEC,
+                REQUISITION_SPEC.events.eventGroupsList.map { it.value }))
+        .isEqualTo(
+            Query(
+                Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
+                LandscapeMask(listOf(EventGroupSpec(FILTER_EXPRESSION, TIME_RANGE)), 0.0f, 0.0f),
+                DpCharge(0.3f, 0.02f)))
   }
 
   @Test
@@ -153,19 +148,15 @@ class PrivacyQueryMapperTest {
     val referenceId = "RequisitioId1"
 
     assertThat(
-        getPrivacyQuery(
-          Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
-          IMPRESSION_MEASUREMENT_SPEC,
-          REQUISITION_SPEC.eventGroupsList.map { it.value }
-        )
-      )
-      .isEqualTo(
-        Query(
-          Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
-          LandscapeMask(listOf(EventGroupSpec(FILTER_EXPRESSION, TIME_RANGE)), 0.0f, 0.0f),
-          DpCharge(0.4f, 0.02f)
-        )
-      )
+            getPrivacyQuery(
+                Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
+                IMPRESSION_MEASUREMENT_SPEC,
+                REQUISITION_SPEC.events.eventGroupsList.map { it.value }))
+        .isEqualTo(
+            Query(
+                Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
+                LandscapeMask(listOf(EventGroupSpec(FILTER_EXPRESSION, TIME_RANGE)), 0.0f, 0.0f),
+                DpCharge(0.4f, 0.02f)))
   }
 
   @Test
@@ -173,25 +164,19 @@ class PrivacyQueryMapperTest {
     val referenceId = "RequisitioId1"
 
     assertThat(
-        getPrivacyQuery(
-          Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
-          REACH_MEASUREMENT_SPEC,
-          REQUISITION_SPEC.eventGroupsList.map { it.value }
-        )
-      )
-      .isEqualTo(
-        Query(
-          Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
-          LandscapeMask(
-            listOf(EventGroupSpec(FILTER_EXPRESSION, TIME_RANGE)),
-            REACH_MEASUREMENT_SPEC.vidSamplingInterval.start,
-            REACH_MEASUREMENT_SPEC.vidSamplingInterval.width
-          ),
-          DpCharge(
-            REACH_MEASUREMENT_SPEC.reach.privacyParams.epsilon.toFloat(),
-            REACH_MEASUREMENT_SPEC.reach.privacyParams.delta.toFloat()
-          )
-        )
-      )
+            getPrivacyQuery(
+                Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
+                REACH_MEASUREMENT_SPEC,
+                REQUISITION_SPEC.events.eventGroupsList.map { it.value }))
+        .isEqualTo(
+            Query(
+                Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
+                LandscapeMask(
+                    listOf(EventGroupSpec(FILTER_EXPRESSION, TIME_RANGE)),
+                    REACH_MEASUREMENT_SPEC.vidSamplingInterval.start,
+                    REACH_MEASUREMENT_SPEC.vidSamplingInterval.width),
+                DpCharge(
+                    REACH_MEASUREMENT_SPEC.reach.privacyParams.epsilon.toFloat(),
+                    REACH_MEASUREMENT_SPEC.reach.privacyParams.delta.toFloat())))
   }
 }

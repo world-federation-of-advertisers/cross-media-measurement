@@ -188,7 +188,7 @@ object LiquidLegionsV2Starter {
       Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS,
       Stage.EXECUTION_PHASE_THREE,
       Stage.COMPLETE -> {
-        logger.info(
+        logger.warning(
           "[id=${token.globalComputationId}]: not updating," +
             " stage '$stage' is after WAIT_REQUISITIONS_AND_KEY_SET"
         )
@@ -197,7 +197,7 @@ object LiquidLegionsV2Starter {
 
       // For weird stages, we throw.
       Stage.UNRECOGNIZED,
-      Stage.STAGE_UNKNOWN -> {
+      Stage.STAGE_UNSPECIFIED -> {
         error("[id=${token.globalComputationId}]: Unrecognized stage '$stage'")
       }
     }
@@ -245,7 +245,7 @@ object LiquidLegionsV2Starter {
       Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS,
       Stage.EXECUTION_PHASE_THREE,
       Stage.COMPLETE -> {
-        logger.info(
+        logger.warning(
           "[id=${token.globalComputationId}]: not starting," +
             " stage '$stage' is after WAIT_TO_START"
         )
@@ -254,7 +254,7 @@ object LiquidLegionsV2Starter {
 
       // For weird stages, we throw.
       Stage.UNRECOGNIZED,
-      Stage.STAGE_UNKNOWN -> {
+      Stage.STAGE_UNSPECIFIED -> {
         error("[id=${token.globalComputationId}]: Unrecognized stage '$stage'")
       }
     }
@@ -349,6 +349,7 @@ object LiquidLegionsV2Starter {
                 }
                 MeasurementSpec.MeasurementTypeCase.IMPRESSION,
                 MeasurementSpec.MeasurementTypeCase.DURATION,
+                MeasurementSpec.MeasurementTypeCase.POPULATION,
                 MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> {
                   throw IllegalArgumentException(
                     "Missing Reach and ReachAndFrequency in the measurementSpec."
