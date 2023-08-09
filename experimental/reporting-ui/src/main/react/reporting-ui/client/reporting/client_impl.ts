@@ -12,19 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Memoizer} from './memoize';
 import {
   GetReportRequest,
   GetReportResponse,
   InitApiProps,
   ListReportsResponse,
+  Report,
+  terminatingStates,
 } from '../../model/reporting';
-import {ReportingClient} from './client';
 
 export class ReportingClientImpl {
   // eslint-disable-next-line node/no-unsupported-features/node-builtins
   baseUrl: URL;
-  memoizer: Memoizer = new Memoizer();
+  cache: Map<string, any> = new Map();
 
   constructor(props: InitApiProps) {
     this.baseUrl = props.endpoint;
@@ -39,18 +39,23 @@ export class ReportingClientImpl {
     return response;
   }
 
-  getReport(req: GetReportRequest): Promise<GetReportResponse> {
-    const getCached = this.memoizer.memoizePromiseFn(this.getReportImpl);
+  async getReport(req: GetReportRequest): Promise<GetReportResponse> {
+    const key = JSON.stringify(req);
 
-    return getCached(req);
-  }
+    if (this.cache.has(key)) {
+      return this.cache.get(key);
+    }
 
-  private async getReportImpl(req: GetReportRequest): Promise<GetReportResponse> {
     const res = await fetch(this.baseUrl.toString() + '/api/reports' + req.id);
-    const report = await res.json();
+    const report: Report = await res.json();
     const response = Object.freeze({
       report,
     });
+
+    if (terminatingStates.includes(report.status)) {
+      this.cache.set(key, response);
+    }
+
     return response;
   }
 }

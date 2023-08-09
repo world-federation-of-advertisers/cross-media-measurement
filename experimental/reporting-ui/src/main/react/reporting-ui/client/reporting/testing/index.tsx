@@ -17,11 +17,10 @@ import ReactDOM from 'react-dom/client';
 import '../../../index.css';
 import App from '../../../app';
 import AppConfig from '../../initialize';
-import { FakeApi } from './fake_api';
+import { FakeReportingClient } from './fake_reporting_client';
 
 const config = {
-  endpoint: new URL('localhost:3000'),
-  reportingClient: new FakeApi(),
+  reportingClient: new FakeReportingClient(),
 };
 
 AppConfig.initialize(config);

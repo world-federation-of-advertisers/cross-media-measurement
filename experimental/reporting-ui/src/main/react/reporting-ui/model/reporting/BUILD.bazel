@@ -19,6 +19,7 @@ js_library(
         "overview.ts",
         "reach.ts",
         "report.ts",
+        "report_state.ts",
         "summary_publisher_data.ts",
         "unique_reach.ts",
     ],

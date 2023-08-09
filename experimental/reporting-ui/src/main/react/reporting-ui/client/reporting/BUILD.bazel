@@ -11,7 +11,6 @@ js_library(
     srcs = [
         "client.ts",
         "client_impl.ts",
-        "memoize.ts",
     ],
     deps = [
         "//experimental/reporting-ui/src/main/react/reporting-ui/model/reporting",

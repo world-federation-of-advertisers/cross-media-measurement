@@ -19,6 +19,7 @@ import {
   TargetReach,
   Reach,
   UniqueReach,
+  ReportState,
 } from '.';
 
 export type Report = {
@@ -26,7 +27,7 @@ export type Report = {
   name: string;
   overview: Overview;
   summary: SummaryPublisherData[];
-  status: string;
+  status: ReportState;
   targetUniqueReachByPlatform: UniqueReach[];
   targetXmediaReachByFreq: TargetReach[];
   totalReach: Reach[];
