@@ -1082,10 +1082,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
                         vidSamplingInterval = VID_SAMPLING_INTERVAL
                       }
                       .withDefaults(reportingServer.metricSpecConfig)
-                  groupings +=
-                    ReportKt.grouping {
-                      predicates += grouping1Predicate
-                    }
+                  groupings += ReportKt.grouping { predicates += grouping1Predicate }
                   groupings +=
                     ReportKt.grouping {
                       predicates += grouping2Predicate1
