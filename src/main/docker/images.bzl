@@ -37,6 +37,11 @@ COMMON_IMAGES = [
         repository = _PREFIX + "/duchy/spanner-update-schema",
     ),
     struct(
+        name = "duchy_postgres_update_schema_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/postgres/tools:update_schema_image",
+        repository = _PREFIX + "/duchy/postgres-update-schema",
+    ),
+    struct(
         name = "duchy_computations_cleaner_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/job:computations_cleaner_image",
         repository = _PREFIX + "/duchy/computations-cleaner",
@@ -112,6 +117,11 @@ GKE_IMAGES = [
         repository = _PREFIX + "/duchy/spanner-computations",
     ),
     struct(
+        name = "duchy_gcs_postgres_data_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:duchy_gcs_postgres_data_server_image",
+        repository = _PREFIX + "/duchy/postgres-data",
+    ),
+    struct(
         name = "duchy_requisition_fulfillment_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:gcs_requisition_fulfillment_server_image",
         repository = _PREFIX + "/duchy/requisition-fulfillment",
@@ -144,6 +154,11 @@ LOCAL_IMAGES = [
         name = "forwarded_storage_spanner_computations_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:forwarded_storage_spanner_computations_server_image",
         repository = _PREFIX + "/duchy/local-spanner-computations",
+    ),
+    struct(
+        name = "forwarded_storage_postgres_data_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:forwarded_storage_postgres_duchy_data_server_image",
+        repository = _PREFIX + "/duchy/local-postgres-data",
     ),
     struct(
         name = "forwarded_storage_requisition_fulfillment_server_image",

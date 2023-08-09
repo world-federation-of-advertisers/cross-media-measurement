@@ -24,6 +24,7 @@ _worker2_cert_name:    string @tag("worker2_cert_name")
 #DuchyConfig: {
 	let duchyName = name
 	name:                            string
+	databaseType:                    string
 	protocolsSetupConfig:            string
 	certificateResourceName:         string
 	computationControlServiceTarget: (#Target & {name: "\(duchyName)-computation-control-server"}).target
@@ -35,14 +36,17 @@ _duchyConfigs: {
 	"aggregator": {
 		protocolsSetupConfig:    "aggregator_protocols_setup_config.textproto"
 		certificateResourceName: _aggregator_cert_name
+		databaseType:            "spanner"
 	}
 	"worker1": {
 		protocolsSetupConfig:    "non_aggregator_protocols_setup_config.textproto"
 		certificateResourceName: _worker1_cert_name
+		databaseType:            "spanner"
 	}
 	"worker2": {
 		protocolsSetupConfig:    "non_aggregator_protocols_setup_config.textproto"
 		certificateResourceName: _worker2_cert_name
+		databaseType:            "postgres"
 	}
 }
 
@@ -55,25 +59,51 @@ _computationControlTargets: {
 }
 
 duchies: [ for duchyConfig in _duchyConfigs {
-	#Duchy & {
-		_imageSuffixes: {
-			"computation-control-server":     "duchy/local-computation-control"
-			"liquid-legions-v2-mill-daemon":  "duchy/local-liquid-legions-v2-mill"
-			"requisition-fulfillment-server": "duchy/local-requisition-fulfillment"
-			"spanner-computations-server":    "duchy/local-spanner-computations"
+	if (duchyConfig.databaseType == "spanner") {
+		#SpannerDuchy & {
+			_imageSuffixes: {
+				"computation-control-server":     "duchy/local-computation-control"
+				"liquid-legions-v2-mill-daemon":  "duchy/local-liquid-legions-v2-mill"
+				"requisition-fulfillment-server": "duchy/local-requisition-fulfillment"
+				"spanner-computations-server":    "duchy/local-spanner-computations"
+			}
+			_duchy: {
+				name:                   duchyConfig.name
+				protocols_setup_config: duchyConfig.protocolsSetupConfig
+				cs_cert_resource_name:  duchyConfig.certificateResourceName
+			}
+			_duchy_secret_name:           _secret_name
+			_computation_control_targets: _computationControlTargets
+			_kingdom_system_api_target:   #KingdomSystemApiTarget
+			_blob_storage_flags: [
+				"--forwarded-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
+				"--forwarded-storage-cert-host=localhost",
+			]
+			_verbose_grpc_logging: "true"
 		}
-		_duchy: {
-			name:                   duchyConfig.name
-			protocols_setup_config: duchyConfig.protocolsSetupConfig
-			cs_cert_resource_name:  duchyConfig.certificateResourceName
+	}
+
+	if (duchyConfig.databaseType == "postgres") {
+		#PostgresDuchy & {
+			_imageSuffixes: {
+				"computation-control-server":     "duchy/local-computation-control"
+				"liquid-legions-v2-mill-daemon":  "duchy/local-liquid-legions-v2-mill"
+				"requisition-fulfillment-server": "duchy/local-requisition-fulfillment"
+				"postgres-data-server":           "duchy/local-postgres-data"
+			}
+			_duchy: {
+				name:                   duchyConfig.name
+				protocols_setup_config: duchyConfig.protocolsSetupConfig
+				cs_cert_resource_name:  duchyConfig.certificateResourceName
+			}
+			_duchy_secret_name:           _secret_name
+			_computation_control_targets: _computationControlTargets
+			_kingdom_system_api_target:   #KingdomSystemApiTarget
+			_blob_storage_flags: [
+				"--forwarded-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
+				"--forwarded-storage-cert-host=localhost",
+			]
+			_verbose_grpc_logging: "true"
 		}
-		_duchy_secret_name:           _secret_name
-		_computation_control_targets: _computationControlTargets
-		_kingdom_system_api_target:   #KingdomSystemApiTarget
-		_blob_storage_flags: [
-			"--forwarded-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
-			"--forwarded-storage-cert-host=localhost",
-		]
-		_verbose_grpc_logging: "true"
 	}
 }]
