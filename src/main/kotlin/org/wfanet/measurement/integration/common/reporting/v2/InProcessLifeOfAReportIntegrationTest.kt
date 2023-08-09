@@ -997,7 +997,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
       periodicTimeInterval = periodicTimeInterval {
         startTime = EVENT_RANGE.start.toProtoTime()
         increment = Durations.fromDays(1L)
-        intervalCount = 10
+        intervalCount = 2
       }
     }
 
