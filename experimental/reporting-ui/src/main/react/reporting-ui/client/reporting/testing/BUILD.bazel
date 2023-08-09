@@ -20,8 +20,8 @@ webpack_devserver(
     data = [
         ":fake_app",
         "//:tsconfig",
-        "//experimental/reporting-ui/src/main/react/reporting-ui:node_deps",
         "//experimental/reporting-ui/src/main/react/reporting-ui:app",
+        "//experimental/reporting-ui/src/main/react/reporting-ui:node_deps",
         "//experimental/reporting-ui/src/main/react/reporting-ui/model/reporting",
         "//experimental/reporting-ui/src/main/react/reporting-ui/public",
     ],
