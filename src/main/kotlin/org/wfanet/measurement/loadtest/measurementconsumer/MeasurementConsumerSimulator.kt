@@ -94,41 +94,41 @@ import org.wfanet.measurement.loadtest.dataprovider.EventQuery
 import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults
 
 data class MeasurementConsumerData(
-    // The MC's public API resource name
-    val name: String,
-    /** The MC's consent signaling signing key. */
-    val signingKey: SigningKeyHandle,
-    /** The MC's encryption private key. */
-    val encryptionKey: PrivateKeyHandle,
-    /** An API key for the MC. */
-    val apiAuthenticationKey: String
+  // The MC's public API resource name
+  val name: String,
+  /** The MC's consent signaling signing key. */
+  val signingKey: SigningKeyHandle,
+  /** The MC's encryption private key. */
+  val encryptionKey: PrivateKeyHandle,
+  /** An API key for the MC. */
+  val apiAuthenticationKey: String
 )
 
 /** Simulator for MeasurementConsumer operations on the CMMS public API. */
 class MeasurementConsumerSimulator(
-    private val measurementConsumerData: MeasurementConsumerData,
-    private val outputDpParams: DifferentialPrivacyParams,
-    private val dataProvidersClient: DataProvidersCoroutineStub,
-    private val eventGroupsClient: EventGroupsCoroutineStub,
-    private val measurementsClient: MeasurementsCoroutineStub,
-    private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
-    private val certificatesClient: CertificatesCoroutineStub,
-    private val resultPollingDelay: Duration,
-    private val trustedCertificates: Map<ByteString, X509Certificate>,
-    private val eventQuery: EventQuery<Message>,
+  private val measurementConsumerData: MeasurementConsumerData,
+  private val outputDpParams: DifferentialPrivacyParams,
+  private val dataProvidersClient: DataProvidersCoroutineStub,
+  private val eventGroupsClient: EventGroupsCoroutineStub,
+  private val measurementsClient: MeasurementsCoroutineStub,
+  private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
+  private val certificatesClient: CertificatesCoroutineStub,
+  private val resultPollingDelay: Duration,
+  private val trustedCertificates: Map<ByteString, X509Certificate>,
+  private val eventQuery: EventQuery<Message>,
 ) {
   /** Cache of resource name to [Certificate]. */
   private val certificateCache = mutableMapOf<String, Certificate>()
 
   private data class RequisitionInfo(
-      val dataProviderEntry: DataProviderEntry,
-      val requisitionSpec: RequisitionSpec,
-      val eventGroups: List<EventGroup>,
+    val dataProviderEntry: DataProviderEntry,
+    val requisitionSpec: RequisitionSpec,
+    val eventGroups: List<EventGroup>,
   )
   private data class MeasurementInfo(
-      val measurement: Measurement,
-      val measurementSpec: MeasurementSpec,
-      val requisitions: List<RequisitionInfo>,
+    val measurement: Measurement,
+    val measurementSpec: MeasurementSpec,
+    val requisitions: List<RequisitionInfo>,
   ) {
     val maximumFrequency: Int
       get() {
@@ -140,7 +140,7 @@ class MeasurementConsumerSimulator(
         }
 
         val protocol =
-            protocols.find { it.hasLiquidLegionsV2() } ?: error("Unable to determine max frequency")
+          protocols.find { it.hasLiquidLegionsV2() } ?: error("Unable to determine max frequency")
         return protocol.liquidLegionsV2.maximumFrequency
       }
   }
@@ -151,15 +151,19 @@ class MeasurementConsumerSimulator(
 
       return requisitions.asSequence().flatMap {
         val eventGroupsMap: Map<String, RequisitionSpec.EventGroupEntry.Value> =
-            it.requisitionSpec.eventGroupsMap
+          it.requisitionSpec.eventGroupsMap
         it.eventGroups.flatMap { eventGroup ->
           eventQuery
-              .getUserVirtualIds(
-                  EventQuery.EventGroupSpec(eventGroup, eventGroupsMap.getValue(eventGroup.name)))
-              .filter { vid ->
-                VidSampling.sampler.vidIsInSamplingBucket(
-                    vid, vidSamplingInterval.start, vidSamplingInterval.width)
-              }
+            .getUserVirtualIds(
+              EventQuery.EventGroupSpec(eventGroup, eventGroupsMap.getValue(eventGroup.name))
+            )
+            .filter { vid ->
+              VidSampling.sampler.vidIsInSamplingBucket(
+                vid,
+                vidSamplingInterval.start,
+                vidSamplingInterval.width
+              )
+            }
         }
       }
     }
@@ -170,7 +174,7 @@ class MeasurementConsumerSimulator(
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val measurementInfo: MeasurementInfo =
-        createMeasurement(measurementConsumer, runId, ::newReachAndFrequencyMeasurementSpec)
+      createMeasurement(measurementConsumer, runId, ::newReachAndFrequencyMeasurementSpec)
     val measurementName = measurementInfo.measurement.name
     logger.info { "Created reach and frequency Measurement $measurementName" }
 
@@ -196,10 +200,11 @@ class MeasurementConsumerSimulator(
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
 
     val invalidMeasurement =
-        createMeasurement(measurementConsumer, runId, ::newInvalidReachAndFrequencyMeasurementSpec)
-            .measurement
+      createMeasurement(measurementConsumer, runId, ::newInvalidReachAndFrequencyMeasurementSpec)
+        .measurement
     logger.info(
-        "Created invalid reach and frequency measurement ${invalidMeasurement.name}, state=${invalidMeasurement.state.name}")
+      "Created invalid reach and frequency measurement ${invalidMeasurement.name}, state=${invalidMeasurement.state.name}"
+    )
 
     var failure = getFailure(invalidMeasurement.name)
     var attempts = 0
@@ -222,7 +227,7 @@ class MeasurementConsumerSimulator(
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val measurementInfo =
-        createMeasurement(measurementConsumer, runId, ::newReachAndFrequencyMeasurementSpec, 1)
+      createMeasurement(measurementConsumer, runId, ::newReachAndFrequencyMeasurementSpec, 1)
     val measurementName = measurementInfo.measurement.name
     logger.info("Created direct reach and frequency measurement $measurementName.")
 
@@ -235,13 +240,13 @@ class MeasurementConsumerSimulator(
 
     // TODO(@riemanli): Use variance rather than fixed tolerance values.
     assertThat(reachAndFrequencyResult)
-        .reachValue()
-        .isWithinPercent(0.5)
-        .of(expectedResult.reach.value)
+      .reachValue()
+      .isWithinPercent(0.5)
+      .of(expectedResult.reach.value)
     assertThat(reachAndFrequencyResult)
-        .frequencyDistribution()
-        .isWithin(0.01)
-        .of(expectedResult.frequency.relativeFrequencyDistributionMap)
+      .frequencyDistribution()
+      .isWithin(0.01)
+      .of(expectedResult.frequency.relativeFrequencyDistributionMap)
 
     logger.info("Direct reach and frequency result is equal to the expected result")
   }
@@ -251,7 +256,7 @@ class MeasurementConsumerSimulator(
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val measurementInfo =
-        createMeasurement(measurementConsumer, runId, ::newReachOnlyMeasurementSpec)
+      createMeasurement(measurementConsumer, runId, ::newReachOnlyMeasurementSpec)
     val measurementName = measurementInfo.measurement.name
     logger.info("Created reach-only measurement $measurementName.")
 
@@ -280,7 +285,7 @@ class MeasurementConsumerSimulator(
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val measurementInfo =
-        createMeasurement(measurementConsumer, runId, ::newImpressionMeasurementSpec)
+      createMeasurement(measurementConsumer, runId, ::newImpressionMeasurementSpec)
     val measurementName = measurementInfo.measurement.name
     logger.info("Created impression Measurement $measurementName.")
 
@@ -289,10 +294,10 @@ class MeasurementConsumerSimulator(
     impressionResults.forEach {
       val result = parseAndVerifyResult(it)
       assertThat(result.impression.value)
-          .isEqualTo(
-              // EdpSimulator sets it to this value.
-              apiIdToExternalId(
-                  DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId))
+        .isEqualTo(
+          // EdpSimulator sets it to this value.
+          apiIdToExternalId(DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId)
+        )
     }
     logger.info("Impression result is equal to the expected result")
   }
@@ -303,7 +308,7 @@ class MeasurementConsumerSimulator(
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val measurementInfo =
-        createMeasurement(measurementConsumer, runId, ::newDurationMeasurementSpec)
+      createMeasurement(measurementConsumer, runId, ::newDurationMeasurementSpec)
     val measurementName = measurementInfo.measurement.name
     logger.info("Created duration Measurement $measurementName.")
 
@@ -312,10 +317,10 @@ class MeasurementConsumerSimulator(
     durationResults.forEach {
       val result = parseAndVerifyResult(it)
       assertThat(result.watchDuration.value.seconds)
-          .isEqualTo(
-              // EdpSimulator sets it to this value.
-              apiIdToExternalId(
-                  DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId))
+        .isEqualTo(
+          // EdpSimulator sets it to this value.
+          apiIdToExternalId(DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId)
+        )
     }
     logger.info("Duration result is equal to the expected result")
   }
@@ -325,39 +330,40 @@ class MeasurementConsumerSimulator(
     // TODO(@riemanli): Use variance rather than fixed tolerance values.
     assertThat(actualResult).reachValue().isWithinPercent(10.0).of(expectedResult.reach.value)
     assertThat(actualResult)
-        .frequencyDistribution()
-        .isWithin(0.05)
-        .of(expectedResult.frequency.relativeFrequencyDistributionMap)
+      .frequencyDistribution()
+      .isWithin(0.05)
+      .of(expectedResult.frequency.relativeFrequencyDistributionMap)
   }
 
   /** Creates a Measurement on behalf of the [MeasurementConsumer]. */
   private suspend fun createMeasurement(
-      measurementConsumer: MeasurementConsumer,
-      runId: String,
-      newMeasurementSpec:
-          (
-              serializedMeasurementPublicKey: ByteString,
-              nonceHashes: MutableList<ByteString>) -> MeasurementSpec,
-      maxDataProviders: Int = 20
+    measurementConsumer: MeasurementConsumer,
+    runId: String,
+    newMeasurementSpec:
+      (
+        serializedMeasurementPublicKey: ByteString, nonceHashes: MutableList<ByteString>
+      ) -> MeasurementSpec,
+    maxDataProviders: Int = 20
   ): MeasurementInfo {
     val eventGroups: List<EventGroup> =
-        listEventGroups(measurementConsumer.name).filter {
-          it.eventGroupReferenceId.startsWith(
-              TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX)
-        }
+      listEventGroups(measurementConsumer.name).filter {
+        it.eventGroupReferenceId.startsWith(
+          TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
+        )
+      }
     check(eventGroups.isNotEmpty()) { "No event groups found for ${measurementConsumer.name}" }
     val nonceHashes = mutableListOf<ByteString>()
 
     val requisitions: List<RequisitionInfo> =
-        eventGroups
-            .groupBy { extractDataProviderKey(it.name) }
-            .entries
-            .take(maxDataProviders)
-            .map { (dataProviderKey, eventGroups) ->
-              val nonce = Random.Default.nextLong()
-              nonceHashes.add(Hashing.hashSha256(nonce))
-              buildRequisitionInfo(dataProviderKey, eventGroups, measurementConsumer, nonce)
-            }
+      eventGroups
+        .groupBy { extractDataProviderKey(it.name) }
+        .entries
+        .take(maxDataProviders)
+        .map { (dataProviderKey, eventGroups) ->
+          val nonce = Random.Default.nextLong()
+          nonceHashes.add(Hashing.hashSha256(nonce))
+          buildRequisitionInfo(dataProviderKey, eventGroups, measurementConsumer, nonce)
+        }
 
     val measurementSpec = newMeasurementSpec(measurementConsumer.publicKey.data, nonceHashes)
     val request = createMeasurementRequest {
@@ -365,19 +371,19 @@ class MeasurementConsumerSimulator(
       measurement = measurement {
         measurementConsumerCertificate = measurementConsumer.certificate
         this.measurementSpec =
-            signMeasurementSpec(measurementSpec, measurementConsumerData.signingKey)
+          signMeasurementSpec(measurementSpec, measurementConsumerData.signingKey)
         dataProviders += requisitions.map { it.dataProviderEntry }
         this.measurementReferenceId = runId
       }
     }
     val measurement: Measurement =
-        try {
-          measurementsClient
-              .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-              .createMeasurement(request)
-        } catch (e: StatusException) {
-          throw Exception("Error creating Measurement", e)
-        }
+      try {
+        measurementsClient
+          .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+          .createMeasurement(request)
+      } catch (e: StatusException) {
+        throw Exception("Error creating Measurement", e)
+      }
 
     return MeasurementInfo(measurement, measurementSpec, requisitions)
   }
@@ -425,13 +431,13 @@ class MeasurementConsumerSimulator(
   /** Gets [Measurement] with logging state. */
   private suspend fun getMeasurement(measurementName: String): Measurement {
     val measurement: Measurement =
-        try {
-          measurementsClient
-              .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-              .getMeasurement(getMeasurementRequest { name = measurementName })
-        } catch (e: StatusException) {
-          throw Exception("Error fetching measurement $measurementName", e)
-        }
+      try {
+        measurementsClient
+          .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+          .getMeasurement(getMeasurementRequest { name = measurementName })
+      } catch (e: StatusException) {
+        throw Exception("Error fetching measurement $measurementName", e)
+      }
 
     logger.info("Current Measurement state is: " + measurement.state)
 
@@ -458,23 +464,23 @@ class MeasurementConsumerSimulator(
 
   private suspend fun parseAndVerifyResult(resultPair: Measurement.ResultPair): Result {
     val certificate =
-        certificateCache.getOrPut(resultPair.certificate) {
-          try {
-            certificatesClient
-                .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-                .getCertificate(getCertificateRequest { name = resultPair.certificate })
-          } catch (e: StatusException) {
-            throw Exception("Error fetching certificate ${resultPair.certificate}", e)
-          }
+      certificateCache.getOrPut(resultPair.certificate) {
+        try {
+          certificatesClient
+            .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+            .getCertificate(getCertificateRequest { name = resultPair.certificate })
+        } catch (e: StatusException) {
+          throw Exception("Error fetching certificate ${resultPair.certificate}", e)
         }
+      }
 
     val signedResult =
-        decryptResult(resultPair.encryptedResult, measurementConsumerData.encryptionKey)
+      decryptResult(resultPair.encryptedResult, measurementConsumerData.encryptionKey)
     val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
     val trustedIssuer =
-        checkNotNull(trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]) {
-          "Issuer of ${certificate.name} not trusted"
-        }
+      checkNotNull(trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]) {
+        "Issuer of ${certificate.name} not trusted"
+      }
     try {
       verifyResult(signedResult, x509Certificate, trustedIssuer)
     } catch (e: CertPathValidatorException) {
@@ -491,12 +497,12 @@ class MeasurementConsumerSimulator(
     return when (measurementInfo.measurementSpec.measurementTypeCase) {
       MeasurementSpec.MeasurementTypeCase.REACH -> getExpectedReachResult(measurementInfo)
       MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
-          getExpectedReachAndFrequencyResult(measurementInfo)
+        getExpectedReachAndFrequencyResult(measurementInfo)
       MeasurementSpec.MeasurementTypeCase.IMPRESSION -> getExpectedImpressionResult()
       MeasurementSpec.MeasurementTypeCase.DURATION -> getExpectedDurationResult()
       MeasurementSpec.MeasurementTypeCase.POPULATION -> getExpectedPopulationResult()
       MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
-          error("measurement_type not set")
+        error("measurement_type not set")
     }
   }
 
@@ -520,13 +526,16 @@ class MeasurementConsumerSimulator(
   private fun getExpectedReachAndFrequencyResult(measurementInfo: MeasurementInfo): Result {
 
     val (reach, relativeFrequencyDistribution) =
-        MeasurementResults.computeReachAndFrequency(
-            measurementInfo.sampledVids.asIterable(), measurementInfo.maximumFrequency)
+      MeasurementResults.computeReachAndFrequency(
+        measurementInfo.sampledVids.asIterable(),
+        measurementInfo.maximumFrequency
+      )
     return result {
       this.reach = reach { value = reach.toLong() }
       frequency = frequency {
         this.relativeFrequencyDistribution.putAll(
-            relativeFrequencyDistribution.mapKeys { it.key.toLong() })
+          relativeFrequencyDistribution.mapKeys { it.key.toLong() }
+        )
       }
     }
   }
@@ -535,16 +544,16 @@ class MeasurementConsumerSimulator(
     val request = getMeasurementConsumerRequest { this.name = name }
     try {
       return measurementConsumersClient
-          .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-          .getMeasurementConsumer(request)
+        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+        .getMeasurementConsumer(request)
     } catch (e: StatusException) {
       throw Exception("Error getting MC $name", e)
     }
   }
 
   private fun newReachAndFrequencyMeasurementSpec(
-      serializedMeasurementPublicKey: ByteString,
-      nonceHashes: List<ByteString>
+    serializedMeasurementPublicKey: ByteString,
+    nonceHashes: List<ByteString>
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = serializedMeasurementPublicKey
@@ -561,8 +570,8 @@ class MeasurementConsumerSimulator(
   }
 
   private fun newReachOnlyMeasurementSpec(
-      serializedMeasurementPublicKey: ByteString,
-      nonceHashes: List<ByteString>
+    serializedMeasurementPublicKey: ByteString,
+    nonceHashes: List<ByteString>
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = serializedMeasurementPublicKey
@@ -576,8 +585,8 @@ class MeasurementConsumerSimulator(
   }
 
   private fun newInvalidReachAndFrequencyMeasurementSpec(
-      serializedMeasurementPublicKey: ByteString,
-      nonceHashes: List<ByteString>
+    serializedMeasurementPublicKey: ByteString,
+    nonceHashes: List<ByteString>
   ): MeasurementSpec {
     return newReachAndFrequencyMeasurementSpec(serializedMeasurementPublicKey, nonceHashes).copy {
       val invalidPrivacyParams = differentialPrivacyParams {
@@ -592,8 +601,8 @@ class MeasurementConsumerSimulator(
   }
 
   private fun newImpressionMeasurementSpec(
-      serializedMeasurementPublicKey: ByteString,
-      nonceHashes: List<ByteString>
+    serializedMeasurementPublicKey: ByteString,
+    nonceHashes: List<ByteString>
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = serializedMeasurementPublicKey
@@ -606,8 +615,8 @@ class MeasurementConsumerSimulator(
   }
 
   private fun newDurationMeasurementSpec(
-      serializedMeasurementPublicKey: ByteString,
-      nonceHashes: List<ByteString>
+    serializedMeasurementPublicKey: ByteString,
+    nonceHashes: List<ByteString>
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = serializedMeasurementPublicKey
@@ -623,9 +632,9 @@ class MeasurementConsumerSimulator(
     val request = listEventGroupsRequest { parent = measurementConsumer }
     try {
       return eventGroupsClient
-          .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-          .listEventGroups(request)
-          .eventGroupsList
+        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+        .listEventGroups(request)
+        .eventGroupsList
     } catch (e: StatusException) {
       throw Exception("Error listing event groups for MC $measurementConsumer", e)
     }
@@ -641,67 +650,67 @@ class MeasurementConsumerSimulator(
     val request = GetDataProviderRequest.newBuilder().also { it.name = name }.build()
     try {
       return dataProvidersClient
-          .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-          .getDataProvider(request)
+        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+        .getDataProvider(request)
     } catch (e: StatusException) {
       throw Exception("Error fetching DataProvider $name", e)
     }
   }
 
   private suspend fun buildRequisitionInfo(
-      dataProviderKey: DataProviderKey,
-      eventGroups: List<EventGroup>,
-      measurementConsumer: MeasurementConsumer,
-      nonce: Long
+    dataProviderKey: DataProviderKey,
+    eventGroups: List<EventGroup>,
+    measurementConsumer: MeasurementConsumer,
+    nonce: Long
   ): RequisitionInfo {
     val dataProvider = getDataProvider(dataProviderKey)
 
     val requisitionSpec = requisitionSpec {
       for (eventGroup in eventGroups) {
         events =
-            RequisitionSpecKt.events {
-              this.eventGroups += eventGroupEntry {
-                key = eventGroup.name
-                value =
-                    RequisitionSpecKt.EventGroupEntryKt.value {
-                      collectionInterval = interval {
-                        startTime = EVENT_RANGE.start.toProtoTime()
-                        endTime = EVENT_RANGE.endExclusive.toProtoTime()
-                      }
-                      filter = eventFilter { expression = FILTER_EXPRESSION }
-                    }
-              }
+          RequisitionSpecKt.events {
+            this.eventGroups += eventGroupEntry {
+              key = eventGroup.name
+              value =
+                RequisitionSpecKt.EventGroupEntryKt.value {
+                  collectionInterval = interval {
+                    startTime = EVENT_RANGE.start.toProtoTime()
+                    endTime = EVENT_RANGE.endExclusive.toProtoTime()
+                  }
+                  filter = eventFilter { expression = FILTER_EXPRESSION }
+                }
             }
+          }
       }
       measurementPublicKey = measurementConsumer.publicKey.data
       this.nonce = nonce
     }
     val signedRequisitionSpec =
-        signRequisitionSpec(requisitionSpec, measurementConsumerData.signingKey)
+      signRequisitionSpec(requisitionSpec, measurementConsumerData.signingKey)
     val dataProviderEntry =
-        dataProvider.toDataProviderEntry(signedRequisitionSpec, Hashing.hashSha256(nonce))
+      dataProvider.toDataProviderEntry(signedRequisitionSpec, Hashing.hashSha256(nonce))
 
     return RequisitionInfo(dataProviderEntry, requisitionSpec, eventGroups)
   }
 
   private fun DataProvider.toDataProviderEntry(
-      signedRequisitionSpec: SignedData,
-      nonceHash: ByteString
+    signedRequisitionSpec: SignedData,
+    nonceHash: ByteString
   ): DataProviderEntry {
     val source = this
     return dataProviderEntry {
       key = source.name
       this.value =
-          MeasurementKt.DataProviderEntryKt.value {
-            dataProviderCertificate = source.certificate
-            dataProviderPublicKey = source.publicKey
-            encryptedRequisitionSpec =
-                encryptRequisitionSpec(
-                    signedRequisitionSpec,
-                    EncryptionPublicKey.parseFrom(source.publicKey.data),
-                )
-            this.nonceHash = nonceHash
-          }
+        MeasurementKt.DataProviderEntryKt.value {
+          dataProviderCertificate = source.certificate
+          dataProviderPublicKey = source.publicKey
+          encryptedRequisitionSpec =
+            encryptRequisitionSpec(
+              signedRequisitionSpec,
+              EncryptionPublicKey.parseFrom(source.publicKey.data),
+            )
+          this.nonceHash = nonceHash
+        }
     }
   }
 
@@ -731,8 +740,8 @@ class MeasurementConsumerSimulator(
 
   companion object {
     private const val FILTER_EXPRESSION =
-        "person.gender == ${Person.Gender.MALE_VALUE} && " +
-            "(video_ad.viewed_fraction > 0.25 || video_ad.viewed_fraction == 0.25)"
+      "person.gender == ${Person.Gender.MALE_VALUE} && " +
+        "(video_ad.viewed_fraction > 0.25 || video_ad.viewed_fraction == 0.25)"
 
     /**
      * Date range for events.
@@ -740,7 +749,7 @@ class MeasurementConsumerSimulator(
      * TODO(@SanjayVas): Make this configurable.
      */
     private val EVENT_RANGE =
-        OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))
+      OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }

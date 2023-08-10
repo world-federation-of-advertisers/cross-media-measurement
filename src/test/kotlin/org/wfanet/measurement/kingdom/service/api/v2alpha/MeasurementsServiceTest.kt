@@ -56,6 +56,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.population
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
@@ -567,6 +568,77 @@ class MeasurementsServiceTest {
         internalMeasurementsMock,
         MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
       )
+      .isEqualTo(
+        internalCreateMeasurementRequest {
+          this.measurement =
+            internalMeasurement.copy {
+              clearExternalMeasurementId()
+              clearUpdateTime()
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `createMeasurement with POPULATION type specifies direct protocol`() {
+    val measurement =
+      MEASUREMENT.copy {
+        clearFailure()
+        results.clear()
+
+        measurementSpec =
+          measurementSpec.copy {
+            data =
+              MEASUREMENT_SPEC.copy {
+                clearReachAndFrequency()
+                population = population {}
+              }
+                .toByteString()
+          }
+
+        protocolConfig =
+          protocolConfig.copy {
+            measurementType = ProtocolConfig.MeasurementType.POPULATION
+
+            protocols.clear()
+            protocols +=
+              ProtocolConfigKt.protocol { direct = ProtocolConfig.Direct.getDefaultInstance() }
+          }
+      }
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      this.measurement =
+        measurement.copy {
+          clearName()
+          clearProtocolConfig()
+        }
+    }
+    val internalMeasurement =
+      INTERNAL_MEASUREMENT.copy {
+        results.clear()
+        details =
+          details.copy {
+            clearFailure()
+
+            clearDuchyProtocolConfig()
+            clearProtocolConfig()
+            measurementSpec = measurement.measurementSpec.data
+          }
+      }
+    internalMeasurementsMock.stub {
+      onBlocking { createMeasurement(any()) }.thenReturn(internalMeasurement)
+    }
+
+    val response: Measurement =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.createMeasurement(request) }
+      }
+
+    assertThat(response).ignoringRepeatedFieldOrder().isEqualTo(measurement)
+    verifyProtoArgument(
+      internalMeasurementsMock,
+      MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
+    )
       .isEqualTo(
         internalCreateMeasurementRequest {
           this.measurement =
