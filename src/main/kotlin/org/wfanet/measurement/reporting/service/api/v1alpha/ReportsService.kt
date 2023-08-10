@@ -1200,7 +1200,7 @@ class ReportsService(
       }
 
       val requisitionSpec = requisitionSpec {
-        events = RequisitionSpecKt.events{ eventGroups += eventGroupEntriesList }
+        events = RequisitionSpecKt.events { eventGroups += eventGroupEntriesList }
         measurementPublicKey = measurementEncryptionPublicKey
         nonce = secureRandom.nextLong()
       }

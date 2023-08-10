@@ -318,9 +318,7 @@ private fun MeasurementSpec.validate() {
       }
     }
     MeasurementSpec.MeasurementTypeCase.POPULATION -> {
-      grpcRequire(modelLine.isNotEmpty()) {
-        "Model Line is unspecified"
-      }
+      grpcRequire(modelLine.isNotEmpty()) { "Model Line is unspecified" }
     }
     MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
       failGrpc(Status.INVALID_ARGUMENT) { "Measurement type is unspecified" }

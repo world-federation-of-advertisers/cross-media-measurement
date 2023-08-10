@@ -590,9 +590,10 @@ class MeasurementsServiceTest {
           measurementSpec.copy {
             data =
               MEASUREMENT_SPEC.copy {
-                clearReachAndFrequency()
-                population = population {}
-              }
+                  clearReachAndFrequency()
+                  population = population {}
+                  modelLine = "some-model-line"
+                }
                 .toByteString()
           }
 
@@ -636,9 +637,9 @@ class MeasurementsServiceTest {
 
     assertThat(response).ignoringRepeatedFieldOrder().isEqualTo(measurement)
     verifyProtoArgument(
-      internalMeasurementsMock,
-      MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
-    )
+        internalMeasurementsMock,
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
+      )
       .isEqualTo(
         internalCreateMeasurementRequest {
           this.measurement =
@@ -648,6 +649,34 @@ class MeasurementsServiceTest {
             }
         }
       )
+  }
+
+  @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when model line is missing for POPULATION measurement`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                measurement =
+                  MEASUREMENT.copy {
+                    measurementSpec = signedData {
+                      data =
+                        MEASUREMENT_SPEC.copy {
+                            clearReachAndFrequency()
+                            population = population {}
+                          }
+                          .toByteString()
+                      signature = UPDATE_TIME.toByteString()
+                    }
+                  }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test

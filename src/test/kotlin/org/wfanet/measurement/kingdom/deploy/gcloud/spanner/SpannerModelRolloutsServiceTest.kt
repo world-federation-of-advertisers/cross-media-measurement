@@ -32,7 +32,8 @@ class SpannerModelRolloutsServiceTest : ModelRolloutsServiceTest<SpannerModelRol
     idGenerator: IdGenerator
   ): Services<SpannerModelRolloutsService> {
     val spannerServices =
-      SpannerDataServices(testClock, idGenerator, spannerDatabase.databaseClient).buildDataServices()
+      SpannerDataServices(testClock, idGenerator, spannerDatabase.databaseClient)
+        .buildDataServices()
 
     return Services(
       spannerServices.modelRolloutsService as SpannerModelRolloutsService,

@@ -553,8 +553,7 @@ private val EVENT_GROUP_ENTRIES =
 private val REQUISITION_SPECS: Map<DataProviderKey, RequisitionSpec> =
   EVENT_GROUP_ENTRIES.mapValues {
     requisitionSpec {
-      events =
-        RequisitionSpecKt.events { eventGroups += it.value }
+      events = RequisitionSpecKt.events { eventGroups += it.value }
       measurementPublicKey = MEASUREMENT_CONSUMERS.values.first().publicKey.data
       nonce = SECURE_RANDOM_OUTPUT_LONG
     }
