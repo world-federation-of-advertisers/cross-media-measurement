@@ -16,6 +16,7 @@ package org.wfanet.measurement.loadtest.measurementconsumer
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.Message
 import com.google.type.interval
 import io.grpc.StatusException
 import java.security.SignatureException
@@ -114,7 +115,7 @@ class MeasurementConsumerSimulator(
     private val certificatesClient: CertificatesCoroutineStub,
     private val resultPollingDelay: Duration,
     private val trustedCertificates: Map<ByteString, X509Certificate>,
-    private val eventQuery: EventQuery,
+    private val eventQuery: EventQuery<Message>,
 ) {
   /** Cache of resource name to [Certificate]. */
   private val certificateCache = mutableMapOf<String, Certificate>()

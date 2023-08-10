@@ -30,9 +30,9 @@ import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.DpCharge
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.DpQuery
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.EventGroupSpec
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.LandscapeMask
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Query
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getPrivacyQuery
 
@@ -121,7 +121,7 @@ class PrivacyQueryMapperTest {
                 REACH_AND_FREQ_MEASUREMENT_SPEC,
                 REQUISITION_SPEC.events.eventGroupsList.map { it.value }))
         .isEqualTo(
-            Query(
+            DpQuery(
                 Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
                 LandscapeMask(listOf(EventGroupSpec(FILTER_EXPRESSION, TIME_RANGE)), 0.01f, 0.02f),
                 DpCharge(0.6f, 0.02f)))
@@ -137,7 +137,7 @@ class PrivacyQueryMapperTest {
                 DURATION_MEASUREMENT_SPEC,
                 REQUISITION_SPEC.events.eventGroupsList.map { it.value }))
         .isEqualTo(
-            Query(
+            DpQuery(
                 Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
                 LandscapeMask(listOf(EventGroupSpec(FILTER_EXPRESSION, TIME_RANGE)), 0.0f, 0.0f),
                 DpCharge(0.3f, 0.02f)))
@@ -153,7 +153,7 @@ class PrivacyQueryMapperTest {
                 IMPRESSION_MEASUREMENT_SPEC,
                 REQUISITION_SPEC.events.eventGroupsList.map { it.value }))
         .isEqualTo(
-            Query(
+            DpQuery(
                 Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
                 LandscapeMask(listOf(EventGroupSpec(FILTER_EXPRESSION, TIME_RANGE)), 0.0f, 0.0f),
                 DpCharge(0.4f, 0.02f)))
@@ -169,7 +169,7 @@ class PrivacyQueryMapperTest {
                 REACH_MEASUREMENT_SPEC,
                 REQUISITION_SPEC.events.eventGroupsList.map { it.value }))
         .isEqualTo(
-            Query(
+            DpQuery(
                 Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
                 LandscapeMask(
                     listOf(EventGroupSpec(FILTER_EXPRESSION, TIME_RANGE)),
