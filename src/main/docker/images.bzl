@@ -38,7 +38,7 @@ COMMON_IMAGES = [
     ),
     struct(
         name = "duchy_postgres_update_schema_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/postgres/tools:update_schema_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/tools:update_schema_image",
         repository = _PREFIX + "/duchy/postgres-update-schema",
     ),
     struct(
@@ -157,7 +157,7 @@ LOCAL_IMAGES = [
     ),
     struct(
         name = "forwarded_storage_postgres_data_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:forwarded_storage_postgres_duchy_data_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:forwarded_storage_postgres_duchy_data_server_image",
         repository = _PREFIX + "/duchy/local-postgres-data",
     ),
     struct(
