@@ -53,6 +53,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.population
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.certificate
@@ -180,6 +181,11 @@ private val SUCCEEDED_MEASUREMENT = measurement {
           }
         }
     }
+    encryptedResult = getEncryptedResult(result, measurementPublicKey)
+    certificate = DATA_PROVIDER_CERTIFICATE_NAME
+  }
+  results += resultPair {
+    val result = result { population = ResultKt.population { value = 100 } }
     encryptedResult = getEncryptedResult(result, measurementPublicKey)
     certificate = DATA_PROVIDER_CERTIFICATE_NAME
   }
@@ -458,6 +464,50 @@ class BenchmarkTest {
     assertThat(result.size).isEqualTo(2)
     assertThat(result[0])
       .isEqualTo("replica,startTime,ackTime,computeTime,endTime,status,msg,duration")
+    assertThat(result[1]).isEqualTo("1,0.0,0.0,0.0,0.0,success,,0")
+  }
+
+  @Test
+  fun `Benchmark population`() {
+    val clock = Clock.fixed(Instant.parse(TIME_STRING_1), ZoneId.of("UTC"))
+    val tempFile = Files.createTempFile("benchmarks-population", ".csv")
+
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
+        "--kingdom-public-api-target=$HOST:$port",
+        "--api-key=$API_KEY",
+        "--measurement-consumer=measurementConsumers/777",
+        "--population",
+        "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
+        "--encryption-private-key-file=$SECRETS_DIR/mc_enc_private.tink",
+        "--data-provider=dataProviders/1",
+        "--model-line=modelProviders/1/modelSuites/2/modelLines/3",
+        "--population-filter=abcd",
+        "--population-start-time=$TIME_STRING_1",
+        "--population-end-time=$TIME_STRING_2",
+        "--output-file=$tempFile",
+      )
+    CommandLine(BenchmarkReport(clock)).execute(*args)
+
+    val request =
+      captureFirst<CreateMeasurementRequest> {
+        runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
+      }
+
+    val measurement = request.measurement
+    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
+    assertThat(measurementSpec)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(measurementSpec { population = population {} })
+
+    val result = Files.readAllLines(tempFile)
+
+    assertThat(result.size).isEqualTo(2)
+    assertThat(result[0])
+      .isEqualTo("replica,startTime,ackTime,computeTime,endTime,status,msg,population")
     assertThat(result[1]).isEqualTo("1,0.0,0.0,0.0,0.0,success,,0")
   }
 }

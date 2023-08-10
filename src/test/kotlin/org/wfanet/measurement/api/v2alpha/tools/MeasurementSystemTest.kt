@@ -86,6 +86,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.frequency
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.population
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.watchDuration
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
@@ -1050,10 +1051,10 @@ class MeasurementSystemTest {
           "--vid-sampling-width=0.2",
           "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
           "--data-provider=dataProviders/1",
-          "--event-group=dataProviders/1/eventGroups/1",
-          "--event-filter=abcd",
-          "--event-start-time=$TIME_STRING_1",
-          "--event-end-time=$TIME_STRING_2",
+          "--model-line=modelProviders/1/modelSuites/2/modelLines/3",
+          "--population-filter=abcd",
+          "--population-start-time=$TIME_STRING_1",
+          "--population-end-time=$TIME_STRING_2",
         )
     callCli(args)
 
@@ -1081,6 +1082,42 @@ class MeasurementSystemTest {
               start = 0.1f
               width = 0.2f
             }
+        }
+      )
+  }
+
+  @Test
+  fun `measurements create calls CreateMeasurement with correct population params`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "measurements",
+          "--api-key=$AUTHENTICATION_KEY",
+          "create",
+          "--measurement-consumer=measurementConsumers/777",
+          "--population",
+          "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
+          "--data-provider=dataProviders/1",
+          "--model-line=modelProviders/1/modelSuites/2/modelLines/3",
+          "--population-filter=abcd",
+          "--population-start-time=$TIME_STRING_1",
+          "--population-end-time=$TIME_STRING_2",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<CreateMeasurementRequest> {
+        runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
+      }
+
+    val measurement = request.measurement
+    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
+    assertThat(measurementSpec)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        measurementSpec {
+          population = MeasurementSpecKt.population {}
+          modelLine = "some-model-line"
         }
       )
   }
@@ -1938,6 +1975,11 @@ class MeasurementSystemTest {
               }
             }
           }
+          encryptedResult = getEncryptedResult(result, measurementPublicKey)
+          certificate = DATA_PROVIDER_CERTIFICATE_NAME
+        }
+        results += resultPair {
+          val result = result { population = population { value = 100 } }
           encryptedResult = getEncryptedResult(result, measurementPublicKey)
           certificate = DATA_PROVIDER_CERTIFICATE_NAME
         }

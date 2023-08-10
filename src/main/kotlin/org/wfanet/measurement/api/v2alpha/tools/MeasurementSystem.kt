@@ -55,9 +55,11 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt as D
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.Duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.Impression
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec.Population
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.ReachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.population
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
@@ -638,6 +640,14 @@ class CreateMeasurement : Runnable {
   var vidSamplingWidth by Delegates.notNull<Float>()
     private set
 
+  @CommandLine.Option(
+    names = ["--model-line"],
+    description = ["API resource name of the ModelLine"],
+    required = false,
+    defaultValue = "",
+  )
+  lateinit var modelLine: String
+
   @ArgGroup(
     exclusive = true,
     multiplicity = "1",
@@ -764,6 +774,15 @@ class CreateMeasurement : Runnable {
       var maximumWatchDurationPerUser by Delegates.notNull<Int>()
         private set
     }
+    class PopulationParams {
+      @Option(
+        names = ["--population"],
+        description = ["Measurement Type of Population"],
+        required = true,
+      )
+      var selected = false
+        private set
+    }
 
     @ArgGroup(exclusive = false, heading = "Measurement type ReachAndFrequency and params\n")
     var reachAndFrequency = ReachAndFrequencyParams()
@@ -771,6 +790,8 @@ class CreateMeasurement : Runnable {
     var impression = ImpressionParams()
     @ArgGroup(exclusive = false, heading = "Measurement type Duration and params\n")
     var duration = DurationParams()
+    @ArgGroup(exclusive = false, heading = "Measurement type Population and params\n")
+    var population = PopulationParams()
   }
 
   private fun getReachAndFrequency(): ReachAndFrequency {
@@ -807,6 +828,10 @@ class CreateMeasurement : Runnable {
     }
   }
 
+  private fun getPopulation(): Population {
+    return population {}
+  }
+
   @ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Add DataProviders\n")
   private lateinit var dataProviderInputs: List<DataProviderInput>
 
@@ -825,6 +850,10 @@ class CreateMeasurement : Runnable {
       heading = "Add EventGroups for a DataProvider\n"
     )
     lateinit var eventGroupInputs: List<EventGroupInput>
+      private set
+
+    @CommandLine.ArgGroup(exclusive = false, heading = "Set Population for a DataProvider\n")
+    lateinit var populationInputs: PopulationInput
       private set
   }
 
@@ -863,9 +892,76 @@ class CreateMeasurement : Runnable {
       private set
   }
 
+  class PopulationInput {
+    @CommandLine.Option(
+      names = ["--population-filter"],
+      description = ["Raw CEL expression of Population Filter"],
+      required = false,
+      defaultValue = ""
+    )
+    lateinit var filter: String
+      private set
+
+    @CommandLine.Option(
+      names = ["--population-start-time"],
+      description = ["Start time of Population range in ISO 8601 format of UTC"],
+      required = true,
+    )
+    lateinit var startTime: Instant
+      private set
+
+    @CommandLine.Option(
+      names = ["--population-end-time"],
+      description = ["End time of Population range in ISO 8601 format of UTC"],
+      required = true,
+    )
+    lateinit var endTime: Instant
+      private set
+  }
+
   private val secureRandom = SecureRandom.getInstance("SHA1PRNG")
 
-  private fun getDataProviderEntry(
+  private fun getPopulationDataProviderEntry(
+    dataProviderInput: DataProviderInput,
+    measurementConsumerSigningKey: SigningKeyHandle,
+    measurementEncryptionPublicKey: ByteString
+  ): Measurement.DataProviderEntry {
+    return dataProviderEntry {
+      val requisitionSpec = requisitionSpec {
+        population =
+          RequisitionSpecKt.population {
+            interval = interval {
+              startTime = dataProviderInput.populationInputs.startTime.toProtoTime()
+              endTime = dataProviderInput.populationInputs.endTime.toProtoTime()
+            }
+            if (dataProviderInput.populationInputs.filter.isNotEmpty())
+              filter = eventFilter { expression = dataProviderInput.populationInputs.filter }
+          }
+        this.measurementPublicKey = measurementEncryptionPublicKey
+        nonce = secureRandom.nextLong()
+      }
+
+      key = dataProviderInput.name
+      val dataProvider =
+        runBlocking(parentCommand.parentCommand.rpcDispatcher) {
+          parentCommand.dataProviderStub
+            .withAuthenticationKey(parentCommand.apiAuthenticationKey)
+            .getDataProvider(getDataProviderRequest { name = dataProviderInput.name })
+        }
+      value =
+        DataProviderEntries.value {
+          dataProviderCertificate = dataProvider.certificate
+          dataProviderPublicKey = dataProvider.publicKey
+          encryptedRequisitionSpec =
+            encryptRequisitionSpec(
+              signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
+              EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
+            )
+          nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
+        }
+    }
+  }
+  private fun getEventDataProviderEntry(
     dataProviderInput: DataProviderInput,
     measurementConsumerSigningKey: SigningKeyHandle,
     measurementEncryptionPublicKey: ByteString
@@ -935,8 +1031,22 @@ class CreateMeasurement : Runnable {
     val measurement = measurement {
       this.measurementConsumerCertificate = measurementConsumer.certificate
       dataProviders +=
-        dataProviderInputs.map {
-          getDataProviderEntry(it, measurementConsumerSigningKey, measurementEncryptionPublicKey)
+        if (measurementTypeParams.population.selected) {
+          listOf(
+            getPopulationDataProviderEntry(
+              dataProviderInputs.single(),
+              measurementConsumerSigningKey,
+              measurementEncryptionPublicKey
+            )
+          )
+        } else {
+          dataProviderInputs.map {
+            getEventDataProviderEntry(
+              it,
+              measurementConsumerSigningKey,
+              measurementEncryptionPublicKey
+            )
+          }
         }
       val unsignedMeasurementSpec = measurementSpec {
         measurementPublicKey = measurementEncryptionPublicKey
@@ -951,7 +1061,11 @@ class CreateMeasurement : Runnable {
           impression = getImpression()
         } else if (measurementTypeParams.duration.selected) {
           duration = getDuration()
+        } else if (measurementTypeParams.population.selected) {
+          population = getPopulation()
         }
+        if (modelLine.isNotEmpty())
+          modelLine = modelLine
       }
 
       this.measurementSpec =
@@ -1067,6 +1181,9 @@ class GetMeasurement : Runnable {
         "WatchDuration - " +
           "${result.watchDuration.value.seconds} seconds ${result.watchDuration.value.nanos} nanos"
       )
+    }
+    if (result.hasPopulation()) {
+      println("Population - ${result.population.value}")
     }
   }
 

@@ -71,9 +71,11 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.valu
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.Duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.Impression
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec.Population
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.ReachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.population
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
@@ -178,6 +180,14 @@ class BaseFlags {
   )
   var vidBucketCount by Delegates.notNull<Int>()
     private set
+
+  @CommandLine.Option(
+    names = ["--model-line"],
+    description = ["API resource name of the ModelLine"],
+    required = false,
+    defaultValue = "",
+  )
+  lateinit var modelLine: String
 
   @set:CommandLine.Option(
     names = ["--repetition-count"],
@@ -333,6 +343,16 @@ class DurationParams {
     private set
 }
 
+class PopulationParams {
+  @CommandLine.Option(
+    names = ["--population"],
+    description = ["Measurement Type of Population"],
+    required = true,
+  )
+  var selected = false
+    private set
+}
+
 class DataProviderInput {
   @CommandLine.Option(
     names = ["--data-provider"],
@@ -348,6 +368,10 @@ class DataProviderInput {
     heading = "Add EventGroups for a DataProvider\n"
   )
   lateinit var eventGroupInputs: List<EventGroupInput>
+    private set
+
+  @CommandLine.ArgGroup(exclusive = false, heading = "Set Population for a DataProvider\n")
+  lateinit var populationInputs: PopulationInput
     private set
 }
 
@@ -386,6 +410,33 @@ class EventGroupInput {
     private set
 }
 
+class PopulationInput {
+  @CommandLine.Option(
+    names = ["--population-filter"],
+    description = ["Raw CEL expression of Population Filter"],
+    required = false,
+    defaultValue = ""
+  )
+  lateinit var filter: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--population-start-time"],
+    description = ["Start time of Population range in ISO 8601 format of UTC"],
+    required = true,
+  )
+  lateinit var startTime: Instant
+    private set
+
+  @CommandLine.Option(
+    names = ["--population-end-time"],
+    description = ["End time of Population range in ISO 8601 format of UTC"],
+    required = true,
+  )
+  lateinit var endTime: Instant
+    private set
+}
+
 class MeasurementTypeParams {
 
   @CommandLine.ArgGroup(
@@ -397,9 +448,54 @@ class MeasurementTypeParams {
   var impression = ImpressionParams()
   @CommandLine.ArgGroup(exclusive = false, heading = "Measurement type Duration and params\n")
   var duration = DurationParams()
+  @CommandLine.ArgGroup(exclusive = false, heading = "Measurement type Population and params\n")
+  var population = PopulationParams()
 }
 
-private fun getDataProviderEntry(
+private fun getPopulationDataProviderEntry(
+  dataProviderStub: DataProvidersCoroutineStub,
+  dataProviderInput: DataProviderInput,
+  measurementConsumerSigningKey: SigningKeyHandle,
+  measurementEncryptionPublicKey: ByteString,
+  secureRandom: SecureRandom,
+  apiAuthenticationKey: String
+): Measurement.DataProviderEntry {
+  return dataProviderEntry {
+    val requisitionSpec = requisitionSpec {
+      population =
+        RequisitionSpecKt.population {
+          interval = interval {
+            startTime = dataProviderInput.populationInputs.startTime.toProtoTime()
+            endTime = dataProviderInput.populationInputs.endTime.toProtoTime()
+          }
+          if (dataProviderInput.populationInputs.filter.isNotEmpty())
+            filter = eventFilter { expression = dataProviderInput.populationInputs.filter }
+        }
+      this.measurementPublicKey = measurementEncryptionPublicKey
+      nonce = secureRandom.nextLong()
+    }
+
+    key = dataProviderInput.name
+    val dataProvider =
+      runBlocking(Dispatchers.IO) {
+        dataProviderStub
+          .withAuthenticationKey(apiAuthenticationKey)
+          .getDataProvider(getDataProviderRequest { name = dataProviderInput.name })
+      }
+    value = dataProviderEntryValue {
+      dataProviderCertificate = dataProvider.certificate
+      dataProviderPublicKey = dataProvider.publicKey
+      encryptedRequisitionSpec =
+        encryptRequisitionSpec(
+          signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
+          EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
+        )
+      nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
+    }
+  }
+}
+
+private fun getEventDataProviderEntry(
   dataProviderStub: DataProvidersCoroutineStub,
   dataProviderInput: DataProviderInput,
   measurementConsumerSigningKey: SigningKeyHandle,
@@ -482,6 +578,10 @@ private fun getDuration(measurementTypeParams: MeasurementTypeParams): Duration 
     }
     maximumWatchDurationPerUser = measurementTypeParams.duration.maximumWatchDurationPerUser
   }
+}
+
+private fun getPopulation(measurementTypeParams: MeasurementTypeParams): Population {
+  return population {}
 }
 
 private fun getMeasurementResult(
@@ -580,14 +680,25 @@ class Benchmark(
         this.measurementConsumerCertificate = measurementConsumer.certificate
         dataProviders +=
           flags.dataProviderInputs.map {
-            getDataProviderEntry(
-              dataProviderStub,
-              it,
-              measurementConsumerSigningKey,
-              measurementEncryptionPublicKey,
-              secureRandom,
-              apiAuthenticationKey
-            )
+            if (flags.measurementTypeParams.population.selected) {
+              getPopulationDataProviderEntry(
+                dataProviderStub,
+                it,
+                measurementConsumerSigningKey,
+                measurementEncryptionPublicKey,
+                secureRandom,
+                apiAuthenticationKey
+              )
+            } else {
+              getEventDataProviderEntry(
+                dataProviderStub,
+                it,
+                measurementConsumerSigningKey,
+                measurementEncryptionPublicKey,
+                secureRandom,
+                apiAuthenticationKey
+              )
+            }
           }
         val unsignedMeasurementSpec = measurementSpec {
           measurementPublicKey = measurementEncryptionPublicKey
@@ -600,7 +711,13 @@ class Benchmark(
             reachAndFrequency = getReachAndFrequency(flags.measurementTypeParams)
           } else if (flags.measurementTypeParams.impression.selected) {
             impression = getImpression(flags.measurementTypeParams)
-          } else duration = getDuration(flags.measurementTypeParams)
+          } else if (flags.measurementTypeParams.duration.selected) {
+            duration = getDuration(flags.measurementTypeParams)
+          } else if (flags.measurementTypeParams.population.selected) {
+            population = getPopulation(flags.measurementTypeParams)
+          }
+          if (flags.modelLine.isNotEmpty())
+            modelLine = flags.modelLine
         }
 
         this.measurementSpec =
@@ -694,8 +811,10 @@ class Benchmark(
         out.println("reach,freq1,freq2,freq3,freq4,freq5")
       } else if (flags.measurementTypeParams.impression.selected) {
         out.println("impressions")
-      } else {
+      } else if (flags.measurementTypeParams.duration.selected) {
         out.println("duration")
+      } else if (flags.measurementTypeParams.population.selected) {
+        out.println("population")
       }
       for (task in completedTasks) {
         out.print("${task.replicaId}")
@@ -730,8 +849,10 @@ class Benchmark(
           out.println()
         } else if (flags.measurementTypeParams.impression.selected) {
           out.println("${task.result.impression.value}")
-        } else {
+        } else if (flags.measurementTypeParams.duration.selected) {
           out.println("${task.result.watchDuration.value.seconds}")
+        } else if (flags.measurementTypeParams.population.selected) {
+          out.println("${task.result.population.value}")
         }
       }
     }
