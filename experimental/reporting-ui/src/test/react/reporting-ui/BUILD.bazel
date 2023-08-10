@@ -4,7 +4,7 @@ load("@aspect_rules_jest//jest:defs.bzl", "jest_test")
 js_library(
     name = "test_files",
     srcs = [
-        "app.test.tsx",
+        "app_test.tsx",
     ],
 )
 
