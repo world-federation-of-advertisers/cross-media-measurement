@@ -16,6 +16,7 @@ package k8s
 
 _secret_name:          string @tag("secret_name")
 _aggregator_cert_name: string @tag("aggregator_cert_name")
+_duchyDbSecretName:    string @tag("db_secret_name")
 _worker1_cert_name:    string @tag("worker1_cert_name")
 _worker2_cert_name:    string @tag("worker2_cert_name")
 
@@ -93,7 +94,7 @@ _baseDuchyConfig: {
 
 duchies: [
 	for duchyConfig in _duchyConfigs {
-		if (duchyConfig.duchyType == "spanner") {
+		if (duchyConfig.databaseType == "spanner") {
 			#SpannerDuchy & _baseDuchyConfig & {
 				_imageSuffixes: {
 					"spanner-computations-server": "duchy/local-spanner-computations"
@@ -105,7 +106,7 @@ duchies: [
 				}
 			}
 		}
-		if (duchyConfig.duchyType == "postgres") {
+		if (duchyConfig.databaseType == "postgres") {
 			#PostgresDuchy & _baseDuchyConfig & {
 				_imageSuffixes: {
 					"postgres-data-server": "duchy/local-postgres-data"
