@@ -34,7 +34,7 @@ message EventGroupMetadataDescriptor {
   // Resource name of the `EventGroupMetadataDescriptor` in the CMMS API.
   string name = 1 [
     (google.api.resource_reference).type =
-      "halo.wfanet.org/EventGroupMetadataDescriptor",
+        "halo.wfanet.org/EventGroupMetadataDescriptor",
     (google.api.field_behavior) = OUTPUT_ONLY
   ];
 
@@ -44,5 +44,5 @@ message EventGroupMetadataDescriptor {
   // This may exclude `FileDescriptorProto`s for protobuf well-known types (see
   // https://protobuf.dev/reference/protobuf/google.protobuf/).
   google.protobuf.FileDescriptorSet descriptor_set = 2
-  [(google.api.field_behavior) = OUTPUT_ONLY];
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 }
