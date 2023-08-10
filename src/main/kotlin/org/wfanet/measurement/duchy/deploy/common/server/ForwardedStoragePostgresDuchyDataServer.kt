@@ -33,7 +33,6 @@ import picocli.CommandLine
 )
 class ForwardedStoragePostgresDuchyDataServer : DuchyDataServer() {
   @CommandLine.Mixin private lateinit var postgresFlags: PostgresFlags
-
   @CommandLine.Mixin private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
 
   override fun run() = runBlocking {
