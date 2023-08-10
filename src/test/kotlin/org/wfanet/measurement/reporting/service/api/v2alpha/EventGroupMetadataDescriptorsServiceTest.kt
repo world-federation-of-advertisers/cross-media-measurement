@@ -34,9 +34,9 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
-import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor as cmmsEventGroupMetadataDescriptor
-import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest as cmmsBatchGetEventGroupMetadataDescriptorsRequest
+import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsResponse
+import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor as cmmsEventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage
 import org.wfanet.measurement.api.v2alpha.getEventGroupMetadataDescriptorRequest as cmmsGetEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
@@ -55,9 +55,7 @@ class EventGroupMetadataDescriptorsServiceTest {
     EventGroupMetadataDescriptorsCoroutineImplBase =
     mockService {
       onBlocking { getEventGroupMetadataDescriptor(any()) }
-        .thenReturn(
-          CMMS_EVENT_GROUP_METADATA_DESCRIPTOR
-        )
+        .thenReturn(CMMS_EVENT_GROUP_METADATA_DESCRIPTOR)
       onBlocking { batchGetEventGroupMetadataDescriptors(any()) }
         .thenReturn(
           batchGetEventGroupMetadataDescriptorsResponse {
@@ -87,19 +85,20 @@ class EventGroupMetadataDescriptorsServiceTest {
     val response =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
         runBlocking {
-          service.getEventGroupMetadataDescriptor(getEventGroupMetadataDescriptorRequest {
-            name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-          })
+          service.getEventGroupMetadataDescriptor(
+            getEventGroupMetadataDescriptorRequest { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME }
+          )
         }
       }
 
     assertThat(response).isEqualTo(EVENT_GROUP_METADATA_DESCRIPTOR)
 
-    verifyProtoArgument(publicKingdomEventGroupMetadataDescriptorsMock, EventGroupMetadataDescriptorsCoroutineImplBase::getEventGroupMetadataDescriptor)
+    verifyProtoArgument(
+        publicKingdomEventGroupMetadataDescriptorsMock,
+        EventGroupMetadataDescriptorsCoroutineImplBase::getEventGroupMetadataDescriptor
+      )
       .isEqualTo(
-        cmmsGetEventGroupMetadataDescriptorRequest {
-          name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-        }
+        cmmsGetEventGroupMetadataDescriptorRequest { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME }
       )
   }
 
@@ -109,7 +108,9 @@ class EventGroupMetadataDescriptorsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         withDataProviderPrincipal(DATA_PROVIDER_NAME) {
           runBlocking {
-            service.getEventGroupMetadataDescriptor(getEventGroupMetadataDescriptorRequest { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME })
+            service.getEventGroupMetadataDescriptor(
+              getEventGroupMetadataDescriptorRequest { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME }
+            )
           }
         }
       }
@@ -123,7 +124,9 @@ class EventGroupMetadataDescriptorsServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
-          service.getEventGroupMetadataDescriptor(getEventGroupMetadataDescriptorRequest { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME })
+          service.getEventGroupMetadataDescriptor(
+            getEventGroupMetadataDescriptorRequest { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME }
+          )
         }
       }
 
@@ -137,7 +140,7 @@ class EventGroupMetadataDescriptorsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
           runBlocking {
-            service.getEventGroupMetadataDescriptor(getEventGroupMetadataDescriptorRequest { })
+            service.getEventGroupMetadataDescriptor(getEventGroupMetadataDescriptorRequest {})
           }
         }
       }
@@ -149,7 +152,9 @@ class EventGroupMetadataDescriptorsServiceTest {
   @Test
   fun `getEventGroupMetadataDescriptors throws NOT_FOUND when kingdom returns not found`() {
     runBlocking {
-      whenever(publicKingdomEventGroupMetadataDescriptorsMock.getEventGroupMetadataDescriptor(any()))
+      whenever(
+          publicKingdomEventGroupMetadataDescriptorsMock.getEventGroupMetadataDescriptor(any())
+        )
         .thenThrow(Status.NOT_FOUND.asRuntimeException())
     }
 
@@ -157,9 +162,9 @@ class EventGroupMetadataDescriptorsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
           runBlocking {
-            service.getEventGroupMetadataDescriptor(getEventGroupMetadataDescriptorRequest {
-              name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-            })
+            service.getEventGroupMetadataDescriptor(
+              getEventGroupMetadataDescriptorRequest { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME }
+            )
           }
         }
       }
@@ -168,30 +173,36 @@ class EventGroupMetadataDescriptorsServiceTest {
   }
 
   @Test
-  fun `batchGetEventGroupMetadataDescriptors returns eventGroupMetadataDescriptors`() = runBlocking {
-    val response =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
-        runBlocking {
-          service.batchGetEventGroupMetadataDescriptors(batchGetEventGroupMetadataDescriptorsRequest {
+  fun `batchGetEventGroupMetadataDescriptors returns eventGroupMetadataDescriptors`() =
+    runBlocking {
+      val response =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking {
+            service.batchGetEventGroupMetadataDescriptors(
+              batchGetEventGroupMetadataDescriptorsRequest {
+                names += EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+                names += EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2
+              }
+            )
+          }
+        }
+
+      assertThat(response.eventGroupMetadataDescriptorsList)
+        .containsExactly(EVENT_GROUP_METADATA_DESCRIPTOR, EVENT_GROUP_METADATA_DESCRIPTOR_2)
+
+      verifyProtoArgument(
+          publicKingdomEventGroupMetadataDescriptorsMock,
+          EventGroupMetadataDescriptorsCoroutineImplBase::batchGetEventGroupMetadataDescriptors
+        )
+        .ignoringRepeatedFieldOrder()
+        .isEqualTo(
+          cmmsBatchGetEventGroupMetadataDescriptorsRequest {
+            parent = DataProviderKey("-").toName()
             names += EVENT_GROUP_METADATA_DESCRIPTOR_NAME
             names += EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2
-          })
-        }
-      }
-
-    assertThat(response.eventGroupMetadataDescriptorsList).containsExactly(
-      EVENT_GROUP_METADATA_DESCRIPTOR, EVENT_GROUP_METADATA_DESCRIPTOR_2)
-
-    verifyProtoArgument(publicKingdomEventGroupMetadataDescriptorsMock, EventGroupMetadataDescriptorsCoroutineImplBase::batchGetEventGroupMetadataDescriptors)
-      .ignoringRepeatedFieldOrder()
-      .isEqualTo(
-        cmmsBatchGetEventGroupMetadataDescriptorsRequest {
-          parent = DataProviderKey("-").toName()
-          names += EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-          names += EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2
-        }
-      )
-  }
+          }
+        )
+    }
 
   @Test
   fun `batchGetEventGroupMetadataDescriptors throws UNAUTHENTICATED when principal is wrong`() {
@@ -199,10 +210,12 @@ class EventGroupMetadataDescriptorsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         withDataProviderPrincipal(DATA_PROVIDER_NAME) {
           runBlocking {
-            service.batchGetEventGroupMetadataDescriptors(batchGetEventGroupMetadataDescriptorsRequest {
-              names += EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-              names += EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2
-            })
+            service.batchGetEventGroupMetadataDescriptors(
+              batchGetEventGroupMetadataDescriptorsRequest {
+                names += EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+                names += EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2
+              }
+            )
           }
         }
       }
@@ -216,10 +229,12 @@ class EventGroupMetadataDescriptorsServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
-          service.batchGetEventGroupMetadataDescriptors(batchGetEventGroupMetadataDescriptorsRequest {
-            names += EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-            names += EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2
-          })
+          service.batchGetEventGroupMetadataDescriptors(
+            batchGetEventGroupMetadataDescriptorsRequest {
+              names += EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+              names += EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2
+            }
+          )
         }
       }
 
@@ -234,7 +249,8 @@ class EventGroupMetadataDescriptorsServiceTest {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
           runBlocking {
             service.batchGetEventGroupMetadataDescriptors(
-              batchGetEventGroupMetadataDescriptorsRequest {})
+              batchGetEventGroupMetadataDescriptorsRequest {}
+            )
           }
         }
       }
@@ -246,7 +262,11 @@ class EventGroupMetadataDescriptorsServiceTest {
   @Test
   fun `batchGetEventGroupMetadataDescriptors throws NOT_FOUND when kingdom returns not found`() {
     runBlocking {
-      whenever(publicKingdomEventGroupMetadataDescriptorsMock.batchGetEventGroupMetadataDescriptors(any()))
+      whenever(
+          publicKingdomEventGroupMetadataDescriptorsMock.batchGetEventGroupMetadataDescriptors(
+            any()
+          )
+        )
         .thenThrow(Status.NOT_FOUND.asRuntimeException())
     }
 
@@ -254,10 +274,12 @@ class EventGroupMetadataDescriptorsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
           runBlocking {
-            service.batchGetEventGroupMetadataDescriptors(batchGetEventGroupMetadataDescriptorsRequest {
-              names += EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-              names += EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2
-            })
+            service.batchGetEventGroupMetadataDescriptors(
+              batchGetEventGroupMetadataDescriptorsRequest {
+                names += EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+                names += EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2
+              }
+            )
           }
         }
       }

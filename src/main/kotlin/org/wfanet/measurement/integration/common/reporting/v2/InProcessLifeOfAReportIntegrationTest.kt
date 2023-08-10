@@ -1554,10 +1554,9 @@ abstract class InProcessLifeOfAReportIntegrationTest {
       publicEventGroupMetadataDescriptorsClient
         .withPrincipalName(measurementConsumerData.name)
         .batchGetEventGroupMetadataDescriptors(
-          batchGetEventGroupMetadataDescriptorsRequest {
-            names += descriptorNames
-          }
-        ).eventGroupMetadataDescriptorsList
+          batchGetEventGroupMetadataDescriptorsRequest { names += descriptorNames }
+        )
+        .eventGroupMetadataDescriptorsList
 
     assertThat(descriptors).hasSize(descriptorNames.size)
 
@@ -1567,7 +1566,10 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     }
 
     for (eventGroup in eventGroups) {
-      assertThat(retrievedDescriptorNames.contains(eventGroup.metadata.eventGroupMetadataDescriptor)).isTrue()
+      assertThat(
+          retrievedDescriptorNames.contains(eventGroup.metadata.eventGroupMetadataDescriptor)
+        )
+        .isTrue()
     }
   }
 

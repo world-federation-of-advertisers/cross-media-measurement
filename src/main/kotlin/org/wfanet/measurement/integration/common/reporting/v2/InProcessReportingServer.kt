@@ -60,13 +60,13 @@ import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportin
 import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer.Companion.toList
 import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
+import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupMetadataDescriptorsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withMetadataPrincipalIdentities
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub as PublicMetricsCoroutineStub
-import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupMetadataDescriptorsService
 
 /** TestRule that starts and stops all Reporting Server gRPC services. */
 class InProcessReportingServer(
@@ -183,9 +183,7 @@ class InProcessReportingServer(
         metricSpecConfig = METRIC_SPEC_CONFIG
 
         listOf(
-            EventGroupMetadataDescriptorsService(
-              publicKingdomEventGroupMetadataDescriptorsClient
-            )
+            EventGroupMetadataDescriptorsService(publicKingdomEventGroupMetadataDescriptorsClient)
               .withMetadataPrincipalIdentities(measurementConsumerConfigs),
             EventGroupsService(
                 publicKingdomEventGroupsClient,

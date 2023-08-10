@@ -18,10 +18,10 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import io.grpc.Status
 import io.grpc.StatusException
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor as CmmsEventGroupMetadataDescriptor
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub as CmmsEventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor as CmmsEventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorKey
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub as CmmsEventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.getEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.withAuthenticationKey
@@ -39,11 +39,13 @@ import org.wfanet.measurement.reporting.v2alpha.eventGroupMetadataDescriptor
 class EventGroupMetadataDescriptorsService(
   private val cmmsEventGroupMetadataDescriptorsStub: CmmsEventGroupMetadataDescriptorsCoroutineStub,
 ) : EventGroupMetadataDescriptorsCoroutineImplBase() {
-  override suspend fun getEventGroupMetadataDescriptor(request: GetEventGroupMetadataDescriptorRequest): EventGroupMetadataDescriptor {
+  override suspend fun getEventGroupMetadataDescriptor(
+    request: GetEventGroupMetadataDescriptorRequest
+  ): EventGroupMetadataDescriptor {
     val principal: ReportingPrincipal = principalFromCurrentContext
-      when (principal) {
-        is MeasurementConsumerPrincipal -> {}
-      }
+    when (principal) {
+      is MeasurementConsumerPrincipal -> {}
+    }
 
     val apiAuthenticationKey: String = principal.config.apiKey
 
@@ -56,24 +58,24 @@ class EventGroupMetadataDescriptorsService(
         cmmsEventGroupMetadataDescriptorsStub
           .withAuthenticationKey(apiAuthenticationKey)
           .getEventGroupMetadataDescriptor(
-            getEventGroupMetadataDescriptorRequest {
-              name = request.name
-            }
+            getEventGroupMetadataDescriptorRequest { name = request.name }
           )
       } catch (e: StatusException) {
         throw when (e.status.code) {
-          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-          Status.Code.CANCELLED -> Status.CANCELLED
-          Status.Code.NOT_FOUND -> Status.NOT_FOUND
-          else -> Status.UNKNOWN
-        }
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            Status.Code.CANCELLED -> Status.CANCELLED
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND
+            else -> Status.UNKNOWN
+          }
           .withCause(e)
           .asRuntimeException()
       }
 
     return cmmsEventGroupMetadataDescriptor.toEventGroupMetadataDescriptor()
   }
-  override suspend fun batchGetEventGroupMetadataDescriptors(request: BatchGetEventGroupMetadataDescriptorsRequest): BatchGetEventGroupMetadataDescriptorsResponse {
+  override suspend fun batchGetEventGroupMetadataDescriptors(
+    request: BatchGetEventGroupMetadataDescriptorsRequest
+  ): BatchGetEventGroupMetadataDescriptorsResponse {
     val principal: ReportingPrincipal = principalFromCurrentContext
     when (principal) {
       is MeasurementConsumerPrincipal -> {}
@@ -105,19 +107,19 @@ class EventGroupMetadataDescriptorsService(
           .withCause(e)
           .asRuntimeException()
       }
-    val cmmsEventGroupMetadataDescriptors = cmmsListEventGroupMetadataDescriptorsResponse.eventGroupMetadataDescriptorsList
+    val cmmsEventGroupMetadataDescriptors =
+      cmmsListEventGroupMetadataDescriptorsResponse.eventGroupMetadataDescriptorsList
 
     val eventGroupMetadataDescriptors =
-      cmmsEventGroupMetadataDescriptors.map {
-        it.toEventGroupMetadataDescriptor()
-      }
+      cmmsEventGroupMetadataDescriptors.map { it.toEventGroupMetadataDescriptor() }
 
     return batchGetEventGroupMetadataDescriptorsResponse {
       this.eventGroupMetadataDescriptors += eventGroupMetadataDescriptors
     }
   }
 
-  private fun CmmsEventGroupMetadataDescriptor.toEventGroupMetadataDescriptor(): EventGroupMetadataDescriptor {
+  private fun CmmsEventGroupMetadataDescriptor.toEventGroupMetadataDescriptor():
+    EventGroupMetadataDescriptor {
     val source = this
     return eventGroupMetadataDescriptor {
       name = source.name

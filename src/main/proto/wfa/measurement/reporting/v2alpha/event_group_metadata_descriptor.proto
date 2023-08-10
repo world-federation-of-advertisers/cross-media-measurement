@@ -35,7 +35,7 @@ message EventGroupMetadataDescriptor {
   string name = 1 [
     (google.api.resource_reference).type = "halo.wfanet.org/EventGroupMetadataDescriptor",
     (google.api.field_behavior) = OUTPUT_ONLY
-  ];;
+  ];
 
   // `FileDescriptorSet` including the `FileDescriptorProto` of the metadata
   // message and the transitive closure of its dependencies.

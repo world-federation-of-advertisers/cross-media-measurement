@@ -492,13 +492,19 @@ class GetEventGroupMetadataDescriptor : Runnable {
       name = cmmsEventGroupMetadataDescriptorName
     }
 
-    val response = runBlocking(Dispatchers.IO) { parent.eventGroupMetadataDescriptorStub.getEventGroupMetadataDescriptor(request) }
+    val response =
+      runBlocking(Dispatchers.IO) {
+        parent.eventGroupMetadataDescriptorStub.getEventGroupMetadataDescriptor(request)
+      }
 
     println(response)
   }
 }
 
-@CommandLine.Command(name = "batch-get", description = ["Batch Get event group metadata descriptors"])
+@CommandLine.Command(
+  name = "batch-get",
+  description = ["Batch Get event group metadata descriptors"]
+)
 class BatchGetEventGroupMetadataDescriptors : Runnable {
   @CommandLine.ParentCommand private lateinit var parent: EventGroupMetadataDescriptorsCommand
 
@@ -514,7 +520,10 @@ class BatchGetEventGroupMetadataDescriptors : Runnable {
       names += cmmsEventGroupMetadataDescriptorNames
     }
 
-    val response = runBlocking(Dispatchers.IO) { parent.eventGroupMetadataDescriptorStub.batchGetEventGroupMetadataDescriptors(request) }
+    val response =
+      runBlocking(Dispatchers.IO) {
+        parent.eventGroupMetadataDescriptorStub.batchGetEventGroupMetadataDescriptors(request)
+      }
 
     println(response)
   }
@@ -524,16 +533,18 @@ class BatchGetEventGroupMetadataDescriptors : Runnable {
   name = "event-group-metadata-descriptors",
   sortOptions = false,
   subcommands =
-  [
-    CommandLine.HelpCommand::class,
-    GetEventGroupMetadataDescriptor::class,
-    BatchGetEventGroupMetadataDescriptors::class,
-  ]
+    [
+      CommandLine.HelpCommand::class,
+      GetEventGroupMetadataDescriptor::class,
+      BatchGetEventGroupMetadataDescriptors::class,
+    ]
 )
 class EventGroupMetadataDescriptorsCommand : Runnable {
   @CommandLine.ParentCommand lateinit var parent: Reporting
 
-  val eventGroupMetadataDescriptorStub: EventGroupMetadataDescriptorsCoroutineStub by lazy { EventGroupMetadataDescriptorsCoroutineStub(parent.channel) }
+  val eventGroupMetadataDescriptorStub: EventGroupMetadataDescriptorsCoroutineStub by lazy {
+    EventGroupMetadataDescriptorsCoroutineStub(parent.channel)
+  }
 
   override fun run() {}
 }

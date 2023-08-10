@@ -30,13 +30,14 @@ service EventGroupMetadataDescriptors {
   // Returns the `EventGroupMetadataDescriptor` with the specified resource
   // name.
   rpc GetEventGroupMetadataDescriptor(GetEventGroupMetadataDescriptorRequest)
-    returns (EventGroupMetadataDescriptor) {
+      returns (EventGroupMetadataDescriptor) {
     option (google.api.method_signature) = "name";
   }
 
   // Batch gets `EventGroupMetadataDescriptors`s. Results in a `NOT_FOUND` error
   // if any of the specified `EventGroupMetadataDescriptor`s does not exist.
-  rpc BatchGetEventGroupMetadataDescriptors(BatchGetEventGroupMetadataDescriptorsRequest)
+  rpc BatchGetEventGroupMetadataDescriptors(
+      BatchGetEventGroupMetadataDescriptorsRequest)
       returns (BatchGetEventGroupMetadataDescriptorsResponse) {}
 }
 
@@ -44,8 +45,8 @@ service EventGroupMetadataDescriptors {
 message GetEventGroupMetadataDescriptorRequest {
   // Resource name.
   string name = 1 [
-    (google.api.resource_reference).type =
-      "reporting.halo-cmm.org/EventGroupMetadataDescriptor",
+    (google.api.resource_reference).type
+      = "reporting.halo-cmm.org/EventGroupMetadataDescriptor",
     (google.api.field_behavior) = REQUIRED
   ];
 }
@@ -54,8 +55,8 @@ message GetEventGroupMetadataDescriptorRequest {
 message BatchGetEventGroupMetadataDescriptorsRequest {
   // The resource names of `EventGroupMetadataDescriptor`s to retrieve.
   repeated string names = 1 [
-    (google.api.resource_reference).type =
-      "reporting.halo-cmm.org/EventGroupMetadataDescriptor",
+    (google.api.resource_reference).type
+      = "reporting.halo-cmm.org/EventGroupMetadataDescriptor",
     (google.api.field_behavior) = REQUIRED
   ];
 }

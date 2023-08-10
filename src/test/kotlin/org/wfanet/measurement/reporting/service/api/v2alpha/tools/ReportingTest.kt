@@ -87,15 +87,19 @@ class ReportingTest {
     onBlocking { listEventGroups(any()) }
       .thenReturn(listEventGroupsResponse { eventGroups += EVENT_GROUP })
   }
-  private val eventGroupMetadataDescriptorsServiceMock: EventGroupMetadataDescriptorsCoroutineImplBase = mockService {
-    onBlocking { getEventGroupMetadataDescriptor(any()) }
-      .thenReturn(EVENT_GROUP_METADATA_DESCRIPTOR)
-    onBlocking { batchGetEventGroupMetadataDescriptors(any()) }
-      .thenReturn(batchGetEventGroupMetadataDescriptorsResponse {
-        eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
-        eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR_2
-      })
-  }
+  private val eventGroupMetadataDescriptorsServiceMock:
+    EventGroupMetadataDescriptorsCoroutineImplBase =
+    mockService {
+      onBlocking { getEventGroupMetadataDescriptor(any()) }
+        .thenReturn(EVENT_GROUP_METADATA_DESCRIPTOR)
+      onBlocking { batchGetEventGroupMetadataDescriptors(any()) }
+        .thenReturn(
+          batchGetEventGroupMetadataDescriptorsResponse {
+            eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
+            eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR_2
+          }
+        )
+    }
 
   private val serverCerts =
     SigningCerts.fromPemFiles(
@@ -563,10 +567,15 @@ class ReportingTest {
       )
     val output = callCli(args)
 
-    verifyProtoArgument(eventGroupMetadataDescriptorsServiceMock, EventGroupMetadataDescriptorsCoroutineImplBase::getEventGroupMetadataDescriptor)
-      .isEqualTo(getEventGroupMetadataDescriptorRequest { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME })
-    assertThat(parseTextProto(output.reader(), EventGroupMetadataDescriptor.getDefaultInstance())).isEqualTo(
-      EVENT_GROUP_METADATA_DESCRIPTOR)
+    verifyProtoArgument(
+        eventGroupMetadataDescriptorsServiceMock,
+        EventGroupMetadataDescriptorsCoroutineImplBase::getEventGroupMetadataDescriptor
+      )
+      .isEqualTo(
+        getEventGroupMetadataDescriptorRequest { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME }
+      )
+    assertThat(parseTextProto(output.reader(), EventGroupMetadataDescriptor.getDefaultInstance()))
+      .isEqualTo(EVENT_GROUP_METADATA_DESCRIPTOR)
   }
 
   @Test
@@ -601,9 +610,9 @@ class ReportingTest {
     val output = callCli(args)
 
     verifyProtoArgument(
-      eventGroupMetadataDescriptorsServiceMock,
-      EventGroupMetadataDescriptorsCoroutineImplBase::batchGetEventGroupMetadataDescriptors
-    )
+        eventGroupMetadataDescriptorsServiceMock,
+        EventGroupMetadataDescriptorsCoroutineImplBase::batchGetEventGroupMetadataDescriptors
+      )
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         batchGetEventGroupMetadataDescriptorsRequest {
@@ -612,11 +621,18 @@ class ReportingTest {
         }
       )
 
-    assertThat(parseTextProto(output.reader(), BatchGetEventGroupMetadataDescriptorsResponse.getDefaultInstance()))
-      .isEqualTo(batchGetEventGroupMetadataDescriptorsResponse {
-        eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
-        eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR_2
-      })
+    assertThat(
+        parseTextProto(
+          output.reader(),
+          BatchGetEventGroupMetadataDescriptorsResponse.getDefaultInstance()
+        )
+      )
+      .isEqualTo(
+        batchGetEventGroupMetadataDescriptorsResponse {
+          eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
+          eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR_2
+        }
+      )
   }
 
   @Test
@@ -676,11 +692,13 @@ class ReportingTest {
 
     private const val EVENT_GROUP_NAME = "$MEASUREMENT_CONSUMER_NAME/eventGroups/1"
     private val EVENT_GROUP = eventGroup { name = EVENT_GROUP_NAME }
-    private const val EVENT_GROUP_METADATA_DESCRIPTOR_NAME = "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/1"
+    private const val EVENT_GROUP_METADATA_DESCRIPTOR_NAME =
+      "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/1"
     private val EVENT_GROUP_METADATA_DESCRIPTOR = eventGroupMetadataDescriptor {
       name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
     }
-    private const val EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2 = "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/2"
+    private const val EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2 =
+      "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/2"
     private val EVENT_GROUP_METADATA_DESCRIPTOR_2 = eventGroupMetadataDescriptor {
       name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2
     }
