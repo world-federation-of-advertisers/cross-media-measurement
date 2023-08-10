@@ -23,6 +23,6 @@ module.exports = {
         "\\.(css|scss)$": "<rootDir>/../jest/mocks/styleMock.ts"
     },
     testMatch: [
-        '<rootDir>/**/*.test.(ts|tsx)'
+        '<rootDir>/**/*_test.(ts|tsx)'
     ],
 }
