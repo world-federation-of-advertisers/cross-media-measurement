@@ -50,6 +50,23 @@ _duchyConfigs: {
 	}
 }
 
+let EnvVars = #EnvVarMap & {
+	"POSTGRES_USER": {
+		valueFrom:
+			secretKeyRef: {
+				name: _duchyDbSecretName
+				key:  "username"
+			}
+	}
+	"POSTGRES_PASSWORD": {
+		valueFrom:
+			secretKeyRef: {
+				name: _duchyDbSecretName
+				key:  "password"
+			}
+	}
+}
+
 objectSets: [ for duchy in duchies for objectSet in duchy {objectSet}]
 
 _computationControlTargets: {
@@ -58,52 +75,58 @@ _computationControlTargets: {
 	}
 }
 
-duchies: [ for duchyConfig in _duchyConfigs {
-	if (duchyConfig.databaseType == "spanner") {
-		#SpannerDuchy & {
-			_imageSuffixes: {
-				"computation-control-server":     "duchy/local-computation-control"
-				"liquid-legions-v2-mill-daemon":  "duchy/local-liquid-legions-v2-mill"
-				"requisition-fulfillment-server": "duchy/local-requisition-fulfillment"
-				"spanner-computations-server":    "duchy/local-spanner-computations"
-			}
-			_duchy: {
-				name:                   duchyConfig.name
-				protocols_setup_config: duchyConfig.protocolsSetupConfig
-				cs_cert_resource_name:  duchyConfig.certificateResourceName
-			}
-			_duchy_secret_name:           _secret_name
-			_computation_control_targets: _computationControlTargets
-			_kingdom_system_api_target:   #KingdomSystemApiTarget
-			_blob_storage_flags: [
-				"--forwarded-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
-				"--forwarded-storage-cert-host=localhost",
-			]
-			_verbose_grpc_logging: "true"
-		}
+_baseDuchyConfig: {
+	_imageSuffixes: {
+		"computation-control-server":     "duchy/local-computation-control"
+		"liquid-legions-v2-mill-daemon":  "duchy/local-liquid-legions-v2-mill"
+		"requisition-fulfillment-server": "duchy/local-requisition-fulfillment"
 	}
+	_duchy_secret_name:           _secret_name
+	_computation_control_targets: _computationControlTargets
+	_kingdom_system_api_target:   #KingdomSystemApiTarget
+	_blob_storage_flags: [
+		"--forwarded-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
+		"--forwarded-storage-cert-host=localhost",
+	]
+	_verbose_grpc_logging: "true"
+}
 
-	if (duchyConfig.databaseType == "postgres") {
-		#PostgresDuchy & {
-			_imageSuffixes: {
-				"computation-control-server":     "duchy/local-computation-control"
-				"liquid-legions-v2-mill-daemon":  "duchy/local-liquid-legions-v2-mill"
-				"requisition-fulfillment-server": "duchy/local-requisition-fulfillment"
-				"postgres-data-server":           "duchy/local-postgres-data"
+duchies: [
+	for duchyConfig in _duchyConfigs {
+		if (duchyConfig.duchyType == "spanner") {
+			#SpannerDuchy & _baseDuchyConfig & {
+				_imageSuffixes: {
+					"spanner-computations-server": "duchy/local-spanner-computations"
+				}
+				_duchy: {
+					name:                   duchyConfig.name
+					protocols_setup_config: duchyConfig.protocolsSetupConfig
+					cs_cert_resource_name:  duchyConfig.certificateResourceName
+				}
 			}
-			_duchy: {
-				name:                   duchyConfig.name
-				protocols_setup_config: duchyConfig.protocolsSetupConfig
-				cs_cert_resource_name:  duchyConfig.certificateResourceName
-			}
-			_duchy_secret_name:           _secret_name
-			_computation_control_targets: _computationControlTargets
-			_kingdom_system_api_target:   #KingdomSystemApiTarget
-			_blob_storage_flags: [
-				"--forwarded-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
-				"--forwarded-storage-cert-host=localhost",
-			]
-			_verbose_grpc_logging: "true"
 		}
-	}
-}]
+		if (duchyConfig.duchyType == "postgres") {
+			#PostgresDuchy & _baseDuchyConfig & {
+				_imageSuffixes: {
+					"postgres-data-server": "duchy/local-postgres-data"
+				}
+				_duchy: {
+					name:                   duchyConfig.name
+					protocols_setup_config: duchyConfig.protocolsSetupConfig
+					cs_cert_resource_name:  duchyConfig.certificateResourceName
+				}
+				_postgresConfig: {
+					serviceName: "postgres"
+					password:    "$(POSTGRES_PASSWORD)"
+					user:        "$(POSTGRES_USER)"
+				}
+				deployments: {
+					"\(#PostgresDuchy._duchy_data_server_deployment_name)": {
+						_container: _envVars:             EnvVars
+						_updateSchemaContainer: _envVars: EnvVars
+					}
+				}
+			}
+		}
+	},
+]
