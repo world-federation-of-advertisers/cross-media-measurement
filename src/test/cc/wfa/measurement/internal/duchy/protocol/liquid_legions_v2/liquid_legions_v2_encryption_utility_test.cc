@@ -329,6 +329,11 @@ class TestData {
     EXPECT_THAT(complete_setup_phase_response_2.combined_register_vector(),
                 IsBlockSorted(kBytesPerEncryptedRegister));
 
+    // Combine all CRVs.
+    std::string combine_data = absl::StrCat(
+        complete_setup_phase_response_1.combined_register_vector(),
+        complete_setup_phase_response_2.combined_register_vector());
+
     // Setup phase at Duchy 3.
     // We assume all test data comes from duchy 1 in the test, so there is only
     // noise from duchy 3 (if configured)
@@ -339,17 +344,12 @@ class TestData {
     }
     complete_setup_phase_request_3.set_noise_mechanism(noise_mechanism);
     complete_setup_phase_request_3.set_parallelism(kParallelism);
+    complete_setup_phase_request_3.set_combined_register_vector(combine_data);
 
     ASSIGN_OR_RETURN(CompleteSetupPhaseResponse complete_setup_phase_response_3,
                      CompleteSetupPhase(complete_setup_phase_request_3));
     EXPECT_THAT(complete_setup_phase_response_3.combined_register_vector(),
                 IsBlockSorted(kBytesPerEncryptedRegister));
-
-    // Combine all CRVs.
-    std::string combine_data = absl::StrCat(
-        complete_setup_phase_response_1.combined_register_vector(),
-        complete_setup_phase_response_2.combined_register_vector(),
-        complete_setup_phase_response_3.combined_register_vector());
 
     // Execution phase one at duchy 1 (non-aggregator).
     CompleteExecutionPhaseOneRequest complete_execution_phase_one_request_1;
@@ -360,7 +360,7 @@ class TestData {
     complete_execution_phase_one_request_1.set_curve_id(kTestCurveId);
     complete_execution_phase_one_request_1.set_parallelism(kParallelism);
     complete_execution_phase_one_request_1.set_combined_register_vector(
-        combine_data);
+        complete_setup_phase_response_3.combined_register_vector());
     ASSIGN_OR_RETURN(
         CompleteExecutionPhaseOneResponse
             complete_execution_phase_one_response_1,
