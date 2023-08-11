@@ -716,8 +716,7 @@ class Benchmark(
           } else if (flags.measurementTypeParams.population.selected) {
             population = getPopulation(flags.measurementTypeParams)
           }
-          if (flags.modelLine.isNotEmpty())
-            modelLine = flags.modelLine
+          if (flags.modelLine.isNotEmpty()) modelLine = flags.modelLine
         }
 
         this.measurementSpec =

@@ -1064,8 +1064,7 @@ class CreateMeasurement : Runnable {
         } else if (measurementTypeParams.population.selected) {
           population = getPopulation()
         }
-        if (modelLine.isNotEmpty())
-          modelLine = modelLine
+        if (modelLine.isNotEmpty()) modelLine = modelLine
       }
 
       this.measurementSpec =
