@@ -334,9 +334,8 @@ class TestData {
         complete_setup_phase_response_1.combined_register_vector(),
         complete_setup_phase_response_2.combined_register_vector());
 
-    // Setup phase at Duchy 3.
-    // We assume all test data comes from duchy 1 in the test, so there is only
-    // noise from duchy 3 (if configured)
+    // Setup phase at Duchy 3 (The aggregator).
+    // Duchy 1 and 2 send their modified combined_register_vectors to Duchy 3.
     CompleteSetupPhaseRequest complete_setup_phase_request_3;
     if (reach_noise_parameters != nullptr) {
       *complete_setup_phase_request_3.mutable_noise_parameters() =
