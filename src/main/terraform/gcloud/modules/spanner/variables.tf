@@ -12,37 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-variable "name" {
-  description = "Name (external ID) of the Duchy."
-  type        = string
-  nullable    = false
-}
-
-variable "database_name" {
-  description = "Name of the database. Defaults to <name>-duchy."
-  type        = string
-}
-
-variable "storage_bucket" {
-  description = "`google_storage_bucket` for the system."
-  type = object({
-    name = string
-  })
-}
-
 variable "spanner_instance" {
   description = "`google_spanner_instance` for the system."
   type = object({
     name = string
   })
-  default = null
+  nullable = false
 }
 
-variable "postgres_instance" {
-  description = "PostgreSQL `google_sql_database_instance`."
-  type = object({
-    name            = string
-    connection_name = string
-  })
-  default = null
+variable "iam_service_account_member" {
+  description = <<-EOT
+    member of a `google_service_account` for an existing IAM service account.
+  EOT
+
+  type = string
+}
+
+variable "database_name" {
+  description = "Name of the database. Defaults to <name>-duchy."
+  type        = string
 }
