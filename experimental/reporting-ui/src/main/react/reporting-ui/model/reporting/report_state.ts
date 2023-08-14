@@ -19,4 +19,4 @@ export enum ReportState {
   FAILED,
 };
 
-export const terminatingStates = Object.freeze([ReportState.SUCCEEDED, ReportState.FAILED]);
+export const TERMINAL_STATES = Object.freeze([ReportState.SUCCEEDED, ReportState.FAILED]);
