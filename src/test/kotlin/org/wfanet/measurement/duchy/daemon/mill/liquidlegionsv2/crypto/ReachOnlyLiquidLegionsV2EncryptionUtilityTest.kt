@@ -158,10 +158,10 @@ class ReachOnlyLiquidLegionsV2EncryptionUtilityTest {
   fun endToEnd_basicBehavior() {
     val rawSketch = sketch {
       registers += SketchKt.register { index = 1L }
-      registers += SketchKt.register { index = 2L })
-      registers += SketchKt.register { index = 2L })
-      registers += SketchKt.register { index = 3L })
-      registers += SketchKt.register { index = 4L })
+      registers += SketchKt.register { index = 2L }
+      registers += SketchKt.register { index = 2L }
+      registers += SketchKt.register { index = 3L }
+      registers += SketchKt.register { index = 4L }
     }
     val request = encryptSketchRequest {
       sketch = rawSketch
