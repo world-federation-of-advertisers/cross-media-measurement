@@ -157,11 +157,11 @@ class ReachOnlyLiquidLegionsV2EncryptionUtilityTest {
   @Test
   fun endToEnd_basicBehavior() {
     val rawSketch = sketch {
-      registers.add(SketchKt.register { index = 1L })
-      registers.add(SketchKt.register { index = 2L })
-      registers.add(SketchKt.register { index = 2L })
-      registers.add(SketchKt.register { index = 3L })
-      registers.add(SketchKt.register { index = 4L })
+      registers += SketchKt.register { index = 1L }
+      registers += SketchKt.register { index = 2L })
+      registers += SketchKt.register { index = 2L })
+      registers += SketchKt.register { index = 3L })
+      registers += SketchKt.register { index = 4L })
     }
     val request = encryptSketchRequest {
       sketch = rawSketch
@@ -269,9 +269,9 @@ class ReachOnlyLiquidLegionsV2EncryptionUtilityTest {
           SketchEncrypterAdapter.CombineElGamalPublicKeys(
             combineElGamalPublicKeysRequest {
                 curveId = CURVE_ID
-                elGamalKeys.add(DUCHY_1_EL_GAMAL_KEYS.publicKey.toAnySketchElGamalPublicKey())
-                elGamalKeys.add(DUCHY_2_EL_GAMAL_KEYS.publicKey.toAnySketchElGamalPublicKey())
-                elGamalKeys.add(DUCHY_3_EL_GAMAL_KEYS.publicKey.toAnySketchElGamalPublicKey())
+                elGamalKeys += DUCHY_1_EL_GAMAL_KEYS.publicKey.toAnySketchElGamalPublicKey()
+                elGamalKeys += DUCHY_2_EL_GAMAL_KEYS.publicKey.toAnySketchElGamalPublicKey()
+                elGamalKeys += DUCHY_3_EL_GAMAL_KEYS.publicKey.toAnySketchElGamalPublicKey()
               }
               .toByteArray()
           )
@@ -283,8 +283,8 @@ class ReachOnlyLiquidLegionsV2EncryptionUtilityTest {
           SketchEncrypterAdapter.CombineElGamalPublicKeys(
             combineElGamalPublicKeysRequest {
                 curveId = CURVE_ID
-                elGamalKeys.add(DUCHY_2_EL_GAMAL_KEYS.publicKey.toAnySketchElGamalPublicKey())
-                elGamalKeys.add(DUCHY_3_EL_GAMAL_KEYS.publicKey.toAnySketchElGamalPublicKey())
+                elGamalKeys += DUCHY_2_EL_GAMAL_KEYS.publicKey.toAnySketchElGamalPublicKey()
+                elGamalKeys += DUCHY_3_EL_GAMAL_KEYS.publicKey.toAnySketchElGamalPublicKey()
               }
               .toByteArray()
           )
