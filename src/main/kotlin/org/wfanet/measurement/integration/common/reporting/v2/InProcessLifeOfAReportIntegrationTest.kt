@@ -81,7 +81,6 @@ import org.wfanet.measurement.reporting.v2alpha.periodicTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.timeIntervals
-import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
 
 /**
@@ -90,30 +89,23 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
  * This is abstract so that different implementations of dependencies can all run the same tests
  * easily.
  */
-abstract class InProcessLifeOfAReportIntegrationTest {
-  abstract val kingdomDataServicesRule: ProviderRule<DataServices>
-
-  /** Provides a function from Duchy to the dependencies needed to start the Duchy to the test. */
-  abstract val duchyDependenciesRule:
+abstract class InProcessLifeOfAReportIntegrationTest(
+  kingdomDataServicesRule: ProviderRule<DataServices>,
+  duchyDependenciesRule:
     ProviderRule<
       (
         String, ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
       ) -> InProcessDuchy.DuchyDependencies
     >
+) {
+  private val inProcessCmmsComponents: InProcessCmmsComponents =
+    InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule)
 
-  abstract val storageClient: StorageClient
-
-  private val inProcessCmmsComponents: InProcessCmmsComponents by lazy {
-    InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule, storageClient)
-  }
-
-  private val inProcessCmmsComponentsStartup: TestRule by lazy {
-    TestRule { statement, _ ->
-      object : Statement() {
-        override fun evaluate() {
-          inProcessCmmsComponents.startDaemons()
-          statement.evaluate()
-        }
+  private val inProcessCmmsComponentsStartup = TestRule { base, _ ->
+    object : Statement() {
+      override fun evaluate() {
+        inProcessCmmsComponents.startDaemons()
+        base.evaluate()
       }
     }
   }
