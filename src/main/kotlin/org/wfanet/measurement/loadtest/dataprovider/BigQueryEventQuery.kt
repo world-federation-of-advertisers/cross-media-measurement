@@ -30,7 +30,6 @@ import org.halo_cmm.uk.pilot.Event
 import org.halo_cmm.uk.pilot.display
 import org.halo_cmm.uk.pilot.event
 import org.halo_cmm.uk.pilot.video
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.toRange
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
@@ -60,7 +59,7 @@ class BigQueryEventQuery(
     }
     logger.info("Running query on BigQuery table.")
 
-    val program = EventQuery.compileProgram(eventGroupSpec.spec.filter, TestEvent.getDescriptor())
+    val program = EventQuery.compileProgram(eventGroupSpec.spec.filter, Event.getDescriptor())
 
     return resultJob
       .getQueryResults()
@@ -133,7 +132,7 @@ class BigQueryEventQuery(
             completed75PercentPlus = true
             completed100Percent = true
           }
-         else -> throw Exception("Unknown video completion status :  $completionStatus")
+          else -> throw Exception("Unknown video completion status :  $completionStatus")
         }
         when (viewability) {
           "viewable_0_percent_to_50_percent" -> viewable0PercentPlus = true
