@@ -18,7 +18,7 @@ import {
   InitApiProps,
   ListReportsResponse,
   Report,
-  terminatingStates,
+  TERMINAL_STATES,
 } from '../../model/reporting';
 
 export class ReportingClientImpl {
@@ -52,7 +52,7 @@ export class ReportingClientImpl {
       report,
     });
 
-    if (terminatingStates.includes(report.status)) {
+    if (TERMINAL_STATES.includes(report.status)) {
       this.cache.set(key, response);
     }
 

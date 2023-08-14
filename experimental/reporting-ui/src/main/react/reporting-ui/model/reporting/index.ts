@@ -22,4 +22,4 @@ export type {Overview} from './overview';
 export type {Reach, TargetReach} from './reach';
 export type {SummaryPublisherData} from './summary_publisher_data';
 export type {UniqueReach} from './unique_reach';
-export {ReportState, terminatingStates} from './report_state';
+export {ReportState, TERMINAL_STATES} from './report_state';
