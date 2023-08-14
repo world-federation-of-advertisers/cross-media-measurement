@@ -119,7 +119,7 @@ GKE_IMAGES = [
     struct(
         name = "duchy_gcs_postgres_duchy_data_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:gcs_postgres_duchy_data_server_image",
-        repository = _PREFIX + "/duchy/postgres-data",
+        repository = _PREFIX + "/duchy/postgres-data-server",
     ),
     struct(
         name = "duchy_requisition_fulfillment_server_image",
