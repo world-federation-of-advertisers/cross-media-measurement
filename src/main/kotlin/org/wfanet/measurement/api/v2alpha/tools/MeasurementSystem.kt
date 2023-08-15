@@ -872,24 +872,23 @@ class CreateMeasurement : Runnable {
   ): Measurement.DataProviderEntry {
     return dataProviderEntry {
       val requisitionSpec = requisitionSpec {
-        events =
-          RequisitionSpecKt.events {
-            this.eventGroups +=
-              dataProviderInput.eventGroupInputs.map {
-                eventGroupEntry {
-                  key = it.name
-                  value =
-                    EventGroupEntries.value {
-                      collectionInterval = interval {
-                        startTime = it.eventStartTime.toProtoTime()
-                        endTime = it.eventEndTime.toProtoTime()
-                      }
-                      if (it.eventFilter.isNotEmpty())
-                        filter = eventFilter { expression = it.eventFilter }
-                    }
+        val eventGroups =
+          dataProviderInput.eventGroupInputs.map {
+            eventGroupEntry {
+              key = it.name
+              value =
+                EventGroupEntries.value {
+                  collectionInterval = interval {
+                    startTime = it.eventStartTime.toProtoTime()
+                    endTime = it.eventEndTime.toProtoTime()
+                  }
+                  if (it.eventFilter.isNotEmpty())
+                    filter = eventFilter { expression = it.eventFilter }
                 }
-              }
+            }
           }
+        this.eventGroups += eventGroups
+        events = RequisitionSpecKt.events { this.eventGroups += eventGroups }
         this.measurementPublicKey = measurementEncryptionPublicKey
         nonce = secureRandom.nextLong()
       }

@@ -97,6 +97,9 @@ import org.wfanet.measurement.internal.duchy.purgeComputationsResponse
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
+import org.wfanet.measurement.system.v1alpha.computationLogEntry
+import org.wfanet.measurement.system.v1alpha.createComputationLogEntryRequest
+import org.wfanet.measurement.system.v1alpha.stageAttempt
 
 /** Implementation of the Computations service for Postgres database. */
 class PostgresComputationsService(
@@ -415,22 +418,20 @@ class PostgresComputationsService(
     computationStage: ComputationStage,
     attempt: Long = 0L,
   ): CreateComputationLogEntryRequest {
-    return CreateComputationLogEntryRequest.newBuilder()
-      .apply {
-        parent = ComputationParticipantKey(globalId, duchyName).toName()
-        computationLogEntryBuilder.apply {
-          // TODO: maybe set participantChildReferenceId
-          logMessage =
-            "Computation $globalId at stage ${computationStage.name}, " + "attempt $attempt"
-          stageAttemptBuilder.apply {
-            stage = computationStage.number
-            stageName = computationStage.name
-            stageStartTime = clock.protoTimestamp()
-            attemptNumber = attempt
-          }
+    return createComputationLogEntryRequest {
+      parent = ComputationParticipantKey(globalId, duchyName).toName()
+      computationLogEntry = computationLogEntry {
+        // TODO: maybe set participantChildReferenceId
+        logMessage =
+          "Computation $globalId at stage ${computationStage.name}, " + "attempt $attempt"
+        stageAttempt = stageAttempt {
+          stage = computationStage.number
+          stageName = computationStage.name
+          stageStartTime = clock.protoTimestamp()
+          attemptNumber = attempt
         }
       }
-      .build()
+    }
   }
 
   private suspend fun sendStatusUpdateToKingdom(request: CreateComputationLogEntryRequest) {
