@@ -316,7 +316,7 @@ import ("strings")
 			}
 		}
 		"liquid-legions-v2-mill-daemon": {
-			_app_label: _duchy_data_server_app_label
+			_app_label: _object_prefix + "liquid-legions-v2-mill-daemon-app"
 			_egresses: {
 				// Need to send external traffic.
 				any: {}
