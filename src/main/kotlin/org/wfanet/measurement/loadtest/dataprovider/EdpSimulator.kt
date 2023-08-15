@@ -120,7 +120,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getPrivacyQuery
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDpQuery
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
 import org.wfanet.measurement.loadtest.config.VidSampling
 
@@ -673,7 +673,7 @@ class EdpSimulator(
   ) {
     try {
       privacyBudgetManager.chargePrivacyBudget(
-        getPrivacyQuery(
+        getDpQuery(
           Reference(measurementConsumerName, requisitionName, false),
           measurementSpec,
           eventSpecs
