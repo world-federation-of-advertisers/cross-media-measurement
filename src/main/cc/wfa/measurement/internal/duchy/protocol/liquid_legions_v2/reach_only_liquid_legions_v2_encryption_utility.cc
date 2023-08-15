@@ -155,11 +155,13 @@ int64_t CountUniqueElements(const std::vector<std::string>& arr) {
 // Adds encrypted blinded-histogram-noise registers to the end of data.
 // returns the number of such noise registers added.
 absl::StatusOr<int64_t> AddReachOnlyBlindedHistogramNoise(
-    ProtocolCryptor& protocol_cryptor, int total_sketches_count,
+    MultithreadingHelper& helper, int total_sketches_count,
     const math::DistributedNoiser& distributed_noiser, size_t pos,
     std::string& data, int64_t& num_unique_noise_id) {
   int64_t noise_register_added = 0;
   num_unique_noise_id = 0;
+
+  std::vector<std::string> register_id_ecs;
 
   for (int k = 1; k <= total_sketches_count; ++k) {
     // The random number of distinct register_ids that should appear k times.
@@ -172,20 +174,27 @@ absl::StatusOr<int64_t> AddReachOnlyBlindedHistogramNoise(
       // The prefix is to ensure the value is not in the regular id space.
       std::string register_id =
           absl::StrCat("blinded_histogram_noise",
-                       protocol_cryptor.NextRandomBigNumAsString());
+                       helper.GetProtocolCryptor().NextRandomBigNumAsString());
       ASSIGN_OR_RETURN(std::string register_id_ec,
-                       protocol_cryptor.MapToCurve(register_id));
-      // Add k registers with the same register_id.
+                       helper.GetProtocolCryptor().MapToCurve(register_id));
       for (int j = 0; j < k; ++j) {
-        // Add register_id
-        RETURN_IF_ERROR(EncryptCompositeElGamalAndWriteToString(
-            protocol_cryptor, CompositeType::kFull, register_id_ec, pos, data));
-        pos += kBytesPerCipherText;
-
-        ++noise_register_added;
+        register_id_ecs.push_back(register_id_ec);
       }
+      noise_register_added += k;
     }
   }
+
+  absl::AnyInvocable<absl::Status(ProtocolCryptor&, size_t)> f =
+      [&](ProtocolCryptor& cryptor, size_t index) -> absl::Status {
+    size_t current_pos = pos + kBytesPerCipherText * index;
+    // Add register_id
+    RETURN_IF_ERROR(EncryptCompositeElGamalAndWriteToString(
+        helper.GetProtocolCryptor(), CompositeType::kFull,
+        register_id_ecs[index], current_pos, data));
+    current_pos += kBytesPerCipherText;
+    return absl::OkStatus();
+  };
+  RETURN_IF_ERROR(helper.Execute(noise_register_added, f));
 
   return noise_register_added;
 }
@@ -396,9 +405,9 @@ absl::StatusOr<CompleteReachOnlySetupPhaseResponse> CompleteReachOnlySetupPhase(
     ASSIGN_OR_RETURN(
         int64_t blinded_histogram_noise_count,
         AddReachOnlyBlindedHistogramNoise(
-            multithreading_helper->GetProtocolCryptor(),
-            noise_parameters.total_sketches_count(), *blind_histogram_noiser,
-            pos, *response_crv, excessive_noise_count));
+            *multithreading_helper, noise_parameters.total_sketches_count(),
+            *blind_histogram_noiser, pos, *response_crv,
+            excessive_noise_count));
     pos += kBytesPerCipherText * blinded_histogram_noise_count;
     // 2. Add noise for publisher noise. Publisher noise count is at least 1.
     ASSIGN_OR_RETURN(
