@@ -60,11 +60,12 @@ import ("strings")
 		}
 	}
 
-	_millPollingInterval?:               string
-	_duchy_data_server_name:             string
-	_duchy_data_server_name_with_prefix: _object_prefix + _duchy_data_server_name
-	_duchy_data_server_app_label:        string
-	_duchy_data_server_deployment_name:  string
+	_millPollingInterval?:                    string
+	_duchy_data_server_name:                  string
+	_duchy_data_server_name_with_prefix:      _object_prefix + _duchy_data_server_name
+	_duchy_data_server_app_label:             string
+	_duchy_data_server_app_label_with_prefix: _object_prefix + _duchy_data_server_app_label
+	_duchy_data_server_deployment_name:       string
 	_duchy_data_server_container_args: [...string]
 	_duchy_data_service_target_flag:    string
 	_duchy_data_service_cert_host_flag: string
@@ -129,7 +130,7 @@ import ("strings")
 						_debug_verbose_grpc_client_logging_flag,
 			] + _duchyDeletableStatesFlag
 			spec: template: spec: _dependencies: [
-				_object_prefix + _duchy_data_server_name,
+				_duchy_data_server_name_with_prefix,
 			]
 		}
 		"liquid-legions-v2-mill-daemon-deployment": Deployment={
@@ -152,7 +153,7 @@ import ("strings")
 						"--otel-service-name=\(Deployment.metadata.name)",
 			] + _blob_storage_flags + _computation_control_target_flags
 			spec: template: spec: _dependencies: [
-				_object_prefix + _duchy_data_server_name, "\(_name)-computation-control-server",
+				_duchy_data_server_name_with_prefix, "\(_name)-computation-control-server",
 			]
 		}
 		"async-computation-control-server-deployment": #ServerDeployment & {
@@ -225,7 +226,7 @@ import ("strings")
 			] + _blob_storage_flags
 			spec: template: spec: {
 				_mounts: "config-files": #ConfigMapMount
-				_dependencies: [_object_prefix + _duchy_data_server_name]
+				_dependencies: [_duchy_data_server_name_with_prefix]
 			}
 		}
 	}
@@ -262,7 +263,7 @@ import ("strings")
 	// TODO(@wangyaopw): Consider setting GCS and spanner destinations explicityly.
 	networkPolicies: {
 		"\(_duchy_data_server_name)": {
-			_app_label: _object_prefix + _duchy_data_server_app_label
+			_app_label: _duchy_data_server_app_label_with_prefix
 			_sourceMatchLabels: [
 				_object_prefix + "herald-daemon-app",
 				_object_prefix + "liquid-legions-v2-mill-daemon-app",
@@ -296,7 +297,7 @@ import ("strings")
 				_object_prefix + "computation-control-server-app",
 			]
 			_destinationMatchLabels: [
-				_duchy_data_server_app_label,
+				_duchy_data_server_app_label_with_prefix,
 				"opentelemetry-collector-app",
 			]
 		}
@@ -332,7 +333,7 @@ import ("strings")
 		"computations-cleaner": {
 			_app_label: _object_prefix + "computations-cleaner-app"
 			_destinationMatchLabels: [
-				_duchy_data_server_app_label,
+				_duchy_data_server_app_label_with_prefix,
 			]
 		}
 	}
