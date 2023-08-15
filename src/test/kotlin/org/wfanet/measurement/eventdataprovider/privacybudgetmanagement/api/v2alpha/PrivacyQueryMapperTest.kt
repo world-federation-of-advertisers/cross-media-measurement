@@ -398,19 +398,20 @@ class PrivacyQueryMapperTest {
     private const val SENSITIVITY = 1.0
 
     private val REQUISITION_SPEC = requisitionSpec {
-      events = RequisitionSpecKt.events {
-        eventGroups += eventGroupEntry {
-          key = "eventGroups/someEventGroup"
-          value =
-            RequisitionSpecKt.EventGroupEntryKt.value {
-              collectionInterval = interval {
-                startTime = TIME_RANGE.start.toProtoTime()
-                endTime = TIME_RANGE.endExclusive.toProtoTime()
+      events =
+        RequisitionSpecKt.events {
+          eventGroups += eventGroupEntry {
+            key = "eventGroups/someEventGroup"
+            value =
+              RequisitionSpecKt.EventGroupEntryKt.value {
+                collectionInterval = interval {
+                  startTime = TIME_RANGE.start.toProtoTime()
+                  endTime = TIME_RANGE.endExclusive.toProtoTime()
+                }
+                filter = eventFilter { expression = FILTER_EXPRESSION }
               }
-              filter = eventFilter { expression = FILTER_EXPRESSION }
-            }
+          }
         }
-      }
     }
 
     private val REACH_AND_FREQ_MEASUREMENT_SPEC = measurementSpec {
