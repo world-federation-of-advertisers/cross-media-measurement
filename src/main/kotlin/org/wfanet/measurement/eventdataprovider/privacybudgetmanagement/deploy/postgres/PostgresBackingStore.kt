@@ -35,10 +35,11 @@ private const val MAX_BATCH_INSERT = 1000
  *
  * @param createConnection is a function that creates a postgres JDBC connection that will be owned
  *   by the backing store and should not be used outside this backing store.
+ *
+ * TODO(@uakyol): Use R2DBC-based
+ *   [org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient] instead of JDBC.
  */
 class PostgresBackingStore(createConnection: () -> Connection) : PrivacyBudgetLedgerBackingStore {
-  // TODO(@duliomatos1) : redesign this to reduce connection lifetime, e.g. using a Connection for
-  // a single transaction/operation and then closing it.
   private val connection = createConnection()
   init {
     connection.autoCommit = false
@@ -58,7 +59,6 @@ class PostgresBackingStore(createConnection: () -> Connection) : PrivacyBudgetLe
       )
     }
     connection.createStatement().use { statement: Statement ->
-      // TODO(@duliomatos) Make the blocking IO run within a dispatcher using coroutines
       statement.executeUpdate("begin transaction")
       return PostgresBackingStoreTransactionContext(connection)
     }

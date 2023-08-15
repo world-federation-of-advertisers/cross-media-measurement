@@ -19,21 +19,20 @@ import java.time.Clock
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
-import org.wfanet.measurement.common.db.r2dbc.postgres.testing.EmbeddedPostgresDatabaseProvider
+import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProvider
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.ProviderRule
-import org.wfanet.measurement.duchy.deploy.common.postgres.testing.Schemata
 import org.wfanet.measurement.duchy.deploy.common.service.PostgresDuchyDataServices
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
-class PostgresDuchyDependencyProviderRule(duchies: Iterable<String>) :
-  ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies> {
-  private val computationsDatabases: Map<String, PostgresDatabaseClient> =
-    duchies.associateWith {
-      EmbeddedPostgresDatabaseProvider(Schemata.DUCHY_CHANGELOG_PATH).createNewDatabase()
-    }
+class PostgresDuchyDependencyProviderRule(
+  private val databaseProvider: PostgresDatabaseProvider,
+  private val duchies: Iterable<String>
+) : ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies> {
+
+  private lateinit var computationsDatabases: Map<String, PostgresDatabaseClient>
 
   private fun buildDuchyDependencies(
     duchyId: String,
@@ -60,6 +59,11 @@ class PostgresDuchyDependencyProviderRule(duchies: Iterable<String>) :
     get() = ::buildDuchyDependencies
 
   override fun apply(base: Statement, description: Description): Statement {
-    return base
+    return object : Statement() {
+      override fun evaluate() {
+        computationsDatabases = duchies.associateWith { databaseProvider.createDatabase() }
+        base.evaluate()
+      }
+    }
   }
 }

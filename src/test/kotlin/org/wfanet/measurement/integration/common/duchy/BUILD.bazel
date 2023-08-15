@@ -37,7 +37,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/service:postgres_duchy_data_services",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_duchy",
         "@wfa_common_jvm//imports/java/com/google/cloud/storage/contrib/nio",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:embedded_postgres",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
