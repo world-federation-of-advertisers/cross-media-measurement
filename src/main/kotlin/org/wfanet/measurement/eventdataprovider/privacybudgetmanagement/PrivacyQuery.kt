@@ -67,3 +67,13 @@ data class AcdpQuery(
   val landscapeMask: LandscapeMask,
   val acdpCharge: AcdpCharge,
 )
+
+/** Supported Composition mechanisms in Privacy Budget Manager. */
+enum class CompositionMechanism {
+  // DP_ADVANCED is Advanced Composition under Differential Privacy which should be used with
+  // Laplace noise.
+  DP_ADVANCED,
+  // ACDP is Almost Concentrated Differential Privacy Composition which should be used with
+  // Gaussian noise.
+  ACDP,
+}

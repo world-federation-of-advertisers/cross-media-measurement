@@ -34,7 +34,7 @@ import org.wfanet.measurement.loadtest.config.PrivacyBudgets.createNoOpPrivacyBu
 import picocli.CommandLine
 
 /** The base class of the EdpSimulator runner. */
-abstract class EdpSimulatorRunner() : Runnable {
+abstract class EdpSimulatorRunner : Runnable {
   @CommandLine.Mixin
   protected lateinit var flags: EdpSimulatorFlags
     private set
@@ -100,7 +100,8 @@ abstract class EdpSimulatorRunner() : Runnable {
         createNoOpPrivacyBudgetManager(),
         clientCerts.trustedCertificates,
         flags.directNoiseMechanism,
-        random = random
+        random = random,
+        compositionMechanism = flags.compositionMechanism,
       )
     runBlocking {
       edpSimulator.ensureEventGroup(eventGroupMetadata)
