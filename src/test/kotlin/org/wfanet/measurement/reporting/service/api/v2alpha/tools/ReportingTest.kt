@@ -38,6 +38,8 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.grpc.toServerTlsContext
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.CommandLineTesting
+import org.wfanet.measurement.common.testing.CommandLineTesting.assertThat
+import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
@@ -133,10 +135,8 @@ class ReportingTest {
     server.awaitTermination(1, SECONDS)
   }
 
-  private fun callCli(args: Array<String>): String {
-    return CommandLineTesting.capturingSystemOut {
-      CommandLineTesting.assertExitsWith(0) { Reporting.main(args) }
-    }
+  private fun callCli(args: Array<String>): CommandLineTesting.CapturedOutput {
+    return CommandLineTesting.capturingOutput(args, Reporting::main)
   }
 
   @Test
@@ -179,7 +179,8 @@ class ReportingTest {
         }
       )
 
-    assertThat(parseTextProto(output.reader(), ReportingSet.getDefaultInstance()))
+    assertThat(output).status().isEqualTo(0)
+    assertThat(parseTextProto(output.out.reader(), ReportingSet.getDefaultInstance()))
       .isEqualTo(REPORTING_SET)
   }
 
@@ -235,7 +236,8 @@ class ReportingTest {
         }
       )
 
-    assertThat(parseTextProto(output.reader(), ReportingSet.getDefaultInstance()))
+    assertThat(output).status().isEqualTo(0)
+    assertThat(parseTextProto(output.out.reader(), ReportingSet.getDefaultInstance()))
       .isEqualTo(REPORTING_SET)
   }
 
@@ -267,7 +269,9 @@ class ReportingTest {
         "--id=$REPORTING_SET_ID",
       )
 
-    CommandLineTesting.assertExitsWith(2) { Reporting.main(args) }
+    val capturedOutput = callCli(args)
+
+    assertThat(capturedOutput).status().isEqualTo(2)
   }
 
   @Test
@@ -286,7 +290,9 @@ class ReportingTest {
         "--id=$REPORTING_SET_ID",
       )
 
-    CommandLineTesting.assertExitsWith(2) { Reporting.main(args) }
+    val capturedOutput = callCli(args)
+
+    assertThat(capturedOutput).status().isEqualTo(2)
   }
 
   @Test
@@ -314,7 +320,8 @@ class ReportingTest {
           pageToken = "token"
         }
       )
-    assertThat(parseTextProto(output.reader(), ListReportingSetsResponse.getDefaultInstance()))
+    assertThat(output).status().isEqualTo(0)
+    assertThat(parseTextProto(output.out.reader(), ListReportingSetsResponse.getDefaultInstance()))
       .isEqualTo(listReportingSetsResponse { reportingSets += REPORTING_SET })
   }
 
@@ -373,7 +380,8 @@ class ReportingTest {
         }
       )
 
-    assertThat(parseTextProto(output.reader(), Report.getDefaultInstance())).isEqualTo(REPORT)
+    assertThat(output).status().isEqualTo(0)
+    assertThat(parseTextProto(output.out.reader(), Report.getDefaultInstance())).isEqualTo(REPORT)
   }
 
   @Test
@@ -423,7 +431,8 @@ class ReportingTest {
         }
       )
 
-    assertThat(parseTextProto(output.reader(), Report.getDefaultInstance())).isEqualTo(REPORT)
+    assertThat(output).status().isEqualTo(0)
+    assertThat(parseTextProto(output.out.reader(), Report.getDefaultInstance())).isEqualTo(REPORT)
   }
 
   @Test
@@ -457,7 +466,9 @@ class ReportingTest {
         "--reporting-metric-entry=${textFormatReportingMetricEntryFile.readText()}",
       )
 
-    CommandLineTesting.assertExitsWith(2) { Reporting.main(args) }
+    val capturedOutput = callCli(args)
+
+    assertThat(capturedOutput).status().isEqualTo(2)
   }
 
   @Test
@@ -481,7 +492,9 @@ class ReportingTest {
         "--request-id=$REPORT_REQUEST_ID",
       )
 
-    CommandLineTesting.assertExitsWith(2) { Reporting.main(args) }
+    val capturedOutput = callCli(args)
+
+    assertThat(capturedOutput).status().isEqualTo(2)
   }
 
   @Test
@@ -523,7 +536,8 @@ class ReportingTest {
 
     verifyProtoArgument(reportsServiceMock, ReportsCoroutineImplBase::getReport)
       .isEqualTo(getReportRequest { name = REPORT_NAME })
-    assertThat(parseTextProto(output.reader(), Report.getDefaultInstance())).isEqualTo(REPORT)
+    assertThat(output).status().isEqualTo(0)
+    assertThat(parseTextProto(output.out.reader(), Report.getDefaultInstance())).isEqualTo(REPORT)
   }
 
   @Test
@@ -549,7 +563,8 @@ class ReportingTest {
           pageSize = 1000
         }
       )
-    assertThat(parseTextProto(output.reader(), ListEventGroupsResponse.getDefaultInstance()))
+    assertThat(output).status().isEqualTo(0)
+    assertThat(parseTextProto(output.out.reader(), ListEventGroupsResponse.getDefaultInstance()))
       .isEqualTo(listEventGroupsResponse { eventGroups += EVENT_GROUP })
   }
 
@@ -651,6 +666,10 @@ class ReportingTest {
   }
 
   companion object {
+    init {
+      System.setSecurityManager(ExitInterceptingSecurityManager)
+    }
+
     private const val HOST = "localhost"
     private val SECRETS_DIR: Path =
       getRuntimePath(
