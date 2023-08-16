@@ -589,7 +589,9 @@ class ReportingTest {
       .isEqualTo(
         getEventGroupMetadataDescriptorRequest { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME }
       )
-    assertThat(parseTextProto(output.out.reader(), EventGroupMetadataDescriptor.getDefaultInstance()))
+    assertThat(
+        parseTextProto(output.out.reader(), EventGroupMetadataDescriptor.getDefaultInstance())
+      )
       .isEqualTo(EVENT_GROUP_METADATA_DESCRIPTOR)
   }
 
