@@ -18,11 +18,14 @@ package org.wfanet.measurement.integration.common.reporting.v2
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.duration
 import com.google.protobuf.timestamp
+import com.google.protobuf.util.Durations
+import com.google.protobuf.util.Timestamps
+import com.google.type.Interval
 import com.google.type.interval
 import java.io.File
 import java.nio.file.Paths
+import java.time.LocalDate
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -30,35 +33,52 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.BeforeClass
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
 import org.junit.runners.model.Statement
+import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroupKt
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementKt
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
+import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
+import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
 import org.wfanet.measurement.api.withAuthenticationKey
+import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.common.toInterval
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.keyPair
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.principalKeyPairs
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
 import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
+import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
+import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.integration.common.reporting.v2.identity.withPrincipalName
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
+import org.wfanet.measurement.loadtest.config.VidSampling
+import org.wfanet.measurement.loadtest.dataprovider.EventQuery
+import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults
+import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
+import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer
 import org.wfanet.measurement.reporting.service.api.v2alpha.withDefaults
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.Metric
+import org.wfanet.measurement.reporting.v2alpha.MetricSpec.VidSamplingInterval
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.Report
@@ -201,13 +221,13 @@ abstract class InProcessLifeOfAReportIntegrationTest {
   }
 
   @Test
-  fun `report with union reach has the expected result`() = runBlocking {
+  fun `report with union reach across 2 edps has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group == 1"
+      filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
@@ -224,8 +244,8 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet2 = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group == 2"
-      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
+      filter = "person.age_group == ${Person.AgeGroup.YEARS_55_PLUS_VALUE}"
+      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[1].cmmsEventGroup }
     }
 
     val createdPrimitiveReportingSet2 =
@@ -241,7 +261,6 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val compositeReportingSet = reportingSet {
       displayName = "composite"
-      filter = "person.age_group == 1"
       composite =
         ReportingSetKt.composite {
           expression =
@@ -281,21 +300,14 @@ abstract class InProcessLifeOfAReportIntegrationTest {
                   displayName = "union reach"
                   metricSpecs +=
                     metricSpec {
-                        reach =
-                          MetricSpecKt.reachParams {
-                            privacyParams = MetricSpecKt.differentialPrivacyParams {}
-                          }
+                        reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                        vidSamplingInterval = VID_SAMPLING_INTERVAL
                       }
                       .withDefaults(reportingServer.metricSpecConfig)
                 }
             }
         }
-      timeIntervals = timeIntervals {
-        timeIntervals += interval {
-          startTime = timestamp { seconds = 100 }
-          endTime = timestamp { seconds = 200 }
-        }
-      }
+      timeIntervals = timeIntervals { timeIntervals += EVENT_RANGE.toInterval() }
     }
 
     val createdReport =
@@ -312,19 +324,48 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
-    // TODO(@tristanvuong2021): calculate expected result and compare once synthetic event groups
-    // is implemented.
+    val vids =
+      SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
+        eventGroups[0],
+        "(${primitiveReportingSet.filter}) || (${primitiveReportingSet2.filter})",
+        EVENT_RANGE.toInterval()
+      )
+    val sampledVids =
+      vids.calculateSampledVids(
+        report.reportingMetricEntriesList[0]
+          .value
+          .metricCalculationSpecsList[0]
+          .metricSpecsList[0]
+          .vidSamplingInterval
+      )
+    val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+
+    val actualResult =
+      MeasurementKt.result {
+        reach =
+          MeasurementKt.ResultKt.reach {
+            value =
+              retrievedReport.metricCalculationResultsList[0]
+                .resultAttributesList[0]
+                .metricResult
+                .reach
+                .value
+          }
+      }
+    // TODO(@tristanvuong2021): Assert using variance
+    assertThat(actualResult).reachValue().isWithinPercent(10.0).of(expectedResult.reach.value)
   }
 
   @Test
   fun `report with unique reach has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
+    val eventGroup = eventGroups[0]
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group == 1"
-      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
+      filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
+      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
     }
 
     val createdPrimitiveReportingSet =
@@ -340,8 +381,8 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet2 = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group == 2"
-      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
+      filter = "person.gender == ${Person.Gender.MALE_VALUE}"
+      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
     }
 
     val createdPrimitiveReportingSet2 =
@@ -357,7 +398,6 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val compositeReportingSet = reportingSet {
       displayName = "composite"
-      filter = "person.age_group == 1"
       composite =
         ReportingSetKt.composite {
           expression =
@@ -408,21 +448,14 @@ abstract class InProcessLifeOfAReportIntegrationTest {
                   displayName = "unique reach"
                   metricSpecs +=
                     metricSpec {
-                        reach =
-                          MetricSpecKt.reachParams {
-                            privacyParams = MetricSpecKt.differentialPrivacyParams {}
-                          }
+                        reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                        vidSamplingInterval = VID_SAMPLING_INTERVAL
                       }
                       .withDefaults(reportingServer.metricSpecConfig)
                 }
             }
         }
-      timeIntervals = timeIntervals {
-        timeIntervals += interval {
-          startTime = timestamp { seconds = 100 }
-          endTime = timestamp { seconds = 200 }
-        }
-      }
+      timeIntervals = timeIntervals { timeIntervals += EVENT_RANGE.toInterval() }
     }
 
     val createdReport =
@@ -439,19 +472,67 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
-    // TODO(@tristanvuong2021): calculate expected result and compare once synthetic event groups
-    // is implemented.
+    val vidsLhs =
+      SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
+        eventGroup,
+        "(${primitiveReportingSet.filter}) || (${primitiveReportingSet2.filter})",
+        EVENT_RANGE.toInterval()
+      )
+    val sampledVidsLhs =
+      vidsLhs.calculateSampledVids(
+        report.reportingMetricEntriesList[0]
+          .value
+          .metricCalculationSpecsList[0]
+          .metricSpecsList[0]
+          .vidSamplingInterval
+      )
+    val expectedResultLhs = calculateExpectedReachMeasurementResult(sampledVidsLhs)
+
+    val vidsRhs =
+      SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
+        eventGroup,
+        primitiveReportingSet2.filter,
+        EVENT_RANGE.toInterval()
+      )
+    val sampledVidsRhs =
+      vidsRhs.calculateSampledVids(
+        report.reportingMetricEntriesList[0]
+          .value
+          .metricCalculationSpecsList[0]
+          .metricSpecsList[0]
+          .vidSamplingInterval
+      )
+    val expectedResultRhs = calculateExpectedReachMeasurementResult(sampledVidsRhs)
+
+    val actualResult =
+      MeasurementKt.result {
+        reach =
+          MeasurementKt.ResultKt.reach {
+            value =
+              retrievedReport.metricCalculationResultsList[0]
+                .resultAttributesList[0]
+                .metricResult
+                .reach
+                .value
+          }
+      }
+    // TODO(@tristanvuong2021): Assert using variance
+    assertThat(actualResult)
+      .reachValue()
+      .isWithinPercent(0.5)
+      .of(expectedResultLhs.reach.value - expectedResultRhs.reach.value)
   }
 
   @Test
   fun `report with intersection reach has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
+    val eventGroup = eventGroups[0]
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group == 1"
-      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
+      filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
+      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
     }
 
     val createdPrimitiveReportingSet =
@@ -467,8 +548,8 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet2 = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group == 2"
-      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
+      filter = "person.gender == ${Person.Gender.FEMALE_VALUE}"
+      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
     }
 
     val createdPrimitiveReportingSet2 =
@@ -484,7 +565,6 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val compositeReportingSet = reportingSet {
       displayName = "composite"
-      filter = "person.age_group == 1"
       composite =
         ReportingSetKt.composite {
           expression =
@@ -524,21 +604,14 @@ abstract class InProcessLifeOfAReportIntegrationTest {
                   displayName = "intersection reach"
                   metricSpecs +=
                     metricSpec {
-                        reach =
-                          MetricSpecKt.reachParams {
-                            privacyParams = MetricSpecKt.differentialPrivacyParams {}
-                          }
+                        reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                        vidSamplingInterval = VID_SAMPLING_INTERVAL
                       }
                       .withDefaults(reportingServer.metricSpecConfig)
                 }
             }
         }
-      timeIntervals = timeIntervals {
-        timeIntervals += interval {
-          startTime = timestamp { seconds = 100 }
-          endTime = timestamp { seconds = 200 }
-        }
-      }
+      timeIntervals = timeIntervals { timeIntervals += EVENT_RANGE.toInterval() }
     }
 
     val createdReport =
@@ -555,19 +628,149 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
-    // TODO(@tristanvuong2021): calculate expected result and compare once synthetic event groups
-    // is implemented.
+    val vids =
+      SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
+        eventGroup,
+        "(${primitiveReportingSet.filter}) && (${primitiveReportingSet2.filter})",
+        EVENT_RANGE.toInterval()
+      )
+    val sampledVids =
+      vids.calculateSampledVids(
+        report.reportingMetricEntriesList[0]
+          .value
+          .metricCalculationSpecsList[0]
+          .metricSpecsList[0]
+          .vidSamplingInterval
+      )
+    val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+
+    val actualResult =
+      MeasurementKt.result {
+        reach =
+          MeasurementKt.ResultKt.reach {
+            value =
+              retrievedReport.metricCalculationResultsList[0]
+                .resultAttributesList[0]
+                .metricResult
+                .reach
+                .value
+          }
+      }
+    // TODO(@tristanvuong2021): Assert using variance
+    assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
+  }
+
+  @Test
+  fun `report with 2 reporting metric entries has the expected result`() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val eventGroups = listEventGroups()
+    val eventGroup = eventGroups[0]
+
+    val primitiveReportingSet = reportingSet {
+      displayName = "primitive"
+      filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
+      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
+    }
+
+    val createdPrimitiveReportingSet =
+      publicReportingSetsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .createReportingSet(
+          createReportingSetRequest {
+            parent = measurementConsumerData.name
+            reportingSet = primitiveReportingSet
+            reportingSetId = "abc"
+          }
+        )
+
+    val report = report {
+      reportingMetricEntries +=
+        ReportKt.reportingMetricEntry {
+          key = createdPrimitiveReportingSet.name
+          value =
+            ReportKt.reportingMetricCalculationSpec {
+              metricCalculationSpecs +=
+                ReportKt.metricCalculationSpec {
+                  displayName = "union reach"
+                  metricSpecs +=
+                    metricSpec {
+                        reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                        vidSamplingInterval = VID_SAMPLING_INTERVAL
+                      }
+                      .withDefaults(reportingServer.metricSpecConfig)
+                }
+            }
+        }
+      reportingMetricEntries +=
+        ReportKt.reportingMetricEntry {
+          key = createdPrimitiveReportingSet.name
+          value =
+            ReportKt.reportingMetricCalculationSpec {
+              metricCalculationSpecs +=
+                ReportKt.metricCalculationSpec {
+                  displayName = "union reach"
+                  metricSpecs +=
+                    metricSpec {
+                        reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                        vidSamplingInterval = VID_SAMPLING_INTERVAL
+                      }
+                      .withDefaults(reportingServer.metricSpecConfig)
+                }
+            }
+        }
+      timeIntervals = timeIntervals { timeIntervals += EVENT_RANGE.toInterval() }
+    }
+
+    val createdReport =
+      publicReportsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .createReport(
+          createReportRequest {
+            parent = measurementConsumerData.name
+            this.report = report
+            reportId = "report"
+          }
+        )
+
+    val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
+    assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
+
+    val vids =
+      SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
+        eventGroup,
+        primitiveReportingSet.filter,
+        EVENT_RANGE.toInterval()
+      )
+    val sampledVids =
+      vids.calculateSampledVids(
+        report.reportingMetricEntriesList[0]
+          .value
+          .metricCalculationSpecsList[0]
+          .metricSpecsList[0]
+          .vidSamplingInterval
+      )
+    val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+
+    for (resultAttribute in retrievedReport.metricCalculationResultsList[0].resultAttributesList) {
+      val actualResult =
+        MeasurementKt.result {
+          reach = MeasurementKt.ResultKt.reach { value = resultAttribute.metricResult.reach.value }
+        }
+      // TODO(@tristanvuong2021): Assert using variance
+      assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
+    }
   }
 
   @Test
   fun `report across two time intervals has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
+    val eventGroup = eventGroups[0]
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group == 1"
-      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
+      filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
+      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
     }
 
     val createdPrimitiveReportingSet =
@@ -581,58 +784,13 @@ abstract class InProcessLifeOfAReportIntegrationTest {
           }
         )
 
-    val primitiveReportingSet2 = reportingSet {
-      displayName = "primitive"
-      filter = "person.age_group == 2"
-      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
-    }
-
-    val createdPrimitiveReportingSet2 =
-      publicReportingSetsClient
-        .withPrincipalName(measurementConsumerData.name)
-        .createReportingSet(
-          createReportingSetRequest {
-            parent = measurementConsumerData.name
-            reportingSet = primitiveReportingSet2
-            reportingSetId = "abc2"
-          }
-        )
-
-    val compositeReportingSet = reportingSet {
-      displayName = "composite"
-      filter = "person.age_group == 1"
-      composite =
-        ReportingSetKt.composite {
-          expression =
-            ReportingSetKt.setExpression {
-              operation = ReportingSet.SetExpression.Operation.UNION
-              lhs =
-                ReportingSetKt.SetExpressionKt.operand {
-                  reportingSet = createdPrimitiveReportingSet.name
-                }
-              rhs =
-                ReportingSetKt.SetExpressionKt.operand {
-                  reportingSet = createdPrimitiveReportingSet2.name
-                }
-            }
-        }
-    }
-
-    val createdCompositeReportingSet =
-      publicReportingSetsClient
-        .withPrincipalName(measurementConsumerData.name)
-        .createReportingSet(
-          createReportingSetRequest {
-            parent = measurementConsumerData.name
-            reportingSet = compositeReportingSet
-            reportingSetId = "def"
-          }
-        )
+    val eventRange2 =
+      OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 18)..LocalDate.of(2021, 3, 19))
 
     val report = report {
       reportingMetricEntries +=
         ReportKt.reportingMetricEntry {
-          key = createdCompositeReportingSet.name
+          key = createdPrimitiveReportingSet.name
           value =
             ReportKt.reportingMetricCalculationSpec {
               metricCalculationSpecs +=
@@ -640,25 +798,16 @@ abstract class InProcessLifeOfAReportIntegrationTest {
                   displayName = "union reach"
                   metricSpecs +=
                     metricSpec {
-                        reach =
-                          MetricSpecKt.reachParams {
-                            privacyParams = MetricSpecKt.differentialPrivacyParams {}
-                          }
+                        reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                        vidSamplingInterval = VID_SAMPLING_INTERVAL
                       }
                       .withDefaults(reportingServer.metricSpecConfig)
                 }
             }
         }
       timeIntervals = timeIntervals {
-        timeIntervals += interval {
-          startTime = timestamp { seconds = 100 }
-          endTime = timestamp { seconds = 200 }
-        }
-
-        timeIntervals += interval {
-          startTime = timestamp { seconds = 300 }
-          endTime = timestamp { seconds = 400 }
-        }
+        timeIntervals += EVENT_RANGE.toInterval()
+        timeIntervals += eventRange2.toInterval()
       }
     }
 
@@ -676,19 +825,51 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
-    // TODO(@tristanvuong2021): calculate expected result and compare once synthetic event groups
-    // is implemented.
+    val vids =
+      SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
+        eventGroup,
+        primitiveReportingSet.filter,
+        EVENT_RANGE.toInterval()
+      )
+    val sampledVids =
+      vids.calculateSampledVids(
+        report.reportingMetricEntriesList[0]
+          .value
+          .metricCalculationSpecsList[0]
+          .metricSpecsList[0]
+          .vidSamplingInterval
+      )
+    val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+
+    for (resultAttribute in retrievedReport.metricCalculationResultsList[0].resultAttributesList) {
+      val actualResult =
+        MeasurementKt.result {
+          reach = MeasurementKt.ResultKt.reach { value = resultAttribute.metricResult.reach.value }
+        }
+      // TODO(@tristanvuong2021): Assert using variance
+      if (
+        Timestamps.compare(
+          resultAttribute.timeInterval.startTime,
+          EVENT_RANGE.toInterval().startTime
+        ) == 0
+      ) {
+        assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
+      } else {
+        assertThat(actualResult).reachValue().isWithinPercent(500.0).of(1)
+      }
+    }
   }
 
   @Test
   fun `report with periodic time interval has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
+    val eventGroup = eventGroups[0]
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group == 1"
-      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
+      filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
+      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
     }
 
     val createdPrimitiveReportingSet =
@@ -702,58 +883,10 @@ abstract class InProcessLifeOfAReportIntegrationTest {
           }
         )
 
-    val primitiveReportingSet2 = reportingSet {
-      displayName = "primitive"
-      filter = "person.age_group == 2"
-      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
-    }
-
-    val createdPrimitiveReportingSet2 =
-      publicReportingSetsClient
-        .withPrincipalName(measurementConsumerData.name)
-        .createReportingSet(
-          createReportingSetRequest {
-            parent = measurementConsumerData.name
-            reportingSet = primitiveReportingSet2
-            reportingSetId = "abc2"
-          }
-        )
-
-    val compositeReportingSet = reportingSet {
-      displayName = "composite"
-      filter = "person.age_group == 1"
-      composite =
-        ReportingSetKt.composite {
-          expression =
-            ReportingSetKt.setExpression {
-              operation = ReportingSet.SetExpression.Operation.UNION
-              lhs =
-                ReportingSetKt.SetExpressionKt.operand {
-                  reportingSet = createdPrimitiveReportingSet.name
-                }
-              rhs =
-                ReportingSetKt.SetExpressionKt.operand {
-                  reportingSet = createdPrimitiveReportingSet2.name
-                }
-            }
-        }
-    }
-
-    val createdCompositeReportingSet =
-      publicReportingSetsClient
-        .withPrincipalName(measurementConsumerData.name)
-        .createReportingSet(
-          createReportingSetRequest {
-            parent = measurementConsumerData.name
-            reportingSet = compositeReportingSet
-            reportingSetId = "def"
-          }
-        )
-
     val report = report {
       reportingMetricEntries +=
         ReportKt.reportingMetricEntry {
-          key = createdCompositeReportingSet.name
+          key = createdPrimitiveReportingSet.name
           value =
             ReportKt.reportingMetricCalculationSpec {
               metricCalculationSpecs +=
@@ -761,19 +894,17 @@ abstract class InProcessLifeOfAReportIntegrationTest {
                   displayName = "union reach"
                   metricSpecs +=
                     metricSpec {
-                        reach =
-                          MetricSpecKt.reachParams {
-                            privacyParams = MetricSpecKt.differentialPrivacyParams {}
-                          }
+                        reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                        vidSamplingInterval = VID_SAMPLING_INTERVAL
                       }
                       .withDefaults(reportingServer.metricSpecConfig)
                 }
             }
         }
       periodicTimeInterval = periodicTimeInterval {
-        startTime = timestamp { seconds = 100 }
-        increment = duration { seconds = 10 }
-        intervalCount = 10
+        startTime = EVENT_RANGE.start.toProtoTime()
+        increment = Durations.fromDays(1L)
+        intervalCount = 2
       }
     }
 
@@ -791,19 +922,51 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
-    // TODO(@tristanvuong2021): calculate expected result and compare once synthetic event groups
-    // is implemented.
+    val vids =
+      SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
+        eventGroup,
+        primitiveReportingSet.filter,
+        EVENT_RANGE.toInterval()
+      )
+    val sampledVids =
+      vids.calculateSampledVids(
+        report.reportingMetricEntriesList[0]
+          .value
+          .metricCalculationSpecsList[0]
+          .metricSpecsList[0]
+          .vidSamplingInterval
+      )
+    val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+
+    for (resultAttribute in retrievedReport.metricCalculationResultsList[0].resultAttributesList) {
+      val actualResult =
+        MeasurementKt.result {
+          reach = MeasurementKt.ResultKt.reach { value = resultAttribute.metricResult.reach.value }
+        }
+      // TODO(@tristanvuong2021): Assert using variance
+      if (
+        Timestamps.compare(
+          resultAttribute.timeInterval.startTime,
+          EVENT_RANGE.toInterval().startTime
+        ) == 0
+      ) {
+        assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
+      } else {
+        assertThat(actualResult).reachValue().isWithinPercent(500.0).of(1)
+      }
+    }
   }
 
   @Test
   fun `report with cumulative has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
+    val eventGroup = eventGroups[0]
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group == 1"
-      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
+      filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
+      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
     }
 
     val createdPrimitiveReportingSet =
@@ -817,58 +980,10 @@ abstract class InProcessLifeOfAReportIntegrationTest {
           }
         )
 
-    val primitiveReportingSet2 = reportingSet {
-      displayName = "primitive"
-      filter = "person.age_group == 2"
-      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
-    }
-
-    val createdPrimitiveReportingSet2 =
-      publicReportingSetsClient
-        .withPrincipalName(measurementConsumerData.name)
-        .createReportingSet(
-          createReportingSetRequest {
-            parent = measurementConsumerData.name
-            reportingSet = primitiveReportingSet2
-            reportingSetId = "abc2"
-          }
-        )
-
-    val compositeReportingSet = reportingSet {
-      displayName = "composite"
-      filter = "person.age_group == 1"
-      composite =
-        ReportingSetKt.composite {
-          expression =
-            ReportingSetKt.setExpression {
-              operation = ReportingSet.SetExpression.Operation.UNION
-              lhs =
-                ReportingSetKt.SetExpressionKt.operand {
-                  reportingSet = createdPrimitiveReportingSet.name
-                }
-              rhs =
-                ReportingSetKt.SetExpressionKt.operand {
-                  reportingSet = createdPrimitiveReportingSet2.name
-                }
-            }
-        }
-    }
-
-    val createdCompositeReportingSet =
-      publicReportingSetsClient
-        .withPrincipalName(measurementConsumerData.name)
-        .createReportingSet(
-          createReportingSetRequest {
-            parent = measurementConsumerData.name
-            reportingSet = compositeReportingSet
-            reportingSetId = "def"
-          }
-        )
-
     val report = report {
       reportingMetricEntries +=
         ReportKt.reportingMetricEntry {
-          key = createdCompositeReportingSet.name
+          key = createdPrimitiveReportingSet.name
           value =
             ReportKt.reportingMetricCalculationSpec {
               metricCalculationSpecs +=
@@ -876,10 +991,8 @@ abstract class InProcessLifeOfAReportIntegrationTest {
                   displayName = "union reach"
                   metricSpecs +=
                     metricSpec {
-                        reach =
-                          MetricSpecKt.reachParams {
-                            privacyParams = MetricSpecKt.differentialPrivacyParams {}
-                          }
+                        reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                        vidSamplingInterval = VID_SAMPLING_INTERVAL
                       }
                       .withDefaults(reportingServer.metricSpecConfig)
                   cumulative = true
@@ -887,9 +1000,9 @@ abstract class InProcessLifeOfAReportIntegrationTest {
             }
         }
       periodicTimeInterval = periodicTimeInterval {
-        startTime = timestamp { seconds = 100 }
-        increment = duration { seconds = 10 }
-        intervalCount = 10
+        startTime = EVENT_RANGE.start.toProtoTime()
+        increment = Durations.fromDays(1L)
+        intervalCount = 2
       }
     }
 
@@ -907,19 +1020,41 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
-    // TODO(@tristanvuong2021): calculate expected result and compare once synthetic event groups
-    // is implemented.
+    for (resultAttribute in retrievedReport.metricCalculationResultsList[0].resultAttributesList) {
+      val vids =
+        SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
+          eventGroup,
+          primitiveReportingSet.filter,
+          resultAttribute.timeInterval
+        )
+      val sampledVids =
+        vids.calculateSampledVids(
+          report.reportingMetricEntriesList[0]
+            .value
+            .metricCalculationSpecsList[0]
+            .metricSpecsList[0]
+            .vidSamplingInterval
+        )
+      val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+
+      val actualResult =
+        MeasurementKt.result {
+          reach = MeasurementKt.ResultKt.reach { value = resultAttribute.metricResult.reach.value }
+        }
+      // TODO(@tristanvuong2021): Assert using variance
+      assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
+    }
   }
 
   @Test
   fun `report with group by has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
+    val eventGroup = eventGroups[0]
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group == 1"
-      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
+      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
     }
 
     val createdPrimitiveReportingSet =
@@ -933,58 +1068,15 @@ abstract class InProcessLifeOfAReportIntegrationTest {
           }
         )
 
-    val primitiveReportingSet2 = reportingSet {
-      displayName = "primitive"
-      filter = "person.age_group == 2"
-      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
-    }
-
-    val createdPrimitiveReportingSet2 =
-      publicReportingSetsClient
-        .withPrincipalName(measurementConsumerData.name)
-        .createReportingSet(
-          createReportingSetRequest {
-            parent = measurementConsumerData.name
-            reportingSet = primitiveReportingSet2
-            reportingSetId = "abc2"
-          }
-        )
-
-    val compositeReportingSet = reportingSet {
-      displayName = "composite"
-      filter = "person.age_group == 1"
-      composite =
-        ReportingSetKt.composite {
-          expression =
-            ReportingSetKt.setExpression {
-              operation = ReportingSet.SetExpression.Operation.UNION
-              lhs =
-                ReportingSetKt.SetExpressionKt.operand {
-                  reportingSet = createdPrimitiveReportingSet.name
-                }
-              rhs =
-                ReportingSetKt.SetExpressionKt.operand {
-                  reportingSet = createdPrimitiveReportingSet2.name
-                }
-            }
-        }
-    }
-
-    val createdCompositeReportingSet =
-      publicReportingSetsClient
-        .withPrincipalName(measurementConsumerData.name)
-        .createReportingSet(
-          createReportingSetRequest {
-            parent = measurementConsumerData.name
-            reportingSet = compositeReportingSet
-            reportingSetId = "def"
-          }
-        )
+    val grouping1Predicate1 = "person.age_group == ${Person.AgeGroup.YEARS_35_TO_54_VALUE}"
+    val grouping1Predicate2 = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
+    val grouping2Predicate1 = "person.gender == ${Person.Gender.FEMALE_VALUE}"
+    val grouping2Predicate2 = "person.gender == ${Person.Gender.MALE_VALUE}"
 
     val report = report {
       reportingMetricEntries +=
         ReportKt.reportingMetricEntry {
-          key = createdCompositeReportingSet.name
+          key = createdPrimitiveReportingSet.name
           value =
             ReportKt.reportingMetricCalculationSpec {
               metricCalculationSpecs +=
@@ -992,36 +1084,24 @@ abstract class InProcessLifeOfAReportIntegrationTest {
                   displayName = "union reach"
                   metricSpecs +=
                     metricSpec {
-                        reach =
-                          MetricSpecKt.reachParams {
-                            privacyParams = MetricSpecKt.differentialPrivacyParams {}
-                          }
+                        reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                        vidSamplingInterval = VID_SAMPLING_INTERVAL
                       }
                       .withDefaults(reportingServer.metricSpecConfig)
                   groupings +=
                     ReportKt.grouping {
-                      predicates += "person.age_group == 2"
-                      predicates += "person.age_group == 1"
+                      predicates += grouping1Predicate1
+                      predicates += grouping1Predicate2
                     }
                   groupings +=
                     ReportKt.grouping {
-                      predicates += "person.gender == 2"
-                      predicates += "person.gender == 1"
+                      predicates += grouping2Predicate1
+                      predicates += grouping2Predicate2
                     }
                 }
             }
         }
-      timeIntervals = timeIntervals {
-        timeIntervals += interval {
-          startTime = timestamp { seconds = 100 }
-          endTime = timestamp { seconds = 200 }
-        }
-
-        timeIntervals += interval {
-          startTime = timestamp { seconds = 300 }
-          endTime = timestamp { seconds = 400 }
-        }
-      }
+      timeIntervals = timeIntervals { timeIntervals += EVENT_RANGE.toInterval() }
     }
 
     val createdReport =
@@ -1038,8 +1118,70 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
-    // TODO(@tristanvuong2021): calculate expected result and compare once synthetic event groups
-    // is implemented.
+    val vidSamplingInterval =
+      report.reportingMetricEntriesList[0]
+        .value
+        .metricCalculationSpecsList[0]
+        .metricSpecsList[0]
+        .vidSamplingInterval
+
+    for (resultAttribute in retrievedReport.metricCalculationResultsList[0].resultAttributesList) {
+      val actualResult =
+        MeasurementKt.result {
+          reach = MeasurementKt.ResultKt.reach { value = resultAttribute.metricResult.reach.value }
+        }
+
+      // TODO(@tristanvuong2021): Assert using variance
+      if (resultAttribute.groupingPredicatesList.contains(grouping1Predicate1)) {
+        if (resultAttribute.groupingPredicatesList.contains(grouping2Predicate1)) {
+          val vids =
+            SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
+              eventGroup,
+              "$grouping1Predicate1 && $grouping2Predicate1",
+              EVENT_RANGE.toInterval()
+            )
+          val sampledVids = vids.calculateSampledVids(vidSamplingInterval)
+          val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+
+          assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
+        } else {
+          val vids =
+            SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
+              eventGroup,
+              "$grouping1Predicate1 && $grouping2Predicate2",
+              EVENT_RANGE.toInterval()
+            )
+          val sampledVids = vids.calculateSampledVids(vidSamplingInterval)
+          val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+
+          assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
+        }
+      } else {
+        if (resultAttribute.groupingPredicatesList.contains(grouping2Predicate1)) {
+          val vids =
+            SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
+              eventGroup,
+              "$grouping1Predicate2 && $grouping2Predicate1",
+              EVENT_RANGE.toInterval()
+            )
+          val sampledVids = vids.calculateSampledVids(vidSamplingInterval)
+          val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+
+          assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
+        } else {
+          val vids =
+            SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
+              eventGroup,
+              "$grouping1Predicate2 && $grouping2Predicate2",
+              EVENT_RANGE.toInterval()
+            )
+          val sampledVids = vids.calculateSampledVids(vidSamplingInterval)
+          val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+
+          assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
+        }
+      }
+    }
   }
 
   @Test
@@ -1050,7 +1192,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group == 1"
+      filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
@@ -1139,11 +1281,12 @@ abstract class InProcessLifeOfAReportIntegrationTest {
   fun `reach metric result has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
+    val eventGroup = eventGroups[0]
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group == 1"
-      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
+      filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
+      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
     }
 
     val createdPrimitiveReportingSet =
@@ -1159,14 +1302,11 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val metric = metric {
       reportingSet = createdPrimitiveReportingSet.name
-      timeInterval = interval {
-        startTime = timestamp { seconds = 100 }
-        endTime = timestamp { seconds = 200 }
-      }
+      timeInterval = EVENT_RANGE.toInterval()
       metricSpec =
         metricSpec {
-            reach =
-              MetricSpecKt.reachParams { privacyParams = MetricSpecKt.differentialPrivacyParams {} }
+            reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+            vidSamplingInterval = VID_SAMPLING_INTERVAL
           }
           .withDefaults(reportingServer.metricSpecConfig)
     }
@@ -1185,19 +1325,33 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     val retrievedMetric = pollForCompletedMetric(measurementConsumerData.name, createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
 
-    // TODO(@tristanvuong2021): calculate expected result and compare once synthetic event groups
-    // is implemented.
+    val vids =
+      SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
+        eventGroup,
+        primitiveReportingSet.filter,
+        EVENT_RANGE.toInterval()
+      )
+    val sampledVids = vids.calculateSampledVids(metric.metricSpec.vidSamplingInterval)
+    val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+
+    val actualResult =
+      MeasurementKt.result {
+        reach = MeasurementKt.ResultKt.reach { value = retrievedMetric.result.reach.value }
+      }
+    // TODO(@tristanvuong2021): Assert using variance
+    assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
   }
 
   @Test
   fun `frequency histogram metric has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
+    val eventGroup = eventGroups[0]
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group == 1"
-      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
+      filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
+      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
     }
 
     val createdPrimitiveReportingSet =
@@ -1213,17 +1367,16 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val metric = metric {
       reportingSet = createdPrimitiveReportingSet.name
-      timeInterval = interval {
-        startTime = timestamp { seconds = 100 }
-        endTime = timestamp { seconds = 200 }
-      }
+      timeInterval = EVENT_RANGE.toInterval()
       metricSpec =
         metricSpec {
             frequencyHistogram =
               MetricSpecKt.frequencyHistogramParams {
-                reachPrivacyParams = MetricSpecKt.differentialPrivacyParams {}
-                frequencyPrivacyParams = MetricSpecKt.differentialPrivacyParams {}
+                reachPrivacyParams = DP_PARAMS
+                frequencyPrivacyParams = DP_PARAMS
+                maximumFrequencyPerUser = 5
               }
+            vidSamplingInterval = VID_SAMPLING_INTERVAL
           }
           .withDefaults(reportingServer.metricSpecConfig)
     }
@@ -1242,19 +1395,49 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     val retrievedMetric = pollForCompletedMetric(measurementConsumerData.name, createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
 
-    // TODO(@tristanvuong2021): calculate expected result and compare once synthetic event groups
-    // is implemented.
+    val vids =
+      SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
+        eventGroup,
+        primitiveReportingSet.filter,
+        EVENT_RANGE.toInterval()
+      )
+    val sampledVids = vids.calculateSampledVids(metric.metricSpec.vidSamplingInterval)
+    val expectedResult =
+      calculateExpectedReachAndFrequencyMeasurementResult(
+        sampledVids,
+        metric.metricSpec.frequencyHistogram.maximumFrequencyPerUser
+      )
+
+    val reach =
+      retrievedMetric.result.frequencyHistogram.binsList.sumOf { bin -> bin.binResult.value }
+    val actualResult =
+      MeasurementKt.result {
+        frequency =
+          MeasurementKt.ResultKt.frequency {
+            relativeFrequencyDistribution.putAll(
+              retrievedMetric.result.frequencyHistogram.binsList.associate {
+                Pair(it.label.toLong(), it.binResult.value / reach)
+              }
+            )
+          }
+      }
+    // TODO(@tristanvuong2021): Assert using variance
+    assertThat(actualResult)
+      .frequencyDistribution()
+      .isWithin(0.01)
+      .of(expectedResult.frequency.relativeFrequencyDistributionMap)
   }
 
   @Test
   fun `impression count metric has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
+    val eventGroup = eventGroups[0]
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group == 1"
-      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
+      filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
+      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
     }
 
     val createdPrimitiveReportingSet =
@@ -1270,16 +1453,11 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val metric = metric {
       reportingSet = createdPrimitiveReportingSet.name
-      timeInterval = interval {
-        startTime = timestamp { seconds = 100 }
-        endTime = timestamp { seconds = 200 }
-      }
+      timeInterval = EVENT_RANGE.toInterval()
       metricSpec =
         metricSpec {
-            impressionCount =
-              MetricSpecKt.impressionCountParams {
-                privacyParams = MetricSpecKt.differentialPrivacyParams {}
-              }
+            impressionCount = MetricSpecKt.impressionCountParams { privacyParams = DP_PARAMS }
+            vidSamplingInterval = VID_SAMPLING_INTERVAL
           }
           .withDefaults(reportingServer.metricSpecConfig)
     }
@@ -1298,20 +1476,19 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     val retrievedMetric = pollForCompletedMetric(measurementConsumerData.name, createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
 
-    // TODO(@tristanvuong2021): calculate expected result and compare once synthetic event groups
-    // is implemented.
+    // TODO(@tristanvuong2021): calculate expected result and compare
   }
 
-  @Ignore
   @Test
   fun `watch duration metric has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
+    val eventGroup = eventGroups[0]
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group == 1"
-      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
+      filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
+      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
     }
 
     val createdPrimitiveReportingSet =
@@ -1327,16 +1504,11 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val metric = metric {
       reportingSet = createdPrimitiveReportingSet.name
-      timeInterval = interval {
-        startTime = timestamp { seconds = 100 }
-        endTime = timestamp { seconds = 200 }
-      }
+      timeInterval = EVENT_RANGE.toInterval()
       metricSpec =
         metricSpec {
-            watchDuration =
-              MetricSpecKt.watchDurationParams {
-                privacyParams = MetricSpecKt.differentialPrivacyParams {}
-              }
+            watchDuration = MetricSpecKt.watchDurationParams { privacyParams = DP_PARAMS }
+            vidSamplingInterval = VID_SAMPLING_INTERVAL
           }
           .withDefaults(reportingServer.metricSpecConfig)
     }
@@ -1355,19 +1527,19 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     val retrievedMetric = pollForCompletedMetric(measurementConsumerData.name, createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
 
-    // TODO(@tristanvuong2021): calculate expected result and compare once synthetic event groups
-    // is implemented.
+    // TODO(@tristanvuong2021): Calculate watch duration using synthetic spec.
   }
 
   @Test
   fun `reach metric with filter has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
+    val eventGroup = eventGroups[0]
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group == 1"
-      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
+      filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
+      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
     }
 
     val createdPrimitiveReportingSet =
@@ -1383,17 +1555,14 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val metric = metric {
       reportingSet = createdPrimitiveReportingSet.name
-      timeInterval = interval {
-        startTime = timestamp { seconds = 100 }
-        endTime = timestamp { seconds = 200 }
-      }
+      timeInterval = EVENT_RANGE.toInterval()
       metricSpec =
         metricSpec {
-            reach =
-              MetricSpecKt.reachParams { privacyParams = MetricSpecKt.differentialPrivacyParams {} }
+            reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+            vidSamplingInterval = VID_SAMPLING_INTERVAL
           }
           .withDefaults(reportingServer.metricSpecConfig)
-      filters += "person.gender == 1"
+      filters += "person.gender == ${Person.Gender.MALE_VALUE}"
     }
 
     val createdMetric =
@@ -1410,8 +1579,23 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     val retrievedMetric = pollForCompletedMetric(measurementConsumerData.name, createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
 
-    // TODO(@tristanvuong2021): calculate expected result and compare once synthetic event groups
-    // is implemented.
+    val filters = metric.filtersList.toMutableList()
+    filters.add(primitiveReportingSet.filter)
+    val vids =
+      SYNTHETIC_EVENT_QUERY.getUserVirtualIds(
+        eventGroup,
+        "(${metric.filtersList[0]}) && (${primitiveReportingSet.filter})",
+        EVENT_RANGE.toInterval()
+      )
+    val sampledVids = vids.calculateSampledVids(metric.metricSpec.vidSamplingInterval)
+    val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+
+    val actualResult =
+      MeasurementKt.result {
+        reach = MeasurementKt.ResultKt.reach { value = retrievedMetric.result.reach.value }
+      }
+    // TODO(@tristanvuong2021): Assert using variance
+    assertThat(actualResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
   }
 
   @Test
@@ -1422,7 +1606,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group == 1"
+      filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
@@ -1501,7 +1685,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
     val primitiveReportingSet = reportingSet {
       displayName = "primitive"
-      filter = "person.age_group == 1"
+      filter = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroups[0].cmmsEventGroup }
     }
 
@@ -1629,6 +1813,71 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     }
   }
 
+  private fun calculateExpectedReachMeasurementResult(
+    sampledVids: Sequence<Long>
+  ): Measurement.Result {
+    val reach = MeasurementResults.computeReach(sampledVids.asIterable())
+    return MeasurementKt.result {
+      this.reach = MeasurementKt.ResultKt.reach { value = reach.toLong() }
+    }
+  }
+
+  private fun calculateExpectedReachAndFrequencyMeasurementResult(
+    sampledVids: Sequence<Long>,
+    maxFrequency: Int
+  ): Measurement.Result {
+    val reachAndFrequency =
+      MeasurementResults.computeReachAndFrequency(sampledVids.asIterable(), maxFrequency)
+    return MeasurementKt.result {
+      reach = MeasurementKt.ResultKt.reach { value = reachAndFrequency.reach.toLong() }
+      frequency =
+        MeasurementKt.ResultKt.frequency {
+          relativeFrequencyDistribution.putAll(
+            reachAndFrequency.relativeFrequencyDistribution.mapKeys { it.key.toLong() }
+          )
+        }
+    }
+  }
+
+  private fun SyntheticGeneratorEventQuery.getUserVirtualIds(
+    eventGroup: EventGroup,
+    filter: String,
+    collectionInterval: Interval
+  ): Sequence<Long> {
+    val cmmsMetadata =
+      CmmsEventGroupKt.metadata {
+        eventGroupMetadataDescriptor = eventGroup.metadata.eventGroupMetadataDescriptor
+        metadata = eventGroup.metadata.metadata
+      }
+    val encryptedCmmsMetadata =
+      encryptMetadata(cmmsMetadata, InProcessCmmsComponents.MC_ENTITY_CONTENT.encryptionPublicKey)
+    val cmmsEventGroup = cmmsEventGroup { encryptedMetadata = encryptedCmmsMetadata }
+
+    val eventFilter = RequisitionSpecKt.eventFilter { expression = filter }
+
+    return this.getUserVirtualIds(
+      EventQuery.EventGroupSpec(
+        cmmsEventGroup,
+        RequisitionSpecKt.EventGroupEntryKt.value {
+          this.collectionInterval = collectionInterval
+          this.filter = eventFilter
+        }
+      )
+    )
+  }
+
+  private fun Sequence<Long>.calculateSampledVids(
+    vidSamplingInterval: VidSamplingInterval
+  ): Sequence<Long> {
+    return this.filter { vid ->
+      VidSampling.sampler.vidIsInSamplingBucket(
+        vid,
+        vidSamplingInterval.start,
+        vidSamplingInterval.width
+      )
+    }
+  }
+
   companion object {
     private val SECRETS_DIR: File =
       getRuntimePath(
@@ -1649,6 +1898,27 @@ abstract class InProcessLifeOfAReportIntegrationTest {
       }
 
     private const val MC_SIGNING_PRIVATE_KEY_PATH = "mc_cs_private.der"
+
+    private val SYNTHETIC_EVENT_QUERY =
+      MetadataSyntheticGeneratorEventQuery(
+        SyntheticGenerationSpecs.POPULATION_SPEC,
+        InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY
+      )
+
+    private val EVENT_RANGE =
+      OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))
+
+    private val DP_PARAMS =
+      MetricSpecKt.differentialPrivacyParams {
+        epsilon = 1.0
+        delta = 1.0
+      }
+
+    private val VID_SAMPLING_INTERVAL =
+      MetricSpecKt.vidSamplingInterval {
+        start = 0.0f
+        width = 1.0f
+      }
 
     @BeforeClass
     @JvmStatic
