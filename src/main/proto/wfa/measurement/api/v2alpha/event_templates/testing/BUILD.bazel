@@ -39,7 +39,6 @@ proto_library(
         ":banner_proto",
         ":person_proto",
         ":video_proto",
-        "@com_google_protobuf//:timestamp_proto",
         "@uk_pilot_event_templates//src/main/proto/eventtemplates:event_templates_proto",
     ],
 )

@@ -12,11 +12,15 @@
  * the License.
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
+
+import org.wfanet.measurement.eventdataprovider.noiser.DpParams
+
 /**
  * This is the default value for the total amount that can be charged to a single privacy bucket.
  */
 private const val MAXIMUM_PRIVACY_USAGE_PER_BUCKET = 1.0f
 private const val MAXIMUM_DELTA_PER_BUCKET = 1.0e-9f
+
 /**
  * Instantiates a privacy budget manager.
  *
@@ -29,47 +33,95 @@ private const val MAXIMUM_DELTA_PER_BUCKET = 1.0e-9f
  */
 class PrivacyBudgetManager(
   val filter: PrivacyBucketFilter,
-  val backingStore: PrivacyBudgetLedgerBackingStore,
-  val maximumPrivacyBudget: Float = MAXIMUM_PRIVACY_USAGE_PER_BUCKET,
-  val maximumTotalDelta: Float = MAXIMUM_DELTA_PER_BUCKET,
+  private val backingStore: PrivacyBudgetLedgerBackingStore,
+  private val maximumPrivacyBudget: Float = MAXIMUM_PRIVACY_USAGE_PER_BUCKET,
+  private val maximumTotalDelta: Float = MAXIMUM_DELTA_PER_BUCKET,
 ) {
 
-  val ledger = PrivacyBudgetLedger(backingStore, maximumPrivacyBudget, maximumTotalDelta)
+  val ledger =
+    PrivacyBudgetLedger(
+      backingStore,
+      DpParams(maximumPrivacyBudget.toDouble(), maximumTotalDelta.toDouble())
+    )
 
   /** Checks if calling charge with this [reference] will result in an update in the ledger. */
   suspend fun referenceWillBeProcessed(reference: Reference) = !ledger.hasLedgerEntry(reference)
+
   /**
-   * Checks if charging all of the privacy buckets identified by the given measurementSpec and
-   * requisitionSpec would not exceed privacy budget.
+   * Checks if charging all the PrivacyBucketGroups identified by the given measurementSpec and
+   * requisitionSpec would not exceed DP privacy budget.
    *
-   * @param query represents the [Query] that specifies charges and buckets to be charged.
+   * @param dpQuery represents the [DpQuery] that specifies charges and buckets to be charged.
    * @throws PrivacyBudgetManagerException if an error occurs in handling this request. Possible
    *   exceptions could include running out of privacy budget or a failure to commit the transaction
    *   to the database.
    */
-  suspend fun chargingWillExceedPrivacyBudget(query: Query) =
+  @Deprecated(
+    "Should be removed after completely switching to Gaussian noise and ACDP composition",
+  )
+  suspend fun chargingWillExceedPrivacyBudget(dpQuery: DpQuery) =
     ledger.chargingWillExceedPrivacyBudget(
-      filter.getPrivacyBucketGroups(query.reference.measurementConsumerId, query.landscapeMask),
-      setOf(query.dpCharge)
+      filter.getPrivacyBucketGroups(dpQuery.reference.measurementConsumerId, dpQuery.landscapeMask),
+      setOf(dpQuery.dpCharge)
     )
 
   /**
-   * Checks if charging all of the privacy buckets identified by the given measurementSpec and
-   * requisitionSpec would not exceed privacy budget.
+   * Checks if charging all the PrivacyBucketGroups identified by the given measurementSpec and
+   * requisitionSpec in ACDP composition would not exceed ACDP privacy budget.
    *
-   * @param Reference representing the reference key and if the charge is a refund.
-   * @param measurementConsumerId that the charges are for.
-   * @param requisitionSpec The requisitionSpec protobuf that is associated with the query. The date
-   *   range and demo groups are obtained from this.
-   * @param measurementSpec The measurementSpec protobuf that is associated with the query. The VID
-   *   sampling interval is obtained from from this.
+   * @param acdpQuery represents the [AcdpQuery] that specifies charges and buckets to be charged.
+   * @throws PrivacyBudgetManagerException if an error occurs in handling this request. Possible
+   *   exceptions could include running out of privacy budget or a failure to commit the transaction
+   *   to the database.
+   */
+  suspend fun chargingWillExceedPrivacyBudgetInAcdp(acdpQuery: AcdpQuery) =
+    ledger.chargingWillExceedPrivacyBudgetInAcdp(
+      filter.getPrivacyBucketGroups(
+        acdpQuery.reference.measurementConsumerId,
+        acdpQuery.landscapeMask
+      ),
+      setOf(acdpQuery.acdpCharge)
+    )
+
+  /**
+   * Checks if charging all the PrivacyBucketGroups identified by the given measurementSpec and
+   * requisitionSpec would not exceed DP privacy budget, and charge the dpCharge.
+   *
+   * @param dpQuery A data class contains Reference: representing the reference
+   *   keys(measurementConsumerId and referenceId which is usually requisitionId) and if the charge
+   *   is a refund. LandscapeMask: eventGroupSpecs and vidSampleStart and vidSampleWidth. DpCharge:
+   *   the DpCharge with epsilon and delta.
    * @throws PrivacyBudgetManagerException if an error occurs in handling this request. Possible
    *   exceptions could include a failure to commit the transaction to the database.
    */
-  suspend fun chargePrivacyBudget(query: Query) =
+  @Deprecated(
+    "Should be removed after completely switching to Gaussian noise and ACDP composition",
+  )
+  suspend fun chargePrivacyBudget(dpQuery: DpQuery) =
     ledger.charge(
-      query.reference,
-      filter.getPrivacyBucketGroups(query.reference.measurementConsumerId, query.landscapeMask),
-      setOf(query.dpCharge)
+      dpQuery.reference,
+      filter.getPrivacyBucketGroups(dpQuery.reference.measurementConsumerId, dpQuery.landscapeMask),
+      setOf(dpQuery.dpCharge)
+    )
+
+  /**
+   * Checks if charging all the PrivacyBucketGroups identified by the given measurementSpec and
+   * requisitionSpec would not exceed ACDP privacy budget, and charge the acdpCharge.
+   *
+   * @param acdpQuery A data class contains Reference: representing the reference
+   *   keys(measurementConsumerId and referenceId which is usually requisitionId) and if the charge
+   *   is a refund. LandscapeMask: eventGroupSpecs and vidSampleStart and vidSampleWidth.
+   *   AcdpCharge: the AcdpCharge with rho and theta which are converted from epsilon and delta.
+   * @throws PrivacyBudgetManagerException if an error occurs in handling this request. Possible
+   *   exceptions could include a failure to commit the transaction to the database.
+   */
+  suspend fun chargePrivacyBudgetInAcdp(acdpQuery: AcdpQuery) =
+    ledger.chargeInAcdp(
+      acdpQuery.reference,
+      filter.getPrivacyBucketGroups(
+        acdpQuery.reference.measurementConsumerId,
+        acdpQuery.landscapeMask
+      ),
+      setOf(acdpQuery.acdpCharge)
     )
 }

@@ -1,4 +1,4 @@
-// Copyright 2020 The Cross-Media Measurement Authors
+// Copyright 2023 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,19 +20,20 @@ import org.junit.Rule
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.InProcessLifeOfAMeasurementIntegrationTest
+import org.wfanet.measurement.integration.common.duchy.SpannerDuchyDependencyProviderRule
 import org.wfanet.measurement.storage.StorageClient
 
 /**
- * Implementation of [InProcessLifeOfAMeasurementIntegrationTest] for GCloud backends (Spanner,
- * GCS).
+ * Implementation of [InProcessLifeOfAMeasurementIntegrationTest] for GCloud backends with Spanner
+ * database.
  */
-class GCloudInProcessLifeOfAMeasurementIntegrationTest :
+class GCloudSpannerInProcessLifeOfAMeasurementIntegrationTest :
   InProcessLifeOfAMeasurementIntegrationTest() {
 
   @get:Rule val timeout = CoroutinesTimeout.seconds(90)
 
   override val kingdomDataServicesRule by lazy { KingdomDataServicesProviderRule() }
-  override val duchyDependenciesRule by lazy { DuchyDependencyProviderRule(ALL_DUCHY_NAMES) }
+  override val duchyDependenciesRule by lazy { SpannerDuchyDependencyProviderRule(ALL_DUCHY_NAMES) }
   override val storageClient: StorageClient by lazy {
     GcsStorageClient(LocalStorageHelper.getOptions().service, "bucket-simulator")
   }

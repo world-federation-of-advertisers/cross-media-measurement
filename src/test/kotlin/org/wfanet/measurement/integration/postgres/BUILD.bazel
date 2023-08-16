@@ -34,7 +34,7 @@ spanner_emulator_test(
         "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_life_of_a_report_integration_test",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/server/postgres:services",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
-        "//src/test/kotlin/org/wfanet/measurement/integration/gcloud:duchy_provider_rule",
+        "//src/test/kotlin/org/wfanet/measurement/integration/common/duchy:spanner_duchy_dependency_provider_rule",
         "//src/test/kotlin/org/wfanet/measurement/integration/gcloud:kingdom_provider_rule",
         "@wfa_common_jvm//imports/java/com/opentable/db/postgres:pg_embedded",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:embedded_postgres",
