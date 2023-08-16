@@ -37,6 +37,8 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.grpc.toServerTlsContext
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.CommandLineTesting
+import org.wfanet.measurement.common.testing.CommandLineTesting.assertThat
+import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
@@ -214,9 +216,9 @@ class ReportingTest {
   }
 
   private fun callCli(args: Array<String>): String {
-    return CommandLineTesting.capturingSystemOut {
-      CommandLineTesting.assertExitsWith(0) { Reporting.main(args) }
-    }
+    val capturedOutput = CommandLineTesting.capturingOutput(args, Reporting::main)
+    assertThat(capturedOutput).status().isEqualTo(0)
+    return capturedOutput.out
   }
 
   @Test
@@ -549,5 +551,11 @@ class ReportingTest {
       )
     assertThat(parseTextProto(output.reader(), ListEventGroupsResponse.getDefaultInstance()))
       .isEqualTo(LIST_EVENT_GROUPS_RESPONSE)
+  }
+
+  companion object {
+    init {
+      System.setSecurityManager(ExitInterceptingSecurityManager)
+    }
   }
 }
