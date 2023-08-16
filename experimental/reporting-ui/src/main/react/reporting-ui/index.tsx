@@ -15,8 +15,16 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
-import App from './App';
-import reportWebVitals from './reportWebVitals';
+import App from './app';
+import reportWebVitals from './report_web_vitals';
+import AppConfig from './client/initialize';
+import { ReportingClientImpl } from './client/reporting/client_impl';
+
+const configProps = {
+  reportingClient: new ReportingClientImpl({endpoint: new URL('http://localhost:3000')}),
+};
+
+AppConfig.initialize(configProps);
 
 const root = ReactDOM.createRoot(document.getElementById('root')!);
 root.render(

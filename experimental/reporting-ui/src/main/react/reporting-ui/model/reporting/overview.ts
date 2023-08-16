@@ -12,16 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-const reportWebVitals = (onPerfEntry: any) => {
-  if (onPerfEntry && onPerfEntry instanceof Function) {
-    import('web-vitals').then(({getCLS, getFID, getFCP, getLCP, getTTFB}) => {
-      getCLS(onPerfEntry);
-      getFID(onPerfEntry);
-      getFCP(onPerfEntry);
-      getLCP(onPerfEntry);
-      getTTFB(onPerfEntry);
-    });
-  }
+export type Overview = {
+  totalImpressions: number;
+  totalReach: number;
+  totalOnTargetReach: number;
+  totalUniqueReach: number;
+  totalAverageFrequency: number;
 };
-
-export default reportWebVitals;
