@@ -589,7 +589,7 @@ class ReportingTest {
       .isEqualTo(
         getEventGroupMetadataDescriptorRequest { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME }
       )
-    assertThat(parseTextProto(output.reader(), EventGroupMetadataDescriptor.getDefaultInstance()))
+    assertThat(parseTextProto(output.out.reader(), EventGroupMetadataDescriptor.getDefaultInstance()))
       .isEqualTo(EVENT_GROUP_METADATA_DESCRIPTOR)
   }
 
@@ -605,7 +605,9 @@ class ReportingTest {
         "get",
       )
 
-    CommandLineTesting.assertExitsWith(2) { Reporting.main(args) }
+    val capturedOutput = callCli(args)
+
+    assertThat(capturedOutput).status().isEqualTo(2)
   }
 
   @Test
@@ -638,7 +640,7 @@ class ReportingTest {
 
     assertThat(
         parseTextProto(
-          output.reader(),
+          output.out.reader(),
           BatchGetEventGroupMetadataDescriptorsResponse.getDefaultInstance()
         )
       )
@@ -662,7 +664,9 @@ class ReportingTest {
         "batch-get",
       )
 
-    CommandLineTesting.assertExitsWith(2) { Reporting.main(args) }
+    val capturedOutput = callCli(args)
+
+    assertThat(capturedOutput).status().isEqualTo(2)
   }
 
   companion object {
