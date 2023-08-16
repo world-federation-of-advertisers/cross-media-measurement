@@ -27,6 +27,7 @@ import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.math.log2
 import kotlin.random.Random
 import kotlin.random.asJavaRandom
 import kotlinx.coroutines.flow.Flow
@@ -38,7 +39,6 @@ import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
 import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
 import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
-import kotlin.math.log2
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
