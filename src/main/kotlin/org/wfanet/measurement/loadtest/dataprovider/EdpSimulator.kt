@@ -38,6 +38,7 @@ import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
 import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
 import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
+import kotlin.math.log2
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -1083,12 +1084,15 @@ class EdpSimulator(
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec
   ) {
+    val externalDataProviderId =
+      apiIdToExternalId(DataProviderKey.fromName(edpData.name)!!.dataProviderId)
     val measurementResult =
       MeasurementKt.result {
         watchDuration = watchDuration {
           value = duration {
-            // Use externalDataProviderId since it's a known value the FrontendSimulator can verify.
-            seconds = apiIdToExternalId(DataProviderKey.fromName(edpData.name)!!.dataProviderId)
+            // Use a value based on the externalDataProviderId since it's a known value the
+            // MeasurementConsumerSimulator can verify.
+            seconds = log2(externalDataProviderId.toDouble()).toLong()
           }
         }
       }

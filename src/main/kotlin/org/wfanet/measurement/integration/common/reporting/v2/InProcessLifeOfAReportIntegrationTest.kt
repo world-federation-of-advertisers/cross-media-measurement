@@ -33,7 +33,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.BeforeClass
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
@@ -1474,7 +1473,6 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     // TODO(@tristanvuong2021): calculate expected result and compare
   }
 
-  @Ignore
   @Test
   fun `watch duration metric has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
@@ -1523,8 +1521,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     val retrievedMetric = pollForCompletedMetric(measurementConsumerData.name, createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
 
-    // TODO(@tristanvuong2021): Calculate watch duration using synthetic spec. Current calculation
-    // is too large.
+    // TODO(@tristanvuong2021): Calculate watch duration using synthetic spec.
   }
 
   @Test
