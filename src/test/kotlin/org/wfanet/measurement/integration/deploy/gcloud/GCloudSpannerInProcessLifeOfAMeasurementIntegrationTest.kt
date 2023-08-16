@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.integration.gcloud
+package org.wfanet.measurement.integration.deploy.gcloud
 
 import kotlinx.coroutines.debug.junit4.CoroutinesTimeout
 import org.junit.Rule
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.InProcessLifeOfAMeasurementIntegrationTest
-import org.wfanet.measurement.integration.common.duchy.SpannerDuchyDependencyProviderRule
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDataServicesProviderRule
 
 /**
  * Implementation of [InProcessLifeOfAMeasurementIntegrationTest] for GCloud backends with Spanner
