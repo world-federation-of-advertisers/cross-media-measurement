@@ -23,15 +23,9 @@ package k8s
 	}
 
 	_imageSuffixes: {
-		"\(_duchy_data_server_name)":  string | *"duchy/spanner-computations"
-		"update-spanner-duchy-schema": string | *"duchy/spanner-update-schema"
+		"internal-api-server": string | *"duchy/spanner-computations"
+		"update-duchy-schema": string | *"duchy/spanner-update-schema"
 	}
 
-	_duchy_data_server_name:            "spanner-computations-server"
-	_duchy_data_server_app_label:       "spanner-computations-server-app"
-	_duchy_data_server_deployment_name: "\(_duchy_data_server_name)-deployment"
-	_duchy_data_server_container_args:  _spannerConfig.flags
-	_duchy_data_service_target_flag:    "--computations-service-target=" + (#Target & {name: "\(_duchy.name)-\(_duchy_data_server_name)"}).target
-	_duchy_data_service_cert_host_flag: "--computations-service-cert-host=localhost"
-	_duchy_update_schema_image:         "update-spanner-duchy-schema"
+	_duchyInternalServerContainerArgs: _spannerConfig.flags
 }

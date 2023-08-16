@@ -97,7 +97,7 @@ duchies: [
 		if (duchyConfig.databaseType == "spanner") {
 			#SpannerDuchy & _baseDuchyConfig & {
 				_imageSuffixes: {
-					"spanner-computations-server": "duchy/local-spanner-computations"
+					"internal-api-server": "duchy/local-spanner-computations"
 				}
 				_duchy: {
 					name:                   duchyConfig.name
@@ -109,7 +109,7 @@ duchies: [
 		if (duchyConfig.databaseType == "postgres") {
 			#PostgresDuchy & _baseDuchyConfig & {
 				_imageSuffixes: {
-					"postgres-data-server": "duchy/local-postgres-data"
+					"internal-api-server": "duchy/local-postgres-internal-server"
 				}
 				_duchy: {
 					name:                   duchyConfig.name
@@ -122,7 +122,7 @@ duchies: [
 					user:        "$(POSTGRES_USER)"
 				}
 				deployments: {
-					"\(#PostgresDuchy._duchy_data_server_deployment_name)": {
+					"internal-api-server-deployment": {
 						_container: _envVars:             EnvVars
 						_updateSchemaContainer: _envVars: EnvVars
 					}
