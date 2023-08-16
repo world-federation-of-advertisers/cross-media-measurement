@@ -12,17 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-module.exports = {
-    preset: 'ts-jest',
-    testEnvironment: 'jsdom',
-    transform: {
-        '^.+\\.(ts|tsx)$': 'ts-jest',
-    },
-    moduleFileExtensions: ['ts', 'js', 'tsx'],
-    moduleNameMapper: {
-        "\\.(css|scss)$": "<rootDir>/../jest/mocks/styleMock.ts"
-    },
-    testMatch: [
-        '<rootDir>/**/*_test.(ts|tsx)'
-    ],
-}
+export type {ListReportsResponse} from './list_reports_response';
+export type {GetReportRequest} from './get_report_request';
+export type {GetReportResponse} from './get_report_response';
+export type {InitApiProps} from './init_api_props';
+export type {Report} from './report';
+export type {Demographic} from './demographic';
+export type {Overview} from './overview';
+export type {Reach, TargetReach} from './reach';
+export type {SummaryPublisherData} from './summary_publisher_data';
+export type {UniqueReach} from './unique_reach';
+export {ReportState, TERMINAL_STATES} from './report_state';
