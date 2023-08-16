@@ -32,6 +32,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.wfanet.measurement.api.v2alpha.DataProvider
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.dataProvider
+import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -82,6 +86,12 @@ class ReportingTest {
     onBlocking { listEventGroups(any()) }
       .thenReturn(listEventGroupsResponse { eventGroups += EVENT_GROUP })
   }
+  private val dataProvidersServiceMock:
+    DataProvidersCoroutineImplBase =
+    mockService {
+      onBlocking { getDataProvider(any()) }
+        .thenReturn(DATA_PROVIDER)
+    }
 
   private val serverCerts =
     SigningCerts.fromPemFiles(
@@ -95,6 +105,7 @@ class ReportingTest {
       reportingSetsServiceMock.bindService(),
       reportsServiceMock.bindService(),
       eventGroupsServiceMock.bindService(),
+      dataProvidersServiceMock.bindService(),
     )
 
   private val server: Server =
@@ -547,6 +558,50 @@ class ReportingTest {
       .isEqualTo(listEventGroupsResponse { eventGroups += EVENT_GROUP })
   }
 
+  @Test
+  fun `get data provider calls api with valid request`() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "data-providers",
+        "get",
+        DATA_PROVIDER_NAME,
+      )
+    val output = callCli(args)
+
+    verifyProtoArgument(
+        dataProvidersServiceMock,
+        DataProvidersCoroutineImplBase::getDataProvider
+      )
+      .isEqualTo(
+        getDataProviderRequest { name = DATA_PROVIDER_NAME }
+      )
+    assertThat(
+        parseTextProto(output.out.reader(), DataProvider.getDefaultInstance())
+      )
+      .isEqualTo(DATA_PROVIDER)
+  }
+
+  @Test
+  fun `get data provider fails when missing descriptor name`() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "data-providers",
+        "get",
+      )
+
+    val capturedOutput = callCli(args)
+
+    assertThat(capturedOutput).status().isEqualTo(2)
+  }
+
   companion object {
     init {
       System.setSecurityManager(ExitInterceptingSecurityManager)
@@ -593,5 +648,8 @@ class ReportingTest {
 
     private const val EVENT_GROUP_NAME = "$MEASUREMENT_CONSUMER_NAME/eventGroups/1"
     private val EVENT_GROUP = eventGroup { name = EVENT_GROUP_NAME }
+    private val DATA_PROVIDER = dataProvider {
+      name = DATA_PROVIDER_NAME
+    }
   }
 }

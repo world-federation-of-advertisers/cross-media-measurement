@@ -23,6 +23,8 @@ import java.time.Instant
 import kotlin.properties.Delegates
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.common.DurationFormat
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -475,6 +477,48 @@ class EventGroupsCommand : Runnable {
   override fun run() {}
 }
 
+@CommandLine.Command(name = "get", description = ["Get data provider"])
+class GetDataProvider : Runnable {
+  @CommandLine.ParentCommand private lateinit var parent: DataProvidersCommand
+
+  @CommandLine.Parameters(
+    description = ["CMMS DataProvider resource name"],
+  )
+  private lateinit var cmmsDataProviderName: String
+
+  override fun run() {
+    val request = getDataProviderRequest {
+      name = cmmsDataProviderName
+    }
+
+    val response =
+      runBlocking(Dispatchers.IO) {
+        parent.dataProviderStub.getDataProvider(request)
+      }
+
+    println(response)
+  }
+}
+
+@CommandLine.Command(
+  name = "data-providers",
+  sortOptions = false,
+  subcommands =
+    [
+      CommandLine.HelpCommand::class,
+      GetDataProvider::class,
+    ]
+)
+class DataProvidersCommand : Runnable {
+  @CommandLine.ParentCommand lateinit var parent: Reporting
+
+  val dataProviderStub: DataProvidersCoroutineStub by lazy {
+    DataProvidersCoroutineStub(parent.channel)
+  }
+
+  override fun run() {}
+}
+
 @CommandLine.Command(
   name = "reporting",
   description = ["Reporting CLI tool"],
@@ -485,6 +529,7 @@ class EventGroupsCommand : Runnable {
       ReportingSetsCommand::class,
       ReportsCommand::class,
       EventGroupsCommand::class,
+      DataProvidersCommand::class,
     ]
 )
 class Reporting : Runnable {
@@ -510,7 +555,7 @@ class Reporting : Runnable {
 }
 
 /**
- * Reporting Set, Report, and Event Group methods.
+ * Reporting Set, Report, Event Group, and Data Provider methods.
  *
  * Use the `help` command to see usage details.
  */

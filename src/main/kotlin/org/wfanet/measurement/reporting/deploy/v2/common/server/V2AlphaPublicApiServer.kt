@@ -62,6 +62,7 @@ import org.wfanet.measurement.reporting.deploy.common.KingdomApiFlags
 import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v2alpha.AkidPrincipalLookup
+import org.wfanet.measurement.reporting.service.api.v2alpha.DataProvidersService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withMetadataPrincipalIdentities
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
@@ -201,6 +202,10 @@ private fun run(
 
   val services: List<ServerServiceDefinition> =
     listOf(
+      DataProvidersService(
+          KingdomDataProvidersCoroutineStub(kingdomChannel)
+        )
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       EventGroupsService(
           KingdomEventGroupsCoroutineStub(kingdomChannel),
           InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),

@@ -37,6 +37,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
 import org.junit.runners.model.Statement
+import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroupKt
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
@@ -44,6 +46,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
 import org.wfanet.measurement.api.withAuthenticationKey
@@ -190,6 +193,10 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
   private val publicKingdomMeasurementConsumersClient by lazy {
     MeasurementConsumersCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
+  }
+
+  private val publicDataProvidersClient by lazy {
+    DataProvidersCoroutineStub(reportingServer.publicApiChannel)
   }
 
   private val publicEventGroupsClient by lazy {
@@ -1716,6 +1723,22 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     retrievedPrimitiveReportingSets.forEach {
       assertThat(it).ignoringFields(ReportingSet.NAME_FIELD_NUMBER).isEqualTo(primitiveReportingSet)
     }
+  }
+
+  @Test
+  fun `retrieving data provider succeeds`() = runBlocking {
+    val eventGroups = listEventGroups()
+    val dataProviderName = eventGroups[0].cmmsDataProvider
+
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val dataProvider =
+      publicDataProvidersClient
+        .withPrincipalName(measurementConsumerData.name)
+        .getDataProvider(
+          getDataProviderRequest { name = dataProviderName }
+        )
+
+    assertThat(DataProviderCertificateKey.fromName(dataProvider.certificate)).isNotNull()
   }
 
   private suspend fun listEventGroups(): List<EventGroup> {

@@ -161,3 +161,16 @@ Reporting \
   event-groups list \
   --parent=measurementConsumers/VCTqwV_vFXw
 ```
+
+### data-providers
+
+#### get
+```shell
+Reporting \
+  --tls-cert-file=secretfiles/mc_tls.pem \
+  --tls-key-file=secretfiles/mc_tls.key \
+  --cert-collection-file=secretfiles/reporting_root.pem \
+  --reporting-server-api-target=v2alpha.reporting.dev.halo-cmm.org:8443 \
+  dataProviders get \
+    dataProviders/FeQ5FqAQ5_0
+```
