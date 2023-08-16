@@ -12,29 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import '@testing-library/jest-dom';
+import '@testing-library/jest-dom/extend-expect';
+import {render, screen} from '@testing-library/react';
 import React from 'react';
-import Logo from './logo';
-import './App.css';
+import App from '../../../main/react/reporting-ui/app';
 
-function App() {
-  return (
-    <div className="App">
-      <header className="App-header">
-        <Logo />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
-  );
-}
-
-export default App;
+test('renders learn react link', () => {
+  render(<App />);
+  const linkElement = screen.getByText(/learn react/i);
+  expect(linkElement).toBeInTheDocument();
+});
