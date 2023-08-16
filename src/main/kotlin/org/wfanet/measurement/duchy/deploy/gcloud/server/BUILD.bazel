@@ -134,7 +134,7 @@ java_binary(
 )
 
 java_image(
-    name = "gcs_postgres_duchy_data_server_image",
+    name = "gcs_postgres_internal_server_image",
     binary = ":GcsPostgresDuchyDataServer",
     main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.GcsPostgresDuchyDataServerKt",
     visibility = ["//src:docker_image_deployment"],

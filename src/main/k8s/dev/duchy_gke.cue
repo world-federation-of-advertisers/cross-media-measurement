@@ -105,42 +105,29 @@ duchy: #Duchy & {
 				serviceAccountName: #StorageServiceAccount
 			}
 		}
+		"internal-api-server-deployment": {
+			_container: {
+				resources: #InternalServerResourceRequirements
+			}
+			spec: template: spec: #ServiceAccountPodSpec & {
+				serviceAccountName: #InternalServerServiceAccount
+			}
+		}
 	}
 }
 
 if (_duchy_name != "worker2") {
-	duchy: duchy & #SpannerDuchy & {
-		deployments: {
-			"\(#SpannerDuchy._duchy_data_server_deployment_name)": {
-				_container: {
-					resources: #InternalServerResourceRequirements
-				}
-				spec: template: spec: #ServiceAccountPodSpec & {
-					serviceAccountName: #InternalServerServiceAccount
-				}
-			}
-		}
-	}
+	duchy: duchy & #SpannerDuchy
 }
 
 if (_duchy_name == "worker2") {
 	duchy: duchy & #PostgresDuchy & {
 		_imageSuffixes: {
-		  "\(#PostgresDuchy._duchy_update_schema_image)": "duchy/gcloud-postgres-update-schema"
-	  }
+			"update-duchy-schema": "duchy/gcloud-postgres-update-schema"
+		}
 		_postgresConfig: {
 			iamUserLocal: "worker2-duchy-internal"
 			database:     "worker2_duchy_computations"
-		}
-		deployments: {
-			"\(#PostgresDuchy._duchy_data_server_deployment_name)": {
-				_container: {
-					resources: #InternalServerResourceRequirements
-				}
-				spec: template: spec: #ServiceAccountPodSpec & {
-					serviceAccountName: #InternalServerServiceAccount
-				}
-			}
 		}
 	}
 }

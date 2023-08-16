@@ -21,15 +21,9 @@ package k8s
 	_postgresConfig: #PostgresConfig
 
 	_imageSuffixes: {
-		"\(_duchy_data_server_name)":    string | *"duchy/postgres-data-server"
-		"\(_duchy_update_schema_image)": string | *"duchy/postgres-update-schema"
+		"internal-api-server": string | *"duchy/postgres-internal-server"
+		"update-duchy-schema": string | *"duchy/postgres-update-schema"
 	}
 
-	_duchy_data_server_name:            "postgres-data-server"
-	_duchy_data_server_app_label:       "postgres-data-server-app"
-	_duchy_data_server_deployment_name: "\(_duchy_data_server_name)-deployment"
-	_duchy_data_server_container_args:  _postgresConfig.flags
-	_duchy_data_service_target_flag:    "--computations-service-target=" + (#Target & {name: "\(_duchy.name)-\(_duchy_data_server_name)"}).target
-	_duchy_data_service_cert_host_flag: "--computations-service-cert-host=localhost"
-	_duchy_update_schema_image:         "update-postgres-duchy-schema"
+	_duchyInternalServerContainerArgs: _postgresConfig.flags
 }
