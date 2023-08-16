@@ -46,7 +46,6 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 
-
 @RunWith(JUnit4::class)
 class EventGroupMetadataDescriptorsServiceTest {
   private val publicKingdomEventGroupMetadataDescriptorsMock:

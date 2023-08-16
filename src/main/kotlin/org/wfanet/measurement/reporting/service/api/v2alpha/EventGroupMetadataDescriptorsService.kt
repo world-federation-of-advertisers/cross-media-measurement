@@ -51,21 +51,21 @@ class EventGroupMetadataDescriptorsService(
     }
 
     return try {
-        eventGroupMetadataDescriptorsStub
-          .withAuthenticationKey(apiAuthenticationKey)
-          .getEventGroupMetadataDescriptor(
-            getEventGroupMetadataDescriptorRequest { name = request.name }
-          )
-      } catch (e: StatusException) {
-        throw when (e.status.code) {
-            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-            Status.Code.CANCELLED -> Status.CANCELLED
-            Status.Code.NOT_FOUND -> Status.NOT_FOUND
-            else -> Status.UNKNOWN
-          }
-          .withCause(e)
-          .asRuntimeException()
-      }
+      eventGroupMetadataDescriptorsStub
+        .withAuthenticationKey(apiAuthenticationKey)
+        .getEventGroupMetadataDescriptor(
+          getEventGroupMetadataDescriptorRequest { name = request.name }
+        )
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          Status.Code.CANCELLED -> Status.CANCELLED
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          else -> Status.UNKNOWN
+        }
+        .withCause(e)
+        .asRuntimeException()
+    }
   }
   override suspend fun batchGetEventGroupMetadataDescriptors(
     request: BatchGetEventGroupMetadataDescriptorsRequest
@@ -82,23 +82,23 @@ class EventGroupMetadataDescriptorsService(
     }
 
     return try {
-        eventGroupMetadataDescriptorsStub
-          .withAuthenticationKey(apiAuthenticationKey)
-          .batchGetEventGroupMetadataDescriptors(
-            batchGetEventGroupMetadataDescriptorsRequest {
-              parent = DataProviderKey(ResourceKey.WILDCARD_ID).toName()
-              names += request.namesList
-            }
-          )
-      } catch (e: StatusException) {
-        throw when (e.status.code) {
-            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-            Status.Code.CANCELLED -> Status.CANCELLED
-            Status.Code.NOT_FOUND -> Status.NOT_FOUND
-            else -> Status.UNKNOWN
+      eventGroupMetadataDescriptorsStub
+        .withAuthenticationKey(apiAuthenticationKey)
+        .batchGetEventGroupMetadataDescriptors(
+          batchGetEventGroupMetadataDescriptorsRequest {
+            parent = DataProviderKey(ResourceKey.WILDCARD_ID).toName()
+            names += request.namesList
           }
-          .withCause(e)
-          .asRuntimeException()
-      }
+        )
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          Status.Code.CANCELLED -> Status.CANCELLED
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          else -> Status.UNKNOWN
+        }
+        .withCause(e)
+        .asRuntimeException()
+    }
   }
 }
