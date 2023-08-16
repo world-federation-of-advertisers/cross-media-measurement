@@ -238,8 +238,8 @@ import ("strings")
 	cronjobs: {
 		"computations-cleaner": {
 			_container: args: [
-				_duchy_internal_api_target_flag,
-				_duchy_internal_api_cert_host_flag,
+				_duchyInternalApiTargetFlag,
+				_duchyInternalApiCertHostFlag,
 				_duchy_tls_cert_file_flag,
 				_duchy_tls_key_file_flag,
 				_duchy_cert_collection_file_flag,
