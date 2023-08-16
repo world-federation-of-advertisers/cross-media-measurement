@@ -13,46 +13,19 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.deploy.postgres
 
-import com.opentable.db.postgres.embedded.EmbeddedPostgres
 import java.sql.Connection
 import java.sql.Statement
-import org.junit.AfterClass
-import org.junit.BeforeClass
+import org.junit.ClassRule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.testcontainers.containers.PostgreSQLContainer
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.AbstractPrivacyBudgetLedgerStoreTest
 import src.main.kotlin.org.wfanet.measurement.integration.deploy.postgres.POSTGRES_LEDGER_SCHEMA_FILE
 
 @RunWith(JUnit4::class)
 class PostgresBackingStoreTest : AbstractPrivacyBudgetLedgerStoreTest() {
-  companion object {
-    private const val TEST_DB = "junit_testing"
-    private const val PG_USER_NAME = "postgres"
-
-    @JvmStatic private val schema = POSTGRES_LEDGER_SCHEMA_FILE.readText()
-    @JvmStatic private lateinit var embeddedPostgres: EmbeddedPostgres
-
-    @JvmStatic
-    @BeforeClass
-    fun initDatabase() {
-      embeddedPostgres = EmbeddedPostgres.start()
-      embeddedPostgres.postgresDatabase.connection.use { connection ->
-        connection.createStatement().use { statement: Statement ->
-          statement.executeUpdate("CREATE DATABASE $TEST_DB")
-        }
-      }
-    }
-
-    @JvmStatic
-    @AfterClass
-    fun closeDataBase() {
-      embeddedPostgres.close()
-    }
-  }
-
-  private fun createConnection(): Connection =
-    embeddedPostgres.getDatabase(PG_USER_NAME, TEST_DB).connection
+  private fun createConnection(): Connection = postgresContainer.createConnection("")
 
   override fun recreateSchema() {
     createConnection().use { connection ->
@@ -68,12 +41,28 @@ class PostgresBackingStoreTest : AbstractPrivacyBudgetLedgerStoreTest() {
         """
             .trimIndent()
         )
-        statement.executeUpdate(schema)
+        statement.executeUpdate(SCHEMA)
       }
     }
   }
 
   override fun createBackingStore(): PrivacyBudgetLedgerBackingStore {
     return PostgresBackingStore(::createConnection)
+  }
+
+  companion object {
+    private const val POSTGRES_IMAGE_NAME = "postgres:15"
+
+    private val SCHEMA by lazy { POSTGRES_LEDGER_SCHEMA_FILE.readText() }
+
+    /**
+     * PostgreSQL test container.
+     *
+     * TODO(@uakyol): Use [org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule]
+     *   instead of referencing TestContainers directly.
+     */
+    @get:ClassRule
+    @JvmStatic
+    val postgresContainer = PostgreSQLContainer<Nothing>(POSTGRES_IMAGE_NAME)
   }
 }

@@ -17,17 +17,19 @@ package org.wfanet.measurement.duchy.deploy.common.postgres
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import org.junit.ClassRule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
-import org.wfanet.measurement.common.db.r2dbc.postgres.testing.EmbeddedPostgresDatabaseProvider
-import org.wfanet.measurement.duchy.deploy.common.postgres.testing.Schemata.DUCHY_CHANGELOG_PATH
+import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
+import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
+import org.wfanet.measurement.duchy.deploy.common.postgres.testing.Schemata
 
 @RunWith(JUnit4::class)
 class DuchySchemaTest {
-  val databaseClient = EmbeddedPostgresDatabaseProvider(DUCHY_CHANGELOG_PATH).createNewDatabase()
+  val databaseClient: PostgresDatabaseClient = databaseProvider.createDatabase()
 
   private fun translate(row: ResultRow): String = row["table_name"]
 
@@ -53,5 +55,11 @@ class DuchySchemaTest {
       .toList(resList)
 
     assertThat(resList).containsAtLeastElementsIn(duchyTableNames)
+  }
+
+  companion object {
+    @get:ClassRule
+    @JvmStatic
+    val databaseProvider = PostgresDatabaseProviderRule(Schemata.DUCHY_CHANGELOG_PATH)
   }
 }

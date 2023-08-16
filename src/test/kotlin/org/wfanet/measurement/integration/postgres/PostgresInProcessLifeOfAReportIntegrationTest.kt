@@ -15,7 +15,8 @@
 package org.wfanet.measurement.integration.postgres
 
 import java.time.Clock
-import org.wfanet.measurement.common.db.r2dbc.postgres.testing.EmbeddedPostgresDatabaseProvider
+import org.junit.ClassRule
+import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.integration.common.reporting.InProcessLifeOfAReportIntegrationTest
 import org.wfanet.measurement.reporting.deploy.common.server.postgres.PostgresServices
@@ -24,9 +25,12 @@ import org.wfanet.measurement.reporting.deploy.postgres.testing.Schemata
 /** Implementation of [InProcessLifeOfAReportIntegrationTest] for Postgres. */
 class PostgresInProcessLifeOfAReportIntegrationTest : InProcessLifeOfAReportIntegrationTest() {
   override val reportingServerDataServices by lazy {
-    PostgresServices.create(
-      RandomIdGenerator(Clock.systemUTC()),
-      EmbeddedPostgresDatabaseProvider(Schemata.REPORTING_CHANGELOG_PATH).createNewDatabase()
-    )
+    PostgresServices.create(RandomIdGenerator(Clock.systemUTC()), databaseProvider.createDatabase())
+  }
+
+  companion object {
+    @get:ClassRule
+    @JvmStatic
+    val databaseProvider = PostgresDatabaseProviderRule(Schemata.REPORTING_CHANGELOG_PATH)
   }
 }

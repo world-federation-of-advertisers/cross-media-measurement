@@ -53,6 +53,7 @@ spanner_emulator_test(
     test_class = "org.wfanet.measurement.integration.gcloud.GCloudPostgresInProcessLifeOfAMeasurementIntegrationTest",
     deps = [
         ":kingdom_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/testing",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_life_of_a_measurement_integration_test",
         "//src/test/kotlin/org/wfanet/measurement/integration/common/duchy:postgres_duchy_dependency_provider_rule",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/debug",

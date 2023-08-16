@@ -14,20 +14,29 @@
 
 package org.wfanet.measurement.reporting.deploy.postgres
 
+import org.junit.ClassRule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.db.r2dbc.postgres.testing.EmbeddedPostgresDatabaseProvider
+import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
+import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.reporting.deploy.postgres.testing.Schemata.REPORTING_CHANGELOG_PATH
+import org.wfanet.measurement.reporting.deploy.postgres.testing.Schemata
 import org.wfanet.measurement.reporting.service.internal.testing.MeasurementsServiceTest
 
 @RunWith(JUnit4::class)
 class PostgresMeasurementsServiceTest : MeasurementsServiceTest<PostgresMeasurementsService>() {
+
   override fun newServices(idGenerator: IdGenerator): Services<PostgresMeasurementsService> {
-    val client = EmbeddedPostgresDatabaseProvider(REPORTING_CHANGELOG_PATH).createNewDatabase()
+    val client: PostgresDatabaseClient = databaseProvider.createDatabase()
     return Services(
       PostgresMeasurementsService(idGenerator, client),
       PostgresReportsService(idGenerator, client)
     )
+  }
+
+  companion object {
+    @get:ClassRule
+    @JvmStatic
+    val databaseProvider = PostgresDatabaseProviderRule(Schemata.REPORTING_CHANGELOG_PATH)
   }
 }

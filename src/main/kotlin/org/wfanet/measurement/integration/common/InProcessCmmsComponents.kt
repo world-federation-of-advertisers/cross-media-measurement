@@ -40,14 +40,12 @@ import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerDa
 import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.loadtest.resourcesetup.ResourceSetup
-import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
 class InProcessCmmsComponents(
   private val kingdomDataServicesRule: ProviderRule<DataServices>,
   private val duchyDependenciesRule:
     ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>,
-  private val storageClient: StorageClient,
 ) : TestRule {
   private val kingdomDataServices: DataServices
     get() = kingdomDataServicesRule.value

@@ -14,37 +14,42 @@
 
 package org.wfanet.measurement.integration.postgres
 
-import com.opentable.db.postgres.junit.EmbeddedPostgresRules
-import com.opentable.db.postgres.junit.SingleInstancePostgresRule
-import java.sql.Connection
 import java.sql.ResultSet
 import java.sql.Statement
 import kotlin.test.assertEquals
-import org.junit.Rule
+import org.junit.Before
+import org.junit.ClassRule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.testcontainers.containers.PostgreSQLContainer
 import src.main.kotlin.org.wfanet.measurement.integration.deploy.postgres.POSTGRES_LEDGER_SCHEMA_FILE
 
 @RunWith(JUnit4::class)
 class PrivacyBudgetPostgresSchemaTest {
-  val schema = POSTGRES_LEDGER_SCHEMA_FILE.readText()
-
-  @get:Rule val pg: SingleInstancePostgresRule = EmbeddedPostgresRules.singleInstance()
+  @Before
+  fun resetDatabase() {
+    createConnection().use { connection ->
+      connection.createStatement().use {
+        it.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
+      }
+    }
+  }
 
   @Test
   fun `privacy budget ledger sql file is valid for postgres`() {
-    val connection: Connection = pg.embeddedPostgres.postgresDatabase.connection
-    val statement: Statement = connection.createStatement()
-    statement.execute(schema)
+    createConnection().use { connection ->
+      val statement: Statement = connection.createStatement()
+      statement.execute(SCHEMA)
+    }
   }
 
   @Test
   fun `privacy budget balance can be written and read`() {
-    val connection: Connection = pg.embeddedPostgres.postgresDatabase.connection
-    val statement = connection.createStatement()
-    val insertSql =
-      """
+    createConnection().use { connection ->
+      val statement = connection.createStatement()
+      val insertSql =
+        """
       INSERT INTO PrivacyBucketCharges (
         MeasurementConsumerId,
         Date,
@@ -65,23 +70,24 @@ class PrivacyBudgetPostgresSchemaTest {
         10
       );
       """
-    val selectSql = """
+      val selectSql = """
       SELECT Gender, Delta from PrivacyBucketCharges
       """
-    statement.execute(schema)
-    statement.execute(insertSql)
-    val result: ResultSet = statement.executeQuery(selectSql)
-    result.next()
-    assertEquals("F", result.getString("gender"))
-    assertEquals(0.1f, result.getFloat("delta"))
+      statement.execute(SCHEMA)
+      statement.execute(insertSql)
+      val result: ResultSet = statement.executeQuery(selectSql)
+      result.next()
+      assertEquals("F", result.getString("gender"))
+      assertEquals(0.1f, result.getFloat("delta"))
+    }
   }
 
   @Test
   fun `privacy budget ledger can be written and read`() {
-    val connection: Connection = pg.embeddedPostgres.postgresDatabase.connection
-    val statement = connection.createStatement()
-    val insertSql =
-      """
+    createConnection().use { connection ->
+      val statement = connection.createStatement()
+      val insertSql =
+        """
       INSERT INTO LedgerEntries (
         MeasurementConsumerId,
         ReferenceId,
@@ -94,16 +100,35 @@ class PrivacyBudgetPostgresSchemaTest {
         NOW()
       );
       """
-    val selectSql =
-      """
+      val selectSql =
+        """
       SELECT MeasurementConsumerId, ReferenceId, IsRefund from LedgerEntries
       """
-    statement.execute(schema)
-    statement.execute(insertSql)
-    val result: ResultSet = statement.executeQuery(selectSql)
-    result.next()
-    assertEquals("MC1", result.getString("measurementConsumerId"))
-    assertEquals("Ref1", result.getString("referenceId"))
-    assertEquals(false, result.getBoolean("isRefund"))
+      statement.execute(SCHEMA)
+      statement.execute(insertSql)
+      val result: ResultSet = statement.executeQuery(selectSql)
+      result.next()
+      assertEquals("MC1", result.getString("measurementConsumerId"))
+      assertEquals("Ref1", result.getString("referenceId"))
+      assertEquals(false, result.getBoolean("isRefund"))
+    }
+  }
+
+  companion object {
+    private const val POSTGRES_IMAGE_NAME = "postgres:15"
+
+    private val SCHEMA by lazy { POSTGRES_LEDGER_SCHEMA_FILE.readText() }
+
+    /**
+     * PostgreSQL test container.
+     *
+     * TODO(@uakyol): Use [org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule]
+     *   instead of referencing TestContainers directly.
+     */
+    @get:ClassRule
+    @JvmStatic
+    val postgresContainer = PostgreSQLContainer<Nothing>(POSTGRES_IMAGE_NAME)
+
+    private fun createConnection() = postgresContainer.createConnection("")
   }
 }

@@ -16,11 +16,13 @@ package org.wfanet.measurement.duchy.deploy.common.postgres
 
 import java.time.Clock
 import kotlin.random.Random
+import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.db.r2dbc.postgres.testing.EmbeddedPostgresDatabaseProvider
+import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
+import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.RandomIdGenerator
@@ -28,7 +30,7 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
 import org.wfanet.measurement.duchy.db.computation.ComputationTypes
-import org.wfanet.measurement.duchy.deploy.common.postgres.testing.Schemata.DUCHY_CHANGELOG_PATH
+import org.wfanet.measurement.duchy.deploy.common.postgres.testing.Schemata
 import org.wfanet.measurement.duchy.service.internal.testing.ComputationsServiceTest
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.storage.RequisitionStore
@@ -48,7 +50,7 @@ class PostgresComputationsServiceTest : ComputationsServiceTest<PostgresComputat
   private val mockComputationLogEntriesService: ComputationLogEntriesCoroutineImplBase =
     mockService()
 
-  private val client = EmbeddedPostgresDatabaseProvider(DUCHY_CHANGELOG_PATH).createNewDatabase()
+  private val client: PostgresDatabaseClient = databaseProvider.createDatabase()
   private val idGenerator = RandomIdGenerator(Clock.systemUTC(), Random(1))
 
   private val grpcTestServerRule = GrpcTestServerRule {
@@ -74,5 +76,11 @@ class PostgresComputationsServiceTest : ComputationsServiceTest<PostgresComputat
       computationLogEntriesClient = systemComputationLogEntriesClient,
       clock = clock
     )
+  }
+
+  companion object {
+    @get:ClassRule
+    @JvmStatic
+    val databaseProvider = PostgresDatabaseProviderRule(Schemata.DUCHY_CHANGELOG_PATH)
   }
 }

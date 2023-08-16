@@ -33,7 +33,6 @@ import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
-import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
 /**
@@ -42,19 +41,15 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.Computa
  * This is abstract so that different implementations of dependencies can all run the same tests
  * easily.
  */
-abstract class InProcessLifeOfAMeasurementIntegrationTest {
-  abstract val kingdomDataServicesRule: ProviderRule<DataServices>
-
-  /** Provides a function from Duchy to the dependencies needed to start the Duchy to the test. */
-  abstract val duchyDependenciesRule:
+abstract class InProcessLifeOfAMeasurementIntegrationTest(
+  kingdomDataServicesRule: ProviderRule<DataServices>,
+  duchyDependenciesRule:
     ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>
-
-  abstract val storageClient: StorageClient
+) {
 
   @get:Rule
-  val inProcessCmmsComponents: InProcessCmmsComponents by lazy {
-    InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule, storageClient)
-  }
+  val inProcessCmmsComponents =
+    InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule)
 
   private lateinit var mcSimulator: MeasurementConsumerSimulator
 
