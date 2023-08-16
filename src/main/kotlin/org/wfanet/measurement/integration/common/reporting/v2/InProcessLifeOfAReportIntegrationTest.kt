@@ -1368,7 +1368,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
               MetricSpecKt.frequencyHistogramParams {
                 reachPrivacyParams = DP_PARAMS
                 frequencyPrivacyParams = DP_PARAMS
-                maximumFrequencyPerUser = 5
+                maxFrequency = 5
               }
             vidSamplingInterval = VID_SAMPLING_INTERVAL
           }
@@ -1399,7 +1399,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     val expectedResult =
       calculateExpectedReachAndFrequencyMeasurementResult(
         sampledVids,
-        metric.metricSpec.frequencyHistogram.maximumFrequencyPerUser
+        metric.metricSpec.frequencyHistogram.maxFrequency
       )
 
     val reach =
