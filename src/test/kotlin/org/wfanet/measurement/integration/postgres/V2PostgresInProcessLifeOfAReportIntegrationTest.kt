@@ -24,7 +24,7 @@ import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.InProcessDuchy
-import org.wfanet.measurement.integration.common.duchy.PostgresDuchyDependencyProviderRule
+import org.wfanet.measurement.integration.common.duchy.SpannerDuchyDependencyProviderRule
 import org.wfanet.measurement.integration.common.reporting.v2.InProcessLifeOfAReportIntegrationTest
 import org.wfanet.measurement.integration.gcloud.KingdomDataServicesProviderRule
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
@@ -43,7 +43,7 @@ class V2PostgresInProcessLifeOfAReportIntegrationTest : InProcessLifeOfAReportIn
   override val duchyDependenciesRule:
     ProviderRule<
       (String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies
-    > by lazy { PostgresDuchyDependencyProviderRule(ALL_DUCHY_NAMES) }
+    > by lazy { SpannerDuchyDependencyProviderRule(ALL_DUCHY_NAMES) }
 
   override val storageClient: StorageClient by lazy {
     GcsStorageClient(LocalStorageHelper.getOptions().service, "bucket-simulator")

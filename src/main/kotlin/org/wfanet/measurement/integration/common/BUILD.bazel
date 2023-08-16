@@ -111,6 +111,11 @@ kt_jvm_library(
     name = "synthetic_generation_specs",
     srcs = ["SyntheticGenerationSpecs.kt"],
     data = ["//src/main/k8s/testing/data:synthetic_generation_specs"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
+    ],
     deps = [
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",

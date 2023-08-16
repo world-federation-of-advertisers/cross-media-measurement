@@ -25,6 +25,7 @@ import java.security.cert.X509Certificate
 import java.time.Duration
 import java.time.LocalDate
 import java.util.logging.Logger
+import kotlin.math.log2
 import kotlin.random.Random
 import kotlinx.coroutines.time.delay
 import org.wfanet.measurement.api.v2alpha.Certificate
@@ -316,10 +317,12 @@ class MeasurementConsumerSimulator(
 
     durationResults.forEach {
       val result = parseAndVerifyResult(it)
+      val externalDataProviderId =
+        apiIdToExternalId(DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId)
       assertThat(result.watchDuration.value.seconds)
         .isEqualTo(
           // EdpSimulator sets it to this value.
-          apiIdToExternalId(DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId)
+          log2(externalDataProviderId.toDouble()).toLong()
         )
     }
     logger.info("Duration result is equal to the expected result")
