@@ -12,17 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-module.exports = {
-    preset: 'ts-jest',
-    testEnvironment: 'jsdom',
-    transform: {
-        '^.+\\.(ts|tsx)$': 'ts-jest',
-    },
-    moduleFileExtensions: ['ts', 'js', 'tsx'],
-    moduleNameMapper: {
-        "\\.(css|scss)$": "<rootDir>/../jest/mocks/styleMock.ts"
-    },
-    testMatch: [
-        '<rootDir>/**/*_test.(ts|tsx)'
-    ],
-}
+export type TargetReach = {
+  cat: string; // The category of the values
+  value: number; // The value (y-axis)
+  x: number; // The x-axis
+};
+
+export type Reach = {
+  pub: number; // The publisher of the Reach
+  value: number; // The value (y-axis)
+  date: Date; // The date of the value (x-asix)
+};

@@ -12,17 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-module.exports = {
-    preset: 'ts-jest',
-    testEnvironment: 'jsdom',
-    transform: {
-        '^.+\\.(ts|tsx)$': 'ts-jest',
-    },
-    moduleFileExtensions: ['ts', 'js', 'tsx'],
-    moduleNameMapper: {
-        "\\.(css|scss)$": "<rootDir>/../jest/mocks/styleMock.ts"
-    },
-    testMatch: [
-        '<rootDir>/**/*_test.(ts|tsx)'
-    ],
-}
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import '../../../index.css';
+import App from '../../../app';
+import AppConfig from '../../initialize';
+import { FakeReportingClient } from './fake_reporting_client';
+
+const config = {
+  reportingClient: new FakeReportingClient(),
+};
+
+AppConfig.initialize(config);
+
+const root = ReactDOM.createRoot(document.getElementById('root')!);
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);

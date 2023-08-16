@@ -1,0 +1,9 @@
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+
+js_library(
+    name = "mocks",
+    srcs = ["styleMock.ts"],
+    visibility = [
+        "//experimental/reporting-ui/src/test/react/jest:__subpackages__",
+    ],
+)

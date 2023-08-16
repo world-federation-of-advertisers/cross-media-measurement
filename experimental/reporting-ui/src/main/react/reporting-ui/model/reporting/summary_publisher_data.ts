@@ -12,17 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-module.exports = {
-    preset: 'ts-jest',
-    testEnvironment: 'jsdom',
-    transform: {
-        '^.+\\.(ts|tsx)$': 'ts-jest',
-    },
-    moduleFileExtensions: ['ts', 'js', 'tsx'],
-    moduleNameMapper: {
-        "\\.(css|scss)$": "<rootDir>/../jest/mocks/styleMock.ts"
-    },
-    testMatch: [
-        '<rootDir>/**/*_test.(ts|tsx)'
-    ],
-}
+export type SummaryPublisherData = {
+  id: number;
+  publisher: string;
+  impressions: number;
+  reach: number;
+  onTargetReach: number;
+  uniqueReach: number;
+  averageFrequency: number;
+};

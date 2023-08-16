@@ -1,0 +1,26 @@
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+
+package(
+    default_visibility = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui:__subpackages__",
+        "//experimental/reporting-ui/src/test/react/reporting-ui:__subpackages__",
+    ],
+)
+
+js_library(
+    name = "reporting",
+    srcs = [
+        "demographic.ts",
+        "get_report_request.ts",
+        "get_report_response.ts",
+        "index.ts",
+        "init_api_props.ts",
+        "list_reports_response.ts",
+        "overview.ts",
+        "reach.ts",
+        "report.ts",
+        "report_state.ts",
+        "summary_publisher_data.ts",
+        "unique_reach.ts",
+    ],
+)

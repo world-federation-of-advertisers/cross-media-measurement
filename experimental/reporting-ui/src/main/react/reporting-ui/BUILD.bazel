@@ -5,7 +5,23 @@ load("@aspect_rules_webpack//webpack:defs.bzl", "webpack_bundle", "webpack_devse
 npm_link_all_packages()
 
 js_library(
-    name = "build_node_deps",
+    name = "app",
+    srcs = [
+        "app.css",
+        "app.tsx",
+        "index.css",
+        "index.tsx",
+        "logo.tsx",
+        "report_web_vitals.ts",
+    ],
+    visibility = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui:__subpackages__",
+        "//experimental/reporting-ui/src/test/react/reporting-ui:__subpackages__",
+    ],
+)
+
+js_library(
+    name = "node_deps",
     srcs = [
         "//:node_modules/babel-loader",
         "//:node_modules/css-loader",
@@ -37,26 +53,30 @@ js_library(
 webpack_bundle(
     name = "webpack_bundle",
     srcs = [
+        ":app",
         ":webpack_config",
         "//:tsconfig",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/client",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/model/reporting",
         "//experimental/reporting-ui/src/main/react/reporting-ui/public",
-        "//experimental/reporting-ui/src/main/react/reporting-ui/src:src_files",
     ],
     node_modules = "//:node_modules",
     output_dir = True,
     webpack_config = ":webpack_config",
     deps = [
-        ":build_node_deps",
+        ":node_deps",
     ],
 )
 
 webpack_devserver(
     name = "webpack_devserver",
     data = [
-        ":build_node_deps",
+        ":app",
+        ":node_deps",
         "//:tsconfig",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/client",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/model/reporting",
         "//experimental/reporting-ui/src/main/react/reporting-ui/public",
-        "//experimental/reporting-ui/src/main/react/reporting-ui/src:src_files",
     ],
     node_modules = "//:node_modules",
     webpack_config = ":webpack_config",

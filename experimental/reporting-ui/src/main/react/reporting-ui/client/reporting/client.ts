@@ -12,17 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-module.exports = {
-    preset: 'ts-jest',
-    testEnvironment: 'jsdom',
-    transform: {
-        '^.+\\.(ts|tsx)$': 'ts-jest',
-    },
-    moduleFileExtensions: ['ts', 'js', 'tsx'],
-    moduleNameMapper: {
-        "\\.(css|scss)$": "<rootDir>/../jest/mocks/styleMock.ts"
-    },
-    testMatch: [
-        '<rootDir>/**/*_test.(ts|tsx)'
-    ],
+import {
+  GetReportRequest,
+  GetReportResponse,
+  ListReportsResponse,
+} from '../../model/reporting';
+
+export interface ReportingClient {
+  listReports(): Promise<ListReportsResponse>;
+  getReport(req: GetReportRequest): Promise<GetReportResponse>;
 }
