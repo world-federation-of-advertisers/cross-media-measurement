@@ -40,11 +40,11 @@ module.exports = {
     modules: ['node_modules'],
   },
   output: {
-    path: path.resolve(__dirname, './public'),
+    path: path.resolve(__dirname, '../../../public'),
     filename: 'app.bundle.js',
   },
   plugins: [new MiniCssExtractPlugin()],
   devServer: {
-    static: path.resolve(__dirname, './public'),
+    static: path.resolve(__dirname, '../../../public'),
   },
 };
