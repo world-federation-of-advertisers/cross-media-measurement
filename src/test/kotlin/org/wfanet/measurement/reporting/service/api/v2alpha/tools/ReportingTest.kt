@@ -43,6 +43,9 @@ import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.api.v2alpha.BatchGetEventGroupMetadataDescriptorsResponse
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsResponse
@@ -51,9 +54,13 @@ import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
+import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.eventGroup
+import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
+import org.wfanet.measurement.api.v2alpha.getEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsResponse
@@ -82,6 +89,19 @@ class ReportingTest {
     onBlocking { listEventGroups(any()) }
       .thenReturn(listEventGroupsResponse { eventGroups += EVENT_GROUP })
   }
+  private val eventGroupMetadataDescriptorsServiceMock:
+    EventGroupMetadataDescriptorsCoroutineImplBase =
+    mockService {
+      onBlocking { getEventGroupMetadataDescriptor(any()) }
+        .thenReturn(EVENT_GROUP_METADATA_DESCRIPTOR)
+      onBlocking { batchGetEventGroupMetadataDescriptors(any()) }
+        .thenReturn(
+          batchGetEventGroupMetadataDescriptorsResponse {
+            eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
+            eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR_2
+          }
+        )
+    }
 
   private val serverCerts =
     SigningCerts.fromPemFiles(
@@ -95,6 +115,7 @@ class ReportingTest {
       reportingSetsServiceMock.bindService(),
       reportsServiceMock.bindService(),
       eventGroupsServiceMock.bindService(),
+      eventGroupMetadataDescriptorsServiceMock.bindService(),
     )
 
   private val server: Server =
@@ -547,6 +568,109 @@ class ReportingTest {
       .isEqualTo(listEventGroupsResponse { eventGroups += EVENT_GROUP })
   }
 
+  @Test
+  fun `get event group metadata descriptor calls api with valid request`() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "event-group-metadata-descriptors",
+        "get",
+        EVENT_GROUP_METADATA_DESCRIPTOR_NAME,
+      )
+    val output = callCli(args)
+
+    verifyProtoArgument(
+        eventGroupMetadataDescriptorsServiceMock,
+        EventGroupMetadataDescriptorsCoroutineImplBase::getEventGroupMetadataDescriptor
+      )
+      .isEqualTo(
+        getEventGroupMetadataDescriptorRequest { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME }
+      )
+    assertThat(
+        parseTextProto(output.out.reader(), EventGroupMetadataDescriptor.getDefaultInstance())
+      )
+      .isEqualTo(EVENT_GROUP_METADATA_DESCRIPTOR)
+  }
+
+  @Test
+  fun `get event group metadata descriptor fails when missing descriptor name`() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "event-group-metadata-descriptors",
+        "get",
+      )
+
+    val capturedOutput = callCli(args)
+
+    assertThat(capturedOutput).status().isEqualTo(2)
+  }
+
+  @Test
+  fun `batch get event group metadata descriptors calls api with valid request`() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "event-group-metadata-descriptors",
+        "batch-get",
+        "--cmms-event-group-metadata-descriptor=$EVENT_GROUP_METADATA_DESCRIPTOR_NAME",
+        "--cmms-event-group-metadata-descriptor=$EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2",
+      )
+
+    val output = callCli(args)
+
+    verifyProtoArgument(
+        eventGroupMetadataDescriptorsServiceMock,
+        EventGroupMetadataDescriptorsCoroutineImplBase::batchGetEventGroupMetadataDescriptors
+      )
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        batchGetEventGroupMetadataDescriptorsRequest {
+          names += EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+          names += EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2
+        }
+      )
+
+    assertThat(
+        parseTextProto(
+          output.out.reader(),
+          BatchGetEventGroupMetadataDescriptorsResponse.getDefaultInstance()
+        )
+      )
+      .isEqualTo(
+        batchGetEventGroupMetadataDescriptorsResponse {
+          eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
+          eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR_2
+        }
+      )
+  }
+
+  @Test
+  fun `batch get event group metadata descriptors fails when missing descriptor names`() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "event-group-metadata-descriptors",
+        "batch-get",
+      )
+
+    val capturedOutput = callCli(args)
+
+    assertThat(capturedOutput).status().isEqualTo(2)
+  }
+
   companion object {
     init {
       System.setSecurityManager(ExitInterceptingSecurityManager)
@@ -593,5 +717,15 @@ class ReportingTest {
 
     private const val EVENT_GROUP_NAME = "$MEASUREMENT_CONSUMER_NAME/eventGroups/1"
     private val EVENT_GROUP = eventGroup { name = EVENT_GROUP_NAME }
+    private const val EVENT_GROUP_METADATA_DESCRIPTOR_NAME =
+      "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/1"
+    private val EVENT_GROUP_METADATA_DESCRIPTOR = eventGroupMetadataDescriptor {
+      name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+    }
+    private const val EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2 =
+      "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/2"
+    private val EVENT_GROUP_METADATA_DESCRIPTOR_2 = eventGroupMetadataDescriptor {
+      name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2
+    }
   }
 }
