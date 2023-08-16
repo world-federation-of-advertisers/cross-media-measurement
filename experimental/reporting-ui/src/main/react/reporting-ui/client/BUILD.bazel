@@ -8,13 +8,11 @@ package(
 )
 
 js_library(
-    name = "public",
+    name = "client",
     srcs = [
-        "favicon.ico",
-        "index.html",
-        "logo192.png",
-        "logo512.png",
-        "manifest.json",
-        "robots.txt",
+        "initialize.ts",
+    ],
+    deps = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui/client/reporting",
     ],
 )
