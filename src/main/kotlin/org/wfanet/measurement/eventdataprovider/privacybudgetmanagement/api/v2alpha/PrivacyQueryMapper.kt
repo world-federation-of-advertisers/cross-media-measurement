@@ -94,7 +94,7 @@ object PrivacyQueryMapper {
     val acdpCharge =
       when (measurementSpec.measurementTypeCase) {
         MeasurementTypeCase.REACH -> {
-          AcdpParamsConverter.getMpcAcdpCharge(
+          AcdpParamsConverter.getLlv2AcdpCharge(
             DpParams(
               measurementSpec.reach.privacyParams.epsilon,
               measurementSpec.reach.privacyParams.delta
@@ -111,7 +111,7 @@ object PrivacyQueryMapper {
                 measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta
             )
 
-          AcdpParamsConverter.getMpcAcdpCharge(
+          AcdpParamsConverter.getLlv2AcdpCharge(
             dpParams,
             contributorCount,
           )
