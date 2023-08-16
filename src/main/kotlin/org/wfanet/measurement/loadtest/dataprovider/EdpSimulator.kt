@@ -817,22 +817,11 @@ class EdpSimulator(
     }
   }
 
-  private suspend fun generateSketch(
-    requisitionName: String,
+  private fun generateSketch(
     sketchConfig: SketchConfig,
     measurementSpec: MeasurementSpec,
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
-    noiseMechanism: NoiseMechanism,
-    contributorCount: Int
   ): Sketch {
-    chargeMpcPrivacyBudget(
-      requisitionName,
-      measurementSpec,
-      eventGroupSpecs.map { it.spec },
-      noiseMechanism,
-      contributorCount
-    )
-
     logger.info("Generating Sketch...")
     return SketchGenerator(eventQuery, sketchConfig, measurementSpec.vidSamplingInterval)
       .generate(eventGroupSpecs)
@@ -881,15 +870,20 @@ class EdpSimulator(
     val liquidLegionsV2: ProtocolConfig.LiquidLegionsV2 = llv2Protocol.liquidLegionsV2
     val combinedPublicKey = requisition.getCombinedPublicKey(liquidLegionsV2.ellipticCurveId)
 
+    chargeMpcPrivacyBudget(
+      requisition.name,
+      measurementSpec,
+      eventGroupSpecs.map { it.spec },
+      liquidLegionsV2.noiseMechanism,
+      requisition.duchiesCount
+    )
+
     val sketch =
       try {
         generateSketch(
-          requisition.name,
           liquidLegionsV2.sketchParams.toSketchConfig(),
           measurementSpec,
           eventGroupSpecs,
-          liquidLegionsV2.noiseMechanism,
-          requisition.duchiesCount
         )
       } catch (e: EventFilterValidationException) {
         logger.log(
@@ -931,15 +925,20 @@ class EdpSimulator(
     val combinedPublicKey =
       requisition.getCombinedPublicKey(reachOnlyLiquidLegionsV2.ellipticCurveId)
 
+    chargeMpcPrivacyBudget(
+      requisition.name,
+      measurementSpec,
+      eventGroupSpecs.map { it.spec },
+      reachOnlyLiquidLegionsV2.noiseMechanism,
+      requisition.duchiesCount
+    )
+
     val sketch =
       try {
         generateSketch(
-          requisition.name,
           reachOnlyLiquidLegionsV2.sketchParams.toSketchConfig(),
           measurementSpec,
           eventGroupSpecs,
-          reachOnlyLiquidLegionsV2.noiseMechanism,
-          requisition.duchiesCount
         )
       } catch (e: EventFilterValidationException) {
         logger.log(
