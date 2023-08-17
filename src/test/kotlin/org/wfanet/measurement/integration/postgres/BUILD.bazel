@@ -4,7 +4,7 @@ load("@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/tes
 kt_jvm_test(
     name = "PostgresInProcessLifeOfAReportIntegrationTest",
     srcs = ["PostgresInProcessLifeOfAReportIntegrationTest.kt"],
-    flaky = True,
+    tags = ["cpu:2"],
     test_class = "org.wfanet.measurement.integration.postgres.PostgresInProcessLifeOfAReportIntegrationTest",
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
@@ -13,8 +13,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting:in_process_life_of_a_report_integration_test",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common/server/postgres:services",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/testing",
-        "@wfa_common_jvm//imports/java/com/opentable/db/postgres:pg_embedded",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:embedded_postgres",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
     ],
 )
@@ -23,21 +22,20 @@ spanner_emulator_test(
     name = "V2PostgresInProcessLifeOfAReportIntegrationTest",
     size = "large",
     srcs = ["V2PostgresInProcessLifeOfAReportIntegrationTest.kt"],
-    flaky = True,
     tags = ["cpu:2"],
     test_class = "org.wfanet.measurement.integration.postgres.V2PostgresInProcessLifeOfAReportIntegrationTest",
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
     ],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/testing",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_duchy",
         "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_life_of_a_report_integration_test",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/server/postgres:services",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
         "//src/test/kotlin/org/wfanet/measurement/integration/common/duchy:postgres_duchy_dependency_provider_rule",
         "//src/test/kotlin/org/wfanet/measurement/integration/gcloud:kingdom_provider_rule",
-        "@wfa_common_jvm//imports/java/com/opentable/db/postgres:pg_embedded",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:embedded_postgres",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
     ],
 )
@@ -51,10 +49,11 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/integration/deploy/postgres:ledger.sql",
     ],
     test_class = "org.wfanet.measurement.integration.postgres.PrivacyBudgetPostgresSchemaTest",
+    runtime_deps = ["@wfa_common_jvm//imports/java/org/postgresql:j2dbc"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/integration/deploy/postgres:schemata",
-        "@wfa_common_jvm//imports/java/com/opentable/db/postgres:pg_embedded",
         "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/java/org/testcontainers/containers:postgresql",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],

@@ -17,14 +17,23 @@ kt_jvm_library(
     ],
     deps = [
         ":in_process_reporting_server",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_cmms_components",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:synthetic_generation_specs",
         "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2/identity:reporting_principal_identity",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_event_query",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:synthetic_generator_event_query",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/server:internal_reporting_server",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumers_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/reporting:encryption_key_pair_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:event_groups_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:metrics_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:reporting_sets_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:reports_service_kt_jvm_grpc_proto",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
     ],
 )
 

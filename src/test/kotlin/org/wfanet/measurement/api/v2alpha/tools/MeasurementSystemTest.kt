@@ -179,8 +179,9 @@ import org.wfanet.measurement.common.grpc.toServerTlsContext
 import org.wfanet.measurement.common.openid.createRequestUri
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.readByteString
-import org.wfanet.measurement.common.testing.CommandLineTesting.assertExitsWith
-import org.wfanet.measurement.common.testing.CommandLineTesting.capturingSystemOut
+import org.wfanet.measurement.common.testing.CommandLineTesting
+import org.wfanet.measurement.common.testing.CommandLineTesting.assertThat
+import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
 import org.wfanet.measurement.common.testing.HeaderCapturingInterceptor
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
@@ -503,7 +504,9 @@ class MeasurementSystemTest {
       )
 
   private fun callCli(args: Array<String>): String {
-    return capturingSystemOut { assertExitsWith(0) { MeasurementSystem.main(args) } }
+    val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
+    assertThat(capturedOutput).status().isEqualTo(0)
+    return capturedOutput.out
   }
 
   @Test
@@ -1866,6 +1869,10 @@ class MeasurementSystemTest {
   }
 
   companion object {
+    init {
+      System.setSecurityManager(ExitInterceptingSecurityManager)
+    }
+
     private val MEASUREMENT_SPEC_FIELD: Descriptors.FieldDescriptor =
       Measurement.getDescriptor().findFieldByNumber(Measurement.MEASUREMENT_SPEC_FIELD_NUMBER)
     private val ENCRYPTED_REQUISITION_SPEC_FIELD: Descriptors.FieldDescriptor =
