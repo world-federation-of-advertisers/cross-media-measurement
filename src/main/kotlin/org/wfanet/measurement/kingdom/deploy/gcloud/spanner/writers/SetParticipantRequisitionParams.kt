@@ -18,7 +18,6 @@ import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.single
@@ -36,7 +35,6 @@ import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest
-import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
@@ -46,7 +44,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertific
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamRequisitions
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ComputationParticipantReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.computationParticipantsInState
@@ -112,8 +109,8 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       )
     }
 
-    val measurementId = computationParticipantResult.measurementId
-    val measurementConsumerId = computationParticipantResult.measurementConsumerId
+    val measurementId = InternalId(computationParticipantResult.measurementId)
+    val measurementConsumerId = InternalId(computationParticipantResult.measurementConsumerId)
 
     if (computationParticipant.state != ComputationParticipant.State.CREATED) {
       throw ComputationParticipantStateIllegalException(
@@ -147,32 +144,36 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       computationParticipantsInState(
         transactionContext,
         otherDuchyIds,
-        InternalId(measurementConsumerId),
-        InternalId(measurementId),
+        measurementConsumerId,
+        measurementId,
         NEXT_COMPUTATION_PARTICIPANT_STATE
       )
     ) {
       val measurementLogEntryDetails =
         MeasurementLogEntryKt.details { logMessage = "Pending requisition fulfillment" }
       updateMeasurementState(
-        measurementConsumerId = InternalId(measurementConsumerId),
-        measurementId = InternalId(measurementId),
+        measurementConsumerId = measurementConsumerId,
+        measurementId = measurementId,
         nextState = Measurement.State.PENDING_REQUISITION_FULFILLMENT,
         previousState = computationParticipantResult.measurementState,
         measurementLogEntryDetails = measurementLogEntryDetails
       )
-      StreamRequisitions(
-          StreamRequisitionsRequestKt.filter {
-            externalMeasurementConsumerId = computationParticipant.externalMeasurementConsumerId
-            externalMeasurementId = computationParticipant.externalMeasurementId
+      transactionContext
+        .executeQuery(
+          statement("SELECT RequisitionId FROM Requisitions") {
+            appendClause(
+              "WHERE MeasurementConsumerId = @measurementConsumerId AND " +
+                "MeasurementId = @measurementId"
+            )
+            bind("measurementConsumerId" to measurementConsumerId)
+            bind("measurementId" to measurementId)
           }
         )
-        .execute(transactionContext)
         .collect {
           transactionContext.bufferUpdateMutation("Requisitions") {
             set("MeasurementConsumerId" to measurementConsumerId)
             set("MeasurementId" to measurementId)
-            set("RequisitionId" to it.requisitionId)
+            set("RequisitionId" to it.getLong("RequisitionId"))
             set("UpdateTime" to Value.COMMIT_TIMESTAMP)
             set("State" to Requisition.State.UNFULFILLED)
           }
@@ -208,7 +209,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       }
   }
 
-  private suspend fun TransactionScope.findComputationParticipants(
+  private fun TransactionScope.findComputationParticipants(
     externalComputationId: ExternalId
   ): Flow<InternalId> {
     val sql =

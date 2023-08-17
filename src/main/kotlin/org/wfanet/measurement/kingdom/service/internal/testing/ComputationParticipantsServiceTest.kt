@@ -48,6 +48,7 @@ import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
+import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
@@ -457,7 +458,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   }
 
   @Test
-  fun `setParticipantRequisitionParams for final Duchy updates Measurement state`() {
+  fun `setParticipantRequisitionParams for final Duchy updates Measurement and Requisition state`() {
     runBlocking {
       createDuchyCertificates()
       val measurementConsumer =
@@ -520,6 +521,19 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
           }
         )
       assertThat(measurement.state).isEqualTo(Measurement.State.PENDING_REQUISITION_FULFILLMENT)
+
+      val requisitions: List<Requisition> =
+        requisitionsService
+          .streamRequisitions(
+            streamRequisitionsRequest {
+              filter = filter {
+                externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+                externalMeasurementId = measurement.externalMeasurementId
+              }
+            }
+          )
+          .toList()
+      assertThat(requisitions.map { it.state }).containsExactly(Requisition.State.UNFULFILLED)
     }
   }
 
