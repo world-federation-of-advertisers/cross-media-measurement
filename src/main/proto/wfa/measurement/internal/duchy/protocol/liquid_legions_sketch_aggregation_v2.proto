@@ -119,8 +119,7 @@ message LiquidLegionsSketchAggregationV2 {
       // The maximum frequency to reveal in the histogram.
       int32 maximum_frequency = 1;
       // Parameters used for liquidLegions sketch creation and estimation.
-      // TODO(@ple): rename to sketch_parameters.
-      LiquidLegionsSketchParameters liquid_legions_sketch = 2;
+      LiquidLegionsSketchParameters sketch_parameters = 2;
       // Noise parameters selected for the LiquidLegionV2 MPC protocol.
       LiquidLegionsV2NoiseConfig noise = 3;
       // ID of the OpenSSL built-in elliptic curve. For example, 415 for the
