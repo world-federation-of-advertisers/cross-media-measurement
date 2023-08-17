@@ -56,18 +56,18 @@ abstract class DuchyDataServer : Runnable {
   lateinit var systemApiFlags: SystemApiFlags
     private set
 
-  val clientCerts =
-    SigningCerts.fromPemFiles(
-      certificateFile = serverFlags.tlsFlags.certFile,
-      privateKeyFile = serverFlags.tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = serverFlags.tlsFlags.certCollectionFile
-    )
-  val channel: ManagedChannel =
-    buildMutualTlsChannel(systemApiFlags.target, clientCerts, systemApiFlags.certHost)
-      .withShutdownTimeout(channelShutdownTimeout)
-
-  val computationLogEntriesClient =
+  protected val computationLogEntriesClient by lazy {
+    val clientCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = serverFlags.tlsFlags.certFile,
+        privateKeyFile = serverFlags.tlsFlags.privateKeyFile,
+        trustedCertCollectionFile = serverFlags.tlsFlags.certCollectionFile
+      )
+    val channel: ManagedChannel =
+      buildMutualTlsChannel(systemApiFlags.target, clientCerts, systemApiFlags.certHost)
+        .withShutdownTimeout(channelShutdownTimeout)
     ComputationLogEntriesCoroutineStub(channel).withDuchyId(duchyFlags.duchyName)
+  }
 
   protected suspend fun run(services: DuchyDataServices) {
     val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services.toList())

@@ -26,7 +26,6 @@ class ComputationStageAttemptReader {
 
   data class UnfinishedAttempt(
     val computationId: Long,
-    val protocol: Long,
     val computationStage: Long,
     val attempt: Long,
     val details: ComputationStageAttemptDetails
@@ -35,7 +34,6 @@ class ComputationStageAttemptReader {
       row: ResultRow
     ) : this(
       computationId = row["ComputationId"],
-      protocol = row["Protocol"],
       computationStage = row["ComputationStage"],
       attempt = row["Attempt"],
       details = row.getProtoMessage("Details", ComputationStageAttemptDetails.parser())
