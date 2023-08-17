@@ -1,0 +1,16 @@
+load("@wfa_rules_swig//java:defs.bzl", "java_wrap_cc")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
+])
+
+java_wrap_cc(
+    name = "reach_only_liquid_legions_v2_encryption_utility",
+    src = "reach_only_liquid_legions_v2_encryption_utility.swig",
+    module = "ReachOnlyLiquidLegionsV2EncryptionUtility",
+    package = "org.wfanet.measurement.internal.duchy.protocol.reachonlyliquidlegionsv2",
+    deps = [
+        "//src/main/cc/wfa/measurement/internal/duchy/protocol/liquid_legions_v2:reach_only_liquid_legions_v2_encryption_utility_wrapper",
+    ],
+)
