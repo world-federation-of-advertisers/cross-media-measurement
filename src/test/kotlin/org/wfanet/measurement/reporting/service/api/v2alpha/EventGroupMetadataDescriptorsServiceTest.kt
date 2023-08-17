@@ -147,7 +147,7 @@ class EventGroupMetadataDescriptorsServiceTest {
   }
 
   @Test
-  fun `getEventGroupMetadataDescriptors throws NOT_FOUND when kingdom returns not found`() {
+  fun `getEventGroupMetadataDescriptor throws NOT_FOUND when kingdom returns not found`() {
     runBlocking {
       whenever(
           publicKingdomEventGroupMetadataDescriptorsMock.getEventGroupMetadataDescriptor(any())

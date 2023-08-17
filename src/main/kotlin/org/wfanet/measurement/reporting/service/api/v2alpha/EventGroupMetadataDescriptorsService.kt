@@ -67,6 +67,7 @@ class EventGroupMetadataDescriptorsService(
         .asRuntimeException()
     }
   }
+
   override suspend fun batchGetEventGroupMetadataDescriptors(
     request: BatchGetEventGroupMetadataDescriptorsRequest
   ): BatchGetEventGroupMetadataDescriptorsResponse {
