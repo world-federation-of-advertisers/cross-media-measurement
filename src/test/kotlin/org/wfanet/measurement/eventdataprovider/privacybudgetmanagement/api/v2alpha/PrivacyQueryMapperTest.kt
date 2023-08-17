@@ -40,7 +40,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Landscap
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDirectAcdpQuery
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDpQuery
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getMpcAcdpQuery
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getLiquidLegionsV2AcdpQuery
 
 class PrivacyQueryMapperTest {
 
@@ -144,7 +144,7 @@ class PrivacyQueryMapperTest {
     val expectedAcdpCharge = AcdpParamsConverter.getLlv2AcdpCharge(dpParams, CONTRIBUTOR_COUNT)
 
     assertThat(
-        getMpcAcdpQuery(
+        getLiquidLegionsV2AcdpQuery(
           Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
           REACH_AND_FREQ_MEASUREMENT_SPEC,
           REQUISITION_SPEC.eventGroupsList.map { it.value },
@@ -202,7 +202,7 @@ class PrivacyQueryMapperTest {
       )
 
     assertThat(
-        getMpcAcdpQuery(
+        getLiquidLegionsV2AcdpQuery(
           Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
           REACH_MEASUREMENT_SPEC,
           REQUISITION_SPEC.eventGroupsList.map { it.value },
