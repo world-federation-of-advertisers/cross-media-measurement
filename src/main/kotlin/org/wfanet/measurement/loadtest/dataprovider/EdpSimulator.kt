@@ -125,7 +125,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDirectAcdpQuery
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDpQuery
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getMpcAcdpQuery
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getLiquidLegionsV2AcdpQuery
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
 import org.wfanet.measurement.loadtest.config.VidSampling
 
@@ -682,7 +682,7 @@ class EdpSimulator(
     }
   }
 
-  private suspend fun chargeMpcPrivacyBudget(
+  private suspend fun chargeLiquidLegionsV2PrivacyBudget(
     requisitionName: String,
     measurementSpec: MeasurementSpec,
     eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>,
@@ -690,7 +690,7 @@ class EdpSimulator(
     contributorCount: Int
   ) {
     logger.info(
-      "chargeMpcPrivacyBudget with $compositionMechanism composition mechanism for requisition with $noiseMechanism noise mechanism...",
+      "chargeLiquidLegionsV2PrivacyBudget with $compositionMechanism composition mechanism for requisition with $noiseMechanism noise mechanism...",
     )
 
     try {
@@ -711,7 +711,7 @@ class EdpSimulator(
           }
 
           privacyBudgetManager.chargePrivacyBudgetInAcdp(
-            getMpcAcdpQuery(
+            getLiquidLegionsV2AcdpQuery(
               Reference(measurementConsumerName, requisitionName, false),
               measurementSpec,
               eventSpecs,
@@ -721,7 +721,11 @@ class EdpSimulator(
         }
       }
     } catch (e: PrivacyBudgetManagerException) {
-      logger.log(Level.WARNING, "chargeMpcPrivacyBudget failed due to ${e.errorType}", e)
+      logger.log(
+        Level.WARNING,
+        "chargeLiquidLegionsV2PrivacyBudget failed due to ${e.errorType}",
+        e
+      )
       when (e.errorType) {
         PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED -> {
           throw RequisitionRefusalException(
@@ -870,7 +874,7 @@ class EdpSimulator(
     val liquidLegionsV2: ProtocolConfig.LiquidLegionsV2 = llv2Protocol.liquidLegionsV2
     val combinedPublicKey = requisition.getCombinedPublicKey(liquidLegionsV2.ellipticCurveId)
 
-    chargeMpcPrivacyBudget(
+    chargeLiquidLegionsV2PrivacyBudget(
       requisition.name,
       measurementSpec,
       eventGroupSpecs.map { it.spec },
@@ -925,7 +929,7 @@ class EdpSimulator(
     val combinedPublicKey =
       requisition.getCombinedPublicKey(reachOnlyLiquidLegionsV2.ellipticCurveId)
 
-    chargeMpcPrivacyBudget(
+    chargeLiquidLegionsV2PrivacyBudget(
       requisition.name,
       measurementSpec,
       eventGroupSpecs.map { it.spec },
