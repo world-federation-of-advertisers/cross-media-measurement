@@ -46,13 +46,6 @@ def wfa_measurement_system_repositories():
     )
 
     wfa_repo_archive(
-        name = "uk_pilot_event_templates",
-        repo = "uk-pilot-event-templates",
-        sha256 = "3bfdd43620bdbbf820aecba6625a758c0e7469ff92596adb9b83bb2aa8052cad",
-        version = "0.1.0",
-    )
-
-    wfa_repo_archive(
         name = "wfa_rules_swig",
         commit = "653d1bdcec85a9373df69920f35961150cf4b1b6",
         repo = "rules_swig",
