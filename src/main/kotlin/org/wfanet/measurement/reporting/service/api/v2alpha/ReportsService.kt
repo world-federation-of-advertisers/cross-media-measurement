@@ -164,9 +164,12 @@ class ReportsService(
 
     return listReportsResponse {
       reports +=
-        filterReports(subResults.map { internalReport ->
-          convertInternalReportToPublic(internalReport, externalIdToMetricMap)
-        }, request.filter)
+        filterReports(
+          subResults.map { internalReport ->
+            convertInternalReportToPublic(internalReport, externalIdToMetricMap)
+          },
+          request.filter
+        )
 
       if (nextPageToken != null) {
         this.nextPageToken = nextPageToken.toByteString().base64UrlEncode()
@@ -771,8 +774,8 @@ private fun filterReports(reports: List<Report>, filter: String): List<Report> {
     }
   if (astAndIssues.hasIssues()) {
     throw Status.INVALID_ARGUMENT.withDescription(
-      "filter is not a valid CEL expression: ${astAndIssues.issues}"
-    )
+        "filter is not a valid CEL expression: ${astAndIssues.issues}"
+      )
       .asRuntimeException()
   }
   val program = ENV.program(astAndIssues.ast)
@@ -811,13 +814,12 @@ private fun buildCelEnvironment(): Env {
       EnvOption.customTypeProvider(celTypeRegistry),
       EnvOption.customTypeAdapter(celTypeRegistry),
       EnvOption.declarations(
-        reportDescriptor.fields
-          .map {
-            Decls.newVar(
-              it.name,
-              celTypeRegistry.findFieldType(reportDescriptor.fullName, it.name).type
-            )
-          }
+        reportDescriptor.fields.map {
+          Decls.newVar(
+            it.name,
+            celTypeRegistry.findFieldType(reportDescriptor.fullName, it.name).type
+          )
+        }
       )
     )
   return env
