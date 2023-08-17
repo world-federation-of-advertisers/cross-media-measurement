@@ -30,3 +30,35 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )
+
+kt_jvm_test(
+    name = "ReachOnlyLiquidLegionsV2EncryptionUtilityTest",
+    srcs = ["ReachOnlyLiquidLegionsV2EncryptionUtilityTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.ReachOnlyLiquidLegionsV2EncryptionUtilityTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/utils:computation_conversions",
+        "//src/main/proto/wfa/any_sketch:sketch_kt_jvm_proto",
+        "//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:reach_only_liquid_legions_v2_encryption_methods_kt_jvm_proto",
+        "//src/main/swig/protocol/reachonlyliquidlegionsv2:reach_only_liquid_legions_v2_encryption_utility",
+        "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
+        "@any_sketch_java//src/main/java/org/wfanet/estimation:estimators",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_test(
+    name = "JniReachOnlyLiquidLegionsV2EncryptionTest",
+    srcs = ["JniReachOnlyLiquidLegionsV2EncryptionTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniReachOnlyLiquidLegionsV2EncryptionTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2/crypto:reachonlyliquidlegionsv2encryption",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:reach_only_liquid_legions_v2_encryption_methods_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
