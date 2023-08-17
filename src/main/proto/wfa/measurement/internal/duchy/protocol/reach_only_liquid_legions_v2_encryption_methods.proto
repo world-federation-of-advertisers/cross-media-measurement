@@ -17,7 +17,6 @@ syntax = "proto3";
 package wfa.measurement.internal.duchy.protocol;
 
 import "wfa/measurement/internal/duchy/crypto.proto";
-import "wfa/measurement/internal/duchy/differential_privacy.proto";
 import "wfa/measurement/internal/duchy/protocol/liquid_legions_sketch_parameter.proto";
 import "wfa/measurement/internal/duchy/protocol/liquid_legions_v2_encryption_methods.proto";
 import "wfa/measurement/internal/duchy/protocol/liquid_legions_v2_noise_config.proto";
