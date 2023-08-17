@@ -77,14 +77,6 @@ duchy: #Duchy & {
 	_duchyMillParallelism:      4
 
 	deployments: {
-		"spanner-computations-server-deployment": {
-			_container: {
-				resources: #InternalServerResourceRequirements
-			}
-			spec: template: spec: #ServiceAccountPodSpec & {
-				serviceAccountName: #InternalServerServiceAccount
-			}
-		}
 		"herald-daemon-deployment": {
 			_container: {
 				resources: #HeraldResourceRequirements
@@ -111,6 +103,40 @@ duchy: #Duchy & {
 		"requisition-fulfillment-server-deployment": {
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #StorageServiceAccount
+			}
+		}
+	}
+}
+
+if (_duchy_name != "worker2") {
+	duchy: duchy & #SpannerDuchy & {
+		deployments: {
+			"\(#SpannerDuchy._duchy_data_server_deployment_name)": {
+				_container: {
+					resources: #InternalServerResourceRequirements
+				}
+				spec: template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #InternalServerServiceAccount
+				}
+			}
+		}
+	}
+}
+
+if (_duchy_name == "worker2") {
+	duchy: duchy & #PostgresDuchy & {
+		_postgresConfig: {
+			iamUserLocal: "worker2-duchy-internal"
+			database:     "worker2_duchy_computations"
+		}
+		deployments: {
+			"\(#PostgresDuchy._duchy_data_server_deployment_name)": {
+				_container: {
+					resources: #InternalServerResourceRequirements
+				}
+				spec: template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #InternalServerServiceAccount
+				}
 			}
 		}
 	}

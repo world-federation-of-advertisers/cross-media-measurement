@@ -104,6 +104,8 @@ jobs:
         SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
         KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
         STORAGE_BUCKET: ${{ vars.STORAGE_BUCKET }}
+        POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
+        GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
       run: >
         bazelisk build 
         "//src/main/k8s/dev:${DUCHY_NAME}_duchy.tar"
@@ -115,6 +117,8 @@ jobs:
         --define "kingdom_system_api_target=$KINGDOM_SYSTEM_API_TARGET"
         --define "duchy_storage_bucket=$STORAGE_BUCKET"
         --define "duchy_cert_id=$DUCHY_CERT_ID"
+        --define "postgres_instance=$POSTGRES_INSTANCE"
+        --define "postgres_region=$GCLOUD_REGION"
 
     - name: Make Kustomization dir
       run: mkdir -p "$KUSTOMIZATION_PATH"

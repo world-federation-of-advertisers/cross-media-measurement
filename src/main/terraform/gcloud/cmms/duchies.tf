@@ -127,11 +127,13 @@ module "worker1_duchy" {
 module "worker2_duchy" {
   source = "../modules/duchy"
   providers = {
+    google     = google
     kubernetes = kubernetes.worker2
   }
 
-  name             = "worker2"
-  database_name    = "worker2_duchy_computations"
-  spanner_instance = google_spanner_instance.spanner_instance
-  storage_bucket   = module.storage.storage_bucket
+  name              = "worker2"
+  database_name     = "worker2_duchy_computations"
+  spanner_instance  = google_spanner_instance.spanner_instance
+  postgres_instance = google_sql_database_instance.postgres
+  storage_bucket    = module.storage.storage_bucket
 }
