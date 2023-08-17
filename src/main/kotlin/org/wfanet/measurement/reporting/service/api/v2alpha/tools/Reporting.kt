@@ -487,14 +487,9 @@ class GetDataProvider : Runnable {
   private lateinit var cmmsDataProviderName: String
 
   override fun run() {
-    val request = getDataProviderRequest {
-      name = cmmsDataProviderName
-    }
+    val request = getDataProviderRequest { name = cmmsDataProviderName }
 
-    val response =
-      runBlocking(Dispatchers.IO) {
-        parent.dataProviderStub.getDataProvider(request)
-      }
+    val response = runBlocking(Dispatchers.IO) { parent.dataProviderStub.getDataProvider(request) }
 
     println(response)
   }

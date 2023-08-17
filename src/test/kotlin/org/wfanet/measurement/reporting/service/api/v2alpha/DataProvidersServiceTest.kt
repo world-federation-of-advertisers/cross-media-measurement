@@ -50,29 +50,20 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 
-
 @RunWith(JUnit4::class)
 class DataProvidersServiceTest {
-  private val publicKingdomDataProvidersMock:
-    DataProvidersCoroutineImplBase =
-    mockService {
-      onBlocking { getDataProvider(any()) }
-        .thenReturn(DATA_PROVIDER)
-    }
+  private val publicKingdomDataProvidersMock: DataProvidersCoroutineImplBase = mockService {
+    onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER)
+  }
 
   @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule {
-    addService(publicKingdomDataProvidersMock)
-  }
+  val grpcTestServerRule = GrpcTestServerRule { addService(publicKingdomDataProvidersMock) }
 
   private lateinit var service: DataProvidersService
 
   @Before
   fun initService() {
-    service =
-      DataProvidersService(
-        DataProvidersCoroutineStub(grpcTestServerRule.channel)
-      )
+    service = DataProvidersService(DataProvidersCoroutineStub(grpcTestServerRule.channel))
   }
 
   @Test
@@ -80,9 +71,7 @@ class DataProvidersServiceTest {
     val response =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
         runBlocking {
-          service.getDataProvider(
-            getDataProviderRequest { name = DATA_PROVIDER_NAME }
-          )
+          service.getDataProvider(getDataProviderRequest { name = DATA_PROVIDER_NAME })
         }
       }
 
@@ -92,9 +81,7 @@ class DataProvidersServiceTest {
         publicKingdomDataProvidersMock,
         DataProvidersCoroutineImplBase::getDataProvider
       )
-      .isEqualTo(
-        getDataProviderRequest { name = DATA_PROVIDER_NAME }
-      )
+      .isEqualTo(getDataProviderRequest { name = DATA_PROVIDER_NAME })
   }
 
   @Test
@@ -103,9 +90,7 @@ class DataProvidersServiceTest {
       assertFailsWith<StatusRuntimeException> {
         withDataProviderPrincipal(DATA_PROVIDER_NAME) {
           runBlocking {
-            service.getDataProvider(
-              getDataProviderRequest { name = DATA_PROVIDER_NAME }
-            )
+            service.getDataProvider(getDataProviderRequest { name = DATA_PROVIDER_NAME })
           }
         }
       }
@@ -119,9 +104,7 @@ class DataProvidersServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
-          service.getDataProvider(
-            getDataProviderRequest { name = DATA_PROVIDER_NAME }
-          )
+          service.getDataProvider(getDataProviderRequest { name = DATA_PROVIDER_NAME })
         }
       }
 
@@ -134,9 +117,7 @@ class DataProvidersServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
-          runBlocking {
-            service.getDataProvider(getDataProviderRequest {})
-          }
+          runBlocking { service.getDataProvider(getDataProviderRequest {}) }
         }
       }
 
@@ -147,9 +128,7 @@ class DataProvidersServiceTest {
   @Test
   fun `getDataProvider throws NOT_FOUND when kingdom returns not found`() {
     runBlocking {
-      whenever(
-          publicKingdomDataProvidersMock.getDataProvider(any())
-        )
+      whenever(publicKingdomDataProvidersMock.getDataProvider(any()))
         .thenThrow(Status.NOT_FOUND.asRuntimeException())
     }
 
@@ -157,9 +136,7 @@ class DataProvidersServiceTest {
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
           runBlocking {
-            service.getDataProvider(
-              getDataProviderRequest { name = DATA_PROVIDER_NAME }
-            )
+            service.getDataProvider(getDataProviderRequest { name = DATA_PROVIDER_NAME })
           }
         }
       }

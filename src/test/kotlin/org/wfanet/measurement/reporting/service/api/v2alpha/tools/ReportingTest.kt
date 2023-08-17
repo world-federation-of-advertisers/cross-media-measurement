@@ -86,12 +86,9 @@ class ReportingTest {
     onBlocking { listEventGroups(any()) }
       .thenReturn(listEventGroupsResponse { eventGroups += EVENT_GROUP })
   }
-  private val dataProvidersServiceMock:
-    DataProvidersCoroutineImplBase =
-    mockService {
-      onBlocking { getDataProvider(any()) }
-        .thenReturn(DATA_PROVIDER)
-    }
+  private val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService {
+    onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER)
+  }
 
   private val serverCerts =
     SigningCerts.fromPemFiles(
@@ -572,16 +569,9 @@ class ReportingTest {
       )
     val output = callCli(args)
 
-    verifyProtoArgument(
-        dataProvidersServiceMock,
-        DataProvidersCoroutineImplBase::getDataProvider
-      )
-      .isEqualTo(
-        getDataProviderRequest { name = DATA_PROVIDER_NAME }
-      )
-    assertThat(
-        parseTextProto(output.out.reader(), DataProvider.getDefaultInstance())
-      )
+    verifyProtoArgument(dataProvidersServiceMock, DataProvidersCoroutineImplBase::getDataProvider)
+      .isEqualTo(getDataProviderRequest { name = DATA_PROVIDER_NAME })
+    assertThat(parseTextProto(output.out.reader(), DataProvider.getDefaultInstance()))
       .isEqualTo(DATA_PROVIDER)
   }
 
@@ -648,8 +638,6 @@ class ReportingTest {
 
     private const val EVENT_GROUP_NAME = "$MEASUREMENT_CONSUMER_NAME/eventGroups/1"
     private val EVENT_GROUP = eventGroup { name = EVENT_GROUP_NAME }
-    private val DATA_PROVIDER = dataProvider {
-      name = DATA_PROVIDER_NAME
-    }
+    private val DATA_PROVIDER = dataProvider { name = DATA_PROVIDER_NAME }
   }
 }

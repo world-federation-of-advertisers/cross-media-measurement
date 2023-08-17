@@ -18,8 +18,8 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import io.grpc.Status
 import io.grpc.StatusException
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvider
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
@@ -30,9 +30,7 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 class DataProvidersService(
   private val dataProvidersStub: DataProvidersCoroutineStub,
 ) : DataProvidersCoroutineImplBase() {
-  override suspend fun getDataProvider(
-    request: GetDataProviderRequest
-  ): DataProvider {
+  override suspend fun getDataProvider(request: GetDataProviderRequest): DataProvider {
     val principal: ReportingPrincipal = principalFromCurrentContext
     when (principal) {
       is MeasurementConsumerPrincipal -> {}
@@ -45,11 +43,9 @@ class DataProvidersService(
     }
 
     return try {
-     dataProvidersStub
+      dataProvidersStub
         .withAuthenticationKey(apiAuthenticationKey)
-        .getDataProvider(
-          getDataProviderRequest { name = request.name }
-        )
+        .getDataProvider(getDataProviderRequest { name = request.name })
     } catch (e: StatusException) {
       throw when (e.status.code) {
           Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED

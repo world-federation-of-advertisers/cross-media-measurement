@@ -1734,9 +1734,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     val dataProvider =
       publicDataProvidersClient
         .withPrincipalName(measurementConsumerData.name)
-        .getDataProvider(
-          getDataProviderRequest { name = dataProviderName }
-        )
+        .getDataProvider(getDataProviderRequest { name = dataProviderName })
 
     assertThat(DataProviderCertificateKey.fromName(dataProvider.certificate)).isNotNull()
   }
