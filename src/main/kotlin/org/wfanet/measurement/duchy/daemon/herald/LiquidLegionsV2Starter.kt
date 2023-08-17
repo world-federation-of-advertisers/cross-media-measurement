@@ -298,7 +298,7 @@ object LiquidLegionsV2Starter {
 
     return parameters {
       maximumFrequency = llv2Config.maximumFrequency
-      liquidLegionsSketch = liquidLegionsSketchParameters {
+      sketchParameters = liquidLegionsSketchParameters {
         decayRate = llv2Config.sketchParams.decayRate
         size = llv2Config.sketchParams.maxSize
       }
