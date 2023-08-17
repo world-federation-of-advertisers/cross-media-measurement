@@ -27,6 +27,7 @@ import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.math.log2
 import kotlin.random.Random
 import kotlin.random.asJavaRandom
 import kotlinx.coroutines.flow.Flow
@@ -120,7 +121,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getPrivacyQuery
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDpQuery
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
 import org.wfanet.measurement.loadtest.config.VidSampling
 
@@ -673,7 +674,7 @@ class EdpSimulator(
   ) {
     try {
       privacyBudgetManager.chargePrivacyBudget(
-        getPrivacyQuery(
+        getDpQuery(
           Reference(measurementConsumerName, requisitionName, false),
           measurementSpec,
           eventSpecs
@@ -1083,12 +1084,15 @@ class EdpSimulator(
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec
   ) {
+    val externalDataProviderId =
+      apiIdToExternalId(DataProviderKey.fromName(edpData.name)!!.dataProviderId)
     val measurementResult =
       MeasurementKt.result {
         watchDuration = watchDuration {
           value = duration {
-            // Use externalDataProviderId since it's a known value the FrontendSimulator can verify.
-            seconds = apiIdToExternalId(DataProviderKey.fromName(edpData.name)!!.dataProviderId)
+            // Use a value based on the externalDataProviderId since it's a known value the
+            // MeasurementConsumerSimulator can verify.
+            seconds = log2(externalDataProviderId.toDouble()).toLong()
           }
         }
       }

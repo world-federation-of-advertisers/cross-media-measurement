@@ -1,0 +1,23 @@
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+
+package(
+    default_visibility = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui:__subpackages__",
+    ],
+)
+
+js_library(
+    name = "icon",
+    srcs = [
+        "add.tsx",
+        "download.tsx",
+        "filter.tsx",
+        "filter_chart.tsx",
+        "index.ts",
+        "logo.tsx",
+        "menu.tsx",
+        "options.tsx",
+        "square.tsx",
+        "trailing.tsx",
+    ],
+)
