@@ -40,7 +40,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Landscap
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDirectAcdpQuery
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDpQuery
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getMpcAcdpQuery
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getLiquidLegionsV2AcdpQuery
 
 private const val MEASUREMENT_CONSUMER_ID = "ACME"
 
@@ -206,7 +206,7 @@ class PrivacyQueryMapperTest {
   }
 
   @Test
-  fun `converts mpc reach and frequency measurement to AcdpQuery`() {
+  fun `converts llv2 reach and frequency measurement to AcdpQuery`() {
     val referenceId = "RequisitionId1"
     val dpParams =
       DpParams(
@@ -215,10 +215,10 @@ class PrivacyQueryMapperTest {
         REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.reachPrivacyParams.delta +
           REACH_AND_FREQ_MEASUREMENT_SPEC.reachAndFrequency.frequencyPrivacyParams.delta
       )
-    val expectedAcdpCharge = AcdpParamsConverter.getMpcAcdpCharge(dpParams, CONTRIBUTOR_COUNT)
+    val expectedAcdpCharge = AcdpParamsConverter.getLlv2AcdpCharge(dpParams, CONTRIBUTOR_COUNT)
 
     assertThat(
-        getMpcAcdpQuery(
+        getLiquidLegionsV2AcdpQuery(
           Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
           REACH_AND_FREQ_MEASUREMENT_SPEC,
           REQUISITION_SPEC.events.eventGroupsList.map { it.value },
@@ -263,11 +263,11 @@ class PrivacyQueryMapperTest {
   }
 
   @Test
-  fun `converts mpc reach measurement to AcdpQuery`() {
+  fun `converts llv2 reach measurement to AcdpQuery`() {
     val referenceId = "RequisitionId1"
 
     val expectedAcdpCharge =
-      AcdpParamsConverter.getMpcAcdpCharge(
+      AcdpParamsConverter.getLlv2AcdpCharge(
         DpParams(
           REACH_MEASUREMENT_SPEC.reach.privacyParams.epsilon,
           REACH_MEASUREMENT_SPEC.reach.privacyParams.delta
@@ -276,7 +276,7 @@ class PrivacyQueryMapperTest {
       )
 
     assertThat(
-        getMpcAcdpQuery(
+        getLiquidLegionsV2AcdpQuery(
           Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
           REACH_MEASUREMENT_SPEC,
           REQUISITION_SPEC.events.eventGroupsList.map { it.value },
