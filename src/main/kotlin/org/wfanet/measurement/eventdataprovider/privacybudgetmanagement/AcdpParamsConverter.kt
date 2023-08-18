@@ -30,19 +30,19 @@ import org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiser
  * only works for Gaussian noise and will not work with other noising mechanism(e.g. Laplace).
  */
 object AcdpParamsConverter {
-  /** Memoized computation of MPC ACDP params conversion results. */
-  private val mpcAcdpParamsConversionResults =
-    ConcurrentHashMap<MpcAcdpParamsConversionKey, AcdpCharge>()
+  /** Memoized computation of LLV2 based MPC ACDP params conversion results. */
+  private val llv2AcdpParamsConversionResults =
+    ConcurrentHashMap<Llv2AcdpParamsConversionKey, AcdpCharge>()
 
   /**
-   * Convert MPC per-query DP charge(epsilon, delta) to ACDP charge(rho, theta). The computation
-   * result is memoized.
+   * Convert LLV2 based MPC per-query DP charge(epsilon, delta) to ACDP charge(rho, theta). The
+   * computation result is memoized.
    *
    * @param privacyParams Internal DifferentialPrivacyParams.
    * @param contributorCount Number of Duchies.
    * @return ACDP charge(rho, theta).
    */
-  fun getMpcAcdpCharge(
+  fun getLlv2AcdpCharge(
     privacyParams: DpParams,
     contributorCount: Int,
   ): AcdpCharge {
@@ -50,10 +50,10 @@ object AcdpParamsConverter {
       "Epsilon, delta, and contributor count must be positive, but got: epsilon=${privacyParams.epsilon} delta=${privacyParams.delta} contributorCount=$contributorCount"
     }
 
-    return mpcAcdpParamsConversionResults.getOrPut(
-      MpcAcdpParamsConversionKey(privacyParams, contributorCount)
+    return llv2AcdpParamsConversionResults.getOrPut(
+      Llv2AcdpParamsConversionKey(privacyParams, contributorCount)
     ) {
-      computeMpcRhoAndTheta(privacyParams, contributorCount)
+      computeLlv2RhoAndTheta(privacyParams, contributorCount)
     }
   }
 
@@ -83,9 +83,9 @@ object AcdpParamsConverter {
    * The sum of delta1 and delta2 should be delta. In practice, set delta1 = delta2 = 0.5 * delta
    * for simplicity.
    */
-  private fun getMpcDeltas(delta: Double): MpcDeltas = MpcDeltas(0.5 * delta, 0.5 * delta)
+  private fun getLlv2Deltas(delta: Double): MpcDeltas = MpcDeltas(0.5 * delta, 0.5 * delta)
 
-  private fun computeSigmaDistributedDiscreteGaussian(
+  private fun computeLlv2SigmaDistributedDiscreteGaussian(
     privacyParams: DpParams,
     contributorCount: Int
   ): Double {
@@ -96,7 +96,7 @@ object AcdpParamsConverter {
     // an approximation for discrete Gaussian noise here. It generally works for
     // epsilon <= 1 but not epsilon > 1
 
-    val deltas = getMpcDeltas(privacyParams.delta)
+    val deltas = getLlv2Deltas(privacyParams.delta)
     val delta1 = deltas.delta1
 
     // This simple formula to derive sigmaDistributed is valid only for
@@ -107,7 +107,7 @@ object AcdpParamsConverter {
     return sigma / sqrt(contributorCount.toDouble())
   }
 
-  private fun computeMuDiscreteGaussian(
+  private fun computeLlv2MuDiscreteGaussian(
     privacyParams: DpParams,
     sigmaDistributed: Double,
     contributorCount: Int
@@ -116,7 +116,7 @@ object AcdpParamsConverter {
     // The selection of these two parameters have the following effect: setting delta2 larger
     // results in smaller truncation threshold but larger noise standard
     // deviation.
-    val deltas = getMpcDeltas(privacyParams.delta)
+    val deltas = getLlv2Deltas(privacyParams.delta)
     val delta2 = deltas.delta2
 
     return ceil(
@@ -124,9 +124,10 @@ object AcdpParamsConverter {
     )
   }
 
-  private fun computeMpcRhoAndTheta(privacyParams: DpParams, contributorCount: Int): AcdpCharge {
-    val sigmaDistributed = computeSigmaDistributedDiscreteGaussian(privacyParams, contributorCount)
-    val mu = computeMuDiscreteGaussian(privacyParams, sigmaDistributed, contributorCount)
+  private fun computeLlv2RhoAndTheta(privacyParams: DpParams, contributorCount: Int): AcdpCharge {
+    val sigmaDistributed =
+      computeLlv2SigmaDistributedDiscreteGaussian(privacyParams, contributorCount)
+    val mu = computeLlv2MuDiscreteGaussian(privacyParams, sigmaDistributed, contributorCount)
 
     // For reach and frequency, the sensitivity Delta should be 1.
     val sensitivity = 1.0
@@ -150,7 +151,7 @@ object AcdpParamsConverter {
   }
 }
 
-private data class MpcAcdpParamsConversionKey(
+private data class Llv2AcdpParamsConversionKey(
   val privacyParams: DpParams,
   val contributorCount: Int,
 )
