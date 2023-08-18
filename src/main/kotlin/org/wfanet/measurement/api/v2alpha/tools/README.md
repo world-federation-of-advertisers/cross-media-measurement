@@ -3,16 +3,16 @@
 Command-line interface (CLI) tools for Cross-Media Measurement System public
 API.
 
+The examples assume that you have built the relevant target, which outputs to
+`bazel-bin` by default. For brevity, the examples to not include the full path
+to the executable.
+
 ## `EncryptionPublicKeys`
 
 Tool for dealing with `EncryptionPublicKey` messages. Run the `help` subcommand
 for usage information.
 
 ### Examples
-
-This assumes that you have built the `EncryptionPublicKeys` target, which
-outputs to `bazel-bin` by default. For brevity, the examples to not include the
-full path to the executable.
 
 *   Serializing testing ModelProvider encryption key
 
@@ -100,10 +100,6 @@ using the `--api-key` option.
 *   `update`
 
 ### Examples
-
-This assumes that you have built the `MeasurementSystem` target, which outputs
-to `bazel-bin` by default. For brevity, the examples do not include the full
-path to the executable.
 
 #### `accounts`
 
@@ -211,3 +207,15 @@ path to the executable.
     --encryption-private-key-file=secretfiles/mc_enc_private.tink \
     measurementConsumers/777/measurements/100
     ```
+
+## `EventTemplateValidator`
+
+Validates the event templates used in a given event message type. Use the
+`--help` option for usage information.
+
+The set of `FileDescriptorSet` files you provide must include your event message
+and all of your template messages. These can be obtained from the protobuf
+compiler (`protoc`) using the `--descriptor_set_out` option. If you are using
+`protoc` indirectly via
+[rules_proto](https://github.com/bazelbuild/rules_proto), the `proto_library`
+and `proto_descriptor_set` rules can generate these for you.

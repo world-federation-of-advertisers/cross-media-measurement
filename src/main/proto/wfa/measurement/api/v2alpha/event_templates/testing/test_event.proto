@@ -16,8 +16,6 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha.event_templates.testing;
 
-import "eventtemplates/common_template.proto";
-import "eventtemplates/video_event_template.proto";
 import "wfa/measurement/api/v2alpha/event_templates/testing/banner_ad.proto";
 import "wfa/measurement/api/v2alpha/event_templates/testing/person.proto";
 import "wfa/measurement/api/v2alpha/event_templates/testing/video.proto";
@@ -29,7 +27,4 @@ message TestEvent {
   Person person = 1;
   Video video_ad = 2;
   Banner banner_ad = 3;
-
-  eventtemplates.CommonTemplate common_template = 4;
-  eventtemplates.VideoEventTemplate video_event_template = 5;
 }

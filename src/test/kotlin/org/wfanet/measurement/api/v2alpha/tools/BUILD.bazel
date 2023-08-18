@@ -35,6 +35,24 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "EventTemplateValidatorTest",
+    srcs = ["EventTemplateValidatorTest.kt"],
+    data = [
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:bad_templates_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:banner_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:person_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:video_proto",
+    ],
+    jvm_flags = ["-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:event_template_validator",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
+
+kt_jvm_test(
     name = "BenchmarkTest",
     size = "small",
     srcs = ["BenchmarkTest.kt"],
