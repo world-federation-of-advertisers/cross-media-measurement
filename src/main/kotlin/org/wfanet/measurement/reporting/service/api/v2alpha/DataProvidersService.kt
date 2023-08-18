@@ -16,16 +16,11 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
-import io.grpc.Status
-import io.grpc.StatusException
 import org.wfanet.measurement.api.v2alpha.DataProvider
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
-import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.withAuthenticationKey
-import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 
 class DataProvidersService(
   private val dataProvidersStub: DataProvidersCoroutineStub,
@@ -38,23 +33,8 @@ class DataProvidersService(
 
     val apiAuthenticationKey: String = principal.config.apiKey
 
-    grpcRequireNotNull(DataProviderKey.fromName(request.name)) {
-      "Resource name is unspecified or invalid"
-    }
-
-    return try {
-      dataProvidersStub
-        .withAuthenticationKey(apiAuthenticationKey)
-        .getDataProvider(getDataProviderRequest { name = request.name })
-    } catch (e: StatusException) {
-      throw when (e.status.code) {
-          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-          Status.Code.CANCELLED -> Status.CANCELLED
-          Status.Code.NOT_FOUND -> Status.NOT_FOUND
-          else -> Status.UNKNOWN
-        }
-        .withCause(e)
-        .asRuntimeException()
-    }
+    return dataProvidersStub
+      .withAuthenticationKey(apiAuthenticationKey)
+      .getDataProvider(request)
   }
 }

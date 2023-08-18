@@ -21,6 +21,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import io.grpc.Status
+import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import java.security.cert.X509Certificate
 import kotlin.test.assertFailsWith
@@ -113,19 +114,6 @@ class DataProvidersServiceTest {
   }
 
   @Test
-  fun `getDataProvider throws INVALID_ARGUMENT when name is missing`() {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
-          runBlocking { service.getDataProvider(getDataProviderRequest {}) }
-        }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("name")
-  }
-
-  @Test
   fun `getDataProvider throws NOT_FOUND when kingdom returns not found`() {
     runBlocking {
       whenever(publicKingdomDataProvidersMock.getDataProvider(any()))
@@ -133,7 +121,7 @@ class DataProvidersServiceTest {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
+      assertFailsWith<StatusException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
           runBlocking {
             service.getDataProvider(getDataProviderRequest { name = DATA_PROVIDER_NAME })
