@@ -12,17 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-variable "spanner_instance" {
-  description = "`google_spanner_instance` for the system."
-  type = object({
-    name = string
-  })
-  nullable = false
-}
-
-variable "spanner_database_name" {
-  description = "Name of the Spanner database for the Kingdom."
-  type        = string
-  default     = "kingdom"
-  nullable    = false
+terraform {
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 4.63.0"
+    }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.20.0"
+    }
+  }
 }
