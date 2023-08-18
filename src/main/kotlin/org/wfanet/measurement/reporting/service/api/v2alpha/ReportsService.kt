@@ -700,8 +700,8 @@ class ReportsService(
       }
     if (astAndIssues.hasIssues()) {
       throw Status.INVALID_ARGUMENT.withDescription(
-        "filter is not a valid CEL expression: ${astAndIssues.issues}"
-      )
+          "filter is not a valid CEL expression: ${astAndIssues.issues}"
+        )
         .asRuntimeException()
     }
     val program = ENV.program(astAndIssues.ast)
