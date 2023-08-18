@@ -105,6 +105,8 @@ class FakeMeasurementsService(
             watchDuration =
               MeasurementKt.ResultKt.watchDuration { value = duration { seconds = 100 } }
           }
+        MeasurementSpec.MeasurementTypeCase.POPULATION ->
+          MeasurementKt.result { population = MeasurementKt.ResultKt.population { value = 100 } }
         MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
           failGrpc(Status.INVALID_ARGUMENT) { "MeasurementSpec MeasurementType not set" }
       }

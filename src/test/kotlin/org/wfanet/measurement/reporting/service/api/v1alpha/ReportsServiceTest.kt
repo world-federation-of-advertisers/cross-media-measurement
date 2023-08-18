@@ -82,6 +82,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
@@ -552,7 +553,7 @@ private val EVENT_GROUP_ENTRIES =
 private val REQUISITION_SPECS: Map<DataProviderKey, RequisitionSpec> =
   EVENT_GROUP_ENTRIES.mapValues {
     requisitionSpec {
-      eventGroups += it.value
+      events = RequisitionSpecKt.events { eventGroups += it.value }
       measurementPublicKey = MEASUREMENT_CONSUMERS.values.first().publicKey.data
       nonce = SECURE_RANDOM_OUTPUT_LONG
     }
@@ -1544,18 +1545,21 @@ class ReportsServiceTest {
 
           val requisitionSpecWithNoFilter =
             requisitionSpec.copy {
-              val eventGroupsWithNoFilter =
-                eventGroups.map { eventGroup ->
-                  eventGroup.copy {
-                    value =
-                      EventGroupEntryKt.value {
-                        collectionInterval = MEASUREMENT_TIME_INTERVAL
-                        filter = eventFilter { expression = "" }
+              events =
+                RequisitionSpecKt.events {
+                  val eventGroupsWithNoFilter =
+                    eventGroups.map { eventGroup ->
+                      eventGroup.copy {
+                        value =
+                          EventGroupEntryKt.value {
+                            collectionInterval = MEASUREMENT_TIME_INTERVAL
+                            filter = eventFilter { expression = "" }
+                          }
                       }
-                  }
+                    }
+                  eventGroups.clear()
+                  eventGroups += eventGroupsWithNoFilter
                 }
-              eventGroups.clear()
-              eventGroups += eventGroupsWithNoFilter
             }
           value =
             DataProviderEntryKt.value {
@@ -1625,7 +1629,7 @@ class ReportsServiceTest {
           TRUSTED_MEASUREMENT_CONSUMER_ISSUER
         )
 
-        requisitionSpec.eventGroupsList.map { eventGroupEntry ->
+        requisitionSpec.events.eventGroupsList.map { eventGroupEntry ->
           eventGroupEntry.value.filter.expression
         }
       }

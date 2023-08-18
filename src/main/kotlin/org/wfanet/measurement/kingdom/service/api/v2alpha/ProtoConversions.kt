@@ -205,6 +205,7 @@ fun InternalProtocolConfig.toProtocolConfig(
           ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
         MeasurementSpec.MeasurementTypeCase.IMPRESSION -> ProtocolConfig.MeasurementType.IMPRESSION
         MeasurementSpec.MeasurementTypeCase.DURATION -> ProtocolConfig.MeasurementType.DURATION
+        MeasurementSpec.MeasurementTypeCase.POPULATION -> ProtocolConfig.MeasurementType.POPULATION
       }
 
     when (measurementType) {
@@ -279,7 +280,8 @@ fun InternalProtocolConfig.toProtocolConfig(
         }
       }
       ProtocolConfig.MeasurementType.IMPRESSION,
-      ProtocolConfig.MeasurementType.DURATION -> {
+      ProtocolConfig.MeasurementType.DURATION,
+      ProtocolConfig.MeasurementType.POPULATION -> {
         protocols += protocol { direct = direct {} }
       }
       ProtocolConfig.MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED,
@@ -760,7 +762,8 @@ fun Measurement.toInternal(
           }
         }
         MeasurementSpec.MeasurementTypeCase.IMPRESSION,
-        MeasurementSpec.MeasurementTypeCase.DURATION, -> {}
+        MeasurementSpec.MeasurementTypeCase.DURATION,
+        MeasurementSpec.MeasurementTypeCase.POPULATION, -> {}
         MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
           error("MeasurementType not set.")
       }

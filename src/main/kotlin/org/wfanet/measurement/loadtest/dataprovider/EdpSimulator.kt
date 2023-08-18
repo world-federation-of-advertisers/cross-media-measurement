@@ -628,7 +628,7 @@ class EdpSimulator(
     requisitionSpec: RequisitionSpec
   ): List<EventQuery.EventGroupSpec> {
     // TODO(@SanjayVas): Cache EventGroups.
-    return requisitionSpec.eventGroupsList.map {
+    return requisitionSpec.events.eventGroupsList.map {
       val eventGroup =
         try {
           eventGroupsStub.getEventGroup(getEventGroupRequest { name = it.key })
@@ -1043,7 +1043,8 @@ class EdpSimulator(
         }
       }
       MeasurementSpec.MeasurementTypeCase.IMPRESSION,
-      MeasurementSpec.MeasurementTypeCase.DURATION -> {
+      MeasurementSpec.MeasurementTypeCase.DURATION,
+      MeasurementSpec.MeasurementTypeCase.POPULATION -> {
         error("Measurement type not supported.")
       }
       MeasurementSpec.MeasurementTypeCase.REACH -> {

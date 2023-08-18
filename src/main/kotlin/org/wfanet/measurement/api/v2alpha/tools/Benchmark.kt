@@ -77,6 +77,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt.value as eventGroupEntryValue
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
@@ -408,18 +409,22 @@ private fun getDataProviderEntry(
 ): Measurement.DataProviderEntry {
   return dataProviderEntry {
     val requisitionSpec = requisitionSpec {
-      eventGroups +=
-        dataProviderInput.eventGroupInputs.map {
-          eventGroupEntry {
-            key = it.name
-            value = eventGroupEntryValue {
-              collectionInterval = interval {
-                startTime = it.eventStartTime.toProtoTime()
-                endTime = it.eventEndTime.toProtoTime()
+      events =
+        RequisitionSpecKt.events {
+          eventGroups +=
+            dataProviderInput.eventGroupInputs.map {
+              eventGroupEntry {
+                key = it.name
+                value = eventGroupEntryValue {
+                  collectionInterval = interval {
+                    startTime = it.eventStartTime.toProtoTime()
+                    endTime = it.eventEndTime.toProtoTime()
+                  }
+                  if (it.eventFilter.isNotEmpty())
+                    filter = eventFilter { expression = it.eventFilter }
+                }
               }
-              if (it.eventFilter.isNotEmpty()) filter = eventFilter { expression = it.eventFilter }
             }
-          }
         }
       this.measurementPublicKey = measurementEncryptionPublicKey
       nonce = secureRandom.nextLong()

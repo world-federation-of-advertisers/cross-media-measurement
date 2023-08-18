@@ -714,7 +714,7 @@ class EdpSimulatorTest {
           MEASUREMENT_SPEC.vidSamplingInterval,
         )
         .generate(
-          REQUISITION_SPEC.eventGroupsList.map {
+          REQUISITION_SPEC.events.eventGroupsList.map {
             EventQuery.EventGroupSpec(eventGroup { name = it.key }, it.value)
           }
         )
@@ -819,7 +819,8 @@ class EdpSimulatorTest {
           refusal = refusal { justification = Refusal.Justification.SPEC_INVALID }
         }
       )
-    assertThat(refuseRequest.refusal.message).contains(REQUISITION_SPEC.eventGroupsList.first().key)
+    assertThat(refuseRequest.refusal.message)
+      .contains(REQUISITION_SPEC.events.eventGroupsList.first().key)
     assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
     verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
   }
@@ -1036,21 +1037,24 @@ class EdpSimulatorTest {
 
     private const val EVENT_GROUP_NAME = "$EDP_NAME/eventGroups/name"
     private val REQUISITION_SPEC = requisitionSpec {
-      eventGroups += eventGroupEntry {
-        key = EVENT_GROUP_NAME
-        value =
-          RequisitionSpecKt.EventGroupEntryKt.value {
-            collectionInterval = interval {
-              startTime = TIME_RANGE.start.toProtoTime()
-              endTime = TIME_RANGE.endExclusive.toProtoTime()
-            }
-            filter = eventFilter {
-              expression =
-                "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE} && " +
-                  "person.gender == ${Person.Gender.FEMALE_VALUE}"
-            }
+      events =
+        RequisitionSpecKt.events {
+          eventGroups += eventGroupEntry {
+            key = EVENT_GROUP_NAME
+            value =
+              RequisitionSpecKt.EventGroupEntryKt.value {
+                collectionInterval = interval {
+                  startTime = TIME_RANGE.start.toProtoTime()
+                  endTime = TIME_RANGE.endExclusive.toProtoTime()
+                }
+                filter = eventFilter {
+                  expression =
+                    "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE} && " +
+                      "person.gender == ${Person.Gender.FEMALE_VALUE}"
+                }
+              }
           }
-      }
+        }
       measurementPublicKey = MC_PUBLIC_KEY.toByteString()
       nonce = Random.Default.nextLong()
     }
