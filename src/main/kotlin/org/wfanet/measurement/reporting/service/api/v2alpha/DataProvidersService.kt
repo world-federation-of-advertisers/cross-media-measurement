@@ -33,8 +33,6 @@ class DataProvidersService(
 
     val apiAuthenticationKey: String = principal.config.apiKey
 
-    return dataProvidersStub
-      .withAuthenticationKey(apiAuthenticationKey)
-      .getDataProvider(request)
+    return dataProvidersStub.withAuthenticationKey(apiAuthenticationKey).getDataProvider(request)
   }
 }
