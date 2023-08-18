@@ -183,6 +183,6 @@ Reporting \
   --cert-collection-file=secretfiles/reporting_root.pem \
   --reporting-server-api-target=v2alpha.reporting.dev.halo-cmm.org:8443 \
   event-group-metadata-descriptors batch-get \
-  --cmms-event-group-metadata-descriptor=dataProviders/FeQ5FqAQ5_0/eventGroupMetadataDescriptors/clBPpgytI38 \
-  --cmms-event-group-metadata-descriptor=dataProviders/FeQ5FqAQ5_0/eventGroupMetadataDescriptors/AnBj8RB1XFc
+    dataProviders/FeQ5FqAQ5_0/eventGroupMetadataDescriptors/clBPpgytI38 \
+    dataProviders/FeQ5FqAQ5_0/eventGroupMetadataDescriptors/AnBj8RB1XFc
 ```

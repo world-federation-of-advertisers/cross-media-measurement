@@ -16,22 +16,16 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
-import io.grpc.Status
-import io.grpc.StatusException
 import org.wfanet.measurement.api.v2alpha.BatchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.BatchGetEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.GetEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
-import org.wfanet.measurement.api.v2alpha.getEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.api.ResourceKey
-import org.wfanet.measurement.common.grpc.grpcRequire
-import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 
 class EventGroupMetadataDescriptorsService(
   private val eventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
@@ -46,26 +40,9 @@ class EventGroupMetadataDescriptorsService(
 
     val apiAuthenticationKey: String = principal.config.apiKey
 
-    grpcRequireNotNull(EventGroupMetadataDescriptorKey.fromName(request.name)) {
-      "Resource name is unspecified or invalid"
-    }
-
-    return try {
-      eventGroupMetadataDescriptorsStub
-        .withAuthenticationKey(apiAuthenticationKey)
-        .getEventGroupMetadataDescriptor(
-          getEventGroupMetadataDescriptorRequest { name = request.name }
-        )
-    } catch (e: StatusException) {
-      throw when (e.status.code) {
-          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-          Status.Code.CANCELLED -> Status.CANCELLED
-          Status.Code.NOT_FOUND -> Status.NOT_FOUND
-          else -> Status.UNKNOWN
-        }
-        .withCause(e)
-        .asRuntimeException()
-    }
+    return eventGroupMetadataDescriptorsStub
+      .withAuthenticationKey(apiAuthenticationKey)
+      .getEventGroupMetadataDescriptor(request)
   }
 
   override suspend fun batchGetEventGroupMetadataDescriptors(
@@ -78,28 +55,13 @@ class EventGroupMetadataDescriptorsService(
 
     val apiAuthenticationKey: String = principal.config.apiKey
 
-    grpcRequire(request.namesCount > 0) {
-      "Must include at least one EventGroupMetadataDescriptor resource name"
-    }
-
-    return try {
-      eventGroupMetadataDescriptorsStub
-        .withAuthenticationKey(apiAuthenticationKey)
-        .batchGetEventGroupMetadataDescriptors(
-          batchGetEventGroupMetadataDescriptorsRequest {
-            parent = DataProviderKey(ResourceKey.WILDCARD_ID).toName()
-            names += request.namesList
-          }
-        )
-    } catch (e: StatusException) {
-      throw when (e.status.code) {
-          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-          Status.Code.CANCELLED -> Status.CANCELLED
-          Status.Code.NOT_FOUND -> Status.NOT_FOUND
-          else -> Status.UNKNOWN
+    return eventGroupMetadataDescriptorsStub
+      .withAuthenticationKey(apiAuthenticationKey)
+      .batchGetEventGroupMetadataDescriptors(
+        batchGetEventGroupMetadataDescriptorsRequest {
+          parent = DataProviderKey(ResourceKey.WILDCARD_ID).toName()
+          names += request.namesList
         }
-        .withCause(e)
-        .asRuntimeException()
-    }
+      )
   }
 }

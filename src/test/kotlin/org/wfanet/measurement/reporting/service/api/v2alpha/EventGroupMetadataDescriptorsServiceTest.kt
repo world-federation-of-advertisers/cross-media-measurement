@@ -19,6 +19,7 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import io.grpc.Status
+import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
@@ -132,21 +133,6 @@ class EventGroupMetadataDescriptorsServiceTest {
   }
 
   @Test
-  fun `getEventGroupMetadataDescriptor throws INVALID_ARGUMENT when name is missing`() {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
-          runBlocking {
-            service.getEventGroupMetadataDescriptor(getEventGroupMetadataDescriptorRequest {})
-          }
-        }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("name")
-  }
-
-  @Test
   fun `getEventGroupMetadataDescriptor throws NOT_FOUND when kingdom returns not found`() {
     runBlocking {
       whenever(
@@ -156,7 +142,7 @@ class EventGroupMetadataDescriptorsServiceTest {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
+      assertFailsWith<StatusException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
           runBlocking {
             service.getEventGroupMetadataDescriptor(
@@ -240,23 +226,6 @@ class EventGroupMetadataDescriptorsServiceTest {
   }
 
   @Test
-  fun `batchGetEventGroupMetadataDescriptors throws INVALID_ARGUMENT when no names`() {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
-          runBlocking {
-            service.batchGetEventGroupMetadataDescriptors(
-              batchGetEventGroupMetadataDescriptorsRequest {}
-            )
-          }
-        }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("name")
-  }
-
-  @Test
   fun `batchGetEventGroupMetadataDescriptors throws NOT_FOUND when kingdom returns not found`() {
     runBlocking {
       whenever(
@@ -268,7 +237,7 @@ class EventGroupMetadataDescriptorsServiceTest {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
+      assertFailsWith<StatusException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
           runBlocking {
             service.batchGetEventGroupMetadataDescriptors(

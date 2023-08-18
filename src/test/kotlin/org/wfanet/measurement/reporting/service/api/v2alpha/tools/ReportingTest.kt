@@ -596,23 +596,6 @@ class ReportingTest {
   }
 
   @Test
-  fun `get event group metadata descriptor fails when missing descriptor name`() {
-    val args =
-      arrayOf(
-        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
-        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
-        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
-        "--reporting-server-api-target=$HOST:${server.port}",
-        "event-group-metadata-descriptors",
-        "get",
-      )
-
-    val capturedOutput = callCli(args)
-
-    assertThat(capturedOutput).status().isEqualTo(2)
-  }
-
-  @Test
   fun `batch get event group metadata descriptors calls api with valid request`() {
     val args =
       arrayOf(
@@ -622,8 +605,8 @@ class ReportingTest {
         "--reporting-server-api-target=$HOST:${server.port}",
         "event-group-metadata-descriptors",
         "batch-get",
-        "--cmms-event-group-metadata-descriptor=$EVENT_GROUP_METADATA_DESCRIPTOR_NAME",
-        "--cmms-event-group-metadata-descriptor=$EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2",
+        EVENT_GROUP_METADATA_DESCRIPTOR_NAME,
+        EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2,
       )
 
     val output = callCli(args)
@@ -652,23 +635,6 @@ class ReportingTest {
           eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR_2
         }
       )
-  }
-
-  @Test
-  fun `batch get event group metadata descriptors fails when missing descriptor names`() {
-    val args =
-      arrayOf(
-        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
-        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
-        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
-        "--reporting-server-api-target=$HOST:${server.port}",
-        "event-group-metadata-descriptors",
-        "batch-get",
-      )
-
-    val capturedOutput = callCli(args)
-
-    assertThat(capturedOutput).status().isEqualTo(2)
   }
 
   companion object {

@@ -508,10 +508,8 @@ class GetEventGroupMetadataDescriptor : Runnable {
 class BatchGetEventGroupMetadataDescriptors : Runnable {
   @CommandLine.ParentCommand private lateinit var parent: EventGroupMetadataDescriptorsCommand
 
-  @CommandLine.Option(
-    names = ["--cmms-event-group-metadata-descriptor"],
+  @CommandLine.Parameters(
     description = ["List of CMMS EventGroupMetadataDescriptors resource names"],
-    required = true,
   )
   private var cmmsEventGroupMetadataDescriptorNames: List<String> = mutableListOf()
 
