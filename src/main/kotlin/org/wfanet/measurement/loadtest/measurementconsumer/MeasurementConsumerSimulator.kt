@@ -503,6 +503,7 @@ class MeasurementConsumerSimulator(
         getExpectedReachAndFrequencyResult(measurementInfo)
       MeasurementSpec.MeasurementTypeCase.IMPRESSION -> getExpectedImpressionResult()
       MeasurementSpec.MeasurementTypeCase.DURATION -> getExpectedDurationResult()
+      MeasurementSpec.MeasurementTypeCase.POPULATION -> getExpectedPopulationResult()
       MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
         error("measurement_type not set")
     }
@@ -513,6 +514,10 @@ class MeasurementConsumerSimulator(
   }
 
   private fun getExpectedImpressionResult(): Result {
+    TODO("Not yet implemented")
+  }
+
+  private fun getExpectedPopulationResult(): Result {
     TODO("Not yet implemented")
   }
 
@@ -665,17 +670,20 @@ class MeasurementConsumerSimulator(
 
     val requisitionSpec = requisitionSpec {
       for (eventGroup in eventGroups) {
-        this.eventGroups += eventGroupEntry {
-          key = eventGroup.name
-          value =
-            RequisitionSpecKt.EventGroupEntryKt.value {
-              collectionInterval = interval {
-                startTime = EVENT_RANGE.start.toProtoTime()
-                endTime = EVENT_RANGE.endExclusive.toProtoTime()
-              }
-              filter = eventFilter { expression = FILTER_EXPRESSION }
+        events =
+          RequisitionSpecKt.events {
+            this.eventGroups += eventGroupEntry {
+              key = eventGroup.name
+              value =
+                RequisitionSpecKt.EventGroupEntryKt.value {
+                  collectionInterval = interval {
+                    startTime = EVENT_RANGE.start.toProtoTime()
+                    endTime = EVENT_RANGE.endExclusive.toProtoTime()
+                  }
+                  filter = eventFilter { expression = FILTER_EXPRESSION }
+                }
             }
-        }
+          }
       }
       measurementPublicKey = measurementConsumer.publicKey.data
       this.nonce = nonce
@@ -751,4 +759,4 @@ class MeasurementConsumerSimulator(
 }
 
 private val RequisitionSpec.eventGroupsMap: Map<String, RequisitionSpec.EventGroupEntry.Value>
-  get() = eventGroupsList.associate { it.key to it.value }
+  get() = events.eventGroupsList.associate { it.key to it.value }

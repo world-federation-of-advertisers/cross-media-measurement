@@ -76,6 +76,7 @@ import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PublicKey
 import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt.PublicKeysCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt as EventGroupEntries
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
@@ -871,7 +872,7 @@ class CreateMeasurement : Runnable {
   ): Measurement.DataProviderEntry {
     return dataProviderEntry {
       val requisitionSpec = requisitionSpec {
-        eventGroups +=
+        val eventGroups =
           dataProviderInput.eventGroupInputs.map {
             eventGroupEntry {
               key = it.name
@@ -886,6 +887,8 @@ class CreateMeasurement : Runnable {
                 }
             }
           }
+        this.eventGroups += eventGroups
+        events = RequisitionSpecKt.events { this.eventGroups += eventGroups }
         this.measurementPublicKey = measurementEncryptionPublicKey
         nonce = secureRandom.nextLong()
       }
