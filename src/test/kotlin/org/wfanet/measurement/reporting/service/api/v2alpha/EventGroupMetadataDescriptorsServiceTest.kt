@@ -73,7 +73,8 @@ class EventGroupMetadataDescriptorsServiceTest {
   val grpcTestServerRule = GrpcTestServerRule {
     addService(
       ServerInterceptors.intercept(
-        publicKingdomEventGroupMetadataDescriptorsMock, headerCapturingInterceptor
+        publicKingdomEventGroupMetadataDescriptorsMock,
+        headerCapturingInterceptor
       )
     )
   }
@@ -102,11 +103,11 @@ class EventGroupMetadataDescriptorsServiceTest {
     assertThat(response).isEqualTo(EVENT_GROUP_METADATA_DESCRIPTOR)
 
     assertThat(
-      headerCapturingInterceptor
-        .captured(EventGroupMetadataDescriptorsGrpcKt.getEventGroupMetadataDescriptorMethod)
-        .single()
-        .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
-    )
+        headerCapturingInterceptor
+          .captured(EventGroupMetadataDescriptorsGrpcKt.getEventGroupMetadataDescriptorMethod)
+          .single()
+          .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
+      )
       .isEqualTo(API_AUTHENTICATION_KEY)
 
     verifyProtoArgument(
@@ -192,11 +193,13 @@ class EventGroupMetadataDescriptorsServiceTest {
         .containsExactly(EVENT_GROUP_METADATA_DESCRIPTOR, EVENT_GROUP_METADATA_DESCRIPTOR_2)
 
       assertThat(
-        headerCapturingInterceptor
-          .captured(EventGroupMetadataDescriptorsGrpcKt.batchGetEventGroupMetadataDescriptorsMethod)
-          .single()
-          .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
-      )
+          headerCapturingInterceptor
+            .captured(
+              EventGroupMetadataDescriptorsGrpcKt.batchGetEventGroupMetadataDescriptorsMethod
+            )
+            .single()
+            .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
+        )
         .isEqualTo(API_AUTHENTICATION_KEY)
 
       verifyProtoArgument(
