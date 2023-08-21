@@ -201,11 +201,11 @@ class InProcessCmmsComponents(
         2
       )
       RoLlv2ProtocolConfig.setForTest(
-        LLV2_PROTOCOL_CONFIG_CONFIG.protocolConfig,
-        LLV2_PROTOCOL_CONFIG_CONFIG.duchyProtocolConfig,
+        RO_LLV2_PROTOCOL_CONFIG_CONFIG.protocolConfig,
+        RO_LLV2_PROTOCOL_CONFIG_CONFIG.duchyProtocolConfig,
         setOf("aggregator"),
         2,
-        false
+        true
       )
       DuchyInfo.initializeFromConfig(
         loadTextProto("duchy_cert_config.textproto", DuchyCertConfig.getDefaultInstance())

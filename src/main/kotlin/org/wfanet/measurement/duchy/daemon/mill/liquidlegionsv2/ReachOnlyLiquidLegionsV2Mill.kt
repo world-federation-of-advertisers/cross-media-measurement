@@ -220,7 +220,7 @@ class ReachOnlyLiquidLegionsV2Mill(
         ComputationParticipantKt.requisitionParams {
           duchyCertificate = consentSignalCert.name
           reachOnlyLiquidLegionsV2 =
-            ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
+            RequisitionParamsKt.liquidLegionsV2 {
               elGamalPublicKey = signedElgamalPublicKey.data
               elGamalPublicKeySignature = signedElgamalPublicKey.signature
             }
