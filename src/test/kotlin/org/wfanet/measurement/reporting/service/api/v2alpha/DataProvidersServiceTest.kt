@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
+import io.grpc.ServerInterceptors
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
@@ -33,7 +34,9 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.api.ApiKeyConstants
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DuchyKey
@@ -47,6 +50,7 @@ import org.wfanet.measurement.common.crypto.testing.TestData
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.testing.HeaderCapturingInterceptor
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
@@ -57,8 +61,14 @@ class DataProvidersServiceTest {
     onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER)
   }
 
+  private val headerCapturingInterceptor = HeaderCapturingInterceptor()
+
   @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { addService(publicKingdomDataProvidersMock) }
+  val grpcTestServerRule = GrpcTestServerRule {
+    addService(
+      ServerInterceptors.intercept(publicKingdomDataProvidersMock, headerCapturingInterceptor)
+    )
+  }
 
   private lateinit var service: DataProvidersService
 
@@ -77,6 +87,14 @@ class DataProvidersServiceTest {
       }
 
     assertThat(response).isEqualTo(DATA_PROVIDER)
+
+    assertThat(
+      headerCapturingInterceptor
+        .captured(DataProvidersGrpcKt.getDataProviderMethod)
+        .single()
+        .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
+    )
+      .isEqualTo(API_AUTHENTICATION_KEY)
 
     verifyProtoArgument(
         publicKingdomDataProvidersMock,
