@@ -89,11 +89,11 @@ class DataProvidersServiceTest {
     assertThat(response).isEqualTo(DATA_PROVIDER)
 
     assertThat(
-      headerCapturingInterceptor
-        .captured(DataProvidersGrpcKt.getDataProviderMethod)
-        .single()
-        .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
-    )
+        headerCapturingInterceptor
+          .captured(DataProvidersGrpcKt.getDataProviderMethod)
+          .single()
+          .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
+      )
       .isEqualTo(API_AUTHENTICATION_KEY)
 
     verifyProtoArgument(
