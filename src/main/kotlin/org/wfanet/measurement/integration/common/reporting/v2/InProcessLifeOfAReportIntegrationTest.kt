@@ -1720,10 +1720,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   fun `retrieving metadata descriptors for event groups succeeds`() = runBlocking {
     val eventGroups = listEventGroups()
 
-    val descriptorNames = mutableSetOf<String>()
-    for (eventGroup in eventGroups) {
-      descriptorNames.add(eventGroup.metadata.eventGroupMetadataDescriptor)
-    }
+    val descriptorNames = eventGroups.map { it.metadata.eventGroupMetadataDescriptor }
 
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val descriptors =

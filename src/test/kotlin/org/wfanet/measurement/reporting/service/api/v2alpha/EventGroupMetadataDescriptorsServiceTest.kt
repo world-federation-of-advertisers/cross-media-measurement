@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import io.grpc.ServerInterceptors
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
@@ -30,8 +31,10 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.api.ApiKeyConstants
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorKey
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
@@ -44,6 +47,7 @@ import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.testing.HeaderCapturingInterceptor
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 
@@ -63,9 +67,15 @@ class EventGroupMetadataDescriptorsServiceTest {
         )
     }
 
+  private val headerCapturingInterceptor = HeaderCapturingInterceptor()
+
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
-    addService(publicKingdomEventGroupMetadataDescriptorsMock)
+    addService(
+      ServerInterceptors.intercept(
+        publicKingdomEventGroupMetadataDescriptorsMock, headerCapturingInterceptor
+      )
+    )
   }
 
   private lateinit var service: EventGroupMetadataDescriptorsService
@@ -90,6 +100,14 @@ class EventGroupMetadataDescriptorsServiceTest {
       }
 
     assertThat(response).isEqualTo(EVENT_GROUP_METADATA_DESCRIPTOR)
+
+    assertThat(
+      headerCapturingInterceptor
+        .captured(EventGroupMetadataDescriptorsGrpcKt.getEventGroupMetadataDescriptorMethod)
+        .single()
+        .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
+    )
+      .isEqualTo(API_AUTHENTICATION_KEY)
 
     verifyProtoArgument(
         publicKingdomEventGroupMetadataDescriptorsMock,
@@ -172,6 +190,14 @@ class EventGroupMetadataDescriptorsServiceTest {
 
       assertThat(response.eventGroupMetadataDescriptorsList)
         .containsExactly(EVENT_GROUP_METADATA_DESCRIPTOR, EVENT_GROUP_METADATA_DESCRIPTOR_2)
+
+      assertThat(
+        headerCapturingInterceptor
+          .captured(EventGroupMetadataDescriptorsGrpcKt.batchGetEventGroupMetadataDescriptorsMethod)
+          .single()
+          .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
+      )
+        .isEqualTo(API_AUTHENTICATION_KEY)
 
       verifyProtoArgument(
           publicKingdomEventGroupMetadataDescriptorsMock,
