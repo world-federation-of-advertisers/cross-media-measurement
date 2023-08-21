@@ -1,0 +1,87 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha.event_templates.testing;
+
+import "wfa/measurement/api/v2alpha/event_annotations.proto";
+
+option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing";
+option java_multiple_files = true;
+
+message MissingTemplateAnnotation {}
+
+message MissingFieldAnnotation {
+  option (.wfa.measurement.api.v2alpha.event_template) = {
+    name: "missing_field_annotation"
+    display_name: "Missing field annotation"
+  };
+
+  int32 field_without_annotation = 1;
+}
+
+message UnsupportedFieldType {
+  option (.wfa.measurement.api.v2alpha.event_template) = {
+    name: "unsupported_field_type"
+    display_name: "Unsupported field type"
+  };
+
+  message CustomMessage {}
+  CustomMessage custom_field = 1
+      [(.wfa.measurement.api.v2alpha.template_field).display_name =
+           "Custom field"];
+}
+
+message UnsupportedRepeatedField {
+  option (.wfa.measurement.api.v2alpha.event_template) = {
+    name: "unsupported_repeated_field"
+    display_name: "Repeated field"
+  };
+
+  repeated int32 repeated_field = 1
+      [(.wfa.measurement.api.v2alpha.template_field).display_name =
+           "32-bit integers"];
+}
+
+message Dummy {
+  option (.wfa.measurement.api.v2alpha.event_template) = {
+    name: "dummy"
+    display_name: "Dummy"
+  };
+
+  int32 annotated_field = 1
+      [(.wfa.measurement.api.v2alpha.template_field).display_name =
+           "32-bit integer"];
+}
+
+message MissingTemplateAnnotationEvent {
+  MissingTemplateAnnotation missing_template_annotation = 1;
+}
+
+message MismatchedTemplateNameEvent {
+  Dummy wrong_name = 1;
+}
+
+message MissingFieldAnnotationEvent {
+  MissingFieldAnnotation missing_field_annotation = 1;
+}
+
+message UnsupportedFieldTypeEvent {
+  UnsupportedFieldType unsupported_field_type = 1;
+}
+
+message UnsupportedRepeatedFieldEvent {
+  UnsupportedRepeatedField unsupported_repeated_field = 1;
+}

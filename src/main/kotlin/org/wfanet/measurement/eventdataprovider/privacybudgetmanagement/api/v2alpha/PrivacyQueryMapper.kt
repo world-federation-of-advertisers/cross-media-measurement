@@ -85,7 +85,21 @@ object PrivacyQueryMapper {
     )
   }
 
-  fun getMpcAcdpQuery(
+  /**
+   * Constructs a pbm specific [AcdpQuery] from given proto messages for LiquidLegionsV2 protocol.
+   *
+   * @param reference representing the reference key and if the charge is a refund.
+   * @param measurementSpec The measurementSpec protobuf that is associated with the query. The VID
+   *   sampling interval is obtained from this.
+   * @param eventSpecs event specs from the Requisition. The date range and demo groups are obtained
+   *   from this.
+   * @param contributorCount number of Duchies
+   * @throws
+   *   org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
+   *   if an error occurs in handling this request. Possible exceptions could include running out of
+   *   privacy budget or a failure to commit the transaction to the database.
+   */
+  fun getLiquidLegionsV2AcdpQuery(
     reference: Reference,
     measurementSpec: MeasurementSpec,
     eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>,
@@ -94,7 +108,7 @@ object PrivacyQueryMapper {
     val acdpCharge =
       when (measurementSpec.measurementTypeCase) {
         MeasurementTypeCase.REACH -> {
-          AcdpParamsConverter.getMpcAcdpCharge(
+          AcdpParamsConverter.getLlv2AcdpCharge(
             DpParams(
               measurementSpec.reach.privacyParams.epsilon,
               measurementSpec.reach.privacyParams.delta
@@ -111,7 +125,7 @@ object PrivacyQueryMapper {
                 measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta
             )
 
-          AcdpParamsConverter.getMpcAcdpCharge(
+          AcdpParamsConverter.getLlv2AcdpCharge(
             dpParams,
             contributorCount,
           )
@@ -133,6 +147,19 @@ object PrivacyQueryMapper {
     )
   }
 
+  /**
+   * Constructs a pbm specific [AcdpQuery] from given proto messages for direct measurements.
+   *
+   * @param reference representing the reference key and if the charge is a refund.
+   * @param measurementSpec The measurementSpec protobuf that is associated with the query. The VID
+   *   sampling interval is obtained from this.
+   * @param eventSpecs event specs from the Requisition. The date range and demo groups are obtained
+   *   from this.
+   * @throws
+   *   org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
+   *   if an error occurs in handling this request. Possible exceptions could include running out of
+   *   privacy budget or a failure to commit the transaction to the database.
+   */
   fun getDirectAcdpQuery(
     reference: Reference,
     measurementSpec: MeasurementSpec,
