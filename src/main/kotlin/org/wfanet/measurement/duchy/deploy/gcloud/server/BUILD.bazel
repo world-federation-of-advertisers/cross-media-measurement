@@ -113,6 +113,7 @@ java_image(
 kt_jvm_library(
     name = "gcs_postgres_duchy_data_server",
     srcs = ["GcsPostgresDuchyDataServer.kt"],
+    runtime_deps = ["@wfa_common_jvm//imports/java/com/google/cloud/sql/postgres:r2dbc"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:duchy_data_server",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/service:postgres_duchy_data_services",
