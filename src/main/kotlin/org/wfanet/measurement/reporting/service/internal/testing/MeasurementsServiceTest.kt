@@ -485,9 +485,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             MeasurementKt.result {
               reach = MeasurementKt.ResultKt.reach { value = 100L }
               frequency =
-                MeasurementKt.ResultKt.frequency {
-                  relativeFrequencyDistribution[2] = 0.2
-                }
+                MeasurementKt.ResultKt.frequency { relativeFrequencyDistribution[2] = 0.2 }
             }
         }
       )
@@ -499,9 +497,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             MeasurementKt.result {
               reach = MeasurementKt.ResultKt.reach { value = 200L }
               frequency =
-                MeasurementKt.ResultKt.frequency {
-                  relativeFrequencyDistribution[2] = 0.7
-                }
+                MeasurementKt.ResultKt.frequency { relativeFrequencyDistribution[2] = 0.7 }
             }
         }
       )
