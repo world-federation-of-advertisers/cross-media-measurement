@@ -1,0 +1,54 @@
+# reference: https://eksctl.io
+
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: duchy-test
+  region: us-west-2
+  version: "1.27"
+
+vpc:
+  id: "vpc-0d8b05271d88eedb2"
+  clusterEndpoints:
+    publicAccess: true
+    privateAccess: true
+  subnets:
+    private:
+      us-west-2a:
+        id: "subnet-03b22c3005b8b5f25"
+      us-west-2b:
+        id: "subnet-02f1d6467dfaf6949"
+    public:
+      us-west-2a:
+        id: "subnet-06c4eb36a9658e6b2"
+      us-west-2b:
+        id: "subnet-0d089658ac8b0d884"
+
+iam:
+  withOIDC: true
+  serviceAccounts:
+    - metadata:
+        name: internal-server
+        # if no namespace is set, "default" will be used;
+        # the namespace will be created if it doesn't exist already
+        namespace: default
+      attachRoleARN: "arn:aws:iam::010295286036:role/duchy-test-internal-server"
+    - metadata:
+        name: storage
+        namespace: default
+      attachRoleARN: "arn:aws:iam::010295286036:role/duchy-test-storage"
+
+secretsEncryption:
+  # KMS key used for envelope encryption of Kubernetes secrets
+  keyARN: arn:aws:kms:us-west-2:010295286036:key/942e6ee8-9087-4707-8044-ccc751883429
+
+fargateProfiles:
+  - name: fp-default
+    selectors:
+      # All workloads in the "default" Kubernetes namespace will be
+      # scheduled onto Fargate:
+      - namespace: default
+      # All workloads in the "kube-system" Kubernetes namespace will be
+      # scheduled onto Fargate:
+      - namespace: kube-system

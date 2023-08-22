@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.deploy.aws.server
 
+import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.aws.s3.S3StorageClient
 import org.wfanet.measurement.common.commandLineMain
@@ -25,7 +26,6 @@ import org.wfanet.measurement.duchy.deploy.common.service.PostgresDuchyDataServi
 import picocli.CommandLine
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.s3.S3AsyncClient
-import java.time.Clock
 
 /** Implementation of [DuchyDataServer] using Google Cloud Postgres and Google Cloud Storage (GCS). */
 @CommandLine.Command(
@@ -45,7 +45,10 @@ class S3PostgresDuchyDataServer : DuchyDataServer() {
     val clock = Clock.systemUTC()
     val idGenerator = RandomIdGenerator(clock)
 
-    val databaseClient = PostgresDatabaseClient.fromFlags(postgresFlags)
+//    val databaseClient = PostgresDatabaseClient.fromFlags(postgresFlags)
+
+    val factory = PostgresConnectionFactories.buildConnectionFactory(postgresFlags)
+    val databaseClient = PostgresDatabaseClient.fromConnectionFactory(factory)
     val storageClient =
       S3StorageClient(
         S3AsyncClient.builder().region(Region.of(s3Flags.s3Region)).build(),
