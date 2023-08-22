@@ -27,6 +27,7 @@ import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.math.log2
 import kotlin.random.Random
 import kotlin.random.asJavaRandom
 import kotlinx.coroutines.flow.Flow
@@ -68,6 +69,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.watchDuration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.DuchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
@@ -116,11 +118,14 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 import org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiser
 import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.CompositionMechanism
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getPrivacyQuery
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDirectAcdpQuery
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDpQuery
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getLiquidLegionsV2AcdpQuery
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
 import org.wfanet.measurement.loadtest.config.VidSampling
 
@@ -152,6 +157,7 @@ class EdpSimulator(
   private val directNoiseMechanism: DirectNoiseMechanism,
   private val sketchEncrypter: SketchEncrypter = SketchEncrypter.Default,
   private val random: Random = Random,
+  private val compositionMechanism: CompositionMechanism,
 ) {
   /** A sequence of operations done in the simulator. */
   suspend fun run() {
@@ -542,9 +548,19 @@ class EdpSimulator(
               eventGroupSpecs
             )
           } else if (measurementSpec.hasDuration()) {
-            fulfillDurationMeasurement(requisition, requisitionSpec, measurementSpec)
+            fulfillDurationMeasurement(
+              requisition,
+              requisitionSpec,
+              measurementSpec,
+              eventGroupSpecs
+            )
           } else if (measurementSpec.hasImpression()) {
-            fulfillImpressionMeasurement(requisition, requisitionSpec, measurementSpec)
+            fulfillImpressionMeasurement(
+              requisition,
+              requisitionSpec,
+              measurementSpec,
+              eventGroupSpecs
+            )
           } else {
             logger.log(
               Level.WARNING,
@@ -627,7 +643,7 @@ class EdpSimulator(
     requisitionSpec: RequisitionSpec
   ): List<EventQuery.EventGroupSpec> {
     // TODO(@SanjayVas): Cache EventGroups.
-    return requisitionSpec.eventGroupsList.map {
+    return requisitionSpec.events.eventGroupsList.map {
       val eventGroup =
         try {
           eventGroupsStub.getEventGroup(getEventGroupRequest { name = it.key })
@@ -666,21 +682,50 @@ class EdpSimulator(
     }
   }
 
-  private suspend fun chargePrivacyBudget(
+  private suspend fun chargeLiquidLegionsV2PrivacyBudget(
     requisitionName: String,
     measurementSpec: MeasurementSpec,
-    eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>
+    eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>,
+    noiseMechanism: NoiseMechanism,
+    contributorCount: Int
   ) {
+    logger.info(
+      "chargeLiquidLegionsV2PrivacyBudget with $compositionMechanism composition mechanism for requisition with $noiseMechanism noise mechanism...",
+    )
+
     try {
-      privacyBudgetManager.chargePrivacyBudget(
-        getPrivacyQuery(
-          Reference(measurementConsumerName, requisitionName, false),
-          measurementSpec,
-          eventSpecs
-        )
-      )
+      when (compositionMechanism) {
+        CompositionMechanism.DP_ADVANCED ->
+          privacyBudgetManager.chargePrivacyBudget(
+            getDpQuery(
+              Reference(measurementConsumerName, requisitionName, false),
+              measurementSpec,
+              eventSpecs,
+            )
+          )
+        CompositionMechanism.ACDP -> {
+          if (noiseMechanism != NoiseMechanism.DISCRETE_GAUSSIAN) {
+            throw PrivacyBudgetManagerException(
+              PrivacyBudgetManagerExceptionType.INCORRECT_NOISE_MECHANISM
+            )
+          }
+
+          privacyBudgetManager.chargePrivacyBudgetInAcdp(
+            getLiquidLegionsV2AcdpQuery(
+              Reference(measurementConsumerName, requisitionName, false),
+              measurementSpec,
+              eventSpecs,
+              contributorCount,
+            )
+          )
+        }
+      }
     } catch (e: PrivacyBudgetManagerException) {
-      logger.log(Level.WARNING, "chargePrivacyBudget failed due to ${e.errorType}", e)
+      logger.log(
+        Level.WARNING,
+        "chargeLiquidLegionsV2PrivacyBudget failed due to ${e.errorType}",
+        e
+      )
       when (e.errorType) {
         PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED -> {
           throw RequisitionRefusalException(
@@ -694,6 +739,12 @@ class EdpSimulator(
             "Invalid event filter"
           )
         }
+        PrivacyBudgetManagerExceptionType.INCORRECT_NOISE_MECHANISM -> {
+          throw RequisitionRefusalException(
+            Requisition.Refusal.Justification.SPEC_INVALID,
+            "Incorrect noise mechanism. Should be DISCRETE_GAUSSIAN for ACDP composition but is $noiseMechanism"
+          )
+        }
         PrivacyBudgetManagerExceptionType.DATABASE_UPDATE_ERROR,
         PrivacyBudgetManagerExceptionType.UPDATE_AFTER_COMMIT,
         PrivacyBudgetManagerExceptionType.NESTED_TRANSACTION,
@@ -704,14 +755,77 @@ class EdpSimulator(
     }
   }
 
-  private suspend fun generateSketch(
+  private suspend fun chargeDirectPrivacyBudget(
     requisitionName: String,
+    measurementSpec: MeasurementSpec,
+    eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>,
+  ) {
+    logger.info(
+      "chargeDirectPrivacyBudget with $compositionMechanism composition mechanism...",
+    )
+
+    try {
+      when (compositionMechanism) {
+        CompositionMechanism.DP_ADVANCED ->
+          privacyBudgetManager.chargePrivacyBudget(
+            getDpQuery(
+              Reference(measurementConsumerName, requisitionName, false),
+              measurementSpec,
+              eventSpecs,
+            )
+          )
+        CompositionMechanism.ACDP -> {
+          if (directNoiseMechanism != DirectNoiseMechanism.GAUSSIAN) {
+            throw PrivacyBudgetManagerException(
+              PrivacyBudgetManagerExceptionType.INCORRECT_NOISE_MECHANISM
+            )
+          }
+
+          privacyBudgetManager.chargePrivacyBudgetInAcdp(
+            getDirectAcdpQuery(
+              Reference(measurementConsumerName, requisitionName, false),
+              measurementSpec,
+              eventSpecs,
+            )
+          )
+        }
+      }
+    } catch (e: PrivacyBudgetManagerException) {
+      logger.log(Level.WARNING, "chargeDirectPrivacyBudget failed due to ${e.errorType}", e)
+      when (e.errorType) {
+        PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED -> {
+          throw RequisitionRefusalException(
+            Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET,
+            "Privacy budget exceeded"
+          )
+        }
+        PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER -> {
+          throw RequisitionRefusalException(
+            Requisition.Refusal.Justification.SPEC_INVALID,
+            "Invalid event filter"
+          )
+        }
+        PrivacyBudgetManagerExceptionType.INCORRECT_NOISE_MECHANISM -> {
+          throw RequisitionRefusalException(
+            Requisition.Refusal.Justification.SPEC_INVALID,
+            "Incorrect noise mechanism. Should be GAUSSIAN for ACDP composition but is $directNoiseMechanism"
+          )
+        }
+        PrivacyBudgetManagerExceptionType.DATABASE_UPDATE_ERROR,
+        PrivacyBudgetManagerExceptionType.UPDATE_AFTER_COMMIT,
+        PrivacyBudgetManagerExceptionType.NESTED_TRANSACTION,
+        PrivacyBudgetManagerExceptionType.BACKING_STORE_CLOSED -> {
+          throw Exception("Unexpected PBM error", e)
+        }
+      }
+    }
+  }
+
+  private fun generateSketch(
     sketchConfig: SketchConfig,
     measurementSpec: MeasurementSpec,
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
   ): Sketch {
-    chargePrivacyBudget(requisitionName, measurementSpec, eventGroupSpecs.map { it.spec })
-
     logger.info("Generating Sketch...")
     return SketchGenerator(eventQuery, sketchConfig, measurementSpec.vidSamplingInterval)
       .generate(eventGroupSpecs)
@@ -760,13 +874,20 @@ class EdpSimulator(
     val liquidLegionsV2: ProtocolConfig.LiquidLegionsV2 = llv2Protocol.liquidLegionsV2
     val combinedPublicKey = requisition.getCombinedPublicKey(liquidLegionsV2.ellipticCurveId)
 
+    chargeLiquidLegionsV2PrivacyBudget(
+      requisition.name,
+      measurementSpec,
+      eventGroupSpecs.map { it.spec },
+      liquidLegionsV2.noiseMechanism,
+      requisition.duchiesCount
+    )
+
     val sketch =
       try {
         generateSketch(
-          requisition.name,
           liquidLegionsV2.sketchParams.toSketchConfig(),
           measurementSpec,
-          eventGroupSpecs
+          eventGroupSpecs,
         )
       } catch (e: EventFilterValidationException) {
         logger.log(
@@ -808,13 +929,20 @@ class EdpSimulator(
     val combinedPublicKey =
       requisition.getCombinedPublicKey(reachOnlyLiquidLegionsV2.ellipticCurveId)
 
+    chargeLiquidLegionsV2PrivacyBudget(
+      requisition.name,
+      measurementSpec,
+      eventGroupSpecs.map { it.spec },
+      reachOnlyLiquidLegionsV2.noiseMechanism,
+      requisition.duchiesCount
+    )
+
     val sketch =
       try {
         generateSketch(
-          requisition.name,
           reachOnlyLiquidLegionsV2.sketchParams.toSketchConfig(),
           measurementSpec,
-          eventGroupSpecs
+          eventGroupSpecs,
         )
       } catch (e: EventFilterValidationException) {
         logger.log(
@@ -901,6 +1029,12 @@ class EdpSimulator(
     nonce: Long,
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>
   ) {
+    chargeDirectPrivacyBudget(
+      requisition.name,
+      measurementSpec,
+      eventGroupSpecs.map { it.spec },
+    )
+
     logger.info("Calculating direct reach and frequency...")
     val vidSamplingInterval = measurementSpec.vidSamplingInterval
     val vidSamplingIntervalStart = vidSamplingInterval.start
@@ -1042,7 +1176,8 @@ class EdpSimulator(
         }
       }
       MeasurementSpec.MeasurementTypeCase.IMPRESSION,
-      MeasurementSpec.MeasurementTypeCase.DURATION -> {
+      MeasurementSpec.MeasurementTypeCase.DURATION,
+      MeasurementSpec.MeasurementTypeCase.POPULATION -> {
         error("Measurement type not supported.")
       }
       MeasurementSpec.MeasurementTypeCase.REACH -> {
@@ -1064,8 +1199,15 @@ class EdpSimulator(
   private suspend fun fulfillImpressionMeasurement(
     requisition: Requisition,
     requisitionSpec: RequisitionSpec,
-    measurementSpec: MeasurementSpec
+    measurementSpec: MeasurementSpec,
+    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>
   ) {
+    chargeDirectPrivacyBudget(
+      requisition.name,
+      measurementSpec,
+      eventGroupSpecs.map { it.spec },
+    )
+
     val measurementResult =
       MeasurementKt.result {
         impression = impression {
@@ -1081,14 +1223,24 @@ class EdpSimulator(
   private suspend fun fulfillDurationMeasurement(
     requisition: Requisition,
     requisitionSpec: RequisitionSpec,
-    measurementSpec: MeasurementSpec
+    measurementSpec: MeasurementSpec,
+    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>
   ) {
+    chargeDirectPrivacyBudget(
+      requisition.name,
+      measurementSpec,
+      eventGroupSpecs.map { it.spec },
+    )
+
+    val externalDataProviderId =
+      apiIdToExternalId(DataProviderKey.fromName(edpData.name)!!.dataProviderId)
     val measurementResult =
       MeasurementKt.result {
         watchDuration = watchDuration {
           value = duration {
-            // Use externalDataProviderId since it's a known value the FrontendSimulator can verify.
-            seconds = apiIdToExternalId(DataProviderKey.fromName(edpData.name)!!.dataProviderId)
+            // Use a value based on the externalDataProviderId since it's a known value the
+            // MeasurementConsumerSimulator can verify.
+            seconds = log2(externalDataProviderId.toDouble()).toLong()
           }
         }
       }

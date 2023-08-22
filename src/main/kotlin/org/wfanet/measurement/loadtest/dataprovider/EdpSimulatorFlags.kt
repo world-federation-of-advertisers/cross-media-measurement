@@ -18,6 +18,7 @@ import java.io.File
 import java.time.Duration
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.CompositionMechanism
 import org.wfanet.measurement.loadtest.KingdomPublicApiFlags
 import org.wfanet.measurement.loadtest.RequisitionFulfillmentServiceFlags
 import picocli.CommandLine
@@ -107,5 +108,13 @@ class EdpSimulatorFlags {
     defaultValue = "LAPLACE",
   )
   lateinit var directNoiseMechanism: DirectNoiseMechanism
+    private set
+
+  @CommandLine.Option(
+    names = ["--composition-mechanism"],
+    description = ["Composition mechanism in Privacy Budget Manager"],
+    defaultValue = "DP_ADVANCED",
+  )
+  lateinit var compositionMechanism: CompositionMechanism
     private set
 }

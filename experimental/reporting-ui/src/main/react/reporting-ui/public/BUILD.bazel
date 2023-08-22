@@ -1,7 +1,20 @@
 load("@aspect_rules_js//js:defs.bzl", "js_library")
 
+package(
+    default_visibility = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui:__subpackages__",
+        "//experimental/reporting-ui/src/test/react/reporting-ui:__subpackages__",
+    ],
+)
+
 js_library(
     name = "public",
-    srcs = glob(["**"]),
-    visibility = ["//visibility:public"],
+    srcs = [
+        "favicon.ico",
+        "index.html",
+        "logo192.png",
+        "logo512.png",
+        "manifest.json",
+        "robots.txt",
+    ],
 )

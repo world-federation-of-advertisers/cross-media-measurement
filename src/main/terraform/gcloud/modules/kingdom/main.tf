@@ -20,20 +20,15 @@ module "kingdom_internal" {
   iam_service_account_description = "Kingdom internal API server."
 }
 
-module "spanner_database" {
-  source = "../spanner"
-
-  database_name = "kingdom"
-  spanner_instance = var.spanner_instance
-  iam_service_account_member = module.kingdom_internal.iam_service_account.member
+resource "google_spanner_database" "kingdom" {
+  instance         = var.spanner_instance.name
+  name             = var.spanner_database_name
+  database_dialect = "GOOGLE_STANDARD_SQL"
 }
 
-moved {
-  from = google_spanner_database.kingdom
-  to   = module.spanner_database.google_spanner_database.db
-}
-
-moved {
-  from = google_spanner_database_iam_member.kingdom_internal
-  to   = module.spanner_database.google_spanner_database_iam_member.grant_db_user_role
+resource "google_spanner_database_iam_member" "kingdom_internal" {
+  instance = google_spanner_database.kingdom.instance
+  database = google_spanner_database.kingdom.name
+  role     = "roles/spanner.databaseUser"
+  member   = module.kingdom_internal.iam_service_account.member
 }

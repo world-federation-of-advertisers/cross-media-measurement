@@ -673,8 +673,8 @@ class LiquidLegionsV2Mill(
           flagCountTuples = readAndCombineAllInputBlobs(token, 1)
           maximumFrequency = maximumRequestedFrequency
           liquidLegionsParameters = liquidLegionsSketchParameters {
-            decayRate = llv2Parameters.liquidLegionsSketch.decayRate
-            size = llv2Parameters.liquidLegionsSketch.size
+            decayRate = llv2Parameters.sketchParameters.decayRate
+            size = llv2Parameters.sketchParameters.size
           }
           vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width
           if (llv2Parameters.noise.hasReachNoiseConfig()) {
