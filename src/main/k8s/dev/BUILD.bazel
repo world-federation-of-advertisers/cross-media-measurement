@@ -98,7 +98,7 @@ cue_dump(
         ":base_gke",
         ":config",
         "//src/main/k8s:base",
-        "//src/main/k8s:duchy",
+        "//src/main/k8s:spanner_duchy",
     ],
 )
 
@@ -123,7 +123,7 @@ cue_dump(
         ":base_gke",
         ":config",
         "//src/main/k8s:base",
-        "//src/main/k8s:duchy",
+        "//src/main/k8s:spanner_duchy",
     ],
 )
 
@@ -148,7 +148,7 @@ cue_dump(
         ":base_gke",
         ":config",
         "//src/main/k8s:base",
-        "//src/main/k8s:duchy",
+        "//src/main/k8s:spanner_duchy",
     ],
 )
 

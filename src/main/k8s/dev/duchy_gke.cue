@@ -59,7 +59,7 @@ _cloudStorageConfig: #CloudStorageConfig & {
 	bucket: _cloudStorageBucket
 }
 
-duchy: #Duchy & {
+duchy: #SpannerDuchy & {
 	_duchy: {
 		name:                   _duchy_name
 		protocols_setup_config: _duchy_protocols_setup_config
@@ -77,7 +77,7 @@ duchy: #Duchy & {
 	_duchyMillParallelism:      4
 
 	deployments: {
-		"spanner-computations-server-deployment": {
+		"internal-api-server-deployment": {
 			_container: {
 				resources: #InternalServerResourceRequirements
 			}
