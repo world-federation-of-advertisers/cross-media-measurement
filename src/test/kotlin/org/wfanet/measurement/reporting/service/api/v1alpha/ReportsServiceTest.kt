@@ -209,7 +209,6 @@ private val REACH_ONLY_VID_SAMPLING_START_LIST =
   (0 until NUMBER_REACH_ONLY_BUCKETS).map { it * REACH_ONLY_VID_SAMPLING_WIDTH }
 private const val REACH_ONLY_REACH_EPSILON = 0.0041
 private const val REACH_ONLY_FREQUENCY_EPSILON = 0.0001
-private const val REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER = 1
 
 private const val REACH_FREQUENCY_VID_SAMPLING_WIDTH = 5.0f / NUMBER_VID_BUCKETS
 private const val NUMBER_REACH_FREQUENCY_BUCKETS = 19
@@ -221,6 +220,7 @@ private val REACH_FREQUENCY_VID_SAMPLING_START_LIST =
   }
 private const val REACH_FREQUENCY_REACH_EPSILON = 0.0033
 private const val REACH_FREQUENCY_FREQUENCY_EPSILON = 0.115
+private const val MAXIMUM_FREQUENCY = 10
 
 private const val IMPRESSION_VID_SAMPLING_WIDTH = 62.0f / NUMBER_VID_BUCKETS
 private const val NUMBER_IMPRESSION_BUCKETS = 1
@@ -621,7 +621,7 @@ private val REACH_ONLY_MEASUREMENT_SPEC = measurementSpec {
         epsilon = REACH_ONLY_FREQUENCY_EPSILON
         delta = DIFFERENTIAL_PRIVACY_DELTA
       }
-      maximumFrequencyPerUser = REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER
+      maximumFrequency = 1
     }
   vidSamplingInterval = vidSamplingInterval {
     start = REACH_ONLY_VID_SAMPLING_START_LIST[SECURE_RANDOM_OUTPUT_INT]
@@ -707,7 +707,7 @@ private val REACH_FREQUENCY_MEASUREMENT_SPEC = measurementSpec {
         epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
         delta = DIFFERENTIAL_PRIVACY_DELTA
       }
-      maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
+      maximumFrequency = MAXIMUM_FREQUENCY
     }
   vidSamplingInterval = vidSamplingInterval {
     start = REACH_FREQUENCY_VID_SAMPLING_START_LIST[SECURE_RANDOM_OUTPUT_INT]
@@ -852,7 +852,6 @@ private val WATCH_DURATION_MEASUREMENT_SPEC = measurementSpec {
         delta = DIFFERENTIAL_PRIVACY_DELTA
       }
       maximumWatchDurationPerUser = MAXIMUM_WATCH_DURATION_PER_USER
-      maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
     }
   vidSamplingInterval = vidSamplingInterval {
     start = WATCH_DURATION_VID_SAMPLING_START_LIST[SECURE_RANDOM_OUTPUT_INT]

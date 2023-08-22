@@ -258,7 +258,7 @@ class InProcessReportingServer(
               epsilon = 0.0033
               delta = 1e-12
             }
-          maximumFrequencyPerUser = 10
+          maximumFrequency = 10
         }
       frequencyHistogramVidSamplingInterval =
         MetricSpecConfigKt.vidSamplingInterval {
