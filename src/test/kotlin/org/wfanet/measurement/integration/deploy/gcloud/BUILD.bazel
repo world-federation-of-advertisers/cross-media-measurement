@@ -1,0 +1,65 @@
+load("@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
+
+spanner_emulator_test(
+    name = "GCloudInProcessLifeOfAnEventGroupIntegrationTest",
+    size = "large",
+    srcs = ["GCloudInProcessLifeOfAnEventGroupIntegrationTest.kt"],
+    tags = ["cpu:2"],
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudInProcessLifeOfAnEventGroupIntegrationTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_event_group_components",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/debug",
+    ],
+)
+
+spanner_emulator_test(
+    name = "GCloudSpannerInProcessLifeOfAMeasurementIntegrationTest",
+    size = "large",
+    srcs = ["GCloudSpannerInProcessLifeOfAMeasurementIntegrationTest.kt"],
+    tags = ["cpu:2"],
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudSpannerInProcessLifeOfAMeasurementIntegrationTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_life_of_a_measurement_integration_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/debug",
+    ],
+)
+
+spanner_emulator_test(
+    name = "GCloudPostgresInProcessLifeOfAMeasurementIntegrationTest",
+    size = "large",
+    srcs = ["GCloudPostgresInProcessLifeOfAMeasurementIntegrationTest.kt"],
+    tags = ["cpu:2"],
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudPostgresInProcessLifeOfAMeasurementIntegrationTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/testing",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_life_of_a_measurement_integration_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/common/postgres:postgres_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/debug",
+    ],
+)
+
+spanner_emulator_test(
+    name = "GCloudInProcessLifeOfAReportV2IntegrationTest",
+    size = "large",
+    srcs = ["GCloudInProcessLifeOfAReportV2IntegrationTest.kt"],
+    tags = ["cpu:2"],
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudInProcessLifeOfAReportV2IntegrationTest",
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/testing",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_duchy",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_life_of_a_report_integration_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/common/postgres:postgres_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/server/postgres:services",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+    ],
+)

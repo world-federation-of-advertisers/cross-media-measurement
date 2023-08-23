@@ -1,0 +1,18 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "PostgresInProcessLifeOfAReportIntegrationTest",
+    srcs = ["PostgresInProcessLifeOfAReportIntegrationTest.kt"],
+    tags = ["cpu:2"],
+    test_class = "org.wfanet.measurement.integration.deploy.common.postgres.PostgresInProcessLifeOfAReportIntegrationTest",
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting:in_process_life_of_a_report_integration_test",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common/server/postgres:services",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+    ],
+)

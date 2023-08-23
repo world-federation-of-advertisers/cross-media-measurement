@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.integration.postgres
+package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.deploy.common.postgres
 
 import java.sql.ResultSet
 import java.sql.Statement
@@ -23,7 +23,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.testcontainers.containers.PostgreSQLContainer
-import src.main.kotlin.org.wfanet.measurement.integration.deploy.postgres.POSTGRES_LEDGER_SCHEMA_FILE
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.deploy.common.postgres.testing.POSTGRES_LEDGER_SCHEMA_FILE
 
 @RunWith(JUnit4::class)
 class PrivacyBudgetPostgresSchemaTest {

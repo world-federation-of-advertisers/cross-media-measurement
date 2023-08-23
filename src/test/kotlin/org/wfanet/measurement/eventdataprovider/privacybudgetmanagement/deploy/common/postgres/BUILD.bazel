@@ -1,0 +1,35 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "PrivacyBudgetPostgresSchemaTest",
+    srcs = [
+        "PrivacyBudgetPostgresSchemaTest.kt",
+    ],
+    test_class = "org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.deploy.common.postgres.PrivacyBudgetPostgresSchemaTest",
+    runtime_deps = ["@wfa_common_jvm//imports/java/org/postgresql:j2dbc"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/deploy/common/postgres/testing:schemata",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/java/org/testcontainers/containers:postgresql",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_test(
+    name = "PostgresBackingStoreTest",
+    srcs = ["PostgresBackingStoreTest.kt"],
+    test_class = "org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.deploy.common.postgres.PostgresBackingStoreTest",
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/postgresql:j2dbc",
+        # Workaround for `NoClassDefFoundError: kotlin/jdk7/AutoCloseableKt`.
+        # See https://github.com/bazelbuild/rules_kotlin/issues/333
+        "@wfa_common_jvm//imports/kotlin/kotlin:stdlib_jdk7",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/deploy/common/postgres",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/deploy/common/postgres/testing:schemata",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/testing",
+        "@wfa_common_jvm//imports/java/org/testcontainers/containers:postgresql",
+    ],
+)

@@ -1,39 +1,20 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 
 package(
+    default_testonly = True,
     default_visibility = [
         "//src/main/kotlin/org/wfanet/measurement/gcloud:deployment",
         "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:__pkg__",
-    ],
-)
-
-kt_jvm_library(
-    name = "kingdom_data_services",
-    testonly = True,
-    srcs = [
-        "KingdomDataServicesProviderRule.kt",
-    ],
-    deps = [
-        ":testing",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing",
+        "//src/test/kotlin/org/wfanet/measurement/integration/deploy/gcloud:__pkg__",
     ],
 )
 
 kt_jvm_library(
     name = "testing",
-    testonly = True,
-    srcs = glob(
-        ["*.kt"],
-        exclude = [
-            "KingdomDataServices.kt",
-            "SpannerDatabaseTestHelper.kt",
-            "KingdomDatabases.kt",
-            "KingdomDataServicesProviderRule.kt",
-        ],
-    ),
+    srcs = glob(["*.kt"]),
     resources = ["//src/main/resources/kingdom/spanner"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],

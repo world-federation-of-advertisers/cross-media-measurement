@@ -69,8 +69,8 @@ import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.common.toPublicKeyHandle
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
-import org.wfanet.measurement.integration.common.kingdom.service.api.v2alpha.FakeMeasurementsService
 import org.wfanet.measurement.integration.common.reporting.identity.withPrincipalName
+import org.wfanet.measurement.kingdom.service.api.v2alpha.testing.FakeMeasurementsService
 import org.wfanet.measurement.reporting.deploy.common.server.ReportingDataServer
 import org.wfanet.measurement.reporting.v1alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.reporting.v1alpha.ListEventGroupsResponse

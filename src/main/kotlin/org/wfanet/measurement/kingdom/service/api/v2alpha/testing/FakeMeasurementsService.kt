@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.integration.common.kingdom.service.api.v2alpha
+package org.wfanet.measurement.kingdom.service.api.v2alpha.testing
 
 import com.google.protobuf.duration
 import io.grpc.Status

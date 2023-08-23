@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.integration.common.duchy
+package org.wfanet.measurement.integration.deploy.common.postgres
 
-import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import java.time.Clock
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
@@ -23,16 +23,25 @@ import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseP
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.duchy.deploy.common.service.PostgresDuchyDataServices
-import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.integration.common.InProcessDuchy
+import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
+/** [TestRule] which provides [InProcessDuchy.DuchyDependencies] factories using Postgres. */
 class PostgresDuchyDependencyProviderRule(
   private val databaseProvider: PostgresDatabaseProvider,
   private val duchies: Iterable<String>
 ) : ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies> {
+  private val temporaryFolder = TemporaryFolder()
+  private val idGenerator = RandomIdGenerator(Clock.systemUTC())
 
   private lateinit var computationsDatabases: Map<String, PostgresDatabaseClient>
+  private lateinit var storageClient: StorageClient
+
+  override val value:
+    (String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies
+    get() = ::buildDuchyDependencies
 
   private fun buildDuchyDependencies(
     duchyId: String,
@@ -41,29 +50,27 @@ class PostgresDuchyDependencyProviderRule(
     val computationsDatabase =
       computationsDatabases[duchyId]
         ?: error("Missing Computations Spanner database for duchy $duchyId")
-    val storageClient = GcsStorageClient(LocalStorageHelper.getOptions().service, "bucket-$duchyId")
 
     val duchyDataServices =
       PostgresDuchyDataServices.create(
         storageClient = storageClient,
         computationLogEntriesClient = logEntryClient,
         duchyName = duchyId,
-        idGenerator = RandomIdGenerator(Clock.systemUTC()),
+        idGenerator = idGenerator,
         client = computationsDatabase,
       )
     return InProcessDuchy.DuchyDependencies(duchyDataServices, storageClient)
   }
 
-  override val value:
-    (String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies
-    get() = ::buildDuchyDependencies
-
   override fun apply(base: Statement, description: Description): Statement {
-    return object : Statement() {
-      override fun evaluate() {
-        computationsDatabases = duchies.associateWith { databaseProvider.createDatabase() }
-        base.evaluate()
+    val dbStatement =
+      object : Statement() {
+        override fun evaluate() {
+          computationsDatabases = duchies.associateWith { databaseProvider.createDatabase() }
+          storageClient = FileSystemStorageClient(temporaryFolder.root)
+          base.evaluate()
+        }
       }
-    }
+    return temporaryFolder.apply(dbStatement, description)
   }
 }

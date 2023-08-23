@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.integration.gcloud
+package org.wfanet.measurement.integration.deploy.gcloud
 
 import org.wfanet.measurement.integration.common.InProcessLifeOfAnEventGroupIntegrationTest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDataServicesProviderRule
 
 /**
  * Implementation of [InProcessLifeOfAnEventGroupIntegrationTest] for GCloud backends (Spanner,

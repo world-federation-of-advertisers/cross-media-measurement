@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2020 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,22 +19,28 @@ import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.ProviderRule
-import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
-import org.wfanet.measurement.kingdom.deploy.common.service.KingdomDataServices
+import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerDataServices
 
-class KingdomDataServicesProviderRule : ProviderRule<KingdomDataServices> {
+class KingdomDataServicesProviderRule : ProviderRule<DataServices> {
   private val spannerDatabase = SpannerEmulatorDatabaseRule(Schemata.KINGDOM_CHANGELOG_PATH)
-  private val clock = Clock.systemUTC()
-  private val idGenerator = RandomIdGenerator(clock)
-  private val databaseClient: AsyncDatabaseClient by lazy { spannerDatabase.databaseClient }
 
-  override val value by lazy {
-    SpannerDataServices(clock, idGenerator, databaseClient).buildDataServices()
-  }
+  private lateinit var dataServices: DataServices
+
+  override val value
+    get() = dataServices
 
   override fun apply(base: Statement, description: Description): Statement {
-    return spannerDatabase.apply(base, description)
+    val statement =
+      object : Statement() {
+        override fun evaluate() {
+          val clock = Clock.systemUTC()
+          dataServices =
+            SpannerDataServices(clock, RandomIdGenerator(clock), spannerDatabase.databaseClient)
+          base.evaluate()
+        }
+      }
+    return spannerDatabase.apply(statement, description)
   }
 }

@@ -11,7 +11,7 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.deploy.postgres
+package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.deploy.common.postgres
 
 import java.sql.Connection
 import java.sql.Statement
@@ -20,8 +20,8 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.testcontainers.containers.PostgreSQLContainer
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerBackingStore
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.deploy.common.postgres.testing.POSTGRES_LEDGER_SCHEMA_FILE
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.AbstractPrivacyBudgetLedgerStoreTest
-import src.main.kotlin.org.wfanet.measurement.integration.deploy.postgres.POSTGRES_LEDGER_SCHEMA_FILE
 
 @RunWith(JUnit4::class)
 class PostgresBackingStoreTest : AbstractPrivacyBudgetLedgerStoreTest() {
