@@ -15,12 +15,10 @@
 package org.wfanet.measurement.duchy.deploy.aws.daemon.mill.liquidlegionsv2
 
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.duchy.deploy.aws.server.S3Flags
+import org.wfanet.measurement.aws.s3.S3Flags
 import org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv2.LiquidLegionsV2MillDaemon
 import picocli.CommandLine
 import org.wfanet.measurement.aws.s3.S3StorageClient
-import software.amazon.awssdk.regions.Region
-import software.amazon.awssdk.services.s3.S3AsyncClient
 
 @CommandLine.Command(
   name = "S3LiquidLegionsV2MillDaemon",
@@ -33,11 +31,7 @@ class S3LiquidLegionsV2MillDaemon : LiquidLegionsV2MillDaemon() {
   private lateinit var s3Flags: S3Flags
 
   override fun run() {
-    val storageClient =
-      S3StorageClient(
-        S3AsyncClient.builder().region(Region.of(s3Flags.s3Region)).build(),
-        s3Flags.s3Bucket
-      )
+    val storageClient = S3StorageClient.fromFlags(s3Flags)
     run(storageClient)
   }
 }

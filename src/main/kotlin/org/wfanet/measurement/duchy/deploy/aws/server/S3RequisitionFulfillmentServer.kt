@@ -14,11 +14,10 @@
 
 package org.wfanet.measurement.duchy.deploy.aws.server
 
+import org.wfanet.measurement.aws.s3.S3Flags
+import org.wfanet.measurement.aws.s3.S3StorageClient
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.duchy.deploy.common.server.RequisitionFulfillmentServer
-import org.wfanet.measurement.aws.s3.S3StorageClient
-import software.amazon.awssdk.regions.Region
-import software.amazon.awssdk.services.s3.S3AsyncClient
 import picocli.CommandLine
 
 /** Implementation of [RequisitionFulfillmentServer] using Google Cloud Storage (GCS). */
@@ -29,15 +28,10 @@ import picocli.CommandLine
   showDefaultValues = true
 )
 class GcsRequisitionFulfillmentServer : RequisitionFulfillmentServer() {
-  @CommandLine.Mixin
-  private lateinit var s3Flags: S3Flags
+  @CommandLine.Mixin private lateinit var s3Flags: S3Flags
 
   override fun run() {
-    val storageClient =
-      S3StorageClient(
-        S3AsyncClient.builder().region(Region.of(s3Flags.s3Region)).build(),
-        s3Flags.s3Bucket
-      )
+    val storageClient = S3StorageClient.fromFlags(s3Flags)
     run(storageClient)
   }
 }

@@ -16,18 +16,20 @@ package org.wfanet.measurement.duchy.deploy.aws.server
 
 import java.time.Clock
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.aws.s3.S3Flags
 import org.wfanet.measurement.aws.s3.S3StorageClient
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.db.postgres.PostgresFlags
+import org.wfanet.measurement.aws.postgres.PostgresFlags as AwsPostgresFlags
+import org.wfanet.measurement.aws.postgres.PostgresConnectionFactories
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.duchy.deploy.common.server.DuchyDataServer
 import org.wfanet.measurement.duchy.deploy.common.service.PostgresDuchyDataServices
 import picocli.CommandLine
-import software.amazon.awssdk.regions.Region
-import software.amazon.awssdk.services.s3.S3AsyncClient
 
-/** Implementation of [DuchyDataServer] using Google Cloud Postgres and Google Cloud Storage (GCS). */
+/**
+ * Implementation of [DuchyDataServer] using Google Cloud Postgres and Google Cloud Storage (GCS).
+ */
 @CommandLine.Command(
   name = "S3PostgresDuchyDataServer",
   description = ["Server daemon for ${DuchyDataServer.SERVICE_NAME} service."],
@@ -35,25 +37,19 @@ import software.amazon.awssdk.services.s3.S3AsyncClient
   showDefaultValues = true
 )
 class S3PostgresDuchyDataServer : DuchyDataServer() {
-  @CommandLine.Mixin
-  private lateinit var postgresFlags: PostgresFlags
+  @CommandLine.Mixin private lateinit var postgresFlags: AwsPostgresFlags
 
-  @CommandLine.Mixin
-  private lateinit var s3Flags: S3Flags
+  @CommandLine.Mixin private lateinit var s3Flags: S3Flags
 
   override fun run() = runBlocking {
     val clock = Clock.systemUTC()
     val idGenerator = RandomIdGenerator(clock)
 
-//    val databaseClient = PostgresDatabaseClient.fromFlags(postgresFlags)
+    //    val databaseClient = PostgresDatabaseClient.fromFlags(postgresFlags)
 
     val factory = PostgresConnectionFactories.buildConnectionFactory(postgresFlags)
     val databaseClient = PostgresDatabaseClient.fromConnectionFactory(factory)
-    val storageClient =
-      S3StorageClient(
-        S3AsyncClient.builder().region(Region.of(s3Flags.s3Region)).build(),
-        s3Flags.s3Bucket
-      )
+    val storageClient = S3StorageClient.fromFlags(s3Flags)
 
     run(
       PostgresDuchyDataServices.create(
