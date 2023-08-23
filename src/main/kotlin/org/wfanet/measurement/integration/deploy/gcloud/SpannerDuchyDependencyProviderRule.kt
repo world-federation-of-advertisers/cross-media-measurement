@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.integration.common.duchy
+package org.wfanet.measurement.integration.deploy.gcloud
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import org.junit.runner.Description
@@ -26,6 +26,7 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
+/** [TestRule] which provides [InProcessDuchy.DuchyDependencies] factories using GCS and Spanner. */
 class SpannerDuchyDependencyProviderRule(duchies: Iterable<String>) :
   ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies> {
   private val computationsDatabaseRules: Map<String, SpannerEmulatorDatabaseRule> =
