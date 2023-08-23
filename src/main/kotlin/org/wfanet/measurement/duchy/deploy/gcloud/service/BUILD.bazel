@@ -1,11 +1,14 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 
+package(
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:__pkg__",
+    ],
+)
+
 kt_jvm_library(
     name = "spanner_duchy_data_services",
     srcs = ["SpannerDuchyDataServices.kt"],
-    visibility = [
-        "//src/test/kotlin/org/wfanet/measurement/integration/common/duchy:__pkg__",
-    ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/service:duchy_data_services",
