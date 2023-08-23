@@ -33,7 +33,7 @@ service EventGroups {
   rpc ListEventGroups(ListEventGroupsRequest)
       returns (ListEventGroupsResponse) {
     option (google.api.http) = {
-      get: "/v2alpha/{parent=measurementConsumers/*/dataProviders/*}/eventGroups"
+      get: "/v2alpha/{parent=measurementConsumers/*}/eventGroups"
     };
     option (google.api.method_signature) = "parent";
   }

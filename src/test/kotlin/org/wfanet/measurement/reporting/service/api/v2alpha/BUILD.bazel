@@ -1,6 +1,34 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
+    name = "EventGroupMetadataDescriptorsServiceTest",
+    srcs = ["EventGroupMetadataDescriptorsServiceTest.kt"],
+    associates = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:event_group_metadata_descriptors_service",
+    ],
+    test_class = "org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupMetadataDescriptorsServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:principal_server_interceptor",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptor_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptors_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:test_metadata_messages_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
+
+kt_jvm_test(
     name = "EventGroupsServiceTest",
     srcs = ["EventGroupsServiceTest.kt"],
     associates = [
@@ -19,6 +47,7 @@ kt_jvm_test(
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptors_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:page_token_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:test_metadata_messages_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
