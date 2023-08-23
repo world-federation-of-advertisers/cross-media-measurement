@@ -216,6 +216,7 @@ kt_jvm_library(
     srcs = ["ReportsService.kt"],
     deps = [
         ":metadata_principal_server_interceptor",
+        "//imports/java/org/projectnessie/cel",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:encryption_key_pair_store",
