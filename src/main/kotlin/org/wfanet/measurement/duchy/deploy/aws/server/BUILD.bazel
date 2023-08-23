@@ -44,7 +44,6 @@ kt_jvm_library(
     name = "s3_computation_control_server",
     srcs = ["S3ComputationControlServer.kt"],
     deps = [
-        ":flags",
         "//imports/java/software/amazon/awssdk/regions",
         "//imports/java/software/amazon/awssdk/services/s3",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:computation_control_server",
@@ -73,7 +72,6 @@ kt_jvm_library(
     name = "s3_requisition_fulfillment_server",
     srcs = ["S3RequisitionFulfillmentServer.kt"],
     deps = [
-        ":flags",
         "//imports/java/software/amazon/awssdk/regions",
         "//imports/java/software/amazon/awssdk/services/s3",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:requisition_fulfillment_server",

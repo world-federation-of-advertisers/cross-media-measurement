@@ -55,6 +55,13 @@ objectSets: [
 ]
 
 duchy: #PostgresDuchy & {
+	_imageSuffixes: {
+		"computation-control-server":     "duchy/aws-computation-control"
+		"liquid-legions-v2-mill-daemon":  "duchy/aws-liquid-legions-v2-mill"
+		"requisition-fulfillment-server": "duchy/aws-requisition-fulfillment"
+		"internal-api-server":            "duchy/aws-postgres-internal-server"
+		"update-duchy-schema":            "duchy/aws-postgres-update-schema"
+	}
 	_duchy: {
 		name:                   _duchy_name
 		protocols_setup_config: _duchy_protocols_setup_config

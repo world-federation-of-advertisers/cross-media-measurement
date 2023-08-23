@@ -55,7 +55,7 @@ class S3PostgresDuchyDataServer : DuchyDataServer() {
       PostgresDuchyDataServices.create(
         storageClient,
         computationLogEntriesClient,
-        flags.duchy.duchyName,
+        duchyFlags.duchyName,
         idGenerator,
         databaseClient
       )

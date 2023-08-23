@@ -69,7 +69,7 @@ duchy: {
 	_computation_control_targets: {
 		"aggregator": "system.aggregator.dev.halo-cmm.org:8443"
 		"worker1":    "system.worker1.dev.halo-cmm.org:8443"
-		"worker2":    "system.worker2.dev.halo-cmm.org:8443"
+		"worker2":    "v1alpha.system.aws.worker2.dev.halo-cmm.org:8443"
 	}
 	_kingdom_system_api_target: #KingdomSystemApiTarget
 	_blob_storage_flags:        _cloudStorageConfig.flags

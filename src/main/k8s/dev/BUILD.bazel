@@ -171,6 +171,7 @@ cue_dump(
         "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
         "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
         "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+        "postgres_database": AWS_SETTINGS.postgres_database,
         "postgres_host": AWS_SETTINGS.postgres_host,
         "postgres_port": AWS_SETTINGS.postgres_port,
         "postgres_credential_secret_name": AWS_SETTINGS.postgres_credential_secret_name,

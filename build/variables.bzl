@@ -61,6 +61,7 @@ GCLOUD_SETTINGS = struct(
 )
 
 AWS_SETTINGS = struct(
+    postgres_database = "$(postgres_database)",
     postgres_host = "$(postgres_host)",
     postgres_port = "$(postgres_port)",
     postgres_credential_secret_name = "$(postgres_credential_secret_name)",
