@@ -83,7 +83,7 @@ duchy: #PostgresDuchy & {
 				annotations: {
 					"service.beta.kubernetes.io/aws-load-balancer-backend-protocol": "tcp"
 					"service.beta.kubernetes.io/aws-load-balancer-type":             "nlb"
-					"service.beta.kubernetes.io/aws-load-balancer-eip-allocations":  "eipalloc-05874583414024ddf,eipalloc-00e21ac4421356b59"
+					"service.beta.kubernetes.io/aws-load-balancer-eip-allocations":  "eipalloc-05874583414024ddf"
 				}
 			}
 		}
