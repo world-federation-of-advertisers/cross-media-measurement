@@ -23,6 +23,9 @@ import java.time.Instant
 import kotlin.properties.Delegates
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
+import org.wfanet.measurement.api.v2alpha.getEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.common.DurationFormat
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -475,6 +478,75 @@ class EventGroupsCommand : Runnable {
   override fun run() {}
 }
 
+@CommandLine.Command(name = "get", description = ["Get event group metadata descriptor"])
+class GetEventGroupMetadataDescriptor : Runnable {
+  @CommandLine.ParentCommand private lateinit var parent: EventGroupMetadataDescriptorsCommand
+
+  @CommandLine.Parameters(
+    description = ["CMMS EventGroupMetadataDescriptor resource name"],
+  )
+  private lateinit var cmmsEventGroupMetadataDescriptorName: String
+
+  override fun run() {
+    val request = getEventGroupMetadataDescriptorRequest {
+      name = cmmsEventGroupMetadataDescriptorName
+    }
+
+    val response =
+      runBlocking(Dispatchers.IO) {
+        parent.eventGroupMetadataDescriptorStub.getEventGroupMetadataDescriptor(request)
+      }
+
+    println(response)
+  }
+}
+
+@CommandLine.Command(
+  name = "batch-get",
+  description = ["Batch Get event group metadata descriptors"]
+)
+class BatchGetEventGroupMetadataDescriptors : Runnable {
+  @CommandLine.ParentCommand private lateinit var parent: EventGroupMetadataDescriptorsCommand
+
+  @CommandLine.Parameters(
+    description = ["List of CMMS EventGroupMetadataDescriptors resource names"],
+  )
+  private var cmmsEventGroupMetadataDescriptorNames: List<String> = mutableListOf()
+
+  override fun run() {
+    val request = batchGetEventGroupMetadataDescriptorsRequest {
+      names += cmmsEventGroupMetadataDescriptorNames
+    }
+
+    val response =
+      runBlocking(Dispatchers.IO) {
+        parent.eventGroupMetadataDescriptorStub.batchGetEventGroupMetadataDescriptors(request)
+      }
+
+    println(response)
+  }
+}
+
+@CommandLine.Command(
+  name = "event-group-metadata-descriptors",
+  sortOptions = false,
+  subcommands =
+    [
+      CommandLine.HelpCommand::class,
+      GetEventGroupMetadataDescriptor::class,
+      BatchGetEventGroupMetadataDescriptors::class,
+    ]
+)
+class EventGroupMetadataDescriptorsCommand : Runnable {
+  @CommandLine.ParentCommand lateinit var parent: Reporting
+
+  val eventGroupMetadataDescriptorStub: EventGroupMetadataDescriptorsCoroutineStub by lazy {
+    EventGroupMetadataDescriptorsCoroutineStub(parent.channel)
+  }
+
+  override fun run() {}
+}
+
 @CommandLine.Command(
   name = "reporting",
   description = ["Reporting CLI tool"],
@@ -485,6 +557,7 @@ class EventGroupsCommand : Runnable {
       ReportingSetsCommand::class,
       ReportsCommand::class,
       EventGroupsCommand::class,
+      EventGroupMetadataDescriptorsCommand::class,
     ]
 )
 class Reporting : Runnable {
@@ -510,7 +583,7 @@ class Reporting : Runnable {
 }
 
 /**
- * Reporting Set, Report, and Event Group methods.
+ * Reporting Set, Report, Event Group, and Event Group Metadata Descriptor methods.
  *
  * Use the `help` command to see usage details.
  */

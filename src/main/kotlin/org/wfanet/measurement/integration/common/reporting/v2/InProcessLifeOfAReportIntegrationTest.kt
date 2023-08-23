@@ -38,10 +38,12 @@ import org.junit.Test
 import org.junit.rules.TestRule
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroupKt
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
+import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
@@ -101,7 +103,6 @@ import org.wfanet.measurement.reporting.v2alpha.periodicTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.timeIntervals
-import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
 
 /**
@@ -110,30 +111,23 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
  * This is abstract so that different implementations of dependencies can all run the same tests
  * easily.
  */
-abstract class InProcessLifeOfAReportIntegrationTest {
-  abstract val kingdomDataServicesRule: ProviderRule<DataServices>
-
-  /** Provides a function from Duchy to the dependencies needed to start the Duchy to the test. */
-  abstract val duchyDependenciesRule:
+abstract class InProcessLifeOfAReportIntegrationTest(
+  kingdomDataServicesRule: ProviderRule<DataServices>,
+  duchyDependenciesRule:
     ProviderRule<
       (
         String, ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
       ) -> InProcessDuchy.DuchyDependencies
     >
+) {
+  private val inProcessCmmsComponents: InProcessCmmsComponents =
+    InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule)
 
-  abstract val storageClient: StorageClient
-
-  private val inProcessCmmsComponents: InProcessCmmsComponents by lazy {
-    InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule, storageClient)
-  }
-
-  private val inProcessCmmsComponentsStartup: TestRule by lazy {
-    TestRule { statement, _ ->
-      object : Statement() {
-        override fun evaluate() {
-          inProcessCmmsComponents.startDaemons()
-          statement.evaluate()
-        }
+  private val inProcessCmmsComponentsStartup = TestRule { base, _ ->
+    object : Statement() {
+      override fun evaluate() {
+        inProcessCmmsComponents.startDaemons()
+        base.evaluate()
       }
     }
   }
@@ -190,6 +184,10 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
   private val publicKingdomMeasurementConsumersClient by lazy {
     MeasurementConsumersCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
+  }
+
+  private val publicEventGroupMetadataDescriptorsClient by lazy {
+    EventGroupMetadataDescriptorsCoroutineStub(reportingServer.publicApiChannel)
   }
 
   private val publicEventGroupsClient by lazy {
@@ -1715,6 +1713,36 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     assertThat(retrievedPrimitiveReportingSets).hasSize(numReportingSets)
     retrievedPrimitiveReportingSets.forEach {
       assertThat(it).ignoringFields(ReportingSet.NAME_FIELD_NUMBER).isEqualTo(primitiveReportingSet)
+    }
+  }
+
+  @Test
+  fun `retrieving metadata descriptors for event groups succeeds`() = runBlocking {
+    val eventGroups = listEventGroups()
+
+    val descriptorNames = eventGroups.map { it.metadata.eventGroupMetadataDescriptor }
+
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val descriptors =
+      publicEventGroupMetadataDescriptorsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .batchGetEventGroupMetadataDescriptors(
+          batchGetEventGroupMetadataDescriptorsRequest { names += descriptorNames }
+        )
+        .eventGroupMetadataDescriptorsList
+
+    assertThat(descriptors).hasSize(descriptorNames.size)
+
+    val retrievedDescriptorNames = mutableSetOf<String>()
+    for (descriptor in descriptors) {
+      retrievedDescriptorNames.add(descriptor.name)
+    }
+
+    for (eventGroup in eventGroups) {
+      assertThat(
+          retrievedDescriptorNames.contains(eventGroup.metadata.eventGroupMetadataDescriptor)
+        )
+        .isTrue()
     }
   }
 

@@ -298,7 +298,7 @@ object LiquidLegionsV2Starter {
 
     return parameters {
       maximumFrequency = llv2Config.maximumFrequency
-      liquidLegionsSketch = liquidLegionsSketchParameters {
+      sketchParameters = liquidLegionsSketchParameters {
         decayRate = llv2Config.sketchParams.decayRate
         size = llv2Config.sketchParams.maxSize
       }
@@ -349,6 +349,7 @@ object LiquidLegionsV2Starter {
                 }
                 MeasurementSpec.MeasurementTypeCase.IMPRESSION,
                 MeasurementSpec.MeasurementTypeCase.DURATION,
+                MeasurementSpec.MeasurementTypeCase.POPULATION,
                 MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> {
                   throw IllegalArgumentException(
                     "Missing Reach and ReachAndFrequency in the measurementSpec."

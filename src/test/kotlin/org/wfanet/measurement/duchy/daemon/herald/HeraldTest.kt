@@ -465,7 +465,7 @@ class HeraldTest {
               parameters =
                 LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.parameters {
                   maximumFrequency = 10
-                  liquidLegionsSketch = liquidLegionsSketchParameters {
+                  sketchParameters = liquidLegionsSketchParameters {
                     decayRate = 12.0
                     size = 100_000L
                   }
@@ -567,7 +567,7 @@ class HeraldTest {
               parameters =
                 LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.parameters {
                   maximumFrequency = 10
-                  liquidLegionsSketch = liquidLegionsSketchParameters {
+                  sketchParameters = liquidLegionsSketchParameters {
                     decayRate = 12.0
                     size = 100_000L
                   }

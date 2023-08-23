@@ -19,3 +19,10 @@ variable "spanner_instance" {
   })
   nullable = false
 }
+
+variable "spanner_database_name" {
+  description = "Name of the Spanner database for the Kingdom."
+  type        = string
+  default     = "kingdom"
+  nullable    = false
+}
