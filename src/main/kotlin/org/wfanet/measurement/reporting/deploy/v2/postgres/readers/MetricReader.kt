@@ -106,6 +106,7 @@ class MetricReader(private val readContext: ReadContext) {
       Metrics.DifferentialPrivacyDelta,
       Metrics.FrequencyDifferentialPrivacyEpsilon,
       Metrics.FrequencyDifferentialPrivacyDelta,
+      Metrics.MaximumFrequency,
       Metrics.MaximumFrequencyPerUser,
       Metrics.MaximumWatchDurationPerUser,
       Metrics.VidSamplingIntervalStart,
@@ -367,6 +368,7 @@ class MetricReader(private val readContext: ReadContext) {
       val differentialPrivacyDelta: Double = row["DifferentialPrivacyDelta"]
       val frequencyDifferentialPrivacyEpsilon: Double? = row["FrequencyDifferentialPrivacyEpsilon"]
       val frequencyDifferentialPrivacyDelta: Double? = row["FrequencyDifferentialPrivacyDelta"]
+      val maximumFrequency: Int? = row["MaximumFrequency"]
       val maximumFrequencyPerUser: Int? = row["MaximumFrequencyPerUser"]
       val maximumWatchDurationPerUser: Int? = row["MaximumWatchDurationPerUser"]
       val vidSamplingStart: Float = row["VidSamplingIntervalStart"]
@@ -415,7 +417,7 @@ class MetricReader(private val readContext: ReadContext) {
                 if (
                   frequencyDifferentialPrivacyDelta == null ||
                     frequencyDifferentialPrivacyEpsilon == null ||
-                    maximumFrequencyPerUser == null
+                    maximumFrequency == null
                 ) {
                   throw IllegalStateException()
                 }
@@ -432,7 +434,7 @@ class MetricReader(private val readContext: ReadContext) {
                         epsilon = frequencyDifferentialPrivacyEpsilon
                         delta = frequencyDifferentialPrivacyDelta
                       }
-                    this.maximumFrequencyPerUser = maximumFrequencyPerUser
+                    this.maximumFrequency = maximumFrequency
                   }
               }
               MetricSpec.TypeCase.IMPRESSION_COUNT -> {

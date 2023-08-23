@@ -29,9 +29,10 @@ message Metric {
   message ReachParams {}
   // Parameters that are used to generate `Frequency Histogram` metric.
   message FrequencyHistogramParams {
-    // Maximum frequency cut-off value in the frequency histogram. Counts with
-    // frequency higher than `max_frequency` will be aggregated together.
-    int32 maximum_frequency_per_user = 1;
+    // Maximum frequency per user that will be included in this measurement.
+    //
+    // Deprecated: Not supported by the CMMS.
+    int32 maximum_frequency_per_user = 1 [deprecated = true];
   }
   // Parameters that are used to generate `Impression Count` metric.
   message ImpressionCountParams {
@@ -47,7 +48,9 @@ message Metric {
   // Parameters that are used to generate `Watch Duration` metric.
   message WatchDurationParams {
     // Maximum frequency per user that will be included in this measurement.
-    int32 maximum_frequency_per_user = 1;
+    //
+    // Deprecated: Not supported by the CMMS.
+    int32 maximum_frequency_per_user = 1 [deprecated = true];
     // Maximum watch duration per user that will be included in this
     // measurement. Recommended maximum_watch_duration_per_user = cap on the
     // total watch duration of all the impressions of a user = 4000 sec for the

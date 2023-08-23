@@ -53,7 +53,10 @@ message ProtocolConfig {
 
     // The maximum frequency to reveal in the histogram. For reach-only liquid
     // legions protocol, this field should be ignored.
-    int32 maximum_frequency = 4;
+    //
+    // Deprecated: No longer set on new Measurements where it is specified in
+    // MeasurementSpec instead.
+    int32 maximum_frequency = 4 [deprecated = true];
 
     // The mechanism to generate noise during computation.
     //
