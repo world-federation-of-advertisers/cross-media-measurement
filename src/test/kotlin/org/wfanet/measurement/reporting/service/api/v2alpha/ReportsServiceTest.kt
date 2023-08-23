@@ -2881,6 +2881,36 @@ class ReportsServiceTest {
   }
 
   @Test
+  fun `listReports with a filter returns filtered results`() = runBlocking {
+    val pageSize = 2
+    val request = listReportsRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      this.pageSize = pageSize
+      filter = "name != '${PENDING_WATCH_DURATION_REPORT.name}'"
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        runBlocking { service.listReports(request) }
+      }
+
+    val expected = listReportsResponse { reports.add(PENDING_REACH_REPORT) }
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::streamReports)
+      .isEqualTo(
+        streamReportsRequest {
+          limit = pageSize + 1
+          this.filter =
+            StreamReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+            }
+        }
+      )
+  }
+
+  @Test
   fun `listReports throws UNAUTHENTICATED when no principal is found`() {
     val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
     val exception =
@@ -3358,6 +3388,7 @@ class ReportsServiceTest {
         PRIMITIVE_REPORTING_SETS.first().resourceId,
         listOf(INITIAL_REACH_REPORTING_METRIC),
         listOf(),
+        "reach-"
       )
 
     private val INITIAL_WATCH_DURATION_REPORTING_METRIC =
@@ -3382,6 +3413,7 @@ class ReportsServiceTest {
         PRIMITIVE_REPORTING_SETS.first().resourceId,
         listOf(INITIAL_WATCH_DURATION_REPORTING_METRIC),
         listOf(),
+        "duration-",
         metricIdBaseLong = WATCH_DURATION_METRIC_ID_BASE_LONG
       )
 
