@@ -1,0 +1,13 @@
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("@aspect_rules_jest//jest:defs.bzl", "jest_test")
+
+js_library(
+    name = "list",
+    srcs = ["report_list_model_test.ts"],
+    visibility = [
+        "//experimental/reporting-ui/src/test/react/reporting-ui:__pkg__",
+    ],
+    deps = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui/client"
+    ]
+)
