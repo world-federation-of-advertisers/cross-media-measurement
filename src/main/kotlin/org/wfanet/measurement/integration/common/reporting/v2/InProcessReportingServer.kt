@@ -61,6 +61,7 @@ import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportin
 import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v2alpha.DataProvidersService
+import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupMetadataDescriptorsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withMetadataPrincipalIdentities
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
@@ -184,6 +185,7 @@ class InProcessReportingServer(
 
         listOf(
             DataProvidersService(publicKingdomDataProvidersClient)
+            EventGroupMetadataDescriptorsService(publicKingdomEventGroupMetadataDescriptorsClient)
               .withMetadataPrincipalIdentities(measurementConsumerConfigs),
             EventGroupsService(
                 publicKingdomEventGroupsClient,
