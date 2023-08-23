@@ -28,7 +28,10 @@ kt_jvm_library(
 java_binary(
     name = "S3LiquidLegionsV2MillDaemon",
     main_class = "org.wfanet.measurement.duchy.deploy.aws.daemon.mill.liquidlegionsv2.S3LiquidLegionsV2MillDaemonKt",
-    runtime_deps = [":s3_liquid_legions_v2_mill_daemon"],
+    runtime_deps = [
+        ":s3_liquid_legions_v2_mill_daemon",
+        "//imports/java/software/amazon/awssdk/sts",
+    ],
 )
 
 java_image(
