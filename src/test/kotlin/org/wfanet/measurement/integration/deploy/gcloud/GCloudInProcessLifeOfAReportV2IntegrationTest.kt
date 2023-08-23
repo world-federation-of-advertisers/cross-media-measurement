@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.integration.postgres
+package org.wfanet.measurement.integration.deploy.gcloud
 
 import java.time.Clock
 import org.junit.ClassRule
@@ -22,14 +22,14 @@ import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseP
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.duchy.deploy.common.postgres.testing.Schemata.DUCHY_CHANGELOG_PATH
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
-import org.wfanet.measurement.integration.common.duchy.PostgresDuchyDependencyProviderRule
 import org.wfanet.measurement.integration.common.reporting.v2.InProcessLifeOfAReportIntegrationTest
-import org.wfanet.measurement.integration.gcloud.KingdomDataServicesProviderRule
+import org.wfanet.measurement.integration.deploy.common.postgres.PostgresDuchyDependencyProviderRule
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDataServicesProviderRule
 import org.wfanet.measurement.reporting.deploy.v2.common.server.postgres.PostgresServices
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata.REPORTING_CHANGELOG_PATH
 
-/** Implementation of [InProcessLifeOfAReportIntegrationTest] for Postgres. */
-class V2PostgresInProcessLifeOfAReportIntegrationTest :
+/** Implementation of [InProcessLifeOfAReportIntegrationTest] for Google Cloud. */
+class GCloudInProcessLifeOfAReportV2IntegrationTest :
   InProcessLifeOfAReportIntegrationTest(
     KingdomDataServicesProviderRule(),
     PostgresDuchyDependencyProviderRule(duchyDatabaseProvider, ALL_DUCHY_NAMES)

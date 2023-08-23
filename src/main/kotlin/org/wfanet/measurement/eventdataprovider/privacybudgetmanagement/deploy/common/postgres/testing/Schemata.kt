@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package src.main.kotlin.org.wfanet.measurement.integration.deploy.postgres
+package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.deploy.common.postgres.testing
 
 import java.io.File
 import java.nio.file.Paths
@@ -27,8 +27,10 @@ private val SCHEMA_DIR =
     "org",
     "wfanet",
     "measurement",
-    "integration",
+    "eventdataprovider",
+    "privacybudgetmanagement",
     "deploy",
+    "common",
     "postgres",
   )
 

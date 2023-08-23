@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.integration.postgres
+package org.wfanet.measurement.integration.deploy.common.postgres
 
 import java.time.Clock
 import org.junit.ClassRule
