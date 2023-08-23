@@ -791,7 +791,7 @@ class MeasurementSystemTest {
           "--reach-privacy-delta=0.0",
           "--frequency-privacy-epsilon=0.02",
           "--frequency-privacy-delta=0.0",
-          "--reach-max-frequency=1000",
+          "--max-frequency=5",
           "--vid-sampling-start=0.1",
           "--vid-sampling-width=0.2",
           "--measurement-consumer=$measurementConsumerName",
@@ -886,7 +886,7 @@ class MeasurementSystemTest {
                 epsilon = 0.02
                 delta = 0.0
               }
-              maximumFrequencyPerUser = 1000
+              maximumFrequency = 5
             }
           vidSamplingInterval =
             MeasurementSpecKt.vidSamplingInterval {

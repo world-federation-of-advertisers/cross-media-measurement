@@ -15,7 +15,6 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.util.Timestamps
-import com.google.type.date
 import com.google.type.interval
 import java.time.ZoneOffset
 import org.wfanet.measurement.api.Version
@@ -232,6 +231,7 @@ fun InternalProtocolConfig.toProtocolConfig(
                       source.liquidLegionsV2.dataProviderNoise.toDifferentialPrivacyParams()
                   }
                   ellipticCurveId = source.liquidLegionsV2.ellipticCurveId
+                  @Suppress("DEPRECATION") // For legacy Measurements.
                   maximumFrequency = source.liquidLegionsV2.maximumFrequency
                   // Use `GEOMETRIC` for unspecified InternalNoiseMechanism for old Measurements.
                   noiseMechanism =

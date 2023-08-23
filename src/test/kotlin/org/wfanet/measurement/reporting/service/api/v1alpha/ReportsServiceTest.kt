@@ -170,9 +170,9 @@ import org.wfanet.measurement.internal.reporting.timeIntervals as internalTimeIn
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v1alpha.ListReportsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
+import org.wfanet.measurement.reporting.v1alpha.Metric
 import org.wfanet.measurement.reporting.v1alpha.Metric.SetOperation
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.SetOperationKt
-import org.wfanet.measurement.reporting.v1alpha.MetricKt.frequencyHistogramParams
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.impressionCountParams
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.namedSetOperation
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.reachParams
@@ -209,7 +209,6 @@ private val REACH_ONLY_VID_SAMPLING_START_LIST =
   (0 until NUMBER_REACH_ONLY_BUCKETS).map { it * REACH_ONLY_VID_SAMPLING_WIDTH }
 private const val REACH_ONLY_REACH_EPSILON = 0.0041
 private const val REACH_ONLY_FREQUENCY_EPSILON = 0.0001
-private const val REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER = 1
 
 private const val REACH_FREQUENCY_VID_SAMPLING_WIDTH = 5.0f / NUMBER_VID_BUCKETS
 private const val NUMBER_REACH_FREQUENCY_BUCKETS = 19
@@ -221,6 +220,7 @@ private val REACH_FREQUENCY_VID_SAMPLING_START_LIST =
   }
 private const val REACH_FREQUENCY_REACH_EPSILON = 0.0033
 private const val REACH_FREQUENCY_FREQUENCY_EPSILON = 0.115
+private const val MAXIMUM_FREQUENCY = 10
 
 private const val IMPRESSION_VID_SAMPLING_WIDTH = 62.0f / NUMBER_VID_BUCKETS
 private const val NUMBER_IMPRESSION_BUCKETS = 1
@@ -621,7 +621,7 @@ private val REACH_ONLY_MEASUREMENT_SPEC = measurementSpec {
         epsilon = REACH_ONLY_FREQUENCY_EPSILON
         delta = DIFFERENTIAL_PRIVACY_DELTA
       }
-      maximumFrequencyPerUser = REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER
+      maximumFrequency = 1
     }
   vidSamplingInterval = vidSamplingInterval {
     start = REACH_ONLY_VID_SAMPLING_START_LIST[SECURE_RANDOM_OUTPUT_INT]
@@ -707,7 +707,7 @@ private val REACH_FREQUENCY_MEASUREMENT_SPEC = measurementSpec {
         epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
         delta = DIFFERENTIAL_PRIVACY_DELTA
       }
-      maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
+      maximumFrequency = MAXIMUM_FREQUENCY
     }
   vidSamplingInterval = vidSamplingInterval {
     start = REACH_FREQUENCY_VID_SAMPLING_START_LIST[SECURE_RANDOM_OUTPUT_INT]
@@ -852,7 +852,6 @@ private val WATCH_DURATION_MEASUREMENT_SPEC = measurementSpec {
         delta = DIFFERENTIAL_PRIVACY_DELTA
       }
       maximumWatchDurationPerUser = MAXIMUM_WATCH_DURATION_PER_USER
-      maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
     }
   vidSamplingInterval = vidSamplingInterval {
     start = WATCH_DURATION_VID_SAMPLING_START_LIST[SECURE_RANDOM_OUTPUT_INT]
@@ -1014,19 +1013,14 @@ private val INTERNAL_REACH_METRIC = internalMetric {
 
 // Frequency histogram metric
 private val FREQUENCY_HISTOGRAM_METRIC = metric {
-  frequencyHistogram = frequencyHistogramParams {
-    maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
-  }
+  frequencyHistogram = Metric.FrequencyHistogramParams.getDefaultInstance()
   cumulative = false
   setOperations.add(NAMED_FREQUENCY_HISTOGRAM_SET_OPERATION)
 }
 private val INTERNAL_FREQUENCY_HISTOGRAM_METRIC = internalMetric {
   details =
     InternalMetricKt.details {
-      frequencyHistogram =
-        InternalMetricKt.frequencyHistogramParams {
-          maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
-        }
+      frequencyHistogram = InternalMetric.FrequencyHistogramParams.getDefaultInstance()
       cumulative = false
     }
   namedSetOperations.add(INTERNAL_NAMED_FREQUENCY_HISTOGRAM_SET_OPERATION)
@@ -1053,7 +1047,6 @@ private val INTERNAL_IMPRESSION_METRIC = internalMetric {
 // Watch duration metric
 private val WATCH_DURATION_METRIC = metric {
   watchDuration = watchDurationParams {
-    maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
     maximumWatchDurationPerUser = MAXIMUM_WATCH_DURATION_PER_USER
   }
   cumulative = false
@@ -1064,7 +1057,6 @@ private val INTERNAL_WATCH_DURATION_METRIC = internalMetric {
     InternalMetricKt.details {
       watchDuration =
         InternalMetricKt.watchDurationParams {
-          maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
           maximumWatchDurationPerUser = MAXIMUM_WATCH_DURATION_PER_USER
         }
       cumulative = false
