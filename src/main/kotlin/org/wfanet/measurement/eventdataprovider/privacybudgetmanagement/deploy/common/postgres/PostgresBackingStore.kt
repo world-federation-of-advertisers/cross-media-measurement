@@ -11,7 +11,7 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.deploy.postgres
+package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.deploy.common.postgres
 
 import java.sql.Connection
 import java.sql.PreparedStatement
