@@ -185,6 +185,7 @@ class InProcessReportingServer(
 
         listOf(
             DataProvidersService(publicKingdomDataProvidersClient)
+              .withMetadataPrincipalIdentities(measurementConsumerConfigs),
             EventGroupMetadataDescriptorsService(publicKingdomEventGroupMetadataDescriptorsClient)
               .withMetadataPrincipalIdentities(measurementConsumerConfigs),
             EventGroupsService(

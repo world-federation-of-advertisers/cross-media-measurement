@@ -204,6 +204,7 @@ private fun run(
   val services: List<ServerServiceDefinition> =
     listOf(
       DataProvidersService(KingdomDataProvidersCoroutineStub(kingdomChannel))
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       EventGroupMetadataDescriptorsService(
           KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel)
         )

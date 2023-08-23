@@ -493,11 +493,11 @@ class GetDataProvider : Runnable {
     val request = getDataProviderRequest { name = cmmsDataProviderName }
 
     val response = runBlocking(Dispatchers.IO) { parent.dataProviderStub.getDataProvider(request) }
-    
+
     println(response)
   }
 }
-    
+
 @CommandLine.Command(name = "get", description = ["Get event group metadata descriptor"])
 class GetEventGroupMetadataDescriptor : Runnable {
   @CommandLine.ParentCommand private lateinit var parent: EventGroupMetadataDescriptorsCommand
@@ -561,11 +561,21 @@ class DataProvidersCommand : Runnable {
 
   val dataProviderStub: DataProvidersCoroutineStub by lazy {
     DataProvidersCoroutineStub(parent.channel)
+  }
+
+  override fun run() {}
+}
+
+@CommandLine.Command(
+  name = "event-group-metadata-descriptors",
+  sortOptions = false,
+  subcommands =
+    [
+      CommandLine.HelpCommand::class,
       GetEventGroupMetadataDescriptor::class,
       BatchGetEventGroupMetadataDescriptors::class,
     ]
 )
-
 class EventGroupMetadataDescriptorsCommand : Runnable {
   @CommandLine.ParentCommand lateinit var parent: Reporting
 

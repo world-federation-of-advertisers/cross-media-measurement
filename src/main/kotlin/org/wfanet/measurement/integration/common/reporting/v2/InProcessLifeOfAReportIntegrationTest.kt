@@ -191,7 +191,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
   private val publicDataProvidersClient by lazy {
     DataProvidersCoroutineStub(reportingServer.publicApiChannel)
-    
+  }
+
   private val publicEventGroupMetadataDescriptorsClient by lazy {
     EventGroupMetadataDescriptorsCoroutineStub(reportingServer.publicApiChannel)
   }
@@ -1736,7 +1737,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     assertThat(DataProviderCertificateKey.fromName(dataProvider.certificate)).isNotNull()
   }
 
-  @Test  
+  @Test
   fun `retrieving metadata descriptors for event groups succeeds`() = runBlocking {
     val eventGroups = listEventGroups()
 

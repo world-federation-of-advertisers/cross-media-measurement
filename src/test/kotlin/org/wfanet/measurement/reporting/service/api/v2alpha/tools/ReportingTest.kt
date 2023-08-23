@@ -578,7 +578,7 @@ class ReportingTest {
 
   @Test
   fun `get data provider calls api with valid request`() {
-     val args =
+    val args =
       arrayOf(
         "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
         "--tls-key-file=$SECRETS_DIR/mc_tls.key",
@@ -595,7 +595,25 @@ class ReportingTest {
     assertThat(parseTextProto(output.out.reader(), DataProvider.getDefaultInstance()))
       .isEqualTo(DATA_PROVIDER)
   }
-  
+
+  @Test
+  fun `get data provider fails when missing descriptor name`() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "data-providers",
+        "get",
+      )
+
+    val capturedOutput = callCli(args)
+
+    assertThat(capturedOutput).status().isEqualTo(2)
+  }
+
+  @Test
   fun `get event group metadata descriptor calls api with valid request`() {
     val args =
       arrayOf(
@@ -630,13 +648,6 @@ class ReportingTest {
         "--tls-key-file=$SECRETS_DIR/mc_tls.key",
         "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
         "--reporting-server-api-target=$HOST:${server.port}",
-        "data-providers",
-        "get",
-      )
-
-    val capturedOutput = callCli(args)
-
-    assertThat(capturedOutput).status().isEqualTo(2)
         "event-group-metadata-descriptors",
         "batch-get",
         EVENT_GROUP_METADATA_DESCRIPTOR_NAME,
