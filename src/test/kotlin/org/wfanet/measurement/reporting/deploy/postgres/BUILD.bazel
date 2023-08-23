@@ -3,7 +3,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 kt_jvm_test(
     name = "PostgresMeasurementsServiceTest",
     srcs = ["PostgresMeasurementsServiceTest.kt"],
-    flaky = True,
+    tags = ["cpu:2"],
     test_class = "org.wfanet.measurement.reporting.deploy.postgres.PostgresMeasurementsServiceTest",
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
@@ -12,15 +12,14 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres:services",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/testing",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal/testing",
-        "@wfa_common_jvm//imports/java/com/opentable/db/postgres:pg_embedded",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:embedded_postgres",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
     ],
 )
 
 kt_jvm_test(
     name = "PostgresReportingSetsServiceTest",
     srcs = ["PostgresReportingSetsServiceTest.kt"],
-    flaky = True,
+    tags = ["cpu:2"],
     test_class = "org.wfanet.measurement.reporting.deploy.postgres.PostgresReportingSetsServiceTest",
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
@@ -29,15 +28,14 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres:services",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/testing",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal/testing",
-        "@wfa_common_jvm//imports/java/com/opentable/db/postgres:pg_embedded",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:embedded_postgres",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
     ],
 )
 
 kt_jvm_test(
     name = "PostgresReportsServiceTest",
     srcs = ["PostgresReportsServiceTest.kt"],
-    flaky = True,
+    tags = ["cpu:2"],
     test_class = "org.wfanet.measurement.reporting.deploy.postgres.PostgresReportsServiceTest",
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
@@ -46,7 +44,6 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres:services",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/testing",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal/testing",
-        "@wfa_common_jvm//imports/java/com/opentable/db/postgres:pg_embedded",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:embedded_postgres",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
     ],
 )

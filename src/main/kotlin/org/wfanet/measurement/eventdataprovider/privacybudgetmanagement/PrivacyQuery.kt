@@ -28,8 +28,8 @@ data class DpCharge(val epsilon: Float, val delta: Float)
 data class AcdpCharge(val rho: Double, val theta: Double)
 
 /**
- * Represents an element that caused charges to the manager and wheter or not if those charges were
- * positive or refunds. [referenceKey] is usally requisitionId. [referenceId] and [isRefund] can be
+ * Represents an element that caused charges to the manager and whether if those charges were
+ * positive or refunds. [referenceId] is usually requisitionId. [referenceId] and [isRefund] can be
  * null for when calling chargingWillExceedPrivacyBudget.
  */
 data class Reference(
@@ -48,9 +48,33 @@ data class LandscapeMask(
   val vidSampleWidth: Float
 )
 
-/** Represents multiple charges to the multiple buckets in the PrivacyLandscape. */
-data class Query(
+/**
+ * Represents multiple Differential Privacy(DP) charges to the multiple buckets in the
+ * PrivacyLandscape.
+ */
+data class DpQuery(
   val reference: Reference,
   val landscapeMask: LandscapeMask,
-  val dpCharge: DpCharge
+  val dpCharge: DpCharge,
 )
+
+/**
+ * Represents multiple Almost Concentrated Differential Privacy(ACDP) charges to the multiple
+ * buckets in the PrivacyLandscape.
+ */
+data class AcdpQuery(
+  val reference: Reference,
+  val landscapeMask: LandscapeMask,
+  val acdpCharge: AcdpCharge,
+)
+
+/** Supported Composition mechanisms in Privacy Budget Manager. */
+enum class CompositionMechanism {
+  /** Advanced Composition under Differential Privacy which should be used with Laplace noise. */
+  DP_ADVANCED,
+
+  /**
+   * Almost Concentrated Differential Privacy Composition which should be used with Gaussian noise.
+   */
+  ACDP,
+}

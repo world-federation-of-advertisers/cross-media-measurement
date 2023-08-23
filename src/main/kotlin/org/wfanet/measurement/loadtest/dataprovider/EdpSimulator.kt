@@ -27,6 +27,7 @@ import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.math.log2
 import kotlin.random.Random
 import kotlin.random.asJavaRandom
 import kotlinx.coroutines.flow.Flow
@@ -68,6 +69,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.watchDuration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.DuchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
@@ -116,11 +118,14 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 import org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiser
 import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.CompositionMechanism
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getPrivacyQuery
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDirectAcdpQuery
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDpQuery
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getLiquidLegionsV2AcdpQuery
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
 import org.wfanet.measurement.loadtest.config.VidSampling
 
@@ -145,13 +150,14 @@ class EdpSimulator(
   private val eventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
   private val requisitionsStub: RequisitionsCoroutineStub,
   private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
-  private val eventQuery: EventQuery,
+  private val eventQuery: EventQuery<Message>,
   private val throttler: Throttler,
   private val privacyBudgetManager: PrivacyBudgetManager,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   private val directNoiseMechanism: DirectNoiseMechanism,
   private val sketchEncrypter: SketchEncrypter = SketchEncrypter.Default,
   private val random: Random = Random,
+  private val compositionMechanism: CompositionMechanism,
 ) {
   /** A sequence of operations done in the simulator. */
   suspend fun run() {
@@ -319,6 +325,11 @@ class EdpSimulator(
     val requisitionSpec: RequisitionSpec
   )
 
+  private class RequisitionRefusalException(
+    val justification: Requisition.Refusal.Justification,
+    message: String
+  ) : Exception(message)
+
   private class InvalidConsentSignalException(message: String? = null, cause: Throwable? = null) :
     GeneralSecurityException(message, cause)
 
@@ -390,7 +401,10 @@ class EdpSimulator(
     duchyCertificate: Certificate,
     protocol: ProtocolConfig.Protocol.ProtocolCase
   ) {
-    require(protocol == ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2) {
+    require(
+      protocol == ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2 ||
+        protocol == ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2
+    ) {
       "Unsupported protocol $protocol"
     }
 
@@ -417,6 +431,27 @@ class EdpSimulator(
       throw InvalidConsentSignalException(
         "ElGamal public key signature is invalid for Duchy ${duchyEntry.key}",
         e
+      )
+    }
+  }
+
+  /** Verify duchy entries' certificates. Return true for valid or false for invalid. */
+  private suspend fun verifyDuchyEntries(
+    requisition: Requisition,
+    protocol: ProtocolConfig.Protocol.ProtocolCase
+  ) {
+    try {
+      for (duchyEntry in requisition.duchiesList) {
+        val duchyCertificate: Certificate = getCertificate(duchyEntry.value.duchyCertificate)
+        verifyDuchyEntry(duchyEntry, duchyCertificate, protocol)
+      }
+    } catch (e: InvalidConsentSignalException) {
+      logger.log(Level.WARNING, e) {
+        "Consent signaling verification failed for ${requisition.name}"
+      }
+      throw RequisitionRefusalException(
+        Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID,
+        e.message.orEmpty()
       )
     }
   }
@@ -472,103 +507,129 @@ class EdpSimulator(
     }
 
     for (requisition in requisitions) {
-      logger.info("Processing requisition ${requisition.name}...")
-      val measurementConsumerCertificate: Certificate =
-        getCertificate(requisition.measurementConsumerCertificate)
+      try {
+        logger.info("Processing requisition ${requisition.name}...")
+        val measurementConsumerCertificate: Certificate =
+          getCertificate(requisition.measurementConsumerCertificate)
 
-      val (measurementSpec, requisitionSpec) =
-        try {
-          verifySpecifications(requisition, measurementConsumerCertificate)
-        } catch (e: InvalidConsentSignalException) {
-          logger.log(Level.WARNING, e) {
-            "Consent signaling verification failed for ${requisition.name}"
+        val (measurementSpec, requisitionSpec) =
+          try {
+            verifySpecifications(requisition, measurementConsumerCertificate)
+          } catch (e: InvalidConsentSignalException) {
+            logger.log(Level.WARNING, e) {
+              "Consent signaling verification failed for ${requisition.name}"
+            }
+            throw RequisitionRefusalException(
+              Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID,
+              e.message.orEmpty()
+            )
           }
-          refuseRequisition(
-            requisition.name,
-            Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID,
-            e.message.orEmpty()
-          )
-          continue
-        }
 
-      val eventGroupSpecs: List<EventQuery.EventGroupSpec> =
-        try {
-          buildEventGroupSpecs(requisitionSpec)
-        } catch (e: InvalidSpecException) {
-          refuseRequisition(
-            requisition.name,
-            Requisition.Refusal.Justification.SPEC_INVALID,
-            e.message.orEmpty()
-          )
-          continue
-        }
+        val eventGroupSpecs: List<EventQuery.EventGroupSpec> =
+          try {
+            buildEventGroupSpecs(requisitionSpec)
+          } catch (e: InvalidSpecException) {
+            throw RequisitionRefusalException(
+              Requisition.Refusal.Justification.SPEC_INVALID,
+              e.message.orEmpty()
+            )
+          }
 
-      val requisitionFingerprint = computeRequisitionFingerprint(requisition)
+        val requisitionFingerprint = computeRequisitionFingerprint(requisition)
 
-      val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
-      when (measurementSpec.measurementTypeCase) {
-        MeasurementSpec.MeasurementTypeCase.REACH,
-        MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-          if (protocols.any { it.hasDirect() }) {
+        val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
+
+        if (protocols.any { it.hasDirect() }) {
+          if (measurementSpec.hasReach() || measurementSpec.hasReachAndFrequency()) {
             fulfillDirectReachAndFrequencyMeasurement(
               requisition,
               measurementSpec,
               requisitionSpec.nonce,
               eventGroupSpecs
             )
-            continue
-          }
-          if (protocols.any { it.hasLiquidLegionsV2() }) {
-            try {
-              for (duchyEntry in requisition.duchiesList) {
-                val duchyCertificate: Certificate =
-                  getCertificate(duchyEntry.value.duchyCertificate)
-                verifyDuchyEntry(
-                  duchyEntry,
-                  duchyCertificate,
-                  ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2
-                )
-              }
-            } catch (e: InvalidConsentSignalException) {
-              logger.log(Level.WARNING, e) {
-                "Consent signaling verification failed for ${requisition.name}"
-              }
-              refuseRequisition(
-                requisition.name,
-                Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID,
-                e.message.orEmpty()
-              )
-              continue
-            }
-
-            fulfillRequisitionForReachAndFrequencyMeasurement(
+          } else if (measurementSpec.hasDuration()) {
+            fulfillDurationMeasurement(
               requisition,
+              requisitionSpec,
               measurementSpec,
-              requisitionFingerprint,
-              requisitionSpec.nonce,
               eventGroupSpecs
             )
-            continue
+          } else if (measurementSpec.hasImpression()) {
+            fulfillImpressionMeasurement(
+              requisition,
+              requisitionSpec,
+              measurementSpec,
+              eventGroupSpecs
+            )
+          } else {
+            logger.log(
+              Level.WARNING,
+              "Skipping ${requisition.name}: Measurement type not supported for direct fulfillment."
+            )
+            throw RequisitionRefusalException(
+              Requisition.Refusal.Justification.SPEC_INVALID,
+              "Measurement type not supported for direct fulfillment."
+            )
           }
-        }
-        MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
-          if (protocols.any { it.hasDirect() }) {
-            fulfillImpressionMeasurement(requisition, requisitionSpec, measurementSpec)
-            continue
+        } else if (protocols.any { it.hasLiquidLegionsV2() }) {
+          if (!measurementSpec.hasReach() && !measurementSpec.hasReachAndFrequency()) {
+            logger.log(
+              Level.WARNING,
+              "Skipping ${requisition.name}: Measurement type not supported for protocol llv2."
+            )
+            throw RequisitionRefusalException(
+              Requisition.Refusal.Justification.SPEC_INVALID,
+              "Measurement type not supported for protocol llv2."
+            )
           }
-        }
-        MeasurementSpec.MeasurementTypeCase.DURATION -> {
-          if (protocols.any { it.hasDirect() }) {
-            fulfillDurationMeasurement(requisition, requisitionSpec, measurementSpec)
-            continue
+          verifyDuchyEntries(requisition, ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2)
+
+          fulfillRequisitionForLiquidLegionsV2Measurement(
+            requisition,
+            measurementSpec,
+            requisitionFingerprint,
+            requisitionSpec.nonce,
+            eventGroupSpecs
+          )
+        } else if (protocols.any { it.hasReachOnlyLiquidLegionsV2() }) {
+          if (!measurementSpec.hasReach()) {
+            logger.log(
+              Level.WARNING,
+              "Skipping ${requisition.name}: Measurement type not supported for protocol rollv2."
+            )
+            throw RequisitionRefusalException(
+              Requisition.Refusal.Justification.SPEC_INVALID,
+              "Measurement type not supported for protocol rollv2."
+            )
           }
+          verifyDuchyEntries(
+            requisition,
+            ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2
+          )
+
+          fulfillRequisitionForReachOnlyLiquidLegionsV2Measurement(
+            requisition,
+            measurementSpec,
+            requisitionFingerprint,
+            requisitionSpec.nonce,
+            eventGroupSpecs
+          )
+        } else {
+          logger.log(
+            Level.WARNING,
+            "Skipping ${requisition.name}: Protocol not set or not supported."
+          )
+          throw RequisitionRefusalException(
+            Requisition.Refusal.Justification.SPEC_INVALID,
+            "Protocol not set or not supported."
+          )
         }
-        MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
-          error("Measurement type not set for ${requisition.name}")
-      }
-      logger.warning {
-        "Skipping ${requisition.name}: No supported protocol for measurement type ${measurementSpec.measurementTypeCase}"
+      } catch (refusalException: RequisitionRefusalException) {
+        refuseRequisition(
+          requisition.name,
+          refusalException.justification,
+          refusalException.message ?: "Refuse to fulfill requisition."
+        )
       }
     }
   }
@@ -582,7 +643,7 @@ class EdpSimulator(
     requisitionSpec: RequisitionSpec
   ): List<EventQuery.EventGroupSpec> {
     // TODO(@SanjayVas): Cache EventGroups.
-    return requisitionSpec.eventGroupsList.map {
+    return requisitionSpec.events.eventGroupsList.map {
       val eventGroup =
         try {
           eventGroupsStub.getEventGroup(getEventGroupRequest { name = it.key })
@@ -621,33 +682,67 @@ class EdpSimulator(
     }
   }
 
-  private suspend fun chargePrivacyBudget(
+  private suspend fun chargeLiquidLegionsV2PrivacyBudget(
     requisitionName: String,
     measurementSpec: MeasurementSpec,
-    eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>
+    eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>,
+    noiseMechanism: NoiseMechanism,
+    contributorCount: Int
   ) {
+    logger.info(
+      "chargeLiquidLegionsV2PrivacyBudget with $compositionMechanism composition mechanism for requisition with $noiseMechanism noise mechanism...",
+    )
+
     try {
-      privacyBudgetManager.chargePrivacyBudget(
-        getPrivacyQuery(
-          Reference(measurementConsumerName, requisitionName, false),
-          measurementSpec,
-          eventSpecs
-        )
-      )
+      when (compositionMechanism) {
+        CompositionMechanism.DP_ADVANCED ->
+          privacyBudgetManager.chargePrivacyBudget(
+            getDpQuery(
+              Reference(measurementConsumerName, requisitionName, false),
+              measurementSpec,
+              eventSpecs,
+            )
+          )
+        CompositionMechanism.ACDP -> {
+          if (noiseMechanism != NoiseMechanism.DISCRETE_GAUSSIAN) {
+            throw PrivacyBudgetManagerException(
+              PrivacyBudgetManagerExceptionType.INCORRECT_NOISE_MECHANISM
+            )
+          }
+
+          privacyBudgetManager.chargePrivacyBudgetInAcdp(
+            getLiquidLegionsV2AcdpQuery(
+              Reference(measurementConsumerName, requisitionName, false),
+              measurementSpec,
+              eventSpecs,
+              contributorCount,
+            )
+          )
+        }
+      }
     } catch (e: PrivacyBudgetManagerException) {
+      logger.log(
+        Level.WARNING,
+        "chargeLiquidLegionsV2PrivacyBudget failed due to ${e.errorType}",
+        e
+      )
       when (e.errorType) {
         PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED -> {
-          refuseRequisition(
-            requisitionName,
+          throw RequisitionRefusalException(
             Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET,
             "Privacy budget exceeded"
           )
         }
         PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER -> {
-          refuseRequisition(
-            requisitionName,
+          throw RequisitionRefusalException(
             Requisition.Refusal.Justification.SPEC_INVALID,
             "Invalid event filter"
+          )
+        }
+        PrivacyBudgetManagerExceptionType.INCORRECT_NOISE_MECHANISM -> {
+          throw RequisitionRefusalException(
+            Requisition.Refusal.Justification.SPEC_INVALID,
+            "Incorrect noise mechanism. Should be DISCRETE_GAUSSIAN for ACDP composition but is $noiseMechanism"
           )
         }
         PrivacyBudgetManagerExceptionType.DATABASE_UPDATE_ERROR,
@@ -657,42 +752,113 @@ class EdpSimulator(
           throw Exception("Unexpected PBM error", e)
         }
       }
-      logger.log(Level.WARNING, "RequisitionFulfillmentWorkflow failed due to ${e.errorType}", e)
     }
   }
 
-  private suspend fun generateSketch(
+  private suspend fun chargeDirectPrivacyBudget(
     requisitionName: String,
+    measurementSpec: MeasurementSpec,
+    eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>,
+  ) {
+    logger.info(
+      "chargeDirectPrivacyBudget with $compositionMechanism composition mechanism...",
+    )
+
+    try {
+      when (compositionMechanism) {
+        CompositionMechanism.DP_ADVANCED ->
+          privacyBudgetManager.chargePrivacyBudget(
+            getDpQuery(
+              Reference(measurementConsumerName, requisitionName, false),
+              measurementSpec,
+              eventSpecs,
+            )
+          )
+        CompositionMechanism.ACDP -> {
+          if (directNoiseMechanism != DirectNoiseMechanism.GAUSSIAN) {
+            throw PrivacyBudgetManagerException(
+              PrivacyBudgetManagerExceptionType.INCORRECT_NOISE_MECHANISM
+            )
+          }
+
+          privacyBudgetManager.chargePrivacyBudgetInAcdp(
+            getDirectAcdpQuery(
+              Reference(measurementConsumerName, requisitionName, false),
+              measurementSpec,
+              eventSpecs,
+            )
+          )
+        }
+      }
+    } catch (e: PrivacyBudgetManagerException) {
+      logger.log(Level.WARNING, "chargeDirectPrivacyBudget failed due to ${e.errorType}", e)
+      when (e.errorType) {
+        PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED -> {
+          throw RequisitionRefusalException(
+            Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET,
+            "Privacy budget exceeded"
+          )
+        }
+        PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER -> {
+          throw RequisitionRefusalException(
+            Requisition.Refusal.Justification.SPEC_INVALID,
+            "Invalid event filter"
+          )
+        }
+        PrivacyBudgetManagerExceptionType.INCORRECT_NOISE_MECHANISM -> {
+          throw RequisitionRefusalException(
+            Requisition.Refusal.Justification.SPEC_INVALID,
+            "Incorrect noise mechanism. Should be GAUSSIAN for ACDP composition but is $directNoiseMechanism"
+          )
+        }
+        PrivacyBudgetManagerExceptionType.DATABASE_UPDATE_ERROR,
+        PrivacyBudgetManagerExceptionType.UPDATE_AFTER_COMMIT,
+        PrivacyBudgetManagerExceptionType.NESTED_TRANSACTION,
+        PrivacyBudgetManagerExceptionType.BACKING_STORE_CLOSED -> {
+          throw Exception("Unexpected PBM error", e)
+        }
+      }
+    }
+  }
+
+  private fun generateSketch(
     sketchConfig: SketchConfig,
     measurementSpec: MeasurementSpec,
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
   ): Sketch {
-    chargePrivacyBudget(requisitionName, measurementSpec, eventGroupSpecs.map { it.spec })
-
     logger.info("Generating Sketch...")
     return SketchGenerator(eventQuery, sketchConfig, measurementSpec.vidSamplingInterval)
       .generate(eventGroupSpecs)
   }
 
-  private fun encryptSketch(
+  private fun encryptLiquidLegionsV2Sketch(
     sketch: Sketch,
     combinedPublicKey: AnySketchElGamalPublicKey,
-    protocolConfig: ProtocolConfig.LiquidLegionsV2
+    protocol: ProtocolConfig.LiquidLegionsV2
   ): ByteString {
-    logger.info("Encrypting Sketch...")
+    logger.log(Level.INFO, "Encrypting Liquid Legions V2 Sketch...")
     return sketchEncrypter.encrypt(
       sketch,
-      protocolConfig.ellipticCurveId,
+      protocol.ellipticCurveId,
       combinedPublicKey,
-      protocolConfig.maximumFrequency
+      protocol.maximumFrequency
     )
   }
 
+  private fun encryptReachOnlyLiquidLegionsV2Sketch(
+    sketch: Sketch,
+    combinedPublicKey: AnySketchElGamalPublicKey,
+    protocol: ProtocolConfig.ReachOnlyLiquidLegionsV2
+  ): ByteString {
+    logger.log(Level.INFO, "Encrypting Reach-Only Liquid Legions V2 Sketch...")
+    return sketchEncrypter.encrypt(sketch, protocol.ellipticCurveId, combinedPublicKey)
+  }
+
   /**
-   * Calculate reach and frequency for measurement with multiple EDPs by creating encrypted sketch
-   * and send to Duchy to perform MPC and fulfillRequisition
+   * Fulfill Liquid Legions V2 Measurement's Requisition by creating an encrypted sketch and send to
+   * the duchy.
    */
-  private suspend fun fulfillRequisitionForReachAndFrequencyMeasurement(
+  private suspend fun fulfillRequisitionForLiquidLegionsV2Measurement(
     requisition: Requisition,
     measurementSpec: MeasurementSpec,
     requisitionFingerprint: ByteString,
@@ -708,29 +874,90 @@ class EdpSimulator(
     val liquidLegionsV2: ProtocolConfig.LiquidLegionsV2 = llv2Protocol.liquidLegionsV2
     val combinedPublicKey = requisition.getCombinedPublicKey(liquidLegionsV2.ellipticCurveId)
 
+    chargeLiquidLegionsV2PrivacyBudget(
+      requisition.name,
+      measurementSpec,
+      eventGroupSpecs.map { it.spec },
+      liquidLegionsV2.noiseMechanism,
+      requisition.duchiesCount
+    )
+
     val sketch =
       try {
         generateSketch(
-          requisition.name,
           liquidLegionsV2.sketchParams.toSketchConfig(),
           measurementSpec,
-          eventGroupSpecs
+          eventGroupSpecs,
         )
       } catch (e: EventFilterValidationException) {
-        refuseRequisition(
-          requisition.name,
-          Requisition.Refusal.Justification.SPEC_INVALID,
-          "Invalid event filter (${e.code}): ${e.code.description}"
-        )
         logger.log(
           Level.WARNING,
           "RequisitionFulfillmentWorkflow failed due to invalid event filter",
           e
         )
-        return
+        throw RequisitionRefusalException(
+          Requisition.Refusal.Justification.SPEC_INVALID,
+          "Invalid event filter (${e.code}): ${e.code.description}"
+        )
       }
 
-    val encryptedSketch = encryptSketch(sketch, combinedPublicKey, liquidLegionsV2)
+    val encryptedSketch = encryptLiquidLegionsV2Sketch(sketch, combinedPublicKey, liquidLegionsV2)
+    fulfillRequisition(requisition.name, requisitionFingerprint, nonce, encryptedSketch)
+  }
+
+  /**
+   * Fulfill Reach-Only Liquid Legions V2 Measurement's Requisition by creating an encrypted sketch
+   * and send to the duchy.
+   */
+  private suspend fun fulfillRequisitionForReachOnlyLiquidLegionsV2Measurement(
+    requisition: Requisition,
+    measurementSpec: MeasurementSpec,
+    requisitionFingerprint: ByteString,
+    nonce: Long,
+    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>
+  ) {
+    val roLlv2Protocol: ProtocolConfig.Protocol =
+      requireNotNull(
+        requisition.protocolConfig.protocolsList.find { protocol ->
+          protocol.hasReachOnlyLiquidLegionsV2()
+        }
+      ) {
+        "Protocol with ReachOnlyLiquidLegionsV2 is missing"
+      }
+    val reachOnlyLiquidLegionsV2: ProtocolConfig.ReachOnlyLiquidLegionsV2 =
+      roLlv2Protocol.reachOnlyLiquidLegionsV2
+    val combinedPublicKey =
+      requisition.getCombinedPublicKey(reachOnlyLiquidLegionsV2.ellipticCurveId)
+
+    chargeLiquidLegionsV2PrivacyBudget(
+      requisition.name,
+      measurementSpec,
+      eventGroupSpecs.map { it.spec },
+      reachOnlyLiquidLegionsV2.noiseMechanism,
+      requisition.duchiesCount
+    )
+
+    val sketch =
+      try {
+        generateSketch(
+          reachOnlyLiquidLegionsV2.sketchParams.toSketchConfig(),
+          measurementSpec,
+          eventGroupSpecs,
+        )
+      } catch (e: EventFilterValidationException) {
+        logger.log(
+          Level.WARNING,
+          "RequisitionFulfillmentWorkflow failed due to invalid event filter",
+          e
+        )
+        throw RequisitionRefusalException(
+          Requisition.Refusal.Justification.SPEC_INVALID,
+          "Invalid event filter (${e.code}): ${e.code.description}"
+        )
+      }
+
+    val encryptedSketch =
+      encryptReachOnlyLiquidLegionsV2Sketch(sketch, combinedPublicKey, reachOnlyLiquidLegionsV2)
     fulfillRequisition(requisition.name, requisitionFingerprint, nonce, encryptedSketch)
   }
 
@@ -802,6 +1029,12 @@ class EdpSimulator(
     nonce: Long,
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>
   ) {
+    chargeDirectPrivacyBudget(
+      requisition.name,
+      measurementSpec,
+      eventGroupSpecs.map { it.spec },
+    )
+
     logger.info("Calculating direct reach and frequency...")
     val vidSamplingInterval = measurementSpec.vidSamplingInterval
     val vidSamplingIntervalStart = vidSamplingInterval.start
@@ -832,17 +1065,15 @@ class EdpSimulator(
             )
           }
       } catch (e: EventFilterValidationException) {
-        refuseRequisition(
-          requisition.name,
-          Requisition.Refusal.Justification.SPEC_INVALID,
-          "Invalid event filter (${e.code}): ${e.code.description}"
-        )
         logger.log(
           Level.WARNING,
           "RequisitionFulfillmentWorkflow failed due to invalid event filter",
           e
         )
-        return
+        throw RequisitionRefusalException(
+          Requisition.Refusal.Justification.SPEC_INVALID,
+          "Invalid event filter (${e.code}): ${e.code.description}"
+        )
       }
 
     val measurementResult = buildDirectMeasurementResult(measurementSpec, sampledVids.asIterable())
@@ -945,7 +1176,8 @@ class EdpSimulator(
         }
       }
       MeasurementSpec.MeasurementTypeCase.IMPRESSION,
-      MeasurementSpec.MeasurementTypeCase.DURATION -> {
+      MeasurementSpec.MeasurementTypeCase.DURATION,
+      MeasurementSpec.MeasurementTypeCase.POPULATION -> {
         error("Measurement type not supported.")
       }
       MeasurementSpec.MeasurementTypeCase.REACH -> {
@@ -967,8 +1199,15 @@ class EdpSimulator(
   private suspend fun fulfillImpressionMeasurement(
     requisition: Requisition,
     requisitionSpec: RequisitionSpec,
-    measurementSpec: MeasurementSpec
+    measurementSpec: MeasurementSpec,
+    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>
   ) {
+    chargeDirectPrivacyBudget(
+      requisition.name,
+      measurementSpec,
+      eventGroupSpecs.map { it.spec },
+    )
+
     val measurementResult =
       MeasurementKt.result {
         impression = impression {
@@ -984,14 +1223,24 @@ class EdpSimulator(
   private suspend fun fulfillDurationMeasurement(
     requisition: Requisition,
     requisitionSpec: RequisitionSpec,
-    measurementSpec: MeasurementSpec
+    measurementSpec: MeasurementSpec,
+    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>
   ) {
+    chargeDirectPrivacyBudget(
+      requisition.name,
+      measurementSpec,
+      eventGroupSpecs.map { it.spec },
+    )
+
+    val externalDataProviderId =
+      apiIdToExternalId(DataProviderKey.fromName(edpData.name)!!.dataProviderId)
     val measurementResult =
       MeasurementKt.result {
         watchDuration = watchDuration {
           value = duration {
-            // Use externalDataProviderId since it's a known value the FrontendSimulator can verify.
-            seconds = apiIdToExternalId(DataProviderKey.fromName(edpData.name)!!.dataProviderId)
+            // Use a value based on the externalDataProviderId since it's a known value the
+            // MeasurementConsumerSimulator can verify.
+            seconds = log2(externalDataProviderId.toDouble()).toLong()
           }
         }
       }

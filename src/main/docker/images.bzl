@@ -117,9 +117,9 @@ GKE_IMAGES = [
         repository = _PREFIX + "/duchy/spanner-computations",
     ),
     struct(
-        name = "duchy_gcs_postgres_duchy_data_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:gcs_postgres_duchy_data_server_image",
-        repository = _PREFIX + "/duchy/postgres-duchy-data",
+        name = "duchy_gcs_postgres_internal_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:gcs_postgres_internal_server_image",
+        repository = _PREFIX + "/duchy/postgres-internal-server",
     ),
     struct(
         name = "duchy_requisition_fulfillment_server_image",
@@ -136,30 +136,10 @@ GKE_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:bigquery_edp_simulator_runner_image",
         repository = _PREFIX + "/simulator/bigquery-edp",
     ),
-]
-
-# List of specs for all Docker containers to push to a container registry.
-# These are only used on AWS ECR.
-AWS_ECR_IMAGES = [
     struct(
-        name = "duchy_s3_computation_control_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/aws/server:s3_computation_control_server_image",
-        repository = _PREFIX + "/duchy/computation-control",
-    ),
-    struct(
-        name = "duchy_s3_postgres_duchy_data_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/aws/server:s3_postgres_duchy_data_server_image",
-        repository = _PREFIX + "/duchy/postgres-duchy-data",
-    ),
-    struct(
-        name = "duchy_s3_requisition_fulfillment_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/aws/server:s3_requisition_fulfillment_server_image",
-        repository = _PREFIX + "/duchy/requisition-fulfillment",
-    ),
-    struct(
-        name = "duchy_s3_liquid_legions_v2_mill_daemon_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/aws/daemon/mill/liquidlegionsv2:s3_liquid_legions_v2_mill_daemon_image",
-        repository = _PREFIX + "/duchy/liquid-legions-v2-mill",
+        name = "duchy_gcloud_postgres_update_schema_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/postgres/tools:update_schema_image",
+        repository = _PREFIX + "/duchy/gcloud-postgres-update-schema",
     ),
 ]
 
@@ -182,8 +162,8 @@ LOCAL_IMAGES = [
     ),
     struct(
         name = "forwarded_storage_postgres_data_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:forwarded_storage_postgres_duchy_data_server_image",
-        repository = _PREFIX + "/duchy/local-postgres-data",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:forwarded_storage_postgres_duchy_data_server_image",
+        repository = _PREFIX + "/duchy/local-postgres-internal-server",
     ),
     struct(
         name = "forwarded_storage_requisition_fulfillment_server_image",
@@ -272,5 +252,3 @@ ALL_LOCAL_IMAGES = COMMON_IMAGES + LOCAL_IMAGES + REPORTING_COMMON_IMAGES + REPO
 ALL_IMAGES = COMMON_IMAGES + LOCAL_IMAGES + GKE_IMAGES + REPORTING_COMMON_IMAGES + REPORTING_LOCAL_IMAGES + REPORTING_GKE_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_LOCAL_IMAGES + REPORTING_V2_GKE_IMAGES
 
 ALL_REPORTING_GKE_IMAGES = REPORTING_COMMON_IMAGES + REPORTING_GKE_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_GKE_IMAGES
-
-ALL_AWS_ECR_IMAGES = COMMON_IMAGES + AWS_ECR_IMAGES

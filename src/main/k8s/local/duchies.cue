@@ -15,10 +15,41 @@
 package k8s
 
 _secret_name:          string @tag("secret_name")
-_duchyDbSecretName:    string @tag("db_secret_name")
 _aggregator_cert_name: string @tag("aggregator_cert_name")
+_duchyDbSecretName:    string @tag("db_secret_name")
 _worker1_cert_name:    string @tag("worker1_cert_name")
 _worker2_cert_name:    string @tag("worker2_cert_name")
+
+#KingdomSystemApiTarget: (#Target & {name: "system-api-server"}).target
+#SpannerEmulatorHost:    (#Target & {name: "spanner-emulator"}).target
+#DuchyConfig: {
+	let duchyName = name
+	name:                            string
+	databaseType:                    string
+	protocolsSetupConfig:            string
+	certificateResourceName:         string
+	computationControlServiceTarget: (#Target & {name: "\(duchyName)-computation-control-server"}).target
+}
+_duchyConfigs: [Name=_]: #DuchyConfig & {
+	name: Name
+}
+_duchyConfigs: {
+	"aggregator": {
+		protocolsSetupConfig:    "aggregator_protocols_setup_config.textproto"
+		certificateResourceName: _aggregator_cert_name
+		databaseType:            "spanner"
+	}
+	"worker1": {
+		protocolsSetupConfig:    "non_aggregator_protocols_setup_config.textproto"
+		certificateResourceName: _worker1_cert_name
+		databaseType:            "spanner"
+	}
+	"worker2": {
+		protocolsSetupConfig:    "non_aggregator_protocols_setup_config.textproto"
+		certificateResourceName: _worker2_cert_name
+		databaseType:            "postgres"
+	}
+}
 
 let EnvVars = #EnvVarMap & {
 	"POSTGRES_USER": {
@@ -34,37 +65,6 @@ let EnvVars = #EnvVarMap & {
 				name: _duchyDbSecretName
 				key:  "password"
 			}
-	}
-}
-
-#KingdomSystemApiTarget: (#Target & {name: "system-api-server"}).target
-#SpannerEmulatorHost:    (#Target & {name: "spanner-emulator"}).target
-#DuchyConfig: {
-	let duchyName = name
-	name:                            string
-	protocolsSetupConfig:            string
-	certificateResourceName:         string
-	computationControlServiceTarget: (#Target & {name: "\(duchyName)-computation-control-server"}).target
-	duchyType:                       string
-}
-_duchyConfigs: [Name=_]: #DuchyConfig & {
-	name: Name
-}
-_duchyConfigs: {
-	"aggregator": {
-		protocolsSetupConfig:    "aggregator_protocols_setup_config.textproto"
-		certificateResourceName: _aggregator_cert_name
-		duchyType:               "spanner"
-	}
-	"worker1": {
-		protocolsSetupConfig:    "non_aggregator_protocols_setup_config.textproto"
-		certificateResourceName: _worker1_cert_name
-		duchyType:               "spanner"
-	}
-	"worker2": {
-		protocolsSetupConfig:    "non_aggregator_protocols_setup_config.textproto"
-		certificateResourceName: _worker2_cert_name
-		duchyType:               "postgres"
 	}
 }
 
@@ -93,39 +93,39 @@ _baseDuchyConfig: {
 }
 
 duchies: [
-	for duchyConfig in _duchyConfigs
-	if (duchyConfig.duchyType == "spanner") {
-		#SpannerDuchy & _baseDuchyConfig & {
-			_imageSuffixes: {
-				"spanner-computations-server": "duchy/local-spanner-computations"
-			}
-			_duchy: {
-				name:                   duchyConfig.name
-				protocols_setup_config: duchyConfig.protocolsSetupConfig
-				cs_cert_resource_name:  duchyConfig.certificateResourceName
+	for duchyConfig in _duchyConfigs {
+		if (duchyConfig.databaseType == "spanner") {
+			#SpannerDuchy & _baseDuchyConfig & {
+				_imageSuffixes: {
+					"internal-api-server": "duchy/local-spanner-computations"
+				}
+				_duchy: {
+					name:                   duchyConfig.name
+					protocols_setup_config: duchyConfig.protocolsSetupConfig
+					cs_cert_resource_name:  duchyConfig.certificateResourceName
+				}
 			}
 		}
-	},
-	for duchyConfig in _duchyConfigs
-	if (duchyConfig.duchyType == "postgres") {
-		#PostgresDuchy & _baseDuchyConfig & {
-			_imageSuffixes: {
-				"postgres-data-server": "duchy/local-postgres-data"
-			}
-			_duchy: {
-				name:                   duchyConfig.name
-				protocols_setup_config: duchyConfig.protocolsSetupConfig
-				cs_cert_resource_name:  duchyConfig.certificateResourceName
-			}
-			_postgresConfig: {
-				serviceName: "postgres"
-				password:    "$(POSTGRES_PASSWORD)"
-				user:        "$(POSTGRES_USER)"
-			}
-			deployments: {
-				"\(#PostgresDuchy._duchy_data_server_deployment_name)": {
-					_container: _envVars:             EnvVars
-					_updateSchemaContainer: _envVars: EnvVars
+		if (duchyConfig.databaseType == "postgres") {
+			#PostgresDuchy & _baseDuchyConfig & {
+				_imageSuffixes: {
+					"internal-api-server": "duchy/local-postgres-internal-server"
+				}
+				_duchy: {
+					name:                   duchyConfig.name
+					protocols_setup_config: duchyConfig.protocolsSetupConfig
+					cs_cert_resource_name:  duchyConfig.certificateResourceName
+				}
+				_postgresConfig: {
+					serviceName: "postgres"
+					password:    "$(POSTGRES_PASSWORD)"
+					user:        "$(POSTGRES_USER)"
+				}
+				deployments: {
+					"internal-api-server-deployment": {
+						_container: _envVars:             EnvVars
+						_updateSchemaContainer: _envVars: EnvVars
+					}
 				}
 			}
 		}

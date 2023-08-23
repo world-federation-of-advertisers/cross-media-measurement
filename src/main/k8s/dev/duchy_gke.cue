@@ -37,7 +37,7 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 }
 #MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu:    "800m"
+		cpu:    "3"
 		memory: "2Gi"
 	}
 	limits: {
@@ -59,8 +59,7 @@ _cloudStorageConfig: #CloudStorageConfig & {
 	bucket: _cloudStorageBucket
 }
 
-
-duchy: #Duchy & {
+duchy: {
 	_duchy: {
 		name:                   _duchy_name
 		protocols_setup_config: _duchy_protocols_setup_config
@@ -75,8 +74,17 @@ duchy: #Duchy & {
 	_kingdom_system_api_target: #KingdomSystemApiTarget
 	_blob_storage_flags:        _cloudStorageConfig.flags
 	_verbose_grpc_logging:      "false"
+	_duchyMillParallelism:      4
 
 	deployments: {
+		"internal-api-server-deployment": {
+			_container: {
+				resources: #InternalServerResourceRequirements
+			}
+			spec: template: spec: #ServiceAccountPodSpec & {
+				serviceAccountName: #InternalServerServiceAccount
+			}
+		}
 		"herald-daemon-deployment": {
 			_container: {
 				resources: #HeraldResourceRequirements
@@ -109,35 +117,14 @@ duchy: #Duchy & {
 }
 
 if (_duchy_name != "worker2") {
-	duchy: duchy & #SpannerDuchy & {
-		deployments: {
-			"\(#SpannerDuchy._duchy_data_server_deployment_name)": {
-				_container: {
-					resources: #InternalServerResourceRequirements
-				}
-				spec: template: spec: #ServiceAccountPodSpec & {
-					serviceAccountName: #InternalServerServiceAccount
-				}
-			}
-		}
-	}
+	duchy: duchy & #SpannerDuchy
 }
 
 if (_duchy_name == "worker2") {
 	duchy: duchy & #PostgresDuchy & {
-	  _postgresConfig: {
-	 	  iamUserLocal: "worker2-duchy-internal"
-		  database:     "worker2_duchy_computations"
-	  }
-		deployments: {
-			"\(#PostgresDuchy._duchy_data_server_deployment_name)": {
-				_container: {
-					resources: #InternalServerResourceRequirements
-				}
-				spec: template: spec: #ServiceAccountPodSpec & {
-					serviceAccountName: #InternalServerServiceAccount
-				}
-			}
+		_postgresConfig: {
+			iamUserLocal: "worker2-duchy-internal"
+			database:     "worker2_duchy_computations"
 		}
 	}
 }

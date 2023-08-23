@@ -179,8 +179,9 @@ import org.wfanet.measurement.common.grpc.toServerTlsContext
 import org.wfanet.measurement.common.openid.createRequestUri
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.readByteString
-import org.wfanet.measurement.common.testing.CommandLineTesting.assertExitsWith
-import org.wfanet.measurement.common.testing.CommandLineTesting.capturingSystemOut
+import org.wfanet.measurement.common.testing.CommandLineTesting
+import org.wfanet.measurement.common.testing.CommandLineTesting.assertThat
+import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
 import org.wfanet.measurement.common.testing.HeaderCapturingInterceptor
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
@@ -503,7 +504,9 @@ class MeasurementSystemTest {
       )
 
   private fun callCli(args: Array<String>): String {
-    return capturingSystemOut { assertExitsWith(0) { MeasurementSystem.main(args) } }
+    val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
+    assertThat(capturedOutput).status().isEqualTo(0)
+    return capturedOutput.out
   }
 
   @Test
@@ -912,29 +915,32 @@ class MeasurementSystemTest {
       .isEqualTo(
         requisitionSpec {
           measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
-          eventGroups +=
-            RequisitionSpecKt.eventGroupEntry {
-              key = "dataProviders/1/eventGroups/1"
-              value =
-                RequisitionSpecKt.EventGroupEntryKt.value {
-                  collectionInterval = interval {
-                    startTime = Instant.parse(TIME_STRING_1).toProtoTime()
-                    endTime = Instant.parse(TIME_STRING_2).toProtoTime()
+          val eventGroups =
+            listOf(
+              RequisitionSpecKt.eventGroupEntry {
+                key = "dataProviders/1/eventGroups/1"
+                value =
+                  RequisitionSpecKt.EventGroupEntryKt.value {
+                    collectionInterval = interval {
+                      startTime = Instant.parse(TIME_STRING_1).toProtoTime()
+                      endTime = Instant.parse(TIME_STRING_2).toProtoTime()
+                    }
+                    filter = RequisitionSpecKt.eventFilter { expression = "abcd" }
                   }
-                  filter = RequisitionSpecKt.eventFilter { expression = "abcd" }
-                }
-            }
-          eventGroups +=
-            RequisitionSpecKt.eventGroupEntry {
-              key = "dataProviders/1/eventGroups/2"
-              value =
-                RequisitionSpecKt.EventGroupEntryKt.value {
-                  collectionInterval = interval {
-                    startTime = Instant.parse(TIME_STRING_3).toProtoTime()
-                    endTime = Instant.parse(TIME_STRING_4).toProtoTime()
+              },
+              RequisitionSpecKt.eventGroupEntry {
+                key = "dataProviders/1/eventGroups/2"
+                value =
+                  RequisitionSpecKt.EventGroupEntryKt.value {
+                    collectionInterval = interval {
+                      startTime = Instant.parse(TIME_STRING_3).toProtoTime()
+                      endTime = Instant.parse(TIME_STRING_4).toProtoTime()
+                    }
                   }
-                }
-            }
+              }
+            )
+          this.eventGroups += eventGroups
+          events = RequisitionSpecKt.events { this.eventGroups += eventGroups }
         }
       )
 
@@ -959,7 +965,7 @@ class MeasurementSystemTest {
       .isEqualTo(
         requisitionSpec {
           measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
-          eventGroups +=
+          val eventGroups =
             RequisitionSpecKt.eventGroupEntry {
               key = "dataProviders/2/eventGroups/1"
               value =
@@ -971,6 +977,8 @@ class MeasurementSystemTest {
                   filter = RequisitionSpecKt.eventFilter { expression = "ijk" }
                 }
             }
+          this.eventGroups += eventGroups
+          events = RequisitionSpecKt.events { this.eventGroups += eventGroups }
         }
       )
   }
@@ -1861,6 +1869,10 @@ class MeasurementSystemTest {
   }
 
   companion object {
+    init {
+      System.setSecurityManager(ExitInterceptingSecurityManager)
+    }
+
     private val MEASUREMENT_SPEC_FIELD: Descriptors.FieldDescriptor =
       Measurement.getDescriptor().findFieldByNumber(Measurement.MEASUREMENT_SPEC_FIELD_NUMBER)
     private val ENCRYPTED_REQUISITION_SPEC_FIELD: Descriptors.FieldDescriptor =

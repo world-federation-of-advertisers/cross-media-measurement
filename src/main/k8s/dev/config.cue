@@ -64,15 +64,15 @@ package k8s
 }
 
 #AwsPostgresConfig: {
-	host:     string @tag("postgres_host")
-	port:     string @tag("postgres_port")
-	username: string @tag("postgres_user")
-	password: string @tag("postgres_password")
-  flags: [
+	host:       string @tag("postgres_host")
+	port:       string @tag("postgres_port")
+	secretName: string @tag("postgres_credential_secret_name")
+	region:     string @tag("postgres_region")
+	flags: [
 		"--postgres-host=" + host,
 		"--postgres-port=" + port,
-		"--postgres-user=" + username,
-		"--postgres-password=" + password,
+		"--postgres-credential-secret-name=" + secretName,
+		"--postgres-region=" + region,
 	]
 }
 

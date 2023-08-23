@@ -22,7 +22,7 @@ module "kingdom_internal" {
 
 resource "google_spanner_database" "kingdom" {
   instance         = var.spanner_instance.name
-  name             = "kingdom"
+  name             = var.spanner_database_name
   database_dialect = "GOOGLE_STANDARD_SQL"
 }
 

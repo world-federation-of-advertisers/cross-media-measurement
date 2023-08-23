@@ -60,6 +60,14 @@ kustomization_dir(
 )
 
 kustomization_dir(
+    name = "db_creds",
+    srcs = ["db_creds_kustomization.yaml"],
+    renames = {
+        "db_creds_kustomization.yaml": "kustomization.yaml",
+    },
+)
+
+kustomization_dir(
     name = "cmms",
     testonly = True,
     srcs = [
@@ -73,7 +81,7 @@ kustomization_dir(
     tags = ["manual"],
     deps = [
         ":config_files",
-        "//src/main/k8s/local:db_creds",
+        ":db_creds",
         "//src/main/k8s/testing/secretfiles:kustomization",
     ],
 )

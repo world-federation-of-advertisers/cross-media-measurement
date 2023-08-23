@@ -1,4 +1,4 @@
-// Copyright 2020 The Cross-Media Measurement Authors
+// Copyright 2023 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,21 +14,22 @@
 
 package org.wfanet.measurement.duchy.deploy.gcloud.server
 
-import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.duchy.deploy.common.server.DuchyDataServer
-import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
-import org.wfanet.measurement.gcloud.postgres.PostgresConnectionFactories
-import org.wfanet.measurement.gcloud.postgres.PostgresFlags as GCloudPostgresFlags
 import java.time.Clock
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.duchy.deploy.common.server.DuchyDataServer
 import org.wfanet.measurement.duchy.deploy.common.service.PostgresDuchyDataServices
+import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-
+import org.wfanet.measurement.gcloud.postgres.PostgresConnectionFactories
+import org.wfanet.measurement.gcloud.postgres.PostgresFlags as GCloudPostgresFlags
 import picocli.CommandLine
 
-/** Implementation of [DuchyDataServer] using Google Cloud Postgres and Google Cloud Storage (GCS). */
+/**
+ * Implementation of [DuchyDataServer] using Google Cloud Postgres and Google Cloud Storage (GCS).
+ */
 @CommandLine.Command(
   name = "GcsPostgresDuchyDataServer",
   description = ["Server daemon for ${DuchyDataServer.SERVICE_NAME} service."],
@@ -42,18 +43,18 @@ class GcsPostgresDuchyDataServer : DuchyDataServer() {
   override fun run() = runBlocking {
     val clock = Clock.systemUTC()
     val idGenerator = RandomIdGenerator(clock)
+    val storageClient = GcsStorageClient.fromFlags(GcsFromFlags(gcsFlags))
 
     val factory = PostgresConnectionFactories.buildConnectionFactory(gCloudPostgresFlags)
-    val databaseClient = PostgresDatabaseClient.fromConnectionFactory(factory)
-    val storageClient = GcsStorageClient.fromFlags(GcsFromFlags(gcsFlags))
+    val client = PostgresDatabaseClient.fromConnectionFactory(factory)
 
     run(
       PostgresDuchyDataServices.create(
         storageClient,
         computationLogEntriesClient,
-        flags.duchy.duchyName,
+        duchyFlags.duchyName,
         idGenerator,
-        databaseClient
+        client
       )
     )
   }

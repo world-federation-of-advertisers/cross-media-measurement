@@ -5,6 +5,7 @@ kt_jvm_library(
     srcs = ["DuchyDataServices.kt"],
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:__pkg__",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/service:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/integration/common/duchy:__pkg__",
     ],
     deps = [
@@ -18,8 +19,7 @@ kt_jvm_library(
     name = "postgres_duchy_data_services",
     srcs = ["PostgresDuchyDataServices.kt"],
     visibility = [
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/aws/server:__pkg__",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server/postgres:__pkg__",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:__pkg__",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/integration/common/duchy:__pkg__",
     ],
@@ -28,22 +28,5 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres:services",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
-    ],
-)
-
-kt_jvm_library(
-    name = "spanner_duchy_data_services",
-    srcs = ["SpannerDuchyDataServices.kt"],
-    visibility = [
-        "//src/test/kotlin/org/wfanet/measurement/integration/common/duchy:__pkg__",
-    ],
-    deps = [
-        ":duchy_data_services",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computation",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/continuationtoken:service",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computations",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computationstats:service",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc",
     ],
 )

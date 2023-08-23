@@ -16,6 +16,7 @@ package org.wfanet.measurement.loadtest.measurementconsumer
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.Message
 import com.google.type.interval
 import io.grpc.StatusException
 import java.security.SignatureException
@@ -24,6 +25,7 @@ import java.security.cert.X509Certificate
 import java.time.Duration
 import java.time.LocalDate
 import java.util.logging.Logger
+import kotlin.math.log2
 import kotlin.random.Random
 import kotlinx.coroutines.time.delay
 import org.wfanet.measurement.api.v2alpha.Certificate
@@ -114,7 +116,7 @@ class MeasurementConsumerSimulator(
   private val certificatesClient: CertificatesCoroutineStub,
   private val resultPollingDelay: Duration,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
-  private val eventQuery: EventQuery,
+  private val eventQuery: EventQuery<Message>,
 ) {
   /** Cache of resource name to [Certificate]. */
   private val certificateCache = mutableMapOf<String, Certificate>()
@@ -315,10 +317,12 @@ class MeasurementConsumerSimulator(
 
     durationResults.forEach {
       val result = parseAndVerifyResult(it)
+      val externalDataProviderId =
+        apiIdToExternalId(DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId)
       assertThat(result.watchDuration.value.seconds)
         .isEqualTo(
           // EdpSimulator sets it to this value.
-          apiIdToExternalId(DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId)
+          log2(externalDataProviderId.toDouble()).toLong()
         )
     }
     logger.info("Duration result is equal to the expected result")
@@ -499,6 +503,7 @@ class MeasurementConsumerSimulator(
         getExpectedReachAndFrequencyResult(measurementInfo)
       MeasurementSpec.MeasurementTypeCase.IMPRESSION -> getExpectedImpressionResult()
       MeasurementSpec.MeasurementTypeCase.DURATION -> getExpectedDurationResult()
+      MeasurementSpec.MeasurementTypeCase.POPULATION -> getExpectedPopulationResult()
       MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
         error("measurement_type not set")
     }
@@ -509,6 +514,10 @@ class MeasurementConsumerSimulator(
   }
 
   private fun getExpectedImpressionResult(): Result {
+    TODO("Not yet implemented")
+  }
+
+  private fun getExpectedPopulationResult(): Result {
     TODO("Not yet implemented")
   }
 
@@ -661,17 +670,20 @@ class MeasurementConsumerSimulator(
 
     val requisitionSpec = requisitionSpec {
       for (eventGroup in eventGroups) {
-        this.eventGroups += eventGroupEntry {
-          key = eventGroup.name
-          value =
-            RequisitionSpecKt.EventGroupEntryKt.value {
-              collectionInterval = interval {
-                startTime = EVENT_RANGE.start.toProtoTime()
-                endTime = EVENT_RANGE.endExclusive.toProtoTime()
-              }
-              filter = eventFilter { expression = FILTER_EXPRESSION }
+        events =
+          RequisitionSpecKt.events {
+            this.eventGroups += eventGroupEntry {
+              key = eventGroup.name
+              value =
+                RequisitionSpecKt.EventGroupEntryKt.value {
+                  collectionInterval = interval {
+                    startTime = EVENT_RANGE.start.toProtoTime()
+                    endTime = EVENT_RANGE.endExclusive.toProtoTime()
+                  }
+                  filter = eventFilter { expression = FILTER_EXPRESSION }
+                }
             }
-        }
+          }
       }
       measurementPublicKey = measurementConsumer.publicKey.data
       this.nonce = nonce
@@ -747,4 +759,4 @@ class MeasurementConsumerSimulator(
 }
 
 private val RequisitionSpec.eventGroupsMap: Map<String, RequisitionSpec.EventGroupEntry.Value>
-  get() = eventGroupsList.associate { it.key to it.value }
+  get() = events.eventGroupsList.associate { it.key to it.value }

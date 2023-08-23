@@ -16,7 +16,6 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
-import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/kingdom/measurement.proto";
 import "wfa/measurement/internal/kingdom/measurement_log_entry.proto";
 

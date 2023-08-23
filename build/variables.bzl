@@ -63,8 +63,8 @@ GCLOUD_SETTINGS = struct(
 AWS_SETTINGS = struct(
     postgres_host = "$(postgres_host)",
     postgres_port = "$(postgres_port)",
-    postgres_user = "$(postgres_user)",
-    postgres_password = "$(postgres_password)",
+    postgres_credential_secret_name = "$(postgres_credential_secret_name)",
+    postgres_region = "$(postgres_region)",
     s3_bucket = "$(s3_bucket)",
     s3_region = "$(s3_region)",
 )
