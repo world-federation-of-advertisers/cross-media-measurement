@@ -17,6 +17,7 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.reporting.service.api.v2alpha.tools.ReportingTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha/tools:reporting",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptors_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:event_groups_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:reporting_sets_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:reports_service_kt_jvm_grpc_proto",
