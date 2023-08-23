@@ -25,41 +25,45 @@ used as the basis for deploying CMMS components using Google Kubernetes Engine
 
 ## What are we creating/deploying?
 
-For a Duchy named `worker1`:
+See the
+[example Terraform configuration](../../src/main/terraform/gcloud/examples/duchy)
+to see what resources are created.
 
--   1 Cloud Spanner database
--   1 Cloud Storage bucket
--   1 GKE cluster
--   1 Kubernetes secret
--   1 Kubernetes configmap
--   4 Kubernetes services
-    -   worker1-async-computation-control-server (Cluster IP)
-    -   worker1-computation-control-server (External load balancer)
-    -   worker1-requisition-fulfillment-server (External load balancer)
-    -   worker1-spanner-computations-server (Cluster IP)
--   6 Kubernetes deployments
-    -   worker1-async-computation-control-server-deployment (gRPC service)
-    -   worker1-computation-control-server-deployment (gRPC service)
-    -   worker1-herald-daemon-deployment (Daemon Job)
-    -   worker1-liquid-legions-v2-mill-daemon-deployment (Daemon Job)
-    -   worker1-requisition-fulfillment-server-deployment (gRPC service)
-    -   worker1-spanner-computations-server-deployment (gRPC service)
--   8 Kubernetes network policies
-    -   worker1-async-computation-controls-server-network-policy
-    -   worker1-computation-control-server-network-policy
-    -   worker1-herald-daemon-network-policy
-    -   worker1-liquid-legions-v2-mill-daemon-network-policy
-    -   worker1-push-spanner-schema-job-network-policy
-    -   worker1-requisition-fulfillment-server-network-policy
-    -   worker1-spanner-computations-server-network-policy
-    -   default-deny-ingress-and-egress
+For a Duchy named `worker1`, the cluster will be populated with the following:
 
-## Step 0. Before You Start
+-   Secret
+    -   `certs-and-configs-<hash>`
+-   ConfigMap
+    -   `config-files-<hash>`
+-   Deployment
+    -   `worker1-async-computation-control-server-deployment`
+    -   `worker1-computation-control-server-deployment`
+    -   `worker1-herald-daemon-deployment`
+    -   `worker1-liquid-legions-v2-mill-daemon-deployment`
+    -   `worker1-requisition-fulfillment-server-deployment`
+    -   `worker1-spanner-computations-server-deployment`
+-   Service
+    -   `worker1-async-computation-control-server` (Cluster IP)
+    -   `worker1-spanner-computations-server`
+    -   `worker1-requisition-fulfillment-server` (External load balancer)
+    -   `v2alpha-public-api-server` (External load balancer)
+-   CronJob
+    -   `worker1-computations-cleaner-cronjob`
+-   NetworkPolicy
+    -   `default-deny-ingress-and-egress`
+    -   `worker1-async-computation-controls-server-network-policy`
+    -   `worker1-computation-control-server-network-policy`
+    -   `worker1-computations-cleaner-network-policy`
+    -   `worker1-herald-daemon-network-policy`
+    -   `worker1-liquid-legions-v2-mill-daemon-network-policy`
+    -   `worker1-requisition-fulfillment-server-network-policy`
+    -   `worker1-spanner-computations-server-network-policy`
 
-Follow Step 0 of the
-[Kingdom deployment guide](kingdom-deployment.md#step-0-before-you-start).
+## Before you start
 
-## Step 1. Register your duchy with the kingdom (offline)
+See [Machine Setup](machine-setup.md).
+
+## Register your Duchy with the Kingdom (offline)
 
 In order to join the Cross-Media Measurement System, the Duchy needs to first be
 registered with the Kingdom. This will be done offline with the help from the
@@ -77,36 +81,28 @@ The Kingdom operator will
 the Duchy via internal admin tools. The resource names will be shared with the
 Duchy operator.
 
-## Step 2. Create the database
+## Provision Google Cloud Project infrastructure
 
-The Duchy expects its own database within your Spanner instance. The `dev`
-configuration assumes that this is named `<duchy-name>_duchy_computations`.
+This can be done using Terraform. See [the guide](terraform.md) to use the
+example configuration for the Duchy.
 
-You can create a database using the `gcloud` CLI. For example with a Duchy named
-`worker1` in the `halo-cmms` instance:
+Applying the Terraform configuration will create a new cluster. You can use the
+`gcloud` CLI to obtain credentials so that you can access the cluster via
+`kubectl`. For example:
 
 ```shell
-gcloud spanner databases create worker1_duchy_computations \
-  --instance=halo-cmms
+gcloud container clusters get-credentials worker1-duchy
 ```
 
-## Step 3. Create the Cloud Storage Bucket
+## Build and push the container images (optional)
 
-Each Duchy needs a storage bucket. One can be created from the
-[Console](https://console.cloud.google.com/storage/browser). Note that bucket
-names are public, globally unique, and cannot be changed once created. See
-[Bucket naming guidelines](https://cloud.google.com/storage/docs/naming-buckets).
-
-As the data in this bucket need not be exposed to the public internet, select
-"Enforce public access prevention on this bucket".
-
-## Step 4. Build and push the container images
-
-If you aren't using pre-built release images, you can build the images yourself
-from source and push them to a container registry. For example, if you're using
-the [Google Container Registry](https://cloud.google.com/container-registry),
-you would specify `gcr.io` as your container registry and your Cloud project
-name as your image repository prefix.
+If you aren't using
+[pre-built release images](https://github.com/orgs/world-federation-of-advertisers/packages?repo_name=cross-media-measurement),
+you can build the images yourself from source and push them to a container
+registry. For example, if you're using the
+[Google Container Registry](https://cloud.google.com/container-registry), you
+would specify `gcr.io` as your container registry and your Cloud project name as
+your image repository prefix.
 
 Assuming a project named `halo-worker1-demo` and an image tag `build-0001`, run
 the following to build and push the images:
@@ -121,55 +117,11 @@ Tip: If you're using [Hybrid Development](../building.md#hybrid-development) for
 containerized builds, replace `bazel build` with `tools/bazel-container build`
 and `bazel run` with `tools/bazel-container-run`.
 
-## Step 5. Create the Cluster
-
-Follow the steps to
-[create resources for the cluster](kingdom-deployment.md#step-3-create-resources-for-the-cluster)
-from the Kingdom deployment guide.
-
-Create an additional service account for storage, granting it the Storage Object
-Admin role on the Storage bucket. See
-[Granting Cloud Storage bucket access](cluster-config.md#granting-cloud-storage-bucket-access).
-
-Enable the Kubernetes API in the console if your account hasn't done it. To
-create a cluster named `worker1-duchy` in the `halo-worker1-demo` project, run
-the following command:
-
-```shell
-gcloud container clusters create worker1-duchy \
-  --enable-network-policy --workload-pool=halo-worker1-demo.svc.id.goog \
-  --service-account="gke-cluster@halo-worker1-demo.iam.gserviceaccount.com" \
-  --database-encryption-key=projects/halo-worker1-demo/locations/us-central1/keyRings/test-key-ring/cryptoKeys/k8s-secret \
-  --num-nodes=2 --enable-autoscaling --min-nodes=2 --max-nodes=4 \
-  --machine-type=e2-standard-2
-```
-
-Adjust the node pools based on your expected usage. You may wish to use GKE
-features such as autoscaling or multiple node pools with different
-machine/scheduling types. The default Mill and Herald configuration include a
-toleration for running on
-[Spot VMs](https://cloud.google.com/kubernetes-engine/docs/how-to/spot-vms#use_taints_and_tolerations_for).
-
-The cluster version should be no older than `1.24.0` in order to support
-built-in gRPC health probe.
-
-To configure `kubectl` to access this cluster, run
-
-```shell
-gcloud container clusters get-credentials worker1-duchy
-```
-
-Now you can follow the steps for
-[creating K8s service accounts](kingdom-deployment.md) from the Kingdom
-deployment guide. Note that you'll need to follow the steps twice for the two
-service accounts. The `dev` configuration assumes that they are named
-`internal-server` and `storage`.
-
-### Add Metrics to the cluster
+## Add metrics to the cluster (optional)
 
 See [Metrics Deployment](metrics-deployment.md).
 
-## Step 6. Generate the K8s Kustomization
+## Generate the K8s Kustomization
 
 Populating a cluster is generally done by applying a K8s Kustomization. You can
 use the `dev` configuration as a base to get started. The Kustomization is
@@ -185,17 +137,21 @@ bazel build //src/main/k8s/dev:worker1_duchy.tar \
   --define spanner_instance=halo-cmms \
   --define duchy_cert_id=SVVse4xWHL0 \
   --define duchy_storage_bucket=worker1-duchy \
-  --define container_registry=gcr.io \
-  --define image_repo_prefix=halo-worker1-demo --define image_tag=build-0001
+  --define container_registry=ghcr.io \
+  --define image_repo_prefix=world-federation-of-advertisers \
+  --define image_tag=0.3.0
 ```
 
-Extract the generated archive to some directory.
+Extract the generated archive to some directory. It is recommended that you
+extract it to a secure location, as you will be adding sensitive information to
+it in the following step. It is also recommended that you persist this directory
+so that you can use it to apply updates
 
 You can customize this generated object configuration with your own settings
 such as the number of replicas per deployment, the memory and CPU requirements
 of each container, and the JVM options of each container.
 
-## Step 7. Customize the K8s secret
+## Customize the K8s secret
 
 We use a K8s secret to hold sensitive information, such as private keys.
 
@@ -221,6 +177,8 @@ files are required in a Duchy:
     ```shell
     cat *_root.pem > all_root_certs.pem
     ```
+
+    Note: This assumes that all your root certificate PEM files end in newline.
 
 1.  `worker1_tls.pem`
 
@@ -268,7 +226,7 @@ bazel build //src/main/k8s/testing/secretfiles:archive
 Extract the generated archive to the `src/main/k8s/dev/worker1_duchy_secret/`
 path within the Kustomization directory.
 
-## Step 8. Customize the K8s configMap
+## Customize the K8s configMap
 
 Configuration that may frequently change is stored in a K8s configMap. The `dev`
 configuration uses one named `config-files` containing the file
@@ -280,7 +238,7 @@ Kustomization directory.
 See [Creating Resources](../operations/creating-resources.md) for information on
 this file format.
 
-## Step 9. Apply the K8s Kustomization
+## Apply the K8s Kustomization
 
 Use `kubectl` to apply the Kustomization. From the Kustomization directory run:
 
@@ -322,7 +280,7 @@ worker1-spanner-computations-server      ClusterIP    10.123.244.10  <none>     
 kubernetes                               ClusterIP    10.123.240.1   <none>         443/TCP        1m
 ```
 
-## Step 10. Make the Duchy accessible on the open internet
+## Make the Duchy accessible outside the cluster
 
 ### Reserve the external IPs
 
@@ -368,7 +326,11 @@ for certificates and `openssl pkcs8` for private keys).
 Encryption keys can be generated using the
 [Tinkey tool](https://github.com/google/tink/blob/master/docs/TINKEY.md).
 
-### Q2. How to test if the duchy is working properly?
+### Q2. What if the secret or configuration files need to be updated?
+
+Modify the Kustomization directory and re-apply it.
+
+### Q3. How to test if the Duchy is working properly?
 
 Follow the
 ["How to complete multi-cluster correctnessTest on GKE"](correctness-test.md)
