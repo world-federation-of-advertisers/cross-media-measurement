@@ -15,9 +15,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import '../../../index.css';
-import App from '../../../app';
 import AppConfig from '../../initialize';
 import { FakeReportingClient } from './fake_reporting_client';
+import { RouterProvider, createBrowserRouter } from 'react-router-dom';
+import { routes } from '../../../route';
+import 'bootstrap/dist/css/bootstrap.min.css';
 
 const config = {
   reportingClient: new FakeReportingClient(),
@@ -25,9 +27,7 @@ const config = {
 
 AppConfig.initialize(config);
 
+const router = createBrowserRouter(routes);
+
 const root = ReactDOM.createRoot(document.getElementById('root')!);
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+root.render(<RouterProvider router={router} />);

@@ -2,13 +2,6 @@ load("@aspect_rules_js//js:defs.bzl", "js_library")
 load("@aspect_rules_jest//jest:defs.bzl", "jest_test")
 
 js_library(
-    name = "test_files",
-    srcs = [
-        "app_test.tsx",
-    ],
-)
-
-js_library(
     name = "jest_config",
     srcs = ["jest.config.js"],
 )
@@ -34,7 +27,6 @@ jest_test(
     name = "test",
     config = ":jest_config",
     data = [
-        ":test_files",
         ":test_node_deps",
         "//:tsconfig",
         "//experimental/reporting-ui/src/main/react/reporting-ui:app",
