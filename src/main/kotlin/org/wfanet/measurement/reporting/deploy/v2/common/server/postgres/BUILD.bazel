@@ -6,7 +6,7 @@ kt_jvm_library(
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/postgres/server:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/server:__subpackages__",
-        "//src/test/kotlin/org/wfanet/measurement/integration/postgres:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/server:internal_reporting_server",
