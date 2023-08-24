@@ -15,11 +15,10 @@ js_library(
     ],
     visibility = [
         "//experimental/reporting-ui/src/main/react/reporting-ui:__subpackages__",
-        "//experimental/reporting-ui/src/test/react/reporting-ui:__subpackages__",
     ],
     deps = [
         "//experimental/reporting-ui/src/main/react/reporting-ui/public/asset/font",
-        "//experimental/reporting-ui/src/main/react/reporting-ui/view/report/list",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/view/report_list",
     ],
 )
 
@@ -43,7 +42,6 @@ js_library(
     ],
     visibility = [
         "//experimental/reporting-ui/src/main/react/reporting-ui:__subpackages__",
-        "//experimental/reporting-ui/src/test/react/reporting-ui:__subpackages__",
     ],
 )
 
@@ -52,7 +50,6 @@ js_library(
     srcs = ["webpack.config.js"],
     visibility = [
         "//experimental/reporting-ui/src/main/react/reporting-ui:__subpackages__",
-        "//experimental/reporting-ui/src/test/react/reporting-ui:__subpackages__",
     ],
 )
 
@@ -86,4 +83,35 @@ webpack_devserver(
     ],
     node_modules = "//:node_modules",
     webpack_config = ":webpack_config",
+)
+
+js_library(
+    name = "jest_config",
+    srcs = ["jest.config.js"],
+    deps = [
+        "//experimental/reporting-ui/src/main/react/jest",
+    ],
+    visibility = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui:__subpackages__",
+    ],
+)
+
+js_library(
+    name = "test_node_deps",
+    srcs = [
+        "//:node_modules/@testing-library/dom",
+        "//:node_modules/@testing-library/jest-dom",
+        "//:node_modules/@testing-library/react",
+        "//:node_modules/@testing-library/user-event",
+        "//:node_modules/@types/jest",
+        "//:node_modules/@types/testing-library__jest-dom",
+        "//:node_modules/jest",
+        "//:node_modules/jest-environment-jsdom",
+        "//:node_modules/jest-junit",
+        "//:node_modules/jest-transform-stub",
+        "//:node_modules/ts-jest",
+    ],
+    visibility = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui:__subpackages__",
+    ],
 )

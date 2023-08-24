@@ -13,10 +13,10 @@ See the License for the specific language governing permissions and
 limitations under the License. */
 
 import React, {useEffect} from 'react';
-import { ListReportViewModel } from './report_list_view_model';
+import { ListReportViewModel } from '../../view_model/report_list/report_list_view_model';
 import { ReportListTable } from './component/table';
-import { Loader } from '../../../general_component/loader';
-import { Error } from '../../../general_component/error';
+import { Loader } from '../../component/loader/loader';
+import { Error } from '../../component/error/error';
 
 export const ReportListView = ({baseLink}) => {
   const { reports, errors, load, loading } = ListReportViewModel();
