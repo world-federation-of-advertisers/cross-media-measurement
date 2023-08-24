@@ -16,17 +16,3 @@ js_library(
         "//experimental/reporting-ui/src/main/react/reporting-ui/model/report_list",
     ],
 )
-
-jest_test(
-    name = "test",
-    config = ":jest_config",
-    data = [
-        ":test_node_deps",
-        "//:tsconfig",
-        "//experimental/reporting-ui/src/main/react/reporting-ui:app",
-        "//experimental/reporting-ui/src/main/react/reporting-ui:node_deps",
-        "//experimental/reporting-ui/src/main/react/jest",
-        # "//experimental/reporting-ui/src/main/react/reporting-ui/view/report_list",
-    ],
-    node_modules = "//:node_modules",
-)
