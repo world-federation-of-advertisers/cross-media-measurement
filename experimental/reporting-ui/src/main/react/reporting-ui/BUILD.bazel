@@ -88,11 +88,11 @@ webpack_devserver(
 js_library(
     name = "jest_config",
     srcs = ["jest.config.js"],
-    deps = [
-        "//experimental/reporting-ui/src/main/react/jest",
-    ],
     visibility = [
         "//experimental/reporting-ui/src/main/react/reporting-ui:__subpackages__",
+    ],
+    deps = [
+        "//experimental/reporting-ui/src/main/react/jest",
     ],
 )
 
