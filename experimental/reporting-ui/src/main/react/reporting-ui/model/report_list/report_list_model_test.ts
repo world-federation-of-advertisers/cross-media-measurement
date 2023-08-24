@@ -1,7 +1,7 @@
 // Copyright 2023 The Cross-Media Measurement Authors	
 //	
 // Licensed under the Apache License, Version 2.0 (the "License");	
-// you may not use this file except in compliance with the License.	
+// you may not use this fsile except in compliance with the License.	
 // You may obtain a copy of the License at	
 //	
 //      http://www.apache.org/licenses/LICENSE-2.0	
@@ -14,10 +14,10 @@
 
 import '@testing-library/jest-dom';	
 import '@testing-library/jest-dom/extend-expect';	
-import { ReportListModel } from '../../../../../../main/react/reporting-ui/view/report/list/report_list_model';
-import appConfig from '../../../../../../main/react/reporting-ui/client/initialize';
-import { ReportState, UniqueReach } from '../../../../../../main/react/reporting-ui/model/reporting';
-import { ReportingClient } from '../../../../../../main/react/reporting-ui/client/reporting/client';
+import { ReportListModel } from './report_list_model';
+import appConfig from '../../client/initialize';
+import { ReportState, UniqueReach } from '../reporting';
+import { ReportingClient } from '../../client/reporting/client';
 
 function regenerateTimeData() {
   const chartData: UniqueReach[] = [];
