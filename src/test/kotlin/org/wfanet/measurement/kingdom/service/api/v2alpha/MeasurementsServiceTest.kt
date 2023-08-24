@@ -432,21 +432,7 @@ class MeasurementsServiceTest {
         clearFailure()
         results.clear()
 
-        measurementSpec =
-          measurementSpec.copy {
-            data =
-              MEASUREMENT_SPEC.copy {
-                  clearReachAndFrequency()
-                  impression = impression {
-                    privacyParams = differentialPrivacyParams {
-                      epsilon = 1.0
-                      delta = 0.0
-                    }
-                    maximumFrequencyPerUser = 1
-                  }
-                }
-                .toByteString()
-          }
+        measurementSpec = measurementSpec.copy { data = IMPRESSION_MEASUREMENT_SPEC.toByteString() }
 
         protocolConfig =
           protocolConfig.copy {
@@ -509,21 +495,7 @@ class MeasurementsServiceTest {
         clearFailure()
         results.clear()
 
-        measurementSpec =
-          measurementSpec.copy {
-            data =
-              MEASUREMENT_SPEC.copy {
-                  clearReachAndFrequency()
-                  duration = duration {
-                    privacyParams = differentialPrivacyParams {
-                      epsilon = 1.0
-                      delta = 0.0
-                    }
-                    maximumWatchDurationPerUser = 1
-                  }
-                }
-                .toByteString()
-          }
+        measurementSpec = measurementSpec.copy { data = DURATION_MEASUREMENT_SPEC.toByteString() }
 
         protocolConfig =
           protocolConfig.copy {
@@ -784,560 +756,509 @@ class MeasurementsServiceTest {
 
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when measurement spec is missing`() {
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement = MEASUREMENT.copy { clearMeasurementSpec() }
+    }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking {
-            service.createMeasurement(
-              createMeasurementRequest { measurement = MEASUREMENT.copy { clearMeasurementSpec() } }
-            )
-          }
+          runBlocking { service.createMeasurement(request) }
         }
       }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("measurement_spec")
   }
 
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when measurement public key is missing`() {
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement =
+        MEASUREMENT.copy {
+          measurementSpec = signedData {
+            data = MEASUREMENT_SPEC.copy { clearMeasurementPublicKey() }.toByteString()
+          }
+        }
+    }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking {
-            service.createMeasurement(
-              createMeasurementRequest {
-                measurement =
-                  MEASUREMENT.copy {
-                    measurementSpec = signedData {
-                      data = MEASUREMENT_SPEC.copy { clearMeasurementPublicKey() }.toByteString()
-                      signature = UPDATE_TIME.toByteString()
-                    }
-                  }
-              }
-            )
-          }
+          runBlocking { service.createMeasurement(request) }
         }
       }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("key")
   }
 
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when RF reach privacy params are missing`() {
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement =
+        MEASUREMENT.copy {
+          measurementSpec = signedData {
+            data =
+              MEASUREMENT_SPEC.copy {
+                  reachAndFrequency = reachAndFrequency.copy { clearReachPrivacyParams() }
+                }
+                .toByteString()
+          }
+        }
+    }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking {
-            service.createMeasurement(
-              createMeasurementRequest {
-                measurement =
-                  MEASUREMENT.copy {
-                    measurementSpec = signedData {
-                      data =
-                        MEASUREMENT_SPEC.copy {
-                            clearReachAndFrequency()
-                            reachAndFrequency = reachAndFrequency {
-                              frequencyPrivacyParams = differentialPrivacyParams {
-                                epsilon = 1.0
-                                delta = 1.0
-                              }
-                            }
-                            vidSamplingInterval = vidSamplingInterval { width = 1.0F }
-                          }
-                          .toByteString()
-                      signature = UPDATE_TIME.toByteString()
-                    }
-                  }
-              }
-            )
-          }
+          runBlocking { service.createMeasurement(request) }
         }
       }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("reach")
   }
 
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when RF frequency privacy params are missing`() {
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement =
+        MEASUREMENT.copy {
+          measurementSpec = signedData {
+            data =
+              MEASUREMENT_SPEC.copy {
+                  reachAndFrequency = reachAndFrequency.copy { clearFrequencyPrivacyParams() }
+                }
+                .toByteString()
+          }
+        }
+    }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking {
-            service.createMeasurement(
-              createMeasurementRequest {
-                measurement =
-                  MEASUREMENT.copy {
-                    measurementSpec = signedData {
-                      data =
-                        MEASUREMENT_SPEC.copy {
-                            clearReachAndFrequency()
-                            reachAndFrequency = reachAndFrequency {
-                              reachPrivacyParams = differentialPrivacyParams {
-                                epsilon = 1.0
-                                delta = 1.0
-                              }
-                            }
-                            vidSamplingInterval = vidSamplingInterval { width = 1.0F }
-                          }
-                          .toByteString()
-                      signature = UPDATE_TIME.toByteString()
-                    }
-                  }
-              }
-            )
-          }
+          runBlocking { service.createMeasurement(request) }
         }
       }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("frequency")
   }
 
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when RF vid sampling interval is missing`() {
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement =
+        MEASUREMENT.copy {
+          measurementSpec = signedData {
+            data = MEASUREMENT_SPEC.copy { clearVidSamplingInterval() }.toByteString()
+          }
+        }
+    }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking {
-            service.createMeasurement(
-              createMeasurementRequest {
-                measurement =
-                  MEASUREMENT.copy {
-                    measurementSpec = signedData {
-                      data =
-                        MEASUREMENT_SPEC.copy {
-                            clearReachAndFrequency()
-                            clearVidSamplingInterval()
-                            reachAndFrequency = reachAndFrequency {
-                              reachPrivacyParams = differentialPrivacyParams {
-                                epsilon = 1.0
-                                delta = 1.0
-                              }
-                              frequencyPrivacyParams = differentialPrivacyParams {
-                                epsilon = 1.0
-                                delta = 1.0
-                              }
-                            }
-                          }
-                          .toByteString()
-                      signature = UPDATE_TIME.toByteString()
-                    }
-                  }
-              }
-            )
-          }
+          runBlocking { service.createMeasurement(request) }
         }
       }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("sampling")
   }
 
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when RF epsilon privacy param is 0`() {
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement =
+        MEASUREMENT.copy {
+          measurementSpec = signedData {
+            data =
+              MEASUREMENT_SPEC.copy {
+                  reachAndFrequency =
+                    reachAndFrequency.copy {
+                      reachPrivacyParams = reachPrivacyParams.copy { clearEpsilon() }
+                    }
+                }
+                .toByteString()
+          }
+        }
+    }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking {
-            service.createMeasurement(
-              createMeasurementRequest {
-                measurement =
-                  MEASUREMENT.copy {
-                    measurementSpec = signedData {
-                      data =
-                        MEASUREMENT_SPEC.copy {
-                            clearReachAndFrequency()
-                            clearVidSamplingInterval()
-                            reachAndFrequency = reachAndFrequency {
-                              reachPrivacyParams = differentialPrivacyParams {
-                                epsilon = 0.0
-                                delta = 0.0
-                              }
-                              frequencyPrivacyParams = differentialPrivacyParams {
-                                epsilon = 0.0
-                                delta = 0.0
-                              }
-                            }
-                            vidSamplingInterval = vidSamplingInterval { width = 1.0F }
-                          }
-                          .toByteString()
-                      signature = UPDATE_TIME.toByteString()
-                    }
-                  }
-              }
-            )
-          }
+          runBlocking { service.createMeasurement(request) }
         }
       }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("privacy")
+  }
+
+  @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when RF spec is missing max frequency`() {
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement =
+        MEASUREMENT.copy {
+          measurementSpec = signedData {
+            data =
+              MEASUREMENT_SPEC.copy {
+                  reachAndFrequency = reachAndFrequency.copy { clearMaximumFrequency() }
+                }
+                .toByteString()
+          }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.createMeasurement(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("maximum_frequency")
   }
 
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when Reach-only privacy params are missing`() {
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement =
+        REACH_ONLY_MEASUREMENT.copy {
+          measurementSpec = signedData {
+            data =
+              REACH_ONLY_MEASUREMENT_SPEC.copy { reach = reach.copy { clearPrivacyParams() } }
+                .toByteString()
+          }
+        }
+    }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking {
-            service.createMeasurement(
-              createMeasurementRequest {
-                measurement =
-                  MEASUREMENT.copy {
-                    measurementSpec = signedData {
-                      data =
-                        MEASUREMENT_SPEC.copy {
-                            clearReachAndFrequency()
-                            reach = reach {}
-                            vidSamplingInterval = vidSamplingInterval { width = 1.0F }
-                          }
-                          .toByteString()
-                      signature = UPDATE_TIME.toByteString()
-                    }
-                  }
-              }
-            )
-          }
+          runBlocking { service.createMeasurement(request) }
         }
       }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("privacy")
   }
 
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when Reach-only vid sampling interval is missing`() {
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement =
+        REACH_ONLY_MEASUREMENT.copy {
+          measurementSpec = signedData {
+            data = REACH_ONLY_MEASUREMENT_SPEC.copy { clearVidSamplingInterval() }.toByteString()
+          }
+        }
+    }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking {
-            service.createMeasurement(
-              createMeasurementRequest {
-                measurement =
-                  MEASUREMENT.copy {
-                    measurementSpec = signedData {
-                      data =
-                        MEASUREMENT_SPEC.copy {
-                            clearReachAndFrequency()
-                            clearVidSamplingInterval()
-                            reach = reach {
-                              privacyParams = differentialPrivacyParams {
-                                epsilon = 1.0
-                                delta = 1.0
-                              }
-                            }
-                          }
-                          .toByteString()
-                      signature = UPDATE_TIME.toByteString()
-                    }
-                  }
-              }
-            )
-          }
+          runBlocking { service.createMeasurement(request) }
         }
       }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("sampling")
   }
 
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when Reach-only epsilon privacy param is 0`() {
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement =
+        REACH_ONLY_MEASUREMENT.copy {
+          measurementSpec = signedData {
+            data =
+              REACH_ONLY_MEASUREMENT_SPEC.copy {
+                  reach = reach.copy { privacyParams = privacyParams.copy { clearEpsilon() } }
+                }
+                .toByteString()
+          }
+        }
+    }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking {
-            service.createMeasurement(
-              createMeasurementRequest {
-                measurement =
-                  MEASUREMENT.copy {
-                    measurementSpec = signedData {
-                      data =
-                        MEASUREMENT_SPEC.copy {
-                            clearReachAndFrequency()
-                            clearVidSamplingInterval()
-                            reach = reach {
-                              privacyParams = differentialPrivacyParams {
-                                epsilon = 0.0
-                                delta = 0.0
-                              }
-                            }
-                            vidSamplingInterval = vidSamplingInterval { width = 1.0F }
-                          }
-                          .toByteString()
-                      signature = UPDATE_TIME.toByteString()
-                    }
-                  }
-              }
-            )
-          }
+          runBlocking { service.createMeasurement(request) }
         }
       }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("privacy")
   }
 
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when impression privacy params are missing`() {
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement =
+        MEASUREMENT.copy {
+          measurementSpec =
+            measurementSpec.copy {
+              data =
+                IMPRESSION_MEASUREMENT_SPEC.copy {
+                    impression = impression.copy { clearPrivacyParams() }
+                  }
+                  .toByteString()
+            }
+        }
+    }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking {
-            service.createMeasurement(
-              createMeasurementRequest {
-                measurement =
-                  MEASUREMENT.copy {
-                    measurementSpec = signedData {
-                      data =
-                        MEASUREMENT_SPEC.copy {
-                            clearReachAndFrequency()
-                            impression = impression { maximumFrequencyPerUser = 1 }
-                          }
-                          .toByteString()
-                      signature = UPDATE_TIME.toByteString()
-                    }
-                  }
-              }
-            )
-          }
+          runBlocking { service.createMeasurement(request) }
         }
       }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("privacy")
   }
 
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when impression max freq per user is missing`() {
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement =
+        MEASUREMENT.copy {
+          measurementSpec =
+            measurementSpec.copy {
+              data =
+                IMPRESSION_MEASUREMENT_SPEC.copy {
+                    impression = impression.copy { clearMaximumFrequencyPerUser() }
+                  }
+                  .toByteString()
+            }
+        }
+    }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking {
-            service.createMeasurement(
-              createMeasurementRequest {
-                measurement =
-                  MEASUREMENT.copy {
-                    measurementSpec = signedData {
-                      data =
-                        MEASUREMENT_SPEC.copy {
-                            clearReachAndFrequency()
-                            impression = impression {
-                              privacyParams = differentialPrivacyParams {
-                                epsilon = 1.0
-                                delta = 1.0
-                              }
-                            }
-                          }
-                          .toByteString()
-                      signature = UPDATE_TIME.toByteString()
-                    }
-                  }
-              }
-            )
-          }
+          runBlocking { service.createMeasurement(request) }
         }
       }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("frequency")
   }
 
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when duration privacy params are missing`() {
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement =
+        MEASUREMENT.copy {
+          measurementSpec =
+            measurementSpec.copy {
+              data =
+                DURATION_MEASUREMENT_SPEC.copy { duration = duration.copy { clearPrivacyParams() } }
+                  .toByteString()
+            }
+        }
+    }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking {
-            service.createMeasurement(
-              createMeasurementRequest {
-                measurement =
-                  MEASUREMENT.copy {
-                    measurementSpec = signedData {
-                      data =
-                        MEASUREMENT_SPEC.copy {
-                            clearReachAndFrequency()
-                            duration = duration { maximumWatchDurationPerUser = 1 }
-                          }
-                          .toByteString()
-                      signature = UPDATE_TIME.toByteString()
-                    }
-                  }
-              }
-            )
-          }
+          runBlocking { service.createMeasurement(request) }
         }
       }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("privacy")
   }
 
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when duration watch time per user is missing`() {
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement =
+        MEASUREMENT.copy {
+          measurementSpec =
+            measurementSpec.copy {
+              data =
+                DURATION_MEASUREMENT_SPEC.copy {
+                    duration = duration.copy { clearMaximumWatchDurationPerUser() }
+                  }
+                  .toByteString()
+            }
+        }
+    }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking {
-            service.createMeasurement(
-              createMeasurementRequest {
-                measurement =
-                  MEASUREMENT.copy {
-                    measurementSpec = signedData {
-                      data =
-                        MEASUREMENT_SPEC.copy {
-                            clearReachAndFrequency()
-                            duration = duration {
-                              privacyParams = differentialPrivacyParams {
-                                epsilon = 1.0
-                                delta = 1.0
-                              }
-                            }
-                          }
-                          .toByteString()
-                      signature = UPDATE_TIME.toByteString()
-                    }
-                  }
-              }
-            )
-          }
+          runBlocking { service.createMeasurement(request) }
         }
       }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("maximum")
   }
 
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when measurement type is missing`() {
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement =
+        MEASUREMENT.copy {
+          measurementSpec =
+            measurementSpec.copy {
+              data = MEASUREMENT_SPEC.copy { clearMeasurementType() }.toByteString()
+            }
+        }
+    }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking {
-            service.createMeasurement(
-              createMeasurementRequest {
-                measurement =
-                  MEASUREMENT.copy {
-                    measurementSpec = signedData {
-                      data = MEASUREMENT_SPEC.copy { clearMeasurementType() }.toByteString()
-                      signature = UPDATE_TIME.toByteString()
-                    }
-                  }
-              }
-            )
-          }
+          runBlocking { service.createMeasurement(request) }
         }
       }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("type")
   }
 
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when Data Providers is missing`() {
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement = MEASUREMENT.copy { dataProviders.clear() }
+    }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking {
-            service.createMeasurement(
-              createMeasurementRequest { measurement = MEASUREMENT.copy { dataProviders.clear() } }
-            )
-          }
+          runBlocking { service.createMeasurement(request) }
         }
       }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("provider")
   }
 
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when Data Providers Entry is missing key`() {
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement = MEASUREMENT.copy { dataProviders[0] = dataProviders[0].copy { clearKey() } }
+    }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking {
-            service.createMeasurement(
-              createMeasurementRequest {
-                measurement =
-                  MEASUREMENT.copy {
-                    dataProviders.clear()
-                    dataProviders += dataProviderEntry { key = "" }
-                  }
-              }
-            )
-          }
+          runBlocking { service.createMeasurement(request) }
         }
       }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("provider")
   }
 
   @Test
   fun `createMeasurement throws error when Data Providers Entry value is missing cert name`() {
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement =
+        MEASUREMENT.copy {
+          dataProviders[0] =
+            dataProviders[0].copy { value = value.copy { clearDataProviderCertificate() } }
+        }
+    }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking {
-            service.createMeasurement(
-              createMeasurementRequest {
-                measurement =
-                  MEASUREMENT.copy {
-                    dataProviders.clear()
-                    dataProviders += dataProviderEntry { key = DATA_PROVIDERS_NAME }
-                  }
-              }
-            )
-          }
+          runBlocking { service.createMeasurement(request) }
         }
       }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("provider")
   }
 
   @Test
   fun `createMeasurement throws error when Data Providers Entry value is missing public key`() {
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement =
+        MEASUREMENT.copy {
+          dataProviders[0] =
+            dataProviders[0].copy { value = value.copy { clearDataProviderPublicKey() } }
+        }
+    }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking {
-            service.createMeasurement(
-              createMeasurementRequest {
-                measurement =
-                  MEASUREMENT.copy {
-                    dataProviders.clear()
-                    dataProviders += dataProviderEntry {
-                      key = DATA_PROVIDERS_NAME
-                      value = value { dataProviderCertificate = DATA_PROVIDERS_CERTIFICATE_NAME }
-                    }
-                  }
-              }
-            )
-          }
+          runBlocking { service.createMeasurement(request) }
         }
       }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("key")
   }
 
   @Test
   fun `createMeasurement throws error when Data Providers Entry value is missing spec`() {
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement =
+        MEASUREMENT.copy {
+          dataProviders[0] =
+            dataProviders[0].copy { value = value.copy { clearEncryptedRequisitionSpec() } }
+        }
+    }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking {
-            service.createMeasurement(
-              createMeasurementRequest {
-                measurement =
-                  MEASUREMENT.copy {
-                    dataProviders.clear()
-                    dataProviders += dataProviderEntry {
-                      key = DATA_PROVIDERS_NAME
-                      value = value {
-                        dataProviderCertificate = DATA_PROVIDERS_CERTIFICATE_NAME
-                        dataProviderPublicKey = signedData {
-                          data = UPDATE_TIME.toByteString()
-                          signature = UPDATE_TIME.toByteString()
-                        }
-                      }
-                    }
-                  }
-              }
-            )
-          }
+          runBlocking { service.createMeasurement(request) }
         }
       }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("requisition")
   }
 
   @Test
   fun `createMeasurement throws error when Data Providers Entry value is missing nonce hash`() {
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement =
+        MEASUREMENT.copy {
+          dataProviders[0] = dataProviders[0].copy { value = value.copy { clearNonceHash() } }
+        }
+    }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking {
-            service.createMeasurement(
-              createMeasurementRequest {
-                measurement =
-                  MEASUREMENT.copy {
-                    dataProviders[0] =
-                      dataProviders[0].copy { value = value.copy { clearNonceHash() } }
-                  }
-              }
-            )
-          }
+          runBlocking { service.createMeasurement(request) }
         }
       }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("nonce")
   }
 
   @Test
@@ -1866,10 +1787,35 @@ class MeasurementsServiceTest {
           epsilon = 1.0
           delta = 1.0
         }
+        maximumFrequency = 10
       }
       vidSamplingInterval = vidSamplingInterval { width = 1.0f }
       nonceHashes += EXTERNAL_DATA_PROVIDER_IDS.map { it.value.toByteString() }
     }
+
+    private val IMPRESSION_MEASUREMENT_SPEC =
+      MEASUREMENT_SPEC.copy {
+        clearReachAndFrequency()
+        impression = impression {
+          privacyParams = differentialPrivacyParams {
+            epsilon = 1.0
+            delta = 0.0
+          }
+          maximumFrequencyPerUser = 1
+        }
+      }
+
+    private val DURATION_MEASUREMENT_SPEC =
+      MEASUREMENT_SPEC.copy {
+        clearReachAndFrequency()
+        duration = duration {
+          privacyParams = differentialPrivacyParams {
+            epsilon = 1.0
+            delta = 0.0
+          }
+          maximumWatchDurationPerUser = 1
+        }
+      }
 
     private val MEASUREMENT = measurement {
       name = MEASUREMENT_NAME

@@ -151,7 +151,6 @@ import org.wfanet.measurement.reporting.v1alpha.Metric.SetOperation
 import org.wfanet.measurement.reporting.v1alpha.Metric.SetOperation.Operand
 import org.wfanet.measurement.reporting.v1alpha.Metric.WatchDurationParams
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.SetOperationKt.operand
-import org.wfanet.measurement.reporting.v1alpha.MetricKt.frequencyHistogramParams
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.impressionCountParams
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.namedSetOperation
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.reachParams
@@ -190,7 +189,6 @@ private val REACH_ONLY_VID_SAMPLING_START_LIST =
   (0 until NUMBER_REACH_ONLY_BUCKETS).map { it * REACH_ONLY_VID_SAMPLING_WIDTH }
 private const val REACH_ONLY_REACH_EPSILON = 0.0041
 private const val REACH_ONLY_FREQUENCY_EPSILON = 0.0001
-private const val REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER = 1
 
 private const val REACH_FREQUENCY_VID_SAMPLING_WIDTH = 5.0f / NUMBER_VID_BUCKETS
 private const val NUMBER_REACH_FREQUENCY_BUCKETS = 19
@@ -202,6 +200,7 @@ private val REACH_FREQUENCY_VID_SAMPLING_START_LIST =
   }
 private const val REACH_FREQUENCY_REACH_EPSILON = 0.0033
 private const val REACH_FREQUENCY_FREQUENCY_EPSILON = 0.115
+private const val MAXIMUM_FREQUENCY = 10
 
 private const val IMPRESSION_VID_SAMPLING_WIDTH = 62.0f / NUMBER_VID_BUCKETS
 private const val NUMBER_IMPRESSION_BUCKETS = 1
@@ -235,7 +234,7 @@ private val REACH_ONLY_MEASUREMENT_SPEC =
       epsilon = REACH_ONLY_FREQUENCY_EPSILON
       delta = DIFFERENTIAL_PRIVACY_DELTA
     }
-    maximumFrequencyPerUser = REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER
+    maximumFrequency = 1
   }
 
 private val timeIntervalComparator: (TimeInterval, TimeInterval) -> Int = { a, b ->
@@ -1241,10 +1240,7 @@ class ReportsService(
           vidSamplingInterval = buildReachOnlyVidSamplingInterval(secureRandom)
         }
         InternalMetricTypeCase.FREQUENCY_HISTOGRAM -> {
-          reachAndFrequency =
-            buildReachAndFrequencyMeasurementSpec(
-              internalMetricDetails.frequencyHistogram.maximumFrequencyPerUser
-            )
+          reachAndFrequency = buildReachAndFrequencyMeasurementSpec()
           vidSamplingInterval = buildReachAndFrequencyVidSamplingInterval(secureRandom)
         }
         InternalMetricTypeCase.IMPRESSION_COUNT -> {
@@ -1257,8 +1253,7 @@ class ReportsService(
         InternalMetricTypeCase.WATCH_DURATION -> {
           duration =
             buildDurationMeasurementSpec(
-              internalMetricDetails.watchDuration.maximumWatchDurationPerUser,
-              internalMetricDetails.watchDuration.maximumFrequencyPerUser
+              internalMetricDetails.watchDuration.maximumWatchDurationPerUser
             )
           vidSamplingInterval = buildDurationVidSamplingInterval(secureRandom)
         }
@@ -1666,9 +1661,7 @@ private fun buildDurationVidSamplingInterval(secureRandom: SecureRandom): VidSam
 }
 
 /** Builds a [MeasurementSpec.ReachAndFrequency] for reach-frequency. */
-private fun buildReachAndFrequencyMeasurementSpec(
-  maximumFrequencyPerUser: Int
-): MeasurementSpec.ReachAndFrequency {
+private fun buildReachAndFrequencyMeasurementSpec(): MeasurementSpec.ReachAndFrequency {
   return MeasurementSpecKt.reachAndFrequency {
     reachPrivacyParams = differentialPrivacyParams {
       epsilon = REACH_FREQUENCY_REACH_EPSILON
@@ -1678,7 +1671,7 @@ private fun buildReachAndFrequencyMeasurementSpec(
       epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
       delta = DIFFERENTIAL_PRIVACY_DELTA
     }
-    this.maximumFrequencyPerUser = maximumFrequencyPerUser
+    maximumFrequency = MAXIMUM_FREQUENCY
   }
 }
 
@@ -1697,8 +1690,7 @@ private fun buildImpressionMeasurementSpec(
 
 /** Builds a [MeasurementSpec.ReachAndFrequency] for watch duration. */
 private fun buildDurationMeasurementSpec(
-  maximumWatchDurationPerUser: Int,
-  maximumFrequencyPerUser: Int
+  maximumWatchDurationPerUser: Int
 ): MeasurementSpec.Duration {
   return MeasurementSpecKt.duration {
     privacyParams = differentialPrivacyParams {
@@ -1706,7 +1698,6 @@ private fun buildDurationMeasurementSpec(
       delta = DIFFERENTIAL_PRIVACY_DELTA
     }
     this.maximumWatchDurationPerUser = maximumWatchDurationPerUser
-    this.maximumFrequencyPerUser = maximumFrequencyPerUser
   }
 }
 
@@ -1725,7 +1716,6 @@ private fun SetOperation.Type.toInternal(): InternalSetOperation.Type {
 private fun WatchDurationParams.toInternal(): InternalWatchDurationParams {
   val source = this
   return InternalMetricKt.watchDurationParams {
-    maximumFrequencyPerUser = source.maximumFrequencyPerUser
     maximumWatchDurationPerUser = source.maximumWatchDurationPerUser
   }
 }
@@ -1739,11 +1729,9 @@ private fun ImpressionCountParams.toInternal(): InternalImpressionCountParams {
 }
 
 /** Converts a [FrequencyHistogramParams] to an [InternalFrequencyHistogramParams]. */
+@Suppress("UnusedReceiverParameter")
 private fun FrequencyHistogramParams.toInternal(): InternalFrequencyHistogramParams {
-  val source = this
-  return InternalMetricKt.frequencyHistogramParams {
-    maximumFrequencyPerUser = source.maximumFrequencyPerUser
-  }
+  return InternalFrequencyHistogramParams.getDefaultInstance()
 }
 
 /** Converts a public [PeriodicTimeInterval] to an [InternalPeriodicTimeInterval]. */
@@ -2083,10 +2071,7 @@ private fun InternalSetOperation.Type.toType(): SetOperation.Type {
 /** Converts an internal [InternalWatchDurationParams] to a public [WatchDurationParams]. */
 private fun InternalWatchDurationParams.toWatchDuration(): WatchDurationParams {
   val source = this
-  return watchDurationParams {
-    maximumFrequencyPerUser = source.maximumFrequencyPerUser
-    maximumWatchDurationPerUser = source.maximumWatchDurationPerUser
-  }
+  return watchDurationParams { maximumWatchDurationPerUser = source.maximumWatchDurationPerUser }
 }
 
 /** Converts an internal [InternalImpressionCountParams] to a public [ImpressionCountParams]. */
@@ -2098,9 +2083,9 @@ private fun InternalImpressionCountParams.toImpressionCount(): ImpressionCountPa
 /**
  * Converts an internal [InternalFrequencyHistogramParams] to a public [FrequencyHistogramParams].
  */
+@Suppress("UnusedReceiverParameter")
 private fun InternalFrequencyHistogramParams.toFrequencyHistogram(): FrequencyHistogramParams {
-  val source = this
-  return frequencyHistogramParams { maximumFrequencyPerUser = source.maximumFrequencyPerUser }
+  return FrequencyHistogramParams.getDefaultInstance()
 }
 
 /** Converts an internal [InternalPeriodicTimeInterval] to a public [PeriodicTimeInterval]. */
