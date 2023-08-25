@@ -288,8 +288,7 @@ const reports = [
   },
 ];
 
-
-describe('renders learn react link', () => {
+describe('report list model tests', () => {
   test('model calls API', () => {
     const mockClient: ReportingClient = {
       getReport: jest.fn().mockResolvedValue({report: reports[0]}),
