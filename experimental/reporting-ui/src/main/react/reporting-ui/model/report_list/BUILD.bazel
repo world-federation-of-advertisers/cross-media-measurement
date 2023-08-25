@@ -21,8 +21,8 @@ jest_test(
     name = "report_list_test",
     config = "//experimental/reporting-ui/src/main/react/reporting-ui:jest_config",
     data = [
-        ":report_list_model_test.ts",
         ":report_list",
+        ":report_list_model_test.ts",
         "//:tsconfig",
         "//experimental/reporting-ui/src/main/react/reporting-ui:app",
         "//experimental/reporting-ui/src/main/react/reporting-ui:node_deps",
