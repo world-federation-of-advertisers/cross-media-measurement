@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License. */
 
 import { useState } from 'react';
-import { ReportListModel } from '../../model/report_list/report_list_model';
+import { ReportListRepository } from '../../repository/report_list/report_list_repository';
 import { Report, ReportState } from '../../model/reporting';
 
 type ReportListItem = {
@@ -42,7 +42,7 @@ const handleLoadReports = (reports: Report[]) => {
 }
 
 export const ListReportViewModel = () => {
-  const {loadReports} = ReportListModel();
+  const {loadReports} = ReportListRepository();
   const [loading, setLoading] = useState<boolean>(false);
   const [reports, setReports] = useState<ReportListItem[]>([]);
   const [errors, setErrors] = useState<string[]>([]);

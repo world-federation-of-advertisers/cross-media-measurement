@@ -14,9 +14,9 @@
 
 import '@testing-library/jest-dom';	
 import '@testing-library/jest-dom/extend-expect';	
-import { ReportListModel } from './report_list_model';
+import { ReportListRepository } from './report_list_repository';
 import appConfig from '../../client/initialize';
-import { ReportState, UniqueReach } from '../reporting';
+import { ReportState, UniqueReach } from '../../model/reporting';
 import { ReportingClient } from '../../client/reporting/client';
 
 function regenerateTimeData() {
@@ -296,7 +296,7 @@ describe('report list model tests', () => {
     }
     appConfig.initialize({reportingClient: mockClient});
 
-    const {loadReports} = ReportListModel();
+    const {loadReports} = ReportListRepository();
 
     loadReports();
 
