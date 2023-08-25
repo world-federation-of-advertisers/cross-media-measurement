@@ -86,6 +86,9 @@ message ListReportsRequest {
   // When paginating, all other parameters provided to `ListReports` must match
   // the call that provided the page token.
   string page_token = 3;
+
+  // Result filter. Raw CEL expression that is applied to the message.
+  string filter = 4;
 }
 
 // Response message for `ListReports` method.

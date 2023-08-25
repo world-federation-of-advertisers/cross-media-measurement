@@ -20,6 +20,9 @@ enum class PrivacyBudgetManagerExceptionType(val errorMessage: String) {
   UPDATE_AFTER_COMMIT("Cannot update a transaction context after a commit"),
   NESTED_TRANSACTION("Backing Store doesn't support nested transactions"),
   BACKING_STORE_CLOSED("Cannot start a transaction after closing the backing store"),
+  INCORRECT_NOISE_MECHANISM(
+    "Noise mechanism should be DISCRETE_GAUSSIAN or GAUSSIAN for ACDP composition"
+  ),
 }
 
 /** An exception thrown by the privacy budget manager. */

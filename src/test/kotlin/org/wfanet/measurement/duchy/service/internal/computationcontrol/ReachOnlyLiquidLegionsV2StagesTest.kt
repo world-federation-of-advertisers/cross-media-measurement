@@ -44,7 +44,7 @@ class ReachOnlyLiquidLegionsV2StagesTest {
         computationStage = computationStage { reachOnlyLiquidLegionsSketchAggregationV2 = stage }
         blobs += newEmptyOutputBlobMetadata(1L)
       }
-      val ex = assertFailsWith<IllegalArgumentException> { stages.outputBlob(token, "Buck") }
+      assertFailsWith<IllegalArgumentException> { stages.outputBlob(token, "Buck") }
     }
 
     for (stage in Stage.values()) {

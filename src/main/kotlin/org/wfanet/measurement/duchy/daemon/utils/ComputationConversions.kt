@@ -71,7 +71,8 @@ fun SystemComputation.toMeasurementType(): MeasurementType {
         MeasurementTypeCase.REACH -> MeasurementType.REACH
         MeasurementTypeCase.REACH_AND_FREQUENCY -> MeasurementType.REACH_AND_FREQUENCY
         MeasurementTypeCase.DURATION,
-        MeasurementTypeCase.IMPRESSION ->
+        MeasurementTypeCase.IMPRESSION,
+        MeasurementTypeCase.POPULATION ->
           error("Unexpected MeasurementType for system API Computation.")
         MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> error("Measurement type not set.")
       }
