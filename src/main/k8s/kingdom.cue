@@ -58,6 +58,7 @@ import ("strings")
 	_duchy_id_config_flag:                   "--duchy-id-config=/var/run/secrets/files/duchy_id_config.textproto"
 	_llv2_protocol_config_config:            "--llv2-protocol-config-config=/var/run/secrets/files/llv2_protocol_config_config.textproto"
 	_ro_llv2_protocol_config_config:         "--ro-llv2-protocol-config-config=/var/run/secrets/files/ro_llv2_protocol_config_config.textproto"
+	_ro_llv2_enable_flag:                    "--enable-ro-llv2-protocol"
 	_kingdom_tls_cert_file_flag:             "--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem"
 	_kingdom_tls_key_file_flag:              "--tls-key-file=/var/run/secrets/files/kingdom_tls.key"
 	_kingdom_cert_collection_file_flag:      "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
@@ -123,6 +124,7 @@ import ("strings")
 					// Internal Kingdom API server should only trust Kingdom certs.
 					_kingdom_root_cert_file_flag,
 					_debug_verbose_grpc_server_logging_flag,
+					_ro_llv2_enable_flag,
 				] + Container._commonServerFlags + _spannerConfig.flags
 			}
 			_updateSchemaContainer: Container=#Container & {
@@ -168,6 +170,7 @@ import ("strings")
 					_akid_to_principal_map_file_flag,
 					_open_id_redirect_uri_flag,
 					_duchy_info_config_flag,
+					_ro_llv2_enable_flag,
 				] + Container._commonServerFlags
 			}
 			spec: template: spec: {
