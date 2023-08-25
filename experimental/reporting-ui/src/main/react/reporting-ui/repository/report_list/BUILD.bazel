@@ -10,7 +10,7 @@ package(
 js_library(
     name = "report_list",
     srcs = [
-        "report_list_model.ts",
+        "report_list_repository.ts",
     ],
     deps = [
         "//experimental/reporting-ui/src/main/react/reporting-ui/client",
@@ -22,7 +22,7 @@ jest_test(
     config = "//experimental/reporting-ui/src/main/react/reporting-ui:jest_config",
     data = [
         ":report_list",
-        ":report_list_model_test.ts",
+        ":report_list_repository_test.ts",
         "//:tsconfig",
         "//experimental/reporting-ui/src/main/react/reporting-ui:app",
         "//experimental/reporting-ui/src/main/react/reporting-ui:node_deps",

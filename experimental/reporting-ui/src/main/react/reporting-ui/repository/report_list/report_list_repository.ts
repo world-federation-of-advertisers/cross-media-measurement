@@ -14,7 +14,7 @@ limitations under the License. */
 
 import appConfig from '../../client/initialize';
 
-export const ReportListModel = () => {
+export const ReportListRepository = () => {
   async function loadReports() {
     const response = await appConfig.reportingApi!.listReports();
     return response.reports;
