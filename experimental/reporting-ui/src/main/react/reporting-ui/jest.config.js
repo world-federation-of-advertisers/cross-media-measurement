@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-const baseConfig = require('../jest/jest_base.config');
+const baseConfig = require('../../../test/react/jest/jest_base.config');
 
 module.exports = {
     ...baseConfig,
