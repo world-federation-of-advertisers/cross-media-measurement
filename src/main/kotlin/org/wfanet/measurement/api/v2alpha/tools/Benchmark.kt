@@ -256,12 +256,12 @@ class ReachAndFrequencyParams {
     private set
 
   @set:CommandLine.Option(
-    names = ["--max-frequency-for-reach"],
-    description = ["Maximum frequency per user when estimating reach"],
+    names = ["--max-frequency"],
+    description = ["Maximum frequency revealed in the histogram"],
     required = false,
     defaultValue = "10",
   )
-  var maximumFrequencyPerUser by Delegates.notNull<Int>()
+  var maximumFrequency by Delegates.notNull<Int>()
     private set
 }
 
@@ -291,7 +291,7 @@ class ImpressionParams {
     private set
 
   @set:CommandLine.Option(
-    names = ["--max-frequency"],
+    names = ["--max-frequency-per-user"],
     description = ["Maximum frequency per user"],
     required = true,
   )
@@ -460,7 +460,7 @@ private fun getReachAndFrequency(measurementTypeParams: MeasurementTypeParams): 
       epsilon = measurementTypeParams.reachAndFrequency.frequencyPrivacyEpsilon
       delta = measurementTypeParams.reachAndFrequency.frequencyPrivacyDelta
     }
-    maximumFrequencyPerUser = measurementTypeParams.reachAndFrequency.maximumFrequencyPerUser
+    maximumFrequency = measurementTypeParams.reachAndFrequency.maximumFrequency
   }
 }
 
