@@ -70,7 +70,7 @@ moved {
 }
 
 moved {
-  from = module.reporting.module.postgres_database.google_sql_user.service_account
+  from = module.postgres_database.google_sql_user.service_account
   to   = google_sql_user.reporting_internal
 }
 
