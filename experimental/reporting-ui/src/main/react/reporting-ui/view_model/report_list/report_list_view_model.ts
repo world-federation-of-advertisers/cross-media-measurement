@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License. */
 
 import { useState } from 'react';
-import { ReportListRepository } from '../../repository/report_list/report_list_repository';
+import { ReportListRepository } from '../../model/report_list/report_list_repository';
 import { Report, ReportState } from '../../model/reporting';
 
 type ReportListItem = {
