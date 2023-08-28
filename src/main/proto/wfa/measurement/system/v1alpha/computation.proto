@@ -154,7 +154,10 @@ message Computation {
 
       // The maximum frequency to reveal in the histogram. For reach-only liquid
       // legions protocol, this field should be ignored.
-      int32 maximum_frequency = 4 [(google.api.field_behavior) = REQUIRED];
+      //
+      // Deprecated: Specified in MeasurementSpec instead except for legacy
+      // Computations.
+      int32 maximum_frequency = 4 [deprecated = true];
 
       // The mechanism to generate noise during computation.
       NoiseMechanism noise_mechanism = 5
