@@ -32,3 +32,13 @@ resource "google_spanner_database_iam_member" "kingdom_internal" {
   role     = "roles/spanner.databaseUser"
   member   = module.kingdom_internal.iam_service_account.member
 }
+
+moved {
+  from = module.spanner_database.google_spanner_database.db
+  to   = google_spanner_database.kingdom
+}
+
+moved {
+  from = module.spanner_database.google_spanner_database_iam_member.grant_db_user_role
+  to   = google_spanner_database_iam_member.kingdom_internal
+}
