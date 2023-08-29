@@ -33,11 +33,15 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.wfanet.measurement.api.v2alpha.BatchGetEventGroupMetadataDescriptorsResponse
+import org.wfanet.measurement.api.v2alpha.DataProvider
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsResponse
+import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
+import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
@@ -89,6 +93,9 @@ class ReportingTest {
     onBlocking { listEventGroups(any()) }
       .thenReturn(listEventGroupsResponse { eventGroups += EVENT_GROUP })
   }
+  private val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService {
+    onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER)
+  }
   private val eventGroupMetadataDescriptorsServiceMock:
     EventGroupMetadataDescriptorsCoroutineImplBase =
     mockService {
@@ -115,6 +122,7 @@ class ReportingTest {
       reportingSetsServiceMock.bindService(),
       reportsServiceMock.bindService(),
       eventGroupsServiceMock.bindService(),
+      dataProvidersServiceMock.bindService(),
       eventGroupMetadataDescriptorsServiceMock.bindService(),
     )
 
@@ -569,6 +577,43 @@ class ReportingTest {
   }
 
   @Test
+  fun `get data provider calls api with valid request`() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "data-providers",
+        "get",
+        DATA_PROVIDER_NAME,
+      )
+    val output = callCli(args)
+
+    verifyProtoArgument(dataProvidersServiceMock, DataProvidersCoroutineImplBase::getDataProvider)
+      .isEqualTo(getDataProviderRequest { name = DATA_PROVIDER_NAME })
+    assertThat(parseTextProto(output.out.reader(), DataProvider.getDefaultInstance()))
+      .isEqualTo(DATA_PROVIDER)
+  }
+
+  @Test
+  fun `get data provider fails when missing descriptor name`() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "data-providers",
+        "get",
+      )
+
+    val capturedOutput = callCli(args)
+
+    assertThat(capturedOutput).status().isEqualTo(2)
+  }
+
+  @Test
   fun `get event group metadata descriptor calls api with valid request`() {
     val args =
       arrayOf(
@@ -683,6 +728,7 @@ class ReportingTest {
 
     private const val EVENT_GROUP_NAME = "$MEASUREMENT_CONSUMER_NAME/eventGroups/1"
     private val EVENT_GROUP = eventGroup { name = EVENT_GROUP_NAME }
+    private val DATA_PROVIDER = dataProvider { name = DATA_PROVIDER_NAME }
     private const val EVENT_GROUP_METADATA_DESCRIPTOR_NAME =
       "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/1"
     private val EVENT_GROUP_METADATA_DESCRIPTOR = eventGroupMetadataDescriptor {

@@ -48,6 +48,7 @@ kt_jvm_library(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/server:internal_reporting_server",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:cel_env_provider",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:data_providers_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:event_group_metadata_descriptors_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:event_groups_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:metadata_principal_server_interceptor",

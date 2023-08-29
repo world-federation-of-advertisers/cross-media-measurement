@@ -23,8 +23,10 @@ import java.time.Instant
 import kotlin.properties.Delegates
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
+import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.common.DurationFormat
 import org.wfanet.measurement.common.commandLineMain
@@ -478,6 +480,24 @@ class EventGroupsCommand : Runnable {
   override fun run() {}
 }
 
+@CommandLine.Command(name = "get", description = ["Get data provider"])
+class GetDataProvider : Runnable {
+  @CommandLine.ParentCommand private lateinit var parent: DataProvidersCommand
+
+  @CommandLine.Parameters(
+    description = ["CMMS DataProvider resource name"],
+  )
+  private lateinit var cmmsDataProviderName: String
+
+  override fun run() {
+    val request = getDataProviderRequest { name = cmmsDataProviderName }
+
+    val response = runBlocking(Dispatchers.IO) { parent.dataProviderStub.getDataProvider(request) }
+
+    println(response)
+  }
+}
+
 @CommandLine.Command(name = "get", description = ["Get event group metadata descriptor"])
 class GetEventGroupMetadataDescriptor : Runnable {
   @CommandLine.ParentCommand private lateinit var parent: EventGroupMetadataDescriptorsCommand
@@ -528,6 +548,25 @@ class BatchGetEventGroupMetadataDescriptors : Runnable {
 }
 
 @CommandLine.Command(
+  name = "data-providers",
+  sortOptions = false,
+  subcommands =
+    [
+      CommandLine.HelpCommand::class,
+      GetDataProvider::class,
+    ]
+)
+class DataProvidersCommand : Runnable {
+  @CommandLine.ParentCommand lateinit var parent: Reporting
+
+  val dataProviderStub: DataProvidersCoroutineStub by lazy {
+    DataProvidersCoroutineStub(parent.channel)
+  }
+
+  override fun run() {}
+}
+
+@CommandLine.Command(
   name = "event-group-metadata-descriptors",
   sortOptions = false,
   subcommands =
@@ -557,6 +596,7 @@ class EventGroupMetadataDescriptorsCommand : Runnable {
       ReportingSetsCommand::class,
       ReportsCommand::class,
       EventGroupsCommand::class,
+      DataProvidersCommand::class,
       EventGroupMetadataDescriptorsCommand::class,
     ]
 )
@@ -583,7 +623,7 @@ class Reporting : Runnable {
 }
 
 /**
- * Reporting Set, Report, Event Group, and Event Group Metadata Descriptor methods.
+ * Reporting Set, Report, Event Group, Event Group Metadata Descriptor, and Data Provider methods.
  *
  * Use the `help` command to see usage details.
  */
