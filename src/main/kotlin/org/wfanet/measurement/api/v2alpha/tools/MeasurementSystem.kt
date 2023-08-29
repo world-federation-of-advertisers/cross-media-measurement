@@ -191,19 +191,19 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = systemDuration.ofSeconds(30)
     ]
 )
 class MeasurementSystem private constructor() : Runnable {
-  @Spec private lateinit var commandSpec: CommandSpec
+  @Spec lateinit var commandSpec: CommandSpec
 
   val commandLine: CommandLine
     get() = commandSpec.commandLine()
 
-  @Mixin private lateinit var tlsFlags: TlsFlags
+  @Mixin lateinit var tlsFlags: TlsFlags
 
   @Option(
     names = ["--kingdom-public-api-target"],
     description = ["gRPC target (authority) of the Kingdom public API server"],
     required = true,
   )
-  private lateinit var target: String
+  lateinit var target: String
 
   @Option(
     names = ["--kingdom-public-api-cert-host"],
@@ -599,7 +599,7 @@ class CreateMeasurement : Runnable {
     description = ["API resource name of the MeasurementConsumer"],
     required = true
   )
-  private lateinit var measurementConsumer: String
+  lateinit var measurementConsumer: String
 
   @Option(
     names = ["--request-id"],
@@ -607,14 +607,14 @@ class CreateMeasurement : Runnable {
     required = false,
     defaultValue = "",
   )
-  private lateinit var requestId: String
+  lateinit var requestId: String
 
   @Option(
     names = ["--private-key-der-file"],
     description = ["Private key for MeasurementConsumer"],
     required = true
   )
-  private lateinit var privateKeyDerFile: File
+  lateinit var privateKeyDerFile: File
 
   @Option(
     names = ["--measurement-ref-id"],
@@ -622,25 +622,16 @@ class CreateMeasurement : Runnable {
     required = false,
     defaultValue = ""
   )
-  private lateinit var measurementReferenceId: String
+  lateinit var measurementReferenceId: String
 
-  @set:Option(
-    names = ["--vid-sampling-start"],
-    description = ["Start point of vid sampling interval"],
-    required = true,
+  @ArgGroup(
+    exclusive = true,
+    multiplicity = "1",
+    heading = "Specify either Event or Population Measurement with its params\n"
   )
-  var vidSamplingStart by Delegates.notNull<Float>()
-    private set
+  lateinit var measurementParams: MeasurementParams
 
-  @set:Option(
-    names = ["--vid-sampling-width"],
-    description = ["Width of vid sampling interval"],
-    required = true,
-  )
-  var vidSamplingWidth by Delegates.notNull<Float>()
-    private set
-
-  @CommandLine.Option(
+  @Option(
     names = ["--model-line"],
     description = ["API resource name of the ModelLine"],
     required = false,
@@ -648,183 +639,327 @@ class CreateMeasurement : Runnable {
   )
   lateinit var modelLine: String
 
-  @ArgGroup(
-    exclusive = true,
-    multiplicity = "1",
-    heading = "Specify one of the measurement types with its params\n"
-  )
-  lateinit var measurementTypeParams: MeasurementTypeParams
+  class MeasurementParams {
+    @ArgGroup(exclusive = false, multiplicity = "1", heading = "Event Measurement and params\n")
+    var eventMeasurementParams = EventMeasurementParams()
+    @ArgGroup(
+      exclusive = false,
+      multiplicity = "1",
+      heading = "Population Measurement and params\n"
+    )
+    var populationMeasurementParams = PopulationMeasurementParams()
 
-  class MeasurementTypeParams {
-    class ReachAndFrequencyParams {
-      @Option(
-        names = ["--reach-and-frequency"],
-        description = ["Measurement Type of ReachAndFrequency"],
-        required = true,
-      )
-      var selected = false
+    class EventMeasurementParams {
+      class EventDataProviderInput {
+        @Option(
+          names = ["--event-data-provider"],
+          description = ["API resource name of the Event Data Provider"],
+          required = true,
+        )
+        lateinit var name: String
+          private set
+
+        @ArgGroup(
+          exclusive = false,
+          multiplicity = "1..*",
+          heading = "Add EventGroups for an Event Data Provider\n"
+        )
+        lateinit var eventGroupInputs: List<EventGroupInput>
+          private set
+      }
+
+      class EventGroupInput {
+        @Option(
+          names = ["--event-group"],
+          description = ["API resource name of the EventGroup"],
+          required = true,
+        )
+        lateinit var name: String
+          private set
+
+        @Option(
+          names = ["--event-filter"],
+          description = ["Raw CEL expression of EventFilter"],
+          required = false,
+          defaultValue = ""
+        )
+        lateinit var eventFilter: String
+          private set
+
+        @Option(
+          names = ["--event-start-time"],
+          description = ["Start time of Event range in ISO 8601 format of UTC"],
+          required = true,
+        )
+        lateinit var eventStartTime: Instant
+          private set
+
+        @Option(
+          names = ["--event-end-time"],
+          description = ["End time of Event range in ISO 8601 format of UTC"],
+          required = true,
+        )
+        lateinit var eventEndTime: Instant
+          private set
+      }
+
+      @ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Add Event Data Providers\n")
+      lateinit var eventDataProviderInputs: List<EventDataProviderInput>
         private set
 
       @set:Option(
-        names = ["--reach-privacy-epsilon"],
-        description = ["Epsilon value of reach privacy params"],
+        names = ["--vid-sampling-start"],
+        description = ["Start point of vid sampling interval"],
         required = true,
       )
-      var reachPrivacyEpsilon by Delegates.notNull<Double>()
+      var vidSamplingStart by Delegates.notNull<Float>()
         private set
 
       @set:Option(
-        names = ["--reach-privacy-delta"],
-        description = ["Delta value of reach privacy params"],
+        names = ["--vid-sampling-width"],
+        description = ["Width of vid sampling interval"],
         required = true,
       )
-      var reachPrivacyDelta by Delegates.notNull<Double>()
+      var vidSamplingWidth by Delegates.notNull<Float>()
         private set
 
-      @set:Option(
-        names = ["--frequency-privacy-epsilon"],
-        description = ["Epsilon value of frequency privacy params"],
-        required = true,
-      )
-      var frequencyPrivacyEpsilon by Delegates.notNull<Double>()
-        private set
+      class EventMeasurementTypeParams {
+        class ReachAndFrequencyParams {
+          @Option(
+            names = ["--reach-and-frequency"],
+            description = ["Measurement Type of ReachAndFrequency"],
+            required = true,
+          )
+          var selected = false
+            private set
 
-      @set:Option(
-        names = ["--frequency-privacy-delta"],
-        description = ["Epsilon value of frequency privacy params"],
-        required = true,
-      )
-      var frequencyPrivacyDelta by Delegates.notNull<Double>()
-        private set
+          @set:Option(
+            names = ["--reach-privacy-epsilon"],
+            description = ["Epsilon value of reach privacy params"],
+            required = true,
+          )
+          var reachPrivacyEpsilon by Delegates.notNull<Double>()
+            private set
 
-      @set:Option(
-        names = ["--reach-max-frequency"],
-        description = ["Maximum frequency per user"],
-        required = false,
-        defaultValue = "10",
-      )
-      var maximumFrequencyPerUser by Delegates.notNull<Int>()
-        private set
+          @set:Option(
+            names = ["--reach-privacy-delta"],
+            description = ["Delta value of reach privacy params"],
+            required = true,
+          )
+          var reachPrivacyDelta by Delegates.notNull<Double>()
+            private set
+
+          @set:Option(
+            names = ["--frequency-privacy-epsilon"],
+            description = ["Epsilon value of frequency privacy params"],
+            required = true,
+          )
+          var frequencyPrivacyEpsilon by Delegates.notNull<Double>()
+            private set
+
+          @set:Option(
+            names = ["--frequency-privacy-delta"],
+            description = ["Epsilon value of frequency privacy params"],
+            required = true,
+          )
+          var frequencyPrivacyDelta by Delegates.notNull<Double>()
+            private set
+
+          @set:Option(
+            names = ["--reach-max-frequency"],
+            description = ["Maximum frequency per user"],
+            required = false,
+            defaultValue = "10",
+          )
+          var maximumFrequencyPerUser by Delegates.notNull<Int>()
+            private set
+        }
+
+        class ImpressionParams {
+          @Option(
+            names = ["--impression"],
+            description = ["Measurement Type of Impression"],
+            required = true,
+          )
+          var selected = false
+            private set
+
+          @set:Option(
+            names = ["--impression-privacy-epsilon"],
+            description = ["Epsilon value of impression privacy params"],
+            required = true,
+          )
+          var privacyEpsilon by Delegates.notNull<Double>()
+            private set
+
+          @set:Option(
+            names = ["--impression-privacy-delta"],
+            description = ["Epsilon value of impression privacy params"],
+            required = true,
+          )
+          var privacyDelta by Delegates.notNull<Double>()
+            private set
+
+          @set:Option(
+            names = ["--impression-max-frequency"],
+            description = ["Maximum frequency per user"],
+            required = true,
+          )
+          var maximumFrequencyPerUser by Delegates.notNull<Int>()
+            private set
+        }
+
+        class DurationParams {
+          @Option(
+            names = ["--duration"],
+            description = ["Measurement Type of Duration"],
+            required = true,
+          )
+          var selected = false
+            private set
+
+          @set:Option(
+            names = ["--duration-privacy-epsilon"],
+            description = ["Epsilon value of duration privacy params"],
+            required = true,
+          )
+          var privacyEpsilon by Delegates.notNull<Double>()
+            private set
+
+          @set:Option(
+            names = ["--duration-privacy-delta"],
+            description = ["Epsilon value of duration privacy params"],
+            required = true,
+          )
+          var privacyDelta by Delegates.notNull<Double>()
+            private set
+
+          @set:Option(
+            names = ["--max-duration"],
+            description = ["Maximum watch duration per user"],
+            required = true,
+          )
+          var maximumWatchDurationPerUser by Delegates.notNull<Int>()
+            private set
+        }
+
+        @ArgGroup(exclusive = false, heading = "Measurement type ReachAndFrequency and params\n")
+        var reachAndFrequency = ReachAndFrequencyParams()
+        @ArgGroup(exclusive = false, heading = "Measurement type Impression and params\n")
+        var impression = ImpressionParams()
+        @ArgGroup(exclusive = false, heading = "Measurement type Duration and params\n")
+        var duration = DurationParams()
+      }
+
+      @ArgGroup(exclusive = true, multiplicity = "1", heading = "Event Measurement and params\n")
+      var eventMeasurementTypeParams = EventMeasurementTypeParams()
     }
+    class PopulationMeasurementParams {
+      class PopulationInput {
+        @Option(
+          names = ["--population-filter"],
+          description = ["Raw CEL expression of Population Filter"],
+          required = false,
+          defaultValue = ""
+        )
+        lateinit var filter: String
+          private set
 
-    class ImpressionParams {
-      @Option(
-        names = ["--impression"],
-        description = ["Measurement Type of Impression"],
-        required = true,
-      )
-      var selected = false
-        private set
+        @Option(
+          names = ["--population-start-time"],
+          description = ["Start time of Population range in ISO 8601 format of UTC"],
+          required = true,
+        )
+        lateinit var startTime: Instant
+          private set
 
-      @set:Option(
-        names = ["--impression-privacy-epsilon"],
-        description = ["Epsilon value of impression privacy params"],
-        required = true,
-      )
-      var privacyEpsilon by Delegates.notNull<Double>()
-        private set
+        @Option(
+          names = ["--population-end-time"],
+          description = ["End time of Population range in ISO 8601 format of UTC"],
+          required = true,
+        )
+        lateinit var endTime: Instant
+          private set
+      }
 
-      @set:Option(
-        names = ["--impression-privacy-delta"],
-        description = ["Epsilon value of impression privacy params"],
-        required = true,
-      )
-      var privacyDelta by Delegates.notNull<Double>()
-        private set
+      class PopulationDataProviderInput {
+        @Option(
+          names = ["--population-data-provider"],
+          description = ["API resource name of the Population Data Provider"],
+          required = true,
+        )
+        lateinit var name: String
+          private set
+      }
 
-      @set:Option(
-        names = ["--impression-max-frequency"],
-        description = ["Maximum frequency per user"],
-        required = true,
-      )
-      var maximumFrequencyPerUser by Delegates.notNull<Int>()
+      @ArgGroup(exclusive = false, heading = "Population Params\n")
+      lateinit var populationInputs: PopulationInput
         private set
-    }
+      @ArgGroup(exclusive = false, heading = "Set Population Data Provider\n")
+      lateinit var populationDataProviderInput: PopulationDataProviderInput
 
-    class DurationParams {
-      @Option(
-        names = ["--duration"],
-        description = ["Measurement Type of Duration"],
-        required = true,
-      )
-      var selected = false
-        private set
-
-      @set:Option(
-        names = ["--duration-privacy-epsilon"],
-        description = ["Epsilon value of duration privacy params"],
-        required = true,
-      )
-      var privacyEpsilon by Delegates.notNull<Double>()
-        private set
-
-      @set:Option(
-        names = ["--duration-privacy-delta"],
-        description = ["Epsilon value of duration privacy params"],
-        required = true,
-      )
-      var privacyDelta by Delegates.notNull<Double>()
-        private set
-
-      @set:Option(
-        names = ["--max-duration"],
-        description = ["Maximum watch duration per user"],
-        required = true,
-      )
-      var maximumWatchDurationPerUser by Delegates.notNull<Int>()
-        private set
-    }
-    class PopulationParams {
       @Option(
         names = ["--population"],
-        description = ["Measurement Type of Population"],
+        description = ["Population Measurement"],
         required = true,
       )
       var selected = false
         private set
     }
-
-    @ArgGroup(exclusive = false, heading = "Measurement type ReachAndFrequency and params\n")
-    var reachAndFrequency = ReachAndFrequencyParams()
-    @ArgGroup(exclusive = false, heading = "Measurement type Impression and params\n")
-    var impression = ImpressionParams()
-    @ArgGroup(exclusive = false, heading = "Measurement type Duration and params\n")
-    var duration = DurationParams()
-    @ArgGroup(exclusive = false, heading = "Measurement type Population and params\n")
-    var population = PopulationParams()
   }
 
   private fun getReachAndFrequency(): ReachAndFrequency {
     return reachAndFrequency {
       reachPrivacyParams = differentialPrivacyParams {
-        epsilon = measurementTypeParams.reachAndFrequency.reachPrivacyEpsilon
-        delta = measurementTypeParams.reachAndFrequency.reachPrivacyDelta
+        epsilon =
+          measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency
+            .reachPrivacyEpsilon
+        delta =
+          measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency
+            .reachPrivacyDelta
       }
       frequencyPrivacyParams = differentialPrivacyParams {
-        epsilon = measurementTypeParams.reachAndFrequency.frequencyPrivacyEpsilon
-        delta = measurementTypeParams.reachAndFrequency.frequencyPrivacyDelta
+        epsilon =
+          measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency
+            .frequencyPrivacyEpsilon
+        delta =
+          measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency
+            .frequencyPrivacyDelta
       }
-      maximumFrequencyPerUser = measurementTypeParams.reachAndFrequency.maximumFrequencyPerUser
+      maximumFrequencyPerUser =
+        measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency
+          .maximumFrequencyPerUser
     }
   }
 
   private fun getImpression(): Impression {
     return impression {
       privacyParams = differentialPrivacyParams {
-        epsilon = measurementTypeParams.impression.privacyEpsilon
-        delta = measurementTypeParams.impression.privacyDelta
+        epsilon =
+          measurementParams.eventMeasurementParams.eventMeasurementTypeParams.impression
+            .privacyEpsilon
+        delta =
+          measurementParams.eventMeasurementParams.eventMeasurementTypeParams.impression
+            .privacyDelta
       }
-      maximumFrequencyPerUser = measurementTypeParams.impression.maximumFrequencyPerUser
+      maximumFrequencyPerUser =
+        measurementParams.eventMeasurementParams.eventMeasurementTypeParams.impression
+          .maximumFrequencyPerUser
     }
   }
 
   private fun getDuration(): Duration {
     return duration {
       privacyParams = differentialPrivacyParams {
-        epsilon = measurementTypeParams.duration.privacyEpsilon
-        delta = measurementTypeParams.duration.privacyDelta
+        epsilon =
+          measurementParams.eventMeasurementParams.eventMeasurementTypeParams.duration
+            .privacyEpsilon
+        delta =
+          measurementParams.eventMeasurementParams.eventMeasurementTypeParams.duration.privacyDelta
       }
-      maximumWatchDurationPerUser = measurementTypeParams.duration.maximumWatchDurationPerUser
+      maximumWatchDurationPerUser =
+        measurementParams.eventMeasurementParams.eventMeasurementTypeParams.duration
+          .maximumWatchDurationPerUser
     }
   }
 
@@ -832,97 +967,12 @@ class CreateMeasurement : Runnable {
     return population {}
   }
 
-  @ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Add DataProviders\n")
-  private lateinit var dataProviderInputs: List<DataProviderInput>
-
-  class DataProviderInput {
-    @Option(
-      names = ["--data-provider"],
-      description = ["API resource name of the DataProvider"],
-      required = true,
-    )
-    lateinit var name: String
-      private set
-
-    @ArgGroup(
-      exclusive = false,
-      multiplicity = "1..*",
-      heading = "Add EventGroups for a DataProvider\n"
-    )
-    lateinit var eventGroupInputs: List<EventGroupInput>
-      private set
-
-    @CommandLine.ArgGroup(exclusive = false, heading = "Set Population for a DataProvider\n")
-    lateinit var populationInputs: PopulationInput
-      private set
-  }
-
-  class EventGroupInput {
-    @Option(
-      names = ["--event-group"],
-      description = ["API resource name of the EventGroup"],
-      required = true,
-    )
-    lateinit var name: String
-      private set
-
-    @Option(
-      names = ["--event-filter"],
-      description = ["Raw CEL expression of EventFilter"],
-      required = false,
-      defaultValue = ""
-    )
-    lateinit var eventFilter: String
-      private set
-
-    @Option(
-      names = ["--event-start-time"],
-      description = ["Start time of Event range in ISO 8601 format of UTC"],
-      required = true,
-    )
-    lateinit var eventStartTime: Instant
-      private set
-
-    @Option(
-      names = ["--event-end-time"],
-      description = ["End time of Event range in ISO 8601 format of UTC"],
-      required = true,
-    )
-    lateinit var eventEndTime: Instant
-      private set
-  }
-
-  class PopulationInput {
-    @CommandLine.Option(
-      names = ["--population-filter"],
-      description = ["Raw CEL expression of Population Filter"],
-      required = false,
-      defaultValue = ""
-    )
-    lateinit var filter: String
-      private set
-
-    @CommandLine.Option(
-      names = ["--population-start-time"],
-      description = ["Start time of Population range in ISO 8601 format of UTC"],
-      required = true,
-    )
-    lateinit var startTime: Instant
-      private set
-
-    @CommandLine.Option(
-      names = ["--population-end-time"],
-      description = ["End time of Population range in ISO 8601 format of UTC"],
-      required = true,
-    )
-    lateinit var endTime: Instant
-      private set
-  }
-
   private val secureRandom = SecureRandom.getInstance("SHA1PRNG")
 
   private fun getPopulationDataProviderEntry(
-    dataProviderInput: DataProviderInput,
+    populationDataProviderInput:
+      MeasurementParams.PopulationMeasurementParams.PopulationDataProviderInput,
+    populationMeasurementParams: MeasurementParams.PopulationMeasurementParams,
     measurementConsumerSigningKey: SigningKeyHandle,
     measurementEncryptionPublicKey: ByteString
   ): Measurement.DataProviderEntry {
@@ -931,22 +981,24 @@ class CreateMeasurement : Runnable {
         population =
           RequisitionSpecKt.population {
             interval = interval {
-              startTime = dataProviderInput.populationInputs.startTime.toProtoTime()
-              endTime = dataProviderInput.populationInputs.endTime.toProtoTime()
+              startTime = populationMeasurementParams.populationInputs.startTime.toProtoTime()
+              endTime = populationMeasurementParams.populationInputs.endTime.toProtoTime()
             }
-            if (dataProviderInput.populationInputs.filter.isNotEmpty())
-              filter = eventFilter { expression = dataProviderInput.populationInputs.filter }
+            if (populationMeasurementParams.populationInputs.filter.isNotEmpty())
+              filter = eventFilter {
+                expression = populationMeasurementParams.populationInputs.filter
+              }
           }
         this.measurementPublicKey = measurementEncryptionPublicKey
         nonce = secureRandom.nextLong()
       }
 
-      key = dataProviderInput.name
+      key = populationDataProviderInput.name
       val dataProvider =
         runBlocking(parentCommand.parentCommand.rpcDispatcher) {
           parentCommand.dataProviderStub
             .withAuthenticationKey(parentCommand.apiAuthenticationKey)
-            .getDataProvider(getDataProviderRequest { name = dataProviderInput.name })
+            .getDataProvider(getDataProviderRequest { name = populationDataProviderInput.name })
         }
       value =
         DataProviderEntries.value {
@@ -962,40 +1014,40 @@ class CreateMeasurement : Runnable {
     }
   }
   private fun getEventDataProviderEntry(
-    dataProviderInput: DataProviderInput,
+    eventDataProviderInput: MeasurementParams.EventMeasurementParams.EventDataProviderInput,
+    eventMeasurementParams: MeasurementParams.EventMeasurementParams,
     measurementConsumerSigningKey: SigningKeyHandle,
     measurementEncryptionPublicKey: ByteString
   ): Measurement.DataProviderEntry {
     return dataProviderEntry {
       val requisitionSpec = requisitionSpec {
-        events =
-          RequisitionSpecKt.events {
-            this.eventGroups +=
-              dataProviderInput.eventGroupInputs.map {
-                eventGroupEntry {
-                  key = it.name
-                  value =
-                    EventGroupEntries.value {
-                      collectionInterval = interval {
-                        startTime = it.eventStartTime.toProtoTime()
-                        endTime = it.eventEndTime.toProtoTime()
-                      }
-                      if (it.eventFilter.isNotEmpty())
-                        filter = eventFilter { expression = it.eventFilter }
-                    }
+        val eventGroups =
+          eventDataProviderInput.eventGroupInputs.map {
+            eventGroupEntry {
+              key = it.name
+              value =
+                EventGroupEntries.value {
+                  collectionInterval = interval {
+                    startTime = it.eventStartTime.toProtoTime()
+                    endTime = it.eventEndTime.toProtoTime()
+                  }
+                  if (it.eventFilter.isNotEmpty())
+                    filter = eventFilter { expression = it.eventFilter }
                 }
-              }
+            }
           }
+        events = RequisitionSpecKt.events { this.eventGroups += eventGroups }
+        this.eventGroups += eventGroups
         this.measurementPublicKey = measurementEncryptionPublicKey
         nonce = secureRandom.nextLong()
       }
 
-      key = dataProviderInput.name
+      key = eventDataProviderInput.name
       val dataProvider =
         runBlocking(parentCommand.parentCommand.rpcDispatcher) {
           parentCommand.dataProviderStub
             .withAuthenticationKey(parentCommand.apiAuthenticationKey)
-            .getDataProvider(getDataProviderRequest { name = dataProviderInput.name })
+            .getDataProvider(getDataProviderRequest { name = eventDataProviderInput.name })
         }
       value =
         DataProviderEntries.value {
@@ -1027,22 +1079,25 @@ class CreateMeasurement : Runnable {
     val measurementConsumerSigningKey =
       SigningKeyHandle(measurementConsumerCertificate, measurementConsumerPrivateKey)
     val measurementEncryptionPublicKey = measurementConsumer.publicKey.data
+    val modelLine = modelLine
 
     val measurement = measurement {
       this.measurementConsumerCertificate = measurementConsumer.certificate
       dataProviders +=
-        if (measurementTypeParams.population.selected) {
+        if (measurementParams.populationMeasurementParams.selected) {
           listOf(
             getPopulationDataProviderEntry(
-              dataProviderInputs.single(),
+              measurementParams.populationMeasurementParams.populationDataProviderInput,
+              measurementParams.populationMeasurementParams,
               measurementConsumerSigningKey,
               measurementEncryptionPublicKey
             )
           )
         } else {
-          dataProviderInputs.map {
+          measurementParams.eventMeasurementParams.eventDataProviderInputs.map {
             getEventDataProviderEntry(
               it,
+              measurementParams.eventMeasurementParams,
               measurementConsumerSigningKey,
               measurementEncryptionPublicKey
             )
@@ -1051,20 +1106,29 @@ class CreateMeasurement : Runnable {
       val unsignedMeasurementSpec = measurementSpec {
         measurementPublicKey = measurementEncryptionPublicKey
         nonceHashes += this@measurement.dataProviders.map { it.value.nonceHash }
-        vidSamplingInterval = vidSamplingInterval {
-          start = vidSamplingStart
-          width = vidSamplingWidth
-        }
-        if (measurementTypeParams.reachAndFrequency.selected) {
-          reachAndFrequency = getReachAndFrequency()
-        } else if (measurementTypeParams.impression.selected) {
-          impression = getImpression()
-        } else if (measurementTypeParams.duration.selected) {
-          duration = getDuration()
-        } else if (measurementTypeParams.population.selected) {
+        if (!measurementParams.populationMeasurementParams.selected) {
+          vidSamplingInterval = vidSamplingInterval {
+            start = measurementParams.eventMeasurementParams.vidSamplingStart
+            width = measurementParams.eventMeasurementParams.vidSamplingWidth
+          }
+          if (
+            measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency
+              .selected
+          ) {
+            reachAndFrequency = getReachAndFrequency()
+          } else if (
+            measurementParams.eventMeasurementParams.eventMeasurementTypeParams.impression.selected
+          ) {
+            impression = getImpression()
+          } else if (
+            measurementParams.eventMeasurementParams.eventMeasurementTypeParams.duration.selected
+          ) {
+            duration = getDuration()
+          }
+        } else if (measurementParams.populationMeasurementParams.selected) {
           population = getPopulation()
         }
-        if (modelLine.isNotEmpty()) modelLine = modelLine
+        if (modelLine.isNotEmpty()) this.modelLine = modelLine
       }
 
       this.measurementSpec =
@@ -1097,7 +1161,7 @@ class ListMeasurements : Runnable {
     description = ["API resource name of the Measurement Consumer"],
     required = true,
   )
-  private lateinit var measurementConsumerName: String
+  lateinit var measurementConsumerName: String
 
   override fun run() {
     val response =
@@ -1125,14 +1189,14 @@ class GetMeasurement : Runnable {
     index = "0",
     description = ["API resource name of the Measurement"],
   )
-  private lateinit var measurementName: String
+  lateinit var measurementName: String
 
   @Option(
     names = ["--encryption-private-key-file"],
     description = ["MeasurementConsumer's EncryptionPrivateKey"],
     required = true
   )
-  private lateinit var privateKeyDerFile: File
+  lateinit var privateKeyDerFile: File
 
   private val privateKeyHandle: PrivateKeyHandle by lazy { loadPrivateKey(privateKeyDerFile) }
 
@@ -1212,7 +1276,7 @@ class CancelMeasurement : Runnable {
     index = "0",
     description = ["API resource name of the Measurement"],
   )
-  private lateinit var measurementName: String
+  lateinit var measurementName: String
 
   override fun run() {
     val measurement =
@@ -1243,7 +1307,7 @@ private class DataProviders {
     description = ["API resource name of the DataProvider"],
     required = true,
   )
-  private lateinit var dataProviderName: String
+  lateinit var dataProviderName: String
   @Command(name = "replace-required-duchies", description = ["Replaces DataProvider's duchy list"])
   fun replaceRequiredDuchyList(
     @Option(
@@ -1780,7 +1844,7 @@ private class ModelShards {
   fun create(
     @Option(
       names = ["--parent"],
-      description = ["API resource name of the parent DataProvider."],
+      description = ["API resource name of the parent Event Data Provider."],
       required = true,
     )
     dataProviderName: String,
@@ -1815,7 +1879,7 @@ private class ModelShards {
   fun list(
     @Option(
       names = ["--parent"],
-      description = ["API resource name of the parent DataProvider."],
+      description = ["API resource name of the parent Event Data Provider."],
       required = true,
     )
     dataProviderName: String,

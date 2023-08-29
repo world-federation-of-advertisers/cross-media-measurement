@@ -27,8 +27,8 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_common_jvm",
         repo = "common-jvm",
-        sha256 = "3dff6f215fc91d3e862d980738ac59bc45c1314c3dc61e1f06c6e3a9b5ccc8d8",
-        version = "0.60.0",
+        sha256 = "328f4707c79ff1b309784463309f4c5918c6a2fab8c0187efda014f8b3bc79eb",
+        version = "0.63.0",
     )
 
     wfa_repo_archive(
@@ -38,19 +38,11 @@ def wfa_measurement_system_repositories():
         version = "0.10.0",
     )
 
-    # TODO: Update before merging
     wfa_repo_archive(
         name = "wfa_measurement_proto",
         repo = "cross-media-measurement-api",
-        sha256 = "d18d40dea14a25dffe2eb0e575aaca0504171eae7d0f92afc78feb0cb717dd51",
-        commit = "2194706d760df3ef03e44f1c393253a5cf121369",
-    )
-
-    wfa_repo_archive(
-        name = "uk_pilot_event_templates",
-        repo = "uk-pilot-event-templates",
-        sha256 = "3bfdd43620bdbbf820aecba6625a758c0e7469ff92596adb9b83bb2aa8052cad",
-        version = "0.1.0",
+        sha256 = "1d829e7d95e6dedea1a4ea746e5613915dd60ca095b7b35bdcf19fa067697f2a",
+        version = "0.39.2",
     )
 
     wfa_repo_archive(
@@ -84,8 +76,8 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_consent_signaling_client",
         repo = "consent-signaling-client",
-        sha256 = "99fde5608b79ff12a2a466cdd213e1535c62f80a96035006433ae9ba5a4a4d21",
-        version = "0.15.0",
+        sha256 = "dbe586f8fb1da9ea88ab87a1acac036aa6142fe24005ae0577bba6dd60e185c8",
+        version = "0.16.0",
     )
 
     wfa_repo_archive(
