@@ -1057,7 +1057,6 @@ class MeasurementSystemTest {
           "--event-filter=abcd",
           "--event-start-time=$TIME_STRING_1",
           "--event-end-time=$TIME_STRING_2",
-
         )
     callCli(args)
 
@@ -1143,15 +1142,14 @@ class MeasurementSystemTest {
       .isEqualTo(
         requisitionSpec {
           measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
-          population = RequisitionSpecKt.population {
-            filter = RequisitionSpecKt.eventFilter {
-              expression = "abcd"
+          population =
+            RequisitionSpecKt.population {
+              filter = RequisitionSpecKt.eventFilter { expression = "abcd" }
+              interval = interval {
+                startTime = Instant.parse(TIME_STRING_1).toProtoTime()
+                endTime = Instant.parse(TIME_STRING_2).toProtoTime()
+              }
             }
-            interval = interval {
-              startTime = Instant.parse(TIME_STRING_1).toProtoTime()
-              endTime = Instant.parse(TIME_STRING_2).toProtoTime()
-            }
-          }
         }
       )
   }

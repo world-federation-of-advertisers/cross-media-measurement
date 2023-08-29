@@ -340,63 +340,62 @@ class CreateMeasurementFlags {
     }
   }
 
-    internal fun getReachAndFrequency(): MeasurementSpec.ReachAndFrequency {
-      return MeasurementSpecKt.reachAndFrequency {
-        reachPrivacyParams = differentialPrivacyParams {
-          epsilon =
-            measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency
-              .reachPrivacyEpsilon
-          delta =
-            measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency
-              .reachPrivacyDelta
-        }
-        frequencyPrivacyParams = differentialPrivacyParams {
-          epsilon =
-            measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency
-              .frequencyPrivacyEpsilon
-          delta =
-            measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency
-              .frequencyPrivacyDelta
-        }
-        maximumFrequencyPerUser =
+  internal fun getReachAndFrequency(): MeasurementSpec.ReachAndFrequency {
+    return MeasurementSpecKt.reachAndFrequency {
+      reachPrivacyParams = differentialPrivacyParams {
+        epsilon =
           measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency
-            .maximumFrequencyPerUser
+            .reachPrivacyEpsilon
+        delta =
+          measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency
+            .reachPrivacyDelta
       }
+      frequencyPrivacyParams = differentialPrivacyParams {
+        epsilon =
+          measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency
+            .frequencyPrivacyEpsilon
+        delta =
+          measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency
+            .frequencyPrivacyDelta
+      }
+      maximumFrequencyPerUser =
+        measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency
+          .maximumFrequencyPerUser
     }
+  }
 
-    internal fun getImpression(): MeasurementSpec.Impression {
-      return MeasurementSpecKt.impression {
-        privacyParams = differentialPrivacyParams {
-          epsilon =
-            measurementParams.eventMeasurementParams.eventMeasurementTypeParams.impression
-              .privacyEpsilon
-          delta =
-            measurementParams.eventMeasurementParams.eventMeasurementTypeParams.impression
-              .privacyDelta
-        }
-        maximumFrequencyPerUser =
+  internal fun getImpression(): MeasurementSpec.Impression {
+    return MeasurementSpecKt.impression {
+      privacyParams = differentialPrivacyParams {
+        epsilon =
           measurementParams.eventMeasurementParams.eventMeasurementTypeParams.impression
-            .maximumFrequencyPerUser
+            .privacyEpsilon
+        delta =
+          measurementParams.eventMeasurementParams.eventMeasurementTypeParams.impression
+            .privacyDelta
       }
+      maximumFrequencyPerUser =
+        measurementParams.eventMeasurementParams.eventMeasurementTypeParams.impression
+          .maximumFrequencyPerUser
     }
+  }
 
-    internal fun getDuration(): MeasurementSpec.Duration {
-      return MeasurementSpecKt.duration {
-        privacyParams = differentialPrivacyParams {
-          epsilon =
-            measurementParams.eventMeasurementParams.eventMeasurementTypeParams.duration
-              .privacyEpsilon
-          delta =
-            measurementParams.eventMeasurementParams.eventMeasurementTypeParams.duration
-              .privacyDelta
-        }
-        maximumWatchDurationPerUser =
+  internal fun getDuration(): MeasurementSpec.Duration {
+    return MeasurementSpecKt.duration {
+      privacyParams = differentialPrivacyParams {
+        epsilon =
           measurementParams.eventMeasurementParams.eventMeasurementTypeParams.duration
-            .maximumWatchDurationPerUser
+            .privacyEpsilon
+        delta =
+          measurementParams.eventMeasurementParams.eventMeasurementTypeParams.duration.privacyDelta
       }
+      maximumWatchDurationPerUser =
+        measurementParams.eventMeasurementParams.eventMeasurementTypeParams.duration
+          .maximumWatchDurationPerUser
     }
+  }
 
-    internal fun getPopulation(): MeasurementSpec.Population {
-      return MeasurementSpecKt.population {}
+  internal fun getPopulation(): MeasurementSpec.Population {
+    return MeasurementSpecKt.population {}
   }
 }

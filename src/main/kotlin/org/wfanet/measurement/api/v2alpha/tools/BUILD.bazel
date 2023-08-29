@@ -26,7 +26,10 @@ java_binary(
 
 kt_jvm_library(
     name = "measurement_system",
-    srcs = ["MeasurementSystem.kt"],
+    srcs = [
+        "CreateMeasurementFlags.kt",
+        "MeasurementSystem.kt",
+    ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api:account_constants",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
