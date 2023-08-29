@@ -181,19 +181,19 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = systemDuration.ofSeconds(30)
     ]
 )
 class MeasurementSystem private constructor() : Runnable {
-  @Spec lateinit var commandSpec: CommandSpec
+  @Spec private lateinit var commandSpec: CommandSpec
 
   val commandLine: CommandLine
     get() = commandSpec.commandLine()
 
-  @Mixin lateinit var tlsFlags: TlsFlags
+  @Mixin private lateinit var tlsFlags: TlsFlags
 
   @Option(
     names = ["--kingdom-public-api-target"],
     description = ["gRPC target (authority) of the Kingdom public API server"],
     required = true,
   )
-  lateinit var target: String
+  private lateinit var target: String
 
   @Option(
     names = ["--kingdom-public-api-cert-host"],
@@ -784,7 +784,7 @@ class ListMeasurements : Runnable {
     description = ["API resource name of the Measurement Consumer"],
     required = true,
   )
-  lateinit var measurementConsumerName: String
+  private lateinit var measurementConsumerName: String
 
   override fun run() {
     val response =
@@ -812,14 +812,14 @@ class GetMeasurement : Runnable {
     index = "0",
     description = ["API resource name of the Measurement"],
   )
-  lateinit var measurementName: String
+  private lateinit var measurementName: String
 
   @Option(
     names = ["--encryption-private-key-file"],
     description = ["MeasurementConsumer's EncryptionPrivateKey"],
     required = true
   )
-  lateinit var privateKeyDerFile: File
+  private lateinit var privateKeyDerFile: File
 
   private val privateKeyHandle: PrivateKeyHandle by lazy { loadPrivateKey(privateKeyDerFile) }
 
@@ -899,7 +899,7 @@ class CancelMeasurement : Runnable {
     index = "0",
     description = ["API resource name of the Measurement"],
   )
-  lateinit var measurementName: String
+  private lateinit var measurementName: String
 
   override fun run() {
     val measurement =
@@ -930,7 +930,7 @@ private class DataProviders {
     description = ["API resource name of the DataProvider"],
     required = true,
   )
-  lateinit var dataProviderName: String
+  private lateinit var dataProviderName: String
   @Command(name = "replace-required-duchies", description = ["Replaces DataProvider's duchy list"])
   fun replaceRequiredDuchyList(
     @Option(

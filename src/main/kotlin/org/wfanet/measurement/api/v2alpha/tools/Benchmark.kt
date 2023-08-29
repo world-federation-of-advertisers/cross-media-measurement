@@ -484,7 +484,7 @@ class Benchmark(
           Measurement.State.SUCCEEDED -> {
             val result = getMeasurementResult(measurement.resultsList[0], flags.privateKeyHandle)
             task.result = result
-            // println ("Got result for task $iTask\n$measurement\n-----\n$result")
+            println("Got result for task $iTask\n$measurement\n-----\n$result")
             task.status = "success"
           }
           Measurement.State.FAILED -> {

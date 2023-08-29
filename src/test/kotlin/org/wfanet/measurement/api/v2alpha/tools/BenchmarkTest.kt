@@ -33,7 +33,6 @@ import java.time.Instant
 import java.time.ZoneId
 import kotlinx.coroutines.runBlocking
 import org.junit.After
-import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -141,7 +140,7 @@ private val AGGREGATOR_CERTIFICATE = certificate { x509Der = AGGREGATOR_CERTIFIC
 
 private const val MEASUREMENT_NAME = "$MEASUREMENT_CONSUMER_NAME/measurements/100"
 private val MEASUREMENT = measurement { name = MEASUREMENT_NAME }
-private val SUCCEEDED_MEASUREMENT = measurement {
+private val SUCCEEDED_REACH_AND_FREQUENCY_MEASUREMENT = measurement {
   name = MEASUREMENT_NAME
   state = Measurement.State.SUCCEEDED
 
@@ -150,12 +149,8 @@ private val SUCCEEDED_MEASUREMENT = measurement {
     data = MEASUREMENT_PUBLIC_KEY
   }
   results += resultPair {
-    val result = result { reach = MeasurementKt.ResultKt.reach { value = 4096 } }
-    encryptedResult = getEncryptedResult(result, measurementPublicKey)
-    certificate = DATA_PROVIDER_CERTIFICATE_NAME
-  }
-  results += resultPair {
     val result = result {
+      reach = ResultKt.reach { value = 4096 }
       frequency =
         MeasurementKt.ResultKt.frequency {
           relativeFrequencyDistribution.put(1, 1.0 / 6)
@@ -166,10 +161,28 @@ private val SUCCEEDED_MEASUREMENT = measurement {
     encryptedResult = getEncryptedResult(result, measurementPublicKey)
     certificate = DATA_PROVIDER_CERTIFICATE_NAME
   }
+}
+private val SUCCEEDED_IMPRESSION_MEASUREMENT = measurement {
+  name = MEASUREMENT_NAME
+  state = Measurement.State.SUCCEEDED
+
+  val measurementPublicKey = encryptionPublicKey {
+    format = EncryptionPublicKey.Format.TINK_KEYSET
+    data = MEASUREMENT_PUBLIC_KEY
+  }
   results += resultPair {
     val result = result { impression = ResultKt.impression { value = 4096 } }
     encryptedResult = getEncryptedResult(result, measurementPublicKey)
     certificate = DATA_PROVIDER_CERTIFICATE_NAME
+  }
+}
+private val SUCCEEDED_DURATION_MEASUREMENT = measurement {
+  name = MEASUREMENT_NAME
+  state = Measurement.State.SUCCEEDED
+
+  val measurementPublicKey = encryptionPublicKey {
+    format = EncryptionPublicKey.Format.TINK_KEYSET
+    data = MEASUREMENT_PUBLIC_KEY
   }
   results += resultPair {
     val result = result {
@@ -183,6 +196,15 @@ private val SUCCEEDED_MEASUREMENT = measurement {
     }
     encryptedResult = getEncryptedResult(result, measurementPublicKey)
     certificate = DATA_PROVIDER_CERTIFICATE_NAME
+  }
+}
+private val SUCCEEDED_POPULATION_MEASUREMENT = measurement {
+  name = MEASUREMENT_NAME
+  state = Measurement.State.SUCCEEDED
+
+  val measurementPublicKey = encryptionPublicKey {
+    format = EncryptionPublicKey.Format.TINK_KEYSET
+    data = MEASUREMENT_PUBLIC_KEY
   }
   results += resultPair {
     val result = result { population = ResultKt.population { value = 100 } }
@@ -220,11 +242,7 @@ class BenchmarkTest {
     mockService() { onBlocking { getMeasurementConsumer(any()) }.thenReturn(MEASUREMENT_CONSUMER) }
   private val dataProvidersServiceMock: DataProvidersCoroutineImplBase =
     mockService() { onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER) }
-  private val measurementsServiceMock: MeasurementsCoroutineImplBase =
-    mockService() {
-      onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT)
-      onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_MEASUREMENT)
-    }
+  private lateinit var measurementsServiceMock: MeasurementsCoroutineImplBase
   private val certificatesServiceMock: CertificatesGrpcKt.CertificatesCoroutineImplBase =
     mockService() { onBlocking { getCertificate(any()) }.thenReturn(AGGREGATOR_CERTIFICATE) }
 
@@ -234,7 +252,7 @@ class BenchmarkTest {
     get() = server.port
 
   private lateinit var server: CommonServer
-  @Before
+
   fun initServer() {
     val services: List<ServerServiceDefinition> =
       listOf(
@@ -270,6 +288,12 @@ class BenchmarkTest {
 
   @Test
   fun `Benchmark reach and frequency`() {
+    measurementsServiceMock =
+      mockService() {
+        onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT)
+        onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_REACH_AND_FREQUENCY_MEASUREMENT)
+      }
+    initServer()
     val clock = Clock.fixed(Instant.parse(TIME_STRING_1), ZoneId.of("UTC"))
     val tempFile = Files.createTempFile("benchmarks-reach", ".csv")
 
@@ -336,11 +360,20 @@ class BenchmarkTest {
       .isEqualTo(
         "replica,startTime,ackTime,computeTime,endTime,status,msg,reach,freq1,freq2,freq3,freq4,freq5"
       )
-    assertThat(result[1]).isEqualTo("1,0.0,0.0,0.0,0.0,success,,4096,0.0,0.0,0.0,0.0,0.0")
+    assertThat(result[1])
+      .isEqualTo(
+        "1,0.0,0.0,0.0,0.0,success,,4096,682.6666666666666,2048.0,1365.3333333333333,0.0,0.0"
+      )
   }
 
   @Test
   fun `Benchmark impressions`() {
+    measurementsServiceMock =
+      mockService() {
+        onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT)
+        onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_IMPRESSION_MEASUREMENT)
+      }
+    initServer()
     val clock = Clock.fixed(Instant.parse(TIME_STRING_1), ZoneId.of("UTC"))
     val tempFile = Files.createTempFile("benchmarks-impressions", ".csv")
 
@@ -400,11 +433,17 @@ class BenchmarkTest {
     assertThat(result.size).isEqualTo(2)
     assertThat(result[0])
       .isEqualTo("replica,startTime,ackTime,computeTime,endTime,status,msg,impressions")
-    assertThat(result[1]).isEqualTo("1,0.0,0.0,0.0,0.0,success,,0")
+    assertThat(result[1]).isEqualTo("1,0.0,0.0,0.0,0.0,success,,4096")
   }
 
   @Test
   fun `Benchmark duration`() {
+    measurementsServiceMock =
+      mockService() {
+        onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT)
+        onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_DURATION_MEASUREMENT)
+      }
+    initServer()
     val clock = Clock.fixed(Instant.parse(TIME_STRING_1), ZoneId.of("UTC"))
     val tempFile = Files.createTempFile("benchmarks-duration", ".csv")
 
@@ -464,11 +503,17 @@ class BenchmarkTest {
     assertThat(result.size).isEqualTo(2)
     assertThat(result[0])
       .isEqualTo("replica,startTime,ackTime,computeTime,endTime,status,msg,duration")
-    assertThat(result[1]).isEqualTo("1,0.0,0.0,0.0,0.0,success,,0")
+    assertThat(result[1]).isEqualTo("1,0.0,0.0,0.0,0.0,success,,100")
   }
 
   @Test
   fun `Benchmark population`() {
+    measurementsServiceMock =
+      mockService() {
+        onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT)
+        onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_POPULATION_MEASUREMENT)
+      }
+    initServer()
     val clock = Clock.fixed(Instant.parse(TIME_STRING_1), ZoneId.of("UTC"))
     val tempFile = Files.createTempFile("benchmarks-population", ".csv")
 
@@ -508,6 +553,6 @@ class BenchmarkTest {
     assertThat(result.size).isEqualTo(2)
     assertThat(result[0])
       .isEqualTo("replica,startTime,ackTime,computeTime,endTime,status,msg,population")
-    assertThat(result[1]).isEqualTo("1,0.0,0.0,0.0,0.0,success,,0")
+    assertThat(result[1]).isEqualTo("1,0.0,0.0,0.0,0.0,success,,100")
   }
 }
