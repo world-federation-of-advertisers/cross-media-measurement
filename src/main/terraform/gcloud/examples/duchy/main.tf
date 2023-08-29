@@ -1,0 +1,106 @@
+# Copyright 2023 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+provider "google" {}
+
+data "google_client_config" "default" {}
+
+locals {
+  cluster_name            = var.cluster_name == null ? "${var.name}-duchy" : var.cluster_name
+  cluster_location        = var.cluster_location == null ? data.google_client_config.default.zone : var.cluster_location
+  key_ring_location       = var.key_ring_location == null ? data.google_client_config.default.region : var.key_ring_location
+  storage_bucket_location = var.storage_bucket_location == null ? data.google_client_config.default.region : var.storage_bucket_location
+}
+
+module "common" {
+  source = "../../modules/common"
+
+  key_ring_name     = var.key_ring_name
+  key_ring_location = local.key_ring_location
+}
+
+resource "google_spanner_instance" "spanner_instance" {
+  name             = var.spanner_instance_name
+  config           = var.spanner_instance_config
+  display_name     = "Halo CMMS"
+  processing_units = 100
+}
+
+module "storage" {
+  source = "../../modules/storage-bucket"
+
+  name     = var.storage_bucket_name
+  location = local.storage_bucket_location
+}
+
+module "cluster" {
+  source = "../../modules/cluster"
+
+  name       = local.cluster_name
+  location   = local.cluster_location
+  secret_key = module.common.cluster_secret_key
+}
+
+data "google_container_cluster" "cluster" {
+  name     = local.cluster_name
+  location = local.cluster_location
+
+  # Defer reading of cluster resource until it exists.
+  depends_on = [module.cluster]
+}
+
+module "default_node_pool" {
+  source = "../../modules/node-pool"
+
+  cluster         = data.google_container_cluster.cluster
+  name            = "default"
+  service_account = module.common.cluster_service_account
+  machine_type    = "e2-standard-2"
+  max_node_count  = 2
+}
+
+module "spot_node_pool" {
+  source = "../../modules/node-pool"
+
+  cluster         = data.google_container_cluster.cluster
+  name            = "spot"
+  service_account = module.common.cluster_service_account
+  machine_type    = "c3-highcpu-4"
+  max_node_count  = 2
+  spot            = true
+}
+
+provider "kubernetes" {
+  # Due to the fact that this is using interpolation, the cluster must already exist.
+  # See https://registry.terraform.io/providers/hashicorp/kubernetes/2.20.0/docs
+
+  alias = "duchy"
+  host  = "https://${data.google_container_cluster.cluster.endpoint}"
+  token = data.google_client_config.default.access_token
+  cluster_ca_certificate = base64decode(
+    data.google_container_cluster.cluster.master_auth[0].cluster_ca_certificate,
+  )
+}
+
+module "duchy" {
+  source = "../../modules/duchy"
+  providers = {
+    kubernetes = kubernetes.duchy
+  }
+
+  name             = var.name
+  database_name    = "${var.name}-duchy"
+  spanner_instance = google_spanner_instance.spanner_instance
+  storage_bucket   = module.storage.storage_bucket
+}

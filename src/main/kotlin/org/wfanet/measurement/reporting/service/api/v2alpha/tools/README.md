@@ -161,3 +161,41 @@ Reporting \
   event-groups list \
   --parent=measurementConsumers/VCTqwV_vFXw
 ```
+
+### data-providers
+
+#### get
+```shell
+Reporting \
+  --tls-cert-file=secretfiles/mc_tls.pem \
+  --tls-key-file=secretfiles/mc_tls.key \
+  --cert-collection-file=secretfiles/reporting_root.pem \
+  --reporting-server-api-target=v2alpha.reporting.dev.halo-cmm.org:8443 \
+  dataProviders get \
+    dataProviders/FeQ5FqAQ5_0
+```
+
+### event-group-metadata-descriptors
+
+#### get
+```shell
+Reporting \
+  --tls-cert-file=secretfiles/mc_tls.pem \
+  --tls-key-file=secretfiles/mc_tls.key \
+  --cert-collection-file=secretfiles/reporting_root.pem \
+  --reporting-server-api-target=v2alpha.reporting.dev.halo-cmm.org:8443 \
+  event-group-metadata-descriptors get \
+    dataProviders/FeQ5FqAQ5_0/eventGroupMetadataDescriptors/clBPpgytI38
+```
+
+#### batch-get
+```shell
+Reporting \
+  --tls-cert-file=secretfiles/mc_tls.pem \
+  --tls-key-file=secretfiles/mc_tls.key \
+  --cert-collection-file=secretfiles/reporting_root.pem \
+  --reporting-server-api-target=v2alpha.reporting.dev.halo-cmm.org:8443 \
+  event-group-metadata-descriptors batch-get \
+    dataProviders/FeQ5FqAQ5_0/eventGroupMetadataDescriptors/clBPpgytI38 \
+    dataProviders/FeQ5FqAQ5_0/eventGroupMetadataDescriptors/AnBj8RB1XFc
+```

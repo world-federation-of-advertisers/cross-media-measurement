@@ -349,6 +349,7 @@ object LiquidLegionsV2Starter {
                 }
                 MeasurementSpec.MeasurementTypeCase.IMPRESSION,
                 MeasurementSpec.MeasurementTypeCase.DURATION,
+                MeasurementSpec.MeasurementTypeCase.POPULATION,
                 MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> {
                   throw IllegalArgumentException(
                     "Missing Reach and ReachAndFrequency in the measurementSpec."

@@ -179,6 +179,7 @@ kt_jvm_library(
     srcs = ["EdpSimulatorFlags.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
         "//src/main/kotlin/org/wfanet/measurement/loadtest:service_flags",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",

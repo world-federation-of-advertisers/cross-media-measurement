@@ -368,14 +368,13 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
           }
           aggregatedFrequencyHistogramMap
         }
-    val resultsList = aggregatedFrequencyHistogramMap.entries.sortedBy { it.key }.map { it.value }
-    return if (resultsList.size < maximumFrequency) {
-      val paddedResultsList = resultsList.toMutableList()
-      paddedResultsList.addAll(DoubleArray(maximumFrequency - resultsList.size) { 0.0 }.toList())
-      paddedResultsList
-    } else {
-      resultsList
+
+    val resultFrequencyHistogramMap = mutableMapOf<Long, Double>()
+    for (i in 1L..maximumFrequency) {
+      resultFrequencyHistogramMap[i] = aggregatedFrequencyHistogramMap.getOrDefault(i, 0.0)
     }
+
+    return resultFrequencyHistogramMap.entries.sortedBy { it.key }.map { it.value }
   }
 
   /** Convert a [Metric] to a [Report.Details.Result.HistogramTable] of a [Report] */

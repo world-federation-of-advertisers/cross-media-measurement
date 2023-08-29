@@ -41,6 +41,8 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:cel_env_provider",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:encryption_key_pair_store",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:akid_principal_lookup",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:data_providers_service",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:event_group_metadata_descriptors_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:event_groups_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:metrics_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:reporting_sets_service",
