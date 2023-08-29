@@ -158,11 +158,11 @@ path to the executable.
     create \
     --measurement-consumer=measurementConsumers/777 \
     --reach-and-frequency \
-    --reach-privacy-epsilon=0.0033 \
-    --reach-privacy-delta=0.00001 \
-    --frequency-privacy-epsilon=0.115 \
-    --frequency-privacy-delta=0.00001 \
-    --reach-max-frequency=10 \
+    --rf-reach-privacy-epsilon=0.0033 \
+    --rf-reach-privacy-delta=0.00001 \
+    --rf-frequency-privacy-epsilon=0.115 \
+    --rf-frequency-privacy-delta=0.00001 \
+    --rf-max-frequency=10 \
     --vid-sampling-start=0.16 \
     --vid-sampling-width=0.016667 \
     --private-key-der-file=secretfiles/mc_cs_private.der \

@@ -55,9 +55,11 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt as D
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.Duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.Impression
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec.Reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.ReachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
@@ -645,6 +647,31 @@ class CreateMeasurement : Runnable {
   lateinit var measurementTypeParams: MeasurementTypeParams
 
   class MeasurementTypeParams {
+    class ReachOnlyParams {
+      @Option(
+        names = ["--reach-only"],
+        description = ["Measurement type of ReachOnly Measurement."],
+        required = true,
+      )
+      var selected = false
+
+      @set:Option(
+        names = ["--reach-only-privacy-epsilon"],
+        description = ["Epsilon value of privacy params for ReachOnly Measurement."],
+        required = true,
+      )
+      var privacyEpsilon by Delegates.notNull<Double>()
+        private set
+
+      @set:Option(
+        names = ["--reach-only-privacy-delta"],
+        description = ["Delta value of privacy params for ReachOnly Measurement."],
+        required = true,
+      )
+      var privacyDelta by Delegates.notNull<Double>()
+        private set
+    }
+
     class ReachAndFrequencyParams {
       @Option(
         names = ["--reach-and-frequency"],
@@ -655,40 +682,42 @@ class CreateMeasurement : Runnable {
         private set
 
       @set:Option(
-        names = ["--reach-privacy-epsilon"],
-        description = ["Epsilon value of reach privacy params"],
+        names = ["--rf-reach-privacy-epsilon"],
+        description = ["Epsilon value of reach privacy params for ReachAndFrequency Measurement."],
         required = true,
       )
       var reachPrivacyEpsilon by Delegates.notNull<Double>()
         private set
 
       @set:Option(
-        names = ["--reach-privacy-delta"],
-        description = ["Delta value of reach privacy params"],
+        names = ["--rf-reach-privacy-delta"],
+        description = ["Delta value of reach privacy params for ReachAndFrequency Measurement."],
         required = true,
       )
       var reachPrivacyDelta by Delegates.notNull<Double>()
         private set
 
       @set:Option(
-        names = ["--frequency-privacy-epsilon"],
-        description = ["Epsilon value of frequency privacy params"],
+        names = ["--rf-frequency-privacy-epsilon"],
+        description =
+          ["Epsilon value of frequency privacy params for ReachAndFrequency Measurement."],
         required = true,
       )
       var frequencyPrivacyEpsilon by Delegates.notNull<Double>()
         private set
 
       @set:Option(
-        names = ["--frequency-privacy-delta"],
-        description = ["Epsilon value of frequency privacy params"],
+        names = ["--rf-frequency-privacy-delta"],
+        description =
+          ["Epsilon value of frequency privacy params for ReachAndFrequency Measurement."],
         required = true,
       )
       var frequencyPrivacyDelta by Delegates.notNull<Double>()
         private set
 
       @set:Option(
-        names = ["--reach-max-frequency"],
-        description = ["Maximum frequency per user"],
+        names = ["--rf-max-frequency"],
+        description = ["Maximum frequency per user for ReachAndFrequency Measurement."],
         required = false,
         defaultValue = "10",
       )
@@ -764,12 +793,23 @@ class CreateMeasurement : Runnable {
         private set
     }
 
+    @ArgGroup(exclusive = false, heading = "Measurement type ReachOnly and params\n")
+    var reachOnly = ReachOnlyParams()
     @ArgGroup(exclusive = false, heading = "Measurement type ReachAndFrequency and params\n")
     var reachAndFrequency = ReachAndFrequencyParams()
     @ArgGroup(exclusive = false, heading = "Measurement type Impression and params\n")
     var impression = ImpressionParams()
     @ArgGroup(exclusive = false, heading = "Measurement type Duration and params\n")
     var duration = DurationParams()
+  }
+
+  private fun getReachOnly(): Reach {
+    return reach {
+      privacyParams = differentialPrivacyParams {
+        epsilon = measurementTypeParams.reachOnly.privacyEpsilon
+        delta = measurementTypeParams.reachOnly.privacyDelta
+      }
+    }
   }
 
   private fun getReachAndFrequency(): ReachAndFrequency {
@@ -941,7 +981,9 @@ class CreateMeasurement : Runnable {
           start = vidSamplingStart
           width = vidSamplingWidth
         }
-        if (measurementTypeParams.reachAndFrequency.selected) {
+        if (measurementTypeParams.reachOnly.selected) {
+          reach = getReachOnly()
+        } else if (measurementTypeParams.reachAndFrequency.selected) {
           reachAndFrequency = getReachAndFrequency()
         } else if (measurementTypeParams.impression.selected) {
           impression = getImpression()
