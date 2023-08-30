@@ -47,6 +47,7 @@ import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKt.eventTemplate
 import org.wfanet.measurement.api.v2alpha.EventGroupKt.metadata
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
@@ -126,7 +127,12 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Referenc
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDirectAcdpQuery
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDpQuery
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getLiquidLegionsV2AcdpQuery
+import org.wfanet.measurement.loadtest.config.TestIdentifiers.CONSENT_SIGNAL_INVALID_EVENT_GROUP_ID
+import org.wfanet.measurement.loadtest.config.TestIdentifiers.DECLINED_EVENT_GROUP_ID
+import org.wfanet.measurement.loadtest.config.TestIdentifiers.INSUFFICIENT_PRIVACY_BUDGET_EVENT_GROUP_ID
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
+import org.wfanet.measurement.loadtest.config.TestIdentifiers.SPEC_INVALID_EVENT_GROUP_ID
+import org.wfanet.measurement.loadtest.config.TestIdentifiers.UNFULFILLABLE_EVENT_GROUP_ID
 import org.wfanet.measurement.loadtest.config.VidSampling
 
 data class EdpData(
@@ -524,6 +530,44 @@ class EdpSimulator(
               e.message.orEmpty()
             )
           }
+
+        for (eventGroupEntry in requisitionSpec.events.eventGroupsList) {
+          val eventGroupId = EventGroupKey.fromName(eventGroupEntry.key)!!.eventGroupId
+          if (eventGroupId == CONSENT_SIGNAL_INVALID_EVENT_GROUP_ID) {
+            throw RequisitionRefusalException(
+              Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID,
+              "consent signal invalid"
+            )
+          }
+
+          if (eventGroupId == SPEC_INVALID_EVENT_GROUP_ID) {
+            throw RequisitionRefusalException(
+              Requisition.Refusal.Justification.SPEC_INVALID,
+              "spec invalid"
+            )
+          }
+
+          if (eventGroupId == INSUFFICIENT_PRIVACY_BUDGET_EVENT_GROUP_ID) {
+            throw RequisitionRefusalException(
+              Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET,
+              "insufficient privacy budget"
+            )
+          }
+
+          if (eventGroupId == UNFULFILLABLE_EVENT_GROUP_ID) {
+            throw RequisitionRefusalException(
+              Requisition.Refusal.Justification.UNFULFILLABLE,
+              "unfulfillable"
+            )
+          }
+
+          if (eventGroupId == DECLINED_EVENT_GROUP_ID) {
+            throw RequisitionRefusalException(
+              Requisition.Refusal.Justification.DECLINED,
+              "declined"
+            )
+          }
+        }
 
         val eventGroupSpecs: List<EventQuery.EventGroupSpec> =
           try {
