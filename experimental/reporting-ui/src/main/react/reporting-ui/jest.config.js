@@ -12,14 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import '@testing-library/jest-dom';
-import '@testing-library/jest-dom/extend-expect';
-import {render, screen} from '@testing-library/react';
-import React from 'react';
-import App from '../../../main/react/reporting-ui/app';
+const baseConfig = require('../../../test/react/jest/jest_base.config');
 
-test('renders learn react link', () => {
-  render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
-});
+module.exports = {
+    ...baseConfig,
+    displayName: "Reporting UI Tests",
+}

@@ -7,11 +7,8 @@ package(
 )
 
 js_library(
-    name = "client",
+    name = "error",
     srcs = [
-        "initialize.ts",
-    ],
-    deps = [
-        "//experimental/reporting-ui/src/main/react/reporting-ui/client/reporting",
+        "error.tsx",
     ],
 )
