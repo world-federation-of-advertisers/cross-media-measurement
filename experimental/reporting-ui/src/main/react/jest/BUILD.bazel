@@ -11,6 +11,6 @@ js_library(
         "//experimental/reporting-ui/src/main/react/reporting-ui:__subpackages__",
     ],
     deps = [
-        "//experimental/reporting-ui/src/test/react/jest/mocks",
+        "//experimental/reporting-ui/src/main/react/jest/mocks",
     ],
 )
