@@ -8,6 +8,6 @@ js_library(
     name = "mocks",
     srcs = ["styleMock.ts"],
     visibility = [
-        "//experimental/reporting-ui/src/main/react/jest:__subpackages__",
+        "//experimental/reporting-ui/src/main/react/testing/jest:__subpackages__",
     ],
 )
