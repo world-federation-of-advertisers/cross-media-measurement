@@ -1,0 +1,44 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//visibility:public"])
+
+kt_jvm_library(
+    name = "measurement_statistics",
+    srcs = ["MeasurementStatistics.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
+    ],
+)
+
+kt_jvm_library(
+    name = "liquid_legions",
+    srcs = ["LiquidLegions.kt"],
+    deps = [
+        ":measurement_statistics",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:acdp_params_converter",
+        "@wfa_common_jvm//imports/java/org/apache/commons:math3",
+        "@wfa_common_jvm//imports/java/org/apache/commons/numbers/gamma",
+    ],
+)
+
+kt_jvm_library(
+    name = "variances",
+    srcs = ["Variances.kt"],
+    deps = [
+        ":liquid_legions",
+        ":measurement_statistics",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
+        "@wfa_common_jvm//imports/java/org/apache/commons:math3",
+    ],
+)
+
+kt_jvm_library(
+    name = "covariances",
+    srcs = ["Covariances.kt"],
+    deps = [
+        ":liquid_legions",
+        ":measurement_statistics",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
+        "@wfa_common_jvm//imports/java/org/apache/commons:math3",
+    ],
+)

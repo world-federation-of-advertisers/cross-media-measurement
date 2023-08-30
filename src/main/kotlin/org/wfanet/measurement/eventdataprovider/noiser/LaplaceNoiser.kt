@@ -25,4 +25,7 @@ class LaplaceNoiser(privacyParams: DpParams, random: Random) : AbstractNoiser() 
       0.0,
       1 / privacyParams.epsilon
     )
+
+  override val variance: Double
+    get() = distribution.numericalVariance
 }

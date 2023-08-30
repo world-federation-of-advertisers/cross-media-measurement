@@ -15,3 +15,16 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
+
+kt_jvm_library(
+    name = "acdp_params_converter",
+    srcs = [
+        "AcdpParamsConverter.kt",
+        "PrivacyQuery.kt",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
+        "@wfa_common_jvm//imports/java/org/apache/commons:math3",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)

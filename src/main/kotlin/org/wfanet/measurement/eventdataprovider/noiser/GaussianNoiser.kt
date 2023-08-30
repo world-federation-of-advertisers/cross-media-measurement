@@ -29,6 +29,8 @@ class GaussianNoiser(privacyParams: DpParams, random: Random) : AbstractNoiser()
 
     return NormalDistribution(RandomGeneratorFactory.createRandomGenerator(random), 0.0, sigma)
   }
+  override val variance: Double
+    get() = distribution.numericalVariance
 
   companion object {
     private val standardNormalDistribution = NormalDistribution(0.0, 1.0)
