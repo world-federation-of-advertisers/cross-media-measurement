@@ -688,12 +688,12 @@ class CreateMeasurement : Runnable {
         private set
 
       @set:Option(
-        names = ["--reach-max-frequency"],
-        description = ["Maximum frequency per user"],
+        names = ["--max-frequency"],
+        description = ["Maximum frequency revealed in the histogram"],
         required = false,
         defaultValue = "10",
       )
-      var maximumFrequencyPerUser by Delegates.notNull<Int>()
+      var maximumFrequency by Delegates.notNull<Int>()
         private set
     }
 
@@ -783,7 +783,7 @@ class CreateMeasurement : Runnable {
         epsilon = measurementTypeParams.reachAndFrequency.frequencyPrivacyEpsilon
         delta = measurementTypeParams.reachAndFrequency.frequencyPrivacyDelta
       }
-      maximumFrequencyPerUser = measurementTypeParams.reachAndFrequency.maximumFrequencyPerUser
+      maximumFrequency = measurementTypeParams.reachAndFrequency.maximumFrequency
     }
   }
 

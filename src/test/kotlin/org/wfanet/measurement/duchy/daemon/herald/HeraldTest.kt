@@ -157,6 +157,7 @@ private val PUBLIC_API_MEASUREMENT_SPEC = measurementSpec {
       epsilon = 2.1
       delta = 2.2
     }
+    maximumFrequency = 10
   }
   nonceHashes += REACH_ONLY_REQUISITION_1.nonceHash
   nonceHashes += REACH_ONLY_REQUISITION_2.nonceHash
@@ -195,7 +196,6 @@ private val LLV2_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
       }
     }
     ellipticCurveId = 415
-    maximumFrequency = 10
     noiseMechanism = SystemNoiseMechanism.GEOMETRIC
   }
 }
@@ -566,7 +566,6 @@ class HeraldTest {
               role = RoleInComputation.AGGREGATOR
               parameters =
                 LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.parameters {
-                  maximumFrequency = 10
                   sketchParameters = liquidLegionsSketchParameters {
                     decayRate = 12.0
                     size = 100_000L
