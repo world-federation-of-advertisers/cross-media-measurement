@@ -35,4 +35,7 @@ interface Noiser {
 
   /** Returns a random value sampled from the distribution. */
   fun sample(): Double
+
+  /** The variance of the noiser. */
+  val variance: Double
 }
