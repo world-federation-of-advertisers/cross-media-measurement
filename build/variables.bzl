@@ -60,16 +60,6 @@ GCLOUD_SETTINGS = struct(
     postgres_region = "$(postgres_region)",
 )
 
-AWS_SETTINGS = struct(
-    postgres_database = "$(postgres_database)",
-    postgres_host = "$(postgres_host)",
-    postgres_port = "$(postgres_port)",
-    postgres_credential_secret_name = "$(postgres_credential_secret_name)",
-    postgres_region = "$(postgres_region)",
-    s3_bucket = "$(s3_bucket)",
-    s3_region = "$(s3_region)",
-)
-
 # Settings for Kingdom Kubernetes deployments.
 KINGDOM_K8S_SETTINGS = struct(
     public_api_target = "$(kingdom_public_api_target)",

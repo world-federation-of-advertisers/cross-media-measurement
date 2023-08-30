@@ -220,7 +220,6 @@ class ReportingSetsCommand : Runnable {
   val reportingSetStub: ReportingSetsCoroutineStub by lazy {
     ReportingSetsCoroutineStub(parent.channel)
   }
-
   override fun run() {}
 }
 
@@ -615,7 +614,6 @@ class Reporting : Runnable {
     buildMutualTlsChannel(apiFlags.apiTarget, clientCerts, apiFlags.apiCertHost)
       .withShutdownTimeout(Duration.ofSeconds(1))
   }
-
   override fun run() {}
 
   companion object {
