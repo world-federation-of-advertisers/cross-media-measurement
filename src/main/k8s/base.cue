@@ -512,9 +512,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #Job: {
 	_name:        string
 	_secretName?: string
-	_container:   #Container & {
-		imagePullPolicy: imagePullPolicy | *"Always"
-	}
+	_container:   #Container
 
 	apiVersion: "batch/v1"
 	kind:       "Job"
@@ -547,9 +545,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #CronJob: {
 	_name:        string
 	_secretName?: string
-	_container:   #Container & {
-		imagePullPolicy: imagePullPolicy | *"Always"
-	}
+	_container:   #Container
 
 	apiVersion: "batch/v1"
 	kind:       "CronJob"
