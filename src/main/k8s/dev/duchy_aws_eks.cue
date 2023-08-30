@@ -86,15 +86,6 @@ duchy: #PostgresDuchy & {
 					"service.beta.kubernetes.io/aws-load-balancer-scheme":           "internet-facing"
 					"service.beta.kubernetes.io/aws-load-balancer-nlb-target-type":  "ip"
 					"service.beta.kubernetes.io/aws-load-balancer-eip-allocations":  "eipalloc-05874583414024ddf,eipalloc-09d7a0f47a1701600"
-					"service.beta.kubernetes.io/aws-load-balancer-subnets":          "subnet-06c4eb36a9658e6b2,subnet-0d089658ac8b0d884"
-					"service.beta.kubernetes.io/aws-load-balancer-alpn-policy":       "HTTP2Only"
-				}
-			}
-		}
-		"requisition-fulfillment-server": {
-			metadata: {
-				annotations: {
-					"service.beta.kubernetes.io/aws-load-balancer-subnets":          "subnet-06c4eb36a9658e6b2,subnet-0d089658ac8b0d884"
 				}
 			}
 		}
