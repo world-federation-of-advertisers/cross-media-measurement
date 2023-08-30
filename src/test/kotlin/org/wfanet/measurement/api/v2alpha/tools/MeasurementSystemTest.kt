@@ -1975,7 +1975,10 @@ class MeasurementSystemTest {
       EncryptionPublicKey.parseFrom(MEASUREMENT_CONSUMER.publicKey.data)
     }
 
-    // TODO: Have separate successful measurements for each measurement type
+    /*
+     * Contains a measurement result for each measurement type
+     * TODO(@renjiezh) Have separate successful measurements for each measurement type
+     */
     private val SUCCEEDED_MEASUREMENT: Measurement by lazy {
       val measurementPublicKey = MEASUREMENT_CONSUMER_ENCRYPTION_PUBLIC_KEY
       measurement {
