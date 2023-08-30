@@ -30,7 +30,7 @@ class CreateMeasurementFlags {
     description = ["API resource name of the MeasurementConsumer"],
     required = true
   )
-  internal lateinit var measurementConsumer: String
+  lateinit var measurementConsumer: String
 
   @Option(
     names = ["--request-id"],
@@ -38,14 +38,14 @@ class CreateMeasurementFlags {
     required = false,
     defaultValue = "",
   )
-  internal lateinit var requestId: String
+  lateinit var requestId: String
 
   @Option(
     names = ["--private-key-der-file"],
     description = ["Private key for MeasurementConsumer"],
     required = true
   )
-  internal lateinit var privateKeyDerFile: File
+  lateinit var privateKeyDerFile: File
 
   @Option(
     names = ["--measurement-ref-id"],
@@ -53,7 +53,7 @@ class CreateMeasurementFlags {
     required = false,
     defaultValue = ""
   )
-  internal lateinit var measurementReferenceId: String
+  lateinit var measurementReferenceId: String
 
   @ArgGroup(
     exclusive = true,
@@ -89,7 +89,7 @@ class CreateMeasurementFlags {
           required = true,
         )
         lateinit var name: String
-          internal set
+          set
 
         @ArgGroup(
           exclusive = false,
@@ -97,7 +97,7 @@ class CreateMeasurementFlags {
           heading = "Add EventGroups for an Event Data Provider\n"
         )
         lateinit var eventGroupInputs: List<EventGroupInput>
-          internal set
+          set
       }
 
       class EventGroupInput {
@@ -107,7 +107,7 @@ class CreateMeasurementFlags {
           required = true,
         )
         lateinit var name: String
-          internal set
+          set
 
         @Option(
           names = ["--event-filter"],
@@ -116,7 +116,7 @@ class CreateMeasurementFlags {
           defaultValue = ""
         )
         lateinit var eventFilter: String
-          internal set
+          set
 
         @Option(
           names = ["--event-start-time"],
@@ -124,7 +124,7 @@ class CreateMeasurementFlags {
           required = true,
         )
         lateinit var eventStartTime: Instant
-          internal set
+          set
 
         @Option(
           names = ["--event-end-time"],
@@ -132,12 +132,12 @@ class CreateMeasurementFlags {
           required = true,
         )
         lateinit var eventEndTime: Instant
-          internal set
+          set
       }
 
       @ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Add Event Data Providers\n")
       lateinit var eventDataProviderInputs: List<EventDataProviderInput>
-        internal set
+        set
 
       @set:Option(
         names = ["--vid-sampling-start"],
@@ -145,7 +145,7 @@ class CreateMeasurementFlags {
         required = true,
       )
       var vidSamplingStart by Delegates.notNull<Float>()
-        internal set
+        set
 
       @set:Option(
         names = ["--vid-sampling-width"],
@@ -153,7 +153,7 @@ class CreateMeasurementFlags {
         required = true,
       )
       var vidSamplingWidth by Delegates.notNull<Float>()
-        internal set
+        set
 
       class EventMeasurementTypeParams {
         class ReachAndFrequencyParams {
@@ -163,7 +163,7 @@ class CreateMeasurementFlags {
             required = true,
           )
           var selected = false
-            internal set
+            set
 
           @set:Option(
             names = ["--reach-privacy-epsilon"],
@@ -171,7 +171,7 @@ class CreateMeasurementFlags {
             required = true,
           )
           var reachPrivacyEpsilon by Delegates.notNull<Double>()
-            internal set
+            set
 
           @set:Option(
             names = ["--reach-privacy-delta"],
@@ -179,7 +179,7 @@ class CreateMeasurementFlags {
             required = true,
           )
           var reachPrivacyDelta by Delegates.notNull<Double>()
-            internal set
+            set
 
           @set:Option(
             names = ["--frequency-privacy-epsilon"],
@@ -187,7 +187,7 @@ class CreateMeasurementFlags {
             required = true,
           )
           var frequencyPrivacyEpsilon by Delegates.notNull<Double>()
-            internal set
+            set
 
           @set:Option(
             names = ["--frequency-privacy-delta"],
@@ -195,7 +195,7 @@ class CreateMeasurementFlags {
             required = true,
           )
           var frequencyPrivacyDelta by Delegates.notNull<Double>()
-            internal set
+            set
 
           @set:Option(
             names = ["--reach-max-frequency"],
@@ -204,7 +204,7 @@ class CreateMeasurementFlags {
             defaultValue = "10",
           )
           var maximumFrequencyPerUser by Delegates.notNull<Int>()
-            internal set
+            set
         }
 
         class ImpressionParams {
@@ -214,7 +214,7 @@ class CreateMeasurementFlags {
             required = true,
           )
           var selected = false
-            internal set
+            set
 
           @set:Option(
             names = ["--impression-privacy-epsilon"],
@@ -222,7 +222,7 @@ class CreateMeasurementFlags {
             required = true,
           )
           var privacyEpsilon by Delegates.notNull<Double>()
-            internal set
+            set
 
           @set:Option(
             names = ["--impression-privacy-delta"],
@@ -230,7 +230,7 @@ class CreateMeasurementFlags {
             required = true,
           )
           var privacyDelta by Delegates.notNull<Double>()
-            internal set
+            set
 
           @set:Option(
             names = ["--impression-max-frequency"],
@@ -238,7 +238,7 @@ class CreateMeasurementFlags {
             required = true,
           )
           var maximumFrequencyPerUser by Delegates.notNull<Int>()
-            internal set
+            set
         }
 
         class DurationParams {
@@ -248,7 +248,7 @@ class CreateMeasurementFlags {
             required = true,
           )
           var selected = false
-            internal set
+            set
 
           @set:Option(
             names = ["--duration-privacy-epsilon"],
@@ -256,7 +256,7 @@ class CreateMeasurementFlags {
             required = true,
           )
           var privacyEpsilon by Delegates.notNull<Double>()
-            internal set
+            set
 
           @set:Option(
             names = ["--duration-privacy-delta"],
@@ -264,7 +264,7 @@ class CreateMeasurementFlags {
             required = true,
           )
           var privacyDelta by Delegates.notNull<Double>()
-            internal set
+            set
 
           @set:Option(
             names = ["--max-duration"],
@@ -272,7 +272,7 @@ class CreateMeasurementFlags {
             required = true,
           )
           var maximumWatchDurationPerUser by Delegates.notNull<Int>()
-            internal set
+            set
         }
 
         @ArgGroup(exclusive = false, heading = "Measurement type ReachAndFrequency and params\n")
@@ -295,7 +295,7 @@ class CreateMeasurementFlags {
           defaultValue = ""
         )
         lateinit var filter: String
-          internal set
+          set
 
         @Option(
           names = ["--population-start-time"],
@@ -303,7 +303,7 @@ class CreateMeasurementFlags {
           required = true,
         )
         lateinit var startTime: Instant
-          internal set
+          set
 
         @Option(
           names = ["--population-end-time"],
@@ -311,7 +311,7 @@ class CreateMeasurementFlags {
           required = true,
         )
         lateinit var endTime: Instant
-          internal set
+          set
       }
 
       class PopulationDataProviderInput {
@@ -321,12 +321,12 @@ class CreateMeasurementFlags {
           required = true,
         )
         lateinit var name: String
-          internal set
+          set
       }
 
       @ArgGroup(exclusive = false, heading = "Population Params\n")
       lateinit var populationInputs: PopulationInput
-        internal set
+        set
       @ArgGroup(exclusive = false, heading = "Set Population Data Provider\n")
       lateinit var populationDataProviderInput: PopulationDataProviderInput
 
@@ -336,11 +336,11 @@ class CreateMeasurementFlags {
         required = true,
       )
       var selected = false
-        internal set
+        set
     }
   }
 
-  internal fun getReachAndFrequency(): MeasurementSpec.ReachAndFrequency {
+  fun getReachAndFrequency(): MeasurementSpec.ReachAndFrequency {
     return MeasurementSpecKt.reachAndFrequency {
       reachPrivacyParams = differentialPrivacyParams {
         epsilon =
@@ -364,7 +364,7 @@ class CreateMeasurementFlags {
     }
   }
 
-  internal fun getImpression(): MeasurementSpec.Impression {
+  fun getImpression(): MeasurementSpec.Impression {
     return MeasurementSpecKt.impression {
       privacyParams = differentialPrivacyParams {
         epsilon =
@@ -380,7 +380,7 @@ class CreateMeasurementFlags {
     }
   }
 
-  internal fun getDuration(): MeasurementSpec.Duration {
+  fun getDuration(): MeasurementSpec.Duration {
     return MeasurementSpecKt.duration {
       privacyParams = differentialPrivacyParams {
         epsilon =
@@ -395,7 +395,7 @@ class CreateMeasurementFlags {
     }
   }
 
-  internal fun getPopulation(): MeasurementSpec.Population {
+  fun getPopulation(): MeasurementSpec.Population {
     return MeasurementSpecKt.population {}
   }
 }

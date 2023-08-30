@@ -25,12 +25,24 @@ java_binary(
 )
 
 kt_jvm_library(
-    name = "measurement_system",
+    name = "create_measurement_flags",
     srcs = [
         "CreateMeasurementFlags.kt",
+    ],
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:date_interval_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/picocli",
+    ],
+)
+
+kt_jvm_library(
+    name = "measurement_system",
+    srcs = [
         "MeasurementSystem.kt",
     ],
     deps = [
+        ":create_measurement_flags",
         "//src/main/kotlin/org/wfanet/measurement/api:account_constants",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
@@ -87,9 +99,9 @@ kt_jvm_library(
     name = "benchmark_library",
     srcs = [
         "Benchmark.kt",
-        "CreateMeasurementFlags.kt",
     ],
     deps = [
+        ":create_measurement_flags",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:flags",
