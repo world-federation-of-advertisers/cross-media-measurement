@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
+import com.google.protobuf.util.Durations
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
@@ -1813,7 +1814,7 @@ class MeasurementsServiceTest {
             epsilon = 1.0
             delta = 0.0
           }
-          maximumWatchDurationPerUser = 1
+          maximumWatchDurationPerUser = Durations.fromMinutes(5)
         }
       }
 

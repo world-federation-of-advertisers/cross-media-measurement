@@ -68,6 +68,7 @@ import org.wfanet.measurement.internal.reporting.v2.periodicTimeInterval as inte
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals as Intervals
+import com.google.protobuf.util.Durations
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListReportsPageTokenKt
@@ -129,7 +130,7 @@ private const val IMPRESSION_MAXIMUM_FREQUENCY_PER_USER = 60
 private const val WATCH_DURATION_VID_SAMPLING_WIDTH = 95.0f / NUMBER_VID_BUCKETS
 private const val WATCH_DURATION_VID_SAMPLING_START = 205.0f / NUMBER_VID_BUCKETS
 private const val WATCH_DURATION_EPSILON = 0.001
-private const val MAXIMUM_WATCH_DURATION_PER_USER = 4000
+private val MAXIMUM_WATCH_DURATION_PER_USER = Durations.fromSeconds(4000)
 
 private const val DIFFERENTIAL_PRIVACY_DELTA = 1e-12
 

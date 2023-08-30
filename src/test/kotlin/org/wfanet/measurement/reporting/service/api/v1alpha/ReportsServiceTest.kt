@@ -167,6 +167,7 @@ import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest
 import org.wfanet.measurement.internal.reporting.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
 import org.wfanet.measurement.internal.reporting.timeIntervals as internalTimeIntervals
+import com.google.protobuf.util.Durations
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v1alpha.ListReportsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
@@ -851,7 +852,7 @@ private val WATCH_DURATION_MEASUREMENT_SPEC = measurementSpec {
         epsilon = WATCH_DURATION_EPSILON
         delta = DIFFERENTIAL_PRIVACY_DELTA
       }
-      maximumWatchDurationPerUser = MAXIMUM_WATCH_DURATION_PER_USER
+      maximumWatchDurationPerUser = Durations.fromSeconds(MAXIMUM_WATCH_DURATION_PER_USER.toLong())
     }
   vidSamplingInterval = vidSamplingInterval {
     start = WATCH_DURATION_VID_SAMPLING_START_LIST[SECURE_RANDOM_OUTPUT_INT]
@@ -1060,7 +1061,7 @@ private val INTERNAL_WATCH_DURATION_METRIC = internalMetric {
     InternalMetricKt.details {
       watchDuration =
         InternalMetricKt.watchDurationParams {
-          maximumWatchDurationPerUser = MAXIMUM_WATCH_DURATION_PER_USER
+          maximumWatchDurationPerUserSeconds = MAXIMUM_WATCH_DURATION_PER_USER
         }
       cumulative = false
     }

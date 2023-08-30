@@ -68,6 +68,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub as PublicMetricsCoroutineStub
+import com.google.protobuf.util.Durations
 
 /** TestRule that starts and stops all Reporting Server gRPC services. */
 class InProcessReportingServer(
@@ -294,7 +295,7 @@ class InProcessReportingServer(
               epsilon = 0.001
               delta = 1e-12
             }
-          maximumWatchDurationPerUser = 4000
+          maximumWatchDurationPerUser = Durations.fromSeconds(4000)
         }
       watchDurationVidSamplingInterval =
         MetricSpecConfigKt.vidSamplingInterval {

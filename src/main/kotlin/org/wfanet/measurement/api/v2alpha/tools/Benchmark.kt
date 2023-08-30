@@ -63,6 +63,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.Measurement
@@ -102,6 +103,7 @@ import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
@@ -324,12 +326,12 @@ class DurationParams {
   var privacyDelta by Delegates.notNull<Double>()
     private set
 
-  @set:CommandLine.Option(
+  @CommandLine.Option(
     names = ["--max-duration"],
-    description = ["Maximum watch duration per user"],
+    description = ["Maximum watch duration per user as a human-readable string, e.g. 5m20s"],
     required = true,
   )
-  var maximumWatchDurationPerUser by Delegates.notNull<Int>()
+  lateinit var maximumWatchDurationPerUser: JavaDuration
     private set
 }
 
@@ -480,7 +482,8 @@ private fun getDuration(measurementTypeParams: MeasurementTypeParams): Duration 
       epsilon = measurementTypeParams.duration.privacyEpsilon
       delta = measurementTypeParams.duration.privacyDelta
     }
-    maximumWatchDurationPerUser = measurementTypeParams.duration.maximumWatchDurationPerUser
+    maximumWatchDurationPerUser =
+      measurementTypeParams.duration.maximumWatchDurationPerUser.toProtoDuration()
   }
 }
 
@@ -767,7 +770,7 @@ class Benchmark(
   description = ["Benchmark report from Kingdom"],
   sortOptions = false,
 )
-class BenchmarkReport(val clock: Clock = Clock.systemUTC()) : Runnable {
+class BenchmarkReport private constructor(val clock: Clock = Clock.systemUTC()) : Runnable {
   @CommandLine.Mixin private lateinit var tlsFlags: TlsFlags
   @CommandLine.Mixin private lateinit var apiFlags: ApiFlags
   @CommandLine.Mixin private lateinit var baseFlags: BaseFlags
@@ -794,11 +797,17 @@ class BenchmarkReport(val clock: Clock = Clock.systemUTC()) : Runnable {
     val benchmark = Benchmark(baseFlags, channel, apiAuthenticationKey, clock)
     benchmark.generateBenchmarkReport()
   }
-}
 
-/**
- * Create a benchmarking report of the public Kingdom API.
- *
- * Use the `help` command to see usage details.
- */
-fun main(args: Array<String>) = commandLineMain(BenchmarkReport(), args)
+  companion object {
+    /**
+     * Create a benchmarking report of the public Kingdom API.
+     *
+     * Use the `help` command to see usage details.
+     */
+    fun main(args: Array<String>) = commandLineMain(BenchmarkReport(), args)
+
+    @VisibleForTesting
+    internal fun main(args: Array<String>, clock: Clock) =
+      commandLineMain(BenchmarkReport(clock), args)
+  }
+}

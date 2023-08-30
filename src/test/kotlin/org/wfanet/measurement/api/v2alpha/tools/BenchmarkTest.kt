@@ -18,6 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.duration as protoDuration
+import com.google.protobuf.util.Durations
 import io.grpc.Metadata
 import io.grpc.ServerCall
 import io.grpc.ServerCallHandler
@@ -73,11 +74,11 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.duchy.encryptResult
 import org.wfanet.measurement.consent.client.duchy.signResult
-import picocli.CommandLine
 
 private const val HOST = "localhost"
 private val SECRETS_DIR: Path =
@@ -293,7 +294,7 @@ class BenchmarkTest {
         "--output-file=$tempFile",
       )
 
-    CommandLine(BenchmarkReport(clock)).execute(*args)
+    BenchmarkReport.main(args, clock)
 
     val request =
       captureFirst<CreateMeasurementRequest> {
@@ -362,7 +363,7 @@ class BenchmarkTest {
         "--event-end-time=$TIME_STRING_2",
         "--output-file=$tempFile",
       )
-    CommandLine(BenchmarkReport(clock)).execute(*args)
+    BenchmarkReport.main(args, clock)
 
     val request =
       captureFirst<CreateMeasurementRequest> {
@@ -414,7 +415,7 @@ class BenchmarkTest {
         "--duration",
         "--duration-privacy-epsilon=0.015",
         "--duration-privacy-delta=0.0",
-        "--max-duration=1000",
+        "--max-duration=5m20s",
         "--vid-sampling-start=0.1",
         "--vid-sampling-width=0.2",
         "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
@@ -426,7 +427,7 @@ class BenchmarkTest {
         "--event-end-time=$TIME_STRING_2",
         "--output-file=$tempFile",
       )
-    CommandLine(BenchmarkReport(clock)).execute(*args)
+    BenchmarkReport.main(args, clock)
 
     val request =
       captureFirst<CreateMeasurementRequest> {
@@ -444,7 +445,8 @@ class BenchmarkTest {
               epsilon = 0.015
               delta = 0.0
             }
-            maximumWatchDurationPerUser = 1000
+            maximumWatchDurationPerUser =
+              Durations.add(Durations.fromMinutes(5), Durations.fromSeconds(20))
           }
           vidSamplingInterval =
             MeasurementSpecKt.vidSamplingInterval {
@@ -460,5 +462,11 @@ class BenchmarkTest {
     assertThat(result[0])
       .isEqualTo("replica,startTime,ackTime,computeTime,endTime,status,msg,duration")
     assertThat(result[1]).isEqualTo("1,0.0,0.0,0.0,0.0,success,,0")
+  }
+
+  companion object {
+    init {
+      System.setSecurityManager(ExitInterceptingSecurityManager)
+    }
   }
 }

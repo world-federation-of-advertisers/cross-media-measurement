@@ -28,7 +28,7 @@ import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Clock
-import java.time.Duration as systemDuration
+import java.time.Duration as JavaDuration
 import java.time.Instant
 import java.time.LocalDate
 import kotlin.properties.Delegates
@@ -148,6 +148,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
@@ -165,7 +166,7 @@ import picocli.CommandLine.Parameters
 import picocli.CommandLine.ParentCommand
 import picocli.CommandLine.Spec
 
-private val CHANNEL_SHUTDOWN_TIMEOUT = systemDuration.ofSeconds(30)
+private val CHANNEL_SHUTDOWN_TIMEOUT = JavaDuration.ofSeconds(30)
 
 @Command(
   name = "MeasurementSystem",
@@ -756,12 +757,12 @@ class CreateMeasurement : Runnable {
       var privacyDelta by Delegates.notNull<Double>()
         private set
 
-      @set:Option(
+      @Option(
         names = ["--max-duration"],
-        description = ["Maximum watch duration per user"],
+        description = ["Maximum watch duration per user as a human-readable string, e.g. 5m20s"],
         required = true,
       )
-      var maximumWatchDurationPerUser by Delegates.notNull<Int>()
+      lateinit var maximumWatchDurationPerUser: JavaDuration
         private set
     }
 
@@ -803,7 +804,8 @@ class CreateMeasurement : Runnable {
         epsilon = measurementTypeParams.duration.privacyEpsilon
         delta = measurementTypeParams.duration.privacyDelta
       }
-      maximumWatchDurationPerUser = measurementTypeParams.duration.maximumWatchDurationPerUser
+      maximumWatchDurationPerUser =
+        measurementTypeParams.duration.maximumWatchDurationPerUser.toProtoDuration()
     }
   }
 

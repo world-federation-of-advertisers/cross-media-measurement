@@ -18,6 +18,8 @@ syntax = "proto3";
 
 package wfa.measurement.config;
 
+import "google/protobuf/duration.proto";
+
 option java_package = "org.wfanet.measurement.config.reporting";
 option java_multiple_files = true;
 
@@ -68,9 +70,8 @@ message MetricSpecConfig {
   message WatchDurationParams {
     // Differential privacy parameters.
     DifferentialPrivacyParams privacy_params = 1;
-    // Maximum watch duration per user in second that will be included in this
-    // metric. Enforced on a per EDP basis.
-    int32 maximum_watch_duration_per_user = 2;
+    // Maximum watch duration per user that will be included in this metric. Enforced on a per EDP basis.
+    google.protobuf.Duration maximum_watch_duration_per_user = 2;
   }
 
   // Parameters for generating the count of unique audiences reached given a set
