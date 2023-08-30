@@ -21,10 +21,7 @@ object MeasurementResults {
   data class ReachAndFrequency(val reach: Int, val relativeFrequencyDistribution: Map<Int, Double>)
 
   /** Computes reach and frequency using the "deterministic count distinct" methodology. */
-  fun computeReachAndFrequency(
-    sampledVids: Iterable<Long>,
-    maxFrequency: Int = Int.MAX_VALUE
-  ): ReachAndFrequency {
+  fun computeReachAndFrequency(sampledVids: Iterable<Long>, maxFrequency: Int): ReachAndFrequency {
     val eventsPerVid: Map<Long, Int> = sampledVids.groupingBy { it }.eachCount()
     val reach: Int = eventsPerVid.keys.size
 

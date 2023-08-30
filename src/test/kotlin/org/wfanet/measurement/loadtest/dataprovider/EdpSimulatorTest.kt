@@ -671,7 +671,6 @@ class EdpSimulatorTest {
                         samplingIndicatorSize = 10_000_000
                       }
                       ellipticCurveId = 415
-                      maximumFrequency = 12
                     }
                 }
             }
@@ -1133,7 +1132,6 @@ class EdpSimulatorTest {
                       samplingIndicatorSize = 10_000_000
                     }
                     ellipticCurveId = 415
-                    maximumFrequency = 12
                   }
               }
           }
@@ -1483,6 +1481,7 @@ class EdpSimulatorTest {
       reachAndFrequency = reachAndFrequency {
         reachPrivacyParams = OUTPUT_DP_PARAMS
         frequencyPrivacyParams = OUTPUT_DP_PARAMS
+        maximumFrequency = 10
       }
       vidSamplingInterval = vidSamplingInterval {
         start = 0.0f
@@ -1525,7 +1524,6 @@ class EdpSimulatorTest {
                 noiseMechanism = NOISE_MECHANISM
                 sketchParams = LIQUID_LEGIONS_SKETCH_PARAMS
                 ellipticCurveId = 415
-                maximumFrequency = 12
               }
           }
       }

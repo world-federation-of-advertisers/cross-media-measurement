@@ -141,12 +141,9 @@ private fun MetricSpec.FrequencyHistogramParams.withDefaults(
         metricSpecConfig.frequencyHistogramParams.frequencyPrivacyParams.epsilon,
         metricSpecConfig.frequencyHistogramParams.frequencyPrivacyParams.delta
       )
-    maximumFrequencyPerUser =
-      if (hasMaximumFrequencyPerUser()) {
-        maximumFrequencyPerUser
-      } else {
-        metricSpecConfig.frequencyHistogramParams.maximumFrequencyPerUser
-      }
+    if (maximumFrequency == 0) {
+      maximumFrequency = metricSpecConfig.frequencyHistogramParams.maximumFrequency
+    }
   }
 }
 
