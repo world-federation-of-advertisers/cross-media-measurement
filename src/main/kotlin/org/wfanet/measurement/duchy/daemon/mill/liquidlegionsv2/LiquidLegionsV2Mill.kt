@@ -478,16 +478,18 @@ class LiquidLegionsV2Mill(
   private suspend fun completeSetupPhaseAtAggregator(token: ComputationToken): ComputationToken {
     val llv2Details = token.computationDetails.liquidLegionsV2
     require(AGGREGATOR == llv2Details.role) { "invalid role for this function." }
-    // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to
-    // handle the case where the set of computation participants is a subset of all Duchies.
-    val inputBlobCount = workerStubs.size
+    val inputBlobCount = token.participantCount - 1
     val (bytes, nextToken) =
       existingOutputOr(token) {
         val request =
           dataClients
             .readAllRequisitionBlobs(token, duchyId)
             .concat(readAndCombineAllInputBlobs(token, inputBlobCount))
-            .toCompleteSetupPhaseRequest(llv2Details, token.requisitionsCount)
+            .toCompleteSetupPhaseRequest(
+              llv2Details,
+              token.requisitionsCount,
+              token.participantCount
+            )
         val cryptoResult: CompleteSetupPhaseResponse = cryptoWorker.completeSetupPhase(request)
         logStageDurationMetric(
           token,
@@ -523,7 +525,11 @@ class LiquidLegionsV2Mill(
         val request =
           dataClients
             .readAllRequisitionBlobs(token, duchyId)
-            .toCompleteSetupPhaseRequest(llv2Details, token.requisitionsCount)
+            .toCompleteSetupPhaseRequest(
+              llv2Details,
+              token.requisitionsCount,
+              token.participantCount
+            )
         val cryptoResult: CompleteSetupPhaseResponse = cryptoWorker.completeSetupPhase(request)
         logStageDurationMetric(
           token,
@@ -569,7 +575,7 @@ class LiquidLegionsV2Mill(
           totalSketchesCount = token.requisitionsCount
           noiseMechanism = llv2Details.parameters.noise.noiseMechanism
           if (llv2Parameters.noise.hasFrequencyNoiseConfig() && maximumRequestedFrequency > 1) {
-            noiseParameters = getFrequencyNoiseParams(llv2Parameters)
+            noiseParameters = getFrequencyNoiseParams(llv2Parameters, token.participantCount)
           }
         }
         val cryptoResult: CompleteExecutionPhaseOneAtAggregatorResponse =
@@ -679,17 +685,13 @@ class LiquidLegionsV2Mill(
           vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width
           if (llv2Parameters.noise.hasReachNoiseConfig()) {
             reachDpNoiseBaseline = globalReachDpNoiseBaseline {
-              // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to
-              // handle the case where the computation participants is a subset of all Duchies.
-              contributorsCount = workerStubs.size + 1
+              contributorsCount = token.participantCount
               globalReachDpNoise = llv2Parameters.noise.reachNoiseConfig.globalReachDpNoise
             }
           }
           if (llv2Parameters.noise.hasFrequencyNoiseConfig() && (maximumRequestedFrequency > 1)) {
             frequencyNoiseParameters = flagCountTupleNoiseGenerationParameters {
-              // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to
-              // handle the case where the computation participants is a subset of all Duchies.
-              contributorsCount = workerStubs.size + 1
+              contributorsCount = token.participantCount
               maximumFrequency = maximumRequestedFrequency
               dpParams = llv2Parameters.noise.frequencyNoiseConfig
             }
@@ -773,7 +775,7 @@ class LiquidLegionsV2Mill(
           if (llv2Parameters.noise.hasFrequencyNoiseConfig()) {
             partialCompositeElGamalPublicKey = llv2Details.partiallyCombinedPublicKey
             if (maximumRequestedFrequency > 1) {
-              noiseParameters = getFrequencyNoiseParams(llv2Parameters)
+              noiseParameters = getFrequencyNoiseParams(llv2Parameters, token.participantCount)
             }
           }
           noiseMechanism = llv2Details.parameters.noise.noiseMechanism
@@ -829,9 +831,7 @@ class LiquidLegionsV2Mill(
           maximumFrequency = llv2Parameters.maximumFrequency.coerceAtLeast(1)
           if (llv2Parameters.noise.hasFrequencyNoiseConfig()) {
             globalFrequencyDpNoisePerBucket = perBucketFrequencyDpNoiseBaseline {
-              // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to
-              // handle the case where the computation participants is a subset of all Duchies.
-              contributorsCount = workerStubs.size + 1
+              contributorsCount = token.participantCount
               dpParams = llv2Parameters.noise.frequencyNoiseConfig
             }
           }
@@ -950,7 +950,8 @@ class LiquidLegionsV2Mill(
 
   private fun ByteString.toCompleteSetupPhaseRequest(
     llv2Details: LiquidLegionsSketchAggregationV2.ComputationDetails,
-    totalRequisitionsCount: Int
+    totalRequisitionsCount: Int,
+    participantCount: Int,
   ): CompleteSetupPhaseRequest {
     val noiseConfig = llv2Details.parameters.noise
     return completeSetupPhaseRequest {
@@ -960,9 +961,7 @@ class LiquidLegionsV2Mill(
         noiseParameters = registerNoiseGenerationParameters {
           compositeElGamalPublicKey = llv2Details.combinedPublicKey
           curveId = llv2Details.parameters.ellipticCurveId.toLong()
-          // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to handle
-          // the case where the computation participants is a subset of all Duchies.
-          contributorsCount = workerStubs.size + 1
+          contributorsCount = participantCount
           totalSketchesCount = totalRequisitionsCount
           dpParams = reachNoiseDifferentialPrivacyParams {
             blindHistogram = noiseConfig.reachNoiseConfig.blindHistogramNoise
@@ -977,16 +976,24 @@ class LiquidLegionsV2Mill(
   }
 
   private fun getFrequencyNoiseParams(
-    llv2Parameters: Parameters
+    llv2Parameters: Parameters,
+    participantCount: Int,
   ): FlagCountTupleNoiseGenerationParameters {
     return flagCountTupleNoiseGenerationParameters {
       maximumFrequency = llv2Parameters.maximumFrequency
-      // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to handle the
-      // case where the computation participants is a subset of all Duchies.
-      contributorsCount = workerStubs.size + 1
+      contributorsCount = participantCount
       dpParams = llv2Parameters.noise.frequencyNoiseConfig
     }
   }
+
+  private val ComputationToken.participantCount: Int
+    get() =
+      if (computationDetails.kingdomComputation.participantCount != 0) {
+        computationDetails.kingdomComputation.participantCount
+      } else {
+        // For legacy Computations. See world-federation-of-advertisers/cross-media-measurement#1194
+        workerStubs.size + 1
+      }
 
   companion object {
     init {

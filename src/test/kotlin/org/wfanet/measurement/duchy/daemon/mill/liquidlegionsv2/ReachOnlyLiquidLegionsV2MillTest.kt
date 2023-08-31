@@ -321,6 +321,7 @@ private val AGGREGATOR_COMPUTATION_DETAILS = computationDetails {
     publicApiVersion = PUBLIC_API_VERSION
     measurementPublicKey = ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
     measurementSpec = SERIALIZED_MEASUREMENT_SPEC
+    participantCount = 3
   }
   reachOnlyLiquidLegionsV2 =
     ReachOnlyLiquidLegionsSketchAggregationV2Kt.computationDetails {
@@ -340,6 +341,7 @@ private val NON_AGGREGATOR_COMPUTATION_DETAILS = computationDetails {
     publicApiVersion = PUBLIC_API_VERSION
     measurementPublicKey = ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
     measurementSpec = SERIALIZED_MEASUREMENT_SPEC
+    participantCount = 3
   }
   reachOnlyLiquidLegionsV2 =
     ReachOnlyLiquidLegionsSketchAggregationV2Kt.computationDetails {
@@ -1409,6 +1411,117 @@ class ReachOnlyLiquidLegionsV2MillTest {
           compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
           serializedExcessiveNoiseCiphertext =
             SERIALIZED_NOISE_CIPHERTEXT.concat(SERIALIZED_NOISE_CIPHERTEXT)
+          parallelism = PARALLELISM
+        }
+      )
+  }
+
+  @Test
+  fun `setup phase at aggregator using calculated result with fewer participants`() = runBlocking {
+    // Stage 0. preparing the storage and set up mock
+    val computationDetails =
+      AGGREGATOR_COMPUTATION_DETAILS.copy {
+        kingdomComputation =
+          kingdomComputation.copy {
+            // Indicates that the Kingdom selected only 2 of the 3 Duchies.
+            participantCount = 2
+          }
+      }
+    val partialToken =
+      FakeComputationsDatabase.newPartialToken(
+          localId = LOCAL_ID,
+          stage = SETUP_PHASE.toProtocolStage()
+        )
+        .build()
+    val requisitionBlobContext =
+      RequisitionBlobContext(GLOBAL_ID, REQUISITION_1.externalKey.externalRequisitionId)
+    requisitionStore.writeString(requisitionBlobContext, "local_requisition")
+    val inputBlob0Context = ComputationBlobContext(GLOBAL_ID, SETUP_PHASE.toProtocolStage(), 0L)
+    computationStore.writeString(inputBlob0Context, "-duchy_2_sketch$NOISE_CIPHERTEXT")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
+      computationDetails = computationDetails,
+      blobs =
+        listOf(newInputBlobMetadata(0L, inputBlob0Context.blobKey), newEmptyOutputBlobMetadata(3L)),
+      requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3)
+    )
+
+    var cryptoRequest = CompleteReachOnlySetupPhaseRequest.getDefaultInstance()
+    whenever(mockCryptoWorker.completeReachOnlySetupPhaseAtAggregator(any())).thenAnswer {
+      cryptoRequest = it.getArgument(0)
+      val postFix = ByteString.copyFromUtf8("-completeReachOnlySetupPhase")
+      completeReachOnlySetupPhaseResponse {
+        combinedRegisterVector = cryptoRequest.combinedRegisterVector.concat(postFix)
+        serializedExcessiveNoiseCiphertext = ByteString.copyFromUtf8("-encryptedNoise")
+      }
+    }
+
+    // Stage 1. Process the above computation
+    aggregatorMill.pollAndProcessNextComputation()
+
+    // Stage 2. Check the status of the computation
+    val blobKey = ComputationBlobContext(GLOBAL_ID, SETUP_PHASE.toProtocolStage(), 3L).blobKey
+    assertThat(fakeComputationDb[LOCAL_ID])
+      .isEqualTo(
+        computationToken {
+          globalComputationId = GLOBAL_ID
+          localComputationId = LOCAL_ID
+          attempt = 1
+          computationStage = WAIT_EXECUTION_PHASE_INPUTS.toProtocolStage()
+          blobs.addAll(
+            listOf(
+              computationStageBlobMetadata {
+                dependencyType = ComputationBlobDependency.INPUT
+                blobId = 0
+                path = blobKey
+              },
+              computationStageBlobMetadata {
+                dependencyType = ComputationBlobDependency.OUTPUT
+                blobId = 1
+              }
+            )
+          )
+          version = 3 // claimTask + writeOutputBlob + transitionStage
+          this.computationDetails = computationDetails
+          requisitions.addAll(listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3))
+        }
+      )
+
+    assertThat(computationStore.get(blobKey)?.readToString())
+      .isEqualTo("local_requisition-duchy_2_sketch-completeReachOnlySetupPhase-encryptedNoise")
+
+    assertThat(computationControlRequests)
+      .containsExactlyElementsIn(
+        buildAdvanceComputationRequests(
+          GLOBAL_ID,
+          EXECUTION_PHASE_INPUT,
+          "local_requisition-du",
+          "chy_2_sketch-complet",
+          "eReachOnlySetupPhase",
+          "-encryptedNoise",
+        )
+      )
+      .inOrder()
+
+    assertThat(cryptoRequest)
+      .isEqualTo(
+        completeReachOnlySetupPhaseRequest {
+          combinedRegisterVector = ByteString.copyFromUtf8("local_requisition-duchy_2_sketch")
+          curveId = CURVE_ID
+          noiseParameters = registerNoiseGenerationParameters {
+            compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
+            curveId = CURVE_ID
+            contributorsCount = 2
+            totalSketchesCount = REQUISITIONS.size
+            dpParams = reachNoiseDifferentialPrivacyParams {
+              blindHistogram = TEST_NOISE_CONFIG.reachNoiseConfig.blindHistogramNoise
+              noiseForPublisherNoise = TEST_NOISE_CONFIG.reachNoiseConfig.noiseForPublisherNoise
+              globalReachDpNoise = TEST_NOISE_CONFIG.reachNoiseConfig.globalReachDpNoise
+            }
+          }
+          compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
+          serializedExcessiveNoiseCiphertext = SERIALIZED_NOISE_CIPHERTEXT
           parallelism = PARALLELISM
         }
       )
