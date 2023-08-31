@@ -31,14 +31,12 @@ import kotlin.math.pow
 import kotlin.random.Random
 import kotlin.time.ExperimentalTime
 import kotlin.time.TimeSource
-import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
-import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.flatten
@@ -131,20 +129,6 @@ abstract class MillBase(
 
   private val stageCpuTimeDurationHistogram: LongHistogram =
     meter.histogramBuilder("stage_cpu_time_duration_millis").ofLongs().build()
-
-  /**
-   * The main function of the mill. Continually poll and work on available computations from the
-   * queue. The polling interval is controlled by the [MinimumIntervalThrottler].
-   */
-  suspend fun continuallyProcessComputationQueue() {
-    logger.info("Mill starting...")
-    withContext(CoroutineName("Mill $millId")) {
-      throttler.loopOnReady {
-        // All errors thrown inside the loop should be suppressed such that the mill doesn't crash.
-        logAndSuppressExceptionSuspend { pollAndProcessNextComputation() }
-      }
-    }
-  }
 
   private var computationsServerReady = false
   /** Poll and work on the next available computations. */
