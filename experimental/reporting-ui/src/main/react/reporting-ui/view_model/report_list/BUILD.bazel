@@ -7,11 +7,11 @@ package(
 )
 
 js_library(
-    name = "client",
+    name = "report_list",
     srcs = [
-        "initialize.ts",
+        "report_list_view_model.ts",
     ],
     deps = [
-        "//experimental/reporting-ui/src/main/react/reporting-ui/client/reporting",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/model/report_list",
     ],
 )
