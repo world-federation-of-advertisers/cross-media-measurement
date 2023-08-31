@@ -63,6 +63,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.Measurement
@@ -591,7 +592,7 @@ class Benchmark(
   description = ["Benchmark report from Kingdom"],
   sortOptions = false,
 )
-class BenchmarkReport(val clock: Clock = Clock.systemUTC()) : Runnable {
+class BenchmarkReport private constructor(val clock: Clock = Clock.systemUTC()) : Runnable {
   @CommandLine.Mixin private lateinit var tlsFlags: TlsFlags
   @CommandLine.Mixin private lateinit var apiFlags: ApiFlags
   @CommandLine.Mixin private lateinit var baseFlags: BaseFlags
@@ -620,11 +621,17 @@ class BenchmarkReport(val clock: Clock = Clock.systemUTC()) : Runnable {
       Benchmark(baseFlags, createMeasurementFlags, channel, apiAuthenticationKey, clock)
     benchmark.generateBenchmarkReport()
   }
-}
 
-/**
- * Create a benchmarking report of the public Kingdom API.
- *
- * Use the `help` command to see usage details.
- */
-fun main(args: Array<String>) = commandLineMain(BenchmarkReport(), args)
+  companion object {
+    /**
+     * Create a benchmarking report of the public Kingdom API.
+     *
+     * Use the `help` command to see usage details.
+     */
+    fun main(args: Array<String>) = commandLineMain(BenchmarkReport(), args)
+
+    @VisibleForTesting
+    internal fun main(args: Array<String>, clock: Clock) =
+      commandLineMain(BenchmarkReport(clock), args)
+  }
+}
