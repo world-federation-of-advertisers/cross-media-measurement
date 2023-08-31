@@ -15,10 +15,12 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
-import App from './app';
+import {routes} from './route';
 import reportWebVitals from './report_web_vitals';
 import AppConfig from './client/initialize';
 import { ReportingClientImpl } from './client/reporting/client_impl';
+import {createBrowserRouter, RouterProvider} from 'react-router-dom';
+import 'bootstrap/dist/css/bootstrap.min.css';
 
 const configProps = {
   reportingClient: new ReportingClientImpl({endpoint: new URL('http://localhost:3000')}),
@@ -26,12 +28,10 @@ const configProps = {
 
 AppConfig.initialize(configProps);
 
+const router = createBrowserRouter(routes);
+
 const root = ReactDOM.createRoot(document.getElementById('root')!);
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+root.render(<RouterProvider router={router} />);
 
 // If you want to start measuring performance in your app, pass a function
 // to log results (for example: reportWebVitals(console.log))

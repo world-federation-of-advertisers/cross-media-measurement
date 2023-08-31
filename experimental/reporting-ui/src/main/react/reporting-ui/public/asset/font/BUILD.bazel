@@ -2,7 +2,7 @@ load("@aspect_rules_js//js:defs.bzl", "js_library")
 
 package(
     default_visibility = [
-        "//experimental/reporting-ui/src/main/react/reporting-ui/library:__subpackages__",
+        "//experimental/reporting-ui/src/main/react/reporting-ui:__subpackages__",
     ],
 )
 
@@ -10,7 +10,7 @@ js_library(
     name = "font",
     srcs = glob(
         include = [
-            "open-san.ttf",
+            "open-san-light.ttf",
         ],
     ),
 )

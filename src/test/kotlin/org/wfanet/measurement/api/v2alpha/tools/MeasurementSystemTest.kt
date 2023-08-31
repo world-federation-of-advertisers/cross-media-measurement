@@ -86,6 +86,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.frequency
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.population
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.watchDuration
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
@@ -798,7 +799,7 @@ class MeasurementSystemTest {
           "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
           "--measurement-ref-id=$measurementReferenceId",
           "--request-id=$requestId",
-          "--data-provider=dataProviders/1",
+          "--event-data-provider=dataProviders/1",
           "--event-group=dataProviders/1/eventGroups/1",
           "--event-filter=abcd",
           "--event-start-time=$TIME_STRING_1",
@@ -806,7 +807,7 @@ class MeasurementSystemTest {
           "--event-group=dataProviders/1/eventGroups/2",
           "--event-start-time=$TIME_STRING_3",
           "--event-end-time=$TIME_STRING_4",
-          "--data-provider=dataProviders/2",
+          "--event-data-provider=dataProviders/2",
           "--event-group=dataProviders/2/eventGroups/1",
           "--event-filter=ijk",
           "--event-start-time=$TIME_STRING_5",
@@ -999,7 +1000,7 @@ class MeasurementSystemTest {
           "--vid-sampling-start=0.1",
           "--vid-sampling-width=0.2",
           "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
-          "--data-provider=dataProviders/1",
+          "--event-data-provider=dataProviders/1",
           "--event-group=dataProviders/1/eventGroups/1",
           "--event-filter=abcd",
           "--event-start-time=$TIME_STRING_1",
@@ -1051,7 +1052,7 @@ class MeasurementSystemTest {
           "--vid-sampling-start=0.1",
           "--vid-sampling-width=0.2",
           "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
-          "--data-provider=dataProviders/1",
+          "--event-data-provider=dataProviders/1",
           "--event-group=dataProviders/1/eventGroups/1",
           "--event-filter=abcd",
           "--event-start-time=$TIME_STRING_1",
@@ -1082,6 +1083,72 @@ class MeasurementSystemTest {
             MeasurementSpecKt.vidSamplingInterval {
               start = 0.1f
               width = 0.2f
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `measurements create calls CreateMeasurement with correct population params`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "measurements",
+          "--api-key=$AUTHENTICATION_KEY",
+          "create",
+          "--measurement-consumer=measurementConsumers/777",
+          "--model-line=modelProviders/1/modelSuites/2/modelLines/3",
+          "--population",
+          "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
+          "--population-data-provider=dataProviders/1",
+          "--population-filter=abcd",
+          "--population-start-time=$TIME_STRING_1",
+          "--population-end-time=$TIME_STRING_2",
+        )
+    callCli(args)
+
+    val request =
+      captureFirst<CreateMeasurementRequest> {
+        runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
+      }
+
+    val measurement = request.measurement
+    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
+    assertThat(measurementSpec)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        measurementSpec {
+          population = MeasurementSpecKt.population {}
+          modelLine = "modelProviders/1/modelSuites/2/modelLines/3"
+        }
+      )
+
+    // Verify first RequisitionSpec.
+    val signedRequisitionSpec =
+      decryptRequisitionSpec(
+        request.measurement.dataProvidersList.single().value.encryptedRequisitionSpec,
+        DATA_PROVIDER_PRIVATE_KEY_HANDLE
+      )
+    val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+    verifyRequisitionSpec(
+      signedRequisitionSpec,
+      requisitionSpec,
+      measurementSpec,
+      MEASUREMENT_CONSUMER_CERTIFICATE,
+      TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+    )
+    assertThat(requisitionSpec)
+      .ignoringFields(RequisitionSpec.NONCE_FIELD_NUMBER)
+      .isEqualTo(
+        requisitionSpec {
+          measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
+          population =
+            RequisitionSpecKt.population {
+              filter = RequisitionSpecKt.eventFilter { expression = "abcd" }
+              interval = interval {
+                startTime = Instant.parse(TIME_STRING_1).toProtoTime()
+                endTime = Instant.parse(TIME_STRING_2).toProtoTime()
+              }
             }
         }
       )
@@ -1908,6 +1975,10 @@ class MeasurementSystemTest {
       EncryptionPublicKey.parseFrom(MEASUREMENT_CONSUMER.publicKey.data)
     }
 
+    /*
+     * Contains a measurement result for each measurement type
+     * TODO(@renjiezh) Have separate successful measurements for each measurement type
+     */
     private val SUCCEEDED_MEASUREMENT: Measurement by lazy {
       val measurementPublicKey = MEASUREMENT_CONSUMER_ENCRYPTION_PUBLIC_KEY
       measurement {
@@ -1944,6 +2015,11 @@ class MeasurementSystemTest {
               }
             }
           }
+          encryptedResult = getEncryptedResult(result, measurementPublicKey)
+          certificate = DATA_PROVIDER_CERTIFICATE_NAME
+        }
+        results += resultPair {
+          val result = result { population = population { value = 100 } }
           encryptedResult = getEncryptedResult(result, measurementPublicKey)
           certificate = DATA_PROVIDER_CERTIFICATE_NAME
         }

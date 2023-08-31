@@ -1107,6 +1107,8 @@ class EdpSimulator(
       DirectNoiseMechanism.NONE ->
         object : AbstractNoiser() {
           override val distribution = ConstantRealDistribution(0.0)
+          override val variance: Double
+            get() = distribution.numericalVariance
         }
       DirectNoiseMechanism.LAPLACE ->
         LaplaceNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random.asJavaRandom())
