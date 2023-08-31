@@ -42,7 +42,6 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.protoTimestamp
-import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
@@ -86,8 +85,6 @@ import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
  * @param systemComputationLogEntriesClient client of the kingdom's system
  *   computationLogEntriesService.
  * @param computationStatsClient client of the duchy's internal ComputationStatsService.
- * @param throttler A throttler used to rate limit the frequency of the mill polling from the
- *   computation table.
  * @param computationType The [ComputationType] this mill is working on.
  * @param requestChunkSizeBytes The size of data chunk when sending result to other duchies.
  * @param maximumAttempts The maximum number of attempts on a computation at the same stage.
@@ -103,7 +100,6 @@ abstract class MillBase(
   private val systemComputationsClient: SystemComputationsCoroutineStub,
   private val systemComputationLogEntriesClient: ComputationLogEntriesCoroutineStub,
   private val computationStatsClient: ComputationStatsCoroutineStub,
-  private val throttler: MinimumIntervalThrottler,
   private val computationType: ComputationType,
   private val workLockDuration: Duration,
   private val requestChunkSizeBytes: Int,
