@@ -11,7 +11,7 @@ build --java_runtime_version=remotejdk_11
 build --java_language_version=8
 
 # Pass environment variables.
-test --test_env=TESTCONTAINERS_RYUK_DISABLED
+test --test_env TESTCONTAINERS_RYUK_DISABLED=true
 
 # Disable rules_docker transitions, as it breaks our usage of glibc target
 # constraints for on images based on Distroless Java.

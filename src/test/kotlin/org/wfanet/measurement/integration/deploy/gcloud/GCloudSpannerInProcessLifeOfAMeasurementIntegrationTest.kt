@@ -14,8 +14,8 @@
 
 package org.wfanet.measurement.integration.deploy.gcloud
 
-import kotlinx.coroutines.debug.junit4.CoroutinesTimeout
 import org.junit.Rule
+import org.junit.rules.Timeout
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.InProcessLifeOfAMeasurementIntegrationTest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDataServicesProviderRule
@@ -30,5 +30,10 @@ class GCloudSpannerInProcessLifeOfAMeasurementIntegrationTest :
     SpannerDuchyDependencyProviderRule(ALL_DUCHY_NAMES)
   ) {
 
-  @get:Rule val timeout = CoroutinesTimeout.seconds(90)
+  /**
+   * Rule to enforce test method timeout.
+   *
+   * TODO(Kotlin/kotlinx.coroutines#3865): Switch back to CoroutinesTimeout when fixed.
+   */
+  @get:Rule val timeout: Timeout = Timeout.seconds(90)
 }

@@ -23,7 +23,6 @@ spanner_emulator_test(
         "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_life_of_a_measurement_integration_test",
         "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/debug",
     ],
 )
 
@@ -38,7 +37,6 @@ spanner_emulator_test(
         "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_life_of_a_measurement_integration_test",
         "//src/main/kotlin/org/wfanet/measurement/integration/deploy/common/postgres:postgres_duchy_dependency_provider_rule",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/debug",
     ],
 )
 
