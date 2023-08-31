@@ -25,8 +25,8 @@ object TestIdentifiers {
   /** Resource ID for EventGroup that fails Requisitions with SPEC_INVALID if used. */
   const val SPEC_INVALID_EVENT_GROUP_ID = "spec-invalid"
   /**
-   *  Resource ID for EventGroup that fails Requisitions with INSUFFICIENT_PRIVACY_BUDGET if used.
-   **/
+   * Resource ID for EventGroup that fails Requisitions with INSUFFICIENT_PRIVACY_BUDGET if used.
+   */
   const val INSUFFICIENT_PRIVACY_BUDGET_EVENT_GROUP_ID = "insufficient-privacy-budget"
   /** Resource ID for EventGroup that fails Requisitions with UNFULFILLABLE if used. */
   const val UNFULFILLABLE_EVENT_GROUP_ID = "unfulfillable"
