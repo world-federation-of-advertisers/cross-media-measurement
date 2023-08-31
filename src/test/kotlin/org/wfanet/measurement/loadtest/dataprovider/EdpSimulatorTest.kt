@@ -53,6 +53,7 @@ import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
@@ -151,7 +152,6 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.CompositionMechanism
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.DpCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender as PrivacyLandscapeGender
-import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetBalanceEntry
@@ -1241,26 +1241,25 @@ class EdpSimulatorTest {
   @Test
   fun `refuses Requisition with CONSENT_SIGNAL_INVALID when EventGroup ID matches refusal`() {
     val eventGroupName = EventGroupKey(EDP_ID, CONSENT_SIGNAL_INVALID_EVENT_GROUP_ID).toName()
-    val requisitionSpec = REQUISITION_SPEC.copy {
-      clearEvents()
-      events =
-        RequisitionSpecKt.events {
-          eventGroups += eventGroupEntry {
-            key = eventGroupName
-            value = RequisitionSpecKt.EventGroupEntryKt.value { }
+    val requisitionSpec =
+      REQUISITION_SPEC.copy {
+        clearEvents()
+        events =
+          RequisitionSpecKt.events {
+            eventGroups += eventGroupEntry {
+              key = eventGroupName
+              value = RequisitionSpecKt.EventGroupEntryKt.value {}
+            }
           }
-        }
-    }
-
-    val encryptedRequisitionSpec = encryptRequisitionSpec(
-      signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
-      DATA_PROVIDER_PUBLIC_KEY
-    )
-
-    val requisition =
-      REQUISITION.copy {
-        this.encryptedRequisitionSpec = encryptedRequisitionSpec
       }
+
+    val encryptedRequisitionSpec =
+      encryptRequisitionSpec(
+        signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
+        DATA_PROVIDER_PUBLIC_KEY
+      )
+
+    val requisition = REQUISITION.copy { this.encryptedRequisitionSpec = encryptedRequisitionSpec }
 
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }
@@ -1308,26 +1307,25 @@ class EdpSimulatorTest {
   @Test
   fun `refuses Requisition with SPEC_INVALID when EventGroup ID matches refusal justification`() {
     val eventGroupName = EventGroupKey(EDP_ID, SPEC_INVALID_EVENT_GROUP_ID).toName()
-    val requisitionSpec = REQUISITION_SPEC.copy {
-      clearEvents()
-      events =
-        RequisitionSpecKt.events {
-          eventGroups += eventGroupEntry {
-            key = eventGroupName
-            value = RequisitionSpecKt.EventGroupEntryKt.value { }
+    val requisitionSpec =
+      REQUISITION_SPEC.copy {
+        clearEvents()
+        events =
+          RequisitionSpecKt.events {
+            eventGroups += eventGroupEntry {
+              key = eventGroupName
+              value = RequisitionSpecKt.EventGroupEntryKt.value {}
+            }
           }
-        }
-    }
-
-    val encryptedRequisitionSpec = encryptRequisitionSpec(
-      signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
-      DATA_PROVIDER_PUBLIC_KEY
-    )
-
-    val requisition =
-      REQUISITION.copy {
-        this.encryptedRequisitionSpec = encryptedRequisitionSpec
       }
+
+    val encryptedRequisitionSpec =
+      encryptRequisitionSpec(
+        signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
+        DATA_PROVIDER_PUBLIC_KEY
+      )
+
+    val requisition = REQUISITION.copy { this.encryptedRequisitionSpec = encryptedRequisitionSpec }
 
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }
@@ -1375,26 +1373,25 @@ class EdpSimulatorTest {
   @Test
   fun `refuses Requisition with INSUFFICIENT_PRIVACY_BUDGET when EventGroup ID matches refusal`() {
     val eventGroupName = EventGroupKey(EDP_ID, INSUFFICIENT_PRIVACY_BUDGET_EVENT_GROUP_ID).toName()
-    val requisitionSpec = REQUISITION_SPEC.copy {
-      clearEvents()
-      events =
-        RequisitionSpecKt.events {
-          eventGroups += eventGroupEntry {
-            key = eventGroupName
-            value = RequisitionSpecKt.EventGroupEntryKt.value { }
+    val requisitionSpec =
+      REQUISITION_SPEC.copy {
+        clearEvents()
+        events =
+          RequisitionSpecKt.events {
+            eventGroups += eventGroupEntry {
+              key = eventGroupName
+              value = RequisitionSpecKt.EventGroupEntryKt.value {}
+            }
           }
-        }
-    }
-
-    val encryptedRequisitionSpec = encryptRequisitionSpec(
-      signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
-      DATA_PROVIDER_PUBLIC_KEY
-    )
-
-    val requisition =
-      REQUISITION.copy {
-        this.encryptedRequisitionSpec = encryptedRequisitionSpec
       }
+
+    val encryptedRequisitionSpec =
+      encryptRequisitionSpec(
+        signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
+        DATA_PROVIDER_PUBLIC_KEY
+      )
+
+    val requisition = REQUISITION.copy { this.encryptedRequisitionSpec = encryptedRequisitionSpec }
 
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }
@@ -1442,26 +1439,25 @@ class EdpSimulatorTest {
   @Test
   fun `refuses Requisition with UNFULFILLABLE when EventGroup ID matches refusal justification`() {
     val eventGroupName = EventGroupKey(EDP_ID, UNFULFILLABLE_EVENT_GROUP_ID).toName()
-    val requisitionSpec = REQUISITION_SPEC.copy {
-      clearEvents()
-      events =
-        RequisitionSpecKt.events {
-          eventGroups += eventGroupEntry {
-            key = eventGroupName
-            value = RequisitionSpecKt.EventGroupEntryKt.value { }
+    val requisitionSpec =
+      REQUISITION_SPEC.copy {
+        clearEvents()
+        events =
+          RequisitionSpecKt.events {
+            eventGroups += eventGroupEntry {
+              key = eventGroupName
+              value = RequisitionSpecKt.EventGroupEntryKt.value {}
+            }
           }
-        }
-    }
-
-    val encryptedRequisitionSpec = encryptRequisitionSpec(
-      signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
-      DATA_PROVIDER_PUBLIC_KEY
-    )
-
-    val requisition =
-      REQUISITION.copy {
-        this.encryptedRequisitionSpec = encryptedRequisitionSpec
       }
+
+    val encryptedRequisitionSpec =
+      encryptRequisitionSpec(
+        signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
+        DATA_PROVIDER_PUBLIC_KEY
+      )
+
+    val requisition = REQUISITION.copy { this.encryptedRequisitionSpec = encryptedRequisitionSpec }
 
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }
@@ -1509,26 +1505,25 @@ class EdpSimulatorTest {
   @Test
   fun `refuses Requisition with DECLINED when EventGroup ID matches refusal justification`() {
     val eventGroupName = EventGroupKey(EDP_ID, DECLINED_EVENT_GROUP_ID).toName()
-    val requisitionSpec = REQUISITION_SPEC.copy {
-      clearEvents()
-      events =
-        RequisitionSpecKt.events {
-          eventGroups += eventGroupEntry {
-            key = eventGroupName
-            value = RequisitionSpecKt.EventGroupEntryKt.value { }
+    val requisitionSpec =
+      REQUISITION_SPEC.copy {
+        clearEvents()
+        events =
+          RequisitionSpecKt.events {
+            eventGroups += eventGroupEntry {
+              key = eventGroupName
+              value = RequisitionSpecKt.EventGroupEntryKt.value {}
+            }
           }
-        }
-    }
-
-    val encryptedRequisitionSpec = encryptRequisitionSpec(
-      signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
-      DATA_PROVIDER_PUBLIC_KEY
-    )
-
-    val requisition =
-      REQUISITION.copy {
-        this.encryptedRequisitionSpec = encryptedRequisitionSpec
       }
+
+    val encryptedRequisitionSpec =
+      encryptRequisitionSpec(
+        signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
+        DATA_PROVIDER_PUBLIC_KEY
+      )
+
+    val requisition = REQUISITION.copy { this.encryptedRequisitionSpec = encryptedRequisitionSpec }
 
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }

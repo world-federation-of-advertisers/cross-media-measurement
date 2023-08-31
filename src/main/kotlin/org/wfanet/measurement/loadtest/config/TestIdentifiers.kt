@@ -20,8 +20,7 @@ object TestIdentifiers {
   /** Resource ID prefix for test EventGroups created by EDP simulators. */
   const val SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX = "sim-eg"
 
-  /** Resource IDs for EventGroups that fail Requisitions if used.
-   */
+  /** Resource IDs for EventGroups that fail Requisitions if used. */
   const val CONSENT_SIGNAL_INVALID_EVENT_GROUP_ID = "consent-signal-invalid"
   const val SPEC_INVALID_EVENT_GROUP_ID = "spec-invalid"
   const val INSUFFICIENT_PRIVACY_BUDGET_EVENT_GROUP_ID = "insufficient-privacy-budget"
