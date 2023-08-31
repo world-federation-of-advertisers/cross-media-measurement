@@ -25,7 +25,6 @@ import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
-import kotlin.math.min
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -479,13 +478,16 @@ class LiquidLegionsV2Mill(
   private suspend fun completeSetupPhaseAtAggregator(token: ComputationToken): ComputationToken {
     val llv2Details = token.computationDetails.liquidLegionsV2
     require(AGGREGATOR == llv2Details.role) { "invalid role for this function." }
+    // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to
+    // handle the case where the set of computation participants is a subset of all Duchies.
+    val inputBlobCount = workerStubs.size
     val (bytes, nextToken) =
       existingOutputOr(token) {
         val request =
           dataClients
             .readAllRequisitionBlobs(token, duchyId)
-            .concat(readAndCombineAllInputBlobs(token, workerStubs.size))
-            .toCompleteSetupPhaseRequest(token, llv2Details, token.requisitionsCount)
+            .concat(readAndCombineAllInputBlobs(token, inputBlobCount))
+            .toCompleteSetupPhaseRequest(llv2Details, token.requisitionsCount)
         val cryptoResult: CompleteSetupPhaseResponse = cryptoWorker.completeSetupPhase(request)
         logStageDurationMetric(
           token,
@@ -521,7 +523,7 @@ class LiquidLegionsV2Mill(
         val request =
           dataClients
             .readAllRequisitionBlobs(token, duchyId)
-            .toCompleteSetupPhaseRequest(token, llv2Details, token.requisitionsCount)
+            .toCompleteSetupPhaseRequest(llv2Details, token.requisitionsCount)
         val cryptoResult: CompleteSetupPhaseResponse = cryptoWorker.completeSetupPhase(request)
         logStageDurationMetric(
           token,
@@ -555,6 +557,7 @@ class LiquidLegionsV2Mill(
     val llv2Details = token.computationDetails.liquidLegionsV2
     val llv2Parameters = llv2Details.parameters
     require(AGGREGATOR == llv2Details.role) { "invalid role for this function." }
+    val maximumRequestedFrequency = llv2Parameters.maximumFrequency.coerceAtLeast(1)
     val (bytes, nextToken) =
       existingOutputOr(token) {
         val request = completeExecutionPhaseOneAtAggregatorRequest {
@@ -565,11 +568,8 @@ class LiquidLegionsV2Mill(
           combinedRegisterVector = readAndCombineAllInputBlobs(token, 1)
           totalSketchesCount = token.requisitionsCount
           noiseMechanism = llv2Details.parameters.noise.noiseMechanism
-          if (
-            llv2Parameters.noise.hasFrequencyNoiseConfig() &&
-              (getMaximumRequestedFrequency(token) > 1)
-          ) {
-            noiseParameters = getFrequencyNoiseParams(token, llv2Parameters)
+          if (llv2Parameters.noise.hasFrequencyNoiseConfig() && maximumRequestedFrequency > 1) {
+            noiseParameters = getFrequencyNoiseParams(llv2Parameters)
           }
         }
         val cryptoResult: CompleteExecutionPhaseOneAtAggregatorResponse =
@@ -656,7 +656,7 @@ class LiquidLegionsV2Mill(
       "invalid role for this function."
     }
     var reach = 0L
-    val maximumRequestedFrequency = getMaximumRequestedFrequency(token)
+    val maximumRequestedFrequency = llv2Parameters.maximumFrequency.coerceAtLeast(1)
     val measurementSpec =
       MeasurementSpec.parseFrom(token.computationDetails.kingdomComputation.measurementSpec)
 
@@ -679,12 +679,16 @@ class LiquidLegionsV2Mill(
           vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width
           if (llv2Parameters.noise.hasReachNoiseConfig()) {
             reachDpNoiseBaseline = globalReachDpNoiseBaseline {
+              // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to
+              // handle the case where the computation participants is a subset of all Duchies.
               contributorsCount = workerStubs.size + 1
               globalReachDpNoise = llv2Parameters.noise.reachNoiseConfig.globalReachDpNoise
             }
           }
           if (llv2Parameters.noise.hasFrequencyNoiseConfig() && (maximumRequestedFrequency > 1)) {
             frequencyNoiseParameters = flagCountTupleNoiseGenerationParameters {
+              // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to
+              // handle the case where the computation participants is a subset of all Duchies.
               contributorsCount = workerStubs.size + 1
               maximumFrequency = maximumRequestedFrequency
               dpParams = llv2Parameters.noise.frequencyNoiseConfig
@@ -728,7 +732,7 @@ class LiquidLegionsV2Mill(
       }
 
     // If this is a reach-only computation, then our job is done.
-    if (measurementSpec.hasReach() || maximumRequestedFrequency == 1) {
+    if (maximumRequestedFrequency == 1) {
       sendResultToKingdom(token, ReachResult(reach))
       return completeComputation(nextToken, CompletedReason.SUCCEEDED)
     }
@@ -757,7 +761,7 @@ class LiquidLegionsV2Mill(
     val llv2Details = token.computationDetails.liquidLegionsV2
     val llv2Parameters = llv2Details.parameters
     require(NON_AGGREGATOR == llv2Details.role) { "invalid role for this function." }
-    val maximumRequestedFrequency = getMaximumRequestedFrequency(token)
+    val maximumRequestedFrequency = llv2Parameters.maximumFrequency.coerceAtLeast(1)
     val (bytes, nextToken) =
       existingOutputOr(token) {
         val request = completeExecutionPhaseTwoRequest {
@@ -769,7 +773,7 @@ class LiquidLegionsV2Mill(
           if (llv2Parameters.noise.hasFrequencyNoiseConfig()) {
             partialCompositeElGamalPublicKey = llv2Details.partiallyCombinedPublicKey
             if (maximumRequestedFrequency > 1) {
-              noiseParameters = getFrequencyNoiseParams(token, llv2Parameters)
+              noiseParameters = getFrequencyNoiseParams(llv2Parameters)
             }
           }
           noiseMechanism = llv2Details.parameters.noise.noiseMechanism
@@ -797,19 +801,16 @@ class LiquidLegionsV2Mill(
       stub = nextDuchyStub(llv2Details.participantList)
     )
 
-    val measurementSpec =
-      MeasurementSpec.parseFrom(token.computationDetails.kingdomComputation.measurementSpec)
-
-    return if (measurementSpec.hasReach() || maximumRequestedFrequency == 1) {
-      // If this is a reach-only computation, then our job is done.
-      completeComputation(nextToken, CompletedReason.SUCCEEDED)
-    } else {
-      dataClients.transitionComputationToStage(
-        nextToken,
-        inputsToNextStage = nextToken.outputPathList(),
-        stage = Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS.toProtocolStage()
-      )
+    // If this is a reach-only computation, then our job is done.
+    if (maximumRequestedFrequency == 1) {
+      return completeComputation(nextToken, CompletedReason.SUCCEEDED)
     }
+
+    return dataClients.transitionComputationToStage(
+      nextToken,
+      inputsToNextStage = nextToken.outputPathList(),
+      stage = Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS.toProtocolStage()
+    )
   }
 
   private suspend fun completeExecutionPhaseThreeAtAggregator(
@@ -825,9 +826,11 @@ class LiquidLegionsV2Mill(
           localElGamalKeyPair = llv2Details.localElgamalKey
           curveId = llv2Parameters.ellipticCurveId.toLong()
           sameKeyAggregatorMatrix = readAndCombineAllInputBlobs(token, 1)
-          maximumFrequency = getMaximumRequestedFrequency(token)
+          maximumFrequency = llv2Parameters.maximumFrequency.coerceAtLeast(1)
           if (llv2Parameters.noise.hasFrequencyNoiseConfig()) {
             globalFrequencyDpNoisePerBucket = perBucketFrequencyDpNoiseBaseline {
+              // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to
+              // handle the case where the computation participants is a subset of all Duchies.
               contributorsCount = workerStubs.size + 1
               dpParams = llv2Parameters.noise.frequencyNoiseConfig
             }
@@ -946,18 +949,19 @@ class LiquidLegionsV2Mill(
   }
 
   private fun ByteString.toCompleteSetupPhaseRequest(
-    token: ComputationToken,
     llv2Details: LiquidLegionsSketchAggregationV2.ComputationDetails,
     totalRequisitionsCount: Int
   ): CompleteSetupPhaseRequest {
     val noiseConfig = llv2Details.parameters.noise
     return completeSetupPhaseRequest {
       combinedRegisterVector = this@toCompleteSetupPhaseRequest
-      maximumFrequency = getMaximumRequestedFrequency(token)
+      maximumFrequency = llv2Details.parameters.maximumFrequency.coerceAtLeast(1)
       if (noiseConfig.hasReachNoiseConfig()) {
         noiseParameters = registerNoiseGenerationParameters {
           compositeElGamalPublicKey = llv2Details.combinedPublicKey
           curveId = llv2Details.parameters.ellipticCurveId.toLong()
+          // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to handle
+          // the case where the computation participants is a subset of all Duchies.
           contributorsCount = workerStubs.size + 1
           totalSketchesCount = totalRequisitionsCount
           dpParams = reachNoiseDifferentialPrivacyParams {
@@ -973,30 +977,15 @@ class LiquidLegionsV2Mill(
   }
 
   private fun getFrequencyNoiseParams(
-    token: ComputationToken,
     llv2Parameters: Parameters
   ): FlagCountTupleNoiseGenerationParameters {
-    return FlagCountTupleNoiseGenerationParameters.newBuilder()
-      .apply {
-        maximumFrequency = getMaximumRequestedFrequency(token)
-        contributorsCount = workerStubs.size + 1
-        dpParams = llv2Parameters.noise.frequencyNoiseConfig
-      }
-      .build()
-  }
-
-  private fun getMaximumRequestedFrequency(token: ComputationToken): Int {
-    var maximumRequestedFrequency =
-      token.computationDetails.liquidLegionsV2.parameters.maximumFrequency
-    val measurementSpec =
-      MeasurementSpec.parseFrom(token.computationDetails.kingdomComputation.measurementSpec)
-    val measurementSpecMaximumFrequency =
-      if (measurementSpec.hasReach()) 1
-      else measurementSpec.reachAndFrequency.maximumFrequencyPerUser
-    if (measurementSpecMaximumFrequency > 0) {
-      maximumRequestedFrequency = min(maximumRequestedFrequency, measurementSpecMaximumFrequency)
+    return flagCountTupleNoiseGenerationParameters {
+      maximumFrequency = llv2Parameters.maximumFrequency
+      // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to handle the
+      // case where the computation participants is a subset of all Duchies.
+      contributorsCount = workerStubs.size + 1
+      dpParams = llv2Parameters.noise.frequencyNoiseConfig
     }
-    return maximumRequestedFrequency
   }
 
   companion object {
