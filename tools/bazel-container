@@ -144,8 +144,6 @@ main() {
       "HOME=${CONTAINER_HOME}"
     '--env'
       "BAZELISK_HOME=${BAZELISK_HOME}"
-    '--env'
-      'TESTCONTAINERS_RYUK_DISABLED=true'
     '--mount'
       "type=bind,source=${PWD},target=${PWD},readonly"
     '--mount'
