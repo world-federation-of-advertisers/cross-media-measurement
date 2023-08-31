@@ -7,11 +7,9 @@ package(
 )
 
 js_library(
-    name = "client",
+    name = "loader",
     srcs = [
-        "initialize.ts",
-    ],
-    deps = [
-        "//experimental/reporting-ui/src/main/react/reporting-ui/client/reporting",
+        "loader.css",
+        "loader.tsx",
     ],
 )

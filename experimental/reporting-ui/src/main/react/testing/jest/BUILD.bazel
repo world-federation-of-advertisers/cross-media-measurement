@@ -1,0 +1,16 @@
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+
+package(
+    default_testonly = True,
+)
+
+js_library(
+    name = "jest",
+    srcs = ["jest_base.config.js"],
+    visibility = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui:__subpackages__",
+    ],
+    deps = [
+        "//experimental/reporting-ui/src/main/react/testing/jest/mocks",
+    ],
+)
