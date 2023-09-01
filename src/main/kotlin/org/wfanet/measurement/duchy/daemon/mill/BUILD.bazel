@@ -23,6 +23,5 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/system/v1alpha:computations_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_key_storage",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
     ],
 )

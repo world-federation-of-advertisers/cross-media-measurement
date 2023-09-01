@@ -65,6 +65,11 @@ val LLV2_PROTOCOL_CONFIG_CONFIG: Llv2ProtocolConfigConfig =
   )
 val LLV2_AGGREGATOR_NAME =
   AGGREGATOR_PROTOCOLS_SETUP_CONFIG.liquidLegionsV2.externalAggregatorDuchyId!!
+val RO_LLV2_PROTOCOL_CONFIG_CONFIG: Llv2ProtocolConfigConfig =
+  loadTextProto(
+    "ro_llv2_protocol_config_config.textproto",
+    Llv2ProtocolConfigConfig.getDefaultInstance()
+  )
 
 val ALL_DUCHY_NAMES = DUCHY_ID_CONFIG.duchiesList.map { it.externalDuchyId }
 val ALL_DUCHIES =

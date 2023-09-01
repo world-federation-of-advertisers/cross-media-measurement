@@ -31,20 +31,17 @@ import kotlin.math.pow
 import kotlin.random.Random
 import kotlin.time.ExperimentalTime
 import kotlin.time.TimeSource
-import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
-import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.protoTimestamp
-import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
@@ -88,8 +85,6 @@ import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
  * @param systemComputationLogEntriesClient client of the kingdom's system
  *   computationLogEntriesService.
  * @param computationStatsClient client of the duchy's internal ComputationStatsService.
- * @param throttler A throttler used to rate limit the frequency of the mill polling from the
- *   computation table.
  * @param computationType The [ComputationType] this mill is working on.
  * @param requestChunkSizeBytes The size of data chunk when sending result to other duchies.
  * @param maximumAttempts The maximum number of attempts on a computation at the same stage.
@@ -105,7 +100,6 @@ abstract class MillBase(
   private val systemComputationsClient: SystemComputationsCoroutineStub,
   private val systemComputationLogEntriesClient: ComputationLogEntriesCoroutineStub,
   private val computationStatsClient: ComputationStatsCoroutineStub,
-  private val throttler: MinimumIntervalThrottler,
   private val computationType: ComputationType,
   private val workLockDuration: Duration,
   private val requestChunkSizeBytes: Int,
@@ -131,20 +125,6 @@ abstract class MillBase(
 
   private val stageCpuTimeDurationHistogram: LongHistogram =
     meter.histogramBuilder("stage_cpu_time_duration_millis").ofLongs().build()
-
-  /**
-   * The main function of the mill. Continually poll and work on available computations from the
-   * queue. The polling interval is controlled by the [MinimumIntervalThrottler].
-   */
-  suspend fun continuallyProcessComputationQueue() {
-    logger.info("Mill starting...")
-    withContext(CoroutineName("Mill $millId")) {
-      throttler.loopOnReady {
-        // All errors thrown inside the loop should be suppressed such that the mill doesn't crash.
-        logAndSuppressExceptionSuspend { pollAndProcessNextComputation() }
-      }
-    }
-  }
 
   private var computationsServerReady = false
   /** Poll and work on the next available computations. */

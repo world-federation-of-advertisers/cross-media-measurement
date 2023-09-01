@@ -125,7 +125,14 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
     }
 
     val participantDetails =
-      computationParticipant.details.copy { liquidLegionsV2 = request.liquidLegionsV2 }
+      computationParticipant.details.copy {
+        if (request.hasLiquidLegionsV2()) {
+          liquidLegionsV2 = request.liquidLegionsV2
+        } else if (request.hasReachOnlyLiquidLegionsV2()) {
+          reachOnlyLiquidLegionsV2 = request.reachOnlyLiquidLegionsV2
+        }
+      }
+
     transactionContext.bufferUpdateMutation("ComputationParticipants") {
       set("MeasurementConsumerId" to measurementConsumerId)
       set("MeasurementId" to measurementId)
