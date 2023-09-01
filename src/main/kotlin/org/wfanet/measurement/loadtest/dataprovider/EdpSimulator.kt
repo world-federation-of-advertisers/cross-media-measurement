@@ -423,11 +423,21 @@ class EdpSimulator(
         ?: throw InvalidConsentSignalException("Issuer of ${duchyCertificate.name} is not trusted")
 
     try {
-      verifyElGamalPublicKey(
-        duchyEntry.value.liquidLegionsV2.elGamalPublicKey,
-        duchyX509Certificate,
-        trustedIssuer
-      )
+      when (protocol) {
+        ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2 ->
+          verifyElGamalPublicKey(
+            duchyEntry.value.liquidLegionsV2.elGamalPublicKey,
+            duchyX509Certificate,
+            trustedIssuer
+          )
+        ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
+          verifyElGamalPublicKey(
+            duchyEntry.value.reachOnlyLiquidLegionsV2.elGamalPublicKey,
+            duchyX509Certificate,
+            trustedIssuer
+          )
+        else -> throw InvalidSpecException("Unsupported protocol $protocol")
+      }
     } catch (e: CertPathValidatorException) {
       throw InvalidConsentSignalException(
         "Certificate path for ${duchyCertificate.name} is invalid",
@@ -1040,8 +1050,15 @@ class EdpSimulator(
     logger.info("Getting combined public key...")
     val elGamalPublicKeys: List<AnySketchElGamalPublicKey> =
       this.duchiesList.map {
-        ElGamalPublicKey.parseFrom(it.value.liquidLegionsV2.elGamalPublicKey.data)
-          .toAnySketchElGamalPublicKey()
+        when (it.value.protocolCase) {
+          DuchyEntry.Value.ProtocolCase.LIQUID_LEGIONS_V2 ->
+            ElGamalPublicKey.parseFrom(it.value.liquidLegionsV2.elGamalPublicKey.data)
+              .toAnySketchElGamalPublicKey()
+          DuchyEntry.Value.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
+            ElGamalPublicKey.parseFrom(it.value.reachOnlyLiquidLegionsV2.elGamalPublicKey.data)
+              .toAnySketchElGamalPublicKey()
+          else -> throw Exception("Invalid protocol to get combined public key.")
+        }
       }
 
     return SketchEncrypter.combineElGamalPublicKeys(curveId, elGamalPublicKeys)

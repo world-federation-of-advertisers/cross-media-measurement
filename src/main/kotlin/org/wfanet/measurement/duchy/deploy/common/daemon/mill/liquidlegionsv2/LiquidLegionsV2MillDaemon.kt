@@ -31,7 +31,9 @@ import io.opentelemetry.sdk.resources.Resource
 import io.opentelemetry.semconv.resource.attributes.ResourceAttributes
 import java.time.Clock
 import java.time.Duration
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -41,10 +43,13 @@ import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.withDuchyId
+import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
+import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.ReachOnlyLiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniLiquidLegionsV2Encryption
+import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniReachOnlyLiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
@@ -177,7 +182,7 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
         OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build()
       }
 
-    val mill =
+    val liquidLegionsV2Mill =
       LiquidLegionsV2Mill(
         millId = millId,
         duchyId = flags.duchy.duchyName,
@@ -189,7 +194,6 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
         systemComputationsClient = systemComputationsClient,
         systemComputationLogEntriesClient = systemComputationLogEntriesClient,
         computationStatsClient = computationStatsClient,
-        throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval),
         workerStubs = computationControlClientMap,
         cryptoWorker = JniLiquidLegionsV2Encryption(),
         workLockDuration = flags.workLockDuration,
@@ -198,6 +202,36 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
         parallelism = flags.parallelism
       )
 
-    runBlocking { mill.continuallyProcessComputationQueue() }
+    val reachOnlyLiquidLegionsV2Mill =
+      ReachOnlyLiquidLegionsV2Mill(
+        millId = millId,
+        duchyId = flags.duchy.duchyName,
+        signingKey = csSigningKey,
+        consentSignalCert = csCertificate,
+        trustedCertificates = flags.tlsFlags.signingCerts.trustedCertificates,
+        dataClients = dataClients,
+        systemComputationParticipantsClient = systemComputationParticipantsClient,
+        systemComputationsClient = systemComputationsClient,
+        systemComputationLogEntriesClient = systemComputationLogEntriesClient,
+        computationStatsClient = computationStatsClient,
+        workerStubs = computationControlClientMap,
+        cryptoWorker = JniReachOnlyLiquidLegionsV2Encryption(),
+        workLockDuration = flags.workLockDuration,
+        openTelemetry = openTelemetry,
+        requestChunkSizeBytes = flags.requestChunkSizeBytes,
+        parallelism = flags.parallelism
+      )
+
+    runBlocking {
+      withContext(CoroutineName("Mill $millId")) {
+        val throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval)
+        throttler.loopOnReady {
+          logAndSuppressExceptionSuspend { liquidLegionsV2Mill.pollAndProcessNextComputation() }
+          logAndSuppressExceptionSuspend {
+            reachOnlyLiquidLegionsV2Mill.pollAndProcessNextComputation()
+          }
+        }
+      }
+    }
   }
 }
