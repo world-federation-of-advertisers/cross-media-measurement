@@ -694,3 +694,18 @@ kt_jvm_proto_library(
     ],
     deps = [":date_interval_java_proto"],
 )
+
+java_proto_library(
+    name = "direct_computation_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:direct_computation_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "direct_computation_kt_jvm_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:direct_computation_proto",
+    ],
+    deps = [":direct_computation_java_proto"],
+)

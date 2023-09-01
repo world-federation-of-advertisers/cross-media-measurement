@@ -41,6 +41,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.listMeasurementsPageToken
 import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
@@ -72,6 +73,7 @@ private const val MISSING_RESOURCE_NAME_ERROR = "Resource name is either unspeci
 
 class MeasurementsService(
   private val internalMeasurementsStub: MeasurementsCoroutineStub,
+  private val noiseMechanisms: List<NoiseMechanism>
 ) : MeasurementsCoroutineImplBase() {
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
@@ -167,7 +169,8 @@ class MeasurementsService(
         request.measurement.toInternal(
           measurementConsumerCertificateKey,
           dataProvidersMap,
-          parsedMeasurementSpec
+          parsedMeasurementSpec,
+          noiseMechanisms.map { it.toInternal() }
         )
       requestId = request.requestId
     }

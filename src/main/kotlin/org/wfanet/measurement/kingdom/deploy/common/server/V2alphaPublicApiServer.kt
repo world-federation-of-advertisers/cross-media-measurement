@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.deploy.common.server
 import io.grpc.ServerServiceDefinition
 import java.io.File
 import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -143,6 +144,7 @@ private fun run(
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
       MeasurementsService(
           InternalMeasurementsCoroutineStub(channel),
+          v2alphaFlags.directNoiseMechanisms
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
@@ -192,6 +194,7 @@ fun main(args: Array<String>) = commandLineMain(::run, args)
 
 /** Flags specific to the V2alpha API version. */
 private class V2alphaFlags {
+
   @CommandLine.Option(
     names = ["--authority-key-identifier-to-principal-map-file"],
     description = ["File path to a AuthorityKeyToPrincipalMap textproto"],
@@ -207,4 +210,51 @@ private class V2alphaFlags {
   )
   lateinit var redirectUri: String
     private set
+
+  lateinit var directNoiseMechanisms: List<NoiseMechanism>
+    private set
+
+  @CommandLine.Spec
+  lateinit var spec: CommandLine.Model.CommandSpec // injected by picocli
+    private set
+
+  @CommandLine.Option(
+    names = ["--direct-noise-mechanism"],
+    description =
+      [
+        "Noise mechanisms that can be used in direct computation. It can be specified multiple " +
+          "times."
+      ],
+    required = true
+  )
+  fun setDirectNoiseMechanisms(noiseMechanisms: List<NoiseMechanism>) {
+    for (noiseMechanism in noiseMechanisms) {
+      when (noiseMechanism) {
+        NoiseMechanism.NONE,
+        NoiseMechanism.CONTINUOUS_LAPLACE,
+        NoiseMechanism.CONTINUOUS_GAUSSIAN -> {}
+        NoiseMechanism.GEOMETRIC,
+        // TODO(@riemanli): support DISCRETE_GAUSSIAN after having a clear definition of it.
+        NoiseMechanism.DISCRETE_GAUSSIAN -> {
+          throw CommandLine.ParameterException(
+            spec.commandLine(),
+            String.format(
+              "Invalid noise mechanism $noiseMechanism for option '--direct-noise-mechanism'. " +
+                "Discrete mechanisms are not supported for direct computations."
+            )
+          )
+        }
+        NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
+        NoiseMechanism.UNRECOGNIZED -> {
+          throw CommandLine.ParameterException(
+            spec.commandLine(),
+            String.format(
+              "Invalid noise mechanism $noiseMechanism for option '--direct-noise-mechanism'."
+            )
+          )
+        }
+      }
+    }
+    directNoiseMechanisms = noiseMechanisms
+  }
 }

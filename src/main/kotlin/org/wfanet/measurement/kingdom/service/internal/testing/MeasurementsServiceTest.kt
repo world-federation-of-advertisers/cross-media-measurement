@@ -634,7 +634,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         details =
           details.copy {
             clearDuchyProtocolConfig()
-            clearProtocolConfig()
+            protocolConfig = protocolConfig { direct = ProtocolConfig.Direct.getDefaultInstance() }
           }
       }
 
@@ -673,7 +673,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         details =
           details.copy {
             clearDuchyProtocolConfig()
-            clearProtocolConfig()
+            protocolConfig = protocolConfig { direct = ProtocolConfig.Direct.getDefaultInstance() }
           }
       }
 
@@ -708,7 +708,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           details =
             details.copy {
               clearDuchyProtocolConfig()
-              clearProtocolConfig()
+              protocolConfig = protocolConfig {
+                direct = ProtocolConfig.Direct.getDefaultInstance()
+              }
             }
         }
 
@@ -1297,7 +1299,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
                 measurementConsumer.certificate.externalCertificateId
               details =
                 details.copy {
-                  clearProtocolConfig()
+                  protocolConfig = protocolConfig {
+                    direct = ProtocolConfig.Direct.getDefaultInstance()
+                  }
                   clearDuchyProtocolConfig()
                 }
             }

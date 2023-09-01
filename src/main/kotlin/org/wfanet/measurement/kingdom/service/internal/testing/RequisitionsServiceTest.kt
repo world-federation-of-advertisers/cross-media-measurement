@@ -652,7 +652,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         measurementSpec = measurement.details.measurementSpec
         measurementSpecSignature = measurement.details.measurementSpecSignature
         state = Measurement.State.PENDING_REQUISITION_FULFILLMENT
-        protocolConfig = protocolConfig {}
+        protocolConfig = protocolConfig { direct = ProtocolConfig.Direct.getDefaultInstance() }
         dataProvidersCount = 1
       }
     }

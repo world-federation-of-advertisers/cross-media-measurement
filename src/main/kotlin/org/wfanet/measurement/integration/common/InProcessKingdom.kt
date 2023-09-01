@@ -20,6 +20,7 @@ import java.util.logging.Logger
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.testing.withMetadataPrincipalIdentities
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
@@ -150,7 +151,7 @@ class InProcessKingdom(
           EventGroupMetadataDescriptorsService(internalEventGroupMetadataDescriptorsClient)
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-          MeasurementsService(internalMeasurementsClient)
+          MeasurementsService(internalMeasurementsClient, MEASUREMENT_NOISE_MECHANISMS)
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
           PublicKeysService(internalPublicKeysClient)
@@ -206,5 +207,11 @@ class InProcessKingdom(
 
     /** Default deadline for RPCs to internal server in milliseconds. */
     private const val DEFAULT_INTERNAL_DEADLINE_MILLIS = 30_000L
+    private val MEASUREMENT_NOISE_MECHANISMS: List<ProtocolConfig.NoiseMechanism> =
+      listOf(
+        ProtocolConfig.NoiseMechanism.NONE,
+        ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE,
+        ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
+      )
   }
 }

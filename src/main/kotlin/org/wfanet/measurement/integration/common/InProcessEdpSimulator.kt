@@ -41,7 +41,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.CompositionMechanism
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemoryBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
@@ -102,7 +101,6 @@ class InProcessEdpSimulator(
           100.0f
         ),
       trustedCertificates = trustedCertificates,
-      DIRECT_NOISE_MECHANISM,
       random = random,
       compositionMechanism = COMPOSITION_MECHANISM,
     )
@@ -133,7 +131,6 @@ class InProcessEdpSimulator(
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val RANDOM_SEED: Long = 1
     private val random = Random(RANDOM_SEED)
-    private val DIRECT_NOISE_MECHANISM = DirectNoiseMechanism.LAPLACE
     private val COMPOSITION_MECHANISM = CompositionMechanism.DP_ADVANCED
   }
 }

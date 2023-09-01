@@ -57,6 +57,7 @@ import org.wfanet.measurement.internal.kingdom.ModelRelease
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelSuite
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.internal.kingdom.activateAccountRequest
@@ -312,6 +313,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
         apiVersion = API_VERSION
         measurementSpec = "MeasurementSpec".toByteStringUtf8()
         measurementSpecSignature = "MeasurementSpec signature".toByteStringUtf8()
+        protocolConfig = protocolConfig { direct = ProtocolConfig.Direct.getDefaultInstance() }
       }
     return createMeasurement(
       measurementsService,
