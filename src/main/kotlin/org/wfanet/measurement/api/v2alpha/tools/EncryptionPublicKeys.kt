@@ -33,7 +33,7 @@ import picocli.CommandLine
  */
 @CommandLine.Command(
   description = ["Utility for EncryptionPublicKey messages."],
-  subcommands = [CommandLine.HelpCommand::class, Serialize::class, Sign::class]
+  subcommands = [CommandLine.HelpCommand::class, Serialize::class, Deserialize::class, Sign::class]
 )
 class EncryptionPublicKeys private constructor() : Runnable {
   override fun run() {
@@ -71,6 +71,25 @@ private class Serialize : Runnable {
     }
 
     out.outputStream().use { encryptionPublicKey.writeTo(it) }
+  }
+}
+
+@CommandLine.Command(name = "deserialize", showDefaultValues = true)
+private class Deserialize : Runnable {
+  @CommandLine.Option(
+    names = ["--in", "-i"],
+    description = ["Input File containing EncryptionPublicKey message"],
+    required = true
+  )
+  private lateinit var input: File
+
+  @CommandLine.Option(names = ["--out", "-o"], description = ["Output file"], required = true)
+  private lateinit var output: File
+
+  override fun run() {
+    val message = input.inputStream().use { EncryptionPublicKey.parseFrom(it) }
+
+    output.outputStream().use { message.data.writeTo(it) }
   }
 }
 
