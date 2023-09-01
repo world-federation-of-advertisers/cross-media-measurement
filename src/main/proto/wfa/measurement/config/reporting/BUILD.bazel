@@ -44,6 +44,7 @@ proto_library(
     name = "metric_spec_config_proto",
     srcs = ["metric_spec_config.proto"],
     strip_import_prefix = IMPORT_PREFIX,
+    deps = ["@com_google_protobuf//:duration_proto"],
 )
 
 java_proto_library(
