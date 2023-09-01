@@ -124,7 +124,6 @@ import ("strings")
 					// Internal Kingdom API server should only trust Kingdom certs.
 					_kingdom_root_cert_file_flag,
 					_debug_verbose_grpc_server_logging_flag,
-					_ro_llv2_enable_flag,
 				] + Container._commonServerFlags + _spannerConfig.flags
 			}
 			_updateSchemaContainer: Container=#Container & {
@@ -170,7 +169,6 @@ import ("strings")
 					_akid_to_principal_map_file_flag,
 					_open_id_redirect_uri_flag,
 					_duchy_info_config_flag,
-					_ro_llv2_enable_flag,
 				] + Container._commonServerFlags
 			}
 			spec: template: spec: {
