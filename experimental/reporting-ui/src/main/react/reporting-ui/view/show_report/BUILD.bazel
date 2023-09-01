@@ -1,0 +1,18 @@
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+
+package(
+    default_visibility = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui:__subpackages__",
+        "//experimental/reporting-ui/src/test/react/reporting-ui:__subpackages__",
+    ],
+)
+
+js_library(
+    name = "show_report",
+    srcs = [
+        "show_report_view.tsx",
+    ],
+    deps = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui/view_model/show_report",
+    ],
+)
