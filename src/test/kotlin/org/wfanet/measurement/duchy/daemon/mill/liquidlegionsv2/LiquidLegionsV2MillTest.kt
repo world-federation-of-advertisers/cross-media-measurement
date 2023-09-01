@@ -66,7 +66,6 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
@@ -617,7 +616,6 @@ class LiquidLegionsV2MillTest {
 
   @Before
   fun initializeMill() = runBlocking {
-    val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(60))
     DuchyInfo.setForTest(setOf(DUCHY_ONE_NAME, DUCHY_TWO_NAME, DUCHY_THREE_NAME))
     val csX509Certificate = readCertificate(CONSENT_SIGNALING_CERT_DER)
     val csSigningKey =
@@ -644,7 +642,6 @@ class LiquidLegionsV2MillTest {
         systemComputationsClient = systemComputationStub,
         systemComputationLogEntriesClient = systemComputationLogEntriesStub,
         computationStatsClient = computationStatsStub,
-        throttler = throttler,
         workerStubs = workerStubs,
         cryptoWorker = mockCryptoWorker,
         workLockDuration = Duration.ofMinutes(5),
@@ -665,7 +662,6 @@ class LiquidLegionsV2MillTest {
         systemComputationsClient = systemComputationStub,
         systemComputationLogEntriesClient = systemComputationLogEntriesStub,
         computationStatsClient = computationStatsStub,
-        throttler = throttler,
         workerStubs = workerStubs,
         cryptoWorker = mockCryptoWorker,
         workLockDuration = Duration.ofMinutes(5),

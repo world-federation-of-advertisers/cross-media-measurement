@@ -58,6 +58,7 @@ import ("strings")
 	_duchy_id_config_flag:                   "--duchy-id-config=/var/run/secrets/files/duchy_id_config.textproto"
 	_llv2_protocol_config_config:            "--llv2-protocol-config-config=/var/run/secrets/files/llv2_protocol_config_config.textproto"
 	_ro_llv2_protocol_config_config:         "--ro-llv2-protocol-config-config=/var/run/secrets/files/ro_llv2_protocol_config_config.textproto"
+	_ro_llv2_enable_flag:                    "--enable-ro-llv2-protocol"
 	_kingdom_tls_cert_file_flag:             "--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem"
 	_kingdom_tls_key_file_flag:              "--tls-key-file=/var/run/secrets/files/kingdom_tls.key"
 	_kingdom_cert_collection_file_flag:      "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"

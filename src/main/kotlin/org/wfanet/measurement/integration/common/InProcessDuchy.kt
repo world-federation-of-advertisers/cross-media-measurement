@@ -43,6 +43,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.testing.withMetadataDuchyIdentities
 import org.wfanet.measurement.common.identity.withDuchyId
+import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -50,7 +51,9 @@ import org.wfanet.measurement.duchy.daemon.herald.ContinuationTokenManager
 import org.wfanet.measurement.duchy.daemon.herald.Herald
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
+import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.ReachOnlyLiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniLiquidLegionsV2Encryption
+import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniReachOnlyLiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.deploy.common.service.DuchyDataServices
 import org.wfanet.measurement.duchy.service.api.v2alpha.RequisitionFulfillmentService
@@ -212,7 +215,7 @@ class InProcessDuchy(
             val channel = computationControlChannel(it)
             SystemComputationControlCoroutineStub(channel).withDuchyId(externalDuchyId)
           }
-        val liquidLegionsV2mill =
+        val liquidLegionsV2Mill =
           LiquidLegionsV2Mill(
             millId = "$externalDuchyId liquidLegionsV2 Mill",
             duchyId = externalDuchyId,
@@ -224,14 +227,38 @@ class InProcessDuchy(
             systemComputationsClient = systemComputationsClient,
             systemComputationLogEntriesClient = systemComputationLogEntriesClient,
             computationStatsClient = computationStatsClient,
-            throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1)),
             workerStubs = workerStubs,
             cryptoWorker = JniLiquidLegionsV2Encryption(),
             workLockDuration = Duration.ofSeconds(1),
             openTelemetry = GlobalOpenTelemetry.get(),
             parallelism = DUCHY_MILL_PARALLELISM,
           )
-        liquidLegionsV2mill.continuallyProcessComputationQueue()
+        val reachOnlyLiquidLegionsV2Mill =
+          ReachOnlyLiquidLegionsV2Mill(
+            millId = "$externalDuchyId liquidLegionsV2 Mill",
+            duchyId = externalDuchyId,
+            signingKey = signingKey,
+            consentSignalCert = Certificate(duchyCertMap[externalDuchyId]!!, consentSignal509Cert),
+            trustedCertificates = trustedCertificates,
+            dataClients = computationDataClients,
+            systemComputationParticipantsClient = systemComputationParticipantsClient,
+            systemComputationsClient = systemComputationsClient,
+            systemComputationLogEntriesClient = systemComputationLogEntriesClient,
+            computationStatsClient = computationStatsClient,
+            workerStubs = workerStubs,
+            cryptoWorker = JniReachOnlyLiquidLegionsV2Encryption(),
+            workLockDuration = Duration.ofSeconds(1),
+            openTelemetry = GlobalOpenTelemetry.get(),
+            parallelism = DUCHY_MILL_PARALLELISM,
+          )
+
+        val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1))
+        throttler.loopOnReady {
+          logAndSuppressExceptionSuspend { liquidLegionsV2Mill.pollAndProcessNextComputation() }
+          logAndSuppressExceptionSuspend {
+            reachOnlyLiquidLegionsV2Mill.pollAndProcessNextComputation()
+          }
+        }
       }
   }
 

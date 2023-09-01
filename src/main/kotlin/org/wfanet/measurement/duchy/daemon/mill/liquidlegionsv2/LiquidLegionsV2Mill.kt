@@ -34,7 +34,6 @@ import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.loadLibrary
-import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.consent.client.duchy.encryptResult
 import org.wfanet.measurement.consent.client.duchy.signElgamalPublicKey
 import org.wfanet.measurement.consent.client.duchy.signResult
@@ -121,8 +120,6 @@ import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequ
  * @param systemComputationLogEntriesClient client of the kingdom's system
  *   computationLogEntriesService.
  * @param computationStatsClient client of the duchy's internal ComputationStatsService.
- * @param throttler A throttler used to rate limit the frequency of the mill polling from the
- *   computation table.
  * @param requestChunkSizeBytes The size of data chunk when sending result to other duchies.
  * @param clock A clock
  * @param maximumAttempts The maximum number of attempts on a computation at the same stage.
@@ -142,7 +139,6 @@ class LiquidLegionsV2Mill(
   systemComputationsClient: ComputationsGrpcKt.ComputationsCoroutineStub,
   systemComputationLogEntriesClient: ComputationLogEntriesCoroutineStub,
   computationStatsClient: ComputationStatsCoroutineStub,
-  throttler: MinimumIntervalThrottler,
   private val workerStubs: Map<String, ComputationControlCoroutineStub>,
   private val cryptoWorker: LiquidLegionsV2Encryption,
   workLockDuration: Duration,
@@ -162,7 +158,6 @@ class LiquidLegionsV2Mill(
     systemComputationsClient,
     systemComputationLogEntriesClient,
     computationStatsClient,
-    throttler,
     ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
     workLockDuration,
     requestChunkSizeBytes,
