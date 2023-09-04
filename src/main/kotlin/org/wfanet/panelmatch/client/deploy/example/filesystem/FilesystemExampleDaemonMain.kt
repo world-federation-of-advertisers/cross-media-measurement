@@ -25,6 +25,7 @@ import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
 import org.wfanet.panelmatch.common.certificates.CertificateAuthority
 import org.wfanet.panelmatch.common.secrets.MutableSecretMap
 import org.wfanet.panelmatch.common.secrets.SecretMap
+import org.wfanet.panelmatch.common.storage.testing.FakeTinkKeyStorageProvider
 import picocli.CommandLine.Option
 
 private class FileSystemExampleDaemon : ExampleDaemon() {
@@ -45,7 +46,7 @@ private class FileSystemExampleDaemon : ExampleDaemon() {
 
   /** This can be customized per deployment. */
   private val defaults by lazy {
-    DaemonStorageClientDefaults(rootStorageClient, tinkKeyUri, TinkKeyStorageProvider())
+    DaemonStorageClientDefaults(rootStorageClient, tinkKeyUri, FakeTinkKeyStorageProvider())
   }
 
   /** This can be customized per deployment. */

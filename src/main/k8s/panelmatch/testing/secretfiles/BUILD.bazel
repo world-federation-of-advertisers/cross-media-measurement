@@ -3,7 +3,7 @@ load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("//build/k8s:defs.bzl", "k8s_apply", "kustomization_dir")
 
 package(
-    default_testonly = True,
+    #default_testonly = True,
     default_visibility = [
         "//src/main/k8s:__subpackages__",
     ],

@@ -104,6 +104,7 @@ deployments: {
 						"--debug-verbose-grpc-client-logging=\(#DebugVerboseGrpcLogging)",
 						"--channel-shutdown-timeout=3s",
 						"--polling-interval=1m",
+						"--tink-key-uri=some-fake-id",
 						"--preprocessing-max-byte-size=1000000",
 						"--preprocessing-file-count=1000",
 						"--private-storage-root=/var/run/storage"
