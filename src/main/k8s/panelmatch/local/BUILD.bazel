@@ -48,7 +48,7 @@ cue_dump(
     srcs = ["local_edp_daemon_gke.cue"],
     cue_tags = {
         "party_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_name,
-        #"secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_secret_name,
+        "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_secret_name,
     },
     tags = ["manual"],
     deps = [
@@ -75,7 +75,7 @@ cue_dump(
     srcs = ["local_mp_daemon_gke.cue"],
     cue_tags = {
         "party_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_name,
-        #"secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_secret_name,
+        "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_secret_name,
     },
     tags = ["manual"],
     deps = [

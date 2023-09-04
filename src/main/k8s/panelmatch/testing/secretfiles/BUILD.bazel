@@ -6,6 +6,11 @@ package(
     #default_testonly = True,
     default_visibility = [
         "//src/main/k8s:__subpackages__",
+        #"//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
+        #"//src/test/kotlin/org/wfanet/measurement/api:__subpackages__",
+        #"//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
+        #"//src/test/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
+        #"//src/test/kotlin/org/wfanet/measurement/reporting:__subpackages__",
     ],
 )
 
@@ -54,7 +59,6 @@ pkg_tar(
     ],
     out = "secretfiles.tar",
 )
-
 
 kustomization_dir(
     name = "kustomization",

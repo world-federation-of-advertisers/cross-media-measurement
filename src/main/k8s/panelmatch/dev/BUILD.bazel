@@ -10,6 +10,9 @@ SECRET_NAME = "certs-and-configs"
 load("//src/main/k8s:macros.bzl", "cue_dump")
 load("//build/k8s:defs.bzl", "kustomization_dir")
 
+load("//src/main/k8s:macros.bzl", "cue_dump")
+load("//build/k8s:defs.bzl", "kustomization_dir")
+
 cue_library(
     name = "base_gke",
     srcs = ["base_gke.cue"],
