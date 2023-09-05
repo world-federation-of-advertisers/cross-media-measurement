@@ -18,10 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.duration as protoDuration
-import io.grpc.Metadata
-import io.grpc.ServerCall
-import io.grpc.ServerCallHandler
-import io.grpc.ServerInterceptor
+import com.google.protobuf.util.Durations
 import io.grpc.ServerInterceptors
 import io.grpc.ServerServiceDefinition
 import io.netty.handler.ssl.ClientAuth
@@ -44,7 +41,6 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCorou
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
-import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
@@ -73,11 +69,11 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.duchy.encryptResult
 import org.wfanet.measurement.consent.client.duchy.signResult
-import picocli.CommandLine
 
 private const val HOST = "localhost"
 private val SECRETS_DIR: Path =
@@ -152,7 +148,7 @@ private val SUCCEEDED_REACH_AND_FREQUENCY_MEASUREMENT = measurement {
     val result = result {
       reach = ResultKt.reach { value = 4096 }
       frequency =
-        MeasurementKt.ResultKt.frequency {
+        ResultKt.frequency {
           relativeFrequencyDistribution.put(1, 1.0 / 6)
           relativeFrequencyDistribution.put(2, 3.0 / 6)
           relativeFrequencyDistribution.put(3, 2.0 / 6)
@@ -221,21 +217,6 @@ private fun getEncryptedResult(
   return encryptResult(signedResult, publicKey)
 }
 
-private class HeaderCapturingInterceptor : ServerInterceptor {
-  override fun <ReqT, RespT> interceptCall(
-    call: ServerCall<ReqT, RespT>,
-    headers: Metadata,
-    next: ServerCallHandler<ReqT, RespT>,
-  ): ServerCall.Listener<ReqT> {
-    _capturedHeaders.add(headers)
-    return next.startCall(call, headers)
-  }
-
-  private val _capturedHeaders = mutableListOf<Metadata>()
-  val capturedHeaders: List<Metadata>
-    get() = _capturedHeaders
-}
-
 @RunWith(JUnit4::class)
 class BenchmarkTest {
   private val measurementConsumersServiceMock: MeasurementConsumersCoroutineImplBase =
@@ -246,8 +227,6 @@ class BenchmarkTest {
   private val certificatesServiceMock: CertificatesGrpcKt.CertificatesCoroutineImplBase =
     mockService() { onBlocking { getCertificate(any()) }.thenReturn(AGGREGATOR_CERTIFICATE) }
 
-  private val headerInterceptor = HeaderCapturingInterceptor()
-
   private val port: Int
     get() = server.port
 
@@ -256,7 +235,7 @@ class BenchmarkTest {
   fun initServer() {
     val services: List<ServerServiceDefinition> =
       listOf(
-        ServerInterceptors.intercept(measurementsServiceMock, headerInterceptor),
+        ServerInterceptors.intercept(measurementsServiceMock),
         measurementConsumersServiceMock.bindService(),
         dataProvidersServiceMock.bindService(),
         certificatesServiceMock.bindService(),
@@ -323,7 +302,7 @@ class BenchmarkTest {
         "--output-file=$tempFile",
       )
 
-    CommandLine(BenchmarkReport(clock)).execute(*args)
+    BenchmarkReport.main(args, clock)
 
     val request =
       captureFirst<CreateMeasurementRequest> {
@@ -401,7 +380,7 @@ class BenchmarkTest {
         "--event-end-time=$TIME_STRING_2",
         "--output-file=$tempFile",
       )
-    CommandLine(BenchmarkReport(clock)).execute(*args)
+    BenchmarkReport.main(args, clock)
 
     val request =
       captureFirst<CreateMeasurementRequest> {
@@ -459,7 +438,7 @@ class BenchmarkTest {
         "--duration",
         "--duration-privacy-epsilon=0.015",
         "--duration-privacy-delta=0.0",
-        "--max-duration=1000",
+        "--max-duration=5m20s",
         "--vid-sampling-start=0.1",
         "--vid-sampling-width=0.2",
         "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
@@ -471,7 +450,7 @@ class BenchmarkTest {
         "--event-end-time=$TIME_STRING_2",
         "--output-file=$tempFile",
       )
-    CommandLine(BenchmarkReport(clock)).execute(*args)
+    BenchmarkReport.main(args, clock)
 
     val request =
       captureFirst<CreateMeasurementRequest> {
@@ -489,7 +468,8 @@ class BenchmarkTest {
               epsilon = 0.015
               delta = 0.0
             }
-            maximumWatchDurationPerUser = 1000
+            maximumWatchDurationPerUser =
+              Durations.add(Durations.fromMinutes(5), Durations.fromSeconds(20))
           }
           vidSamplingInterval =
             MeasurementSpecKt.vidSamplingInterval {
@@ -536,7 +516,7 @@ class BenchmarkTest {
         "--population-end-time=$TIME_STRING_2",
         "--output-file=$tempFile",
       )
-    CommandLine(BenchmarkReport(clock)).execute(*args)
+    BenchmarkReport.main(args, clock)
 
     val request =
       captureFirst<CreateMeasurementRequest> {
@@ -555,5 +535,11 @@ class BenchmarkTest {
     assertThat(result[0])
       .isEqualTo("replica,startTime,ackTime,computeTime,endTime,status,msg,population")
     assertThat(result[1]).isEqualTo("1,0.0,0.0,0.0,0.0,success,,100")
+  }
+
+  companion object {
+    init {
+      System.setSecurityManager(ExitInterceptingSecurityManager)
+    }
   }
 }

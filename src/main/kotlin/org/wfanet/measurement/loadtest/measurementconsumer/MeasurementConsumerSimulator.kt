@@ -17,6 +17,7 @@ package org.wfanet.measurement.loadtest.measurementconsumer
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
+import com.google.protobuf.util.Durations
 import com.google.type.interval
 import io.grpc.StatusException
 import java.security.SignatureException
@@ -612,7 +613,7 @@ class MeasurementConsumerSimulator(
       measurementPublicKey = serializedMeasurementPublicKey
       duration = duration {
         privacyParams = outputDpParams
-        maximumWatchDurationPerUser = 1
+        maximumWatchDurationPerUser = Durations.fromMinutes(1)
       }
       this.nonceHashes += nonceHashes
     }
