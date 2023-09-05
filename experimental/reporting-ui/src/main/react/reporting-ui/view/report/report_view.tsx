@@ -14,13 +14,13 @@
 
 import React, {useEffect} from 'react';
 import { useParams } from 'react-router-dom';
-import { ShowReportViewModel } from '../../view_model/show_report/show_report_view_model';
+import { ReportViewModel } from '../../view_model/report/report_view_model';
 import { Loader } from '../../component/loader/loader';
 import { Error } from '../../component/error/error';
 import { TERMINAL_STATES } from '../../model/reporting';
 
-export const ShowReportView = () => {
-  const { errors, report, load, loading } = ShowReportViewModel();
+export const ReportView = () => {
+  const { errors, report, load, loading } = ReportViewModel();
   const {reportId} = useParams();
 
   useEffect(() => {

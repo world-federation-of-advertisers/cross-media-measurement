@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License. */
 
 import { ReportListView } from "./view/report_list/report_list_view";
-import { ShowReportView } from "./view/show_report/show_report_view";
+import { ReportView } from "./view/report/report_view";
 
 
 type route = {
@@ -29,6 +29,6 @@ export const routes: route[] = [
     },
     {
         path: "/reports/:reportId",
-        element: <ShowReportView />
+        element: <ReportView />
     }
 ];

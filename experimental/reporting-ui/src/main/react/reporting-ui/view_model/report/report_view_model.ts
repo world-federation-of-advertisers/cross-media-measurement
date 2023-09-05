@@ -14,15 +14,15 @@
 
 import {useState} from 'react';
 import { Report, ReportState } from '../../model/reporting';
-import { ShowReportRepository } from '../../model/show_report/show_report_repository';
+import { ReportRepository } from '../../model/report/report_repository';
 
-type ShowReport = {
+type UiReport = {
   id: string,
   name: string,
   status: ReportState,
 }
 
-const handleShowReport = (report: Report|undefined) => {
+const handleUiReport = (report: Report|undefined) => {
   if (!report) {
     return null;
   }
@@ -34,10 +34,10 @@ const handleShowReport = (report: Report|undefined) => {
   };
 };
 
-export const ShowReportViewModel = () => {
-  const {loadReport} = ShowReportRepository();
+export const ReportViewModel = () => {
+  const {loadReport} = ReportRepository();
   const [loading, setLoading] = useState<boolean>(false);
-  const [report, setReport] = useState<ShowReport|null>();
+  const [report, setReport] = useState<UiReport|null>();
   const [errors, setErrors] = useState<string[]>([]);
 
   const load = async (id: string) => {
@@ -55,7 +55,7 @@ export const ShowReportViewModel = () => {
       tempErrors.push(response.reason);
       setErrors(errors);
     } else {
-      const result = handleShowReport(response.value);
+      const result = handleUiReport(response.value);
       setReport(result);
     }
 
