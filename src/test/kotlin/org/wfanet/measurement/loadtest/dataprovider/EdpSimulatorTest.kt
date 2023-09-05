@@ -160,11 +160,6 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.loadtest.config.EventGroupMetadata
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
-import org.wfanet.measurement.loadtest.config.TestIdentifiers.CONSENT_SIGNAL_INVALID_EVENT_GROUP_ID
-import org.wfanet.measurement.loadtest.config.TestIdentifiers.DECLINED_EVENT_GROUP_ID
-import org.wfanet.measurement.loadtest.config.TestIdentifiers.INSUFFICIENT_PRIVACY_BUDGET_EVENT_GROUP_ID
-import org.wfanet.measurement.loadtest.config.TestIdentifiers.SPEC_INVALID_EVENT_GROUP_ID
-import org.wfanet.measurement.loadtest.config.TestIdentifiers.UNFULFILLABLE_EVENT_GROUP_ID
 
 private const val MC_ID = "mc"
 private const val MC_NAME = "measurementConsumers/$MC_ID"
@@ -206,6 +201,17 @@ private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..
 private const val DUCHY_ID = "worker1"
 private const val RANDOM_SEED: Long = 0
 private val COMPOSITION_MECHANISM = CompositionMechanism.DP_ADVANCED
+
+// Resource ID for EventGroup that fails Requisitions with CONSENT_SIGNAL_INVALID if used.
+private const val CONSENT_SIGNAL_INVALID_EVENT_GROUP_ID = "consent-signal-invalid"
+// Resource ID for EventGroup that fails Requisitions with SPEC_INVALID if used.
+private const val SPEC_INVALID_EVENT_GROUP_ID = "spec-invalid"
+// Resource ID for EventGroup that fails Requisitions with INSUFFICIENT_PRIVACY_BUDGET if used.
+private const val INSUFFICIENT_PRIVACY_BUDGET_EVENT_GROUP_ID = "insufficient-privacy-budget"
+// Resource ID for EventGroup that fails Requisitions with UNFULFILLABLE if used.
+private const val UNFULFILLABLE_EVENT_GROUP_ID = "unfulfillable"
+// Resource ID for EventGroup that fails Requisitions with DECLINED if used.
+private const val DECLINED_EVENT_GROUP_ID = "declined"
 
 @RunWith(JUnit4::class)
 class EdpSimulatorTest {
@@ -1301,7 +1307,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        DIRECT_NOISE_MECHANISM,
         compositionMechanism = COMPOSITION_MECHANISM
       )
 
@@ -1367,7 +1372,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        DIRECT_NOISE_MECHANISM,
         compositionMechanism = COMPOSITION_MECHANISM
       )
 
@@ -1433,7 +1437,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        DIRECT_NOISE_MECHANISM,
         compositionMechanism = COMPOSITION_MECHANISM
       )
 
@@ -1499,7 +1502,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        DIRECT_NOISE_MECHANISM,
         compositionMechanism = COMPOSITION_MECHANISM
       )
 
@@ -1565,7 +1567,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        DIRECT_NOISE_MECHANISM,
         compositionMechanism = COMPOSITION_MECHANISM
       )
 

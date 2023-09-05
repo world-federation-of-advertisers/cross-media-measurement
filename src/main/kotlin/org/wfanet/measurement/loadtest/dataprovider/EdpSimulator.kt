@@ -129,12 +129,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Referenc
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDirectAcdpQuery
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDpQuery
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getLiquidLegionsV2AcdpQuery
-import org.wfanet.measurement.loadtest.config.TestIdentifiers.CONSENT_SIGNAL_INVALID_EVENT_GROUP_ID
-import org.wfanet.measurement.loadtest.config.TestIdentifiers.DECLINED_EVENT_GROUP_ID
-import org.wfanet.measurement.loadtest.config.TestIdentifiers.INSUFFICIENT_PRIVACY_BUDGET_EVENT_GROUP_ID
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
-import org.wfanet.measurement.loadtest.config.TestIdentifiers.SPEC_INVALID_EVENT_GROUP_ID
-import org.wfanet.measurement.loadtest.config.TestIdentifiers.UNFULFILLABLE_EVENT_GROUP_ID
 import org.wfanet.measurement.loadtest.config.VidSampling
 
 data class EdpData(
@@ -1524,6 +1519,17 @@ class EdpSimulator(
       listOf(
         DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
       )
+
+    // Resource ID for EventGroup that fails Requisitions with CONSENT_SIGNAL_INVALID if used.
+    private const val CONSENT_SIGNAL_INVALID_EVENT_GROUP_ID = "consent-signal-invalid"
+    // Resource ID for EventGroup that fails Requisitions with SPEC_INVALID if used.
+    private const val SPEC_INVALID_EVENT_GROUP_ID = "spec-invalid"
+    // Resource ID for EventGroup that fails Requisitions with INSUFFICIENT_PRIVACY_BUDGET if used.
+    private const val INSUFFICIENT_PRIVACY_BUDGET_EVENT_GROUP_ID = "insufficient-privacy-budget"
+    // Resource ID for EventGroup that fails Requisitions with UNFULFILLABLE if used.
+    private const val UNFULFILLABLE_EVENT_GROUP_ID = "unfulfillable"
+    // Resource ID for EventGroup that fails Requisitions with DECLINED if used.
+    private const val DECLINED_EVENT_GROUP_ID = "declined"
   }
 }
 
