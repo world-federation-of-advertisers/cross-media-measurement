@@ -49,6 +49,7 @@ import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKt.eventTemplate
 import org.wfanet.measurement.api.v2alpha.EventGroupKt.metadata
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
@@ -535,6 +536,44 @@ class EdpSimulator(
               e.message.orEmpty()
             )
           }
+
+        for (eventGroupEntry in requisitionSpec.events.eventGroupsList) {
+          val eventGroupId = EventGroupKey.fromName(eventGroupEntry.key)!!.eventGroupId
+          if (eventGroupId == CONSENT_SIGNAL_INVALID_EVENT_GROUP_ID) {
+            throw RequisitionRefusalException(
+              Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID,
+              "consent signal invalid"
+            )
+          }
+
+          if (eventGroupId == SPEC_INVALID_EVENT_GROUP_ID) {
+            throw RequisitionRefusalException(
+              Requisition.Refusal.Justification.SPEC_INVALID,
+              "spec invalid"
+            )
+          }
+
+          if (eventGroupId == INSUFFICIENT_PRIVACY_BUDGET_EVENT_GROUP_ID) {
+            throw RequisitionRefusalException(
+              Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET,
+              "insufficient privacy budget"
+            )
+          }
+
+          if (eventGroupId == UNFULFILLABLE_EVENT_GROUP_ID) {
+            throw RequisitionRefusalException(
+              Requisition.Refusal.Justification.UNFULFILLABLE,
+              "unfulfillable"
+            )
+          }
+
+          if (eventGroupId == DECLINED_EVENT_GROUP_ID) {
+            throw RequisitionRefusalException(
+              Requisition.Refusal.Justification.DECLINED,
+              "declined"
+            )
+          }
+        }
 
         val eventGroupSpecs: List<EventQuery.EventGroupSpec> =
           try {
@@ -1480,6 +1519,17 @@ class EdpSimulator(
       listOf(
         DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
       )
+
+    // Resource ID for EventGroup that fails Requisitions with CONSENT_SIGNAL_INVALID if used.
+    private const val CONSENT_SIGNAL_INVALID_EVENT_GROUP_ID = "consent-signal-invalid"
+    // Resource ID for EventGroup that fails Requisitions with SPEC_INVALID if used.
+    private const val SPEC_INVALID_EVENT_GROUP_ID = "spec-invalid"
+    // Resource ID for EventGroup that fails Requisitions with INSUFFICIENT_PRIVACY_BUDGET if used.
+    private const val INSUFFICIENT_PRIVACY_BUDGET_EVENT_GROUP_ID = "insufficient-privacy-budget"
+    // Resource ID for EventGroup that fails Requisitions with UNFULFILLABLE if used.
+    private const val UNFULFILLABLE_EVENT_GROUP_ID = "unfulfillable"
+    // Resource ID for EventGroup that fails Requisitions with DECLINED if used.
+    private const val DECLINED_EVENT_GROUP_ID = "declined"
   }
 }
 
