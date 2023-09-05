@@ -1510,7 +1510,7 @@ private fun buildMetricResult(metric: InternalMetric): MetricResult {
         frequencyHistogram =
           calculateFrequencyHistogramResults(
             metric.weightedMeasurementsList,
-            metric.metricSpec.frequencyHistogram.maximumFrequencyPerUser
+            metric.metricSpec.frequencyHistogram.maximumFrequency
           )
       }
       InternalMetricSpec.TypeCase.IMPRESSION_COUNT -> {
