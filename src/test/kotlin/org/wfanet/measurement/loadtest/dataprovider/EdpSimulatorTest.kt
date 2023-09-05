@@ -70,7 +70,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
-import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -146,7 +145,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
-import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup as PrivacyLandscapeAge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.CompositionMechanism
@@ -182,7 +180,7 @@ private const val EDP_NAME = "dataProviders/$EDP_ID"
 
 private const val LLV2_DECAY_RATE = 12.0
 private const val LLV2_MAX_SIZE = 100_000L
-private val NOISE_MECHANISM = NoiseMechanism.GEOMETRIC
+private val NOISE_MECHANISM = ProtocolConfig.NoiseMechanism.GEOMETRIC
 
 private val MEASUREMENT_CONSUMER_CERTIFICATE_DER =
   SECRET_FILES_PATH.resolve("mc_cs_cert.der").toFile().readByteString()
@@ -207,7 +205,6 @@ private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..
 
 private const val DUCHY_ID = "worker1"
 private const val RANDOM_SEED: Long = 0
-private val DIRECT_NOISE_MECHANISM = DirectNoiseMechanism.LAPLACE
 private val COMPOSITION_MECHANISM = CompositionMechanism.DP_ADVANCED
 
 @RunWith(JUnit4::class)
@@ -328,7 +325,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        DIRECT_NOISE_MECHANISM,
         compositionMechanism = COMPOSITION_MECHANISM
       )
 
@@ -395,7 +391,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        DIRECT_NOISE_MECHANISM,
         compositionMechanism = COMPOSITION_MECHANISM
       )
 
@@ -446,7 +441,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        DIRECT_NOISE_MECHANISM,
         compositionMechanism = COMPOSITION_MECHANISM
       )
 
@@ -509,7 +503,6 @@ class EdpSimulatorTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        DIRECT_NOISE_MECHANISM,
         compositionMechanism = COMPOSITION_MECHANISM
       )
 
@@ -589,7 +582,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        DIRECT_NOISE_MECHANISM,
         compositionMechanism = COMPOSITION_MECHANISM
       )
     runBlocking {
@@ -671,7 +663,7 @@ class EdpSimulatorTest {
                 ProtocolConfigKt.protocol {
                   liquidLegionsV2 =
                     ProtocolConfigKt.liquidLegionsV2 {
-                      noiseMechanism = NoiseMechanism.DISCRETE_GAUSSIAN
+                      noiseMechanism = ProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN
                       sketchParams = liquidLegionsSketchParams {
                         decayRate = LLV2_DECAY_RATE
                         maxSize = LLV2_MAX_SIZE
@@ -738,7 +730,6 @@ class EdpSimulatorTest {
           dummyThrottler,
           privacyBudgetManager,
           TRUSTED_CERTIFICATES,
-          DIRECT_NOISE_MECHANISM,
           compositionMechanism = CompositionMechanism.ACDP
         )
       runBlocking {
@@ -809,9 +800,26 @@ class EdpSimulatorTest {
               width = PRIVACY_BUCKET_VID_SAMPLE_WIDTH
             }
         }
+      val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+
       val requisition =
-        DIRECT_REQUISITION.copy {
+        REQUISITION.copy {
           this.measurementSpec = signMeasurementSpec(measurementSpec, MC_SIGNING_KEY)
+          protocolConfig =
+            protocolConfig.copy {
+              protocols.clear()
+              protocols +=
+                ProtocolConfigKt.protocol {
+                  direct =
+                    ProtocolConfigKt.direct {
+                      noiseMechanisms += noiseMechanismOption
+                      deterministicCountDistinct =
+                        ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
+                      deterministicDistribution =
+                        ProtocolConfig.Direct.DeterministicDistribution.getDefaultInstance()
+                    }
+                }
+            }
         }
 
       requisitionsServiceMock.stub {
@@ -868,7 +876,6 @@ class EdpSimulatorTest {
           dummyThrottler,
           privacyBudgetManager,
           TRUSTED_CERTIFICATES,
-          DirectNoiseMechanism.GAUSSIAN,
           compositionMechanism = CompositionMechanism.ACDP
         )
       runBlocking {
@@ -975,7 +982,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        DIRECT_NOISE_MECHANISM,
         sketchEncrypter = fakeSketchEncrypter,
         compositionMechanism = COMPOSITION_MECHANISM
       )
@@ -1033,7 +1039,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        DIRECT_NOISE_MECHANISM,
         compositionMechanism = COMPOSITION_MECHANISM
       )
     val requisition =
@@ -1093,7 +1098,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        DIRECT_NOISE_MECHANISM,
         compositionMechanism = COMPOSITION_MECHANISM
       )
     eventGroupsServiceMock.stub {
@@ -1133,7 +1137,7 @@ class EdpSimulatorTest {
               ProtocolConfigKt.protocol {
                 liquidLegionsV2 =
                   ProtocolConfigKt.liquidLegionsV2 {
-                    noiseMechanism = NoiseMechanism.GEOMETRIC
+                    noiseMechanism = ProtocolConfig.NoiseMechanism.GEOMETRIC
                     sketchParams = liquidLegionsSketchParams {
                       decayRate = LLV2_DECAY_RATE
                       maxSize = LLV2_MAX_SIZE
@@ -1165,7 +1169,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        DIRECT_NOISE_MECHANISM,
         compositionMechanism = CompositionMechanism.ACDP
       )
 
@@ -1185,15 +1188,33 @@ class EdpSimulatorTest {
           refusal = refusal { justification = Refusal.Justification.SPEC_INVALID }
         }
       )
-    assertThat(refuseRequest.refusal.message).contains(NoiseMechanism.GEOMETRIC.toString())
+    assertThat(refuseRequest.refusal.message)
+      .contains(ProtocolConfig.NoiseMechanism.GEOMETRIC.toString())
     assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
     verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
   }
 
   @Test
-  fun `refuses Requisition when directNoiseMechanism is LAPLACE and compositionMechanism is ACDP`() {
-    val requisition = DIRECT_REQUISITION
-
+  fun `refuses Requisition when directNoiseMechanism option provided by Kingdom is not CONTINUOUS_GAUSSIAN and compositionMechanism is ACDP`() {
+    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE
+    val requisition =
+      REQUISITION.copy {
+        protocolConfig =
+          protocolConfig.copy {
+            protocols.clear()
+            protocols +=
+              ProtocolConfigKt.protocol {
+                direct =
+                  ProtocolConfigKt.direct {
+                    noiseMechanisms += noiseMechanismOption
+                    deterministicCountDistinct =
+                      ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
+                    deterministicDistribution =
+                      ProtocolConfig.Direct.DeterministicDistribution.getDefaultInstance()
+                  }
+              }
+          }
+      }
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
@@ -1213,7 +1234,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        DirectNoiseMechanism.LAPLACE,
+        random = Random(RANDOM_SEED),
         compositionMechanism = CompositionMechanism.ACDP
       )
 
@@ -1233,7 +1254,7 @@ class EdpSimulatorTest {
           refusal = refusal { justification = Refusal.Justification.SPEC_INVALID }
         }
       )
-    assertThat(refuseRequest.refusal.message).contains(DirectNoiseMechanism.LAPLACE.toString())
+    assertThat(refuseRequest.refusal.message).contains("No valid noise mechanism option")
     assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
     verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
   }
@@ -1570,7 +1591,25 @@ class EdpSimulatorTest {
 
   @Test
   fun `fulfills direct reach and frequency Requisition`() {
-    val requisition = DIRECT_REQUISITION
+    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE
+    val requisition =
+      REQUISITION.copy {
+        protocolConfig =
+          protocolConfig.copy {
+            protocols.clear()
+            protocols +=
+              ProtocolConfigKt.protocol {
+                direct =
+                  ProtocolConfigKt.direct {
+                    noiseMechanisms += noiseMechanismOption
+                    deterministicCountDistinct =
+                      ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
+                    deterministicDistribution =
+                      ProtocolConfig.Direct.DeterministicDistribution.getDefaultInstance()
+                  }
+              }
+          }
+      }
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
@@ -1589,7 +1628,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        DIRECT_NOISE_MECHANISM,
         random = Random(RANDOM_SEED),
         compositionMechanism = COMPOSITION_MECHANISM
       )
@@ -1603,6 +1641,10 @@ class EdpSimulatorTest {
       )
     val result =
       Measurement.Result.parseFrom(decryptResult(request.encryptedData, MC_PRIVATE_KEY).data)
+    assertThat(result.reach.noiseMechanism == noiseMechanismOption)
+    assertThat(result.reach.hasDeterministicCountDistinct())
+    assertThat(result.frequency.noiseMechanism == noiseMechanismOption)
+    assertThat(result.frequency.hasDeterministicDistribution())
     assertThat(result).reachValue().isEqualTo(2000L)
     assertThat(result).frequencyDistribution().isWithin(0.001).of(mapOf(2L to 0.5, 4L to 0.5))
   }
@@ -1611,9 +1653,25 @@ class EdpSimulatorTest {
   fun `fulfills direct reach and frequency Requisition with sampling rate less than 1`() {
     val measurementSpec =
       MEASUREMENT_SPEC.copy { vidSamplingInterval = vidSamplingInterval.copy { width = 0.1f } }
+    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE
     val requisition =
-      DIRECT_REQUISITION.copy {
+      REQUISITION.copy {
         this.measurementSpec = signMeasurementSpec(measurementSpec, MC_SIGNING_KEY)
+        protocolConfig =
+          protocolConfig.copy {
+            protocols.clear()
+            protocols +=
+              ProtocolConfigKt.protocol {
+                direct =
+                  ProtocolConfigKt.direct {
+                    noiseMechanisms += noiseMechanismOption
+                    deterministicCountDistinct =
+                      ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
+                    deterministicDistribution =
+                      ProtocolConfig.Direct.DeterministicDistribution.getDefaultInstance()
+                  }
+              }
+          }
       }
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }
@@ -1633,7 +1691,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        DIRECT_NOISE_MECHANISM,
         random = Random(RANDOM_SEED),
         compositionMechanism = COMPOSITION_MECHANISM
       )
@@ -1647,6 +1704,11 @@ class EdpSimulatorTest {
       )
     val result =
       Measurement.Result.parseFrom(decryptResult(request.encryptedData, MC_PRIVATE_KEY).data)
+
+    assertThat(result.reach.noiseMechanism == noiseMechanismOption)
+    assertThat(result.reach.hasDeterministicCountDistinct())
+    assertThat(result.frequency.noiseMechanism == noiseMechanismOption)
+    assertThat(result.frequency.hasDeterministicDistribution())
     assertThat(result).reachValue().isEqualTo(1920)
     assertThat(result)
       .frequencyDistribution()
@@ -1655,11 +1717,25 @@ class EdpSimulatorTest {
   }
 
   @Test
-  fun `fulfills direct reach-only Requisition`() {
-    val measurementSpec = REACH_ONLY_MEASUREMENT_SPEC
+  fun `fails to fulfill direct reach and frequency Requisition when no direct noise mechanism is picked by EDP`() {
+    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.NONE
     val requisition =
-      DIRECT_REQUISITION.copy {
-        this.measurementSpec = signMeasurementSpec(measurementSpec, MC_SIGNING_KEY)
+      REQUISITION.copy {
+        protocolConfig =
+          protocolConfig.copy {
+            protocols.clear()
+            protocols +=
+              ProtocolConfigKt.protocol {
+                direct =
+                  ProtocolConfigKt.direct {
+                    noiseMechanisms += noiseMechanismOption
+                    deterministicCountDistinct =
+                      ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
+                    deterministicDistribution =
+                      ProtocolConfig.Direct.DeterministicDistribution.getDefaultInstance()
+                  }
+              }
+          }
       }
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }
@@ -1679,7 +1755,127 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        DIRECT_NOISE_MECHANISM,
+        random = Random(RANDOM_SEED),
+        compositionMechanism = COMPOSITION_MECHANISM
+      )
+
+    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+
+    val refuseRequest: RefuseRequisitionRequest =
+      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+    assertThat(refuseRequest)
+      .ignoringFieldScope(
+        FieldScopes.allowingFieldDescriptors(
+          Refusal.getDescriptor().findFieldByNumber(Refusal.MESSAGE_FIELD_NUMBER)
+        )
+      )
+      .isEqualTo(
+        refuseRequisitionRequest {
+          name = REQUISITION.name
+          refusal = refusal { justification = Refusal.Justification.SPEC_INVALID }
+        }
+      )
+    assertThat(refuseRequest.refusal.message).contains("No valid noise mechanism option")
+    assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
+    verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
+  }
+
+  @Test
+  fun `fails to fulfill direct reach and frequency Requisition when no direct methodology is picked by EDP`() {
+    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE
+    val requisition =
+      REQUISITION.copy {
+        protocolConfig =
+          protocolConfig.copy {
+            protocols.clear()
+            protocols +=
+              ProtocolConfigKt.protocol {
+                direct = ProtocolConfigKt.direct { noiseMechanisms += noiseMechanismOption }
+              }
+          }
+      }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+    val simulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        syntheticGeneratorEventQuery,
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        random = Random(RANDOM_SEED),
+        compositionMechanism = COMPOSITION_MECHANISM
+      )
+
+    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+
+    val refuseRequest: RefuseRequisitionRequest =
+      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+    assertThat(refuseRequest)
+      .ignoringFieldScope(
+        FieldScopes.allowingFieldDescriptors(
+          Refusal.getDescriptor().findFieldByNumber(Refusal.MESSAGE_FIELD_NUMBER)
+        )
+      )
+      .isEqualTo(
+        refuseRequisitionRequest {
+          name = REQUISITION.name
+          refusal = refusal { justification = Refusal.Justification.DECLINED }
+        }
+      )
+    assertThat(refuseRequest.refusal.message).contains("No valid methodologies")
+    assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
+    verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
+  }
+
+  @Test
+  fun `fulfills direct reach-only Requisition`() {
+    val measurementSpec = REACH_ONLY_MEASUREMENT_SPEC
+    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE
+    val requisition =
+      REQUISITION.copy {
+        this.measurementSpec = signMeasurementSpec(measurementSpec, MC_SIGNING_KEY)
+        protocolConfig =
+          protocolConfig.copy {
+            protocols.clear()
+            protocols +=
+              ProtocolConfigKt.protocol {
+                direct =
+                  ProtocolConfigKt.direct {
+                    noiseMechanisms += noiseMechanismOption
+                    deterministicCountDistinct =
+                      ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
+                  }
+              }
+          }
+      }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+    val simulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        syntheticGeneratorEventQuery,
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
         random = Random(RANDOM_SEED),
         compositionMechanism = COMPOSITION_MECHANISM
       )
@@ -1693,6 +1889,9 @@ class EdpSimulatorTest {
       )
     val result =
       Measurement.Result.parseFrom(decryptResult(request.encryptedData, MC_PRIVATE_KEY).data)
+
+    assertThat(result.reach.noiseMechanism == noiseMechanismOption)
+    assertThat(result.reach.hasDeterministicCountDistinct())
     assertThat(result).reachValue().isEqualTo(2000L)
     assertThat(result.hasFrequency()).isFalse()
   }
@@ -1703,9 +1902,23 @@ class EdpSimulatorTest {
       REACH_ONLY_MEASUREMENT_SPEC.copy {
         vidSamplingInterval = vidSamplingInterval.copy { width = 0.1f }
       }
+    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE
     val requisition =
-      DIRECT_REQUISITION.copy {
+      REQUISITION.copy {
         this.measurementSpec = signMeasurementSpec(measurementSpec, MC_SIGNING_KEY)
+        protocolConfig =
+          protocolConfig.copy {
+            protocols.clear()
+            protocols +=
+              ProtocolConfigKt.protocol {
+                direct =
+                  ProtocolConfigKt.direct {
+                    noiseMechanisms += noiseMechanismOption
+                    deterministicCountDistinct =
+                      ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
+                  }
+              }
+          }
       }
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }
@@ -1725,7 +1938,6 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        DIRECT_NOISE_MECHANISM,
         random = Random(RANDOM_SEED),
         compositionMechanism = COMPOSITION_MECHANISM
       )
@@ -1739,8 +1951,140 @@ class EdpSimulatorTest {
       )
     val result =
       Measurement.Result.parseFrom(decryptResult(request.encryptedData, MC_PRIVATE_KEY).data)
+
+    assertThat(result.reach.noiseMechanism == noiseMechanismOption)
+    assertThat(result.reach.hasDeterministicCountDistinct())
     assertThat(result).reachValue().isEqualTo(1920)
     assertThat(result.hasFrequency()).isFalse()
+  }
+
+  @Test
+  fun `fails to fulfill direct reach-only Requisition when no direct noise mechanism is picked by EDP`() {
+    val measurementSpec =
+      REACH_ONLY_MEASUREMENT_SPEC.copy {
+        vidSamplingInterval = vidSamplingInterval.copy { width = 0.1f }
+      }
+    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.NONE
+    val requisition =
+      REQUISITION.copy {
+        this.measurementSpec = signMeasurementSpec(measurementSpec, MC_SIGNING_KEY)
+        protocolConfig =
+          protocolConfig.copy {
+            protocols.clear()
+            protocols +=
+              ProtocolConfigKt.protocol {
+                direct =
+                  ProtocolConfigKt.direct {
+                    noiseMechanisms += noiseMechanismOption
+                    deterministicCountDistinct =
+                      ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
+                  }
+              }
+          }
+      }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+    val simulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        syntheticGeneratorEventQuery,
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        random = Random(RANDOM_SEED),
+        compositionMechanism = COMPOSITION_MECHANISM
+      )
+
+    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+
+    val refuseRequest: RefuseRequisitionRequest =
+      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+    assertThat(refuseRequest)
+      .ignoringFieldScope(
+        FieldScopes.allowingFieldDescriptors(
+          Refusal.getDescriptor().findFieldByNumber(Refusal.MESSAGE_FIELD_NUMBER)
+        )
+      )
+      .isEqualTo(
+        refuseRequisitionRequest {
+          name = REQUISITION.name
+          refusal = refusal { justification = Refusal.Justification.SPEC_INVALID }
+        }
+      )
+    assertThat(refuseRequest.refusal.message).contains("No valid noise mechanism option")
+    assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
+    verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
+  }
+
+  @Test
+  fun `fails to fulfill direct reach-only Requisition when no direct methodology is picked by EDP`() {
+    val measurementSpec =
+      REACH_ONLY_MEASUREMENT_SPEC.copy {
+        vidSamplingInterval = vidSamplingInterval.copy { width = 0.1f }
+      }
+    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE
+    val requisition =
+      REQUISITION.copy {
+        this.measurementSpec = signMeasurementSpec(measurementSpec, MC_SIGNING_KEY)
+        protocolConfig =
+          protocolConfig.copy {
+            protocols.clear()
+            protocols +=
+              ProtocolConfigKt.protocol {
+                direct = ProtocolConfigKt.direct { noiseMechanisms += noiseMechanismOption }
+              }
+          }
+      }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+    val simulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        syntheticGeneratorEventQuery,
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        random = Random(RANDOM_SEED),
+        compositionMechanism = COMPOSITION_MECHANISM
+      )
+
+    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+
+    val refuseRequest: RefuseRequisitionRequest =
+      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+    assertThat(refuseRequest)
+      .ignoringFieldScope(
+        FieldScopes.allowingFieldDescriptors(
+          Refusal.getDescriptor().findFieldByNumber(Refusal.MESSAGE_FIELD_NUMBER)
+        )
+      )
+      .isEqualTo(
+        refuseRequisitionRequest {
+          name = REQUISITION.name
+          refusal = refusal { justification = Refusal.Justification.DECLINED }
+        }
+      )
+    assertThat(refuseRequest.refusal.message).contains("No valid methodologies")
+    assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
+    verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
   }
 
   private class FakeRequisitionFulfillmentService : RequisitionFulfillmentCoroutineImplBase() {
@@ -1877,15 +2221,6 @@ class EdpSimulatorTest {
         }
       }
     }
-    private val DIRECT_REQUISITION =
-      REQUISITION.copy {
-        protocolConfig =
-          protocolConfig.copy {
-            protocols.clear()
-            protocols +=
-              ProtocolConfigKt.protocol { direct = ProtocolConfig.Direct.getDefaultInstance() }
-          }
-      }
 
     private val TRUSTED_CERTIFICATES: Map<ByteString, X509Certificate> =
       readCertificateCollection(SECRET_FILES_PATH.resolve("edp_trusted_certs.pem").toFile())

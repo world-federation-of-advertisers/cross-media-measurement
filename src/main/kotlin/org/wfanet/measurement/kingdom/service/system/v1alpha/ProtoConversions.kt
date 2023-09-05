@@ -390,7 +390,10 @@ fun InternalNoiseMechanism.toSystemNoiseMechanism(): NoiseMechanism {
   return when (this) {
     InternalNoiseMechanism.GEOMETRIC -> NoiseMechanism.GEOMETRIC
     InternalNoiseMechanism.DISCRETE_GAUSSIAN -> NoiseMechanism.DISCRETE_GAUSSIAN
+    InternalNoiseMechanism.CONTINUOUS_LAPLACE,
+    InternalNoiseMechanism.CONTINUOUS_GAUSSIAN,
     InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
+    InternalNoiseMechanism.NONE,
     InternalNoiseMechanism.UNRECOGNIZED -> error("invalid internal noise mechanism.")
   }
 }
