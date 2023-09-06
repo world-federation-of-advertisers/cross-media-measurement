@@ -39,6 +39,7 @@ import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
+import org.wfanet.measurement.config.reporting.MeasurementSpecConfig
 import org.wfanet.measurement.reporting.deploy.common.EncryptionKeyPairMap
 import org.wfanet.measurement.reporting.deploy.common.KingdomApiFlags
 import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
@@ -110,6 +111,12 @@ private fun run(
       Dispatchers.Default,
     )
 
+  val measurementSpecConfig =
+    parseTextProto(
+      v1AlphaFlags.measurementSpecConfigFile,
+      MeasurementSpecConfig.getDefaultInstance()
+    )
+
   val services: List<ServerServiceDefinition> =
     listOf(
       EventGroupsService(
@@ -131,7 +138,8 @@ private fun run(
           InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
           SecureRandom(),
           v1AlphaFlags.signingPrivateKeyStoreDir,
-          commonServerFlags.tlsFlags.signingCerts.trustedCertificates
+          commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
+          measurementSpecConfig
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
     )
@@ -156,6 +164,14 @@ private class V1AlphaFlags {
     required = true,
   )
   lateinit var measurementConsumerConfigFile: File
+    private set
+
+  @CommandLine.Option(
+    names = ["--measurement-spec-config-file"],
+    description = ["File path to a MeasurementSpecConfig textproto"],
+    required = true,
+  )
+  lateinit var measurementSpecConfigFile: File
     private set
 
   @CommandLine.Option(

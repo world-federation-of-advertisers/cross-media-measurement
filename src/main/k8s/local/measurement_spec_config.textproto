@@ -1,0 +1,82 @@
+# proto-file: wfa/measurement/config/reporting/measurement_spec_config.proto
+# proto-message: MeasurementSpecConfig
+reachOnlyDirect {
+  privacyParams {
+    epsilon: 0.000207
+    delta: 1e-15
+  }
+  vidSamplingInterval {
+    fixedStart {
+      start: 0f
+      width: 1f
+    }
+  }
+}
+reachOnlyMpc {
+  privacyParams {
+    epsilon: 0.0007444
+    delta: 1e-15
+  }
+  vidSamplingInterval {
+    randomStart {
+      width: 256
+      numVidBuckets: 300
+    }
+  }
+}
+reachAndFrequencyDirect {
+  reachPrivacyParams {
+    epsilon: 0.004728
+    delta: 1e-15
+  }
+  frequencyPrivacyParams {
+    epsilon: 0.004728
+    delta: 1e-15
+  }
+  vidSamplingInterval {
+    fixedStart {
+      start: 0f
+      width: 1f
+    }
+  }
+}
+reachAndFrequencyMpc {
+  reachPrivacyParams {
+    epsilon: 0.014638
+    delta: 1e-15
+  }
+  frequencyPrivacyParams {
+    epsilon: 0.014638
+    delta: 1e-15
+  }
+  vidSamplingInterval {
+    randomStart {
+      width: 256
+      numVidBuckets: 300
+    }
+  }
+}
+impression {
+  privacyParams {
+    epsilon: 0.003592
+    delta: 1e-15
+  }
+  vidSamplingInterval {
+    fixedStart {
+      start: 0f
+      width: 1f
+    }
+  }
+}
+duration {
+  privacyParams {
+    epsilon: 0.007418
+    delta: 1e-15
+  }
+  vidSamplingInterval {
+    fixedStart {
+      start: 0f
+      width: 1f
+    }
+  }
+}

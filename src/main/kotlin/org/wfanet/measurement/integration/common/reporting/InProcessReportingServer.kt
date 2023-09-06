@@ -43,6 +43,8 @@ import org.wfanet.measurement.integration.common.reporting.identity.withMetadata
 import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
+import org.wfanet.measurement.config.reporting.MeasurementSpecConfigKt
+import org.wfanet.measurement.config.reporting.measurementSpecConfig
 import org.wfanet.measurement.reporting.deploy.common.server.ReportingDataServer
 import org.wfanet.measurement.reporting.deploy.common.server.ReportingDataServer.Companion.toList
 import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
@@ -125,6 +127,90 @@ class InProcessReportingServer(
           Dispatchers.Default,
         )
 
+      val measurementSpecConfig =
+        measurementSpecConfig {
+          reachOnlyDirect = MeasurementSpecConfigKt.reachOnlyDirect {
+            privacyParams = MeasurementSpecConfigKt.differentialPrivacyParams {
+              epsilon = 0.000207
+              delta = 1e-15
+            }
+            vidSamplingInterval = MeasurementSpecConfigKt.vidSamplingInterval {
+              fixedStart = MeasurementSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+                start = 0f
+                width = 1f
+              }
+            }
+          }
+          reachOnlyMpc = MeasurementSpecConfigKt.reachOnlyMPC {
+            privacyParams = MeasurementSpecConfigKt.differentialPrivacyParams {
+              epsilon = 0.0007444
+              delta = 1e-15
+            }
+            vidSamplingInterval = MeasurementSpecConfigKt.vidSamplingInterval {
+              randomStart = MeasurementSpecConfigKt.VidSamplingIntervalKt.randomStart {
+                width = 256
+                numVidBuckets = 300
+              }
+            }
+          }
+          reachAndFrequencyDirect = MeasurementSpecConfigKt.reachAndFrequencyDirect {
+            reachPrivacyParams = MeasurementSpecConfigKt.differentialPrivacyParams {
+              epsilon = 0.004728
+              delta = 1e-15
+            }
+            frequencyPrivacyParams = MeasurementSpecConfigKt.differentialPrivacyParams {
+              epsilon = 0.004728
+              delta = 1e-15
+            }
+            vidSamplingInterval = MeasurementSpecConfigKt.vidSamplingInterval {
+              fixedStart = MeasurementSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+                start = 0f
+                width = 1f
+              }
+            }
+          }
+          reachAndFrequencyMpc = MeasurementSpecConfigKt.reachAndFrequencyMPC {
+            reachPrivacyParams = MeasurementSpecConfigKt.differentialPrivacyParams {
+              epsilon = 0.014638
+              delta = 1e-15
+            }
+            frequencyPrivacyParams = MeasurementSpecConfigKt.differentialPrivacyParams {
+              epsilon = 0.014638
+              delta = 1e-15
+            }
+            vidSamplingInterval = MeasurementSpecConfigKt.vidSamplingInterval {
+              randomStart = MeasurementSpecConfigKt.VidSamplingIntervalKt.randomStart {
+                width = 256
+                numVidBuckets = 300
+              }
+            }
+          }
+          impression = MeasurementSpecConfigKt.impression {
+            privacyParams = MeasurementSpecConfigKt.differentialPrivacyParams {
+              epsilon = 0.003592
+              delta = 1e-15
+            }
+            vidSamplingInterval = MeasurementSpecConfigKt.vidSamplingInterval {
+              fixedStart = MeasurementSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+                start = 0f
+                width = 1f
+              }
+            }
+          }
+          duration = MeasurementSpecConfigKt.duration {
+            privacyParams = MeasurementSpecConfigKt.differentialPrivacyParams {
+              epsilon = 0.007418
+              delta = 1e-15
+            }
+            vidSamplingInterval = MeasurementSpecConfigKt.vidSamplingInterval {
+              fixedStart = MeasurementSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+                start = 0f
+                width = 1f
+              }
+            }
+          }
+        }
+
       listOf(
           EventGroupsService(
               publicKingdomEventGroupsClient,
@@ -145,8 +231,9 @@ class InProcessReportingServer(
               encryptionKeyPairStore,
               SecureRandom(),
               signingPrivateKeyDir,
-              trustedCertificates
-            )
+              trustedCertificates,
+              measurementSpecConfig
+          )
             .withMetadataPrincipalIdentities(measurementConsumerConfig)
         )
         .forEach { addService(it.withVerboseLogging(verboseGrpcLogging)) }

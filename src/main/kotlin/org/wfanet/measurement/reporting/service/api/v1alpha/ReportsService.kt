@@ -55,7 +55,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
@@ -135,6 +134,7 @@ import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest as 
 import org.wfanet.measurement.internal.reporting.streamReportsRequest as streamInternalReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
 import org.wfanet.measurement.internal.reporting.timeIntervals as internalTimeIntervals
+import org.wfanet.measurement.config.reporting.MeasurementSpecConfig
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v1alpha.CreateReportRequest
 import org.wfanet.measurement.reporting.v1alpha.GetReportRequest
@@ -183,61 +183,6 @@ private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
-private const val NUMBER_VID_BUCKETS = 300
-private const val REACH_ONLY_VID_SAMPLING_WIDTH = 3.0f / NUMBER_VID_BUCKETS
-private const val NUMBER_REACH_ONLY_BUCKETS = 16
-private val REACH_ONLY_VID_SAMPLING_START_LIST =
-  (0 until NUMBER_REACH_ONLY_BUCKETS).map { it * REACH_ONLY_VID_SAMPLING_WIDTH }
-private const val REACH_ONLY_REACH_EPSILON = 0.0041
-private const val REACH_ONLY_FREQUENCY_EPSILON = 0.0001
-private const val REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER = 1
-
-private const val REACH_FREQUENCY_VID_SAMPLING_WIDTH = 5.0f / NUMBER_VID_BUCKETS
-private const val NUMBER_REACH_FREQUENCY_BUCKETS = 19
-private val REACH_FREQUENCY_VID_SAMPLING_START_LIST =
-  (0 until NUMBER_REACH_FREQUENCY_BUCKETS).map {
-    REACH_ONLY_VID_SAMPLING_START_LIST.last() +
-      REACH_ONLY_VID_SAMPLING_WIDTH +
-      it * REACH_FREQUENCY_VID_SAMPLING_WIDTH
-  }
-private const val REACH_FREQUENCY_REACH_EPSILON = 0.0033
-private const val REACH_FREQUENCY_FREQUENCY_EPSILON = 0.115
-
-private const val IMPRESSION_VID_SAMPLING_WIDTH = 62.0f / NUMBER_VID_BUCKETS
-private const val NUMBER_IMPRESSION_BUCKETS = 1
-private val IMPRESSION_VID_SAMPLING_START_LIST =
-  (0 until NUMBER_IMPRESSION_BUCKETS).map {
-    REACH_FREQUENCY_VID_SAMPLING_START_LIST.last() +
-      REACH_FREQUENCY_VID_SAMPLING_WIDTH +
-      it * IMPRESSION_VID_SAMPLING_WIDTH
-  }
-private const val IMPRESSION_EPSILON = 0.0011
-
-private const val WATCH_DURATION_VID_SAMPLING_WIDTH = 95.0f / NUMBER_VID_BUCKETS
-private const val NUMBER_WATCH_DURATION_BUCKETS = 1
-private val WATCH_DURATION_VID_SAMPLING_START_LIST =
-  (0 until NUMBER_WATCH_DURATION_BUCKETS).map {
-    IMPRESSION_VID_SAMPLING_START_LIST.last() +
-      IMPRESSION_VID_SAMPLING_WIDTH +
-      it * WATCH_DURATION_VID_SAMPLING_WIDTH
-  }
-private const val WATCH_DURATION_EPSILON = 0.001
-
-private const val DIFFERENTIAL_PRIVACY_DELTA = 1e-12
-
-private val REACH_ONLY_MEASUREMENT_SPEC =
-  MeasurementSpecKt.reachAndFrequency {
-    reachPrivacyParams = differentialPrivacyParams {
-      epsilon = REACH_ONLY_REACH_EPSILON
-      delta = DIFFERENTIAL_PRIVACY_DELTA
-    }
-    frequencyPrivacyParams = differentialPrivacyParams {
-      epsilon = REACH_ONLY_FREQUENCY_EPSILON
-      delta = DIFFERENTIAL_PRIVACY_DELTA
-    }
-    maximumFrequencyPerUser = REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER
-  }
-
 private val timeIntervalComparator: (TimeInterval, TimeInterval) -> Int = { a, b ->
   val start = Timestamps.compare(a.startTime, b.startTime)
   if (start != 0) {
@@ -258,9 +203,12 @@ class ReportsService(
   private val encryptionKeyPairStore: EncryptionKeyPairStore,
   private val secureRandom: SecureRandom,
   private val signingPrivateKeyDir: File,
-  private val trustedCertificates: Map<ByteString, X509Certificate>
+  private val trustedCertificates: Map<ByteString, X509Certificate>,
+  private val measurementSpecConfig: MeasurementSpecConfig,
 ) : ReportsCoroutineImplBase() {
   private val setOperationCompiler = SetOperationCompiler()
+  private val measurementSpecComponentFactory =
+    MeasurementSpecComponentFactory(measurementSpecConfig, secureRandom)
 
   private data class ReportInfo(
     val measurementConsumerReferenceId: String,
@@ -1200,7 +1148,6 @@ class ReportsService(
       }
 
       val requisitionSpec = requisitionSpec {
-        eventGroups += eventGroupEntriesList
         events = RequisitionSpecKt.events { eventGroups += eventGroupEntriesList }
         measurementPublicKey = measurementEncryptionPublicKey
         nonce = secureRandom.nextLong()
@@ -1230,6 +1177,7 @@ class ReportsService(
     nonceHashes: List<ByteString>,
     internalMetricDetails: InternalMetricDetails,
   ): MeasurementSpec {
+    val isDirect = nonceHashes.size == 1
     return measurementSpec {
       measurementPublicKey = measurementEncryptionPublicKey
       this.nonceHashes += nonceHashes
@@ -1237,30 +1185,30 @@ class ReportsService(
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (internalMetricDetails.metricTypeCase) {
         InternalMetricTypeCase.REACH -> {
-          reachAndFrequency = REACH_ONLY_MEASUREMENT_SPEC
-          vidSamplingInterval = buildReachOnlyVidSamplingInterval(secureRandom)
+          if (isDirect) {
+            reach = measurementSpecComponentFactory.getReachOnlyDirectType()
+            vidSamplingInterval = measurementSpecComponentFactory.getReachOnlyDirectVidSamplingInterval()
+          } else {
+            reach = measurementSpecComponentFactory.getReachOnlyMPCType()
+            vidSamplingInterval = measurementSpecComponentFactory.getReachOnlyMPCVidSamplingInterval()
+          }
         }
         InternalMetricTypeCase.FREQUENCY_HISTOGRAM -> {
-          reachAndFrequency =
-            buildReachAndFrequencyMeasurementSpec(
-              internalMetricDetails.frequencyHistogram.maximumFrequencyPerUser
-            )
-          vidSamplingInterval = buildReachAndFrequencyVidSamplingInterval(secureRandom)
+          if (isDirect) {
+            reachAndFrequency = measurementSpecComponentFactory.getReachAndFrequencyDirectType(internalMetricDetails.frequencyHistogram.maximumFrequencyPerUser)
+            vidSamplingInterval = measurementSpecComponentFactory.getReachAndFrequencyDirectVidSamplingInterval()
+          } else {
+            reachAndFrequency = measurementSpecComponentFactory.getReachAndFrequencyMPCType(internalMetricDetails.frequencyHistogram.maximumFrequencyPerUser)
+            vidSamplingInterval = measurementSpecComponentFactory.getReachAndFrequencyMPCVidSamplingInterval()
+          }
         }
         InternalMetricTypeCase.IMPRESSION_COUNT -> {
-          impression =
-            buildImpressionMeasurementSpec(
-              internalMetricDetails.impressionCount.maximumFrequencyPerUser
-            )
-          vidSamplingInterval = buildImpressionVidSamplingInterval(secureRandom)
+          impression = measurementSpecComponentFactory.getImpressionType(internalMetricDetails.impressionCount.maximumFrequencyPerUser)
+          vidSamplingInterval = measurementSpecComponentFactory.getImpressionVidSamplingInterval()
         }
         InternalMetricTypeCase.WATCH_DURATION -> {
-          duration =
-            buildDurationMeasurementSpec(
-              internalMetricDetails.watchDuration.maximumWatchDurationPerUser,
-              internalMetricDetails.watchDuration.maximumFrequencyPerUser
-            )
-          vidSamplingInterval = buildDurationVidSamplingInterval(secureRandom)
+          duration = measurementSpecComponentFactory.getDurationType(internalMetricDetails.watchDuration.maximumWatchDurationPerUser)
+          vidSamplingInterval = measurementSpecComponentFactory.getDurationVidSamplingInterval()
         }
         InternalMetricTypeCase.METRICTYPE_NOT_SET ->
           error("Unset metric type should've already raised error.")
@@ -1448,6 +1396,150 @@ class ReportsService(
       return internalReportingSetsList.associateBy { it.externalReportingSetId }
     }
   }
+
+  private class MeasurementSpecComponentFactory(
+    private val measurementSpecConfig: MeasurementSpecConfig,
+    private val secureRandom: SecureRandom
+  ) {
+    private val DEFAULT_VID_START = 0.0f
+    private val DEFAULT_VID_WIDTH = 1.0f
+
+    private val reachOnlyDirectType = MeasurementSpecKt.reach {
+      privacyParams = differentialPrivacyParams {
+        epsilon = measurementSpecConfig.reachOnlyDirect.privacyParams.epsilon
+        delta = measurementSpecConfig.reachOnlyDirect.privacyParams.delta
+      }
+    }
+
+    private val reachOnlyMPCType = MeasurementSpecKt.reach {
+      privacyParams = differentialPrivacyParams {
+        epsilon = measurementSpecConfig.reachOnlyMpc.privacyParams.epsilon
+        delta = measurementSpecConfig.reachOnlyMpc.privacyParams.delta
+      }
+    }
+
+    private val reachAndFrequencyDirectReachPrivacyParams = differentialPrivacyParams {
+      epsilon = measurementSpecConfig.reachAndFrequencyDirect.reachPrivacyParams.epsilon
+      delta = measurementSpecConfig.reachAndFrequencyDirect.reachPrivacyParams.delta
+    }
+
+    private val reachAndFrequencyDirectFrequencyPrivacyParams = differentialPrivacyParams {
+      epsilon = measurementSpecConfig.reachAndFrequencyDirect.frequencyPrivacyParams.epsilon
+      delta = measurementSpecConfig.reachAndFrequencyDirect.frequencyPrivacyParams.delta
+    }
+
+    private val reachAndFrequencyMPCReachPrivacyParams = differentialPrivacyParams {
+      epsilon = measurementSpecConfig.reachAndFrequencyMpc.reachPrivacyParams.epsilon
+      delta = measurementSpecConfig.reachAndFrequencyMpc.reachPrivacyParams.delta
+    }
+
+    private val reachAndFrequencyMPCFrequencyPrivacyParams = differentialPrivacyParams {
+      epsilon = measurementSpecConfig.reachAndFrequencyMpc.frequencyPrivacyParams.epsilon
+      delta = measurementSpecConfig.reachAndFrequencyMpc.frequencyPrivacyParams.delta
+    }
+
+    private val impressionPrivacyParams = differentialPrivacyParams {
+      epsilon = measurementSpecConfig.impression.privacyParams.epsilon
+      delta = measurementSpecConfig.impression.privacyParams.delta
+    }
+
+    private val durationPrivacyParams = differentialPrivacyParams {
+      epsilon = measurementSpecConfig.duration.privacyParams.epsilon
+      delta = measurementSpecConfig.duration.privacyParams.delta
+    }
+
+    private fun createVidSamplingInterval(vidSamplingInterval: MeasurementSpecConfig.VidSamplingInterval): MeasurementSpec.VidSamplingInterval {
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+      return when (vidSamplingInterval.startCase) {
+        MeasurementSpecConfig.VidSamplingInterval.StartCase.FIXED_START -> MeasurementSpecKt.vidSamplingInterval {
+          start = vidSamplingInterval.fixedStart.start
+          width = vidSamplingInterval.fixedStart.width
+        }
+        MeasurementSpecConfig.VidSamplingInterval.StartCase.RANDOM_START -> MeasurementSpecKt.vidSamplingInterval {
+          start = calculateRandomVidStart(vidSamplingInterval.randomStart.width, vidSamplingInterval.randomStart.numVidBuckets)
+          width = vidSamplingInterval.randomStart.width.toFloat() / vidSamplingInterval.randomStart.numVidBuckets
+        }
+        MeasurementSpecConfig.VidSamplingInterval.StartCase.START_NOT_SET -> MeasurementSpecKt.vidSamplingInterval {
+          start = DEFAULT_VID_START
+          width = DEFAULT_VID_WIDTH
+        }
+      }
+    }
+
+    private fun calculateRandomVidStart(width: Int, numVidBuckets: Int): Float {
+      val maxStart = numVidBuckets - width
+      val start = secureRandom.nextInt(maxStart + 1)
+      return start.toFloat() / numVidBuckets
+    }
+
+    fun getReachOnlyDirectVidSamplingInterval(): MeasurementSpec.VidSamplingInterval {
+      val vidSamplingInterval = measurementSpecConfig.reachOnlyDirect.vidSamplingInterval
+      return createVidSamplingInterval(vidSamplingInterval)
+    }
+
+    fun getReachOnlyDirectType(): MeasurementSpec.Reach {
+      return reachOnlyDirectType
+    }
+
+    fun getReachOnlyMPCVidSamplingInterval(): MeasurementSpec.VidSamplingInterval {
+      val vidSamplingInterval = measurementSpecConfig.reachOnlyMpc.vidSamplingInterval
+      return createVidSamplingInterval(vidSamplingInterval)
+    }
+
+    fun getReachOnlyMPCType(): MeasurementSpec.Reach {
+      return reachOnlyMPCType
+    }
+
+    fun getReachAndFrequencyDirectVidSamplingInterval(): MeasurementSpec.VidSamplingInterval {
+      val vidSamplingInterval = measurementSpecConfig.reachAndFrequencyDirect.vidSamplingInterval
+      return createVidSamplingInterval(vidSamplingInterval)
+    }
+
+    fun getReachAndFrequencyDirectType(maximumFrequency: Int): MeasurementSpec.ReachAndFrequency {
+      return MeasurementSpecKt.reachAndFrequency {
+        reachPrivacyParams = reachAndFrequencyDirectReachPrivacyParams
+        frequencyPrivacyParams = reachAndFrequencyDirectFrequencyPrivacyParams
+        this.maximumFrequencyPerUser = maximumFrequency
+      }
+    }
+
+    fun getReachAndFrequencyMPCVidSamplingInterval(): MeasurementSpec.VidSamplingInterval {
+      val vidSamplingInterval = measurementSpecConfig.reachAndFrequencyMpc.vidSamplingInterval
+      return createVidSamplingInterval(vidSamplingInterval)
+    }
+
+    fun getReachAndFrequencyMPCType(maximumFrequency: Int): MeasurementSpec.ReachAndFrequency {
+      return MeasurementSpecKt.reachAndFrequency {
+        reachPrivacyParams = reachAndFrequencyMPCReachPrivacyParams
+        frequencyPrivacyParams = reachAndFrequencyMPCFrequencyPrivacyParams
+        this.maximumFrequencyPerUser = maximumFrequency
+      }
+    }
+
+    fun getImpressionVidSamplingInterval(): MeasurementSpec.VidSamplingInterval {
+      val vidSamplingInterval = measurementSpecConfig.impression.vidSamplingInterval
+      return createVidSamplingInterval(vidSamplingInterval)
+    }
+
+    fun getImpressionType(maximumFrequencyPerUser: Int): MeasurementSpec.Impression {
+      return MeasurementSpecKt.impression {
+        privacyParams = impressionPrivacyParams
+        this.maximumFrequencyPerUser = maximumFrequencyPerUser
+      }
+    }
+
+    fun getDurationVidSamplingInterval(): MeasurementSpec.VidSamplingInterval {
+      val vidSamplingInterval = measurementSpecConfig.duration.vidSamplingInterval
+      return createVidSamplingInterval(vidSamplingInterval)
+    }
+
+    fun getDurationType(maximumWatchDurationPerUser: Int): MeasurementSpec.Duration {
+      return MeasurementSpecKt.duration {
+        privacyParams = durationPrivacyParams
+        this.maximumWatchDurationPerUser = maximumWatchDurationPerUser
+      }
+    }
+  }
 }
 
 /** Converts the time in [Report] to a list of [TimeInterval]. */
@@ -1620,93 +1712,6 @@ private fun combineEventGroupFilters(filter1: String?, filter2: String?): String
   return if (filter2.isNullOrBlank()) filter1
   else {
     "($filter1) AND ($filter2)"
-  }
-}
-
-/** Builds a [VidSamplingInterval] for reach-only. */
-private fun buildReachOnlyVidSamplingInterval(secureRandom: SecureRandom): VidSamplingInterval {
-  return MeasurementSpecKt.vidSamplingInterval {
-    // Random draw the start point from the list
-    val index = secureRandom.nextInt(NUMBER_REACH_ONLY_BUCKETS)
-    start = REACH_ONLY_VID_SAMPLING_START_LIST[index]
-    width = REACH_ONLY_VID_SAMPLING_WIDTH
-  }
-}
-
-/** Builds a [VidSamplingInterval] for reach-frequency. */
-private fun buildReachAndFrequencyVidSamplingInterval(
-  secureRandom: SecureRandom
-): VidSamplingInterval {
-  return MeasurementSpecKt.vidSamplingInterval {
-    // Random draw the start point from the list
-    val index = secureRandom.nextInt(NUMBER_REACH_FREQUENCY_BUCKETS)
-    start = REACH_FREQUENCY_VID_SAMPLING_START_LIST[index]
-    width = REACH_FREQUENCY_VID_SAMPLING_WIDTH
-  }
-}
-
-/** Builds a [VidSamplingInterval] for impression count. */
-private fun buildImpressionVidSamplingInterval(secureRandom: SecureRandom): VidSamplingInterval {
-  return MeasurementSpecKt.vidSamplingInterval {
-    // Random draw the start point from the list
-    val index = secureRandom.nextInt(NUMBER_IMPRESSION_BUCKETS)
-    start = IMPRESSION_VID_SAMPLING_START_LIST[index]
-    width = IMPRESSION_VID_SAMPLING_WIDTH
-  }
-}
-
-/** Builds a [VidSamplingInterval] for watch duration. */
-private fun buildDurationVidSamplingInterval(secureRandom: SecureRandom): VidSamplingInterval {
-  return MeasurementSpecKt.vidSamplingInterval {
-    // Random draw the start point from the list
-    val index = secureRandom.nextInt(NUMBER_WATCH_DURATION_BUCKETS)
-    start = WATCH_DURATION_VID_SAMPLING_START_LIST[index]
-    width = WATCH_DURATION_VID_SAMPLING_WIDTH
-  }
-}
-
-/** Builds a [MeasurementSpec.ReachAndFrequency] for reach-frequency. */
-private fun buildReachAndFrequencyMeasurementSpec(
-  maximumFrequencyPerUser: Int
-): MeasurementSpec.ReachAndFrequency {
-  return MeasurementSpecKt.reachAndFrequency {
-    reachPrivacyParams = differentialPrivacyParams {
-      epsilon = REACH_FREQUENCY_REACH_EPSILON
-      delta = DIFFERENTIAL_PRIVACY_DELTA
-    }
-    frequencyPrivacyParams = differentialPrivacyParams {
-      epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
-      delta = DIFFERENTIAL_PRIVACY_DELTA
-    }
-    this.maximumFrequencyPerUser = maximumFrequencyPerUser
-  }
-}
-
-/** Builds a [MeasurementSpec.ReachAndFrequency] for impression count. */
-private fun buildImpressionMeasurementSpec(
-  maximumFrequencyPerUser: Int
-): MeasurementSpec.Impression {
-  return MeasurementSpecKt.impression {
-    privacyParams = differentialPrivacyParams {
-      epsilon = IMPRESSION_EPSILON
-      delta = DIFFERENTIAL_PRIVACY_DELTA
-    }
-    this.maximumFrequencyPerUser = maximumFrequencyPerUser
-  }
-}
-
-/** Builds a [MeasurementSpec.ReachAndFrequency] for watch duration. */
-private fun buildDurationMeasurementSpec(
-  maximumWatchDurationPerUser: Int,
-  maximumFrequencyPerUser: Int
-): MeasurementSpec.Duration {
-  return MeasurementSpecKt.duration {
-    privacyParams = differentialPrivacyParams {
-      epsilon = WATCH_DURATION_EPSILON
-      delta = DIFFERENTIAL_PRIVACY_DELTA
-    }
-    this.maximumWatchDurationPerUser = maximumWatchDurationPerUser
-    this.maximumFrequencyPerUser = maximumFrequencyPerUser
   }
 }
 
