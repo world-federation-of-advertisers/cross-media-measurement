@@ -12,23 +12,15 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-import { ReportListView } from "./view/report_list/report_list_view";
-import { ReportView } from "./view/report/report_view";
+import appConfig from '../../client/initialize';
 
+export const ReportRepository = () => {
+  async function loadReport(id: string) {
+    const response = await appConfig.reportingApi!.getReport({id});
+    return response.report;
+  }
 
-type route = {
-    path: string,
-    element: React.JSX.Element,
-    errorElement?: React.JSX.Element,
+  return {
+    loadReport,
+  }
 }
-
-export const routes: route[] = [
-    {
-        path: "/",
-        element: <ReportListView baseLink={"/reports/"} />,
-    },
-    {
-        path: "/reports/:reportId",
-        element: <ReportView />
-    }
-];
