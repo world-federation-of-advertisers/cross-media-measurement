@@ -18,6 +18,7 @@ js_library(
     ],
     deps = [
         "//experimental/reporting-ui/src/main/react/reporting-ui/public/asset/font",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/view/report",
         "//experimental/reporting-ui/src/main/react/reporting-ui/view/report_list",
     ],
 )
