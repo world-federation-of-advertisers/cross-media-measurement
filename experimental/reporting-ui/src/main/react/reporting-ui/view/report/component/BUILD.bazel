@@ -1,0 +1,28 @@
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+
+package(
+    default_visibility = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui/view/report:__subpackages__",
+    ],
+)
+
+js_library(
+    name = "terminal_report",
+    srcs = [
+        "header.css",
+        "header.tsx",
+        "overview.css",
+        "overview.tsx",
+        "overview_card.tsx",
+        "publisher_cell.tsx",
+        "summary_table.css",
+        "summary_table.tsx",
+        "summary_table_row.tsx",
+        "terminal_report.tsx",
+    ],
+    deps = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui/component/card_wrapper",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/public/asset/icon",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/util",
+    ],
+)
