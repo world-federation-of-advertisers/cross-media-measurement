@@ -119,7 +119,9 @@ import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.config.reporting.MeasurementSpecConfigKt
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
+import org.wfanet.measurement.config.reporting.measurementSpecConfig
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
@@ -139,6 +141,7 @@ import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.Measurements
 import org.wfanet.measurement.internal.reporting.Metric as InternalMetric
 import org.wfanet.measurement.internal.reporting.MetricKt as InternalMetricKt
 import org.wfanet.measurement.internal.reporting.MetricKt.MeasurementCalculationKt.weightedMeasurement
+import org.wfanet.measurement.internal.reporting.MetricKt.SetOperationKt.operand
 import org.wfanet.measurement.internal.reporting.MetricKt.SetOperationKt.reportingSetKey
 import org.wfanet.measurement.internal.reporting.MetricKt.measurementCalculation
 import org.wfanet.measurement.internal.reporting.Report as InternalReport
@@ -167,14 +170,10 @@ import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest
 import org.wfanet.measurement.internal.reporting.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
 import org.wfanet.measurement.internal.reporting.timeIntervals as internalTimeIntervals
-import org.wfanet.measurement.config.reporting.MeasurementSpecConfigKt
-import org.wfanet.measurement.config.reporting.measurementSpecConfig
-import org.wfanet.measurement.internal.reporting.MetricKt.SetOperationKt.operand
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v1alpha.ListReportsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.Metric.SetOperation
-import org.wfanet.measurement.reporting.v1alpha.MetricKt
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.SetOperationKt
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.frequencyHistogramParams
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.impressionCountParams
@@ -211,86 +210,112 @@ private const val WIDTH = 256
 private const val DELTA = 1e-15
 
 private val MEASUREMENT_SPEC_CONFIG = measurementSpecConfig {
-  reachOnlyDirect = MeasurementSpecConfigKt.reachOnlyDirect {
-    privacyParams = MeasurementSpecConfigKt.differentialPrivacyParams {
-      epsilon = 0.000207
-      delta = DELTA
+  reachOnlyDirect =
+    MeasurementSpecConfigKt.reachOnlyDirect {
+      privacyParams =
+        MeasurementSpecConfigKt.differentialPrivacyParams {
+          epsilon = 0.000207
+          delta = DELTA
+        }
+      vidSamplingInterval =
+        MeasurementSpecConfigKt.vidSamplingInterval {
+          fixedStart =
+            MeasurementSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+              start = 0f
+              width = 1f
+            }
+        }
     }
-    vidSamplingInterval = MeasurementSpecConfigKt.vidSamplingInterval {
-      fixedStart = MeasurementSpecConfigKt.VidSamplingIntervalKt.fixedStart {
-        start = 0f
-        width = 1f
-      }
+  reachOnlyMpc =
+    MeasurementSpecConfigKt.reachOnlyMPC {
+      privacyParams =
+        MeasurementSpecConfigKt.differentialPrivacyParams {
+          epsilon = 0.0007444
+          delta = DELTA
+        }
+      vidSamplingInterval =
+        MeasurementSpecConfigKt.vidSamplingInterval {
+          randomStart =
+            MeasurementSpecConfigKt.VidSamplingIntervalKt.randomStart {
+              width = WIDTH
+              numVidBuckets = NUMBER_VID_BUCKETS
+            }
+        }
     }
-  }
-  reachOnlyMpc = MeasurementSpecConfigKt.reachOnlyMPC {
-    privacyParams = MeasurementSpecConfigKt.differentialPrivacyParams {
-      epsilon = 0.0007444
-      delta = DELTA
+  reachAndFrequencyDirect =
+    MeasurementSpecConfigKt.reachAndFrequencyDirect {
+      reachPrivacyParams =
+        MeasurementSpecConfigKt.differentialPrivacyParams {
+          epsilon = 0.004728
+          delta = DELTA
+        }
+      frequencyPrivacyParams =
+        MeasurementSpecConfigKt.differentialPrivacyParams {
+          epsilon = 0.004728
+          delta = DELTA
+        }
+      vidSamplingInterval =
+        MeasurementSpecConfigKt.vidSamplingInterval {
+          fixedStart =
+            MeasurementSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+              start = 0f
+              width = 1f
+            }
+        }
     }
-    vidSamplingInterval = MeasurementSpecConfigKt.vidSamplingInterval {
-      randomStart = MeasurementSpecConfigKt.VidSamplingIntervalKt.randomStart {
-        width = WIDTH
-        numVidBuckets = NUMBER_VID_BUCKETS
-      }
+  reachAndFrequencyMpc =
+    MeasurementSpecConfigKt.reachAndFrequencyMPC {
+      reachPrivacyParams =
+        MeasurementSpecConfigKt.differentialPrivacyParams {
+          epsilon = 0.014638
+          delta = DELTA
+        }
+      frequencyPrivacyParams =
+        MeasurementSpecConfigKt.differentialPrivacyParams {
+          epsilon = 0.014638
+          delta = DELTA
+        }
+      vidSamplingInterval =
+        MeasurementSpecConfigKt.vidSamplingInterval {
+          randomStart =
+            MeasurementSpecConfigKt.VidSamplingIntervalKt.randomStart {
+              width = WIDTH
+              numVidBuckets = NUMBER_VID_BUCKETS
+            }
+        }
     }
-  }
-  reachAndFrequencyDirect = MeasurementSpecConfigKt.reachAndFrequencyDirect {
-    reachPrivacyParams = MeasurementSpecConfigKt.differentialPrivacyParams {
-      epsilon = 0.004728
-      delta = DELTA
+  impression =
+    MeasurementSpecConfigKt.impression {
+      privacyParams =
+        MeasurementSpecConfigKt.differentialPrivacyParams {
+          epsilon = 0.003592
+          delta = DELTA
+        }
+      vidSamplingInterval =
+        MeasurementSpecConfigKt.vidSamplingInterval {
+          fixedStart =
+            MeasurementSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+              start = 0f
+              width = 1f
+            }
+        }
     }
-    frequencyPrivacyParams = MeasurementSpecConfigKt.differentialPrivacyParams {
-      epsilon = 0.004728
-      delta = DELTA
+  duration =
+    MeasurementSpecConfigKt.duration {
+      privacyParams =
+        MeasurementSpecConfigKt.differentialPrivacyParams {
+          epsilon = 0.007418
+          delta = DELTA
+        }
+      vidSamplingInterval =
+        MeasurementSpecConfigKt.vidSamplingInterval {
+          fixedStart =
+            MeasurementSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+              start = 0f
+              width = 1f
+            }
+        }
     }
-    vidSamplingInterval = MeasurementSpecConfigKt.vidSamplingInterval {
-      fixedStart = MeasurementSpecConfigKt.VidSamplingIntervalKt.fixedStart {
-        start = 0f
-        width = 1f
-      }
-    }
-  }
-  reachAndFrequencyMpc = MeasurementSpecConfigKt.reachAndFrequencyMPC {
-    reachPrivacyParams = MeasurementSpecConfigKt.differentialPrivacyParams {
-      epsilon = 0.014638
-      delta = DELTA
-    }
-    frequencyPrivacyParams = MeasurementSpecConfigKt.differentialPrivacyParams {
-      epsilon = 0.014638
-      delta = DELTA
-    }
-    vidSamplingInterval = MeasurementSpecConfigKt.vidSamplingInterval {
-      randomStart = MeasurementSpecConfigKt.VidSamplingIntervalKt.randomStart {
-        width = WIDTH
-        numVidBuckets = NUMBER_VID_BUCKETS
-      }
-    }
-  }
-  impression = MeasurementSpecConfigKt.impression {
-    privacyParams = MeasurementSpecConfigKt.differentialPrivacyParams {
-      epsilon = 0.003592
-      delta = DELTA
-    }
-    vidSamplingInterval = MeasurementSpecConfigKt.vidSamplingInterval {
-      fixedStart = MeasurementSpecConfigKt.VidSamplingIntervalKt.fixedStart {
-        start = 0f
-        width = 1f
-      }
-    }
-  }
-  duration = MeasurementSpecConfigKt.duration {
-    privacyParams = MeasurementSpecConfigKt.differentialPrivacyParams {
-      epsilon = 0.007418
-      delta = DELTA
-    }
-    vidSamplingInterval = MeasurementSpecConfigKt.vidSamplingInterval {
-      fixedStart = MeasurementSpecConfigKt.VidSamplingIntervalKt.fixedStart {
-        start = 0f
-        width = 1f
-      }
-    }
-  }
 }
 
 private const val SECURE_RANDOM_OUTPUT_INT = 0
@@ -665,11 +690,7 @@ private val PENDING_REACH_MEASUREMENT =
 private val REACH_ONLY_DIRECT_MEASUREMENT_SPEC = measurementSpec {
   measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.toByteString()
 
-  nonceHashes.addAll(
-    listOf(
-      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG)
-    )
-  )
+  nonceHashes.addAll(listOf(Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG)))
 
   reach =
     MeasurementSpecKt.reach {
@@ -688,10 +709,12 @@ private val REACH_ONLY_DIRECT_MEASUREMENT_REQUEST = createMeasurementRequest {
   parent = MeasurementConsumerKey(REACH_MEASUREMENT_KEY.measurementConsumerId).toName()
   measurement =
     BASE_MEASUREMENT.copy {
-      dataProviders +=
-        DATA_PROVIDER_ENTRIES.getValue(DataProviderKey(ExternalId(551L).apiId.value))
+      dataProviders += DATA_PROVIDER_ENTRIES.getValue(DataProviderKey(ExternalId(551L).apiId.value))
       measurementSpec =
-        signMeasurementSpec(REACH_ONLY_DIRECT_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
+        signMeasurementSpec(
+          REACH_ONLY_DIRECT_MEASUREMENT_SPEC,
+          MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
+        )
     }
   requestId = REACH_MEASUREMENT_CREATE_REQUEST_ID
 }
@@ -726,7 +749,10 @@ private val REACH_ONLY_MPC_MEASUREMENT_REQUEST = createMeasurementRequest {
       dataProviders +=
         DATA_PROVIDER_KEYS_IN_SET_OPERATION.map { DATA_PROVIDER_ENTRIES.getValue(it) }
       measurementSpec =
-        signMeasurementSpec(REACH_ONLY_MPC_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
+        signMeasurementSpec(
+          REACH_ONLY_MPC_MEASUREMENT_SPEC,
+          MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
+        )
     }
   requestId = REACH_MEASUREMENT_CREATE_REQUEST_ID
 }
@@ -780,11 +806,7 @@ private val BASE_REACH_FREQUENCY_HISTOGRAM_MEASUREMENT =
 private val REACH_FREQUENCY_DIRECT_MEASUREMENT_SPEC = measurementSpec {
   measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.toByteString()
 
-  nonceHashes.addAll(
-    listOf(
-      Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG)
-    )
-  )
+  nonceHashes.addAll(listOf(Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG)))
 
   reachAndFrequency =
     MeasurementSpecKt.reachAndFrequency {
@@ -808,10 +830,12 @@ private val REACH_FREQUENCY_DIRECT_MEASUREMENT_REQUEST = createMeasurementReques
   parent = MeasurementConsumerKey(REACH_MEASUREMENT_KEY.measurementConsumerId).toName()
   measurement =
     BASE_MEASUREMENT.copy {
-      dataProviders +=
-        DATA_PROVIDER_ENTRIES.getValue(DataProviderKey(ExternalId(551L).apiId.value))
+      dataProviders += DATA_PROVIDER_ENTRIES.getValue(DataProviderKey(ExternalId(551L).apiId.value))
       measurementSpec =
-        signMeasurementSpec(REACH_FREQUENCY_DIRECT_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
+        signMeasurementSpec(
+          REACH_FREQUENCY_DIRECT_MEASUREMENT_SPEC,
+          MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
+        )
     }
   requestId = FREQUENCY_HISTOGRAM_MEASUREMENT_CREATE_REQUEST_ID
 }
@@ -851,7 +875,10 @@ private val REACH_FREQUENCY_MPC_MEASUREMENT_REQUEST = createMeasurementRequest {
       dataProviders +=
         DATA_PROVIDER_KEYS_IN_SET_OPERATION.map { DATA_PROVIDER_ENTRIES.getValue(it) }
       measurementSpec =
-        signMeasurementSpec(REACH_FREQUENCY_MPC_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
+        signMeasurementSpec(
+          REACH_FREQUENCY_MPC_MEASUREMENT_SPEC,
+          MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
+        )
     }
   requestId = FREQUENCY_HISTOGRAM_MEASUREMENT_CREATE_REQUEST_ID
 }
@@ -861,7 +888,10 @@ private val SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT =
     dataProviders += DATA_PROVIDER_KEYS_IN_SET_OPERATION.map { DATA_PROVIDER_ENTRIES.getValue(it) }
 
     measurementSpec =
-      signMeasurementSpec(REACH_FREQUENCY_MPC_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
+      signMeasurementSpec(
+        REACH_FREQUENCY_MPC_MEASUREMENT_SPEC,
+        MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
+      )
 
     state = Measurement.State.SUCCEEDED
     results += resultPair {
@@ -1019,7 +1049,10 @@ private val WATCH_DURATION_MEASUREMENT_REQUEST = createMeasurementRequest {
       dataProviders +=
         DATA_PROVIDER_KEYS_IN_SET_OPERATION.map { DATA_PROVIDER_ENTRIES.getValue(it) }
       measurementSpec =
-        signMeasurementSpec(WATCH_DURATION_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
+        signMeasurementSpec(
+          WATCH_DURATION_MEASUREMENT_SPEC,
+          MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
+        )
     }
   requestId = WATCH_DURATION_MEASUREMENT_CREATE_REQUEST_ID
 }
@@ -1666,23 +1699,23 @@ class ReportsServiceTest {
 
     val request = createReportRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
-      report = PENDING_REACH_REPORT.copy {
-        eventGroupUniverse = EVENT_GROUP_UNIVERSE_WITH_ONE_DATA_PROVIDER
-        metrics.clear()
-        metrics += metric {
-          reach = reachParams {  }
-          setOperations += namedSetOperation {
-            uniqueName = REACH_SET_OPERATION_UNIQUE_NAME
-            setOperation = setOperation {
-              type = SetOperation.Type.UNION
-              lhs = SetOperationKt.operand {
-                reportingSet = INTERNAL_REPORTING_SETS[0].resourceName
+      report =
+        PENDING_REACH_REPORT.copy {
+          eventGroupUniverse = EVENT_GROUP_UNIVERSE_WITH_ONE_DATA_PROVIDER
+          metrics.clear()
+          metrics += metric {
+            reach = reachParams {}
+            setOperations += namedSetOperation {
+              uniqueName = REACH_SET_OPERATION_UNIQUE_NAME
+              setOperation = setOperation {
+                type = SetOperation.Type.UNION
+                lhs =
+                  SetOperationKt.operand { reportingSet = INTERNAL_REPORTING_SETS[0].resourceName }
               }
             }
           }
+          clearState()
         }
-        clearState()
-      }
     }
 
     withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
@@ -1721,25 +1754,25 @@ class ReportsServiceTest {
 
     val request = createReportRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
-      report = PENDING_FREQUENCY_HISTOGRAM_REPORT.copy {
-        eventGroupUniverse = EVENT_GROUP_UNIVERSE_WITH_ONE_DATA_PROVIDER
-        metrics.clear()
-        metrics += metric {
-          frequencyHistogram = frequencyHistogramParams {
-            maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
-          }
-          setOperations += namedSetOperation {
-            uniqueName = FREQUENCY_HISTOGRAM_SET_OPERATION_UNIQUE_NAME
-            setOperation = setOperation {
-              type = SetOperation.Type.UNION
-              lhs = SetOperationKt.operand {
-                reportingSet = INTERNAL_REPORTING_SETS[0].resourceName
+      report =
+        PENDING_FREQUENCY_HISTOGRAM_REPORT.copy {
+          eventGroupUniverse = EVENT_GROUP_UNIVERSE_WITH_ONE_DATA_PROVIDER
+          metrics.clear()
+          metrics += metric {
+            frequencyHistogram = frequencyHistogramParams {
+              maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
+            }
+            setOperations += namedSetOperation {
+              uniqueName = FREQUENCY_HISTOGRAM_SET_OPERATION_UNIQUE_NAME
+              setOperation = setOperation {
+                type = SetOperation.Type.UNION
+                lhs =
+                  SetOperationKt.operand { reportingSet = INTERNAL_REPORTING_SETS[0].resourceName }
               }
             }
           }
+          clearState()
         }
-        clearState()
-      }
     }
 
     withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {

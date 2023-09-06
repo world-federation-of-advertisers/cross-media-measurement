@@ -36,10 +36,10 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
+import org.wfanet.measurement.config.reporting.MeasurementSpecConfig
 import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
-import org.wfanet.measurement.config.reporting.MeasurementSpecConfig
 import org.wfanet.measurement.reporting.deploy.common.EncryptionKeyPairMap
 import org.wfanet.measurement.reporting.deploy.common.KingdomApiFlags
 import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider

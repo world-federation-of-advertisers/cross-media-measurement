@@ -60,7 +60,7 @@ package k8s
 	_signingPrivateKeyStoreDirFlag:     "--signing-private-key-store-dir=/var/run/secrets/files"
 	_encryptionKeyPairDirFlag:          "--key-pair-dir=/var/run/secrets/files"
 	_encryptionKeyPairConfigFileFlag:   "--key-pair-config-file=/etc/\(#AppName)/config-files/encryption_key_pair_config.textproto"
-  _measurementSpecConfigFileFlag:     "--key-pair-config-file=/etc/\(#AppName)/config-files/measurement_spec_config.textproto"
+	_measurementSpecConfigFileFlag:     "--key-pair-config-file=/etc/\(#AppName)/config-files/measurement_spec_config.textproto"
 	_debugVerboseGrpcClientLoggingFlag: "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
 	_debugVerboseGrpcServerLoggingFlag: "--debug-verbose-grpc-server-logging=\(_verboseGrpcServerLogging)"
 

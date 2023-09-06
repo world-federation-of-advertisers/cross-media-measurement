@@ -83,6 +83,7 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.config.reporting.MeasurementSpecConfig
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
@@ -134,7 +135,6 @@ import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest as 
 import org.wfanet.measurement.internal.reporting.streamReportsRequest as streamInternalReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
 import org.wfanet.measurement.internal.reporting.timeIntervals as internalTimeIntervals
-import org.wfanet.measurement.config.reporting.MeasurementSpecConfig
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v1alpha.CreateReportRequest
 import org.wfanet.measurement.reporting.v1alpha.GetReportRequest
@@ -1187,27 +1187,43 @@ class ReportsService(
         InternalMetricTypeCase.REACH -> {
           if (isDirect) {
             reach = measurementSpecComponentFactory.getReachOnlyDirectType()
-            vidSamplingInterval = measurementSpecComponentFactory.getReachOnlyDirectVidSamplingInterval()
+            vidSamplingInterval =
+              measurementSpecComponentFactory.getReachOnlyDirectVidSamplingInterval()
           } else {
             reach = measurementSpecComponentFactory.getReachOnlyMPCType()
-            vidSamplingInterval = measurementSpecComponentFactory.getReachOnlyMPCVidSamplingInterval()
+            vidSamplingInterval =
+              measurementSpecComponentFactory.getReachOnlyMPCVidSamplingInterval()
           }
         }
         InternalMetricTypeCase.FREQUENCY_HISTOGRAM -> {
           if (isDirect) {
-            reachAndFrequency = measurementSpecComponentFactory.getReachAndFrequencyDirectType(internalMetricDetails.frequencyHistogram.maximumFrequencyPerUser)
-            vidSamplingInterval = measurementSpecComponentFactory.getReachAndFrequencyDirectVidSamplingInterval()
+            reachAndFrequency =
+              measurementSpecComponentFactory.getReachAndFrequencyDirectType(
+                internalMetricDetails.frequencyHistogram.maximumFrequencyPerUser
+              )
+            vidSamplingInterval =
+              measurementSpecComponentFactory.getReachAndFrequencyDirectVidSamplingInterval()
           } else {
-            reachAndFrequency = measurementSpecComponentFactory.getReachAndFrequencyMPCType(internalMetricDetails.frequencyHistogram.maximumFrequencyPerUser)
-            vidSamplingInterval = measurementSpecComponentFactory.getReachAndFrequencyMPCVidSamplingInterval()
+            reachAndFrequency =
+              measurementSpecComponentFactory.getReachAndFrequencyMPCType(
+                internalMetricDetails.frequencyHistogram.maximumFrequencyPerUser
+              )
+            vidSamplingInterval =
+              measurementSpecComponentFactory.getReachAndFrequencyMPCVidSamplingInterval()
           }
         }
         InternalMetricTypeCase.IMPRESSION_COUNT -> {
-          impression = measurementSpecComponentFactory.getImpressionType(internalMetricDetails.impressionCount.maximumFrequencyPerUser)
+          impression =
+            measurementSpecComponentFactory.getImpressionType(
+              internalMetricDetails.impressionCount.maximumFrequencyPerUser
+            )
           vidSamplingInterval = measurementSpecComponentFactory.getImpressionVidSamplingInterval()
         }
         InternalMetricTypeCase.WATCH_DURATION -> {
-          duration = measurementSpecComponentFactory.getDurationType(internalMetricDetails.watchDuration.maximumWatchDurationPerUser)
+          duration =
+            measurementSpecComponentFactory.getDurationType(
+              internalMetricDetails.watchDuration.maximumWatchDurationPerUser
+            )
           vidSamplingInterval = measurementSpecComponentFactory.getDurationVidSamplingInterval()
         }
         InternalMetricTypeCase.METRICTYPE_NOT_SET ->
@@ -1404,19 +1420,21 @@ class ReportsService(
     private val DEFAULT_VID_START = 0.0f
     private val DEFAULT_VID_WIDTH = 1.0f
 
-    private val reachOnlyDirectType = MeasurementSpecKt.reach {
-      privacyParams = differentialPrivacyParams {
-        epsilon = measurementSpecConfig.reachOnlyDirect.privacyParams.epsilon
-        delta = measurementSpecConfig.reachOnlyDirect.privacyParams.delta
+    private val reachOnlyDirectType =
+      MeasurementSpecKt.reach {
+        privacyParams = differentialPrivacyParams {
+          epsilon = measurementSpecConfig.reachOnlyDirect.privacyParams.epsilon
+          delta = measurementSpecConfig.reachOnlyDirect.privacyParams.delta
+        }
       }
-    }
 
-    private val reachOnlyMPCType = MeasurementSpecKt.reach {
-      privacyParams = differentialPrivacyParams {
-        epsilon = measurementSpecConfig.reachOnlyMpc.privacyParams.epsilon
-        delta = measurementSpecConfig.reachOnlyMpc.privacyParams.delta
+    private val reachOnlyMPCType =
+      MeasurementSpecKt.reach {
+        privacyParams = differentialPrivacyParams {
+          epsilon = measurementSpecConfig.reachOnlyMpc.privacyParams.epsilon
+          delta = measurementSpecConfig.reachOnlyMpc.privacyParams.delta
+        }
       }
-    }
 
     private val reachAndFrequencyDirectReachPrivacyParams = differentialPrivacyParams {
       epsilon = measurementSpecConfig.reachAndFrequencyDirect.reachPrivacyParams.epsilon
@@ -1448,21 +1466,32 @@ class ReportsService(
       delta = measurementSpecConfig.duration.privacyParams.delta
     }
 
-    private fun createVidSamplingInterval(vidSamplingInterval: MeasurementSpecConfig.VidSamplingInterval): MeasurementSpec.VidSamplingInterval {
+    private fun createVidSamplingInterval(
+      vidSamplingInterval: MeasurementSpecConfig.VidSamplingInterval
+    ): MeasurementSpec.VidSamplingInterval {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       return when (vidSamplingInterval.startCase) {
-        MeasurementSpecConfig.VidSamplingInterval.StartCase.FIXED_START -> MeasurementSpecKt.vidSamplingInterval {
-          start = vidSamplingInterval.fixedStart.start
-          width = vidSamplingInterval.fixedStart.width
-        }
-        MeasurementSpecConfig.VidSamplingInterval.StartCase.RANDOM_START -> MeasurementSpecKt.vidSamplingInterval {
-          start = calculateRandomVidStart(vidSamplingInterval.randomStart.width, vidSamplingInterval.randomStart.numVidBuckets)
-          width = vidSamplingInterval.randomStart.width.toFloat() / vidSamplingInterval.randomStart.numVidBuckets
-        }
-        MeasurementSpecConfig.VidSamplingInterval.StartCase.START_NOT_SET -> MeasurementSpecKt.vidSamplingInterval {
-          start = DEFAULT_VID_START
-          width = DEFAULT_VID_WIDTH
-        }
+        MeasurementSpecConfig.VidSamplingInterval.StartCase.FIXED_START ->
+          MeasurementSpecKt.vidSamplingInterval {
+            start = vidSamplingInterval.fixedStart.start
+            width = vidSamplingInterval.fixedStart.width
+          }
+        MeasurementSpecConfig.VidSamplingInterval.StartCase.RANDOM_START ->
+          MeasurementSpecKt.vidSamplingInterval {
+            start =
+              calculateRandomVidStart(
+                vidSamplingInterval.randomStart.width,
+                vidSamplingInterval.randomStart.numVidBuckets
+              )
+            width =
+              vidSamplingInterval.randomStart.width.toFloat() /
+                vidSamplingInterval.randomStart.numVidBuckets
+          }
+        MeasurementSpecConfig.VidSamplingInterval.StartCase.START_NOT_SET ->
+          MeasurementSpecKt.vidSamplingInterval {
+            start = DEFAULT_VID_START
+            width = DEFAULT_VID_WIDTH
+          }
       }
     }
 
