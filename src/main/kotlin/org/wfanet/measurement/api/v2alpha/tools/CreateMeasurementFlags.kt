@@ -198,12 +198,12 @@ class CreateMeasurementFlags {
             private set
 
           @set:Option(
-            names = ["--reach-max-frequency"],
-            description = ["Maximum frequency per user"],
+            names = ["--max-frequency"],
+            description = ["Maximum frequency revealed in the distribution"],
             required = false,
             defaultValue = "10",
           )
-          var maximumFrequencyPerUser by Delegates.notNull<Int>()
+          var maximumFrequency by Delegates.notNull<Int>()
             private set
         }
 
@@ -233,7 +233,7 @@ class CreateMeasurementFlags {
             private set
 
           @set:Option(
-            names = ["--impression-max-frequency"],
+            names = ["--max-frequency-per-user"],
             description = ["Maximum frequency per user"],
             required = true,
           )
@@ -358,9 +358,9 @@ class CreateMeasurementFlags {
           measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency
             .frequencyPrivacyDelta
       }
-      maximumFrequencyPerUser =
+      maximumFrequency =
         measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency
-          .maximumFrequencyPerUser
+          .maximumFrequency
     }
   }
 
