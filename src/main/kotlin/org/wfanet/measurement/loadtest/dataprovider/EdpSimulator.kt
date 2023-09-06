@@ -916,25 +916,22 @@ class EdpSimulator(
 
   private fun encryptLiquidLegionsV2Sketch(
     sketch: Sketch,
+    ellipticCurveId: Int,
     combinedPublicKey: AnySketchElGamalPublicKey,
-    protocol: ProtocolConfig.LiquidLegionsV2
+    maximumValue: Int,
   ): ByteString {
+    require(maximumValue > 0) { "Maximum value must be positive" }
     logger.log(Level.INFO, "Encrypting Liquid Legions V2 Sketch...")
-    return sketchEncrypter.encrypt(
-      sketch,
-      protocol.ellipticCurveId,
-      combinedPublicKey,
-      protocol.maximumFrequency
-    )
+    return sketchEncrypter.encrypt(sketch, ellipticCurveId, combinedPublicKey, maximumValue)
   }
 
   private fun encryptReachOnlyLiquidLegionsV2Sketch(
     sketch: Sketch,
+    ellipticCurveId: Int,
     combinedPublicKey: AnySketchElGamalPublicKey,
-    protocol: ProtocolConfig.ReachOnlyLiquidLegionsV2
   ): ByteString {
     logger.log(Level.INFO, "Encrypting Reach-Only Liquid Legions V2 Sketch...")
-    return sketchEncrypter.encrypt(sketch, protocol.ellipticCurveId, combinedPublicKey)
+    return sketchEncrypter.encrypt(sketch, ellipticCurveId, combinedPublicKey)
   }
 
   /**
@@ -984,7 +981,13 @@ class EdpSimulator(
         )
       }
 
-    val encryptedSketch = encryptLiquidLegionsV2Sketch(sketch, combinedPublicKey, liquidLegionsV2)
+    val encryptedSketch =
+      encryptLiquidLegionsV2Sketch(
+        sketch,
+        liquidLegionsV2.ellipticCurveId,
+        combinedPublicKey,
+        measurementSpec.reachAndFrequency.maximumFrequency.coerceAtLeast(1)
+      )
     fulfillRequisition(requisition.name, requisitionFingerprint, nonce, encryptedSketch)
   }
 
@@ -999,31 +1002,30 @@ class EdpSimulator(
     nonce: Long,
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>
   ) {
-    val roLlv2Protocol: ProtocolConfig.Protocol =
+    val protocolConfig: ProtocolConfig.ReachOnlyLiquidLegionsV2 =
       requireNotNull(
-        requisition.protocolConfig.protocolsList.find { protocol ->
-          protocol.hasReachOnlyLiquidLegionsV2()
+          requisition.protocolConfig.protocolsList.find { protocol ->
+            protocol.hasReachOnlyLiquidLegionsV2()
+          }
+        ) {
+          "Protocol with ReachOnlyLiquidLegionsV2 is missing"
         }
-      ) {
-        "Protocol with ReachOnlyLiquidLegionsV2 is missing"
-      }
-    val reachOnlyLiquidLegionsV2: ProtocolConfig.ReachOnlyLiquidLegionsV2 =
-      roLlv2Protocol.reachOnlyLiquidLegionsV2
-    val combinedPublicKey =
-      requisition.getCombinedPublicKey(reachOnlyLiquidLegionsV2.ellipticCurveId)
+        .reachOnlyLiquidLegionsV2
+    val combinedPublicKey: AnySketchElGamalPublicKey =
+      requisition.getCombinedPublicKey(protocolConfig.ellipticCurveId)
 
     chargeLiquidLegionsV2PrivacyBudget(
       requisition.name,
       measurementSpec,
       eventGroupSpecs.map { it.spec },
-      reachOnlyLiquidLegionsV2.noiseMechanism,
+      protocolConfig.noiseMechanism,
       requisition.duchiesCount
     )
 
     val sketch =
       try {
         generateSketch(
-          reachOnlyLiquidLegionsV2.sketchParams.toSketchConfig(),
+          protocolConfig.sketchParams.toSketchConfig(),
           measurementSpec,
           eventGroupSpecs,
         )
@@ -1040,7 +1042,11 @@ class EdpSimulator(
       }
 
     val encryptedSketch =
-      encryptReachOnlyLiquidLegionsV2Sketch(sketch, combinedPublicKey, reachOnlyLiquidLegionsV2)
+      encryptReachOnlyLiquidLegionsV2Sketch(
+        sketch,
+        protocolConfig.ellipticCurveId,
+        combinedPublicKey
+      )
     fulfillRequisition(requisition.name, requisitionFingerprint, nonce, encryptedSketch)
   }
 
@@ -1267,7 +1273,11 @@ class EdpSimulator(
           )
         }
 
-        val (sampledReachValue, frequencyMap) = MeasurementResults.computeReachAndFrequency(samples)
+        val (sampledReachValue, frequencyMap) =
+          MeasurementResults.computeReachAndFrequency(
+            sampledVids,
+            measurementSpec.reachAndFrequency.maximumFrequency
+          )
 
         logger.info("Adding $directNoiseMechanism publisher noise to direct reach and frequency...")
         val sampledNoisedReachValue =

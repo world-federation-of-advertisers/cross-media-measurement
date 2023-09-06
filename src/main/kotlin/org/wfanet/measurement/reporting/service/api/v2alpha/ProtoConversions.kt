@@ -195,9 +195,7 @@ fun MetricSpec.FrequencyHistogramParams.toInternal(): InternalMetricSpec.Frequen
   return InternalMetricSpecKt.frequencyHistogramParams {
     reachPrivacyParams = source.reachPrivacyParams.toInternal()
     frequencyPrivacyParams = source.frequencyPrivacyParams.toInternal()
-    if (source.hasMaximumFrequencyPerUser()) {
-      maximumFrequencyPerUser = source.maximumFrequencyPerUser
-    }
+    maximumFrequency = source.maximumFrequency
   }
 }
 
@@ -255,7 +253,7 @@ fun InternalMetricSpec.toMetricSpec(): MetricSpec {
       InternalMetricSpec.TypeCase.FREQUENCY_HISTOGRAM ->
         frequencyHistogram =
           MetricSpecKt.frequencyHistogramParams {
-            maximumFrequencyPerUser = source.frequencyHistogram.maximumFrequencyPerUser
+            maximumFrequency = source.frequencyHistogram.maximumFrequency
             reachPrivacyParams = source.frequencyHistogram.reachPrivacyParams.toPrivacyParams()
             frequencyPrivacyParams =
               source.frequencyHistogram.frequencyPrivacyParams.toPrivacyParams()
@@ -319,7 +317,7 @@ fun InternalMetricSpec.FrequencyHistogramParams.toReachAndFrequency():
   return MeasurementSpecKt.reachAndFrequency {
     reachPrivacyParams = source.reachPrivacyParams.toCmmsPrivacyParams()
     frequencyPrivacyParams = source.frequencyPrivacyParams.toCmmsPrivacyParams()
-    maximumFrequencyPerUser = source.maximumFrequencyPerUser
+    maximumFrequency = source.maximumFrequency
   }
 }
 

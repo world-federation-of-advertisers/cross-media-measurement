@@ -396,7 +396,8 @@ private fun buildMpcProtocolConfig(
               protocolConfig.liquidLegionsV2.dataProviderNoise.toDifferentialPrivacyParams()
           }
           ellipticCurveId = protocolConfig.liquidLegionsV2.ellipticCurveId
-          maximumFrequency = protocolConfig.liquidLegionsV2.maximumFrequency
+          @Suppress("DEPRECATION") // For legacy Measurements.
+          maximumFrequency = source.liquidLegionsV2.maximumFrequency
           noiseMechanism =
             if (
               protocolConfig.liquidLegionsV2.noiseMechanism ==
