@@ -1740,7 +1740,7 @@ private fun combineEventGroupFilters(filter1: String?, filter2: String?): String
 
   return if (filter2.isNullOrBlank()) filter1
   else {
-    "($filter1) AND ($filter2)"
+    "($filter1) && ($filter2)"
   }
 }
 
