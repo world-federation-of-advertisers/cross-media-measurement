@@ -15,7 +15,6 @@
 import React from 'react';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
-// import { Overview } from '../../../../model/reporting';
 import './overview.css';
 import { ReportOverviewCard } from './overview_card';
 
@@ -27,16 +26,16 @@ export function ReportOverviewStats({reportOverview}: ReportTotalsProps) {
   return (
     <Row id="report-overview">
       <Col>
-        <ReportOverviewCard id={"report-overview-impressions-card"} title={"Impressions"} value={reportOverview.totalImpressions}/>
+        <ReportOverviewCard id='report-overview-impressions-card' title='Impressions' value={reportOverview.totalImpressions}/>
       </Col>
       <Col>
-        <ReportOverviewCard id={'report-overview-total-reach-card'} title={"Reach"} value={reportOverview.totalReach}/>
+        <ReportOverviewCard id='report-overview-total-reach-card' title='Reach' value={reportOverview.totalReach}/>
       </Col>
       <Col>
-        <ReportOverviewCard id={'report-overview-target-reach-card'} title={"On Target Reach"} value={reportOverview.totalOnTargetReach}/>
+        <ReportOverviewCard id='report-overview-target-reach-card' title='On Target Reach' value={reportOverview.totalOnTargetReach}/>
       </Col>
       <Col>
-        <ReportOverviewCard id={'report-overview-frequency-card'} title={"Average Frequency"} value={reportOverview.totalAverageFrequency}/>
+        <ReportOverviewCard id='report-overview-frequency-card' title='Average Frequency' value={reportOverview.totalAverageFrequency}/>
       </Col>
     </Row>
   );
