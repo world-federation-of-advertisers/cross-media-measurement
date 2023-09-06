@@ -17,7 +17,7 @@ import { CardWrapper as Card } from '../../../component/card_wrapper/card_wrappe
 import { numberWithMagnitude } from '../../../util/numberWithMagnitude';
 
 export type ReportOverviewProps = {
-  id: string, // desired CSS id
+  id: string,
   title: string,
   value: number,
 }
