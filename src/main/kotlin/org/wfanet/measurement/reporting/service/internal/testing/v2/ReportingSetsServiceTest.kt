@@ -108,6 +108,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
       .containsExactly(
         ReportingSetKt.weightedSubsetUnion {
           weight = 1
+          binaryRepresentation = 1
           primitiveReportingSetBases +=
             ReportingSetKt.primitiveReportingSetBasis {
               this.externalReportingSetId = createdReportingSet.externalReportingSetId
@@ -163,6 +164,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
       .containsExactly(
         ReportingSetKt.weightedSubsetUnion {
           weight = 1
+          binaryRepresentation = 1
           primitiveReportingSetBases +=
             ReportingSetKt.primitiveReportingSetBasis {
               this.externalReportingSetId = createdReportingSet.externalReportingSetId
@@ -302,6 +304,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
               filters += "filter1"
               filters += "filter2"
             }
+          binaryRepresentation = 1
           weight = 5
         }
 
@@ -319,6 +322,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
               filters += "filter1"
               filters += "filter2"
             }
+          binaryRepresentation = 1
           weight = 6
         }
     }
@@ -538,6 +542,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
       .containsExactly(
         ReportingSetKt.weightedSubsetUnion {
           weight = 1
+          binaryRepresentation = 1
           primitiveReportingSetBases +=
             ReportingSetKt.primitiveReportingSetBasis {
               this.externalReportingSetId = createdReportingSet.externalReportingSetId
@@ -1049,6 +1054,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
           weightedSubsetUnions +=
             ReportingSetKt.weightedSubsetUnion {
               weight = 1
+              binaryRepresentation = 1
               primitiveReportingSetBases +=
                 ReportingSetKt.primitiveReportingSetBasis {
                   this.externalReportingSetId = createdReportingSet.externalReportingSetId
@@ -1311,6 +1317,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
             weightedSubsetUnions +=
               ReportingSetKt.weightedSubsetUnion {
                 weight = 1
+                binaryRepresentation = 1
                 primitiveReportingSetBases +=
                   ReportingSetKt.primitiveReportingSetBasis {
                     this.externalReportingSetId =
@@ -1596,6 +1603,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
           weightedSubsetUnions +=
             ReportingSetKt.weightedSubsetUnion {
               weight = 1
+              binaryRepresentation = 1
               primitiveReportingSetBases +=
                 ReportingSetKt.primitiveReportingSetBasis {
                   this.externalReportingSetId = createdReportingSet.externalReportingSetId

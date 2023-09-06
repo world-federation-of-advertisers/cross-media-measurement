@@ -337,9 +337,10 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
           MeasurementConsumerId,
           MetricId,
           MeasurementId,
-          Coefficient
+          Coefficient,
+          BinaryRepresentation
         )
-        VALUES ($1, $2, $3, $4)
+        VALUES ($1, $2, $3, $4, $5)
       """
       ) {
         metricMeasurementsBinders.forEach { addBinding(it) }
@@ -449,6 +450,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         bind("$2", metricId)
         bind("$3", measurementId)
         bind("$4", it.weight)
+        bind("$5", it.binaryRepresentation)
       }
 
       val primitiveReportingSetBasesBindings =

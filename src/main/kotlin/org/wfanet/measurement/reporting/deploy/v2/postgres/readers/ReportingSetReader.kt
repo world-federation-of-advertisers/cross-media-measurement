@@ -71,6 +71,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
 
   private data class WeightedSubsetUnionInfo(
     val weight: Int,
+    val binaryRepresentation: Int,
     // Key is primitiveReportingSetBasisId.
     val primitiveReportingSetBasisInfoMap: MutableMap<InternalId, PrimitiveReportingSetBasisInfo>,
   )
@@ -97,6 +98,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
       ReportingSets.Filter AS ReportingSetFilter,
       WeightedSubsetUnionId,
       WeightedSubsetUnions.Weight,
+      WeightedSubsetUnions.BinaryRepresentation,
       PrimitiveReportingSetBasisId,
       PrimitiveReportingSets.ExternalReportingSetId AS PrimitiveExternalReportingSetId,
       PrimitiveReportingSetBasisFilters.Filter AS PrimitiveReportingSetBasisFilter,
@@ -262,6 +264,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
         weightedSubsetUnions +=
           ReportingSetKt.weightedSubsetUnion {
             weight = 1
+            binaryRepresentation = 1
             primitiveReportingSetBases +=
               ReportingSetKt.primitiveReportingSetBasis {
                 this.externalReportingSetId = reportingSetInfo.externalReportingSetId
@@ -281,6 +284,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
           weightedSubsetUnions +=
             ReportingSetKt.weightedSubsetUnion {
               weight = it.weight
+              binaryRepresentation = it.binaryRepresentation
               it.primitiveReportingSetBasisInfoMap.values.forEach {
                 primitiveReportingSetBases +=
                   ReportingSetKt.primitiveReportingSetBasis {
@@ -309,6 +313,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
       val reportingSetFilter: String? = row["ReportingSetFilter"]
       val weightedSubsetUnionId: InternalId? = row["WeightedSubsetUnionId"]
       val weight: Int? = row["Weight"]
+      val binaryRepresentation: Int? = row["BinaryRepresentation"]
       val primitiveReportingSetBasisId: InternalId? = row["PrimitiveReportingSetBasisId"]
       val primitiveExternalReportingSetId: String? = row["PrimitiveExternalReportingSetId"]
       val primitiveReportingSetBasisFilter: String? = row["PrimitiveReportingSetBasisFilter"]
@@ -361,6 +366,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
       if (
         weightedSubsetUnionId != null &&
           weight != null &&
+          binaryRepresentation != null &&
           primitiveReportingSetBasisId != null &&
           primitiveExternalReportingSetId != null
       ) {
@@ -368,6 +374,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
           reportingSetInfo.weightedSubsetUnionInfoMap.computeIfAbsent(weightedSubsetUnionId) {
             WeightedSubsetUnionInfo(
               weight = weight,
+              binaryRepresentation = binaryRepresentation,
               primitiveReportingSetBasisInfoMap = mutableMapOf(),
             )
           }

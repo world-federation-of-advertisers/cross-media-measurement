@@ -161,6 +161,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
         weightedSubsetUnions +=
           ReportingSetKt.weightedSubsetUnion {
             weight = 1
+            binaryRepresentation = 1
             primitiveReportingSetBases +=
               ReportingSetKt.primitiveReportingSetBasis {
                 this.externalReportingSetId = externalReportingSetId
@@ -392,6 +393,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
         bind("$2", reportingSetId)
         bind("$3", weightedSubsetUnionId)
         bind("$4", weightedSubsetUnion.weight)
+        bind("$5", weightedSubsetUnion.binaryRepresentation)
       }
 
       weightedSubsetUnion.primitiveReportingSetBasesList.forEach {
@@ -416,8 +418,8 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
     val weightedSubsetUnionsStatement =
       boundStatement(
         """
-        INSERT INTO WeightedSubsetUnions (MeasurementConsumerId, ReportingSetId, WeightedSubsetUnionId, Weight)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO WeightedSubsetUnions (MeasurementConsumerId, ReportingSetId, WeightedSubsetUnionId, Weight, BinaryRepresentation)
+        VALUES ($1, $2, $3, $4, $5)
         """
       ) {
         weightedSubsetUnionsBinders.forEach { addBinding(it) }

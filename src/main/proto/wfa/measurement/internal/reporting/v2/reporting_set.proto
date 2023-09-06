@@ -71,6 +71,7 @@ message ReportingSet {
   message WeightedSubsetUnion {
     repeated PrimitiveReportingSetBasis primitive_reporting_set_bases = 1;
     int32 weight = 2;
+    int32 binary_representation = 3;
   }
   repeated WeightedSubsetUnion weighted_subset_unions = 7;
 }

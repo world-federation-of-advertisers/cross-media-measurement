@@ -78,7 +78,8 @@ message Metric {
 
   message WeightedMeasurement {
     int32 weight = 1;
-    Measurement measurement = 2;
+    int32 binary_representation = 2;
+    Measurement measurement = 3;
   }
   repeated WeightedMeasurement weighted_measurements = 7;
 
