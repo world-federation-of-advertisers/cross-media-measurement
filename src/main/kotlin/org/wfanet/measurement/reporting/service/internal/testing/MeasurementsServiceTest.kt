@@ -442,7 +442,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   fun `setMeasurementResult succeeds in setting the result for report with duration metric`() {
     val metricDetails =
       MetricKt.details {
-        watchDuration = MetricKt.watchDurationParams { maximumWatchDurationPerUser = 100 }
+        watchDuration = MetricKt.watchDurationParams { maximumWatchDurationPerUserSeconds = 100 }
       }
     val createdReport = runBlocking {
       reportsService.createReport(
