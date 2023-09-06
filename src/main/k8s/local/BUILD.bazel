@@ -269,7 +269,7 @@ kustomization_dir(
     srcs = [
         "config_files_kustomization.yaml",
         ":encryption_key_pair_config.textproto",
-        "measurement_spec_config.textproto",
+        ":measurement_spec_config.textproto",
         ":metric_spec_config.textproto",
         "//src/main/k8s/testing/data:synthetic_generation_specs",
     ],
