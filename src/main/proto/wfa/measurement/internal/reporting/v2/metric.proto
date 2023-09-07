@@ -35,7 +35,7 @@ message MetricSpec {
   message FrequencyHistogramParams {
     DifferentialPrivacyParams reach_privacy_params = 1;
     DifferentialPrivacyParams frequency_privacy_params = 2;
-    int32 maximum_frequency_per_user = 3;
+    int32 maximum_frequency = 3;
   }
   message ImpressionCountParams {
     DifferentialPrivacyParams privacy_params = 1;
@@ -78,7 +78,8 @@ message Metric {
 
   message WeightedMeasurement {
     int32 weight = 1;
-    Measurement measurement = 2;
+    int32 binary_representation = 2;
+    Measurement measurement = 3;
   }
   repeated WeightedMeasurement weighted_measurements = 7;
 

@@ -860,7 +860,7 @@ private val REACH_FREQUENCY_MEASUREMENT_SPEC = measurementSpec {
         epsilon = MEASUREMENT_SPEC_CONFIG.reachAndFrequency.frequencyPrivacyParams.epsilon
         delta = MEASUREMENT_SPEC_CONFIG.reachAndFrequency.frequencyPrivacyParams.delta
       }
-      maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
+      maximumFrequency = MAXIMUM_FREQUENCY
     }
   vidSamplingInterval = vidSamplingInterval {
     start = SECURE_RANDOM_OUTPUT_INT.toFloat() / NUMBER_VID_BUCKETS
@@ -1221,9 +1221,7 @@ private val INTERNAL_FREQUENCY_HISTOGRAM_METRIC = internalMetric {
   details =
     InternalMetricKt.details {
       frequencyHistogram =
-        InternalMetricKt.frequencyHistogramParams {
-          maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
-        }
+        InternalMetricKt.frequencyHistogramParams { maximumFrequency = MAXIMUM_FREQUENCY_PER_USER }
       cumulative = false
     }
   namedSetOperations.add(INTERNAL_NAMED_FREQUENCY_HISTOGRAM_SET_OPERATION)
@@ -1250,7 +1248,6 @@ private val INTERNAL_IMPRESSION_METRIC = internalMetric {
 // Watch duration metric
 private val WATCH_DURATION_METRIC = metric {
   watchDuration = watchDurationParams {
-    maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
     maximumWatchDurationPerUser = MAXIMUM_WATCH_DURATION_PER_USER
   }
   cumulative = false
@@ -1261,7 +1258,6 @@ private val INTERNAL_WATCH_DURATION_METRIC = internalMetric {
     InternalMetricKt.details {
       watchDuration =
         InternalMetricKt.watchDurationParams {
-          maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
           maximumWatchDurationPerUser = MAXIMUM_WATCH_DURATION_PER_USER
         }
       cumulative = false

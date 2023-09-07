@@ -1203,14 +1203,14 @@ class ReportsService(
           if (isDirect) {
             reachAndFrequency =
               measurementSpecComponentFactory.getReachAndFrequencySingleDataProviderType(
-                internalMetricDetails.frequencyHistogram.maximumFrequencyPerUser
+                internalMetricDetails.frequencyHistogram.maximumFrequency
               )
             vidSamplingInterval =
               measurementSpecComponentFactory.getReachAndFrequencySingleDataProviderVidSamplingInterval()
           } else {
             reachAndFrequency =
               measurementSpecComponentFactory.getReachAndFrequencyType(
-                internalMetricDetails.frequencyHistogram.maximumFrequencyPerUser
+                internalMetricDetails.frequencyHistogram.maximumFrequency
               )
             vidSamplingInterval =
               measurementSpecComponentFactory.getReachAndFrequencyVidSamplingInterval()
@@ -1853,7 +1853,6 @@ private fun SetOperation.Type.toInternal(): InternalSetOperation.Type {
 private fun WatchDurationParams.toInternal(): InternalWatchDurationParams {
   val source = this
   return InternalMetricKt.watchDurationParams {
-    maximumFrequencyPerUser = source.maximumFrequencyPerUser
     maximumWatchDurationPerUser = source.maximumWatchDurationPerUser
   }
 }
@@ -1870,7 +1869,7 @@ private fun ImpressionCountParams.toInternal(): InternalImpressionCountParams {
 private fun FrequencyHistogramParams.toInternal(): InternalFrequencyHistogramParams {
   val source = this
   return InternalMetricKt.frequencyHistogramParams {
-    maximumFrequencyPerUser = source.maximumFrequencyPerUser
+    maximumFrequency = source.maximumFrequencyPerUser
   }
 }
 
@@ -2211,10 +2210,7 @@ private fun InternalSetOperation.Type.toType(): SetOperation.Type {
 /** Converts an internal [InternalWatchDurationParams] to a public [WatchDurationParams]. */
 private fun InternalWatchDurationParams.toWatchDuration(): WatchDurationParams {
   val source = this
-  return watchDurationParams {
-    maximumFrequencyPerUser = source.maximumFrequencyPerUser
-    maximumWatchDurationPerUser = source.maximumWatchDurationPerUser
-  }
+  return watchDurationParams { maximumWatchDurationPerUser = source.maximumWatchDurationPerUser }
 }
 
 /** Converts an internal [InternalImpressionCountParams] to a public [ImpressionCountParams]. */
@@ -2228,7 +2224,7 @@ private fun InternalImpressionCountParams.toImpressionCount(): ImpressionCountPa
  */
 private fun InternalFrequencyHistogramParams.toFrequencyHistogram(): FrequencyHistogramParams {
   val source = this
-  return frequencyHistogramParams { maximumFrequencyPerUser = source.maximumFrequencyPerUser }
+  return frequencyHistogramParams { maximumFrequencyPerUser = source.maximumFrequency }
 }
 
 /** Converts an internal [InternalPeriodicTimeInterval] to a public [PeriodicTimeInterval]. */

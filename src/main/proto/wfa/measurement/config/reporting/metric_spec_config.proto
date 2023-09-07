@@ -46,9 +46,9 @@ message MetricSpecConfig {
     DifferentialPrivacyParams frequency_privacy_params = 2;
     // Maximum frequency cut-off value in the frequency histogram.
     //
-    // Counts with frequency higher than `max_frequency` will be aggregated
+    // Counts with frequency higher than `maximum_frequency` will be aggregated
     // together.
-    int32 maximum_frequency_per_user = 3;
+    int32 maximum_frequency = 3;
   }
   // Parameters that are used to generate `Impression Count` metric.
   message ImpressionCountParams {
