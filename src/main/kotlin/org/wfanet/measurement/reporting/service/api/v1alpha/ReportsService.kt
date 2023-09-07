@@ -1181,7 +1181,7 @@ class ReportsService(
     nonceHashes: List<ByteString>,
     internalMetricDetails: InternalMetricDetails,
   ): MeasurementSpec {
-    val isDirect = nonceHashes.size == 1
+    val isSingleDataProvider = nonceHashes.size == 1
     return measurementSpec {
       measurementPublicKey = measurementEncryptionPublicKey
       this.nonceHashes += nonceHashes
@@ -1189,7 +1189,7 @@ class ReportsService(
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (internalMetricDetails.metricTypeCase) {
         InternalMetricTypeCase.REACH -> {
-          if (isDirect) {
+          if (isSingleDataProvider) {
             reach = measurementSpecComponentFactory.getReachSingleDataProviderType()
             vidSamplingInterval =
               measurementSpecComponentFactory.getReachSingleDataProviderVidSamplingInterval()
@@ -1199,7 +1199,7 @@ class ReportsService(
           }
         }
         InternalMetricTypeCase.FREQUENCY_HISTOGRAM -> {
-          if (isDirect) {
+          if (isSingleDataProvider) {
             reachAndFrequency =
               measurementSpecComponentFactory.getReachAndFrequencySingleDataProviderType(
                 internalMetricDetails.frequencyHistogram.maximumFrequency
