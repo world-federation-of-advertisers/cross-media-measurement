@@ -130,21 +130,7 @@ class MeasurementConsumerSimulator(
     val measurement: Measurement,
     val measurementSpec: MeasurementSpec,
     val requisitions: List<RequisitionInfo>,
-  ) {
-    val maximumFrequency: Int
-      get() {
-        // TODO(world-federation-of-advertisers/cross-media-measurement-api#160): Use field from
-        // MeasurementSpec.
-        val protocols = measurement.protocolConfig.protocolsList
-        if (protocols.find { it.hasDirect() } != null) {
-          return Int.MAX_VALUE
-        }
-
-        val protocol =
-          protocols.find { it.hasLiquidLegionsV2() } ?: error("Unable to determine max frequency")
-        return protocol.liquidLegionsV2.maximumFrequency
-      }
-  }
+  )
 
   private val MeasurementInfo.sampledVids: Sequence<Long>
     get() {
@@ -216,7 +202,7 @@ class MeasurementConsumerSimulator(
       delay(Duration.ofSeconds(5))
       failure = getFailure(invalidMeasurement.name)
     }
-    assertThat(failure.message).contains("reach_privacy_params.delta")
+    assertThat(failure.message).contains("delta")
     logger.info("Receive failed Measurement from Kingdom: ${failure.message}. Test passes.")
   }
 
@@ -527,11 +513,10 @@ class MeasurementConsumerSimulator(
   }
 
   private fun getExpectedReachAndFrequencyResult(measurementInfo: MeasurementInfo): Result {
-
     val (reach, relativeFrequencyDistribution) =
       MeasurementResults.computeReachAndFrequency(
         measurementInfo.sampledVids.asIterable(),
-        measurementInfo.maximumFrequency
+        measurementInfo.measurementSpec.reachAndFrequency.maximumFrequency
       )
     return result {
       this.reach = reach { value = reach.toLong() }
@@ -563,6 +548,7 @@ class MeasurementConsumerSimulator(
       reachAndFrequency = reachAndFrequency {
         reachPrivacyParams = outputDpParams
         frequencyPrivacyParams = outputDpParams
+        maximumFrequency = 10
       }
       vidSamplingInterval = vidSamplingInterval {
         start = 0.0f
@@ -591,14 +577,15 @@ class MeasurementConsumerSimulator(
     serializedMeasurementPublicKey: ByteString,
     nonceHashes: List<ByteString>
   ): MeasurementSpec {
+    val invalidPrivacyParams = differentialPrivacyParams {
+      epsilon = 1.0
+      delta = 0.0
+    }
     return newReachAndFrequencyMeasurementSpec(serializedMeasurementPublicKey, nonceHashes).copy {
-      val invalidPrivacyParams = differentialPrivacyParams {
-        epsilon = 1.0
-        delta = 0.0
-      }
       reachAndFrequency = reachAndFrequency {
         reachPrivacyParams = invalidPrivacyParams
         frequencyPrivacyParams = invalidPrivacyParams
+        maximumFrequency = 10
       }
     }
   }
