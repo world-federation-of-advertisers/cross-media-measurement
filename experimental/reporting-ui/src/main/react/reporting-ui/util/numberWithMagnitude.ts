@@ -13,12 +13,12 @@
 // limitations under the License.
 
 // In powers of 10
-const MAGNITUDES = {
+const MAGNITUDES = Object.freeze({
   3: 'K',
   6: 'M',
   9: 'B',
   12: 'T',
-}
+});
 
 export const numberWithMagnitude = (num: number, decimals: number, trailingZeros: boolean = false) => {
   let power = 0;
