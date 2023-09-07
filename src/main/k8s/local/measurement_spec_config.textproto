@@ -1,6 +1,6 @@
 # proto-file: wfa/measurement/config/reporting/measurement_spec_config.proto
 # proto-message: MeasurementSpecConfig
-reachOnlyDirect {
+reachSingleDataProvider {
   privacyParams {
     epsilon: 0.000207
     delta: 1e-15
@@ -12,7 +12,7 @@ reachOnlyDirect {
     }
   }
 }
-reachOnlyMpc {
+reach {
   privacyParams {
     epsilon: 0.0007444
     delta: 1e-15
@@ -24,9 +24,9 @@ reachOnlyMpc {
     }
   }
 }
-reachAndFrequencyDirect {
+reachAndFrequencySingleDataProvider {
   reachPrivacyParams {
-    epsilon: 0.004728
+    epsilon: 0.000207
     delta: 1e-15
   }
   frequencyPrivacyParams {
@@ -40,9 +40,9 @@ reachAndFrequencyDirect {
     }
   }
 }
-reachAndFrequencyMpc {
+reachAndFrequency {
   reachPrivacyParams {
-    epsilon: 0.014638
+    epsilon: 0.0007444
     delta: 1e-15
   }
   frequencyPrivacyParams {

@@ -167,8 +167,8 @@ class InProcessReportingServer(
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     private val MEASUREMENT_CONFIG = measurementSpecConfig {
-      reachOnlyDirect =
-        MeasurementSpecConfigKt.reachOnlyDirect {
+      reachSingleDataProvider =
+        MeasurementSpecConfigKt.reachSingleDataProvider {
           privacyParams =
             MeasurementSpecConfigKt.differentialPrivacyParams {
               epsilon = 0.000207
@@ -183,8 +183,8 @@ class InProcessReportingServer(
                 }
             }
         }
-      reachOnlyMpc =
-        MeasurementSpecConfigKt.reachOnlyMPC {
+      reach =
+        MeasurementSpecConfigKt.reach {
           privacyParams =
             MeasurementSpecConfigKt.differentialPrivacyParams {
               epsilon = 0.0007444
@@ -199,11 +199,11 @@ class InProcessReportingServer(
                 }
             }
         }
-      reachAndFrequencyDirect =
-        MeasurementSpecConfigKt.reachAndFrequencyDirect {
+      reachAndFrequencySingleDataProvider =
+        MeasurementSpecConfigKt.reachAndFrequencySingleDataProvider {
           reachPrivacyParams =
             MeasurementSpecConfigKt.differentialPrivacyParams {
-              epsilon = 0.004728
+              epsilon = 0.000207
               delta = 1e-15
             }
           frequencyPrivacyParams =
@@ -220,11 +220,11 @@ class InProcessReportingServer(
                 }
             }
         }
-      reachAndFrequencyMpc =
-        MeasurementSpecConfigKt.reachAndFrequencyMPC {
+      reachAndFrequency =
+        MeasurementSpecConfigKt.reachAndFrequency {
           reachPrivacyParams =
             MeasurementSpecConfigKt.differentialPrivacyParams {
-              epsilon = 0.014638
+              epsilon =  0.0007444
               delta = 1e-15
             }
           frequencyPrivacyParams =

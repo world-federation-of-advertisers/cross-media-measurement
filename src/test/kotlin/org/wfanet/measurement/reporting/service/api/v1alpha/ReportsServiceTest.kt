@@ -210,8 +210,8 @@ private const val WIDTH = 256
 private const val DELTA = 1e-15
 
 private val MEASUREMENT_SPEC_CONFIG = measurementSpecConfig {
-  reachOnlyDirect =
-    MeasurementSpecConfigKt.reachOnlyDirect {
+  reachSingleDataProvider =
+    MeasurementSpecConfigKt.reachSingleDataProvider {
       privacyParams =
         MeasurementSpecConfigKt.differentialPrivacyParams {
           epsilon = 0.000207
@@ -226,8 +226,8 @@ private val MEASUREMENT_SPEC_CONFIG = measurementSpecConfig {
             }
         }
     }
-  reachOnlyMpc =
-    MeasurementSpecConfigKt.reachOnlyMPC {
+  reach =
+    MeasurementSpecConfigKt.reach {
       privacyParams =
         MeasurementSpecConfigKt.differentialPrivacyParams {
           epsilon = 0.0007444
@@ -242,8 +242,8 @@ private val MEASUREMENT_SPEC_CONFIG = measurementSpecConfig {
             }
         }
     }
-  reachAndFrequencyDirect =
-    MeasurementSpecConfigKt.reachAndFrequencyDirect {
+  reachAndFrequencySingleDataProvider =
+    MeasurementSpecConfigKt.reachAndFrequencySingleDataProvider {
       reachPrivacyParams =
         MeasurementSpecConfigKt.differentialPrivacyParams {
           epsilon = 0.004728
@@ -263,8 +263,8 @@ private val MEASUREMENT_SPEC_CONFIG = measurementSpecConfig {
             }
         }
     }
-  reachAndFrequencyMpc =
-    MeasurementSpecConfigKt.reachAndFrequencyMPC {
+  reachAndFrequency =
+    MeasurementSpecConfigKt.reachAndFrequency {
       reachPrivacyParams =
         MeasurementSpecConfigKt.differentialPrivacyParams {
           epsilon = 0.014638
@@ -687,7 +687,7 @@ private val BASE_REACH_MEASUREMENT_2 =
 private val PENDING_REACH_MEASUREMENT =
   BASE_REACH_MEASUREMENT.copy { state = Measurement.State.COMPUTING }
 
-private val REACH_ONLY_DIRECT_MEASUREMENT_SPEC = measurementSpec {
+private val REACH_SINGLE_DATA_PROVIDER_MEASUREMENT_SPEC = measurementSpec {
   measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.toByteString()
 
   nonceHashes.addAll(listOf(Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG)))
@@ -695,8 +695,8 @@ private val REACH_ONLY_DIRECT_MEASUREMENT_SPEC = measurementSpec {
   reach =
     MeasurementSpecKt.reach {
       privacyParams = differentialPrivacyParams {
-        epsilon = MEASUREMENT_SPEC_CONFIG.reachOnlyDirect.privacyParams.epsilon
-        delta = MEASUREMENT_SPEC_CONFIG.reachOnlyDirect.privacyParams.delta
+        epsilon = MEASUREMENT_SPEC_CONFIG.reachSingleDataProvider.privacyParams.epsilon
+        delta = MEASUREMENT_SPEC_CONFIG.reachSingleDataProvider.privacyParams.delta
       }
     }
   vidSamplingInterval = vidSamplingInterval {
@@ -705,21 +705,21 @@ private val REACH_ONLY_DIRECT_MEASUREMENT_SPEC = measurementSpec {
   }
 }
 
-private val REACH_ONLY_DIRECT_MEASUREMENT_REQUEST = createMeasurementRequest {
+private val REACH_SINGLE_DATA_PROVIDER_MEASUREMENT_REQUEST = createMeasurementRequest {
   parent = MeasurementConsumerKey(REACH_MEASUREMENT_KEY.measurementConsumerId).toName()
   measurement =
     BASE_MEASUREMENT.copy {
       dataProviders += DATA_PROVIDER_ENTRIES.getValue(DataProviderKey(ExternalId(551L).apiId.value))
       measurementSpec =
         signMeasurementSpec(
-          REACH_ONLY_DIRECT_MEASUREMENT_SPEC,
+          REACH_SINGLE_DATA_PROVIDER_MEASUREMENT_SPEC,
           MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
         )
     }
   requestId = REACH_MEASUREMENT_CREATE_REQUEST_ID
 }
 
-private val REACH_ONLY_MPC_MEASUREMENT_SPEC = measurementSpec {
+private val REACH_MEASUREMENT_SPEC = measurementSpec {
   measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.toByteString()
 
   nonceHashes.addAll(
@@ -732,8 +732,8 @@ private val REACH_ONLY_MPC_MEASUREMENT_SPEC = measurementSpec {
   reach =
     MeasurementSpecKt.reach {
       privacyParams = differentialPrivacyParams {
-        epsilon = MEASUREMENT_SPEC_CONFIG.reachOnlyMpc.privacyParams.epsilon
-        delta = MEASUREMENT_SPEC_CONFIG.reachOnlyMpc.privacyParams.delta
+        epsilon = MEASUREMENT_SPEC_CONFIG.reach.privacyParams.epsilon
+        delta = MEASUREMENT_SPEC_CONFIG.reach.privacyParams.delta
       }
     }
   vidSamplingInterval = vidSamplingInterval {
@@ -742,7 +742,7 @@ private val REACH_ONLY_MPC_MEASUREMENT_SPEC = measurementSpec {
   }
 }
 
-private val REACH_ONLY_MPC_MEASUREMENT_REQUEST = createMeasurementRequest {
+private val REACH_MEASUREMENT_REQUEST = createMeasurementRequest {
   parent = MeasurementConsumerKey(REACH_MEASUREMENT_KEY.measurementConsumerId).toName()
   measurement =
     BASE_MEASUREMENT.copy {
@@ -750,7 +750,7 @@ private val REACH_ONLY_MPC_MEASUREMENT_REQUEST = createMeasurementRequest {
         DATA_PROVIDER_KEYS_IN_SET_OPERATION.map { DATA_PROVIDER_ENTRIES.getValue(it) }
       measurementSpec =
         signMeasurementSpec(
-          REACH_ONLY_MPC_MEASUREMENT_SPEC,
+          REACH_MEASUREMENT_SPEC,
           MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
         )
     }
@@ -762,7 +762,7 @@ private val SUCCEEDED_REACH_MEASUREMENT =
     dataProviders += DATA_PROVIDER_KEYS_IN_SET_OPERATION.map { DATA_PROVIDER_ENTRIES.getValue(it) }
 
     measurementSpec =
-      signMeasurementSpec(REACH_ONLY_MPC_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
+      signMeasurementSpec(REACH_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
 
     state = Measurement.State.SUCCEEDED
 
@@ -803,7 +803,7 @@ private val INTERNAL_SUCCEEDED_REACH_MEASUREMENT =
 private val BASE_REACH_FREQUENCY_HISTOGRAM_MEASUREMENT =
   BASE_MEASUREMENT.copy { name = FREQUENCY_HISTOGRAM_MEASUREMENT_KEY.toName() }
 
-private val REACH_FREQUENCY_DIRECT_MEASUREMENT_SPEC = measurementSpec {
+private val REACH_FREQUENCY_SINGLE_DATA_PROVIDER_MEASUREMENT_SPEC = measurementSpec {
   measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.toByteString()
 
   nonceHashes.addAll(listOf(Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG)))
@@ -811,12 +811,12 @@ private val REACH_FREQUENCY_DIRECT_MEASUREMENT_SPEC = measurementSpec {
   reachAndFrequency =
     MeasurementSpecKt.reachAndFrequency {
       reachPrivacyParams = differentialPrivacyParams {
-        epsilon = MEASUREMENT_SPEC_CONFIG.reachAndFrequencyDirect.reachPrivacyParams.epsilon
-        delta = MEASUREMENT_SPEC_CONFIG.reachAndFrequencyDirect.reachPrivacyParams.delta
+        epsilon = MEASUREMENT_SPEC_CONFIG.reachAndFrequencySingleDataProvider.reachPrivacyParams.epsilon
+        delta = MEASUREMENT_SPEC_CONFIG.reachAndFrequencySingleDataProvider.reachPrivacyParams.delta
       }
       frequencyPrivacyParams = differentialPrivacyParams {
-        epsilon = MEASUREMENT_SPEC_CONFIG.reachAndFrequencyDirect.frequencyPrivacyParams.epsilon
-        delta = MEASUREMENT_SPEC_CONFIG.reachAndFrequencyDirect.frequencyPrivacyParams.delta
+        epsilon = MEASUREMENT_SPEC_CONFIG.reachAndFrequencySingleDataProvider.frequencyPrivacyParams.epsilon
+        delta = MEASUREMENT_SPEC_CONFIG.reachAndFrequencySingleDataProvider.frequencyPrivacyParams.delta
       }
       maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
     }
@@ -826,21 +826,21 @@ private val REACH_FREQUENCY_DIRECT_MEASUREMENT_SPEC = measurementSpec {
   }
 }
 
-private val REACH_FREQUENCY_DIRECT_MEASUREMENT_REQUEST = createMeasurementRequest {
+private val REACH_FREQUENCY_SINGLE_DATA_PROVIDER_MEASUREMENT_REQUEST = createMeasurementRequest {
   parent = MeasurementConsumerKey(REACH_MEASUREMENT_KEY.measurementConsumerId).toName()
   measurement =
     BASE_MEASUREMENT.copy {
       dataProviders += DATA_PROVIDER_ENTRIES.getValue(DataProviderKey(ExternalId(551L).apiId.value))
       measurementSpec =
         signMeasurementSpec(
-          REACH_FREQUENCY_DIRECT_MEASUREMENT_SPEC,
+          REACH_FREQUENCY_SINGLE_DATA_PROVIDER_MEASUREMENT_SPEC,
           MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
         )
     }
   requestId = FREQUENCY_HISTOGRAM_MEASUREMENT_CREATE_REQUEST_ID
 }
 
-private val REACH_FREQUENCY_MPC_MEASUREMENT_SPEC = measurementSpec {
+private val REACH_FREQUENCY_MEASUREMENT_SPEC = measurementSpec {
   measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.toByteString()
 
   nonceHashes.addAll(
@@ -853,12 +853,12 @@ private val REACH_FREQUENCY_MPC_MEASUREMENT_SPEC = measurementSpec {
   reachAndFrequency =
     MeasurementSpecKt.reachAndFrequency {
       reachPrivacyParams = differentialPrivacyParams {
-        epsilon = MEASUREMENT_SPEC_CONFIG.reachAndFrequencyMpc.reachPrivacyParams.epsilon
-        delta = MEASUREMENT_SPEC_CONFIG.reachAndFrequencyMpc.reachPrivacyParams.delta
+        epsilon = MEASUREMENT_SPEC_CONFIG.reachAndFrequency.reachPrivacyParams.epsilon
+        delta = MEASUREMENT_SPEC_CONFIG.reachAndFrequency.reachPrivacyParams.delta
       }
       frequencyPrivacyParams = differentialPrivacyParams {
-        epsilon = MEASUREMENT_SPEC_CONFIG.reachAndFrequencyMpc.frequencyPrivacyParams.epsilon
-        delta = MEASUREMENT_SPEC_CONFIG.reachAndFrequencyMpc.frequencyPrivacyParams.delta
+        epsilon = MEASUREMENT_SPEC_CONFIG.reachAndFrequency.frequencyPrivacyParams.epsilon
+        delta = MEASUREMENT_SPEC_CONFIG.reachAndFrequency.frequencyPrivacyParams.delta
       }
       maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
     }
@@ -868,7 +868,7 @@ private val REACH_FREQUENCY_MPC_MEASUREMENT_SPEC = measurementSpec {
   }
 }
 
-private val REACH_FREQUENCY_MPC_MEASUREMENT_REQUEST = createMeasurementRequest {
+private val REACH_FREQUENCY_MEASUREMENT_REQUEST = createMeasurementRequest {
   parent = MeasurementConsumerKey(REACH_MEASUREMENT_KEY.measurementConsumerId).toName()
   measurement =
     BASE_MEASUREMENT.copy {
@@ -876,7 +876,7 @@ private val REACH_FREQUENCY_MPC_MEASUREMENT_REQUEST = createMeasurementRequest {
         DATA_PROVIDER_KEYS_IN_SET_OPERATION.map { DATA_PROVIDER_ENTRIES.getValue(it) }
       measurementSpec =
         signMeasurementSpec(
-          REACH_FREQUENCY_MPC_MEASUREMENT_SPEC,
+          REACH_FREQUENCY_MEASUREMENT_SPEC,
           MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
         )
     }
@@ -889,7 +889,7 @@ private val SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT =
 
     measurementSpec =
       signMeasurementSpec(
-        REACH_FREQUENCY_MPC_MEASUREMENT_SPEC,
+        REACH_FREQUENCY_MEASUREMENT_SPEC,
         MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
       )
 
@@ -1630,7 +1630,7 @@ class ReportsServiceTest {
         MEASUREMENT_SPEC_FIELD_DESCRIPTOR,
         ENCRYPTED_REQUISITION_SPEC_FIELD_DESCRIPTOR,
       )
-      .isEqualTo(REACH_ONLY_MPC_MEASUREMENT_REQUEST)
+      .isEqualTo(REACH_MEASUREMENT_REQUEST)
 
     verifyMeasurementSpec(
       capturedMeasurementRequest.measurement.measurementSpec,
@@ -1639,7 +1639,7 @@ class ReportsServiceTest {
     )
     val measurementSpec =
       MeasurementSpec.parseFrom(capturedMeasurementRequest.measurement.measurementSpec.data)
-    assertThat(measurementSpec).isEqualTo(REACH_ONLY_MPC_MEASUREMENT_SPEC)
+    assertThat(measurementSpec).isEqualTo(REACH_MEASUREMENT_SPEC)
 
     val dataProvidersList =
       capturedMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
@@ -1691,7 +1691,7 @@ class ReportsServiceTest {
   }
 
   @Test
-  fun `createReport creates reach only direct measurement when report needs reach only`() {
+  fun `createReport creates reach single data provider measurement when report needs reach`() {
     runBlocking {
       whenever(internalReportingSetsMock.batchGetReportingSet(any()))
         .thenReturn(flowOf(INTERNAL_REPORTING_SETS[0]))
@@ -1733,7 +1733,7 @@ class ReportsServiceTest {
         MEASUREMENT_SPEC_FIELD_DESCRIPTOR,
         ENCRYPTED_REQUISITION_SPEC_FIELD_DESCRIPTOR,
       )
-      .isEqualTo(REACH_ONLY_DIRECT_MEASUREMENT_REQUEST)
+      .isEqualTo(REACH_SINGLE_DATA_PROVIDER_MEASUREMENT_REQUEST)
 
     verifyMeasurementSpec(
       capturedMeasurementRequest.measurement.measurementSpec,
@@ -1742,11 +1742,11 @@ class ReportsServiceTest {
     )
     val measurementSpec =
       MeasurementSpec.parseFrom(capturedMeasurementRequest.measurement.measurementSpec.data)
-    assertThat(measurementSpec).isEqualTo(REACH_ONLY_DIRECT_MEASUREMENT_SPEC)
+    assertThat(measurementSpec).isEqualTo(REACH_SINGLE_DATA_PROVIDER_MEASUREMENT_SPEC)
   }
 
   @Test
-  fun `createReport creates rf direct measurement when report needs rf`() {
+  fun `createReport creates rf single data provider measurement when report needs rf`() {
     runBlocking {
       whenever(internalReportingSetsMock.batchGetReportingSet(any()))
         .thenReturn(flowOf(INTERNAL_REPORTING_SETS[0]))
@@ -1790,7 +1790,7 @@ class ReportsServiceTest {
         MEASUREMENT_SPEC_FIELD_DESCRIPTOR,
         ENCRYPTED_REQUISITION_SPEC_FIELD_DESCRIPTOR,
       )
-      .isEqualTo(REACH_FREQUENCY_DIRECT_MEASUREMENT_REQUEST)
+      .isEqualTo(REACH_FREQUENCY_SINGLE_DATA_PROVIDER_MEASUREMENT_REQUEST)
 
     verifyMeasurementSpec(
       capturedMeasurementRequest.measurement.measurementSpec,
@@ -1799,11 +1799,11 @@ class ReportsServiceTest {
     )
     val measurementSpec =
       MeasurementSpec.parseFrom(capturedMeasurementRequest.measurement.measurementSpec.data)
-    assertThat(measurementSpec).isEqualTo(REACH_FREQUENCY_DIRECT_MEASUREMENT_SPEC)
+    assertThat(measurementSpec).isEqualTo(REACH_FREQUENCY_SINGLE_DATA_PROVIDER_MEASUREMENT_SPEC)
   }
 
   @Test
-  fun `createReport creates reach and requency mpc measurement when report needs frequency`() {
+  fun `createReport creates reach and requency measurement when report needs frequency`() {
     val request = createReportRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       report = PENDING_FREQUENCY_HISTOGRAM_REPORT.copy { clearState() }
@@ -1824,7 +1824,7 @@ class ReportsServiceTest {
         MEASUREMENT_SPEC_FIELD_DESCRIPTOR,
         ENCRYPTED_REQUISITION_SPEC_FIELD_DESCRIPTOR,
       )
-      .isEqualTo(REACH_FREQUENCY_MPC_MEASUREMENT_REQUEST)
+      .isEqualTo(REACH_FREQUENCY_MEASUREMENT_REQUEST)
 
     verifyMeasurementSpec(
       capturedMeasurementRequest.measurement.measurementSpec,
@@ -1833,7 +1833,7 @@ class ReportsServiceTest {
     )
     val measurementSpec =
       MeasurementSpec.parseFrom(capturedMeasurementRequest.measurement.measurementSpec.data)
-    assertThat(measurementSpec).isEqualTo(REACH_FREQUENCY_MPC_MEASUREMENT_SPEC)
+    assertThat(measurementSpec).isEqualTo(REACH_FREQUENCY_MEASUREMENT_SPEC)
   }
 
   @Test
@@ -1999,7 +1999,7 @@ class ReportsServiceTest {
       }
 
     val reachMeasurementRequest =
-      REACH_ONLY_MPC_MEASUREMENT_REQUEST.copy {
+      REACH_MEASUREMENT_REQUEST.copy {
         measurement =
           measurement.copy {
             dataProviders.clear()
@@ -2027,7 +2027,7 @@ class ReportsServiceTest {
     )
     val measurementSpec =
       MeasurementSpec.parseFrom(capturedMeasurementRequest.measurement.measurementSpec.data)
-    assertThat(measurementSpec).isEqualTo(REACH_ONLY_MPC_MEASUREMENT_SPEC)
+    assertThat(measurementSpec).isEqualTo(REACH_MEASUREMENT_SPEC)
 
     val dataProvidersList =
       capturedMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
@@ -2155,7 +2155,7 @@ class ReportsServiceTest {
         MEASUREMENT_SPEC_FIELD_DESCRIPTOR,
         ENCRYPTED_REQUISITION_SPEC_FIELD_DESCRIPTOR,
       )
-      .isEqualTo(REACH_ONLY_MPC_MEASUREMENT_REQUEST)
+      .isEqualTo(REACH_MEASUREMENT_REQUEST)
 
     verifyMeasurementSpec(
       capturedMeasurementRequest.measurement.measurementSpec,
@@ -2164,7 +2164,7 @@ class ReportsServiceTest {
     )
     val measurementSpec =
       MeasurementSpec.parseFrom(capturedMeasurementRequest.measurement.measurementSpec.data)
-    assertThat(measurementSpec).isEqualTo(REACH_ONLY_MPC_MEASUREMENT_SPEC)
+    assertThat(measurementSpec).isEqualTo(REACH_MEASUREMENT_SPEC)
 
     val dataProvidersList =
       capturedMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
@@ -2296,7 +2296,7 @@ class ReportsServiceTest {
         MEASUREMENT_SPEC_FIELD_DESCRIPTOR,
         ENCRYPTED_REQUISITION_SPEC_FIELD_DESCRIPTOR,
       )
-      .isEqualTo(REACH_ONLY_MPC_MEASUREMENT_REQUEST)
+      .isEqualTo(REACH_MEASUREMENT_REQUEST)
 
     verifyMeasurementSpec(
       capturedMeasurementRequest.measurement.measurementSpec,
@@ -2305,7 +2305,7 @@ class ReportsServiceTest {
     )
     val measurementSpec =
       MeasurementSpec.parseFrom(capturedMeasurementRequest.measurement.measurementSpec.data)
-    assertThat(measurementSpec).isEqualTo(REACH_ONLY_MPC_MEASUREMENT_SPEC)
+    assertThat(measurementSpec).isEqualTo(REACH_MEASUREMENT_SPEC)
 
     val dataProvidersList =
       capturedMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }

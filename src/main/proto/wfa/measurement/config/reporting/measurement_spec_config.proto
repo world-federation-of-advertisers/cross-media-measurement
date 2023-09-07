@@ -45,7 +45,10 @@ message MeasurementSpecConfig {
 
     message RandomStart {
       int32 num_vid_buckets = 1;
-      // The width of the sampling interval in [1, `num_vid_buckets`].
+      // The width of the sampling interval in [1, `num_vid_buckets`]. For
+      // example, if `num_vid_buckets` is 300, then this width can be in the
+      // range [1, 300]. If 100 is chosen, then the width in
+      // `vid_sampling_interval` of `MeasurementSpec` is 100/300.
       int32 width = 2;
     }
 
@@ -56,37 +59,37 @@ message MeasurementSpecConfig {
     }
   }
 
-  message ReachOnlyDirect {
+  message ReachSingleDataProvider {
     // Differential privacy parameters for reach.
     DifferentialPrivacyParams privacy_params = 1;
     VidSamplingInterval vid_sampling_interval = 2;
   }
-  ReachOnlyDirect reach_only_direct = 1;
+  ReachSingleDataProvider reach_single_data_provider = 1;
 
-  message ReachOnlyMPC {
+  message Reach {
     // Differential privacy parameters for reach.
     DifferentialPrivacyParams privacy_params = 1;
     VidSamplingInterval vid_sampling_interval = 2;
   }
-  ReachOnlyMPC reach_only_mpc = 2;
+  Reach reach = 2;
 
-  message ReachAndFrequencyDirect {
+  message ReachAndFrequencySingleDataProvider {
     // Differential privacy parameters for reach.
     DifferentialPrivacyParams reach_privacy_params = 1;
     // Differential privacy parameters for frequency.
     DifferentialPrivacyParams frequency_privacy_params = 2;
     VidSamplingInterval vid_sampling_interval = 3;
   }
-  ReachAndFrequencyDirect reach_and_frequency_direct = 3;
+  ReachAndFrequencySingleDataProvider reach_and_frequency_single_data_provider = 3;
 
-  message ReachAndFrequencyMPC {
+  message ReachAndFrequency {
     // Differential privacy parameters for reach.
     DifferentialPrivacyParams reach_privacy_params = 1;
     // Differential privacy parameters for frequency.
     DifferentialPrivacyParams frequency_privacy_params = 2;
     VidSamplingInterval vid_sampling_interval = 3;
   }
-  ReachAndFrequencyMPC reach_and_frequency_mpc = 4;
+  ReachAndFrequency reach_and_frequency = 4;
 
   message Impression {
     // Differential privacy parameters.
