@@ -16,6 +16,7 @@ import React from 'react';
 import { Header } from './header';
 import { ReportOverviewStats } from './overview';
 import { SummaryTable } from './summary_table';
+import { Overview, SummaryPublisherData } from '../../../model/reporting';
 
 const COLORS = Object.freeze([
   '#FFA300',
@@ -24,17 +25,23 @@ const COLORS = Object.freeze([
   '#5E5E5E',
 ]);
 
-export const TerminalReport = ({name, overview, summaries}) => {
-  // Assign a color to a publisher
-  const pub_ids = summaries.map(x => x.id);
-  const pub_colors = {};
-  COLORS.forEach((x, i) => pub_colors[pub_ids[i]] = x);
+type TerminalReportProps = {
+  name: string;
+  overview: Overview,
+  summaries: SummaryPublisherData[],
+}
+
+export const TerminalReport = ({name, overview, summaries}: TerminalReportProps) => {
+  // Assign a color to each publisher
+  const pubIds = summaries.map(x => x.id);
+  const pubColors = {};
+  pubIds.forEach((pub_id, index) => pubColors[pub_id] = COLORS[index]);
 
   return (
     <React.Fragment>
       <Header reportName={name} />
       <ReportOverviewStats reportOverview={overview} />
-      <SummaryTable reportSummaries={summaries} publisherColors={pub_colors} />
+      <SummaryTable reportSummaries={summaries} publisherColors={pubColors} />
       {/* TODO: Add the charts */}
     </React.Fragment>
   )
