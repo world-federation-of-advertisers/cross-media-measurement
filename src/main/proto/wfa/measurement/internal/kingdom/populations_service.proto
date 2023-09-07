@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,19 +16,19 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
-import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/kingdom/data_provider.proto";
+import "population.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
-// Proto representation of the internal ModelRelease entity type.
-message ModelRelease {
-  fixed64 external_model_provider_id = 1;
-  fixed64 external_model_suite_id = 2;
-  fixed64 external_model_release_id = 3;
+// Internal service for persistence of DataProvider entities.
+service Populations {
+  rpc CreatePopulation(Population) returns (Population);
 
-  // When the 'ModelRelease' was created.
-  google.protobuf.Timestamp create_time = 4;
+  rpc GetPopulation(GetPopulationRequest) returns (Population);
+}
 
-  fixed64 external_population_id = 5;
+message GetPopulationRequest {
+  fixed64 external_requisition_id = 1;
 }
