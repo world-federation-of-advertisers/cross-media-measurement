@@ -171,9 +171,10 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
           VidSamplingIntervalWidth,
           CreateTime,
           MetricDetails,
-          MetricDetailsJson
+          MetricDetailsJson,
+          MaximumFrequency
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
       """
       ) {
         requests.forEach {
@@ -207,8 +208,9 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                   bind("$10", frequencyHistogram.reachPrivacyParams.delta)
                   bind("$11", frequencyHistogram.frequencyPrivacyParams.epsilon)
                   bind("$12", frequencyHistogram.reachPrivacyParams.delta)
-                  bind("$13", frequencyHistogram.maximumFrequencyPerUser)
+                  bind<Long?>("$13", null)
                   bind<Long?>("$14", null)
+                  bind("$20", frequencyHistogram.maximumFrequency)
                 }
                 MetricSpec.TypeCase.REACH -> {
                   val reach = it.metric.metricSpec.reach
@@ -218,6 +220,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                   bind<Double?>("$12", null)
                   bind<Long?>("$13", null)
                   bind<Long?>("$14", null)
+                  bind<Long?>("$20", null)
                 }
                 MetricSpec.TypeCase.IMPRESSION_COUNT -> {
                   val impressionCount = it.metric.metricSpec.impressionCount
@@ -227,6 +230,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                   bind<Double?>("$12", null)
                   bind("$13", impressionCount.maximumFrequencyPerUser)
                   bind<Long?>("$14", null)
+                  bind<Long?>("$20", null)
                 }
                 MetricSpec.TypeCase.WATCH_DURATION -> {
                   val watchDuration = it.metric.metricSpec.watchDuration
@@ -236,6 +240,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                   bind<Double?>("$12", null)
                   bind<Long?>("$13", null)
                   bind("$14", watchDuration.maximumWatchDurationPerUser)
+                  bind<Long?>("$20", null)
                 }
                 MetricSpec.TypeCase.TYPE_NOT_SET -> {}
               }
