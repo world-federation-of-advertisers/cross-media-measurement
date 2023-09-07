@@ -23,7 +23,7 @@ limitations under the License. */
 
 #report-overview .card-title {
     color: #1F1F1F;
-    font-family: myFirstFont;
+    font-family: open-sans-light;
     font-size: 16px;
     font-style: normal;
     font-weight: 500;
@@ -32,7 +32,7 @@ limitations under the License. */
 
 #report-overview .card-text {
     color: #1F1F1F;
-    font-family: myFirstFont;
+    font-family: open-sans-light;
     font-size: 45px;
     font-style: normal;
     font-weight: 400;
