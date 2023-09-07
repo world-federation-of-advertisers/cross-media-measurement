@@ -15,11 +15,13 @@
 package org.wfanet.measurement.api.v2alpha.tools
 
 import java.io.File
+import java.time.Duration
 import java.time.Instant
 import kotlin.properties.Delegates
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.common.toProtoDuration
 import picocli.CommandLine.ArgGroup
 import picocli.CommandLine.Option
 
@@ -266,12 +268,13 @@ class CreateMeasurementFlags {
           var privacyDelta by Delegates.notNull<Double>()
             private set
 
-          @set:Option(
+          @Option(
             names = ["--max-duration"],
-            description = ["Maximum watch duration per user"],
+            description =
+              ["Maximum watch duration per user as a human-readable string, e.g. 5m20s"],
             required = true,
           )
-          var maximumWatchDurationPerUser by Delegates.notNull<Int>()
+          lateinit var maximumWatchDurationPerUser: Duration
             private set
         }
 
@@ -392,6 +395,7 @@ class CreateMeasurementFlags {
       maximumWatchDurationPerUser =
         measurementParams.eventMeasurementParams.eventMeasurementTypeParams.duration
           .maximumWatchDurationPerUser
+          .toProtoDuration()
     }
   }
 

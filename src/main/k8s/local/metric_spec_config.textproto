@@ -29,7 +29,9 @@ watch_duration_params {
     epsilon: 0.001
     delta: 1.0E-12
   }
-  maximum_watch_duration_per_user: 4000
+  maximum_watch_duration_per_user {
+    seconds: 4000
+  }
 }
 reach_vid_sampling_interval {
   width: 0.01

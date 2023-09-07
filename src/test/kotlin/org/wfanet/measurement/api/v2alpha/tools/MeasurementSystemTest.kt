@@ -23,6 +23,7 @@ import com.google.protobuf.Descriptors
 import com.google.protobuf.duration
 import com.google.protobuf.empty
 import com.google.protobuf.timestamp
+import com.google.protobuf.util.Durations
 import com.google.protobuf.value
 import com.google.type.date
 import com.google.type.interval
@@ -1048,7 +1049,7 @@ class MeasurementSystemTest {
           "--duration",
           "--duration-privacy-epsilon=0.015",
           "--duration-privacy-delta=0.0",
-          "--max-duration=1000",
+          "--max-duration=5m20s",
           "--vid-sampling-start=0.1",
           "--vid-sampling-width=0.2",
           "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
@@ -1077,7 +1078,8 @@ class MeasurementSystemTest {
                 epsilon = 0.015
                 delta = 0.0
               }
-              maximumWatchDurationPerUser = 1000
+              maximumWatchDurationPerUser =
+                Durations.add(Durations.fromMinutes(5), Durations.fromSeconds(20))
             }
           vidSamplingInterval =
             MeasurementSpecKt.vidSamplingInterval {
