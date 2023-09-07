@@ -28,7 +28,7 @@ import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Clock
-import java.time.Duration as systemDuration
+import java.time.Duration as JavaDuration
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.CoroutineDispatcher
@@ -157,7 +157,7 @@ import picocli.CommandLine.Parameters
 import picocli.CommandLine.ParentCommand
 import picocli.CommandLine.Spec
 
-private val CHANNEL_SHUTDOWN_TIMEOUT = systemDuration.ofSeconds(30)
+private val CHANNEL_SHUTDOWN_TIMEOUT = JavaDuration.ofSeconds(30)
 
 @Command(
   name = "MeasurementSystem",
