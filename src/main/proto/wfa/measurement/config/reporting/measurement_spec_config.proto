@@ -80,8 +80,8 @@ message MeasurementSpecConfig {
     DifferentialPrivacyParams frequency_privacy_params = 2;
     VidSamplingInterval vid_sampling_interval = 3;
   }
-  ReachAndFrequencySingleDataProvider
-    reach_and_frequency_single_data_provider = 3;
+  ReachAndFrequencySingleDataProvider reach_and_frequency_single_data_provider =
+      3;
 
   message ReachAndFrequency {
     // Differential privacy parameters for reach.
