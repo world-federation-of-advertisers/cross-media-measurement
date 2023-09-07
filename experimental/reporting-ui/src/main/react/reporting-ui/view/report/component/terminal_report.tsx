@@ -25,9 +25,11 @@ const COLORS = Object.freeze([
 ]);
 
 export const TerminalReport = ({name, overview, summaries}) => {
+  // Assign a color to a publisher
   const pub_ids = summaries.map(x => x.id);
   const pub_colors = {};
   COLORS.forEach((x, i) => pub_colors[pub_ids[i]] = x);
+
   return (
     <React.Fragment>
       <Header reportName={name} />
