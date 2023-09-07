@@ -84,6 +84,10 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.config.reporting.MeasurementSpecConfig
+import org.wfanet.measurement.config.reporting.MeasurementSpecConfig.DifferentialPrivacyParams
+import org.wfanet.measurement.config.reporting.MeasurementSpecConfig.VidSamplingInterval
+import org.wfanet.measurement.config.reporting.MeasurementSpecConfig.VidSamplingInterval.FixedStart
+import org.wfanet.measurement.config.reporting.MeasurementSpecConfig.VidSamplingInterval.RandomStart
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
@@ -135,10 +139,6 @@ import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest as 
 import org.wfanet.measurement.internal.reporting.streamReportsRequest as streamInternalReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
 import org.wfanet.measurement.internal.reporting.timeIntervals as internalTimeIntervals
-import org.wfanet.measurement.config.reporting.MeasurementSpecConfig.DifferentialPrivacyParams
-import org.wfanet.measurement.config.reporting.MeasurementSpecConfig.VidSamplingInterval
-import org.wfanet.measurement.config.reporting.MeasurementSpecConfig.VidSamplingInterval.FixedStart
-import org.wfanet.measurement.config.reporting.MeasurementSpecConfig.VidSamplingInterval.RandomStart
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v1alpha.CreateReportRequest
 import org.wfanet.measurement.reporting.v1alpha.GetReportRequest
@@ -1195,8 +1195,7 @@ class ReportsService(
               measurementSpecComponentFactory.getReachSingleDataProviderVidSamplingInterval()
           } else {
             reach = measurementSpecComponentFactory.getReachType()
-            vidSamplingInterval =
-              measurementSpecComponentFactory.getReachVidSamplingInterval()
+            vidSamplingInterval = measurementSpecComponentFactory.getReachVidSamplingInterval()
           }
         }
         InternalMetricTypeCase.FREQUENCY_HISTOGRAM -> {
@@ -1206,7 +1205,8 @@ class ReportsService(
                 internalMetricDetails.frequencyHistogram.maximumFrequency
               )
             vidSamplingInterval =
-              measurementSpecComponentFactory.getReachAndFrequencySingleDataProviderVidSamplingInterval()
+              measurementSpecComponentFactory
+                .getReachAndFrequencySingleDataProviderVidSamplingInterval()
           } else {
             reachAndFrequency =
               measurementSpecComponentFactory.getReachAndFrequencyType(
@@ -1426,7 +1426,9 @@ class ReportsService(
         throw IllegalArgumentException("reach_single_data_provider privacy_params is invalid.")
       }
       if (!measurementSpecConfig.reachSingleDataProvider.vidSamplingInterval.isValid()) {
-        throw IllegalArgumentException("reach_single_data_provider vid_sampling_interval is invalid.")
+        throw IllegalArgumentException(
+          "reach_single_data_provider vid_sampling_interval is invalid."
+        )
       }
 
       if (!measurementSpecConfig.reach.privacyParams.isValid()) {
@@ -1437,13 +1439,23 @@ class ReportsService(
       }
 
       if (!measurementSpecConfig.reachAndFrequencySingleDataProvider.reachPrivacyParams.isValid()) {
-        throw IllegalArgumentException("reach_and_frequency_single_data_provider reach_privacy_params is invalid.")
+        throw IllegalArgumentException(
+          "reach_and_frequency_single_data_provider reach_privacy_params is invalid."
+        )
       }
-      if (!measurementSpecConfig.reachAndFrequencySingleDataProvider.frequencyPrivacyParams.isValid()) {
-        throw IllegalArgumentException("reach_and_frequency_single_data_provider frequency_privacy_params is invalid.")
+      if (
+        !measurementSpecConfig.reachAndFrequencySingleDataProvider.frequencyPrivacyParams.isValid()
+      ) {
+        throw IllegalArgumentException(
+          "reach_and_frequency_single_data_provider frequency_privacy_params is invalid."
+        )
       }
-      if (!measurementSpecConfig.reachAndFrequencySingleDataProvider.vidSamplingInterval.isValid()) {
-        throw IllegalArgumentException("reach_and_frequency_single_data_provider vid_sampling_interval is invalid.")
+      if (
+        !measurementSpecConfig.reachAndFrequencySingleDataProvider.vidSamplingInterval.isValid()
+      ) {
+        throw IllegalArgumentException(
+          "reach_and_frequency_single_data_provider vid_sampling_interval is invalid."
+        )
       }
 
       if (!measurementSpecConfig.reachAndFrequency.reachPrivacyParams.isValid()) {
@@ -1495,10 +1507,13 @@ class ReportsService(
       delta = measurementSpecConfig.reachAndFrequencySingleDataProvider.reachPrivacyParams.delta
     }
 
-    private val reachAndFrequencySingleDataProviderFrequencyPrivacyParams = differentialPrivacyParams {
-      epsilon = measurementSpecConfig.reachAndFrequencySingleDataProvider.frequencyPrivacyParams.epsilon
-      delta = measurementSpecConfig.reachAndFrequencySingleDataProvider.frequencyPrivacyParams.delta
-    }
+    private val reachAndFrequencySingleDataProviderFrequencyPrivacyParams =
+      differentialPrivacyParams {
+        epsilon =
+          measurementSpecConfig.reachAndFrequencySingleDataProvider.frequencyPrivacyParams.epsilon
+        delta =
+          measurementSpecConfig.reachAndFrequencySingleDataProvider.frequencyPrivacyParams.delta
+      }
 
     private val reachAndFrequencyReachPrivacyParams = differentialPrivacyParams {
       epsilon = measurementSpecConfig.reachAndFrequency.reachPrivacyParams.epsilon
@@ -1527,12 +1542,9 @@ class ReportsService(
     private fun VidSamplingInterval.isValid(): Boolean {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       return when (this.startCase) {
-        VidSamplingInterval.StartCase.FIXED_START ->
-          this.fixedStart.isValid()
-        VidSamplingInterval.StartCase.RANDOM_START ->
-          this.randomStart.isValid()
-        VidSamplingInterval.StartCase.START_NOT_SET ->
-          true
+        VidSamplingInterval.StartCase.FIXED_START -> this.fixedStart.isValid()
+        VidSamplingInterval.StartCase.RANDOM_START -> this.randomStart.isValid()
+        VidSamplingInterval.StartCase.START_NOT_SET -> true
       }
     }
 
@@ -1613,16 +1625,20 @@ class ReportsService(
       return reachType
     }
 
-    fun getReachAndFrequencySingleDataProviderVidSamplingInterval(): MeasurementSpec.VidSamplingInterval {
-      val vidSamplingInterval = measurementSpecConfig.reachAndFrequencySingleDataProvider.vidSamplingInterval
+    fun getReachAndFrequencySingleDataProviderVidSamplingInterval():
+      MeasurementSpec.VidSamplingInterval {
+      val vidSamplingInterval =
+        measurementSpecConfig.reachAndFrequencySingleDataProvider.vidSamplingInterval
       return createVidSamplingInterval(vidSamplingInterval)
     }
 
-    fun getReachAndFrequencySingleDataProviderType(maximumFrequency: Int): MeasurementSpec.ReachAndFrequency {
+    fun getReachAndFrequencySingleDataProviderType(
+      maximumFrequency: Int
+    ): MeasurementSpec.ReachAndFrequency {
       return MeasurementSpecKt.reachAndFrequency {
         reachPrivacyParams = reachAndFrequencySingleDataProviderReachPrivacyParams
         frequencyPrivacyParams = reachAndFrequencySingleDataProviderFrequencyPrivacyParams
-        this.maximumFrequencyPerUser = maximumFrequency
+        this.maximumFrequency = maximumFrequency
       }
     }
 
@@ -1635,7 +1651,7 @@ class ReportsService(
       return MeasurementSpecKt.reachAndFrequency {
         reachPrivacyParams = reachAndFrequencyReachPrivacyParams
         frequencyPrivacyParams = reachAndFrequencyFrequencyPrivacyParams
-        this.maximumFrequencyPerUser = maximumFrequency
+        this.maximumFrequency = maximumFrequency
       }
     }
 

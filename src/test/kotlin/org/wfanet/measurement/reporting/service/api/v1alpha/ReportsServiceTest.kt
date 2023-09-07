@@ -141,7 +141,6 @@ import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.Measurements
 import org.wfanet.measurement.internal.reporting.Metric as InternalMetric
 import org.wfanet.measurement.internal.reporting.MetricKt as InternalMetricKt
 import org.wfanet.measurement.internal.reporting.MetricKt.MeasurementCalculationKt.weightedMeasurement
-import org.wfanet.measurement.internal.reporting.MetricKt.SetOperationKt.operand
 import org.wfanet.measurement.internal.reporting.MetricKt.SetOperationKt.reportingSetKey
 import org.wfanet.measurement.internal.reporting.MetricKt.measurementCalculation
 import org.wfanet.measurement.internal.reporting.Report as InternalReport
@@ -208,6 +207,8 @@ private const val PAGE_SIZE = 3
 private const val NUMBER_VID_BUCKETS = 300
 private const val WIDTH = 256
 private const val DELTA = 1e-15
+
+private const val MAXIMUM_FREQUENCY = 10
 
 private val MEASUREMENT_SPEC_CONFIG = measurementSpecConfig {
   reachSingleDataProvider =
@@ -749,10 +750,7 @@ private val REACH_MEASUREMENT_REQUEST = createMeasurementRequest {
       dataProviders +=
         DATA_PROVIDER_KEYS_IN_SET_OPERATION.map { DATA_PROVIDER_ENTRIES.getValue(it) }
       measurementSpec =
-        signMeasurementSpec(
-          REACH_MEASUREMENT_SPEC,
-          MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
-        )
+        signMeasurementSpec(REACH_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
     }
   requestId = REACH_MEASUREMENT_CREATE_REQUEST_ID
 }
@@ -811,14 +809,17 @@ private val REACH_FREQUENCY_SINGLE_DATA_PROVIDER_MEASUREMENT_SPEC = measurementS
   reachAndFrequency =
     MeasurementSpecKt.reachAndFrequency {
       reachPrivacyParams = differentialPrivacyParams {
-        epsilon = MEASUREMENT_SPEC_CONFIG.reachAndFrequencySingleDataProvider.reachPrivacyParams.epsilon
+        epsilon =
+          MEASUREMENT_SPEC_CONFIG.reachAndFrequencySingleDataProvider.reachPrivacyParams.epsilon
         delta = MEASUREMENT_SPEC_CONFIG.reachAndFrequencySingleDataProvider.reachPrivacyParams.delta
       }
       frequencyPrivacyParams = differentialPrivacyParams {
-        epsilon = MEASUREMENT_SPEC_CONFIG.reachAndFrequencySingleDataProvider.frequencyPrivacyParams.epsilon
-        delta = MEASUREMENT_SPEC_CONFIG.reachAndFrequencySingleDataProvider.frequencyPrivacyParams.delta
+        epsilon =
+          MEASUREMENT_SPEC_CONFIG.reachAndFrequencySingleDataProvider.frequencyPrivacyParams.epsilon
+        delta =
+          MEASUREMENT_SPEC_CONFIG.reachAndFrequencySingleDataProvider.frequencyPrivacyParams.delta
       }
-      maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
+      maximumFrequency = MAXIMUM_FREQUENCY
     }
   vidSamplingInterval = vidSamplingInterval {
     start = 0f
@@ -888,10 +889,7 @@ private val SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT =
     dataProviders += DATA_PROVIDER_KEYS_IN_SET_OPERATION.map { DATA_PROVIDER_ENTRIES.getValue(it) }
 
     measurementSpec =
-      signMeasurementSpec(
-        REACH_FREQUENCY_MEASUREMENT_SPEC,
-        MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
-      )
+      signMeasurementSpec(REACH_FREQUENCY_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
 
     state = Measurement.State.SUCCEEDED
     results += resultPair {
@@ -948,7 +946,7 @@ private val IMPRESSION_MEASUREMENT_SPEC = measurementSpec {
         epsilon = MEASUREMENT_SPEC_CONFIG.impression.privacyParams.epsilon
         delta = MEASUREMENT_SPEC_CONFIG.impression.privacyParams.delta
       }
-      maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
+      maximumFrequencyPerUser = MAXIMUM_FREQUENCY
     }
   vidSamplingInterval = vidSamplingInterval {
     start = MEASUREMENT_SPEC_CONFIG.impression.vidSamplingInterval.fixedStart.start
@@ -1756,7 +1754,7 @@ class ReportsServiceTest {
           metrics.clear()
           metrics += metric {
             frequencyHistogram = frequencyHistogramParams {
-              maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
+              maximumFrequencyPerUser = MAXIMUM_FREQUENCY
             }
             setOperations += namedSetOperation {
               uniqueName = FREQUENCY_HISTOGRAM_SET_OPERATION_UNIQUE_NAME

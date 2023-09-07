@@ -224,7 +224,7 @@ class InProcessReportingServer(
         MeasurementSpecConfigKt.reachAndFrequency {
           reachPrivacyParams =
             MeasurementSpecConfigKt.differentialPrivacyParams {
-              epsilon =  0.0007444
+              epsilon = 0.0007444
               delta = 1e-15
             }
           frequencyPrivacyParams =
