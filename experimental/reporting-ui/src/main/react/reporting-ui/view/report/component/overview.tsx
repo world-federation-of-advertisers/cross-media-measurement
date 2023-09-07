@@ -17,9 +17,10 @@ import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 import './overview.css';
 import { ReportOverviewCard } from './overview_card';
+import { Overview } from '../../../model/reporting';
 
 type ReportTotalsProps = {
-  reportOverview: any;
+  reportOverview: Overview;
 };
 
 export function ReportOverviewStats({reportOverview}: ReportTotalsProps) {
