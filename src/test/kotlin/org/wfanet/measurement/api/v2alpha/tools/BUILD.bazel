@@ -56,13 +56,13 @@ kt_jvm_test(
     name = "BenchmarkTest",
     size = "small",
     srcs = ["BenchmarkTest.kt"],
+    associates = ["//src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:benchmark"],
     data = [
         "//src/main/k8s/testing/secretfiles:root_certs",
         "//src/main/k8s/testing/secretfiles:secret_files",
     ],
     test_class = "org.wfanet.measurement.api.v2alpha.tools.BenchmarkTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:benchmark_library",
         "//src/main/proto/wfa/measurement/api/v2alpha:certificate_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",

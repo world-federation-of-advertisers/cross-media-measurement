@@ -19,6 +19,7 @@ package org.wfanet.measurement.reporting.deploy.v2.postgres.readers
 import com.google.protobuf.Timestamp
 import com.google.type.Interval
 import com.google.type.interval
+import io.r2dbc.postgresql.codec.Interval as PostgresInterval
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
@@ -29,6 +30,7 @@ import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.Measurement
@@ -373,7 +375,7 @@ class MetricReader(private val readContext: ReadContext) {
       val frequencyDifferentialPrivacyDelta: Double? = row["FrequencyDifferentialPrivacyDelta"]
       val maximumFrequency: Int? = row["MaximumFrequency"]
       val maximumFrequencyPerUser: Int? = row["MaximumFrequencyPerUser"]
-      val maximumWatchDurationPerUser: Int? = row["MaximumWatchDurationPerUser"]
+      val maximumWatchDurationPerUser: PostgresInterval? = row["MaximumWatchDurationPerUser"]
       val vidSamplingStart: Float = row["VidSamplingIntervalStart"]
       val vidSamplingWidth: Float = row["VidSamplingIntervalWidth"]
       val createTime: Instant = row["CreateTime"]
@@ -457,10 +459,6 @@ class MetricReader(private val readContext: ReadContext) {
                   }
               }
               MetricSpec.TypeCase.WATCH_DURATION -> {
-                if (maximumWatchDurationPerUser == null) {
-                  throw IllegalStateException()
-                }
-
                 watchDuration =
                   MetricSpecKt.watchDurationParams {
                     privacyParams =
@@ -468,7 +466,8 @@ class MetricReader(private val readContext: ReadContext) {
                         epsilon = differentialPrivacyEpsilon
                         delta = differentialPrivacyDelta
                       }
-                    this.maximumWatchDurationPerUser = maximumWatchDurationPerUser
+                    this.maximumWatchDurationPerUser =
+                      checkNotNull(maximumWatchDurationPerUser).duration.toProtoDuration()
                   }
               }
               MetricSpec.TypeCase.TYPE_NOT_SET -> throw IllegalStateException()

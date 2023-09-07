@@ -17,6 +17,7 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.util.Durations
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -51,7 +52,7 @@ private const val IMPRESSION_MAXIMUM_FREQUENCY_PER_USER = 60
 private const val WATCH_DURATION_VID_SAMPLING_WIDTH = 95.0f / NUMBER_VID_BUCKETS
 private const val WATCH_DURATION_VID_SAMPLING_START = 205.0f / NUMBER_VID_BUCKETS
 private const val WATCH_DURATION_EPSILON = 0.001
-private const val MAXIMUM_WATCH_DURATION_PER_USER = 4000
+private val MAXIMUM_WATCH_DURATION_PER_USER = Durations.fromMinutes(5)
 
 private const val DIFFERENTIAL_PRIVACY_DELTA = 1e-12
 
@@ -227,7 +228,10 @@ class MetricSpecDefaultsTest {
             delta = METRIC_SPEC_CONFIG.watchDurationParams.privacyParams.delta * 2
           }
         maximumWatchDurationPerUser =
-          METRIC_SPEC_CONFIG.watchDurationParams.maximumWatchDurationPerUser * 2
+          Durations.add(
+            METRIC_SPEC_CONFIG.watchDurationParams.maximumWatchDurationPerUser,
+            METRIC_SPEC_CONFIG.watchDurationParams.maximumWatchDurationPerUser
+          )
       }
       vidSamplingInterval =
         MetricSpecKt.vidSamplingInterval {

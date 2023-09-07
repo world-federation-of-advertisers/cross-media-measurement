@@ -32,8 +32,7 @@ message Metric {
   }
   message WatchDurationParams {
     reserved 1;
-    // In seconds.
-    int32 maximum_watch_duration_per_user = 2;
+    int32 maximum_watch_duration_per_user_seconds = 2;
   }
 
   message Details {

@@ -18,6 +18,7 @@ package wfa.measurement.reporting.v2alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "google/type/interval.proto";
 
@@ -83,14 +84,13 @@ message MetricSpec {
     // Differential privacy parameters.
     DifferentialPrivacyParams privacy_params = 1
         [(google.api.field_behavior) = REQUIRED];
-    // Maximum watch duration per user in second that will be included in this
-    // metric.
+    // Maximum watch duration per user that will be included in this metric.
     //
     // Recommended maximum_watch_duration_per_user = cap on the total watch
     // duration of all the impressions of a user = 4000 sec for the case with
     // over 1M audience size. Enforced on a per EDP basis.
     // If not set, the default value will be used and outputted here.
-    optional int32 maximum_watch_duration_per_user = 2;
+    google.protobuf.Duration maximum_watch_duration_per_user = 2;
   }
 
   // Types of metric with parameters.

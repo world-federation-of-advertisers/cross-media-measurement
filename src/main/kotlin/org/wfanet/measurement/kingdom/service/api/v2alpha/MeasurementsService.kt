@@ -316,7 +316,7 @@ private fun MeasurementSpec.validate() {
         "Duration privacy params are invalid"
       }
 
-      grpcRequire(duration.maximumWatchDurationPerUser > 0) {
+      grpcRequire(duration.hasMaximumWatchDurationPerUser()) {
         "Maximum watch duration per user is unspecified"
       }
     }
