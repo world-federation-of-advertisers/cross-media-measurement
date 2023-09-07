@@ -154,7 +154,6 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
       val scalarTableColumnsList = ArrayList<Report.Details.Result.Column>()
       // Each metric contains results for several columns
       for (metric in report.metricsList) {
-        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
         when (val metricType = metric.details.metricTypeCase) {
           // REACH, IMPRESSION_COUNT, and WATCH_DURATION are aggregated in one table.
           Metric.Details.MetricTypeCase.REACH,
@@ -163,7 +162,16 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
             // One namedSetOperation is one column in the report
             for (namedSetOperation in metric.namedSetOperationsList) {
               scalarTableColumnsList +=
-                namedSetOperation.toResultColumn(metricType, measurementResultsMap)
+                ReportKt.DetailsKt.ResultKt.column {
+                  columnHeader = buildColumnHeader(metricType.name, namedSetOperation.displayName)
+                  setOperations +=
+                    namedSetOperation.sortedMeasurementCalculations.map {
+                      calculateScalarResult(
+                        metricType,
+                        it.getMeasurementResults(measurementResultsMap)
+                      )
+                    }
+                }
             }
           }
           Metric.Details.MetricTypeCase.FREQUENCY_HISTOGRAM -> {
@@ -220,32 +228,27 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
     }
   }
 
-  /** Convert an [Metric.NamedSetOperation] to a [Report.Details.Result.Column] of a [Report] */
-  private fun Metric.NamedSetOperation.toResultColumn(
-    metricType: Metric.Details.MetricTypeCase,
-    measurementResultsMap: Map<String, MeasurementResultsReader.Result>,
-    maximumFrequency: Int = 0
-  ): Report.Details.Result.Column {
-    val source = this
-    return ReportKt.DetailsKt.ResultKt.column {
-      columnHeader = buildColumnHeader(metricType.name, source.displayName)
-      for (measurementCalculation in
-        source.measurementCalculationsList.sortedWith { a, b ->
-          val start = Timestamps.compare(a.timeInterval.startTime, b.timeInterval.startTime)
-          if (start != 0) {
-            start
-          } else {
-            Timestamps.compare(a.timeInterval.endTime, b.timeInterval.endTime)
-          }
-        }) {
-        setOperations.addAll(
-          measurementCalculation.toSetOperationResults(
-            metricType,
-            measurementResultsMap,
-            maximumFrequency
-          )
-        )
+  private val Metric.NamedSetOperation.sortedMeasurementCalculations: List<MeasurementCalculation>
+    get() {
+      return measurementCalculationsList.sortedWith { a, b ->
+        val start = Timestamps.compare(a.timeInterval.startTime, b.timeInterval.startTime)
+        if (start != 0) {
+          start
+        } else {
+          Timestamps.compare(a.timeInterval.endTime, b.timeInterval.endTime)
+        }
       }
+    }
+
+  private fun MeasurementCalculation.getMeasurementResults(
+    measurementResultsMap: Map<String, MeasurementResultsReader.Result>
+  ): List<MeasurementResult> {
+    return weightedMeasurementsList.map {
+      MeasurementResult(
+        measurementResultsMap[it.measurementReferenceId]?.result
+          ?: throw MeasurementNotFoundException(),
+        it.coefficient
+      )
     }
   }
 
@@ -254,39 +257,25 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
     return "${metricTypeName}_$setOperationName"
   }
 
-  /** Calculate the equation in [MeasurementCalculation] to get the result. */
-  private fun MeasurementCalculation.toSetOperationResults(
+  /** Calculate the equation to get the scalar result. */
+  private fun calculateScalarResult(
     metricType: Metric.Details.MetricTypeCase,
-    measurementResultsMap: Map<String, MeasurementResultsReader.Result>,
-    maximumFrequency: Int = 0
-  ): List<Double> {
-    val source = this
-    val measurementResultsList =
-      source.weightedMeasurementsList.map {
-        MeasurementResult(
-          measurementResultsMap[it.measurementReferenceId]?.result
-            ?: throw MeasurementNotFoundException(),
-          it.coefficient
-        )
-      }
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    measurementResultsList: List<MeasurementResult>,
+  ): Double {
     return when (metricType) {
-      Metric.Details.MetricTypeCase.REACH -> listOf(calculateReachResults(measurementResultsList))
+      Metric.Details.MetricTypeCase.REACH -> calculateReachResult(measurementResultsList)
       Metric.Details.MetricTypeCase.IMPRESSION_COUNT ->
-        listOf(calculateImpressionResults(measurementResultsList))
+        calculateImpressionResult(measurementResultsList)
       Metric.Details.MetricTypeCase.WATCH_DURATION ->
-        listOf(calculateWatchDurationResults(measurementResultsList))
-      Metric.Details.MetricTypeCase.FREQUENCY_HISTOGRAM -> {
-        calculateFrequencyHistogramResults(measurementResultsList, maximumFrequency)
-      }
-      Metric.Details.MetricTypeCase.METRICTYPE_NOT_SET -> {
-        error("Metric Type should be set.")
-      }
+        calculateWatchDurationResult(measurementResultsList)
+      Metric.Details.MetricTypeCase.FREQUENCY_HISTOGRAM ->
+        error("$metricType is not a scalar metric type")
+      Metric.Details.MetricTypeCase.METRICTYPE_NOT_SET -> error("Metric Type should be set.")
     }
   }
 
   /** Calculate the reach result by summing up weighted [Measurement]s. */
-  private fun calculateReachResults(measurementResultsList: List<MeasurementResult>): Double {
+  private fun calculateReachResult(measurementResultsList: List<MeasurementResult>): Double {
     return measurementResultsList
       .sumOf { (result, coefficient) ->
         if (!result.hasReach()) {
@@ -298,7 +287,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
   }
 
   /** Calculate the impression result by summing up weighted [Measurement]s. */
-  private fun calculateImpressionResults(
+  private fun calculateImpressionResult(
     measurementCoefficientPairsList: List<MeasurementResult>
   ): Double {
     return measurementCoefficientPairsList
@@ -312,7 +301,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
   }
 
   /** Calculate the watch duration result by summing up weighted [Measurement]s. */
-  private fun calculateWatchDurationResults(
+  private fun calculateWatchDurationResult(
     measurementCoefficientPairsList: List<MeasurementResult>
   ): Double {
     val watchDuration =
@@ -344,10 +333,9 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
   }
 
   /** Calculate the frequency histogram result by summing up weighted [Measurement]s. */
-  private fun calculateFrequencyHistogramResults(
-    measurementCoefficientPairsList: List<MeasurementResult>,
-    maximumFrequency: Int
-  ): List<Double> {
+  private fun calculateFrequencyHistogram(
+    measurementCoefficientPairsList: List<MeasurementResult>
+  ): Map<Long, Double> {
     val aggregatedFrequencyHistogramMap =
       measurementCoefficientPairsList
         .map { (result, coefficient) ->
@@ -369,12 +357,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
           aggregatedFrequencyHistogramMap
         }
 
-    val resultFrequencyHistogramMap = mutableMapOf<Long, Double>()
-    for (i in 1L..maximumFrequency) {
-      resultFrequencyHistogramMap[i] = aggregatedFrequencyHistogramMap.getOrDefault(i, 0.0)
-    }
-
-    return resultFrequencyHistogramMap.entries.sortedBy { it.key }.map { it.value }
+    return aggregatedFrequencyHistogramMap
   }
 
   /** Convert a [Metric] to a [Report.Details.Result.HistogramTable] of a [Report] */
@@ -382,25 +365,38 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
     rowHeaders: List<String>,
     measurementResultsMap: Map<String, MeasurementResultsReader.Result>
   ): Report.Details.Result.HistogramTable {
+    val setOperationFrequencyHistograms: List<List<Map<Long, Double>>> =
+      namedSetOperationsList.map {
+        it.sortedMeasurementCalculations.map { calculation ->
+          calculateFrequencyHistogram(calculation.getMeasurementResults(measurementResultsMap))
+        }
+      }
+    val largestFrequency =
+      setOperationFrequencyHistograms.flatten().flatMap { it.keys }.maxOrNull() ?: 1L
+
     val source = this
-    val maximumFrequency = source.details.frequencyHistogram.maximumFrequencyPerUser
     return ReportKt.DetailsKt.ResultKt.histogramTable {
       for (rowHeader in rowHeaders) {
-        for (frequency in 1..maximumFrequency) {
+        for (frequency in 1..largestFrequency) {
           rows +=
             ReportKt.DetailsKt.ResultKt.HistogramTableKt.row {
               this.rowHeader = rowHeader
-              this.frequency = frequency
+              this.frequency = frequency.toInt()
             }
         }
       }
-      for (namedSetOperation in source.namedSetOperationsList) {
+      for ((namedSetOperation, frequencyHistograms) in
+        source.namedSetOperationsList.zip(setOperationFrequencyHistograms)) {
         columns +=
-          namedSetOperation.toResultColumn(
-            source.details.metricTypeCase,
-            measurementResultsMap,
-            maximumFrequency
-          )
+          ReportKt.DetailsKt.ResultKt.column {
+            columnHeader =
+              buildColumnHeader(source.details.metricTypeCase.name, namedSetOperation.displayName)
+            for (frequencyHistogram in frequencyHistograms) {
+              for (frequency in 1..largestFrequency) {
+                setOperations += frequencyHistogram.getOrDefault(frequency, 0.0)
+              }
+            }
+          }
       }
     }
   }

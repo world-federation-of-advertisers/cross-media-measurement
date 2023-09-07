@@ -238,7 +238,9 @@ CREATE TABLE Metrics (
   FrequencyDifferentialPrivacyEpsilon DOUBLE PRECISION,
   FrequencyDifferentialPrivacyDelta DOUBLE PRECISION,
 
-  -- Must not be NULL if MetricType is FREQUENCY_HISTOGRAM or IMPRESSION_COUNT
+  -- Must not be NULL if MetricType is FREQUENCY_HISTOGRAM
+  MaximumFrequency bigint,
+  -- Must not be NULL if MetricType is IMPRESSION_COUNT
   MaximumFrequencyPerUser bigint,
   -- Must not be NULL if MetricType is WATCH_DURATION
   MaximumWatchDurationPerUser bigint,

@@ -84,12 +84,10 @@ import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.Computatio
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
-import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt.RequisitionParamsKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
 import org.wfanet.measurement.system.v1alpha.ReachOnlyLiquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.confirmComputationParticipantRequest
-import org.wfanet.measurement.system.v1alpha.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.setParticipantRequisitionParamsRequest
 
 /**
@@ -215,7 +213,7 @@ class ReachOnlyLiquidLegionsV2Mill(
         ComputationParticipantKt.requisitionParams {
           duchyCertificate = consentSignalCert.name
           reachOnlyLiquidLegionsV2 =
-            RequisitionParamsKt.liquidLegionsV2 {
+            ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
               elGamalPublicKey = signedElgamalPublicKey.data
               elGamalPublicKeySignature = signedElgamalPublicKey.signature
             }
@@ -456,12 +454,15 @@ class ReachOnlyLiquidLegionsV2Mill(
   private suspend fun completeSetupPhaseAtAggregator(token: ComputationToken): ComputationToken {
     val rollv2Details = token.computationDetails.reachOnlyLiquidLegionsV2
     require(AGGREGATOR == rollv2Details.role) { "invalid role for this function." }
+    // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to
+    // handle the case where the set of computation participants is a subset of all Duchies.
+    val inputBlobCount = workerStubs.size
     val (bytes, nextToken) =
       existingOutputOr(token) {
         val request =
           dataClients
             .readAllRequisitionBlobs(token, duchyId)
-            .concat(readAndCombineAllInputBlobsSetupPhaseAtAggregator(token, workerStubs.size))
+            .concat(readAndCombineAllInputBlobsSetupPhaseAtAggregator(token, inputBlobCount))
             .toCompleteSetupPhaseAtAggregatorRequest(rollv2Details, token.requisitionsCount)
         val cryptoResult: CompleteReachOnlySetupPhaseResponse =
           cryptoWorker.completeReachOnlySetupPhaseAtAggregator(request)
@@ -555,6 +556,8 @@ class ReachOnlyLiquidLegionsV2Mill(
             inputBlob.substring(inputBlob.size() - kBytesPerCipherText, inputBlob.size())
           if (rollv2Parameters.noise.hasReachNoiseConfig()) {
             reachDpNoiseBaseline = globalReachDpNoiseBaseline {
+              // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to
+              // handle the case where the computation participants is a subset of all Duchies.
               contributorsCount = workerStubs.size + 1
               globalReachDpNoise = rollv2Parameters.noise.reachNoiseConfig.globalReachDpNoise
             }
@@ -568,6 +571,8 @@ class ReachOnlyLiquidLegionsV2Mill(
             noiseParameters = registerNoiseGenerationParameters {
               compositeElGamalPublicKey = rollv2Details.combinedPublicKey
               curveId = rollv2Details.parameters.ellipticCurveId.toLong()
+              // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to
+              // handle the case where the computation participants is a subset of all Duchies.
               contributorsCount = workerStubs.size + 1
               totalSketchesCount = token.requisitionsCount
               dpParams = reachNoiseDifferentialPrivacyParams {
@@ -700,6 +705,8 @@ class ReachOnlyLiquidLegionsV2Mill(
         noiseParameters = registerNoiseGenerationParameters {
           compositeElGamalPublicKey = rollv2Details.combinedPublicKey
           curveId = rollv2Details.parameters.ellipticCurveId.toLong()
+          // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to handle
+          // the case where the set of computation participants is a subset of all Duchies.
           contributorsCount = workerStubs.size + 1
           totalSketchesCount = totalRequisitionsCount
           dpParams = reachNoiseDifferentialPrivacyParams {
@@ -726,6 +733,8 @@ class ReachOnlyLiquidLegionsV2Mill(
       combinedRegisterVector =
         combinedInputBlobs.substring(
           0,
+          // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to handle
+          // the case where the set of computation participants is a subset of all Duchies.
           combinedInputBlobs.size() - workerStubs.size * kBytesPerCipherText
         )
       curveId = rollv2Details.parameters.ellipticCurveId.toLong()
@@ -733,6 +742,8 @@ class ReachOnlyLiquidLegionsV2Mill(
         noiseParameters = registerNoiseGenerationParameters {
           compositeElGamalPublicKey = rollv2Details.combinedPublicKey
           curveId = rollv2Details.parameters.ellipticCurveId.toLong()
+          // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to handle
+          // the case where the set of computation participants is a subset of all Duchies.
           contributorsCount = workerStubs.size + 1
           totalSketchesCount = totalRequisitionsCount
           dpParams = reachNoiseDifferentialPrivacyParams {
@@ -746,6 +757,8 @@ class ReachOnlyLiquidLegionsV2Mill(
       compositeElGamalPublicKey = rollv2Details.combinedPublicKey
       serializedExcessiveNoiseCiphertext =
         combinedInputBlobs.substring(
+          // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to handle
+          // the case where the set of computation participants is a subset of all Duchies.
           combinedInputBlobs.size() - workerStubs.size * kBytesPerCipherText,
           combinedInputBlobs.size()
         )

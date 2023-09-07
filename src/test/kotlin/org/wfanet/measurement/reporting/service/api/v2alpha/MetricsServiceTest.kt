@@ -210,7 +210,7 @@ private const val REACH_FREQUENCY_VID_SAMPLING_WIDTH = 5.0f / NUMBER_VID_BUCKETS
 private const val REACH_FREQUENCY_VID_SAMPLING_START = 48.0f / NUMBER_VID_BUCKETS
 private const val REACH_FREQUENCY_REACH_EPSILON = 0.0033
 private const val REACH_FREQUENCY_FREQUENCY_EPSILON = 0.115
-private const val REACH_FREQUENCY_MAXIMUM_FREQUENCY_PER_USER = 10
+private const val REACH_FREQUENCY_MAXIMUM_FREQUENCY = 10
 
 private const val IMPRESSION_VID_SAMPLING_WIDTH = 62.0f / NUMBER_VID_BUCKETS
 private const val IMPRESSION_VID_SAMPLING_START = 143.0f / NUMBER_VID_BUCKETS
@@ -254,7 +254,7 @@ private val METRIC_SPEC_CONFIG = metricSpecConfig {
           epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
           delta = DIFFERENTIAL_PRIVACY_DELTA
         }
-      maximumFrequencyPerUser = REACH_FREQUENCY_MAXIMUM_FREQUENCY_PER_USER
+      maximumFrequency = REACH_FREQUENCY_MAXIMUM_FREQUENCY
     }
   frequencyHistogramVidSamplingInterval =
     MetricSpecConfigKt.vidSamplingInterval {

@@ -226,7 +226,6 @@ private val INTERNAL_MEASUREMENT = internalMeasurement {
             samplingIndicatorSize = 1000
           }
           ellipticCurveId = 123
-          maximumFrequency = 12
           noiseMechanism = InternalNoiseMechanism.GEOMETRIC
         }
     }
@@ -319,7 +318,6 @@ class ComputationsServiceTest {
                 decayRate = 10.0
                 maxSize = 100
               }
-              maximumFrequency = 12
               mpcNoiseBuilder.apply {
                 blindedHistogramNoiseBuilder.apply {
                   epsilon = 1.1
@@ -331,7 +329,6 @@ class ComputationsServiceTest {
                 }
               }
               ellipticCurveId = 123
-              maximumFrequency = 12
               noiseMechanism = NoiseMechanism.GEOMETRIC
             }
             addRequisitions(

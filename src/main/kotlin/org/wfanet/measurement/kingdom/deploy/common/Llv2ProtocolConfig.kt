@@ -42,6 +42,8 @@ object Llv2ProtocolConfig {
       flags.config.reader().use {
         parseTextProto(it, Llv2ProtocolConfigConfig.getDefaultInstance())
       }
+    configMessage.protocolConfig.validate()
+
     protocolConfig = configMessage.protocolConfig
     duchyProtocolConfig = configMessage.duchyProtocolConfig
     requiredExternalDuchyIds = configMessage.requiredExternalDuchyIdsList.toSet()
@@ -57,11 +59,18 @@ object Llv2ProtocolConfig {
     require(!Llv2ProtocolConfig::protocolConfig.isInitialized)
     require(!Llv2ProtocolConfig::duchyProtocolConfig.isInitialized)
     require(!Llv2ProtocolConfig::requiredExternalDuchyIds.isInitialized)
+    protocolConfig.validate()
+
     Llv2ProtocolConfig.protocolConfig = protocolConfig
     Llv2ProtocolConfig.duchyProtocolConfig = duchyProtocolConfig
     Llv2ProtocolConfig.requiredExternalDuchyIds = requiredExternalDuchyIds
     Llv2ProtocolConfig.minimumNumberOfRequiredDuchies = minimumNumberOfRequiredDuchies
   }
+}
+
+private fun ProtocolConfig.LiquidLegionsV2.validate() {
+  @Suppress("DEPRECATION")
+  require(maximumFrequency == 0) { "LiquidLegionsV2.maximum_frequency is deprecated" }
 }
 
 class Llv2ProtocolConfigFlags {
