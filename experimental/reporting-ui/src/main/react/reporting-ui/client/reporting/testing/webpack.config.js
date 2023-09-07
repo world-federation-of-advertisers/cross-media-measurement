@@ -46,5 +46,6 @@ module.exports = {
   plugins: [new MiniCssExtractPlugin()],
   devServer: {
     static: path.resolve(__dirname, '../../../public'),
+    historyApiFallback: true,
   },
 };
