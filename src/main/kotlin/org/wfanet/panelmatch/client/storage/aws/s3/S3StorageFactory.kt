@@ -26,6 +26,9 @@ import software.amazon.awssdk.auth.credentials.AwsSessionCredentials
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.s3.S3AsyncClient
+import software.amazon.awssdk.services.sts.StsClient
+import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider
+import software.amazon.awssdk.services.sts.model.AssumeRoleRequest
 
 /** [StorageFactory] for [S3StorageClient]. */
 class S3StorageFactory(
@@ -56,10 +59,35 @@ class S3StorageFactory(
   }
 
   override fun build(): StorageClient {
-    return S3StorageClient(
-        S3AsyncClient.builder().region(Region.of(storageDetails.aws.region)).build(),
-        storageDetails.aws.bucket
-      )
-      .withPrefix(exchangeDateKey.path)
+    if (storageDetails.aws.roleArn.isEmpty()) {
+      return S3StorageClient(
+          S3AsyncClient.builder().region(Region.of(storageDetails.aws.region)).build(),
+          storageDetails.aws.bucket
+        )
+        .withPrefix(exchangeDateKey.path)
+    } else {
+      val client: StsClient = StsClient.builder().build()
+      val assumeRoleRequestBuilder = AssumeRoleRequest.builder().roleArn(storageDetails.aws.roleArn)
+      val assumeRoleRequest: AssumeRoleRequest =
+        if (storageDetails.aws.roleExternalId.isEmpty()) {
+          assumeRoleRequestBuilder.build()
+        } else {
+          assumeRoleRequestBuilder.externalId(storageDetails.aws.roleExternalId).build()
+        }
+
+      return S3StorageClient(
+          S3AsyncClient.builder()
+            .region(Region.of(storageDetails.aws.region))
+            .credentialsProvider(
+              StsAssumeRoleCredentialsProvider.builder()
+                .stsClient(client)
+                .refreshRequest(assumeRoleRequest)
+                .build()
+            )
+            .build(),
+          storageDetails.aws.bucket
+        )
+        .withPrefix(exchangeDateKey.path)
+    }
   }
 }
