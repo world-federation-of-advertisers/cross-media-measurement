@@ -22,12 +22,13 @@ option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
 message Population {
-  fixed64 external_population_id = 1;
+  fixed64 external_data_provider_id = 1;
+  fixed64 external_population_id = 2;
 
-  string description = 2;
+  string description = 3;
 
   // When the 'Population' was created.
-  google.protobuf.Timestamp create_time = 3;
+  google.protobuf.Timestamp create_time = 4;
 
   // A reference to a population blob.
   message PopulationBlob {
@@ -36,7 +37,7 @@ message Population {
   }
 
   // The blob for the population.
-  PopulationBlob population_blob = 4;
+  PopulationBlob population_blob = 5;
 
   message EventTemplate {
     // The type of the Event Template. A fully-qualified protobuf message type.
@@ -44,5 +45,5 @@ message Population {
   }
 
   // The EventTemplate that this population conforms to.
-  EventTemplate event_template = 5;
+  EventTemplate event_template = 6;
 }

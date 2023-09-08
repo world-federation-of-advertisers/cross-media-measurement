@@ -27,8 +27,22 @@ service Populations {
   rpc CreatePopulation(Population) returns (Population);
 
   rpc GetPopulation(GetPopulationRequest) returns (Population);
+
+  rpc StreamPopulation(StreamPopulationRequest) returns (stream Population);
 }
 
 message GetPopulationRequest {
-  fixed64 external_requisition_id = 1;
+  fixed64 external_data_provider_id = 1;
+  fixed64 external_population_id = 2;
+}
+
+message StreamPopulationRequest {
+  message Filter {
+    int64 external_data_provider_id = 1;
+  }
+  Filter filter = 1;
+
+  // The maximum number of results to return. If not specified or 0, it implies
+  // unlimited.
+  int32 limit = 2;
 }

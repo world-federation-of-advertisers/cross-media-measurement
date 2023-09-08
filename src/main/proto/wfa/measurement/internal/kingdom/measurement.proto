@@ -297,6 +297,4 @@ message Requisition {
   }
   // Denormalized fields from the parent Measurement. Output-only.
   ParentMeasurement parent_measurement = 12;
-
-  fixed64 external_population_id = 13;
 }

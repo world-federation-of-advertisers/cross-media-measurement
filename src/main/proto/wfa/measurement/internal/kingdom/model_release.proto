@@ -31,4 +31,5 @@ message ModelRelease {
   google.protobuf.Timestamp create_time = 4;
 
   fixed64 external_population_id = 5;
+  fixed64 external_data_provider_id = 6;
 }
