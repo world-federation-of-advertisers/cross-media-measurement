@@ -14,7 +14,7 @@
 
 import React from 'react';
 import { CardWrapper as Card } from '../../../component/card_wrapper/card_wrapper';
-import { numberWithMagnitude } from '../../../util/numberWithMagnitude';
+import { numberWithMagnitude } from '../../../util/formatting';
 
 export type ReportOverviewProps = {
   id: string,

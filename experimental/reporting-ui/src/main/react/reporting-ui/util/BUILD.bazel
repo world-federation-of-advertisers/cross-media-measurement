@@ -7,8 +7,8 @@ package(
 )
 
 js_library(
-    name = "util",
+    name = "formatting",
     srcs = [
-        "numberWithMagnitude.ts",
+        "formatting.ts",
     ],
 )

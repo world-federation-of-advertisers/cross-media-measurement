@@ -20,7 +20,11 @@ const MAGNITUDES = Object.freeze({
   12: 'T',
 });
 
-export const numberWithMagnitude = (num: number, decimals: number, trailingZeros: boolean = false) => {
+export const formatNumberWithMagnitude = (
+  num: number,
+  decimals: number,
+  trailingZeros: boolean = false,
+) => {
   let power = 0;
   let newNumber = num;
   while (newNumber >= 1000) {
@@ -32,7 +36,7 @@ export const numberWithMagnitude = (num: number, decimals: number, trailingZeros
       return num.toString();
   } else {
       const value = (newNumber.toFixed(decimals));
-      
+
       return trailingZeros ?
           value.toString() + MAGNITUDES[power]
           : value.toString().replace(/\.0+$/, '') + MAGNITUDES[power]

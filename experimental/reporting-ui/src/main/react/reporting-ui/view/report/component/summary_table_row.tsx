@@ -15,7 +15,7 @@
 import React from 'react';
 import { SummaryPublisherData } from '../../../model/reporting';
 import { PublisherCell } from './publisher_cell';
-import { numberWithMagnitude } from '../../../util/numberWithMagnitude';
+import { numberWithMagnitude } from '../../../util/formatting';
 
 type ReportSummaryProps = {
   pubData: SummaryPublisherData,
