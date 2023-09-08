@@ -131,6 +131,6 @@ class InProcessEdpSimulator(
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val RANDOM_SEED: Long = 1
     private val random = Random(RANDOM_SEED)
-    private val COMPOSITION_MECHANISM = CompositionMechanism.DP_ADVANCED
+    private val COMPOSITION_MECHANISM = CompositionMechanism.ACDP
   }
 }
