@@ -24,12 +24,13 @@ import ("strings")
 
 	_kingdom_secret_name: string
 
-	_completedMeasurementsTimeToLive: string | *"180d"
-	_completedMeasurementsDryRun:     bool | *false
-	_pendingMeasurementsTimeToLive:   string | *"15d"
-	_pendingMeasurementsDryRun:       bool | *false
-	_exchangesDaysToLive:             int | *"100"
-	_exchangesDryRun:                 bool | *false
+	_completedMeasurementsTimeToLive:        string | *"180d"
+	_completedMeasurementsMaxToDeletePerRpc: int | *25
+	_completedMeasurementsDryRun:            bool | *false
+	_pendingMeasurementsTimeToLive:          string | *"15d"
+	_pendingMeasurementsDryRun:              bool | *false
+	_exchangesDaysToLive:                    int | *"100"
+	_exchangesDryRun:                        bool | *false
 
 	_imageSuffixes: [string]: string
 	_imageSuffixes: {
@@ -79,6 +80,7 @@ import ("strings")
 	]
 
 	_kingdomCompletedMeasurementsTimeToLiveFlag:            "--time-to-live=\(_completedMeasurementsTimeToLive)"
+	_kingdomCompletedMeasurementsMaxToDeletePerRpcFlag:     "--max-to-delete-per-rpc=\(_completedMeasurementsMaxToDeletePerRpc)"
 	_kingdomCompletedMeasurementsDryRunRetentionPolicyFlag: "--dry-run=\(_completedMeasurementsDryRun)"
 	_kingdomPendingMeasurementsTimeToLiveFlag:              "--time-to-live=\(_pendingMeasurementsTimeToLive)"
 	_kingdomPendingMeasurementsDryRunRetentionPolicyFlag:   "--dry-run=\(_pendingMeasurementsDryRun)"
@@ -202,6 +204,7 @@ import ("strings")
 				_kingdom_tls_key_file_flag,
 				_kingdom_cert_collection_file_flag,
 				_kingdomCompletedMeasurementsTimeToLiveFlag,
+				_kingdomCompletedMeasurementsMaxToDeletePerRpcFlag,
 				_kingdomCompletedMeasurementsDryRunRetentionPolicyFlag,
 				_debug_verbose_grpc_client_logging_flag,
 				_otlpEndpoint,
