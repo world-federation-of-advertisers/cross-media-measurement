@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.postgres.writers
 
+import io.r2dbc.postgresql.codec.Interval as PostgresInterval
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
@@ -24,6 +25,7 @@ import org.wfanet.measurement.common.db.r2dbc.BoundStatement
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.toDuration
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
@@ -209,7 +211,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                   bind("$11", frequencyHistogram.frequencyPrivacyParams.epsilon)
                   bind("$12", frequencyHistogram.reachPrivacyParams.delta)
                   bind<Long?>("$13", null)
-                  bind<Long?>("$14", null)
+                  bind<PostgresInterval?>("$14", null)
                   bind("$20", frequencyHistogram.maximumFrequency)
                 }
                 MetricSpec.TypeCase.REACH -> {
@@ -219,7 +221,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                   bind<Double?>("$11", null)
                   bind<Double?>("$12", null)
                   bind<Long?>("$13", null)
-                  bind<Long?>("$14", null)
+                  bind<PostgresInterval?>("$14", null)
                   bind<Long?>("$20", null)
                 }
                 MetricSpec.TypeCase.IMPRESSION_COUNT -> {
@@ -229,7 +231,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                   bind<Double?>("$11", null)
                   bind<Double?>("$12", null)
                   bind("$13", impressionCount.maximumFrequencyPerUser)
-                  bind<Long?>("$14", null)
+                  bind<PostgresInterval?>("$14", null)
                   bind<Long?>("$20", null)
                 }
                 MetricSpec.TypeCase.WATCH_DURATION -> {
@@ -239,7 +241,10 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                   bind<Double?>("$11", null)
                   bind<Double?>("$12", null)
                   bind<Long?>("$13", null)
-                  bind("$14", watchDuration.maximumWatchDurationPerUser)
+                  bind(
+                    "$14",
+                    PostgresInterval.of(watchDuration.maximumWatchDurationPerUser.toDuration())
+                  )
                   bind<Long?>("$20", null)
                 }
                 MetricSpec.TypeCase.TYPE_NOT_SET -> {}

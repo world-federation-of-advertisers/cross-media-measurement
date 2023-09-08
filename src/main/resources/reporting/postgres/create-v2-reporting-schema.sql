@@ -243,7 +243,7 @@ CREATE TABLE Metrics (
   -- Must not be NULL if MetricType is IMPRESSION_COUNT
   MaximumFrequencyPerUser bigint,
   -- Must not be NULL if MetricType is WATCH_DURATION
-  MaximumWatchDurationPerUser bigint,
+  MaximumWatchDurationPerUser interval,
 
   VidSamplingIntervalStart DOUBLE PRECISION NOT NULL,
   VidSamplingIntervalWidth DOUBLE PRECISION NOT NULL,
