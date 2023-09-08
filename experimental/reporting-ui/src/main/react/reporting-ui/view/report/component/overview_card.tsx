@@ -14,7 +14,7 @@
 
 import React from 'react';
 import { CardWrapper as Card } from '../../../component/card_wrapper/card_wrapper';
-import { numberWithMagnitude } from '../../../util/formatting';
+import { formatNumberWithMagnitude } from '../../../util/formatting';
 
 export type ReportOverviewProps = {
   id: string,
@@ -24,6 +24,6 @@ export type ReportOverviewProps = {
 
 export function ReportOverviewCard({id, title, value}: ReportOverviewProps) {
   return (
-    <Card cardId={id} title={title} content={numberWithMagnitude(value, 1)} />
+    <Card cardId={id} title={title} content={formatNumberWithMagnitude(value, 1)} />
   )
 }

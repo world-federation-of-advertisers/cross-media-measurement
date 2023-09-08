@@ -15,7 +15,7 @@
 import React from 'react';
 import { SummaryPublisherData } from '../../../model/reporting';
 import { PublisherCell } from './publisher_cell';
-import { numberWithMagnitude } from '../../../util/formatting';
+import { formatNumberWithMagnitude } from '../../../util/formatting';
 
 type ReportSummaryProps = {
   pubData: SummaryPublisherData,
@@ -34,11 +34,11 @@ export function SummaryTableRow({
           publisherColor={color}
         />
       </td>
-      <td>{numberWithMagnitude(pubData.impressions, 1)}</td>
-      <td>{numberWithMagnitude(pubData.reach, 1)}</td>
-      <td>{numberWithMagnitude(pubData.onTargetReach, 1)}</td>
-      <td>{numberWithMagnitude(pubData.uniqueReach, 1)}</td>
-      <td>{numberWithMagnitude(pubData.averageFrequency, 1)}</td>
+      <td>{formatNumberWithMagnitude(pubData.impressions, 1)}</td>
+      <td>{formatNumberWithMagnitude(pubData.reach, 1)}</td>
+      <td>{formatNumberWithMagnitude(pubData.onTargetReach, 1)}</td>
+      <td>{formatNumberWithMagnitude(pubData.uniqueReach, 1)}</td>
+      <td>{formatNumberWithMagnitude(pubData.averageFrequency, 1)}</td>
     </tr>
   )
 }
