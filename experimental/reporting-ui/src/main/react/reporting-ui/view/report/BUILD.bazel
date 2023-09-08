@@ -12,6 +12,7 @@ js_library(
         "report_view.tsx",
     ],
     deps = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui/view/report/component:terminal_report",
         "//experimental/reporting-ui/src/main/react/reporting-ui/view_model/report",
     ],
 )

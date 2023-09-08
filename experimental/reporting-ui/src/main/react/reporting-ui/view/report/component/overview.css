@@ -12,21 +12,29 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-@font-face {
+#report-overview {
+    margin: 32px 16px 0px 16px;
+
+    .col {
+        margin: 0px 16px 0px 16px;
+        padding: 0px;
+    }
+}
+
+#report-overview .card-title {
+    color: #1F1F1F;
     font-family: open-sans-light;
-    src: url(./public/asset/font/open-sans-light.ttf);
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: 24px;
 }
 
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+#report-overview .card-text {
+    color: #1F1F1F;
+    font-family: open-sans-light;
+    font-size: 45px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: 52px;
 }
