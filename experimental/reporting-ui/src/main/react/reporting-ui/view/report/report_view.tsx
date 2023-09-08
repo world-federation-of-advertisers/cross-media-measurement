@@ -18,6 +18,7 @@ import { ReportViewModel } from '../../view_model/report/report_view_model';
 import { Loader } from '../../component/loader/loader';
 import { Error } from '../../component/error/error';
 import { TERMINAL_STATES } from '../../model/reporting';
+import { TerminalReport } from './component/terminal_report';
 
 export const ReportView = () => {
   const { errors, report, load, loading } = ReportViewModel();
@@ -40,7 +41,7 @@ export const ReportView = () => {
   }
 
   if (TERMINAL_STATES.includes(report.status)) {
-    return <div>{report.name}</div>
+    return <TerminalReport name={report.name} overview={report.overview} summaries={report.summary} />
   }
 
   return(

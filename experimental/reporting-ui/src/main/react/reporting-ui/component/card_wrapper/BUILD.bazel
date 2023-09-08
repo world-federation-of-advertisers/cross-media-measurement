@@ -7,10 +7,8 @@ package(
 )
 
 js_library(
-    name = "font",
-    srcs = glob(
-        include = [
-            "open-sans-light.ttf",
-        ],
-    ),
+    name = "card_wrapper",
+    srcs = [
+        "card_wrapper.tsx",
+    ],
 )

@@ -13,13 +13,15 @@
 // limitations under the License.
 
 import {useState} from 'react';
-import { Report, ReportState } from '../../model/reporting';
+import { Overview, Report, ReportState, SummaryPublisherData } from '../../model/reporting';
 import { ReportRepository } from '../../model/report/report_repository';
 
 type UiReport = {
   id: string,
   name: string,
   status: ReportState,
+  overview: Overview,
+  summary: SummaryPublisherData[],
 }
 
 const handleUiReport = (report: Report|undefined) => {
@@ -31,6 +33,8 @@ const handleUiReport = (report: Report|undefined) => {
     id: report.id,
     name: report.name,
     status: report.status,
+    overview: report.overview,
+    summary: report.summary,
   };
 };
 
