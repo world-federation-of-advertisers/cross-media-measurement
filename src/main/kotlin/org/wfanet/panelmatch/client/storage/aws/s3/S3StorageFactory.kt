@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.client.storage.aws.s3
 
+import java.util.UUID
 import org.apache.beam.sdk.options.PipelineOptions
 import org.wfanet.measurement.aws.s3.S3StorageClient
 import org.wfanet.measurement.storage.StorageClient
@@ -70,7 +71,11 @@ class S3StorageFactory(
       val assumeRoleRequestBuilder =
         AssumeRoleRequest.builder()
           .roleArn(storageDetails.aws.role.roleArn)
-          .roleSessionName(storageDetails.aws.role.roleSessionName)
+          .roleSessionName(
+            storageDetails.aws.role.roleSessionName.ifEmpty {
+              "${exchangeDateKey.path}-${UUID.randomUUID()}"
+            }
+          )
       val assumeRoleRequest: AssumeRoleRequest =
         if (storageDetails.aws.role.roleExternalId.isEmpty()) {
           assumeRoleRequestBuilder.build()
