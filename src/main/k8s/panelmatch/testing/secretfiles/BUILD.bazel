@@ -24,8 +24,6 @@ genrule(
 SECRET_FILES = [
     "edp1_tls.key",
     "edp1_tls.pem",
-    "health_probe_tls.key",
-    "health_probe_tls.pem",
     "mp1_tls.key",
     "mp1_tls.pem",
     "trusted_certs.pem",
