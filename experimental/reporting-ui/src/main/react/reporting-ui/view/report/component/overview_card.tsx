@@ -12,9 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-const baseConfig = require('../testing/jest/jest_base.config');
+import React from 'react';
+import { CardWrapper as Card } from '../../../component/card_wrapper/card_wrapper';
+import { formatNumberWithMagnitude } from '../../../util/formatting';
 
-module.exports = {
-    ...baseConfig,
-    displayName: "Reporting UI Tests",
+export type ReportOverviewProps = {
+  id: string,
+  title: string,
+  value: number,
+}
+
+export function ReportOverviewCard({id, title, value}: ReportOverviewProps) {
+  return (
+    <Card cardId={id} title={title} content={formatNumberWithMagnitude(value, 1)} />
+  )
 }

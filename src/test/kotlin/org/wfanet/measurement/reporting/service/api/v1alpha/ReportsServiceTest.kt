@@ -22,6 +22,7 @@ import com.google.protobuf.duration
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.protobuf.timestamp
+import com.google.protobuf.util.Durations
 import com.google.protobuf.util.Timestamps
 import com.google.type.interval
 import io.grpc.Status
@@ -1032,7 +1033,7 @@ private val WATCH_DURATION_MEASUREMENT_SPEC = measurementSpec {
         epsilon = MEASUREMENT_SPEC_CONFIG.duration.privacyParams.epsilon
         delta = MEASUREMENT_SPEC_CONFIG.duration.privacyParams.delta
       }
-      maximumWatchDurationPerUser = MAXIMUM_WATCH_DURATION_PER_USER
+      maximumWatchDurationPerUser = Durations.fromSeconds(MAXIMUM_WATCH_DURATION_PER_USER.toLong())
     }
   vidSamplingInterval = vidSamplingInterval {
     start = MEASUREMENT_SPEC_CONFIG.duration.vidSamplingInterval.fixedStart.start
@@ -1256,7 +1257,7 @@ private val INTERNAL_WATCH_DURATION_METRIC = internalMetric {
     InternalMetricKt.details {
       watchDuration =
         InternalMetricKt.watchDurationParams {
-          maximumWatchDurationPerUser = MAXIMUM_WATCH_DURATION_PER_USER
+          maximumWatchDurationPerUserSeconds = MAXIMUM_WATCH_DURATION_PER_USER
         }
       cumulative = false
     }

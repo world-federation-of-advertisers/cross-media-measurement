@@ -12,9 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-const baseConfig = require('../testing/jest/jest_base.config');
+import React from 'react';
+import Stack from 'react-bootstrap/Stack';
+import { SquareIcon } from '../../../public/asset/icon';
 
-module.exports = {
-    ...baseConfig,
-    displayName: "Reporting UI Tests",
+type ReportSummaryProps = {
+  publisherName: string,
+  publisherColor: string,
+};
+
+export function PublisherCell({
+  publisherName,
+  publisherColor,
+}: ReportSummaryProps) {
+  return (
+    <Stack direction="horizontal" gap={2}>
+      <SquareIcon fill={publisherColor} />
+      {publisherName}
+    </Stack>
+  )
 }

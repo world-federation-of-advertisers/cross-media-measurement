@@ -17,8 +17,7 @@
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import com.google.protobuf.ByteString
-import com.google.protobuf.Duration
-import com.google.protobuf.duration
+import com.google.protobuf.Duration as ProtoDuration
 import com.google.protobuf.util.Durations
 import com.google.protobuf.util.Timestamps
 import com.google.type.Interval
@@ -1226,7 +1225,7 @@ class ReportsService(
         InternalMetricTypeCase.WATCH_DURATION -> {
           duration =
             measurementSpecComponentFactory.getDurationType(
-              internalMetricDetails.watchDuration.maximumWatchDurationPerUser
+              internalMetricDetails.watchDuration.maximumWatchDurationPerUserSeconds
             )
           vidSamplingInterval = measurementSpecComponentFactory.getDurationVidSamplingInterval()
         }
@@ -1869,7 +1868,7 @@ private fun SetOperation.Type.toInternal(): InternalSetOperation.Type {
 private fun WatchDurationParams.toInternal(): InternalWatchDurationParams {
   val source = this
   return InternalMetricKt.watchDurationParams {
-    maximumWatchDurationPerUser = source.maximumWatchDurationPerUser
+    maximumWatchDurationPerUserSeconds = source.maximumWatchDurationPerUser
   }
 }
 
@@ -1943,7 +1942,7 @@ private fun buildRowHeader(timeInterval: TimeInterval): String {
   return "$startTimeInstant-$endTimeInstant"
 }
 
-private operator fun Duration.plus(other: Duration): Duration {
+private operator fun ProtoDuration.plus(other: ProtoDuration): ProtoDuration {
   return Durations.add(this, other)
 }
 
@@ -1980,10 +1979,7 @@ private fun aggregateResults(
   var reachValue = 0L
   var impressionValue = 0L
   val frequencyDistribution = mutableMapOf<Long, Double>()
-  var watchDurationValue = duration {
-    seconds = 0
-    nanos = 0
-  }
+  var watchDurationValue = ProtoDuration.getDefaultInstance()
 
   // Aggregation
   for (result in internalResultsList) {
@@ -2226,7 +2222,9 @@ private fun InternalSetOperation.Type.toType(): SetOperation.Type {
 /** Converts an internal [InternalWatchDurationParams] to a public [WatchDurationParams]. */
 private fun InternalWatchDurationParams.toWatchDuration(): WatchDurationParams {
   val source = this
-  return watchDurationParams { maximumWatchDurationPerUser = source.maximumWatchDurationPerUser }
+  return watchDurationParams {
+    maximumWatchDurationPerUser = source.maximumWatchDurationPerUserSeconds
+  }
 }
 
 /** Converts an internal [InternalImpressionCountParams] to a public [ImpressionCountParams]. */

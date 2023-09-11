@@ -14,12 +14,12 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import './index.css';
 import {routes} from './route';
 import reportWebVitals from './report_web_vitals';
 import AppConfig from './client/initialize';
 import { ReportingClientImpl } from './client/reporting/client_impl';
 import {createBrowserRouter, RouterProvider} from 'react-router-dom';
+import './index.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 const configProps = {

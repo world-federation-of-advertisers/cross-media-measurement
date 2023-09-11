@@ -12,9 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-const baseConfig = require('../testing/jest/jest_base.config');
+// In powers of 10
+const MAGNITUDES = Object.freeze({
+  3: 'K',
+  6: 'M',
+  9: 'B',
+  12: 'T',
+});
 
-module.exports = {
-    ...baseConfig,
-    displayName: "Reporting UI Tests",
+export const formatNumberWithMagnitude = (
+  num: number,
+  decimals: number,
+  trailingZeros: boolean = false,
+) => {
+  let power = 0;
+  let newNumber = num;
+  while (newNumber >= 1000) {
+      newNumber = newNumber / 1000;
+      power += 3;
+  }
+
+  if (power === 0) {
+      return num.toString();
+  } else {
+      const value = (newNumber.toFixed(decimals));
+
+      return trailingZeros ?
+          value.toString() + MAGNITUDES[power]
+          : value.toString().replace(/\.0+$/, '') + MAGNITUDES[power]
+  }
 }

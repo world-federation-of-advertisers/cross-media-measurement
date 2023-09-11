@@ -12,9 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-const baseConfig = require('../testing/jest/jest_base.config');
+import React from 'react';
+import Card from 'react-bootstrap/Card';
 
-module.exports = {
-    ...baseConfig,
-    displayName: "Reporting UI Tests",
+type props = {
+  cardId: string,
+  title: string,
+  content: string,
+};
+
+const COMPONENT_STYLE = Object.freeze({
+  borderRadius: '12px',
+  boxShadow: '0px 2px 6px 2px rgba(0, 0, 0, 0.15), 0px 1px 2px 0px rgba(0, 0, 0, 0.30)',
+});
+
+export function CardWrapper({cardId, title, content}: props) {
+  return (
+    <Card id={cardId} style={COMPONENT_STYLE}>
+      <Card.Body>
+        <Card.Title>{title}</Card.Title>
+        <Card.Text>{content}</Card.Text>
+      </Card.Body>
+    </Card>
+  )
 }
