@@ -138,6 +138,7 @@ import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest as 
 import org.wfanet.measurement.internal.reporting.streamReportsRequest as streamInternalReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
 import org.wfanet.measurement.internal.reporting.timeIntervals as internalTimeIntervals
+import com.google.protobuf.duration
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v1alpha.CreateReportRequest
 import org.wfanet.measurement.reporting.v1alpha.GetReportRequest
@@ -1671,10 +1672,12 @@ class ReportsService(
       return createVidSamplingInterval(vidSamplingInterval)
     }
 
-    fun getDurationType(maximumWatchDurationPerUser: Int): MeasurementSpec.Duration {
+    fun getDurationType(maximumWatchDurationPerUserSeconds: Int): MeasurementSpec.Duration {
       return MeasurementSpecKt.duration {
         privacyParams = durationPrivacyParams
-        this.maximumWatchDurationPerUser = maximumWatchDurationPerUser
+        maximumWatchDurationPerUser = duration {
+          seconds = maximumWatchDurationPerUserSeconds.toLong()
+        }
       }
     }
   }
