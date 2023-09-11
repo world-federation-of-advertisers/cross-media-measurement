@@ -67,10 +67,10 @@ class S3StorageFactory(
         .withPrefix(exchangeDateKey.path)
     } else {
       val client: StsClient = StsClient.builder().build()
-      val assumeRoleRequestBuilder = AssumeRoleRequest
-        .builder()
-        .roleArn(storageDetails.aws.role.roleArn)
-        .roleSessionName(storageDetails.aws.role.roleSessionName)
+      val assumeRoleRequestBuilder =
+        AssumeRoleRequest.builder()
+          .roleArn(storageDetails.aws.role.roleArn)
+          .roleSessionName(storageDetails.aws.role.roleSessionName)
       val assumeRoleRequest: AssumeRoleRequest =
         if (storageDetails.aws.role.roleExternalId.isEmpty()) {
           assumeRoleRequestBuilder.build()
