@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.panelmatch.client.storage;
 
 import "google/protobuf/any.proto";
+import "google/api/field_behavior.proto";
 
 option java_package = "org.wfanet.panelmatch.client.storage";
 option java_multiple_files = true;
@@ -54,12 +55,19 @@ message StorageDetails {
     string region = 2;
 
     // By default, the daemon uses the default AWS role credentials found in the
-    // environment variables. If  a different role is required to gain access to
-    // the bucket, pass the ARN here. Optional.
-    string role_arn = 3;
-    // The optional owner-provided external identifier used in the assume role
-    // request. Only used with role_arn.
-    string role_external_id = 4;
+    // environment variables. Specify, if a different role is required.
+    message AwsRole {
+      // Role ARN
+      string role_arn = 3 [(google.api.field_behavior) = REQUIRED];
+      // The optional owner-provided external identifier used in the assume role
+      // request. Only used with role_arn.
+      string role_external_id = 4;
+      // An identifier for the assumed role session.
+      string role_session_name = 5 [(google.api.field_behavior) = REQUIRED];
+    }
+
+    // The AWS Role to assume.
+    AwsRole role = 3;
   }
 
   message GcsStorage {

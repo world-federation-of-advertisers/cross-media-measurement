@@ -59,7 +59,7 @@ class S3StorageFactory(
   }
 
   override fun build(): StorageClient {
-    if (storageDetails.aws.roleArn.isEmpty()) {
+    if (storageDetails.aws.role.roleArn.isEmpty()) {
       return S3StorageClient(
           S3AsyncClient.builder().region(Region.of(storageDetails.aws.region)).build(),
           storageDetails.aws.bucket
@@ -67,12 +67,15 @@ class S3StorageFactory(
         .withPrefix(exchangeDateKey.path)
     } else {
       val client: StsClient = StsClient.builder().build()
-      val assumeRoleRequestBuilder = AssumeRoleRequest.builder().roleArn(storageDetails.aws.roleArn)
+      val assumeRoleRequestBuilder = AssumeRoleRequest
+        .builder()
+        .roleArn(storageDetails.aws.role.roleArn)
+        .roleSessionName(storageDetails.aws.role.roleSessionName)
       val assumeRoleRequest: AssumeRoleRequest =
-        if (storageDetails.aws.roleExternalId.isEmpty()) {
+        if (storageDetails.aws.role.roleExternalId.isEmpty()) {
           assumeRoleRequestBuilder.build()
         } else {
-          assumeRoleRequestBuilder.externalId(storageDetails.aws.roleExternalId).build()
+          assumeRoleRequestBuilder.externalId(storageDetails.aws.role.roleExternalId).build()
         }
 
       return S3StorageClient(
