@@ -29,6 +29,7 @@ js_library(
         "//:node_modules/babel-loader",
         "//:node_modules/bootstrap",
         "//:node_modules/css-loader",
+        "//:node_modules/d3",
         "//:node_modules/html-webpack-plugin",
         "//:node_modules/mini-css-extract-plugin",
         "//:node_modules/react",
