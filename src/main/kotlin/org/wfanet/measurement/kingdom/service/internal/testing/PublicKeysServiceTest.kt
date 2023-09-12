@@ -19,7 +19,6 @@ import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
-import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -28,7 +27,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
@@ -59,7 +57,7 @@ abstract class PublicKeysServiceTest<T : PublicKeysCoroutineImplBase> {
   )
 
   protected val clock: Clock = Clock.systemUTC()
-  protected val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
+  protected val idGenerator = SequentialIdGenerator()
   private val population = Population(clock, idGenerator)
 
   private lateinit var publicKeysService: T
@@ -92,6 +90,8 @@ abstract class PublicKeysServiceTest<T : PublicKeysCoroutineImplBase> {
   fun `updatePublicKey updates the public key info for a data provider`() = runBlocking {
     val dataProvider = population.createDataProvider(dataProvidersService)
     val certificate = population.createDataProviderCertificate(certificatesService, dataProvider)
+    // Insert another certificate to make sure it's not just using the most recent one.
+    population.createDataProviderCertificate(certificatesService, dataProvider)
 
     publicKeysService.updatePublicKey(
       updatePublicKeyRequest {
