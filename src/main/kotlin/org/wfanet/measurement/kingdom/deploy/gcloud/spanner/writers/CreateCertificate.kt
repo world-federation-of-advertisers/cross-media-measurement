@@ -131,7 +131,7 @@ class CreateCertificate(private val certificate: Certificate) :
 
   override suspend fun handleSpannerException(e: SpannerException): Certificate? {
     when (e.errorCode) {
-      SpannerErrorCode.ALREADY_EXISTS -> throw CertSubjectKeyIdAlreadyExistsException()
+      SpannerErrorCode.ALREADY_EXISTS -> throw CertSubjectKeyIdAlreadyExistsException(e)
       else -> throw e
     }
   }
