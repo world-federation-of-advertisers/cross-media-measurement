@@ -21,6 +21,7 @@ import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.security.cert.X509Certificate
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -28,6 +29,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -36,6 +38,10 @@ import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.DuchyPrincipal
+import org.wfanet.measurement.api.v2alpha.ListCertificatesPageToken
+import org.wfanet.measurement.api.v2alpha.ListCertificatesPageTokenKt
+import org.wfanet.measurement.api.v2alpha.ListCertificatesRequestKt.filter
+import org.wfanet.measurement.api.v2alpha.ListCertificatesResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
@@ -47,39 +53,43 @@ import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
+import org.wfanet.measurement.api.v2alpha.listCertificatesPageToken
+import org.wfanet.measurement.api.v2alpha.listCertificatesRequest
+import org.wfanet.measurement.api.v2alpha.listCertificatesResponse
 import org.wfanet.measurement.api.v2alpha.releaseCertificateHoldRequest
 import org.wfanet.measurement.api.v2alpha.revokeCertificateRequest
-import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.api.v2alpha.testing.makeModelProvider
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withDuchyPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withPrincipal
+import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.testing.TestData
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificate
 import org.wfanet.measurement.internal.kingdom.CertificateKt.details
-import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase as InternalCertificatesCoroutineService
+import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.GetCertificateRequest as InternalGetCertificateRequest
 import org.wfanet.measurement.internal.kingdom.ReleaseCertificateHoldRequest as InternalReleaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest as InternalRevokeCertificateRequest
+import org.wfanet.measurement.internal.kingdom.StreamCertificatesRequestKt
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getCertificateRequest as internalGetCertificateRequest
 import org.wfanet.measurement.internal.kingdom.releaseCertificateHoldRequest as internalReleaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest as internalRevokeCertificateRequest
+import org.wfanet.measurement.internal.kingdom.streamCertificatesRequest
 
-private val DATA_PROVIDER_NAME = makeDataProvider(12345L)
-private val DATA_PROVIDER_NAME_2 = makeDataProvider(12346L)
-private val DATA_PROVIDER_CERTIFICATE_NAME = "$DATA_PROVIDER_NAME/certificates/AAAAAAAAAcg"
 private val MODEL_PROVIDER_NAME = makeModelProvider(23456L)
 private val MODEL_PROVIDER_NAME_2 = makeModelProvider(23457L)
 private val MODEL_PROVIDER_CERTIFICATE_NAME = "$MODEL_PROVIDER_NAME/certificates/AAAAAAAAAcg"
@@ -95,33 +105,32 @@ private const val DUCHY_CERTIFICATE_NAME = "$DUCHY_NAME/certificates/AAAAAAAAAcg
 
 @RunWith(JUnit4::class)
 class CertificatesServiceTest {
-  private val internalCertificatesMock: CertificatesCoroutineImplBase =
-    mockService() {
-      onBlocking { getCertificate(any()) }
-        .thenAnswer {
-          val request = it.getArgument<InternalGetCertificateRequest>(0)
-          INTERNAL_CERTIFICATE.copy {
-            externalCertificateId = request.externalCertificateId
+  private val internalCertificatesMock: InternalCertificatesCoroutineService = mockService {
+    onBlocking { getCertificate(any()) }
+      .thenAnswer {
+        val request = it.getArgument<InternalGetCertificateRequest>(0)
+        INTERNAL_CERTIFICATE.copy {
+          externalCertificateId = request.externalCertificateId
 
-            @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-            when (request.parentCase) {
-              InternalGetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID ->
-                externalDataProviderId = request.externalDataProviderId
-              InternalGetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
-                externalMeasurementConsumerId = request.externalMeasurementConsumerId
-              InternalGetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID ->
-                externalDuchyId = request.externalDuchyId
-              InternalGetCertificateRequest.ParentCase.EXTERNAL_MODEL_PROVIDER_ID ->
-                externalModelProviderId = request.externalModelProviderId
-              InternalGetCertificateRequest.ParentCase.PARENT_NOT_SET -> error("Invalid case")
-            }
+          @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+          when (request.parentCase) {
+            InternalGetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID ->
+              externalDataProviderId = request.externalDataProviderId
+            InternalGetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
+              externalMeasurementConsumerId = request.externalMeasurementConsumerId
+            InternalGetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID ->
+              externalDuchyId = request.externalDuchyId
+            InternalGetCertificateRequest.ParentCase.EXTERNAL_MODEL_PROVIDER_ID ->
+              externalModelProviderId = request.externalModelProviderId
+            InternalGetCertificateRequest.ParentCase.PARENT_NOT_SET -> error("Invalid case")
           }
         }
+      }
 
-      onBlocking { createCertificate(any()) }.thenReturn(INTERNAL_CERTIFICATE)
-      onBlocking { revokeCertificate(any()) }.thenReturn(INTERNAL_CERTIFICATE)
-      onBlocking { releaseCertificateHold(any()) }.thenReturn(INTERNAL_CERTIFICATE)
-    }
+    onBlocking { createCertificate(any()) }.thenReturn(INTERNAL_CERTIFICATE)
+    onBlocking { revokeCertificate(any()) }.thenReturn(INTERNAL_CERTIFICATE)
+    onBlocking { releaseCertificateHold(any()) }.thenReturn(INTERNAL_CERTIFICATE)
+  }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalCertificatesMock) }
 
@@ -129,7 +138,7 @@ class CertificatesServiceTest {
 
   @Before
   fun initService() {
-    service = CertificatesService(CertificatesCoroutineStub(grpcTestServerRule.channel))
+    service = CertificatesService(InternalCertificatesCoroutineStub(grpcTestServerRule.channel))
   }
 
   private fun assertGetCertificateRequestSucceeds(
@@ -140,7 +149,10 @@ class CertificatesServiceTest {
     val request = getCertificateRequest { name = certificateName }
     val result = withPrincipal(caller) { runBlocking { service.getCertificate(request) } }
 
-    verifyProtoArgument(internalCertificatesMock, CertificatesCoroutineImplBase::getCertificate)
+    verifyProtoArgument(
+        internalCertificatesMock,
+        InternalCertificatesCoroutineService::getCertificate
+      )
       .comparingExpectedFieldsOnly()
       .isEqualTo(expectedInternalRequest)
 
@@ -166,7 +178,10 @@ class CertificatesServiceTest {
     }
     val result = withPrincipal(caller) { runBlocking { service.createCertificate(request) } }
 
-    verifyProtoArgument(internalCertificatesMock, CertificatesCoroutineImplBase::createCertificate)
+    verifyProtoArgument(
+        internalCertificatesMock,
+        InternalCertificatesCoroutineService::createCertificate
+      )
       .comparingExpectedFieldsOnly()
       .isEqualTo(expectedInternalCertificate)
 
@@ -191,7 +206,10 @@ class CertificatesServiceTest {
 
     val result = withPrincipal(caller) { runBlocking { service.revokeCertificate(request) } }
 
-    verifyProtoArgument(internalCertificatesMock, CertificatesCoroutineImplBase::revokeCertificate)
+    verifyProtoArgument(
+        internalCertificatesMock,
+        InternalCertificatesCoroutineService::revokeCertificate
+      )
       .comparingExpectedFieldsOnly()
       .isEqualTo(expectedInternalRequest)
 
@@ -216,7 +234,7 @@ class CertificatesServiceTest {
 
     verifyProtoArgument(
         internalCertificatesMock,
-        CertificatesCoroutineImplBase::releaseCertificateHold
+        InternalCertificatesCoroutineService::releaseCertificateHold
       )
       .comparingExpectedFieldsOnly()
       .isEqualTo(expectedInternalRequest)
@@ -370,7 +388,7 @@ class CertificatesServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME_2) {
+        withDataProviderPrincipal(DATA_PROVIDER_2_NAME) {
           runBlocking { service.getCertificate(request) }
         }
       }
@@ -386,6 +404,186 @@ class CertificatesServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `listCertificates returns response with Certificates`() {
+    val externalCertificate2Id = ExternalId(INTERNAL_CERTIFICATE.externalCertificateId + 1)
+    val internalCertificates =
+      listOf(
+        INTERNAL_CERTIFICATE,
+        INTERNAL_CERTIFICATE.copy { externalCertificateId = externalCertificate2Id.value }
+      )
+    internalCertificatesMock.stub {
+      onBlocking { streamCertificates(any()) }.thenReturn(internalCertificates.asFlow())
+    }
+    val request = listCertificatesRequest {
+      parent = DATA_PROVIDER_NAME
+      filter = filter { subjectKeyIdentifiers += INTERNAL_CERTIFICATE.subjectKeyIdentifier }
+    }
+
+    val response =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.listCertificates(request) }
+      }
+
+    verifyProtoArgument(
+        internalCertificatesMock,
+        InternalCertificatesCoroutineService::streamCertificates
+      )
+      .isEqualTo(
+        streamCertificatesRequest {
+          filter =
+            StreamCertificatesRequestKt.filter {
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID.value
+              subjectKeyIdentifiers += request.filter.subjectKeyIdentifiersList
+            }
+          limit = 51
+        }
+      )
+    assertThat(response)
+      .isEqualTo(
+        listCertificatesResponse {
+          certificates += CERTIFICATE
+          certificates +=
+            CERTIFICATE.copy {
+              name =
+                DataProviderCertificateKey(
+                    DATA_PROVIDER_KEY.dataProviderId,
+                    externalCertificate2Id.apiId.value
+                  )
+                  .toName()
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `listCertificates returns response with next page token`() {
+    val externalCertificate2Id = ExternalId(INTERNAL_CERTIFICATE.externalCertificateId + 1)
+    val internalCertificates =
+      listOf(
+        INTERNAL_CERTIFICATE,
+        INTERNAL_CERTIFICATE.copy { externalCertificateId = externalCertificate2Id.value }
+      )
+    internalCertificatesMock.stub {
+      onBlocking { streamCertificates(any()) }.thenReturn(internalCertificates.asFlow())
+    }
+    val request = listCertificatesRequest {
+      parent = DATA_PROVIDER_NAME
+      pageSize = 1
+    }
+
+    val response =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.listCertificates(request) }
+      }
+
+    verifyProtoArgument(
+        internalCertificatesMock,
+        InternalCertificatesCoroutineService::streamCertificates
+      )
+      .isEqualTo(
+        streamCertificatesRequest {
+          filter =
+            StreamCertificatesRequestKt.filter {
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID.value
+            }
+          limit = 2
+        }
+      )
+    assertThat(response)
+      .ignoringFields(ListCertificatesResponse.NEXT_PAGE_TOKEN_FIELD_NUMBER)
+      .isEqualTo(listCertificatesResponse { certificates += CERTIFICATE })
+    val nextPageToken =
+      ListCertificatesPageToken.parseFrom(response.nextPageToken.base64UrlDecode())
+    assertThat(nextPageToken)
+      .isEqualTo(
+        listCertificatesPageToken {
+          parentKey =
+            ListCertificatesPageTokenKt.parentKey {
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID.value
+            }
+          lastCertificate =
+            ListCertificatesPageTokenKt.previousPageEnd {
+              parentKey =
+                ListCertificatesPageTokenKt.parentKey {
+                  externalDataProviderId = INTERNAL_CERTIFICATE.externalDataProviderId
+                }
+              notValidBefore = INTERNAL_CERTIFICATE.notValidBefore
+              externalCertificateId = INTERNAL_CERTIFICATE.externalCertificateId
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `listCertificates calls internal method with page token`() {
+    val externalCertificate2Id = ExternalId(INTERNAL_CERTIFICATE.externalCertificateId + 1)
+    val internalCertificates =
+      listOf(INTERNAL_CERTIFICATE.copy { externalCertificateId = externalCertificate2Id.value })
+    internalCertificatesMock.stub {
+      onBlocking { streamCertificates(any()) }.thenReturn(internalCertificates.asFlow())
+    }
+    val pageToken = listCertificatesPageToken {
+      parentKey =
+        ListCertificatesPageTokenKt.parentKey {
+          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID.value
+        }
+      lastCertificate =
+        ListCertificatesPageTokenKt.previousPageEnd {
+          parentKey =
+            ListCertificatesPageTokenKt.parentKey {
+              externalDataProviderId = INTERNAL_CERTIFICATE.externalDataProviderId
+            }
+          notValidBefore = INTERNAL_CERTIFICATE.notValidBefore
+          externalCertificateId = INTERNAL_CERTIFICATE.externalCertificateId
+        }
+    }
+    val request = listCertificatesRequest {
+      parent = DATA_PROVIDER_NAME
+      this.pageToken = pageToken.toByteString().base64UrlEncode()
+    }
+
+    val response =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.listCertificates(request) }
+      }
+
+    verifyProtoArgument(
+        internalCertificatesMock,
+        InternalCertificatesCoroutineService::streamCertificates
+      )
+      .isEqualTo(
+        streamCertificatesRequest {
+          filter =
+            StreamCertificatesRequestKt.filter {
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID.value
+              after =
+                StreamCertificatesRequestKt.orderedKey {
+                  notValidBefore = pageToken.lastCertificate.notValidBefore
+                  externalCertificateId = pageToken.lastCertificate.externalCertificateId
+                  externalDataProviderId =
+                    pageToken.lastCertificate.parentKey.externalDataProviderId
+                }
+            }
+          limit = 51
+        }
+      )
+    assertThat(response)
+      .isEqualTo(
+        listCertificatesResponse {
+          certificates +=
+            CERTIFICATE.copy {
+              name =
+                DataProviderCertificateKey(
+                    DATA_PROVIDER_KEY.dataProviderId,
+                    externalCertificate2Id.apiId.value
+                  )
+                  .toName()
+            }
+        }
+      )
   }
 
   @Test
@@ -578,7 +776,7 @@ class CertificatesServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME_2) {
+        withDataProviderPrincipal(DATA_PROVIDER_2_NAME) {
           runBlocking { service.createCertificate(request) }
         }
       }
@@ -868,7 +1066,7 @@ class CertificatesServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME_2) {
+        withDataProviderPrincipal(DATA_PROVIDER_2_NAME) {
           runBlocking { service.revokeCertificate(request) }
         }
       }
@@ -999,7 +1197,7 @@ class CertificatesServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME_2) {
+        withDataProviderPrincipal(DATA_PROVIDER_2_NAME) {
           runBlocking { service.releaseCertificateHold(request) }
         }
       }
@@ -1094,23 +1292,40 @@ class CertificatesServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
-}
 
-private val SERVER_CERTIFICATE: X509Certificate =
-  readCertificate(TestData.FIXED_SERVER_CERT_PEM_FILE)
-private val SERVER_CERTIFICATE_DER = ByteString.copyFrom(SERVER_CERTIFICATE.encoded)
+  companion object {
+    private val EXTERNAL_DATA_PROVIDER_ID = ExternalId(12345L)
+    private val DATA_PROVIDER_KEY = DataProviderKey(EXTERNAL_DATA_PROVIDER_ID.apiId.value)
+    private val DATA_PROVIDER_NAME = DATA_PROVIDER_KEY.toName()
 
-private val CERTIFICATE: Certificate = certificate {
-  name = DATA_PROVIDER_CERTIFICATE_NAME
-  x509Der = SERVER_CERTIFICATE_DER
-}
+    private val EXTERNAL_DATA_PROVIDER_2_ID = ExternalId(12346L)
+    private val DATA_PROVIDER_2_KEY = DataProviderKey(EXTERNAL_DATA_PROVIDER_2_ID.apiId.value)
+    private val DATA_PROVIDER_2_NAME = DATA_PROVIDER_2_KEY.toName()
 
-private val INTERNAL_CERTIFICATE = internalCertificate {
-  val key = DataProviderCertificateKey.fromName(CERTIFICATE.name)!!
-  externalDataProviderId = apiIdToExternalId(key.dataProviderId)
-  externalCertificateId = apiIdToExternalId(key.certificateId)
-  subjectKeyIdentifier = SERVER_CERTIFICATE.subjectKeyIdentifier!!
-  notValidBefore = SERVER_CERTIFICATE.notBefore.toInstant().toProtoTime()
-  notValidAfter = SERVER_CERTIFICATE.notAfter.toInstant().toProtoTime()
-  details = details { x509Der = SERVER_CERTIFICATE_DER }
+    private val EXTERNAL_CERTIFICATE_ID = ExternalId(456L)
+    private val DATA_PROVIDER_CERTIFICATE_KEY =
+      DataProviderCertificateKey(
+        DATA_PROVIDER_KEY.dataProviderId,
+        EXTERNAL_CERTIFICATE_ID.apiId.value
+      )
+    private val DATA_PROVIDER_CERTIFICATE_NAME = DATA_PROVIDER_CERTIFICATE_KEY.toName()
+
+    private val SERVER_CERTIFICATE: X509Certificate =
+      readCertificate(TestData.FIXED_SERVER_CERT_PEM_FILE)
+    private val SERVER_CERTIFICATE_DER = ByteString.copyFrom(SERVER_CERTIFICATE.encoded)
+
+    private val INTERNAL_CERTIFICATE = internalCertificate {
+      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID.value
+      externalCertificateId = EXTERNAL_CERTIFICATE_ID.value
+      subjectKeyIdentifier = SERVER_CERTIFICATE.subjectKeyIdentifier!!
+      notValidBefore = SERVER_CERTIFICATE.notBefore.toInstant().toProtoTime()
+      notValidAfter = SERVER_CERTIFICATE.notAfter.toInstant().toProtoTime()
+      details = details { x509Der = SERVER_CERTIFICATE_DER }
+    }
+    private val CERTIFICATE: Certificate = certificate {
+      name = DATA_PROVIDER_CERTIFICATE_NAME
+      x509Der = SERVER_CERTIFICATE_DER
+      subjectKeyIdentifier = INTERNAL_CERTIFICATE.subjectKeyIdentifier
+    }
+  }
 }
