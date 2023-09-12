@@ -18,7 +18,9 @@ import org.wfanet.measurement.common.ResourceNameParser
 import org.wfanet.measurement.common.api.ResourceKey
 
 /** [ResourceKey] of a Measurement Consumer. */
-data class MeasurementConsumerKey(val measurementConsumerId: String) : ResourceKey {
+data class MeasurementConsumerKey(
+  val measurementConsumerId: String,
+) : ResourceKey, CertificateParentKey {
   override fun toName(): String {
     return parser.assembleName(mapOf(IdVariable.MEASUREMENT_CONSUMER to measurementConsumerId))
   }

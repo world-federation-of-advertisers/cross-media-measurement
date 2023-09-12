@@ -15,12 +15,17 @@
 package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
+import org.wfanet.measurement.common.api.ResourceKey
 
 private val parser = ResourceNameParser("duchies/{duchy}/certificates/{certificate}")
 
 /** [ResourceKey] of a Duchy Certificate. */
-data class DuchyCertificateKey(val duchyId: String, override val certificateId: String) :
-  CertificateParentKey {
+data class DuchyCertificateKey(
+  val duchyId: String,
+  override val certificateId: String,
+) : CertificateKey {
+  override val parentKey = DuchyKey(duchyId)
+
   override fun toName(): String {
     return parser.assembleName(
       mapOf(IdVariable.DUCHY to duchyId, IdVariable.CERTIFICATE to certificateId)

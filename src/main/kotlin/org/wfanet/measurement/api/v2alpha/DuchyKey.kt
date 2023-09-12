@@ -18,7 +18,7 @@ import org.wfanet.measurement.common.ResourceNameParser
 import org.wfanet.measurement.common.api.ResourceKey
 
 /** [ResourceKey] of a Duchy. */
-data class DuchyKey(val duchyId: String) : ResourceKey {
+data class DuchyKey(val duchyId: String) : ResourceKey, CertificateParentKey {
   override fun toName(): String {
     return parser.assembleName(mapOf(IdVariable.DUCHY to duchyId))
   }
