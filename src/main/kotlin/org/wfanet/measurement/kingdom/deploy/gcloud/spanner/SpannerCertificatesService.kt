@@ -15,6 +15,8 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -28,6 +30,7 @@ import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCo
 import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
 import org.wfanet.measurement.internal.kingdom.ReleaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest
+import org.wfanet.measurement.internal.kingdom.StreamCertificatesRequest
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertSubjectKeyIdAlreadyExistsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateNotFoundException
@@ -37,6 +40,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFound
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamCertificates
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.BaseSpannerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateCertificate
@@ -109,6 +113,27 @@ class SpannerCertificatesService(
         ?: failGrpc(Status.NOT_FOUND) { "Certificate not found" }
 
     return certificateResult.certificate
+  }
+
+  override fun streamCertificates(request: StreamCertificatesRequest): Flow<Certificate> {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+    val parentType: CertificateReader.ParentType =
+      when (request.filter.parentCase) {
+        StreamCertificatesRequest.Filter.ParentCase.EXTERNAL_DATA_PROVIDER_ID ->
+          CertificateReader.ParentType.DATA_PROVIDER
+        StreamCertificatesRequest.Filter.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
+          CertificateReader.ParentType.MEASUREMENT_CONSUMER
+        StreamCertificatesRequest.Filter.ParentCase.EXTERNAL_DUCHY_ID ->
+          CertificateReader.ParentType.DUCHY
+        StreamCertificatesRequest.Filter.ParentCase.EXTERNAL_MODEL_PROVIDER_ID ->
+          CertificateReader.ParentType.MODEL_PROVIDER
+        StreamCertificatesRequest.Filter.ParentCase.PARENT_NOT_SET ->
+          throw Status.INVALID_ARGUMENT.withDescription("filter.parent is required")
+            .asRuntimeException()
+      }
+    val query = StreamCertificates(parentType, request.filter, request.limit)
+
+    return query.execute(client.singleUse()).map { it.certificate }
   }
 
   override suspend fun revokeCertificate(request: RevokeCertificateRequest): Certificate {
