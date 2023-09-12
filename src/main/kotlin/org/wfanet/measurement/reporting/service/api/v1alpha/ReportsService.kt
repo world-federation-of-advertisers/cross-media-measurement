@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.Duration as ProtoDuration
+import com.google.protobuf.duration
 import com.google.protobuf.util.Durations
 import com.google.protobuf.util.Timestamps
 import com.google.type.Interval
@@ -138,7 +139,6 @@ import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest as 
 import org.wfanet.measurement.internal.reporting.streamReportsRequest as streamInternalReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
 import org.wfanet.measurement.internal.reporting.timeIntervals as internalTimeIntervals
-import com.google.protobuf.duration
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v1alpha.CreateReportRequest
 import org.wfanet.measurement.reporting.v1alpha.GetReportRequest
