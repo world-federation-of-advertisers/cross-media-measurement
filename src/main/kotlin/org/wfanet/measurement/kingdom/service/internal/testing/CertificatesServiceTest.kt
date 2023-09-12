@@ -21,8 +21,8 @@ import com.google.protobuf.timestamp
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
-import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -33,7 +33,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Certificate
@@ -50,6 +49,8 @@ import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
+import org.wfanet.measurement.internal.kingdom.StreamCertificatesRequestKt
+import org.wfanet.measurement.internal.kingdom.StreamCertificatesRequestKt.orderedKey
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.certificate
@@ -59,12 +60,12 @@ import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.releaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest
+import org.wfanet.measurement.internal.kingdom.streamCertificatesRequest
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
 
-private const val RANDOM_SEED = 1
 private const val EXTERNAL_CERTIFICATE_ID = 123L
 private const val NOT_AN_ID = 13579L
 
@@ -93,7 +94,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   )
 
   private val clock: Clock = Clock.systemUTC()
-  private val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
+  private val idGenerator = SequentialIdGenerator()
   private val population = Population(clock, idGenerator)
 
   protected lateinit var certificatesService: T
@@ -286,6 +287,159 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val modelProviderId =
       population.createModelProvider(modelProvidersService).externalModelProviderId
     assertGetCertificateSucceeds { externalModelProviderId = modelProviderId }
+  }
+
+  @Test
+  fun `streamCertificates returns certificates in order`() = runBlocking {
+    val now = clock.instant()
+    val yesterday = now.minus(Duration.ofDays(1))
+    val dataProvider =
+      population.createDataProvider(dataProvidersService, notValidBefore = yesterday)
+    val dataProviderCertificate2 =
+      population.createDataProviderCertificate(
+        certificatesService,
+        dataProvider,
+        notValidBefore = now
+      )
+    val dataProviderCertificate3 =
+      population.createDataProviderCertificate(
+        certificatesService,
+        dataProvider,
+        notValidBefore = yesterday
+      )
+
+    val responses: List<Certificate> =
+      certificatesService
+        .streamCertificates(
+          streamCertificatesRequest {
+            filter =
+              StreamCertificatesRequestKt.filter {
+                externalDataProviderId = dataProvider.externalDataProviderId
+              }
+          }
+        )
+        .toList()
+
+    assertThat(responses)
+      .containsExactly(dataProviderCertificate2, dataProvider.certificate, dataProviderCertificate3)
+      .inOrder()
+  }
+
+  @Test
+  fun `streamCertificates filters by SKID`() = runBlocking {
+    val now = clock.instant()
+    val yesterday = now.minus(Duration.ofDays(1))
+    val dataProvider =
+      population.createDataProvider(dataProvidersService, notValidBefore = yesterday)
+    val dataProviderCertificate2 =
+      population.createDataProviderCertificate(
+        certificatesService,
+        dataProvider,
+        notValidBefore = now
+      )
+    val dataProviderCertificate3 =
+      population.createDataProviderCertificate(
+        certificatesService,
+        dataProvider,
+        notValidBefore = yesterday
+      )
+
+    val responses: List<Certificate> =
+      certificatesService
+        .streamCertificates(
+          streamCertificatesRequest {
+            filter =
+              StreamCertificatesRequestKt.filter {
+                externalDataProviderId = dataProvider.externalDataProviderId
+                subjectKeyIdentifiers += dataProviderCertificate2.subjectKeyIdentifier
+                subjectKeyIdentifiers += dataProviderCertificate3.subjectKeyIdentifier
+              }
+          }
+        )
+        .toList()
+
+    assertThat(responses)
+      .containsExactly(dataProviderCertificate2, dataProviderCertificate3)
+      .inOrder()
+  }
+
+  @Test
+  fun `streamCertificates filters by after`() = runBlocking {
+    val now = clock.instant()
+    val yesterday = now.minus(Duration.ofDays(1))
+    val dataProvider =
+      population.createDataProvider(dataProvidersService, notValidBefore = yesterday)
+    val dataProviderCertificate2 =
+      population.createDataProviderCertificate(
+        certificatesService,
+        dataProvider,
+        notValidBefore = now
+      )
+    val dataProviderCertificate3 =
+      population.createDataProviderCertificate(
+        certificatesService,
+        dataProvider,
+        notValidBefore = yesterday
+      )
+
+    val responses: List<Certificate> =
+      certificatesService
+        .streamCertificates(
+          streamCertificatesRequest {
+            filter =
+              StreamCertificatesRequestKt.filter {
+                externalDataProviderId = dataProvider.externalDataProviderId
+                after = orderedKey {
+                  notValidBefore = now.toProtoTime()
+                  externalCertificateId = dataProviderCertificate2.externalCertificateId
+                  externalDataProviderId = dataProvider.externalDataProviderId
+                }
+              }
+          }
+        )
+        .toList()
+
+    assertThat(responses)
+      .containsExactly(dataProvider.certificate, dataProviderCertificate3)
+      .inOrder()
+  }
+
+  @Test
+  fun `streamCertificates returns Duchy certificates in order`() = runBlocking {
+    val now = clock.instant()
+    val yesterday = now.minus(Duration.ofDays(1))
+    val duchy = DUCHIES.first()
+    val duchyCertificate1 =
+      population.createDuchyCertificate(
+        certificatesService,
+        duchy.externalDuchyId,
+        notValidBefore = yesterday
+      )
+    val duchyCertificate2 =
+      population.createDuchyCertificate(
+        certificatesService,
+        duchy.externalDuchyId,
+        notValidBefore = now
+      )
+    val duchyCertificate3 =
+      population.createDuchyCertificate(
+        certificatesService,
+        duchy.externalDuchyId,
+        notValidBefore = yesterday
+      )
+
+    val responses: List<Certificate> =
+      certificatesService
+        .streamCertificates(
+          streamCertificatesRequest {
+            filter = StreamCertificatesRequestKt.filter { externalDuchyId = duchy.externalDuchyId }
+          }
+        )
+        .toList()
+
+    assertThat(responses)
+      .containsExactly(duchyCertificate2, duchyCertificate1, duchyCertificate3)
+      .inOrder()
   }
 
   @Test

@@ -25,6 +25,26 @@ import "wfa/measurement/api/v2alpha/requisition.proto";
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
 
+message ListCertificatesPageToken {
+  message ParentKey {
+    oneof external_parent_id {
+      fixed64 external_data_provider_id = 1;
+      fixed64 external_measurement_consumer_id = 2;
+      string external_duchy_id = 3;
+      fixed64 external_model_provider_id = 4;
+    }
+  }
+  ParentKey parent_key = 1;
+  repeated bytes subject_key_identifiers = 2;
+
+  message PreviousPageEnd {
+    google.protobuf.Timestamp not_valid_before = 1;
+    fixed64 external_certificate_id = 2;
+    ParentKey parent_key = 3;
+  }
+  PreviousPageEnd last_certificate = 3;
+}
+
 message ListEventGroupsPageToken {
   reserved 1;
 

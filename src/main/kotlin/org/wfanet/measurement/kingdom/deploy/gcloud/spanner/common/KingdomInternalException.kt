@@ -37,13 +37,11 @@ sealed class KingdomInternalException : Exception {
   val code: ErrorCode
   protected abstract val context: Map<String, String>
 
-  constructor(code: ErrorCode) : super() {
+  constructor(code: ErrorCode, message: String, cause: Throwable? = null) : super(message, cause) {
     this.code = code
   }
 
-  constructor(code: ErrorCode, buildMessage: () -> String) : super(buildMessage()) {
-    this.code = code
-  }
+  constructor(code: ErrorCode, buildMessage: () -> String) : this(code, message = buildMessage())
 
   fun asStatusRuntimeException(
     statusCode: Status.Code,
@@ -281,8 +279,9 @@ class MeasurementEtagMismatchException(
 }
 
 class CertSubjectKeyIdAlreadyExistsException(
-  provideDescription: () -> String = { "Cert subject key id already exists" }
-) : KingdomInternalException(ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS, provideDescription) {
+  cause: Throwable? = null,
+  message: String = "Cert subject key id already exists",
+) : KingdomInternalException(ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS, message, cause) {
   override val context
     get() = emptyMap<String, String>()
 }
