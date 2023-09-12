@@ -87,6 +87,7 @@ fun SystemComputation.toKingdomComputationDetails(): KingdomComputationDetails {
   return kingdomComputationDetails {
     publicApiVersion = source.publicApiVersion
     measurementSpec = source.measurementSpec
+    participantCount = source.computationParticipantsCount
     when (Version.fromString(source.publicApiVersion)) {
       Version.V2_ALPHA -> {
         val measurementSpec = MeasurementSpec.parseFrom(source.measurementSpec)
