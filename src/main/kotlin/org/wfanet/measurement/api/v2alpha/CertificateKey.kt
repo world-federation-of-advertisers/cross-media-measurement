@@ -14,8 +14,13 @@
 
 package org.wfanet.measurement.api.v2alpha
 
+import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
 
-interface CertificateParentKey : ResourceKey {
+sealed interface CertificateKey : ChildResourceKey {
   val certificateId: String
+
+  override val parentKey: CertificateParentKey
 }
+
+sealed interface CertificateParentKey : ResourceKey
