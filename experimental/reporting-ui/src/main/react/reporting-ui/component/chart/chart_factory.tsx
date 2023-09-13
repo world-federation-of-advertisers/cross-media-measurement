@@ -2,8 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import Card from 'react-bootstrap/Card';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
-import { FilterChartIcon, OptionsIcon } from '../../../public/asset/icon';
-import { createMultiLineChart, createPercentBarChart, createPercentMultiLineChart } from './helpers';
+import { FilterChartIcon, OptionsIcon } from '../../public/asset/icon';
+import { createMultiLineChart, createPercentBarChart, createPercentMultiLineChart } from './d3_wrapper';
 
 export enum ChartType {
   percentMultiLine,

@@ -13,26 +13,35 @@
 // limitations under the License.
 
 import React from 'react';
-import { ChartFactory, ChartType } from './chart_helper/chart_factory';
-import { Reach } from '../../model/reporting';
+import { TargetReach } from '../../../model/reporting';
+import { ChartFactory, ChartType } from '../chart_factory';
 
-type OnTargetReachProps = {
+const neutralColors = [
+    "#CACACA",
+    "#959595",
+    "#5E5E5E",
+]
+
+type XmediaReachByFreqProps = {
     id: string,
-    reach: Reach[],
-    pubColors: { [Name: string]: string}
+    reach: TargetReach[],
 }
 
-export function OnTargetReach({id, reach, pubColors}: OnTargetReachProps) {
+export function XmediaReachByFreq({id, reach}: XmediaReachByFreqProps) {
     const config = {
-        pubColors,
+        catColors: {}
     }
+    const colors = {}
+    const unique = [...new Set(reach?.map(item => item.cat))];
+    unique.forEach((x: any, i) => colors[x] = neutralColors[i])
+    config.catColors = colors;
     return (
         <ChartFactory
             cardId={id}
-            title='On target reach'
+            title='Cross-media reach by frequency'
             data={reach}
             config={config}
-            type={ChartType.multiLine}
+            type={ChartType.percentMultiLine}
         />
     )
 }
