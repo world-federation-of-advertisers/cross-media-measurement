@@ -33,6 +33,15 @@ jobs:
     env:
       CLUSTER_LOGS_PATH: cluster-logs
     steps:
+      - name: Wait for main branch build
+        uses: lewagon/wait-on-check-action@v1.3.1
+        if: github.event_name == 'pull_request'
+        with:
+          ref: main
+          check-name: Build and test
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 90
+
       - name: Check out revision
         uses: actions/checkout@v3
 
