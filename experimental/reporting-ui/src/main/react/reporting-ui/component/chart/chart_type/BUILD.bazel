@@ -19,7 +19,7 @@ js_library(
         "xmedia_reach_by_freq.tsx",
     ],
     deps = [
-        "//experimental/reporting-ui/src/main/react/reporting-ui/model/reporting",
         "//experimental/reporting-ui/src/main/react/reporting-ui/component/chart",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/model/reporting",
     ],
 )
