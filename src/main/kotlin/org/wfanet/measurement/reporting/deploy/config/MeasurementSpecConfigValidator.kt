@@ -18,18 +18,14 @@ package org.wfanet.measurement.reporting.deploy.config
 
 import org.wfanet.measurement.config.reporting.MeasurementSpecConfig
 
-/**
- * Contains a single method that validates a [MeasurementSpecConfig].
- */
+/** Contains a single method that validates a [MeasurementSpecConfig]. */
 object MeasurementSpecConfigValidator {
   fun MeasurementSpecConfig.validate() {
     if (!this.reachSingleDataProvider.privacyParams.isValid()) {
       throw IllegalArgumentException("reach_single_data_provider privacy_params is invalid.")
     }
     if (!this.reachSingleDataProvider.vidSamplingInterval.isValid()) {
-      throw IllegalArgumentException(
-        "reach_single_data_provider vid_sampling_interval is invalid."
-      )
+      throw IllegalArgumentException("reach_single_data_provider vid_sampling_interval is invalid.")
     }
 
     if (!this.reach.privacyParams.isValid()) {
@@ -44,16 +40,12 @@ object MeasurementSpecConfigValidator {
         "reach_and_frequency_single_data_provider reach_privacy_params is invalid."
       )
     }
-    if (
-      !this.reachAndFrequencySingleDataProvider.frequencyPrivacyParams.isValid()
-    ) {
+    if (!this.reachAndFrequencySingleDataProvider.frequencyPrivacyParams.isValid()) {
       throw IllegalArgumentException(
         "reach_and_frequency_single_data_provider frequency_privacy_params is invalid."
       )
     }
-    if (
-      !this.reachAndFrequencySingleDataProvider.vidSamplingInterval.isValid()
-    ) {
+    if (!this.reachAndFrequencySingleDataProvider.vidSamplingInterval.isValid()) {
       throw IllegalArgumentException(
         "reach_and_frequency_single_data_provider vid_sampling_interval is invalid."
       )

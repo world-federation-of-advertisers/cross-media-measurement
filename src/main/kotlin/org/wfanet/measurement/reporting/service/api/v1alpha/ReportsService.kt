@@ -84,10 +84,6 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.config.reporting.MeasurementSpecConfig
-import org.wfanet.measurement.config.reporting.MeasurementSpecConfig.DifferentialPrivacyParams
-import org.wfanet.measurement.config.reporting.MeasurementSpecConfig.VidSamplingInterval
-import org.wfanet.measurement.config.reporting.MeasurementSpecConfig.VidSamplingInterval.FixedStart
-import org.wfanet.measurement.config.reporting.MeasurementSpecConfig.VidSamplingInterval.RandomStart
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
