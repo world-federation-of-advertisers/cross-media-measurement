@@ -1,80 +1,80 @@
 # proto-file: wfa/measurement/config/reporting/measurement_spec_config.proto
 # proto-message: MeasurementSpecConfig
-reachSingleDataProvider {
-  privacyParams {
+reach_single_data_provider {
+  privacy_params {
     epsilon: 0.000207
     delta: 1e-15
   }
-  vidSamplingInterval {
-    fixedStart {
+  vid_sampling_interval {
+    fixed_start {
       start: 0f
       width: 1f
     }
   }
 }
 reach {
-  privacyParams {
+  privacy_params {
     epsilon: 0.0007444
     delta: 1e-15
   }
-  vidSamplingInterval {
-    randomStart {
+  vid_sampling_interval {
+    random_start {
       width: 256
-      numVidBuckets: 300
+      num_vid_buckets: 300
     }
   }
 }
-reachAndFrequencySingleDataProvider {
-  reachPrivacyParams {
+reach_and_frequency_single_data_provider {
+  reach_privacy_params {
     epsilon: 0.000207
     delta: 1e-15
   }
-  frequencyPrivacyParams {
+  frequency_privacy_params {
     epsilon: 0.004728
     delta: 1e-15
   }
-  vidSamplingInterval {
-    fixedStart {
+  vid_sampling_interval {
+    fixed_start {
       start: 0f
       width: 1f
     }
   }
 }
-reachAndFrequency {
-  reachPrivacyParams {
+reach_and_frequency {
+  reach_privacy_params {
     epsilon: 0.0007444
     delta: 1e-15
   }
-  frequencyPrivacyParams {
+  frequency_privacy_params {
     epsilon: 0.014638
     delta: 1e-15
   }
-  vidSamplingInterval {
-    randomStart {
+  vid_sampling_interval {
+    random_start {
       width: 256
-      numVidBuckets: 300
+      num_vid_buckets: 300
     }
   }
 }
 impression {
-  privacyParams {
+  privacy_params {
     epsilon: 0.003592
     delta: 1e-15
   }
-  vidSamplingInterval {
-    fixedStart {
+  vid_sampling_interval {
+    fixed_start {
       start: 0f
       width: 1f
     }
   }
 }
 duration {
-  privacyParams {
+  privacy_params {
     epsilon: 0.007418
     delta: 1e-15
   }
-  vidSamplingInterval {
-    fixedStart {
+  vid_sampling_interval {
+    fixed_start {
       start: 0f
       width: 1f
     }
