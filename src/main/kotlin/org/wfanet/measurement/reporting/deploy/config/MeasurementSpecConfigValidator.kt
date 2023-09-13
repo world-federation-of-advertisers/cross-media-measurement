@@ -24,51 +24,43 @@ import org.wfanet.measurement.config.reporting.MeasurementSpecConfig
  * @throws [IllegalStateException] if the [MeasurementSpecConfig] is invalid.
  */
 fun MeasurementSpecConfig.validate() {
-  check (this.reachSingleDataProvider.privacyParams.isValid()) {
+  check(this.reachSingleDataProvider.privacyParams.isValid()) {
     "reach_single_data_provider privacy_params is invalid."
   }
-  check (this.reachSingleDataProvider.vidSamplingInterval.isValid()) {
+  check(this.reachSingleDataProvider.vidSamplingInterval.isValid()) {
     "reach_single_data_provider vid_sampling_interval is invalid."
   }
 
-  check (this.reach.privacyParams.isValid()) {
-   "reach privacy_params is invalid."
-  }
-  check (this.reach.vidSamplingInterval.isValid()) {
-    "reach vid_sampling_interval is invalid."
-  }
+  check(this.reach.privacyParams.isValid()) { "reach privacy_params is invalid." }
+  check(this.reach.vidSamplingInterval.isValid()) { "reach vid_sampling_interval is invalid." }
 
-  check (this.reachAndFrequencySingleDataProvider.reachPrivacyParams.isValid()) {
+  check(this.reachAndFrequencySingleDataProvider.reachPrivacyParams.isValid()) {
     "reach_and_frequency_single_data_provider reach_privacy_params is invalid."
   }
-  check (this.reachAndFrequencySingleDataProvider.frequencyPrivacyParams.isValid()) {
+  check(this.reachAndFrequencySingleDataProvider.frequencyPrivacyParams.isValid()) {
     "reach_and_frequency_single_data_provider frequency_privacy_params is invalid."
   }
-  check (this.reachAndFrequencySingleDataProvider.vidSamplingInterval.isValid()) {
+  check(this.reachAndFrequencySingleDataProvider.vidSamplingInterval.isValid()) {
     "reach_and_frequency_single_data_provider vid_sampling_interval is invalid."
   }
 
-  check (this.reachAndFrequency.reachPrivacyParams.isValid()) {
+  check(this.reachAndFrequency.reachPrivacyParams.isValid()) {
     "reach_and_frequency reach_privacy_params is invalid."
   }
-  check (this.reachAndFrequency.frequencyPrivacyParams.isValid()) {
+  check(this.reachAndFrequency.frequencyPrivacyParams.isValid()) {
     "reach_and_frequency frequency_privacy_params is invalid."
   }
-  check (this.reachAndFrequency.vidSamplingInterval.isValid()) {
+  check(this.reachAndFrequency.vidSamplingInterval.isValid()) {
     "reach_and_frequency vid_sampling_interval is invalid."
   }
 
-  check (this.impression.privacyParams.isValid()) {
-    "impression privacy_params is invalid."
-  }
-  check (this.impression.vidSamplingInterval.isValid()) {
+  check(this.impression.privacyParams.isValid()) { "impression privacy_params is invalid." }
+  check(this.impression.vidSamplingInterval.isValid()) {
     "impression vid_sampling_interval is invalid."
   }
 
-  check (this.duration.privacyParams.isValid()) {
-    "duration privacy_params is invalid."
-  }
-  check (this.duration.vidSamplingInterval.isValid()) {
+  check(this.duration.privacyParams.isValid()) { "duration privacy_params is invalid." }
+  check(this.duration.vidSamplingInterval.isValid()) {
     "duration vid_sampling_interval is invalid."
   }
 }
