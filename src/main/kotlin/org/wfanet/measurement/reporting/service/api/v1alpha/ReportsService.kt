@@ -1470,16 +1470,16 @@ class ReportsService(
     }
 
     private fun createVidSamplingInterval(
-      vidSamplingInterval: VidSamplingInterval
+      vidSamplingInterval: MeasurementSpecConfig.VidSamplingInterval
     ): MeasurementSpec.VidSamplingInterval {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       return when (vidSamplingInterval.startCase) {
-        VidSamplingInterval.StartCase.FIXED_START ->
+        MeasurementSpecConfig.VidSamplingInterval.StartCase.FIXED_START ->
           MeasurementSpecKt.vidSamplingInterval {
             start = vidSamplingInterval.fixedStart.start
             width = vidSamplingInterval.fixedStart.width
           }
-        VidSamplingInterval.StartCase.RANDOM_START ->
+        MeasurementSpecConfig.VidSamplingInterval.StartCase.RANDOM_START ->
           MeasurementSpecKt.vidSamplingInterval {
             start =
               calculateRandomVidStart(
@@ -1490,7 +1490,7 @@ class ReportsService(
               vidSamplingInterval.randomStart.width.toFloat() /
                 vidSamplingInterval.randomStart.numVidBuckets
           }
-        VidSamplingInterval.StartCase.START_NOT_SET ->
+        MeasurementSpecConfig.VidSamplingInterval.StartCase.START_NOT_SET ->
           MeasurementSpecKt.vidSamplingInterval {
             start = DEFAULT_VID_START
             width = DEFAULT_VID_WIDTH
@@ -1572,9 +1572,8 @@ class ReportsService(
     fun getDurationType(maximumWatchDurationPerUserSeconds: Int): MeasurementSpec.Duration {
       return MeasurementSpecKt.duration {
         privacyParams = durationPrivacyParams
-        maximumWatchDurationPerUser = duration {
-          seconds = maximumWatchDurationPerUserSeconds.toLong()
-        }
+        maximumWatchDurationPerUser =
+          Durations.fromSeconds(maximumWatchDurationPerUserSeconds.toLong())
       }
     }
   }

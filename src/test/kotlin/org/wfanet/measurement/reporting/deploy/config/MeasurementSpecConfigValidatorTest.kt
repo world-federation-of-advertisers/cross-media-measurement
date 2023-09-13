@@ -24,7 +24,6 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.config.reporting.MeasurementSpecConfigKt
 import org.wfanet.measurement.config.reporting.copy
 import org.wfanet.measurement.config.reporting.measurementSpecConfig
-import org.wfanet.measurement.reporting.deploy.config.MeasurementSpecConfigValidator.validate
 
 @RunWith(JUnit4::class)
 class MeasurementSpecConfigValidatorTest {
@@ -34,7 +33,7 @@ class MeasurementSpecConfigValidatorTest {
   }
 
   @Test
-  fun `validate throws ILLEGAL_ARGUMENT_EXCEPTION when epsilon is 0`() {
+  fun `validate throws ILLEGAL_STATE_EXCEPTION when epsilon is 0`() {
     val invalidMeasurementSpecConfig =
       MEASUREMENT_SPEC_CONFIG.copy {
         reachSingleDataProvider =
@@ -47,12 +46,12 @@ class MeasurementSpecConfigValidatorTest {
           }
       }
     val exception =
-      assertFailsWith<IllegalArgumentException> { invalidMeasurementSpecConfig.validate() }
+      assertFailsWith<IllegalStateException> { invalidMeasurementSpecConfig.validate() }
     assertThat(exception.message).contains("privacy_params")
   }
 
   @Test
-  fun `validate throws ILLEGAL_ARGUMENT_EXCEPTION when delta is negaitve`() {
+  fun `validate throws ILLEGAL_STATE_EXCEPTION when delta is negaitve`() {
     val invalidMeasurementSpecConfig =
       MEASUREMENT_SPEC_CONFIG.copy {
         reachSingleDataProvider =
@@ -65,12 +64,12 @@ class MeasurementSpecConfigValidatorTest {
           }
       }
     val exception =
-      assertFailsWith<IllegalArgumentException> { invalidMeasurementSpecConfig.validate() }
+      assertFailsWith<IllegalStateException> { invalidMeasurementSpecConfig.validate() }
     assertThat(exception.message).contains("privacy_params")
   }
 
   @Test
-  fun `validate throws ILLEGAL_ARGUMENT_EXCEPTION when fixed_start width is 0`() {
+  fun `validate throws ILLEGAL_STATE_EXCEPTION when fixed_start width is 0`() {
     val invalidMeasurementSpecConfig =
       MEASUREMENT_SPEC_CONFIG.copy {
         reachSingleDataProvider =
@@ -83,12 +82,12 @@ class MeasurementSpecConfigValidatorTest {
           }
       }
     val exception =
-      assertFailsWith<IllegalArgumentException> { invalidMeasurementSpecConfig.validate() }
+      assertFailsWith<IllegalStateException> { invalidMeasurementSpecConfig.validate() }
     assertThat(exception.message).contains("vid_sampling_interval")
   }
 
   @Test
-  fun `validate throws ILLEGAL_ARGUMENT_EXCEPTION when fixed_start start is negative`() {
+  fun `validate throws ILLEGAL_STATE_EXCEPTION when fixed_start start is negative`() {
     val invalidMeasurementSpecConfig =
       MEASUREMENT_SPEC_CONFIG.copy {
         reachSingleDataProvider =
@@ -101,12 +100,12 @@ class MeasurementSpecConfigValidatorTest {
           }
       }
     val exception =
-      assertFailsWith<IllegalArgumentException> { invalidMeasurementSpecConfig.validate() }
+      assertFailsWith<IllegalStateException> { invalidMeasurementSpecConfig.validate() }
     assertThat(exception.message).contains("vid_sampling_interval")
   }
 
   @Test
-  fun `validate throws ILLEGAL_ARGUMENT_EXCEPTION when fixed_start interval is more than 1`() {
+  fun `validate throws ILLEGAL_STATE_EXCEPTION when fixed_start interval is more than 1`() {
     val invalidMeasurementSpecConfig =
       MEASUREMENT_SPEC_CONFIG.copy {
         reachSingleDataProvider =
@@ -119,12 +118,12 @@ class MeasurementSpecConfigValidatorTest {
           }
       }
     val exception =
-      assertFailsWith<IllegalArgumentException> { invalidMeasurementSpecConfig.validate() }
+      assertFailsWith<IllegalStateException> { invalidMeasurementSpecConfig.validate() }
     assertThat(exception.message).contains("vid_sampling_interval")
   }
 
   @Test
-  fun `validate throws ILLEGAL_ARGUMENT_EXCEPTION when random_start width is negative`() {
+  fun `validate throws ILLEGAL_STATE_EXCEPTION when random_start width is negative`() {
     val invalidMeasurementSpecConfig =
       MEASUREMENT_SPEC_CONFIG.copy {
         reachSingleDataProvider =
@@ -140,12 +139,12 @@ class MeasurementSpecConfigValidatorTest {
           }
       }
     val exception =
-      assertFailsWith<IllegalArgumentException> { invalidMeasurementSpecConfig.validate() }
+      assertFailsWith<IllegalStateException> { invalidMeasurementSpecConfig.validate() }
     assertThat(exception.message).contains("vid_sampling_interval")
   }
 
   @Test
-  fun `validate throws ILLEGAL_ARGUMENT_EXCEPTION when random_start num_vid_buckets is 0`() {
+  fun `validate throws ILLEGAL_STATE_EXCEPTION when random_start num_vid_buckets is 0`() {
     val invalidMeasurementSpecConfig =
       MEASUREMENT_SPEC_CONFIG.copy {
         reachSingleDataProvider =
@@ -158,12 +157,12 @@ class MeasurementSpecConfigValidatorTest {
           }
       }
     val exception =
-      assertFailsWith<IllegalArgumentException> { invalidMeasurementSpecConfig.validate() }
+      assertFailsWith<IllegalStateException> { invalidMeasurementSpecConfig.validate() }
     assertThat(exception.message).contains("vid_sampling_interval")
   }
 
   @Test
-  fun `validate throws ILLEGAL_ARGUMENT_EXCEPTION when random_start width exceeds vid buckets`() {
+  fun `validate throws ILLEGAL_STATE_EXCEPTION when random_start width exceeds vid buckets`() {
     val invalidMeasurementSpecConfig =
       MEASUREMENT_SPEC_CONFIG.copy {
         reachSingleDataProvider =
@@ -179,7 +178,7 @@ class MeasurementSpecConfigValidatorTest {
           }
       }
     val exception =
-      assertFailsWith<IllegalArgumentException> { invalidMeasurementSpecConfig.validate() }
+      assertFailsWith<IllegalStateException> { invalidMeasurementSpecConfig.validate() }
     assertThat(exception.message).contains("vid_sampling_interval")
   }
 
