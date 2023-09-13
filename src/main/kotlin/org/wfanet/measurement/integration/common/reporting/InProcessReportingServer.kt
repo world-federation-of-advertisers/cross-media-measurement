@@ -148,7 +148,7 @@ class InProcessReportingServer(
               SecureRandom(),
               signingPrivateKeyDir,
               trustedCertificates,
-              MEASUREMENT_CONFIG
+              MEASUREMENT_SPEC_CONFIG
             )
             .withMetadataPrincipalIdentities(measurementConsumerConfig)
         )
@@ -166,7 +166,7 @@ class InProcessReportingServer(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-    private val MEASUREMENT_CONFIG = measurementSpecConfig {
+    private val MEASUREMENT_SPEC_CONFIG = measurementSpecConfig {
       reachSingleDataProvider =
         MeasurementSpecConfigKt.reachSingleDataProvider {
           privacyParams =

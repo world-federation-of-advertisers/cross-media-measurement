@@ -1421,68 +1421,6 @@ class ReportsService(
     private val measurementSpecConfig: MeasurementSpecConfig,
     private val secureRandom: SecureRandom
   ) {
-    init {
-      if (!measurementSpecConfig.reachSingleDataProvider.privacyParams.isValid()) {
-        throw IllegalArgumentException("reach_single_data_provider privacy_params is invalid.")
-      }
-      if (!measurementSpecConfig.reachSingleDataProvider.vidSamplingInterval.isValid()) {
-        throw IllegalArgumentException(
-          "reach_single_data_provider vid_sampling_interval is invalid."
-        )
-      }
-
-      if (!measurementSpecConfig.reach.privacyParams.isValid()) {
-        throw IllegalArgumentException("reach privacy_params is invalid.")
-      }
-      if (!measurementSpecConfig.reach.vidSamplingInterval.isValid()) {
-        throw IllegalArgumentException("reach vid_sampling_interval is invalid.")
-      }
-
-      if (!measurementSpecConfig.reachAndFrequencySingleDataProvider.reachPrivacyParams.isValid()) {
-        throw IllegalArgumentException(
-          "reach_and_frequency_single_data_provider reach_privacy_params is invalid."
-        )
-      }
-      if (
-        !measurementSpecConfig.reachAndFrequencySingleDataProvider.frequencyPrivacyParams.isValid()
-      ) {
-        throw IllegalArgumentException(
-          "reach_and_frequency_single_data_provider frequency_privacy_params is invalid."
-        )
-      }
-      if (
-        !measurementSpecConfig.reachAndFrequencySingleDataProvider.vidSamplingInterval.isValid()
-      ) {
-        throw IllegalArgumentException(
-          "reach_and_frequency_single_data_provider vid_sampling_interval is invalid."
-        )
-      }
-
-      if (!measurementSpecConfig.reachAndFrequency.reachPrivacyParams.isValid()) {
-        throw IllegalArgumentException("reach_and_frequency reach_privacy_params is invalid.")
-      }
-      if (!measurementSpecConfig.reachAndFrequency.frequencyPrivacyParams.isValid()) {
-        throw IllegalArgumentException("reach_and_frequency frequency_privacy_params is invalid.")
-      }
-      if (!measurementSpecConfig.reachAndFrequency.vidSamplingInterval.isValid()) {
-        throw IllegalArgumentException("reach_and_frequency vid_sampling_interval is invalid.")
-      }
-
-      if (!measurementSpecConfig.impression.privacyParams.isValid()) {
-        throw IllegalArgumentException("impression privacy_params is invalid.")
-      }
-      if (!measurementSpecConfig.impression.vidSamplingInterval.isValid()) {
-        throw IllegalArgumentException("impression vid_sampling_interval is invalid.")
-      }
-
-      if (!measurementSpecConfig.duration.privacyParams.isValid()) {
-        throw IllegalArgumentException("duration privacy_params is invalid.")
-      }
-      if (!measurementSpecConfig.duration.vidSamplingInterval.isValid()) {
-        throw IllegalArgumentException("duration vid_sampling_interval is invalid.")
-      }
-    }
-
     private val DEFAULT_VID_START = 0.0f
     private val DEFAULT_VID_WIDTH = 1.0f
 
@@ -1533,43 +1471,6 @@ class ReportsService(
     private val durationPrivacyParams = differentialPrivacyParams {
       epsilon = measurementSpecConfig.duration.privacyParams.epsilon
       delta = measurementSpecConfig.duration.privacyParams.delta
-    }
-
-    private fun DifferentialPrivacyParams.isValid(): Boolean {
-      return (this.epsilon > 0 && this.delta >= 0)
-    }
-
-    private fun VidSamplingInterval.isValid(): Boolean {
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-      return when (this.startCase) {
-        VidSamplingInterval.StartCase.FIXED_START -> this.fixedStart.isValid()
-        VidSamplingInterval.StartCase.RANDOM_START -> this.randomStart.isValid()
-        VidSamplingInterval.StartCase.START_NOT_SET -> true
-      }
-    }
-
-    private fun FixedStart.isValid(): Boolean {
-      if (this.width <= 0.0) {
-        return false
-      }
-
-      if (this.start + this.width > 1.0) {
-        return false
-      }
-
-      return true
-    }
-
-    private fun RandomStart.isValid(): Boolean {
-      if (this.numVidBuckets <= 0) {
-        return false
-      }
-
-      if (this.width <= 0 || this.width > this.numVidBuckets) {
-        return false
-      }
-
-      return true
     }
 
     private fun createVidSamplingInterval(

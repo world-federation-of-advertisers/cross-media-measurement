@@ -42,6 +42,7 @@ import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSe
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.reporting.deploy.common.EncryptionKeyPairMap
 import org.wfanet.measurement.reporting.deploy.common.KingdomApiFlags
+import org.wfanet.measurement.reporting.deploy.config.MeasurementSpecConfigValidator.validate
 import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v1alpha.AkidPrincipalLookup
@@ -116,6 +117,12 @@ private fun run(
       v1AlphaFlags.measurementSpecConfigFile,
       MeasurementSpecConfig.getDefaultInstance()
     )
+
+  try {
+    measurementSpecConfig.validate()
+  } catch (e: IllegalArgumentException) {
+    throw IllegalArgumentException("MeasurementSpeConfig: ${e.message}")
+  }
 
   val services: List<ServerServiceDefinition> =
     listOf(
