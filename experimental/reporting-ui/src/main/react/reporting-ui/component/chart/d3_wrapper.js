@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import * as d3 from 'd3';
-import { formatNumberWithMagnitude } from '../../../util/formatting';
+import { formatNumberWithMagnitude } from '../../util/formatting';
 
 const initializeGraph = (cardId, dimensions) => {
     // Specify the chart’s dimensions.
@@ -114,7 +114,7 @@ const setupLinearYScale = (svg, data, dimensions, margins, isPercent = false) =>
                 }))
         .call(g => g.select(".domain").remove())
         .call(g => g.selectAll(".tick line").clone()
-        .attr("x2", dimensions.width)
+        .attr("x2", dimensions.width - margins.right - 10)
         .attr("stroke", "#E3E3E3"))
 
     return y;

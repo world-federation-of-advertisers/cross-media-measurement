@@ -13,23 +13,23 @@
 // limitations under the License.
 
 import React from 'react';
-import { UniqueReach } from '../../model/reporting';
-import { ChartFactory, ChartType } from './chart_helper/chart_factory';
+import { UniqueReach } from '../../../model/reporting';
+import { ChartFactory, ChartType } from '../chart_factory';
 
-type UniqueReqchByPlatProps = {
+type OnTargetUniqueReqchByPlatProps = {
     id: string,
     reach: UniqueReach[],
     pubColors: { [Name: string]: string}
 }
 
-export function UniqueReqchByPlat({id, reach, pubColors}: UniqueReqchByPlatProps) {
+export function OnTargetUniqueReqchByPlat({id, reach, pubColors}: OnTargetUniqueReqchByPlatProps) {
     const config = {
         pubColors,
     }
     return (
         <ChartFactory
             cardId={id}
-            title='Unique reach by platform'
+            title='On target unique reach by platform'
             data={reach}
             config={config}
             type={ChartType.multiLine}

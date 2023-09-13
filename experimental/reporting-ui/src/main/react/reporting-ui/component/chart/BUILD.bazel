@@ -2,24 +2,18 @@ load("@aspect_rules_js//js:defs.bzl", "js_library")
 
 package(
     default_visibility = [
-        "//experimental/reporting-ui/src/main/react/reporting-ui/view/report:__subpackages__",
+        "//experimental/reporting-ui/src/main/react/reporting-ui:__subpackages__",
     ],
 )
 
 js_library(
     name = "chart",
     srcs = [
-        "dedupe_reach_by_demo.tsx",
-        "index.tsx",
-        "on_target_reach.tsx",
-        "on_target_unique_reach_by_plat.tsx",
-        "on_target_xmedia_reach_by_freq.tsx",
-        "total_reach.tsx",
-        "unique_reach_by_plat.tsx",
-        "xmedia_reach_by_freq.tsx",
+        "chart_factory.tsx",
+        "d3_wrapper.js",
     ],
     deps = [
-        "//experimental/reporting-ui/src/main/react/reporting-ui/model/reporting",
-        "//experimental/reporting-ui/src/main/react/reporting-ui/component/chart/chart_helper",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/public/asset/icon",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/util:formatting",
     ],
 )

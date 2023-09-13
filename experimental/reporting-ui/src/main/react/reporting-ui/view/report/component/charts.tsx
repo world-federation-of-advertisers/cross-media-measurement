@@ -15,7 +15,15 @@
 import React from 'react';
 import Col from 'react-bootstrap/Col';
 import Row from 'react-bootstrap/Row';
-import { DedupeReachByDemo, OnTargetReach, OnTargetUniqueReqchByPlat, OnTargetXmediaReachByFreq, TotalReach, UniqueReqchByPlat, XmediaReachByFreq } from '../../../component/chart';
+import {
+  DedupeReachByDemo,
+  OnTargetReach,
+  OnTargetUniqueReqchByPlat,
+  OnTargetXmediaReachByFreq,
+  TotalReach,
+  UniqueReqchByPlat,
+  XmediaReachByFreq,
+} from '../../../component/chart/chart_type';
 import { Demographic, Reach, TargetReach, UniqueReach } from '../../../model/reporting';
 
 type ChartProps = {

@@ -13,26 +13,26 @@
 // limitations under the License.
 
 import React from 'react';
-import { ChartFactory, ChartType } from './chart_helper/chart_factory';
-import { Reach } from '../../model/reporting';
+import { Demographic } from '../../../model/reporting';
+import { ChartFactory, ChartType } from '../chart_factory';
 
-type TotalReachProps = {
+type DedupeReachByDemoProps = {
     id: string,
-    reach: Reach[],
-    pubColors: { [Name: string]: string},
+    demo: Demographic[],
+    pubColors: { [Name: string]: string}
 }
 
-export function TotalReach({id, reach, pubColors}: TotalReachProps) {
+export function DedupeReachByDemo({id, demo, pubColors}: DedupeReachByDemoProps) {
     const config = {
         pubColors,
     }
     return (
         <ChartFactory
             cardId={id}
-            title='Total reach'
-            data={reach}
+            title='De-duplicated reach by demographic'
+            data={demo}
             config={config}
-            type={ChartType.multiLine}
+            type={ChartType.bar}
         />
     )
 }
