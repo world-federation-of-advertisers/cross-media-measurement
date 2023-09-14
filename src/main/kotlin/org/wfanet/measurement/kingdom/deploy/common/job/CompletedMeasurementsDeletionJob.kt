@@ -48,6 +48,18 @@ private class Flags {
     private set
 
   @CommandLine.Option(
+    names = ["--max-to-delete-per-rpc"],
+    defaultValue = "25",
+    description =
+      [
+        "The maximum number of measurements to delete in a single call to the API. " +
+          "This flag can be adjusted to ensure the RPC does not timeout."
+      ],
+  )
+  lateinit var maxToDeletePerRpc: Integer
+    private set
+
+  @CommandLine.Option(
     names = ["--time-to-live"],
     defaultValue = "100d",
     description =
@@ -137,6 +149,7 @@ private fun run(@CommandLine.Mixin flags: Flags) {
   val completedMeasurementsDeletion =
     CompletedMeasurementsDeletion(
       internalMeasurementsClient,
+      flags.maxToDeletePerRpc.toInt(),
       flags.measurementsTimeToLive,
       flags.dryRun,
       Clock.systemUTC(),
