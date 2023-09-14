@@ -14,7 +14,7 @@
 
 import React from 'react';
 import { UniqueReach } from '../../../model/reporting';
-import { ChartFactory, ChartType } from '../chart_factory';
+import { Chart, ChartType } from '../chart';
 
 type UniqueReqchByPlatProps = {
     id: string,
@@ -27,7 +27,7 @@ export function UniqueReqchByPlat({id, reach, pubColors}: UniqueReqchByPlatProps
         pubColors,
     }
     return (
-        <ChartFactory
+        <Chart
             cardId={id}
             title='Unique reach by platform'
             data={reach}

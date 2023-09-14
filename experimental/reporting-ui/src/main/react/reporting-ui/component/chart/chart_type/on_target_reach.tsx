@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import React from 'react';
-import { ChartFactory, ChartType } from '../chart_factory';
+import { Chart, ChartType } from '../chart';
 import { Reach } from '../../../model/reporting';
 
 type OnTargetReachProps = {
@@ -27,7 +27,7 @@ export function OnTargetReach({id, reach, pubColors}: OnTargetReachProps) {
         pubColors,
     }
     return (
-        <ChartFactory
+        <Chart
             cardId={id}
             title='On target reach'
             data={reach}

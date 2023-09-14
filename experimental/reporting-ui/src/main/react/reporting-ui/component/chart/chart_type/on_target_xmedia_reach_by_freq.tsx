@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import React from 'react';
-import { ChartFactory, ChartType } from '../chart_factory';
+import { Chart, ChartType } from '../chart';
 import { TargetReach } from '../../../model/reporting';
 
 const neutralColors = [
@@ -37,7 +37,7 @@ export function OnTargetXmediaReachByFreq({id, reach}: OnTargetXmediaReachByFreq
     config.catColors = colors;
 
     return (
-        <ChartFactory
+        <Chart
             cardId={id}
             title='On target cross-media reach by frequency'
             data={reach}

@@ -14,20 +14,20 @@
 
 import React from 'react';
 import { UniqueReach } from '../../../model/reporting';
-import { ChartFactory, ChartType } from '../chart_factory';
+import { Chart, ChartType } from '../chart';
 
-type OnTargetUniqueReqchByPlatProps = {
+type OnTargetUniqueReachByPlatProps = {
     id: string,
     reach: UniqueReach[],
     pubColors: { [Name: string]: string}
 }
 
-export function OnTargetUniqueReqchByPlat({id, reach, pubColors}: OnTargetUniqueReqchByPlatProps) {
+export function OnTargetUniqueReachByPlat({id, reach, pubColors}: OnTargetUniqueReachByPlatProps) {
     const config = {
         pubColors,
     }
     return (
-        <ChartFactory
+        <Chart
             cardId={id}
             title='On target unique reach by platform'
             data={reach}

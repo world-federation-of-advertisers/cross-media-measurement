@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import React from 'react';
-import { ChartFactory, ChartType } from '../chart_factory';
+import { Chart, ChartType } from '../chart';
 import { Reach } from '../../../model/reporting';
 
 type TotalReachProps = {
@@ -27,7 +27,7 @@ export function TotalReach({id, reach, pubColors}: TotalReachProps) {
         pubColors,
     }
     return (
-        <ChartFactory
+        <Chart
             cardId={id}
             title='Total reach'
             data={reach}

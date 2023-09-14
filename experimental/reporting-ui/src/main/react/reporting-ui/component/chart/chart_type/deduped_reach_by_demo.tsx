@@ -14,20 +14,20 @@
 
 import React from 'react';
 import { Demographic } from '../../../model/reporting';
-import { ChartFactory, ChartType } from '../chart_factory';
+import { Chart, ChartType } from '../chart';
 
-type DedupeReachByDemoProps = {
+type DedupedReachByDemoProps = {
     id: string,
     demo: Demographic[],
     pubColors: { [Name: string]: string}
 }
 
-export function DedupeReachByDemo({id, demo, pubColors}: DedupeReachByDemoProps) {
+export function DedupedReachByDemo({id, demo, pubColors}: DedupedReachByDemoProps) {
     const config = {
         pubColors,
     }
     return (
-        <ChartFactory
+        <Chart
             cardId={id}
             title='De-duplicated reach by demographic'
             data={demo}
