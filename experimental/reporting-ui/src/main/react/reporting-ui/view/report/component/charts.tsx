@@ -15,16 +15,14 @@
 import React from 'react';
 import Col from 'react-bootstrap/Col';
 import Row from 'react-bootstrap/Row';
-import {
-  DedupedReachByDemo,
-  OnTargetReach,
-  OnTargetUniqueReachByPlat,
-  OnTargetXmediaReachByFreq,
-  TotalReach,
-  UniqueReqchByPlat,
-  XmediaReachByFreq,
-} from '../../../component/chart/chart_type';
 import { Demographic, Reach, TargetReach, UniqueReach } from '../../../model/reporting';
+import { OnTargetReach } from '../../../component/chart/on_target_reach/on_target_reach';
+import { TotalReach } from '../../../component/chart/total_reach/total_reach';
+import { OnTargetXmediaReachByFreq } from '../../../component/chart/on_target_xmedia_reach_by_freq/on_target_xmedia_reach_by_freq';
+import { XmediaReachByFreq } from '../../../component/chart/xmedia_reach_by_freq/xmedia_reach_by_freq';
+import { DedupedReachByDemo } from '../../../component/chart/deduped_reach_by_demo/deduped_reach_by_demo';
+import { OnTargetUniqueReachByPlat } from '../../../component/chart/on_target_unique_reach_by_plat/on_target_unique_reach_by_plat';
+import { UniqueReqchByPlat } from '../../../component/chart/unique_reach_by_plat/unique_reach_by_plat';
 
 type ChartProps = {
   targetReach: Reach[],
