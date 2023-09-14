@@ -43,7 +43,6 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.testing.withMetadataDuchyIdentities
 import org.wfanet.measurement.common.identity.withDuchyId
-import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -254,10 +253,8 @@ class InProcessDuchy(
 
         val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1))
         throttler.loopOnReady {
-          logAndSuppressExceptionSuspend { liquidLegionsV2Mill.pollAndProcessNextComputation() }
-          logAndSuppressExceptionSuspend {
-            reachOnlyLiquidLegionsV2Mill.pollAndProcessNextComputation()
-          }
+          liquidLegionsV2Mill.pollAndProcessNextComputation()
+          reachOnlyLiquidLegionsV2Mill.pollAndProcessNextComputation()
         }
       }
   }
