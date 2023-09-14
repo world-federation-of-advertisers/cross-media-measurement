@@ -16,9 +16,9 @@ import React from 'react';
 import Col from 'react-bootstrap/Col';
 import Row from 'react-bootstrap/Row';
 import {
-  DedupeReachByDemo,
+  DedupedReachByDemo,
   OnTargetReach,
-  OnTargetUniqueReqchByPlat,
+  OnTargetUniqueReachByPlat,
   OnTargetXmediaReachByFreq,
   TotalReach,
   UniqueReqchByPlat,
@@ -51,30 +51,30 @@ export function Charts({
       <React.Fragment>
         <Row className="report-charts">
           <Col className="report-chart">
-            <OnTargetReach id={'id1'} reach={targetReach} pubColors={pubColors} />
+            <OnTargetReach id={'target-reach'} reach={targetReach} pubColors={pubColors} />
           </Col>
           <Col className="report-chart">
-            <TotalReach id={'id2'} reach={totalReach} pubColors={pubColors} />
+            <TotalReach id={'total-reach'} reach={totalReach} pubColors={pubColors} />
           </Col>
         </Row>
         <Row className="report-charts">
           <Col className="report-chart">
             <OnTargetXmediaReachByFreq
-              id={'id3'}
+              id={'target-xmedia-reach'}
               reach={onTargetReach}
             />
           </Col>
           <Col className="report-chart">
             <XmediaReachByFreq
-              id={'id4'}
+              id={'xmedia-reach'}
               reach={xmediaReach}
             />
           </Col>
         </Row>
         <Row className="report-charts">
           <Col className="report-chart">
-            <DedupeReachByDemo
-              id={'id5'}
+            <DedupedReachByDemo
+              id={'deduped-reach'}
               demo={demo}
               pubColors={pubColors}
             />
@@ -82,8 +82,8 @@ export function Charts({
         </Row>
         <Row className="report-charts">
           <Col className="report-chart">
-            <OnTargetUniqueReqchByPlat
-              id={'id6'}
+            <OnTargetUniqueReachByPlat
+              id={'target-unique-reach'}
               reach={onTargetUniqueReach}
               pubColors={pubColors}
             />

@@ -14,6 +14,7 @@
 
 import * as d3 from 'd3';
 import { formatNumberWithMagnitude } from '../../util/formatting';
+import './d3_wrapper.css';
 
 const initializeGraph = (cardId, dimensions) => {
     // Specify the chart’s dimensions.
@@ -25,12 +26,12 @@ const initializeGraph = (cardId, dimensions) => {
         .attr("width", width)
         .attr("height", height)
         .attr("viewBox", [0, 0, width, height])
-        .attr("style", "max-width: 100%; height: auto; overflow: visible; font: 10px sans-serif;");
-  
+        .attr("class", "chart-card");
+
     return svg;
 }
 
-const setupUtcScale = (svg, data, dimensions, margins) => {
+const setUpUtcScale = (svg, data, dimensions, margins) => {
     // Create the positional scale.
     const x = d3.scaleUtc()
         .domain(d3.extent(data, d => d.date))
@@ -49,7 +50,7 @@ const setupUtcScale = (svg, data, dimensions, margins) => {
     return x;
 }
 
-const setupLinearXScale = (svg, data, dimensions, margins) => {
+const setUpLinearXScale = (svg, data, dimensions, margins) => {
     // Create the positional scales.
     const x = d3.scaleLinear()
         .domain([d3.min(data, d => d.x), d3.max(data, d => d.x)])
@@ -66,7 +67,7 @@ const setupLinearXScale = (svg, data, dimensions, margins) => {
     return x;
 }
 
-const setupScaleBandXScale = (svg, data, dimensions, margins) => {
+const setUpScaleBandXScale = (svg, data, dimensions, margins) => {
     // Create the positional scales.
     const x = d3.scaleBand()
         .domain(data.map(x => x.cat))
@@ -85,7 +86,7 @@ const setupScaleBandXScale = (svg, data, dimensions, margins) => {
     return x;
 }
 
-const setupLinearYScale = (svg, data, dimensions, margins, isPercent = false) => {
+const setUpLinearYScale = (svg, data, dimensions, margins, isPercent = false) => {
     const range = isPercent
         ? [0, 100]
         : [0, d3.max(data, d => d.value)]
@@ -150,8 +151,8 @@ const drawBar = (svg, data, x, y) => {
 
 export const createMultiLineChart = (cardId, data, dimensions, margins, colorMap) => { 
     const svg = initializeGraph(cardId, dimensions);
-    const x = setupUtcScale(svg, data, dimensions, margins);
-    const y = setupLinearYScale(svg, data, dimensions, margins);
+    const x = setUpUtcScale(svg, data, dimensions, margins);
+    const y = setUpLinearYScale(svg, data, dimensions, margins);
 
     // Compute the points in pixel space as [x, y, z], where z is the name of the series.
     const points = data.map((d) => [x(d.date), y(d.value), d.pub]);
@@ -164,8 +165,8 @@ export const createMultiLineChart = (cardId, data, dimensions, margins, colorMap
 
 export const createPercentMultiLineChart = (cardId, data, dimensions, margins, colorMap) => { 
     const svg = initializeGraph(cardId, dimensions);
-    const x = setupLinearXScale(svg, data, dimensions, margins)
-    const y = setupLinearYScale(svg, data, dimensions, margins, true);
+    const x = setUpLinearXScale(svg, data, dimensions, margins)
+    const y = setUpLinearYScale(svg, data, dimensions, margins, true);
 
     // Compute the points in pixel space as [x, y, z], where z is the name of the series.
     const points = data.map((d) => [x(d.x), y(d.value), d.cat]);
@@ -178,8 +179,8 @@ export const createPercentMultiLineChart = (cardId, data, dimensions, margins, c
 
 export const createPercentBarChart = (cardId, data, dimensions, margins) => {
     const svg = initializeGraph(cardId, dimensions);
-    const x = setupScaleBandXScale(svg, data, dimensions, margins);
-    const y = setupLinearYScale(svg, data, dimensions, margins, true)
+    const x = setUpScaleBandXScale(svg, data, dimensions, margins);
+    const y = setUpLinearYScale(svg, data, dimensions, margins, true)
 
     drawBar(svg, data, x, y);
 }

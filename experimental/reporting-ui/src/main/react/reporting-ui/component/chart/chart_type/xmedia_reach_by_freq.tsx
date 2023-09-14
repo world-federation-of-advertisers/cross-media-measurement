@@ -14,7 +14,7 @@
 
 import React from 'react';
 import { TargetReach } from '../../../model/reporting';
-import { ChartFactory, ChartType } from '../chart_factory';
+import { Chart, ChartType } from '../chart';
 
 const neutralColors = [
     "#CACACA",
@@ -36,7 +36,7 @@ export function XmediaReachByFreq({id, reach}: XmediaReachByFreqProps) {
     unique.forEach((x: any, i) => colors[x] = neutralColors[i])
     config.catColors = colors;
     return (
-        <ChartFactory
+        <Chart
             cardId={id}
             title='Cross-media reach by frequency'
             data={reach}

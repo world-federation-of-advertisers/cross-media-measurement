@@ -39,10 +39,10 @@ const componentStyle = {
 }
 
 // TODO: Add Legend
-export function ChartFactory({cardId, title, data, config, type}: props) {
+export function Chart({cardId, title, data, config, type}: props) {
   const refContainer = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-  
+
   const createGraph = (cardId: string, data: any, dimensions: {width: number, height: number}) => {
     // Specify the chart’s dimensions.
     const margins ={
@@ -51,7 +51,7 @@ export function ChartFactory({cardId, title, data, config, type}: props) {
       bottom: 30,
       left: 30,
     }
-    
+
     if (type === ChartType.multiLine) {
       createMultiLineChart(cardId, data, dimensions, margins, config.pubColors)
     } else if (type === ChartType.percentMultiLine) {
@@ -94,7 +94,7 @@ export function ChartFactory({cardId, title, data, config, type}: props) {
             </Col>
           </Row>
         </div>
-        <div id={`${cardId}-line`} ref={refContainer} />
+        <div id={`${cardId}-line`} className="chart-card" ref={refContainer} />
       </Card.Body>
     </Card>
   )

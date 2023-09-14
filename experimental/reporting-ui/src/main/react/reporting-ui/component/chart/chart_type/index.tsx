@@ -16,6 +16,6 @@ export { OnTargetReach } from './on_target_reach';
 export { TotalReach } from './total_reach';
 export { OnTargetXmediaReachByFreq } from './on_target_xmedia_reach_by_freq';
 export { XmediaReachByFreq } from './xmedia_reach_by_freq';
-export { DedupeReachByDemo } from './dedupe_reach_by_demo';
-export { OnTargetUniqueReqchByPlat } from './on_target_unique_reach_by_plat';
+export { DedupedReachByDemo } from './deduped_reach_by_demo';
+export { OnTargetUniqueReachByPlat } from './on_target_unique_reach_by_plat';
 export { UniqueReqchByPlat } from './unique_reach_by_plat';

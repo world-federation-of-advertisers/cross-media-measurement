@@ -9,7 +9,8 @@ package(
 js_library(
     name = "chart",
     srcs = [
-        "chart_factory.tsx",
+        "chart.tsx",
+        "d3_wrapper.css",
         "d3_wrapper.js",
     ],
     deps = [
