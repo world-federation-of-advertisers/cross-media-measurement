@@ -59,6 +59,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
@@ -118,6 +119,7 @@ class MeasurementConsumerSimulator(
   private val resultPollingDelay: Duration,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   private val eventQuery: EventQuery<Message>,
+  private val expectedDirectNoiseMechanism: NoiseMechanism,
 ) {
   /** Cache of resource name to [Certificate]. */
   private val certificateCache = mutableMapOf<String, Certificate>()
@@ -231,12 +233,42 @@ class MeasurementConsumerSimulator(
       .reachValue()
       .isWithinPercent(0.5)
       .of(expectedResult.reach.value)
+    assertThat(reachAndFrequencyResult.reach.hasDeterministicCountDistinct()).isTrue()
+    assertThat(reachAndFrequencyResult.reach.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
+
     assertThat(reachAndFrequencyResult)
       .frequencyDistribution()
       .isWithin(0.01)
       .of(expectedResult.frequency.relativeFrequencyDistributionMap)
+    assertThat(reachAndFrequencyResult.frequency.hasDeterministicDistribution()).isTrue()
+    assertThat(reachAndFrequencyResult.frequency.noiseMechanism)
+      .isEqualTo(expectedDirectNoiseMechanism)
 
     logger.info("Direct reach and frequency result is equal to the expected result")
+  }
+
+  /** A sequence of operations done in the simulator involving a direct reach measurement. */
+  suspend fun executeDirectReach(runId: String) {
+    // Create a new measurement on behalf of the measurement consumer.
+    val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
+    val measurementInfo =
+      createMeasurement(measurementConsumer, runId, ::newReachMeasurementSpec, 1)
+    val measurementName = measurementInfo.measurement.name
+    logger.info("Created direct reach measurement $measurementName.")
+
+    // Get the CMMS computed result and compare it with the expected result.
+    val reachResult = pollForResult { getReachResult(measurementName) }
+    logger.info("Got direct reach result from Kingdom: $reachResult")
+
+    val expectedResult = getExpectedResult(measurementInfo)
+    logger.info("Expected result: $expectedResult")
+
+    // TODO(@riemanli): Use variance rather than fixed tolerance values.
+    assertThat(reachResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
+    assertThat(reachResult.reach.hasDeterministicCountDistinct()).isTrue()
+    assertThat(reachResult.reach.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
+
+    logger.info("Direct reach result is equal to the expected result")
   }
 
   /** A sequence of operations done in the simulator involving a reach-only measurement. */
@@ -286,6 +318,9 @@ class MeasurementConsumerSimulator(
           // EdpSimulator sets it to this value.
           apiIdToExternalId(DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId)
         )
+      // EdpSimulator hasn't had an implementation for impression.
+      assertThat(!result.impression.hasDeterministicCount()).isTrue()
+      assertThat(result.impression.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
     }
     logger.info("Impression result is equal to the expected result")
   }
@@ -311,6 +346,9 @@ class MeasurementConsumerSimulator(
           // EdpSimulator sets it to this value.
           log2(externalDataProviderId.toDouble()).toLong()
         )
+      // EdpSimulator hasn't had an implementation for watch duration.
+      assertThat(!result.watchDuration.hasDeterministicSum()).isTrue()
+      assertThat(result.watchDuration.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
     }
     logger.info("Duration result is equal to the expected result")
   }
@@ -537,6 +575,21 @@ class MeasurementConsumerSimulator(
         .getMeasurementConsumer(request)
     } catch (e: StatusException) {
       throw Exception("Error getting MC $name", e)
+    }
+  }
+
+  private fun newReachMeasurementSpec(
+    serializedMeasurementPublicKey: ByteString,
+    nonceHashes: List<ByteString>
+  ): MeasurementSpec {
+    return measurementSpec {
+      measurementPublicKey = serializedMeasurementPublicKey
+      reach = MeasurementSpecKt.reach { privacyParams = outputDpParams }
+      vidSamplingInterval = vidSamplingInterval {
+        start = 0.0f
+        width = 1.0f
+      }
+      this.nonceHashes += nonceHashes
     }
   }
 

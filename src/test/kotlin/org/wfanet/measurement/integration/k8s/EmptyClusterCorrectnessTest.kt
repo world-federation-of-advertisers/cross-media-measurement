@@ -54,6 +54,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.jceProvider
@@ -265,6 +266,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
             SyntheticGenerationSpecs.POPULATION_SPEC,
             MC_ENCRYPTION_PRIVATE_KEY
           ),
+          ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
         )
         .also {
           try {
