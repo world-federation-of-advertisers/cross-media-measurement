@@ -14,10 +14,11 @@
 
 package org.wfanet.measurement.duchy.deploy.common.server
 
-import io.grpc.ManagedChannel
+import io.grpc.Channel
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.common.identity.withDuchyIdentities
@@ -47,12 +48,13 @@ abstract class ComputationControlServer : Runnable {
         trustedCertCollectionFile = flags.server.tlsFlags.certCollectionFile
       )
 
-    val channel: ManagedChannel =
+    val channel: Channel =
       buildMutualTlsChannel(
-        flags.asyncComputationControlServiceFlags.target,
-        clientCerts,
-        flags.asyncComputationControlServiceFlags.certHost
-      )
+          flags.asyncComputationControlServiceFlags.target,
+          clientCerts,
+          flags.asyncComputationControlServiceFlags.certHost
+        )
+        .withDefaultDeadline(flags.asyncComputationControlServiceFlags.defaultDeadlineDuration)
 
     CommonServer.fromFlags(
         flags.server,
