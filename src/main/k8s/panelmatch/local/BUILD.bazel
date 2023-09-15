@@ -1,0 +1,97 @@
+load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
+load("//build:variables.bzl", "EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG")
+load("@wfa_rules_cue//cue:defs.bzl", "cue_library")
+load("//src/main/k8s:macros.bzl", "cue_dump")
+load("//build/k8s:defs.bzl", "kustomization_dir")
+
+package(
+    default_testonly = True,
+    default_visibility = [
+        ":__subpackages__",
+        "//src/test/kotlin/org/wfanet/panelmatch/integration/k8s:__pkg__",
+    ],
+)
+
+SECRET_NAME = "certs-and-configs"
+
+#kustomization_dir(
+#    name = "edp_daemon_secret",
+#    srcs = ["edp_daemon_secret_kustomization.yaml"],
+#    renames = {"edp_daemon_secret_kustomization.yaml": "kustomization.yaml"},
+#)
+
+#kustomization_dir(
+#    name = "mp_daemon_secret",
+#    srcs = ["mp_daemon_secret_kustomization.yaml"],
+#    renames = {"mp_daemon_secret_kustomization.yaml": "kustomization.yaml"},
+#)
+
+cue_library(
+    name = "config_cue",
+    srcs = ["config.cue"],
+    deps = [
+        "//src/main/k8s:config",
+    ],
+)
+
+cue_library(
+    name = "base_forwarded_storage",
+    srcs = ["forwarded_storage_exchange_workflow_daemon.cue"],
+    deps = [
+        ":config_cue",
+        "//src/main/k8s:base",
+    ],
+)
+
+cue_dump(
+    name = "forwarded_storage_edp_daemon",
+    srcs = ["forwarded-storage-edp-exchange-workflow-daemon.cue"],
+    cue_tags = {
+        "secret_name": SECRET_NAME,
+        "party_name": "{party_name}",
+        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
+        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+    },
+    tags = ["manual"],
+    deps = [
+        ":base_forwarded_storage",
+    ],
+)
+
+kustomization_dir(
+    name = "edp_daemon",
+    srcs = [
+        ":forwarded_storage_edp_daemon",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+    deps = ["//src/main/k8s/panelmatch/testing/secretfiles:kustomization"]
+)
+
+cue_dump(
+    name = "forwarded_storage_mp_daemon",
+    srcs = ["forwarded-storage-mp-exchange-workflow-daemon.cue"],
+    cue_tags = {
+        "secret_name": SECRET_NAME,
+        "party_name": "{party_name}",
+        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
+        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+    },
+    tags = ["manual"],
+    deps = [
+        ":base_forwarded_storage",
+        "//src/main/k8s:config",
+    ],
+)
+
+kustomization_dir(
+    name = "mp_daemon",
+    srcs = [
+        ":forwarded_storage_mp_daemon",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+    deps = ["//src/main/k8s/panelmatch/testing/secretfiles:kustomization"]
+)
