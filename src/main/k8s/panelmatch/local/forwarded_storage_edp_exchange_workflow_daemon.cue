@@ -24,22 +24,6 @@ _exchangeDaemonConfig: {
 	}
 }
 
-networkPolicies: [Name=_]: #NetworkPolicy & {
-	_name:    Name
-	_appName: Name
-}
-networkPolicies: {
-	"edp-panel-exchange-daemon": {
-		_ingresses: {
-			// No ingress.
-		}
-		_egresses: {
-			// Need to be able to send traffic to storage and Kingdom.
-			any: {}
-		}
-	}
-}
-
 deployments: [Name=_]: #Deployment & {
 	_name:      Name
 	_component: "workflow-daemon"
@@ -55,7 +39,7 @@ deployments: {
 		_jvmFlags:   "-Xmx3584m" // 4GiB - 512MiB overhead.
 		_secretName: _exchangeDaemonConfig.secretName
 		_podSpec: _container: {
-			image:          _images["exchange-workflow-daemon"]
+			image:          _localStorageImageConfig.image
 			imagePullPolicy: "Always"
 			args:           _exchangeDaemonConfig.args + [
 						"--cert-collection-file=/var/run/secrets/files/trusted_certs.pem",

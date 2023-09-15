@@ -63,20 +63,8 @@ package k8s
 }
 _exchangeDaemonConfig: #ExchangeDaemonConfig
 
-objectSets: [deployments, networkPolicies]
+objectSets: [deployments]
 
-_imageSuffixes: [string]: string
-_imageSuffixes: {
-    "exchange-workflow-daemon": string | *"panel-exchange/forwarded-storage-daemon"
-}
-_imageConfigs: [string]: #ImageConfig
-_imageConfigs: {
-    for name, suffix in _imageSuffixes {
-        "\(name)": {repoSuffix: suffix}
-    }
-}
-_images: {
-    for name, config in _imageConfigs {
-        "\(name)": config.image
-    }
+_localStorageImageConfig: #ImageConfig & {
+	repoSuffix: "panel-exchange/forwarded-storage-daemon"
 }

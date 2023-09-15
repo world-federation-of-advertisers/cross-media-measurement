@@ -39,6 +39,7 @@ import java.time.Duration
 import java.time.LocalDate
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.time.withTimeout
 import kotlinx.coroutines.withContext
@@ -50,6 +51,7 @@ import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.Exchange
 import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
@@ -64,11 +66,13 @@ import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getExchangeRequest
 import org.wfanet.measurement.api.v2alpha.listExchangeStepsRequest
+import org.wfanet.measurement.api.v2alpha.withPrincipal
 import org.wfanet.measurement.api.withIdToken
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.jceProvider
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
+import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.k8s.KubernetesClient
 import org.wfanet.measurement.common.k8s.testing.PortForwarder
 import org.wfanet.measurement.common.k8s.testing.Processes
@@ -77,8 +81,21 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
+import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt
+import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
+import org.wfanet.measurement.internal.testing.ForwardedStorageGrpcKt
+import org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourceSetup
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.loadtest.resourcesetup.ResourceSetup
+import org.wfanet.measurement.storage.forwarded.ForwardedStorageClient
+import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
+import org.wfanet.panelmatch.client.storage.StorageDetails
+import org.wfanet.panelmatch.client.storage.StorageDetailsKt.customStorage
+import org.wfanet.panelmatch.client.storage.StorageDetailsKt.forwardedStorage
+import org.wfanet.panelmatch.client.storage.storageDetails
+import org.wfanet.panelmatch.common.certificates.testing.TestCertificateManager
+import org.wfanet.panelmatch.common.storage.testing.FakeTinkKeyStorageProvider
 
 abstract class AbstractPanelMatchCorrectnessTest {
 
@@ -140,7 +157,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
         .items
         .first()
 
-
+/*
     PortForwarder(kingdomPublicPod, SERVER_PORT)
       .use { publicForward ->
         val publicAddress: InetSocketAddress =
@@ -180,7 +197,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
         }catch (e: Exception){
           logger.info { "========================================== there was an error2: ${e}" }
         }
-      }
+      }*/
 
     /*
         val publicApiForwarder = PortForwarder(kingdomPublicPod,
@@ -209,7 +226,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
         }*/
 
 
-    /*PortForwarder(kingdomInternalPod,
+    PortForwarder(kingdomInternalPod,
       SERVER_PORT
     ).use { internalForward ->
       val internalAddress: InetSocketAddress =
@@ -379,27 +396,9 @@ abstract class AbstractPanelMatchCorrectnessTest {
           logger.info { "------------------------------------- daemons created" }
           val exchangeClient = ExchangesGrpcKt.ExchangesCoroutineStub(publicChannel)
           val exchangeStepsClient = ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub(publicChannel)
-          val internalDataProvidersClient = DataProvidersGrpcKt.DataProvidersCoroutineStub(internalChannel)
-          logger.info { "------------------------------------- exchange clients created" }
-          try {
-            internalDataProvidersClient.getDataProvider(
-              getDataProviderRequest {
-                externalDataProviderId = 123L
-              }
-            )
-          }catch (e: StatusException) {
-            logger.info { "---------------------------------------------------- ERROR getting data provider" }
-          }
-          val publicDpClient = DataProvidersGrpcKt.DataProvidersCoroutineStub(publicChannel)
-          try {
-            publicDpClient
-              //.withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-              .getDataProvider(getDataProviderRequest {  })
-          } catch (e: StatusException) {
-            throw Exception("Error fetching DataProvider ", e)
-          }
+
           logger.info { "------------------------------------- ATTEMPT EXCHANGE CALL" }
-          val result = exchangeClient.getExchange(getExchangeRequest { name = exchangeKey.toName() })
+          val result = exchangeClient.withPrincipalName(panelMatchResourceKey.dataProviderKey.toName()).getExchange(getExchangeRequest { name = exchangeKey.toName() })
           logger.info { "------------------------------------- TEST SUCCESFUL: ${result.date}" }
           while (!isDone(exchangeClient, exchangeStepsClient)) {
             delay(500)
@@ -415,7 +414,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
         portForwarder.stop()
       }
     }
-*/
+
     logger.info { "------------------------------------- EXIT" }
 
   }
