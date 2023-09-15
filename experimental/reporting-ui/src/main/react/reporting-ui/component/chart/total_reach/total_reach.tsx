@@ -13,21 +13,26 @@
 // limitations under the License.
 
 import React from 'react';
-import ReactDOM from 'react-dom/client';
-import AppConfig from '../../initialize';
-import { FakeReportingClient } from './fake_reporting_client';
-import { RouterProvider, createBrowserRouter } from 'react-router-dom';
-import { routes } from '../../../route';
-import 'bootstrap/dist/css/bootstrap.min.css';
-import '../../../index.css';
+import { Chart, ChartType } from '../chart';
+import { Reach } from '../../../model/reporting';
 
-const config = {
-  reportingClient: new FakeReportingClient(),
-};
+type TotalReachProps = {
+    id: string,
+    reach: Reach[],
+    pubColors: { [Name: string]: string},
+}
 
-AppConfig.initialize(config);
-
-const router = createBrowserRouter(routes);
-
-const root = ReactDOM.createRoot(document.getElementById('root')!);
-root.render(<RouterProvider router={router} />);
+export function TotalReach({id, reach, pubColors}: TotalReachProps) {
+    const config = {
+        pubColors,
+    }
+    return (
+        <Chart
+            cardId={id}
+            title='Total reach'
+            data={reach}
+            config={config}
+            type={ChartType.multiLine}
+        />
+    )
+}

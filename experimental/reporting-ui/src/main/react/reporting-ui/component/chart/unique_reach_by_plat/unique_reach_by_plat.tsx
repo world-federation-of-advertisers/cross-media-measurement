@@ -13,21 +13,26 @@
 // limitations under the License.
 
 import React from 'react';
-import ReactDOM from 'react-dom/client';
-import AppConfig from '../../initialize';
-import { FakeReportingClient } from './fake_reporting_client';
-import { RouterProvider, createBrowserRouter } from 'react-router-dom';
-import { routes } from '../../../route';
-import 'bootstrap/dist/css/bootstrap.min.css';
-import '../../../index.css';
+import { UniqueReach } from '../../../model/reporting';
+import { Chart, ChartType } from '../chart';
 
-const config = {
-  reportingClient: new FakeReportingClient(),
-};
+type UniqueReqchByPlatProps = {
+    id: string,
+    reach: UniqueReach[],
+    pubColors: { [Name: string]: string}
+}
 
-AppConfig.initialize(config);
-
-const router = createBrowserRouter(routes);
-
-const root = ReactDOM.createRoot(document.getElementById('root')!);
-root.render(<RouterProvider router={router} />);
+export function UniqueReqchByPlat({id, reach, pubColors}: UniqueReqchByPlatProps) {
+    const config = {
+        pubColors,
+    }
+    return (
+        <Chart
+            cardId={id}
+            title='Unique reach by platform'
+            data={reach}
+            config={config}
+            type={ChartType.multiLine}
+        />
+    )
+}
