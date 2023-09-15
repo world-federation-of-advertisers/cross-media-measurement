@@ -39,7 +39,7 @@ cue_library(
     srcs = ["forwarded_storage_exchange_workflow_daemon.cue"],
     deps = [
         ":config_cue",
-        "//src/main/k8s:base",
+        "//src/main/k8s/panelmatch:base"
     ],
 )
 
@@ -71,7 +71,7 @@ kustomization_dir(
 
 cue_dump(
     name = "forwarded_storage_mp_daemon",
-    srcs = ["forwarded_storage_exchange_workflow_daemon.cue"],
+    srcs = ["forwarded_storage_mp_exchange_workflow_daemon.cue"],
     cue_tags = {
         "secret_name": SECRET_NAME,
         "party_name": "{party_name}",
