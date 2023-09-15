@@ -13,21 +13,26 @@
 // limitations under the License.
 
 import React from 'react';
-import ReactDOM from 'react-dom/client';
-import AppConfig from '../../initialize';
-import { FakeReportingClient } from './fake_reporting_client';
-import { RouterProvider, createBrowserRouter } from 'react-router-dom';
-import { routes } from '../../../route';
-import 'bootstrap/dist/css/bootstrap.min.css';
-import '../../../index.css';
+import { Demographic } from '../../../model/reporting';
+import { Chart, ChartType } from '../chart';
 
-const config = {
-  reportingClient: new FakeReportingClient(),
-};
+type DedupedReachByDemoProps = {
+    id: string,
+    demo: Demographic[],
+    pubColors: { [Name: string]: string}
+}
 
-AppConfig.initialize(config);
-
-const router = createBrowserRouter(routes);
-
-const root = ReactDOM.createRoot(document.getElementById('root')!);
-root.render(<RouterProvider router={router} />);
+export function DedupedReachByDemo({id, demo, pubColors}: DedupedReachByDemoProps) {
+    const config = {
+        pubColors,
+    }
+    return (
+        <Chart
+            cardId={id}
+            title='De-duplicated reach by demographic'
+            data={demo}
+            config={config}
+            type={ChartType.bar}
+        />
+    )
+}

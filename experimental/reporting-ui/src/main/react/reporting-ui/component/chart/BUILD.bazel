@@ -1,0 +1,20 @@
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+
+package(
+    default_visibility = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui/component/chart:__subpackages__",
+    ],
+)
+
+js_library(
+    name = "chart",
+    srcs = [
+        "chart.tsx",
+        "d3_wrapper.css",
+        "d3_wrapper.js",
+    ],
+    deps = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui/public/asset/icon",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/util:formatting",
+    ],
+)

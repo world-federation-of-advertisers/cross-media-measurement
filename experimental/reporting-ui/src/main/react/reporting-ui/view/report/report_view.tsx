@@ -19,6 +19,7 @@ import { Loader } from '../../component/loader/loader';
 import { Error } from '../../component/error/error';
 import { TERMINAL_STATES } from '../../model/reporting';
 import { TerminalReport } from './component/terminal_report';
+import './report_view.css';
 
 export const ReportView = () => {
   const { errors, report, load, loading } = ReportViewModel();
@@ -41,7 +42,18 @@ export const ReportView = () => {
   }
 
   if (TERMINAL_STATES.includes(report.status)) {
-    return <TerminalReport name={report.name} overview={report.overview} summaries={report.summary} />
+    return <TerminalReport
+              name={report.name}
+              overview={report.overview}
+              summaries={report.summary}
+              targetReach={report.targetReach}
+              totalReach={report.totalReach}
+              xmediaReach={report.xmediaReach}
+              onTargetReach={report.onTargetReach}
+              onTargetUniqueReach={report.onTargetUniqueReach}
+              uniqueReachByPlat={report.uniqueReachByPlat}
+              demo={report.demo}
+            />
   }
 
   return(

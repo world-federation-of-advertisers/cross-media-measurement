@@ -212,37 +212,37 @@ export class FakeReportingClient implements ReportingClient {
         ],
         totalReach: [
           {
-            pub: 0,
+            pub: 1,
             value: 0,
             date: new Date(Date.UTC(2020, 0, 3)),
           },
           {
-            pub: 0,
+            pub: 1,
             value: 500000,
             date: new Date(Date.UTC(2020, 0, 4)),
           },
           {
-            pub: 0,
+            pub: 1,
             value: 1000000,
             date: new Date(Date.UTC(2020, 0, 5)),
           },
           {
-            pub: 0,
+            pub: 1,
             value: 1300000,
             date: new Date(Date.UTC(2020, 0, 6)),
           },
           {
-            pub: 0,
+            pub: 1,
             value: 1600000,
             date: new Date(Date.UTC(2020, 0, 7)),
           },
           {
-            pub: 0,
+            pub: 1,
             value: 1700000,
             date: new Date(Date.UTC(2020, 0, 8)),
           },
           {
-            pub: 0,
+            pub: 1,
             value: 1750000,
             date: new Date(Date.UTC(2020, 0, 9)),
           },
