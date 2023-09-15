@@ -30,6 +30,7 @@ kt_jvm_library(
     deps = [
         "continuation_token_manager",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/common:exponential_backoff",
         "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/utils:computation_conversions",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/utils:duchy_order",

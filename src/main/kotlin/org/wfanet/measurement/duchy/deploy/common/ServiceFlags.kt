@@ -37,7 +37,7 @@ class ComputationsServiceFlags {
 
   @CommandLine.Option(
     names = ["--computations-default-deadline"],
-    description = ["Default deadline duration for RPCs to Duchy internal Computations API"],
+    description = ["Default deadline duration for RPCs to the Duchy internal Computations service"],
     defaultValue = "30s"
   )
   lateinit var defaultDeadlineDuration: Duration
@@ -59,6 +59,14 @@ class AsyncComputationControlServiceFlags {
     required = true,
   )
   lateinit var certHost: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--async-computation-control-default-deadline"],
+    description = ["Default deadline duration for RPCs to the AsyncComputationControl service"],
+    defaultValue = "30s"
+  )
+  lateinit var defaultDeadlineDuration: Duration
     private set
 }
 
