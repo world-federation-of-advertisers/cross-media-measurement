@@ -49,7 +49,7 @@ private val API_VERSION = Version.V2_ALPHA
  * TODO(@marcopremier): Drop this class and add additional resources needed from PanelExchageClient
  *   in ResourceSetup.
  */
-class PanelMatchResourceSetup(
+class InProcessPanelMatchResourceSetup(
   private val dataProvidersStub: DataProvidersCoroutineStub,
   private val modelProvidersStub: ModelProvidersCoroutineStub,
   private val recurringExchangesStub: RecurringExchangesCoroutineStub
