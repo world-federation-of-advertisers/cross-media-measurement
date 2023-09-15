@@ -43,6 +43,7 @@ networkPolicies: {
 deployments: [Name=_]: #Deployment & {
 	_name:      Name
 	_component: "workflow-daemon"
+	_system:    "edp_daemon"
 	_podSpec: _container: resources: #DefaultResourceConfig.resources
 
 	spec: {

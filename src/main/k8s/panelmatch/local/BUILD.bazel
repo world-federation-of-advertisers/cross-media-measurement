@@ -45,7 +45,7 @@ cue_library(
 
 cue_dump(
     name = "forwarded_storage_edp_daemon",
-    srcs = ["forwarded-storage-edp-exchange-workflow-daemon.cue"],
+    srcs = ["forwarded_storage_edp_exchange_workflow_daemon.cue"],
     cue_tags = {
         "secret_name": SECRET_NAME,
         "party_name": "{party_name}",
@@ -71,7 +71,7 @@ kustomization_dir(
 
 cue_dump(
     name = "forwarded_storage_mp_daemon",
-    srcs = ["forwarded-storage-mp-exchange-workflow-daemon.cue"],
+    srcs = ["forwarded_storage_exchange_workflow_daemon.cue"],
     cue_tags = {
         "secret_name": SECRET_NAME,
         "party_name": "{party_name}",
@@ -82,7 +82,6 @@ cue_dump(
     tags = ["manual"],
     deps = [
         ":base_forwarded_storage",
-        "//src/main/k8s:config",
     ],
 )
 
