@@ -1,0 +1,13 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//visibility:public"])
+
+kt_jvm_library(
+    name = "forwarded_storage",
+    srcs = glob(["*.kt"]),
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc:grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/forwarded:forwarded",
+    ],
+)
