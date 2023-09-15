@@ -63,7 +63,7 @@ package k8s
 }
 _exchangeDaemonConfig: #ExchangeDaemonConfig
 
-objectSets: [deployments]
+objectSets: [deployments, networkPolicies]
 
 _imageSuffixes: [string]: string
 _imageSuffixes: {

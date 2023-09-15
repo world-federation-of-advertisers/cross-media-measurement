@@ -1,0 +1,9 @@
+package(
+    default_testonly = True,
+    default_visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "exchange_workflow",
+    srcs = ["double_blind_exchange_workflow.textproto"],
+)
