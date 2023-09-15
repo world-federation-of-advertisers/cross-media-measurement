@@ -144,8 +144,8 @@ GKE_IMAGES = [
 ]
 
 # List of specs for all Docker containers to push to a container registry.
-# These are only used on AWS ECR.
-AWS_IMAGES = [
+# These are only used on EKS.
+EKS_IMAGES = [
     struct(
         name = "duchy_s3_computation_control_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/aws/server:s3_computation_control_server_image",
@@ -283,4 +283,4 @@ ALL_IMAGES = COMMON_IMAGES + LOCAL_IMAGES + GKE_IMAGES + REPORTING_COMMON_IMAGES
 
 ALL_REPORTING_GKE_IMAGES = REPORTING_COMMON_IMAGES + REPORTING_GKE_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_GKE_IMAGES
 
-ALL_AWS_ECR_IMAGES = COMMON_IMAGES + AWS_IMAGES
+ALL_EKS_IMAGES = COMMON_IMAGES + AWS_IMAGES

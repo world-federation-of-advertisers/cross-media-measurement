@@ -20,14 +20,14 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.duchy.deploy.common.server.RequisitionFulfillmentServer
 import picocli.CommandLine
 
-/** Implementation of [RequisitionFulfillmentServer] using Google Cloud Storage (GCS). */
+/** Implementation of [RequisitionFulfillmentServer] using AWS S3. */
 @CommandLine.Command(
-  name = "GcsRequisitionFulfillmentServer",
+  name = "S3RequisitionFulfillmentServer",
   description = ["Server daemon for ${RequisitionFulfillmentServer.SERVICE_NAME} service."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-class GcsRequisitionFulfillmentServer : RequisitionFulfillmentServer() {
+class S3RequisitionFulfillmentServer : RequisitionFulfillmentServer() {
   @CommandLine.Mixin private lateinit var s3Flags: S3Flags
 
   override fun run() {
@@ -36,4 +36,4 @@ class GcsRequisitionFulfillmentServer : RequisitionFulfillmentServer() {
   }
 }
 
-fun main(args: Array<String>) = commandLineMain(GcsRequisitionFulfillmentServer(), args)
+fun main(args: Array<String>) = commandLineMain(S3RequisitionFulfillmentServer(), args)

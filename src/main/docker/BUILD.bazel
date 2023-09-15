@@ -5,7 +5,7 @@ load(
 )
 load("@io_bazel_rules_docker//contrib:push-all.bzl", "docker_push")
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
-load(":images.bzl", "ALL_AWS_ECR_IMAGES", "ALL_GKE_IMAGES", "ALL_IMAGES", "ALL_LOCAL_IMAGES", "ALL_REPORTING_GKE_IMAGES")
+load(":images.bzl", "ALL_EKS_IMAGES", "ALL_GKE_IMAGES", "ALL_IMAGES", "ALL_LOCAL_IMAGES", "ALL_REPORTING_GKE_IMAGES")
 
 package(
     default_testonly = True,  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
@@ -74,12 +74,12 @@ container_bundle(
 )
 
 container_bundle(
-    name = "duchy_aws_ecr_images",
+    name = "duchy_eks_images",
     images = {"{registry}/{name}:{tag}".format(
         name = image_spec.repository,
         registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
         tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
-    ): image_spec.image for image_spec in ALL_AWS_ECR_IMAGES if image_spec.name.startswith("duchy_")},
+    ): image_spec.image for image_spec in ALL_EKS_IMAGES if image_spec.name.startswith("duchy_")},
     tags = ["manual"],
     visibility = ["//visibility:private"],
 )
@@ -123,25 +123,10 @@ docker_push(
 )
 
 docker_push(
-    name = "push_all_duchy_aws_ecr_images",
-    bundle = ":duchy_aws_ecr_images",
+    name = "push_all_duchy_eks_images",
+    bundle = ":duchy_eks_images",
     sequential = True,
     tags = ["manual"],
-)
-
-# AWS ECR does not support repo creation on push, hence using this script to create repo if does not exist.
-# TODO(https://github.com/aws/containers-roadmap/issues/853): remove this when repo creation on push is supported.
-#
-# This command assumes you are authenticated to the AWS ECR registry.
-# (see: https://docs.aws.amazon.com/AmazonECR/latest/userguide/getting-started-cli.html#cli-authenticate-registry)
-sh_binary(
-    name = "create_ecr_repo",
-    srcs = ["create_ecr_repo.sh"],
-    args = {
-        image_spec.repository: image_spec.image
-        for image_spec in ALL_AWS_ECR_IMAGES
-        if image_spec.name.startswith("duchy_")
-    },
 )
 
 docker_push(

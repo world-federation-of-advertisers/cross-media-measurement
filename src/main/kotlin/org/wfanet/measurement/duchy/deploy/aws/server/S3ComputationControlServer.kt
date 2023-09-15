@@ -20,14 +20,14 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.duchy.deploy.common.server.ComputationControlServer
 import picocli.CommandLine
 
-/** Implementation of [ComputationControlServer] using Google Cloud Storage (GCS). */
+/** Implementation of [ComputationControlServer] using AWS S3. */
 @CommandLine.Command(
-  name = "GcsComputationControlServer",
+  name = "S3ComputationControlServer",
   description = ["Server daemon for ${ComputationControlServer.SERVICE_NAME} service."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-class GcsComputationControlServer : ComputationControlServer() {
+class S3ComputationControlServer : ComputationControlServer() {
   @CommandLine.Mixin private lateinit var s3Flags: S3Flags
 
   override fun run() {
@@ -36,4 +36,4 @@ class GcsComputationControlServer : ComputationControlServer() {
   }
 }
 
-fun main(args: Array<String>) = commandLineMain(GcsComputationControlServer(), args)
+fun main(args: Array<String>) = commandLineMain(S3ComputationControlServer(), args)

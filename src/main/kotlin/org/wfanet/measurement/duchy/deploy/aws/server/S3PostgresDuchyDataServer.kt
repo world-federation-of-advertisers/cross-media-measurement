@@ -28,7 +28,7 @@ import org.wfanet.measurement.duchy.deploy.common.service.PostgresDuchyDataServi
 import picocli.CommandLine
 
 /**
- * Implementation of [DuchyDataServer] using Google Cloud Postgres and Google Cloud Storage (GCS).
+ * Implementation of [DuchyDataServer] using AWS RDS Postgres and AWS S3.
  */
 @CommandLine.Command(
   name = "S3PostgresDuchyDataServer",
