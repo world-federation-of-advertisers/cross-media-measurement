@@ -1,0 +1,120 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.v2alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
+import "wfa/measurement/reporting/v2alpha/metric.proto";
+import "wfa/measurement/reporting/v2alpha/report.proto";
+import "wfa/measurement/reporting/v2alpha/time_interval.proto";
+import "wfa/measurement/reporting/v2alpha/planning_model_spec.proto";
+
+option java_package = "org.wfanet.measurement.reporting.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "PlanningReportProto";
+
+message PlanningReport {
+  option (google.api.resource) = {
+    type: "reporting.halo-cmm.org/PlanningReport"
+    pattern: "measurementConsumers/{measurement_consumer}/planningReports/{planning_report}"
+  };
+
+  string name = 1;
+
+  String historical_report = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "reporting.halo-cmm.org/Reporting"
+    }
+  ];
+
+  message ImpressionAllocation {
+    repeated double allocation = 1;
+  }
+  message Scenario {
+    string key = 1 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.resource_reference) = {
+        type: "reporting.halo-cmm.org/ReportingSet"
+      }
+    ];
+    ImpressionAllocation impression_allocation = 2;
+  }
+
+  repeated Scenario scenarios = 3 [(google.api.field_behavior) = REQUIRED];
+
+  // One spec per metric type. If multiple models are specified for one metric
+  // type,
+  repeated PlanningModelSpec planning_model_specs = 4
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Possible states of a `PlanningReport`.
+  enum State {
+    // Default value. This value is unused.
+    STATE_UNSPECIFIED = 0;
+    // Computation is running.
+    RUNNING = 1;
+    // Completed successfully. Terminal state.
+    SUCCEEDED = 2;
+    // Completed with failure. Terminal state.
+    FAILED = 3;
+  }
+
+  // Planning report state.
+  State state = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Very similar to MetricCalculationResult. Only impression_allocation and
+  // metric_result are new. Other field values are from the report.
+  message PlanningResult {
+    string display_name = 1;
+
+    string reporting_set = 2 [(google.api.resource_reference) = {
+      type: "reporting.halo-cmm.org/ReportingSet"
+    }];
+
+    // Impression allocation used to compute this result.
+    ImpressionAllocation impression_allocation = 3;
+
+    // The model spec used to compute this result.
+    PlanningModelSpec planning_model_spec = 4;
+
+    // The model trained and used for this result.
+    String planning_model = 5 [(google.api.resource_reference) = {
+      type: "reporting.halo-cmm.org/PlanningModel"
+    }];
+
+    bool cumulative = 6;
+
+    message ResultAttribute {
+      repeated string grouping_predicates = 1;
+      MetricSpec metric_spec = 2;
+      google.type.Interval time_interval = 3;
+      MetricResult metric_result = 4;
+    }
+    repeated ResultAttribute result_attributes = 7;
+  }
+
+  // The time when the planning report is successfully created.
+  google.protobuf.Timestamp create_time = 6
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Set only when `state` is `SUCCEEDED`.
+  repeated PlanningResult planning_results = 7
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+}

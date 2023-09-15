@@ -417,3 +417,25 @@ CREATE TABLE MetricCalculationSpecReportingMetrics (
     REFERENCES Metrics(MeasurementConsumerId, MetricId)
     ON DELETE CASCADE
 );
+
+-- changeset riemanli:create-planning-reports-table dbms:postgresql
+CREATE TABLE PlanningReports (
+  MeasurementConsumerId bigint NOT NULL,
+  ReportId bigint NOT NULL,
+  PlanningReports bigint NOT NULL,
+
+  ExternalPlanningReports varchar(63) NOT NULL,
+  CreatePlanningReportsRequestId text,
+
+  CreateTime TIMESTAMP WITH TIME ZONE NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerId, ReportId, PlanningReports),
+  UNIQUE (MeasurementConsumerId, CreatePlanningReportsRequestId),
+  UNIQUE (MeasurementConsumerId, ExternalPlanningReportsId),
+  FOREIGN KEY(MeasurementConsumerId)
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE
+  FOREIGN KEY(MeasurementConsumerId, ReportId)
+    REFERENCES Reports(MeasurementConsumerId, ReportId)
+    ON DELETE CASCADE
+);

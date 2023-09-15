@@ -1,0 +1,48 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.v2alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+
+option java_package = "org.wfanet.measurement.reporting.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "PlanningModelSpecProto";
+
+// The planning model spec is applied across a planning report. User needs to
+// specified different models for different metric types.
+message PlanningModelSpec {
+  // Will have ReachFrequencyPlanningModelSpec, ImpressionPlanningModelSpec,
+  // WatchDurationPlanningModelSpec, etc in the future.
+  oneof type {
+    ReachPlanningModelSpec reach_model_spec = 1;
+  }
+}
+
+message ReachPlanningModelSpec {
+  // Specify which model (algorithm) to use. Required.
+  oneof model_name {
+    DiracMixtureCounterFactualReachModel DMCF_reach_model = 1;
+  }
+
+  // Indicates the model accuracy.
+  message AccuracyLevel {
+    // What are valid accuracy metrics?
+    // Should we have a universal one for all measurement types? Ex: 95-5
+  }
+  AccuracyLevel accuracy_level = 2;
+}
