@@ -417,3 +417,106 @@ CREATE TABLE MetricCalculationSpecReportingMetrics (
     REFERENCES Metrics(MeasurementConsumerId, MetricId)
     ON DELETE CASCADE
 );
+
+-- changeset riemanli:create-planning-reports-table dbms:postgresql
+CREATE TABLE PlanningReports (
+  MeasurementConsumerId bigint NOT NULL,
+  ReportId bigint NOT NULL,
+  PlanningReportId bigint NOT NULL,
+
+  ExternalPlanningReportId varchar(63) NOT NULL,
+  CreatePlanningReportRequestId text,
+
+  CreateTime TIMESTAMP WITH TIME ZONE NOT NULL,
+
+  -- Serialized byte string of a proto3 protobuf with details about the planning
+  -- reports which do not need to be indexed by the database.
+  -- Contains: repeated PlanningModelSpec
+  PlanningReportDetails bytea NOT NULL,
+
+  -- Human-readable copy of the PlanningReportDetails column solely for
+  -- debugging purposes.
+  PlanningReportDetailsJson text NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerId, ReportId, PlanningReportId),
+  UNIQUE (MeasurementConsumerId, CreatePlanningReportRequestId),
+  UNIQUE (MeasurementConsumerId, ExternalPlanningReportId),
+  FOREIGN KEY(MeasurementConsumerId)
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE
+  FOREIGN KEY(MeasurementConsumerId, ReportId)
+    REFERENCES Reports(MeasurementConsumerId, ReportId)
+    ON DELETE CASCADE
+);
+
+-- changeset riemanli:create-impression-allocation-plans-table dbms:postgresql
+-- * PlanningReports -> Scenarios -> ImpressionAllocationPlans
+--   -> ImpressionAllocations, this relationships can simplified to
+--   PlanningReports -> ImpressionAllocations.
+-- * An ImpressionAllocationPlan can be obtained by grouping
+--   ImpressionAllocations by (TargetReportingSetId, PrimitiveReportingSetId).
+-- * A Scenario can be obtained by grouping ImpressionAllocationPlans by
+--   TargetReportingSetId.
+CREATE TABLE ImpressionAllocations (
+  MeasurementConsumerId bigint NOT NULL,
+  ReportId bigint NOT NULL,
+  PlanningReportId bigint NOT NULL,
+  TargetReportingSetId bigint NOT NULL,
+  PrimitiveReportingSetId bigint NOT NULL,
+  ImpressionAllocationId bigint NOT NULL,
+
+  Allocation DOUBLE NOT NULL,
+
+  PRIMARY KEY(
+    MeasurementConsumerId,
+    ReportId,
+    PlanningReportId,
+    TargetReportingSetId,
+    PrimitiveReportingSetId,
+    ImpressionAllocationId
+  ),
+  UNIQUE (MeasurementConsumerId, ReportId, PlanningReportId, TargetReportingSetId),
+  UNIQUE (MeasurementConsumerId, ReportId, PlanningReportId, TargetReportingSetId, PrimitiveReportingSetId),
+  FOREIGN KEY(MeasurementConsumerId, ReportId, PlanningReports)
+    REFERENCES PlanningReports(MeasurementConsumerId, ReportId, PlanningReportId)
+    ON DELETE CASCADE
+  FOREIGN KEY(MeasurementConsumerId, TargetReportingSetId)
+    REFERENCES ReportingSets(MeasurementConsumerId, TargetReportingSetId)
+    ON DELETE CASCADE
+  FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
+    REFERENCES ReportingSets(MeasurementConsumerId, PrimitiveReportingSetId)
+    ON DELETE CASCADE
+);
+
+-- changeset riemanli:create-planning-models-table dbms:postgresql
+CREATE TABLE PlanningModels (
+  MeasurementConsumerId bigint NOT NULL,
+  MetricId bigint NOT NULL,
+  PlanningModelId bigint NOT NULL,
+
+  ExternalPlanningModelId varchar(63) NOT NULL,
+  CreatePlanningModelRequestId text,
+
+  CreateTime TIMESTAMP WITH TIME ZONE NOT NULL,
+
+  -- PlanningModelSpec TBD
+
+  -- Serialized byte string of a proto3 protobuf with details about the planning
+  -- models which do not need to be indexed by the database.
+  -- Contains: State
+  PlanningModelDetails bytea NOT NULL,
+
+  -- Human-readable copy of the PlanningModelDetails column solely for debugging
+  -- purposes.
+  PlanningModelDetailsJson text NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerId, ReportId, PlanningReportId),
+  UNIQUE (MeasurementConsumerId, CreatePlanningReportRequestId),
+  UNIQUE (MeasurementConsumerId, ExternalPlanningReportId),
+  FOREIGN KEY(MeasurementConsumerId)
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE
+  FOREIGN KEY(MeasurementConsumerId, ReportId)
+    REFERENCES Reports(MeasurementConsumerId, ReportId)
+    ON DELETE CASCADE
+);
