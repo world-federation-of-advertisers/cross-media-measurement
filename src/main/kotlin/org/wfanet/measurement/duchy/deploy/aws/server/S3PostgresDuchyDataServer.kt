@@ -27,9 +27,7 @@ import org.wfanet.measurement.duchy.deploy.common.server.DuchyDataServer
 import org.wfanet.measurement.duchy.deploy.common.service.PostgresDuchyDataServices
 import picocli.CommandLine
 
-/**
- * Implementation of [DuchyDataServer] using AWS RDS Postgres and AWS S3.
- */
+/** Implementation of [DuchyDataServer] using AWS RDS Postgres and AWS S3. */
 @CommandLine.Command(
   name = "S3PostgresDuchyDataServer",
   description = ["Server daemon for ${DuchyDataServer.SERVICE_NAME} service."],
