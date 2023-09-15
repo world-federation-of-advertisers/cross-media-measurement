@@ -1,0 +1,94 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@rules_java//java:defs.bzl", "java_test")
+load("@wfa_common_jvm//build:defs.bzl", "expand_template")
+load(
+    "//build:variables.bzl",
+    "GCLOUD_SETTINGS",
+    "SIMULATOR_K8S_SETTINGS",
+    "TEST_K8S_SETTINGS",
+)
+
+package(default_testonly = True)
+
+kt_jvm_library(
+    name = "abstract_panel_match_correctness_test",
+    srcs = ["AbstractPanelMatchCorrectnessTest.kt"],
+    data = [
+        "//src/main/k8s/testing/secretfiles:secret_files",
+        "//src/main/k8s/panelmatch/testing/data:exchange_workflow",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/storage/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/certificates/testing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
+        "@wfa_common_jvm//src/main/proto/google/type:date_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "//imports/java/io/kubernetes/client",
+        "//imports/java/io/kubernetes/client/extended",
+        "//src/main/kotlin/org/wfanet/measurement/common/k8s",
+        "//src/main/kotlin/org/wfanet/measurement/common/k8s/testing:port_forwarder",
+        "//src/main/kotlin/org/wfanet/measurement/common/k8s/testing:processes",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/panelmatchresourcesetup:panelmatchresourcesetup",
+        "//src/main/proto/private_membership/batch:shared_kt_jvm_proto",
+        "//src/main/proto/wfa/panelmatch/client/storage:storage_details_java_proto",
+        "//src/main/proto/wfa/panelmatch/client/storage:storage_details_kt_jvm_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/forwarded",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempt_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchanges_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchanges_service_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "double_blind_workflow_test",
+    srcs = ["DoubleBlindWorkflowTest.kt"],
+    deps = [
+        ":abstract_panel_match_correctness_test",
+        #"//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        #"//src/main/kotlin/org/wfanet/measurement/integration/common:synthetic_generation_specs",
+        #"//src/main/kotlin/org/wfanet/measurement/loadtest/config:vid_sampling",
+        #"//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:simulator",
+        #"//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:synthetic_generator_event_query",
+        #"//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup",
+        "@wfa_common_jvm//imports/java/org/jetbrains/annotations",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:jdk8",
+    ],
+)
+
+java_test(
+    name = "DoubleBlindWorkflowTest",
+    size = "enormous",
+    timeout = "long",
+    data = [
+        "//src/main/docker:push_all_local_images",
+        "//src/main/docker/panel_exchange_client:push_all_images",
+        "//src/main/k8s/local:kingdom_for_panelmatch_setup.tar",
+        "//src/main/k8s/panelmatch/local:edp_daemon.tar",
+        "//src/main/k8s/panelmatch/local:mp_daemon.tar",
+    ],
+    env_inherit = [
+        "DOCKER_HOST",
+        "KUBECONFIG",
+    ],
+    tags = [
+        "cpu:8",
+        "manual",
+    ],
+    test_class = "org.wfanet.panelmatch.integration.k8s.DoubleBlindWorkflowTest",
+    runtime_deps = [":double_blind_workflow_test"],
+)
