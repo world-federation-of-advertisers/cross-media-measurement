@@ -318,8 +318,7 @@ class MeasurementConsumerSimulator(
           // EdpSimulator sets it to this value.
           apiIdToExternalId(DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId)
         )
-      // EdpSimulator hasn't had an implementation for impression.
-      assertThat(!result.impression.hasDeterministicCount()).isTrue()
+      assertThat(result.impression.hasCustomDirectMethodology()).isTrue()
       assertThat(result.impression.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
     }
     logger.info("Impression result is equal to the expected result")
@@ -347,7 +346,7 @@ class MeasurementConsumerSimulator(
           log2(externalDataProviderId.toDouble()).toLong()
         )
       // EdpSimulator hasn't had an implementation for watch duration.
-      assertThat(!result.watchDuration.hasDeterministicSum()).isTrue()
+      assertThat(result.watchDuration.hasCustomDirectMethodology()).isTrue()
       assertThat(result.watchDuration.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
     }
     logger.info("Duration result is equal to the expected result")

@@ -2048,36 +2048,27 @@ class MeasurementsServiceTest {
         InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
       )
 
-    private val DEFAULT_INTERNAL_DIRECT_REACH_PROTOCOL_CONFIG: InternalProtocolConfig.Direct =
-      direct {
-        noiseMechanisms += DEFAULT_INTERNAL_DIRECT_NOISE_MECHANISMS
-        deterministicCountDistinct =
-          InternalProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
-        liquidLegionsCountDistinct =
-          InternalProtocolConfig.Direct.LiquidLegionsCountDistinct.getDefaultInstance()
-      }
-
     private val DEFAULT_INTERNAL_DIRECT_REACH_AND_FREQUENCY_PROTOCOL_CONFIG:
       InternalProtocolConfig.Direct =
       direct {
         noiseMechanisms += DEFAULT_INTERNAL_DIRECT_NOISE_MECHANISMS
+        customDirectMethodology =
+          InternalProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
         deterministicCountDistinct =
           InternalProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
         liquidLegionsCountDistinct =
           InternalProtocolConfig.Direct.LiquidLegionsCountDistinct.getDefaultInstance()
         deterministicDistribution =
-          InternalProtocolConfigKt.DirectKt.deterministicDistribution {
-            maximumFrequency = DEFAULT_MAXIMUM_FREQUENCY_DIRECT_DISTRIBUTION
-          }
+          InternalProtocolConfig.Direct.DeterministicDistribution.getDefaultInstance()
         liquidLegionsDistribution =
-          InternalProtocolConfigKt.DirectKt.liquidLegionsDistribution {
-            maximumFrequency = DEFAULT_MAXIMUM_FREQUENCY_DIRECT_DISTRIBUTION
-          }
+          InternalProtocolConfig.Direct.LiquidLegionsDistribution.getDefaultInstance()
       }
 
     private val DEFAULT_INTERNAL_DIRECT_IMPRESSION_PROTOCOL_CONFIG: InternalProtocolConfig.Direct =
       direct {
         noiseMechanisms += DEFAULT_INTERNAL_DIRECT_NOISE_MECHANISMS
+        customDirectMethodology =
+          InternalProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
         deterministicCount = InternalProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
       }
 
@@ -2085,12 +2076,16 @@ class MeasurementsServiceTest {
       InternalProtocolConfig.Direct =
       direct {
         noiseMechanisms += DEFAULT_INTERNAL_DIRECT_NOISE_MECHANISMS
+        customDirectMethodology =
+          InternalProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
         deterministicSum = InternalProtocolConfig.Direct.DeterministicSum.getDefaultInstance()
       }
 
     private val DEFAULT_INTERNAL_DIRECT_POPULATION_PROTOCOL_CONFIG: InternalProtocolConfig.Direct =
       direct {
         noiseMechanisms += DEFAULT_INTERNAL_DIRECT_NOISE_MECHANISMS
+        customDirectMethodology =
+          InternalProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
         deterministicCount = InternalProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
       }
   }
