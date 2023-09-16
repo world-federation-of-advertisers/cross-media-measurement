@@ -67,6 +67,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.customDirectMethodology
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
@@ -318,8 +319,8 @@ class MeasurementConsumerSimulator(
           // EdpSimulator sets it to this value.
           apiIdToExternalId(DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId)
         )
-      // EdpSimulator hasn't had an implementation for impression.
-      assertThat(!result.impression.hasDeterministicCount()).isTrue()
+      assertThat(result.impression.customDirectMethodology)
+        .isEqualTo(customDirectMethodology { variance = Double.NaN })
       assertThat(result.impression.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
     }
     logger.info("Impression result is equal to the expected result")
@@ -347,7 +348,8 @@ class MeasurementConsumerSimulator(
           log2(externalDataProviderId.toDouble()).toLong()
         )
       // EdpSimulator hasn't had an implementation for watch duration.
-      assertThat(!result.watchDuration.hasDeterministicSum()).isTrue()
+      assertThat(result.watchDuration.customDirectMethodology)
+        .isEqualTo(customDirectMethodology { variance = Double.NaN })
       assertThat(result.watchDuration.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
     }
     logger.info("Duration result is equal to the expected result")
