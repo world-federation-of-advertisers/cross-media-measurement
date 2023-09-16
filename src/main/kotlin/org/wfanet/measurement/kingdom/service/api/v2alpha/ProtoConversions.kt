@@ -120,14 +120,6 @@ import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtoco
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 
-/**
- * Default maximum frequency used in the direct distribution methodology.
- *
- * TODO(world-federation-of-advertisers/cross-media-measurement-api#160): this value won't be needed
- *   once the maximum frequency field is moved to measurement spec
- */
-const val DEFAULT_MAXIMUM_FREQUENCY_DIRECT_DISTRIBUTION = 20
-
 /** Default options of direct noise mechanisms to data providers. */
 val DEFAULT_DIRECT_NOISE_MECHANISMS: List<NoiseMechanism> =
   listOf(
@@ -145,6 +137,7 @@ val DEFAULT_DIRECT_NOISE_MECHANISMS: List<NoiseMechanism> =
  */
 val DEFAULT_DIRECT_REACH_PROTOCOL_CONFIG: ProtocolConfig.Direct = direct {
   noiseMechanisms += DEFAULT_DIRECT_NOISE_MECHANISMS
+  customDirectMethodology = ProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
   deterministicCountDistinct = ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
   liquidLegionsCountDistinct = ProtocolConfig.Direct.LiquidLegionsCountDistinct.getDefaultInstance()
 }
@@ -157,6 +150,7 @@ val DEFAULT_DIRECT_REACH_PROTOCOL_CONFIG: ProtocolConfig.Direct = direct {
  */
 val DEFAULT_DIRECT_REACH_AND_FREQUENCY_PROTOCOL_CONFIG: ProtocolConfig.Direct = direct {
   noiseMechanisms += DEFAULT_DIRECT_NOISE_MECHANISMS
+  customDirectMethodology = ProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
   deterministicCountDistinct = ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
   liquidLegionsCountDistinct = ProtocolConfig.Direct.LiquidLegionsCountDistinct.getDefaultInstance()
   deterministicDistribution = ProtocolConfig.Direct.DeterministicDistribution.getDefaultInstance()
@@ -170,6 +164,7 @@ val DEFAULT_DIRECT_REACH_AND_FREQUENCY_PROTOCOL_CONFIG: ProtocolConfig.Direct = 
  */
 val DEFAULT_DIRECT_IMPRESSION_PROTOCOL_CONFIG = direct {
   noiseMechanisms += DEFAULT_DIRECT_NOISE_MECHANISMS
+  customDirectMethodology = ProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
   deterministicCount = ProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
 }
 
@@ -181,6 +176,7 @@ val DEFAULT_DIRECT_IMPRESSION_PROTOCOL_CONFIG = direct {
  */
 val DEFAULT_DIRECT_WATCH_DURATION_PROTOCOL_CONFIG = direct {
   noiseMechanisms += DEFAULT_DIRECT_NOISE_MECHANISMS
+  customDirectMethodology = ProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
   deterministicSum = ProtocolConfig.Direct.DeterministicSum.getDefaultInstance()
 }
 
@@ -191,6 +187,7 @@ val DEFAULT_DIRECT_WATCH_DURATION_PROTOCOL_CONFIG = direct {
  */
 val DEFAULT_DIRECT_POPULATION_PROTOCOL_CONFIG = direct {
   noiseMechanisms += DEFAULT_DIRECT_NOISE_MECHANISMS
+  customDirectMethodology = ProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
   deterministicCount = ProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
 }
 
@@ -460,6 +457,9 @@ private fun InternalProtocolConfig.Direct.toDirect(): ProtocolConfig.Direct {
         internalNoiseMechanism.toNoiseMechanism()
       }
 
+    if (source.hasCustomDirectMethodology()) {
+      customDirectMethodology = ProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
+    }
     if (source.hasDeterministicCountDistinct()) {
       deterministicCountDistinct =
         ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
@@ -950,6 +950,8 @@ fun Measurement.toInternal(
               direct =
                 InternalProtocolConfigKt.direct {
                   noiseMechanisms += internalNoiseMechanisms
+                  customDirectMethodology =
+                    InternalProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
                   deterministicCountDistinct =
                     InternalProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
                   liquidLegionsCountDistinct =
@@ -972,18 +974,16 @@ fun Measurement.toInternal(
               direct =
                 InternalProtocolConfigKt.direct {
                   noiseMechanisms += internalNoiseMechanisms
+                  customDirectMethodology =
+                    InternalProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
                   deterministicCountDistinct =
                     InternalProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
                   liquidLegionsCountDistinct =
                     InternalProtocolConfig.Direct.LiquidLegionsCountDistinct.getDefaultInstance()
                   deterministicDistribution =
-                    InternalProtocolConfigKt.DirectKt.deterministicDistribution {
-                      maximumFrequency = DEFAULT_MAXIMUM_FREQUENCY_DIRECT_DISTRIBUTION
-                    }
+                    InternalProtocolConfig.Direct.DeterministicDistribution.getDefaultInstance()
                   liquidLegionsDistribution =
-                    InternalProtocolConfigKt.DirectKt.liquidLegionsDistribution {
-                      maximumFrequency = DEFAULT_MAXIMUM_FREQUENCY_DIRECT_DISTRIBUTION
-                    }
+                    InternalProtocolConfig.Direct.LiquidLegionsDistribution.getDefaultInstance()
                 }
             }
           }
@@ -993,6 +993,8 @@ fun Measurement.toInternal(
             direct =
               InternalProtocolConfigKt.direct {
                 noiseMechanisms += internalNoiseMechanisms
+                customDirectMethodology =
+                  InternalProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
                 deterministicCount =
                   InternalProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
               }
@@ -1003,6 +1005,8 @@ fun Measurement.toInternal(
             direct =
               InternalProtocolConfigKt.direct {
                 noiseMechanisms += internalNoiseMechanisms
+                customDirectMethodology =
+                  InternalProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
                 deterministicSum =
                   InternalProtocolConfig.Direct.DeterministicSum.getDefaultInstance()
               }
@@ -1013,6 +1017,8 @@ fun Measurement.toInternal(
             direct =
               InternalProtocolConfigKt.direct {
                 noiseMechanisms += internalNoiseMechanisms
+                customDirectMethodology =
+                  InternalProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
                 deterministicCount =
                   InternalProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
               }
