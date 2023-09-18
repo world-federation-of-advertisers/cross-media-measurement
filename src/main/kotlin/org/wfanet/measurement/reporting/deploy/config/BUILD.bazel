@@ -1,0 +1,13 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+kt_jvm_library(
+    name = "measurement_spec_config_validator",
+    srcs = ["MeasurementSpecConfigValidator.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/reporting/deploy/config:__subpackages__",
+    ],
+    deps = [
+        "//src/main/proto/wfa/measurement/config/reporting:measurement_spec_config_kt_jvm_proto",
+    ],
+)
