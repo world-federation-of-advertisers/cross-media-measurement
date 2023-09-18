@@ -16,7 +16,12 @@ package org.wfanet.measurement.duchy.service.internal.computationcontrol
 
 import io.grpc.Status
 import io.grpc.StatusException
+import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.coroutines.coroutineContext
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.time.delay
+import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.duchy.db.computation.advanceComputationStage
 import org.wfanet.measurement.duchy.service.internal.computations.outputPathList
@@ -28,51 +33,128 @@ import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.GetOutputBlobMetadataRequest
-import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
+import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
 import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
+import org.wfanet.measurement.internal.duchy.recordOutputBlobPathRequest
 
 /** Implementation of the internal Async Computation Control Service. */
-class AsyncComputationControlService(private val computationsClient: ComputationsCoroutineStub) :
-  AsyncComputationControlCoroutineService() {
+class AsyncComputationControlService(
+  private val computationsClient: ComputationsCoroutineStub,
+  /** Maximum number of attempts for [advanceComputation]. */
+  private val maxAdvanceAttempts: Int,
+  /** Retry backoff for [advanceComputation]. */
+  private val advanceRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
+) : AsyncComputationControlCoroutineService() {
+  init {
+    require(maxAdvanceAttempts >= 1) { "maxAdvanceAttempts must be at least 1" }
+  }
 
   override suspend fun advanceComputation(
     request: AdvanceComputationRequest
   ): AdvanceComputationResponse {
-    logger.info("[id=${request.globalComputationId}]: Received blob ${request.blobPath}.")
-    val stages =
-      ProtocolStages.forStageType(request.computationStage.stageCase)
-        ?: failGrpc { "Unexpected stage type ${request.computationStage.stageCase}" }
-    val tokenForRecordingPath =
-      getComputationToken(request.globalComputationId)
-        ?: throw Status.NOT_FOUND.withDescription(
-            "Computation with global ID ${request.globalComputationId} not found"
-          )
-          .asRuntimeException()
-    val computationStage = tokenForRecordingPath.computationStage
-    if (computationStage != request.computationStage) {
-      if (computationStage == stages.nextStage(request.computationStage)) {
-        // request is not an error but is no longer relevant.
-        return AdvanceComputationResponse.getDefaultInstance()
-      }
-      failGrpc(Status.FAILED_PRECONDITION) {
-        "Actual stage from computation ($computationStage) did not match the expected " +
-          "stage from request (${request.computationStage})."
+    val globalComputationId = request.globalComputationId
+
+    var attempt = 1
+    while (coroutineContext.isActive) {
+      try {
+        return advanceComputationInternal(request)
+      } catch (e: RetryableException) {
+        if (attempt < maxAdvanceAttempts) {
+          logger.log(Level.WARNING, e) {
+            "[id=$globalComputationId]: advanceComputation attempt #$attempt failed; retrying"
+          }
+          delay(advanceRetryBackoff.durationForAttempt(attempt))
+          attempt++
+          continue
+        }
+        throw e
       }
     }
 
-    // Record the key provided as the path to the output blob. If this
-    // causes an edit to the
-    // computations database the original token not valid, so a new token is used for advancing.
+    error("Should be unreachable")
+  }
+
+  private suspend fun advanceComputationInternal(
+    request: AdvanceComputationRequest
+  ): AdvanceComputationResponse {
+    val globalComputationId = request.globalComputationId
+    logger.info("[id=$globalComputationId]: Received blob ${request.blobPath}.")
+    val stages =
+      ProtocolStages.forStageType(request.computationStage.stageCase)
+        ?: failGrpc { "Unexpected stage type ${request.computationStage.stageCase}" }
+    var token =
+      getComputationToken(globalComputationId)
+        ?: throw Status.NOT_FOUND.withDescription(
+            "Computation with global ID $globalComputationId not found"
+          )
+          .asRuntimeException()
+    val computationStage = token.computationStage
+    if (computationStage != request.computationStage) {
+      if (computationStage == stages.nextStage(request.computationStage)) {
+        // This is technically an error, but it should be safe to treat as a no-op.
+        logger.warning { "[id=$globalComputationId]: Computation stage has already been advanced" }
+        return AdvanceComputationResponse.getDefaultInstance()
+      }
+      throw Status.ABORTED.withDescription(
+          "Request stage ${request.computationStage} does not match Computation stage " +
+            computationStage
+        )
+        .asRuntimeException()
+    }
+
+    // Record the key provided as the path to the output blob.
     val outputBlob =
-      tokenForRecordingPath.blobsList.firstOrNull {
+      token.blobsList.firstOrNull {
         it.blobId == request.blobId && it.dependencyType == ComputationBlobDependency.OUTPUT
       }
         ?: failGrpc(Status.FAILED_PRECONDITION) { "No output blob with ID ${request.blobId}" }
-    val tokenForAdvancingStage =
-      recordOutputBlobPath(tokenForRecordingPath, outputBlob, request.blobPath)
+    if (outputBlob.path.isNotEmpty()) {
+      if (outputBlob.path != request.blobPath) {
+        throw Status.FAILED_PRECONDITION.withDescription(
+            "Output blob ${outputBlob.blobId} already has a different path recorded"
+          )
+          .asRuntimeException()
+      }
+      logger.info {
+        "[id=$globalComputationId]: Path already recorded for output blob ${outputBlob.blobId}"
+      }
+    } else {
+      val response: RecordOutputBlobPathResponse =
+        try {
+          computationsClient.recordOutputBlobPath(
+            recordOutputBlobPathRequest {
+              this.token = token
+              outputBlobId = outputBlob.blobId
+              blobPath = request.blobPath
+            }
+          )
+        } catch (e: StatusException) {
+          throw when (e.status.code) {
+            Status.Code.ABORTED -> RetryableException(e)
+            else -> Status.UNKNOWN.withCause(e).asRuntimeException()
+          }
+        }
+
+      // Computation has changed, so use the new token.
+      token = response.token
+    }
 
     // Advance the computation to next stage if all blob paths are present.
-    advanceIfAllOutputsPresent(stages, tokenForAdvancingStage)
+    if (!token.outputPathList().any(String::isEmpty)) {
+      try {
+        computationsClient.advanceComputationStage(
+          computationToken = token,
+          inputsToNextStage = token.outputPathList(),
+          stage = stages.nextStage(token.computationStage)
+        )
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.ABORTED -> RetryableException(e)
+          else -> Status.UNKNOWN.withCause(e).asRuntimeException()
+        }
+      }
+    }
+
     return AdvanceComputationResponse.getDefaultInstance()
   }
 
@@ -101,7 +183,7 @@ class AsyncComputationControlService(private val computationsClient: Computation
   /**
    * Retrieves a [ComputationToken] from the Computations service.
    *
-   * @return the retrieved token, or [null] if not found
+   * @return the retrieved token, or `null` if not found
    */
   private suspend fun getComputationToken(globalComputationId: String): ComputationToken? {
     val response =
@@ -118,41 +200,11 @@ class AsyncComputationControlService(private val computationsClient: Computation
     return response?.token
   }
 
-  /**
-   * Records the blob key for the output blob of a stage for a [LiquidLegionsV2Stages]
-   *
-   * @return the [ComputationToken] after recording the output path. If the output was already
-   *   recorded in the token, then the token itself is returned.
-   */
-  private suspend fun recordOutputBlobPath(
-    token: ComputationToken,
-    blob: ComputationStageBlobMetadata,
-    blobPath: String
-  ): ComputationToken {
-
-    if (blob.path.isNotEmpty()) return token
-    return computationsClient
-      .recordOutputBlobPath(
-        RecordOutputBlobPathRequest.newBuilder()
-          .apply {
-            setToken(token)
-            outputBlobId = blob.blobId
-            this.blobPath = blobPath
-          }
-          .build()
-      )
-      .token
-  }
-
-  private suspend fun advanceIfAllOutputsPresent(stages: ProtocolStages, token: ComputationToken) {
-    if (token.outputPathList().any(String::isEmpty)) {
-      return
-    }
-    computationsClient.advanceComputationStage(
-      computationToken = token,
-      inputsToNextStage = token.outputPathList(),
-      stage = stages.nextStage(token.computationStage)
-    )
+  private class RetryableException(
+    message: String? = null,
+    cause: Throwable? = null,
+  ) : Exception(message, cause) {
+    constructor(cause: Throwable) : this(null, cause)
   }
 
   companion object {

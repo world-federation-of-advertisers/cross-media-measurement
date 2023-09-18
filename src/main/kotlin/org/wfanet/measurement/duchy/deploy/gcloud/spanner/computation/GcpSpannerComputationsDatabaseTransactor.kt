@@ -18,6 +18,7 @@ import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
+import com.google.cloud.spanner.Struct
 import com.google.protobuf.Message
 import java.time.Clock
 import java.time.Duration
@@ -32,6 +33,8 @@ import org.wfanet.measurement.duchy.db.computation.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
+import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
+import org.wfanet.measurement.duchy.service.internal.ComputationTokenVersionMismatchException
 import org.wfanet.measurement.gcloud.common.gcloudTimestamp
 import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
@@ -608,7 +611,7 @@ class GcpSpannerComputationsDatabaseTransactor<
             "No ComputationBlobReferences row for " +
               "(${token.localId}, ${token.stage}, ${blobRef.idInRelationalDatabase})"
           )
-      require(type == ComputationBlobDependency.OUTPUT) { "Cannot write to $type blob" }
+      check(type == ComputationBlobDependency.OUTPUT) { "Cannot write to $type blob" }
       txn.buffer(
         listOf(
           computationMutations.updateComputation(
@@ -693,32 +696,44 @@ class GcpSpannerComputationsDatabaseTransactor<
    * Runs [readWriteTransactionBlock] if the ComputationToken is from the most recent update to a
    * computation. This is done atomically with in read/write transaction.
    *
+   * The [token] edit version is used similarly to an `etag`. See https://google.aip.dev/154
+   *
    * @return [R] which is the result of the [readWriteTransactionBlock]
-   * @throws IllegalStateException if the token is not for the most recent update
+   * @throws ComputationNotFoundException if the Computation with
+   *   [token].[localId][ComputationEditToken.localId] is not found
+   * @throws ComputationTokenVersionMismatchException if
+   *   [token].[editVersion][ComputationEditToken.editVersion] does not match
    */
   private suspend fun <R> runIfTokenFromLastUpdate(
     token: ComputationEditToken<ProtocolT, StageT>,
     readWriteTransactionBlock: TransactionWork<R>
   ): R {
+    val localId = token.localId
     return databaseClient.readWriteTransaction().execute { txn ->
-      val current =
-        txn.readRow("Computations", Key.of(token.localId), listOf("UpdateTime"))
-          ?: error("No row for computation (${token.localId})")
+      val current: Struct =
+        txn.readRow("Computations", Key.of(localId), listOf("UpdateTime"))
+          ?: throw ComputationNotFoundException(localId)
+
       val updateTime = current.getTimestamp("UpdateTime").toInstant()
-      val updateTimeMillis = updateTime.toEpochMilli()
-      val tokenTimeMillis = token.editVersion
-      if (updateTimeMillis == tokenTimeMillis) {
+      val version: Long = updateTime.toEpochMilli()
+      val tokenVersion: Long = token.editVersion
+      if (version == tokenVersion) {
         readWriteTransactionBlock(txn)
       } else {
-        val tokenTime = Instant.ofEpochMilli(tokenTimeMillis)
-        error(
+        val tokenTime = Instant.ofEpochMilli(tokenVersion)
+        val message =
           """
           Failed to update because of editVersion mismatch.
-            Token's editVersion: $tokenTimeMillis ($tokenTime)
-            Computations table's UpdateTime: $updateTimeMillis ($updateTime)
+            Token version: $tokenVersion ($tokenTime)
+            Version: $version ($updateTime)
             Difference: ${Duration.between(tokenTime, updateTime)}
           """
             .trimIndent()
+        throw ComputationTokenVersionMismatchException(
+          computationId = localId,
+          version = version,
+          tokenVersion = tokenVersion,
+          message = message
         )
       }
     }

@@ -39,4 +39,8 @@ enum ErrorCode {
 
   /** Computation with the same global ID already exists. */
   COMPUTATION_ALREADY_EXISTS = 6;
+
+  /** The version from the request ComputationToken does not match the persisted
+   * value. */
+  COMPUTATION_TOKEN_VERSION_MISMATCH = 7;
 }

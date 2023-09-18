@@ -61,7 +61,7 @@ class RecordOutputBlobPath<ProtocolT, StageT>(
           "No ComputationBlobReferences row for " +
             "($localId, $stage, ${blobRef.idInRelationalDatabase})",
         )
-    require(type == ComputationBlobDependency.OUTPUT) { "Cannot write to $type blob" }
+    check(type == ComputationBlobDependency.OUTPUT) { "Cannot write to $type blob" }
 
     updateComputation(localId = localId, updateTime = clock.instant())
 

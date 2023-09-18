@@ -18,6 +18,7 @@ import com.google.cloud.Timestamp
 import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.ValueBinder
+import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.kotlin.toByteStringUtf8
 import java.time.Duration
 import java.time.Instant
@@ -48,6 +49,8 @@ import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtoc
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.Y
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.Z
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.Schemata
+import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
+import org.wfanet.measurement.duchy.service.internal.ComputationTokenVersionMismatchException
 import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.struct
@@ -505,7 +508,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
           editVersion = 0,
           globalId = "0"
         )
-      assertFailsWith<IllegalStateException> { database.enqueue(token, 0) }
+      assertFailsWith<ComputationNotFoundException> { database.enqueue(token, 0) }
     }
 
   @Test
@@ -536,7 +539,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
           details = FAKE_COMPUTATION_DETAILS
         )
       databaseClient.write(listOf(computation))
-      assertFailsWith<IllegalStateException> { database.enqueue(token, 0) }
+      assertFailsWith<ComputationTokenVersionMismatchException> { database.enqueue(token, 0) }
     }
 
   @Test
@@ -1065,7 +1068,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
   @Test
   fun writeOutputBlobReference() =
     runBlocking<Unit> {
-      val token =
+      var token =
         ComputationEditToken(
           localId = 4315,
           protocol = FakeProtocol.ZERO,
@@ -1112,6 +1115,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       databaseClient.write(listOf(computation, stage, outputRef, inputRef))
       testClock.tickSeconds("write-blob-ref")
       database.writeOutputBlobReference(token, BlobRef(1234L, "/wrote/something/there"))
+      token = token.withEditVersion(testClock["write-blob-ref"].toEpochMilli())
       assertQueryReturns(
         databaseClient,
         """
@@ -1145,17 +1149,23 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       )
 
       // Can't update a blob with blank path.
-      assertFailsWith<IllegalArgumentException> {
-        database.writeOutputBlobReference(token, BlobRef(1234L, ""))
-      }
+      val blankPathException =
+        assertFailsWith<IllegalArgumentException> {
+          database.writeOutputBlobReference(token, BlobRef(1234L, ""))
+        }
+      assertThat(blankPathException).hasMessageThat().ignoringCase().contains("path")
       // Can't update an input blob
-      assertFailsWith<IllegalStateException> {
-        database.writeOutputBlobReference(token, BlobRef(5678L, "/wrote/something/there"))
-      }
+      val inputBlobException =
+        assertFailsWith<IllegalStateException> {
+          database.writeOutputBlobReference(token, BlobRef(5678L, "/wrote/something/there"))
+        }
+      assertThat(inputBlobException).hasMessageThat().ignoringCase().contains("input")
       // Blob id doesn't exist
-      assertFailsWith<IllegalStateException> {
-        database.writeOutputBlobReference(token, BlobRef(223344L, "/wrote/something/there"))
-      }
+      val blobNotFoundException =
+        assertFailsWith<IllegalStateException> {
+          database.writeOutputBlobReference(token, BlobRef(404L, "/wrote/something/there"))
+        }
+      assertThat(blobNotFoundException).hasMessageThat().ignoringCase().contains("404")
     }
 
   @Test
@@ -1750,3 +1760,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
   private fun <T> ValueBinder<T>.toFakeStage(value: FakeProtocolStages): T =
     to(ComputationProtocolStages.computationStageEnumToLongValues(value).stage)
 }
+
+private fun <ProtocolT, StageT> ComputationEditToken<ProtocolT, StageT>.withEditVersion(
+  editVersion: Long
+) = ComputationEditToken(localId, protocol, stage, attempt, editVersion, globalId)

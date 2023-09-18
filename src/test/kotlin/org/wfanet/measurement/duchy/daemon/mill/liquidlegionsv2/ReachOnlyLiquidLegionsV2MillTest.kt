@@ -584,7 +584,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
 
     // This will result in TRANSIENT gRPC failure.
     whenever(mockComputationParticipants.setParticipantRequisitionParams(any()))
-      .thenThrow(Status.UNKNOWN.asRuntimeException())
+      .thenThrow(Status.ABORTED.asRuntimeException())
 
     // First attempt fails, which doesn't change the computation stage.
     nonAggregatorMill.pollAndProcessNextComputation()
@@ -859,10 +859,12 @@ class ReachOnlyLiquidLegionsV2MillTest {
             ComputationParticipantKt.failure {
               participantChildReferenceId = MILL_ID
               errorMessage =
-                "PERMANENT error: java.lang.Exception: @Mill a nice mill, Computation 1234 " +
-                  "failed due to:\n" +
-                  "Cannot verify participation of all DataProviders.\n" +
-                  "Missing expected data for requisition 222."
+                """
+                @Mill a nice mill, Computation 1234 failed due to:
+                Cannot verify participation of all DataProviders.
+                Missing expected data for requisition 222.
+                """
+                  .trimIndent()
               this.stageAttempt = stageAttempt {
                 stage = CONFIRMATION_PHASE.number
                 stageName = CONFIRMATION_PHASE.name
@@ -1067,10 +1069,12 @@ class ReachOnlyLiquidLegionsV2MillTest {
             ComputationParticipantKt.failure {
               participantChildReferenceId = MILL_ID
               errorMessage =
-                "PERMANENT error: java.lang.Exception: @Mill a nice mill, Computation 1234 " +
-                  "failed due to:\n" +
-                  "Cannot verify participation of all DataProviders.\n" +
-                  "Invalid ElGamal public key signature for Duchy $DUCHY_TWO_NAME"
+                """
+                @Mill a nice mill, Computation 1234 failed due to:
+                Cannot verify participation of all DataProviders.
+                Invalid ElGamal public key signature for Duchy $DUCHY_TWO_NAME
+                """
+                  .trimIndent()
               this.stageAttempt = stageAttempt {
                 stage = CONFIRMATION_PHASE.number
                 stageName = CONFIRMATION_PHASE.name
@@ -1585,8 +1589,8 @@ class ReachOnlyLiquidLegionsV2MillTest {
             ComputationParticipantKt.failure {
               participantChildReferenceId = MILL_ID
               errorMessage =
-                "PERMANENT error: java.lang.IllegalArgumentException: Invalid input blob size. Input" +
-                  " blob duchy_2_sketch_ has size 15 which is less than (66)."
+                "Invalid input blob size. Input blob duchy_2_sketch_ has size 15 which is less " +
+                  "than (66)."
               this.stageAttempt = stageAttempt {
                 stage = SETUP_PHASE.number
                 stageName = SETUP_PHASE.name
@@ -1779,7 +1783,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
             ComputationParticipantKt.failure {
               participantChildReferenceId = MILL_ID
               errorMessage =
-                "PERMANENT error: Invalid input blob size. Input blob data has size 4 which is less than (66)."
+                "Invalid input blob size. Input blob data has size 4 which is less than (66)."
               this.stageAttempt = stageAttempt {
                 stage = EXECUTION_PHASE.number
                 stageName = EXECUTION_PHASE.name
@@ -2007,7 +2011,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
             ComputationParticipantKt.failure {
               participantChildReferenceId = MILL_ID
               errorMessage =
-                "PERMANENT error: Invalid input blob size. Input blob data has size 4 which is less than (66)."
+                "Invalid input blob size. Input blob data has size 4 which is less than (66)."
               this.stageAttempt = stageAttempt {
                 stage = EXECUTION_PHASE.number
                 stageName = EXECUTION_PHASE.name

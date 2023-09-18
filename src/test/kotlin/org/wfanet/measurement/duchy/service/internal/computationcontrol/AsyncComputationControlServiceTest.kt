@@ -61,7 +61,10 @@ class AsyncComputationControlServiceTest {
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(mockComputationsService) }
 
   private val service: AsyncComputationControlService by lazy {
-    AsyncComputationControlService(ComputationsCoroutineStub(grpcTestServerRule.channel))
+    AsyncComputationControlService(
+      ComputationsCoroutineStub(grpcTestServerRule.channel),
+      maxAdvanceAttempts = Int.MAX_VALUE
+    )
   }
 
   private fun mockComputationsServiceCalls(
@@ -276,7 +279,7 @@ class AsyncComputationControlServiceTest {
     }
 
   @Test
-  fun `advance when blob already written`() =
+  fun `advanceComputation advances stage when blob is already recorded`() =
     runBlocking<Unit> {
       val tokenOfAlreadyRecordedOutput =
         ComputationToken.newBuilder()
@@ -319,7 +322,7 @@ class AsyncComputationControlServiceTest {
     }
 
   @Test
-  fun `advance when stage already advanced is a noop`() = runBlocking {
+  fun `advanceComputation is no-op when stage is already advanced`() = runBlocking {
     val tokenOfAlreadyRecordedOutput =
       ComputationToken.newBuilder()
         .apply {
@@ -337,6 +340,7 @@ class AsyncComputationControlServiceTest {
         .apply {
           globalComputationId = COMPUTATION_ID
           computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
+          blobId = 1L
           blobPath = BLOB_KEY
         }
         .build()
@@ -346,25 +350,31 @@ class AsyncComputationControlServiceTest {
   }
 
   @Test
-  fun `advance stage doesn't match throws exception`() = runBlocking {
-    val actualStage = Stage.EXECUTION_PHASE_ONE.toProtocolStage()
-    val oldToken = ComputationToken.newBuilder().setComputationStage(actualStage).build()
-
+  fun `advanceComputation throws ABORTED when stage does not match`() = runBlocking {
+    val actualStage = Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS.toProtocolStage()
+    val oldToken = computationToken {
+      computationStage = actualStage
+      blobs += newEmptyOutputBlobMetadata(1L)
+    }
     val (recordBlobRequests, advanceComputationRequests) =
       mockComputationsServiceCalls(oldToken, oldToken)
 
-    assertFailsWith<StatusRuntimeException>(
-      message = "INVALID_ARGUMENT: Actual stage from computation ($actualStage) did not match"
-    ) {
-      service.advanceComputation(
-        AdvanceComputationRequest.newBuilder()
-          .apply {
-            globalComputationId = COMPUTATION_ID
-            computationStage = Stage.EXECUTION_PHASE_ONE.toProtocolStage()
-          }
-          .build()
-      )
-    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.advanceComputation(
+          AdvanceComputationRequest.newBuilder()
+            .apply {
+              globalComputationId = COMPUTATION_ID
+              computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
+              blobId = 1L
+              blobPath = BLOB_KEY
+            }
+            .build()
+        )
+      }
+
+    assertThat(exception).hasMessageThat().ignoringCase().contains("stage")
+    assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
     assertThat(recordBlobRequests).isEmpty()
     assertThat(advanceComputationRequests).isEmpty()
   }

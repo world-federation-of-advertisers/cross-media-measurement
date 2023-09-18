@@ -28,6 +28,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.db.computation.toCompletedReason
+import org.wfanet.measurement.duchy.service.internal.ComputationTokenVersionMismatchException
 import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computations.newInputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computations.newPassThroughBlobMetadata
@@ -181,8 +182,13 @@ private constructor(
     val current = getNonNull(token.localId)
     // Just the last update time is checked because it mimics the way in which a relational database
     // will check the version of the update.
-    require(current.version == token.editVersion) {
-      "Token provided $token != current token $current"
+    if (current.version != token.editVersion) {
+      throw ComputationTokenVersionMismatchException(
+        computationId = token.localId,
+        version = current.version,
+        tokenVersion = token.editVersion,
+        message = "Token provided $token != current token $current"
+      )
     }
     return current
   }

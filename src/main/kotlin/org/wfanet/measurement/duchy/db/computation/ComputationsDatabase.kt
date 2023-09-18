@@ -104,6 +104,11 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
    * Adds a computation to the work queue, saying it can be worked on by a worker job.
    *
    * This will release any ownership and locks associated with the computation after delaySecond.
+   *
+   * @throws org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException if the
+   *   Computation is not found
+   * @throws org.wfanet.measurement.duchy.service.internal.ComputationTokenVersionMismatchException
+   *   if the [token] version does not match
    */
   suspend fun enqueue(token: ComputationEditToken<ProtocolT, StageT>, delaySecond: Int)
 
@@ -129,6 +134,10 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
    *   computation so they do not have a reference to the real storage location.
    * @param afterTransition The work to be do with the computation after a successful transition.
    * @param nextStageDetails Details specific to the next stage.
+   * @throws org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException if the
+   *   Computation is not found
+   * @throws org.wfanet.measurement.duchy.service.internal.ComputationTokenVersionMismatchException
+   *   if the [token] version does not match
    */
   suspend fun updateComputationStage(
     token: ComputationEditToken<ProtocolT, StageT>,
@@ -141,7 +150,14 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     lockExtension: Duration?
   )
 
-  /** Moves a computation to a terminal state and records the reason why it ended. */
+  /**
+   * Moves a computation to a terminal state and records the reason why it ended.
+   *
+   * @throws org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException if the
+   *   Computation is not found
+   * @throws org.wfanet.measurement.duchy.service.internal.ComputationTokenVersionMismatchException
+   *   if the [token] version does not match
+   */
   suspend fun endComputation(
     token: ComputationEditToken<ProtocolT, StageT>,
     endingStage: StageT,
@@ -149,14 +165,28 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     computationDetails: ComputationDetailsT
   )
 
-  /** Overrides the computationDetails of the computation using the given value. */
+  /**
+   * Overrides the computationDetails of the computation using the given value.
+   *
+   * @throws org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException if the
+   *   Computation is not found
+   * @throws org.wfanet.measurement.duchy.service.internal.ComputationTokenVersionMismatchException
+   *   if the [token] version does not match
+   */
   suspend fun updateComputationDetails(
     token: ComputationEditToken<ProtocolT, StageT>,
     computationDetails: ComputationDetailsT,
     requisitions: List<RequisitionEntry> = listOf()
   )
 
-  /** Writes the reference to a blob needed for an output blob from a stage. */
+  /**
+   * Writes the reference to a blob needed for an output blob from a stage.
+   *
+   * @throws org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException if the
+   *   Computation is not found
+   * @throws org.wfanet.measurement.duchy.service.internal.ComputationTokenVersionMismatchException
+   *   if the [token] version does not match
+   */
   suspend fun writeOutputBlobReference(
     token: ComputationEditToken<ProtocolT, StageT>,
     blobRef: BlobRef

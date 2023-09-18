@@ -641,7 +641,7 @@ class LiquidLegionsV2MillTest {
 
     // This will result in TRANSIENT gRPC failure.
     whenever(mockComputationParticipants.setParticipantRequisitionParams(any()))
-      .thenThrow(Status.UNKNOWN.asRuntimeException())
+      .thenThrow(Status.ABORTED.asRuntimeException())
 
     // First attempt fails, which doesn't change the computation stage.
     nonAggregatorMill.pollAndProcessNextComputation()
@@ -892,10 +892,12 @@ class LiquidLegionsV2MillTest {
             failureBuilder.apply {
               participantChildReferenceId = MILL_ID
               errorMessage =
-                "PERMANENT error: java.lang.Exception: @Mill a nice mill, Computation 1234 " +
-                  "failed due to:\n" +
-                  "Cannot verify participation of all DataProviders.\n" +
-                  "Missing expected data for requisition 222."
+                """
+                @Mill a nice mill, Computation 1234 failed due to:
+                Cannot verify participation of all DataProviders.
+                Missing expected data for requisition 222.
+                """
+                  .trimIndent()
               stageAttemptBuilder.apply {
                 stage = CONFIRMATION_PHASE.number
                 stageName = CONFIRMATION_PHASE.name
@@ -1083,10 +1085,12 @@ class LiquidLegionsV2MillTest {
             failureBuilder.apply {
               participantChildReferenceId = MILL_ID
               errorMessage =
-                "PERMANENT error: java.lang.Exception: @Mill a nice mill, Computation 1234 " +
-                  "failed due to:\n" +
-                  "Cannot verify participation of all DataProviders.\n" +
-                  "Invalid ElGamal public key signature for Duchy $DUCHY_TWO_NAME"
+                """
+                @Mill a nice mill, Computation 1234 failed due to:
+                Cannot verify participation of all DataProviders.
+                Invalid ElGamal public key signature for Duchy $DUCHY_TWO_NAME
+                """
+                  .trimIndent()
               stageAttemptBuilder.apply {
                 stage = CONFIRMATION_PHASE.number
                 stageName = CONFIRMATION_PHASE.name

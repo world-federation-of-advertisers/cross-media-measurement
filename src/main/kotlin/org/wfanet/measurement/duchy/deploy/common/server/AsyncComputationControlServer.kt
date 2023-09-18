@@ -47,6 +47,18 @@ class AsyncComputationControlServiceFlags {
   @CommandLine.Mixin
   lateinit var computationsServiceFlags: ComputationsServiceFlags
     private set
+
+  @CommandLine.Option(
+    names = ["--max-advance-attempts"],
+    description =
+      [
+        "Maximum number of attempts for the Advance operation.",
+        "The default is effectively unlimited.",
+      ],
+    required = false,
+  )
+  var maxAdvanceAttempts = Int.MAX_VALUE
+    private set
 }
 
 @CommandLine.Command(
@@ -76,7 +88,7 @@ private fun run(@CommandLine.Mixin flags: AsyncComputationControlServiceFlags) {
   CommonServer.fromFlags(
       flags.server,
       SERVER_NAME,
-      AsyncComputationControlService(ComputationsCoroutineStub(channel))
+      AsyncComputationControlService(ComputationsCoroutineStub(channel), flags.maxAdvanceAttempts)
     )
     .start()
     .blockUntilShutdown()

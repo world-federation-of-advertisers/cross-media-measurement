@@ -17,6 +17,7 @@ kt_jvm_library(
     ],
     deps = [
         ":protocol_stages",
+        "//src/main/kotlin/org/wfanet/measurement/common:exponential_backoff",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/proto/wfa/measurement/internal/duchy:async_computation_control_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",

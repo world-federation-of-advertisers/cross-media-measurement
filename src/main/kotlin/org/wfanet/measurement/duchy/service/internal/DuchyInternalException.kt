@@ -22,8 +22,14 @@ import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.StatusProto
 import org.wfanet.measurement.internal.duchy.ErrorCode
 
-sealed class DuchyInternalException(val code: ErrorCode, override val message: String) :
-  Exception() {
+sealed class DuchyInternalException(
+  val code: ErrorCode,
+  message: String,
+  cause: Throwable? = null,
+) : Exception(message, cause) {
+  override val message: String
+    get() = super.message!!
+
   protected abstract val context: Map<String, String>
 
   fun asStatusRuntimeException(
@@ -100,4 +106,19 @@ class ComputationAlreadyExistsException(
 ) : DuchyInternalException(ErrorCode.COMPUTATION_ALREADY_EXISTS, message) {
   override val context
     get() = mapOf("global_computation_id" to globalComputationId)
+}
+
+class ComputationTokenVersionMismatchException(
+  val computationId: Long,
+  val version: Long,
+  val tokenVersion: Long,
+  message: String = "ComputationToken version mismatch",
+) : DuchyInternalException(ErrorCode.COMPUTATION_TOKEN_VERSION_MISMATCH, message) {
+  override val context
+    get() =
+      mapOf(
+        "computation_id" to computationId.toString(),
+        "version" to version.toString(),
+        "token_version" to tokenVersion.toString()
+      )
 }

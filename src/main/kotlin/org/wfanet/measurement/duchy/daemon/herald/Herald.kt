@@ -17,19 +17,17 @@ package org.wfanet.measurement.duchy.daemon.herald
 import io.grpc.Status
 import io.grpc.StatusException
 import java.time.Clock
-import java.time.Duration
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.coroutines.coroutineContext
-import kotlin.math.pow
-import kotlin.random.Random
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.time.delay
+import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.duchy.daemon.utils.key
@@ -115,7 +113,7 @@ class Herald(
               throw e
             }
             logger.warning { "Sync attempt $attemptNumber failed with $statusCode. Retrying..." }
-            retryBackoff.delay(attemptNumber)
+            delay(retryBackoff.durationForAttempt(attemptNumber))
             attemptNumber++
             continue
           }
@@ -281,7 +279,7 @@ class Herald(
         val result = runCatching { block(systemComputation) }
         if (result.isFailure) {
           logger.info("[id=$globalId] Waiting to retry attempt #${ attemptNumber + 1 }...")
-          retryBackoff.delay(attemptNumber)
+          delay(retryBackoff.durationForAttempt(attemptNumber))
         }
         result
       }
@@ -429,51 +427,5 @@ fun mayBeTransientGrpcError(error: Exception): Boolean {
     Status.Code.UNKNOWN,
     Status.Code.UNAVAILABLE -> true
     else -> false
-  }
-}
-
-data class ExponentialBackoff(
-  val initialDelay: Duration = Duration.ofSeconds(1),
-  val multiplier: Double = 2.0,
-  val randomnessFactor: Double = 0.3,
-  val random: Random = Random.Default,
-) {
-  suspend fun delay(attemptNumber: Int) {
-    delay(
-      random
-        .randomizedDuration(
-          exponentialDuration(
-            initialDelay = initialDelay,
-            multiplier = multiplier,
-            attempts = attemptNumber,
-          ),
-          randomnessFactor = randomnessFactor,
-        )
-        .toMillis()
-    )
-  }
-
-  companion object {
-    private fun exponentialDuration(
-      initialDelay: Duration,
-      multiplier: Double,
-      attempts: Int
-    ): Duration {
-      if (attempts == 1) {
-        return initialDelay
-      }
-      return Duration.ofMillis((initialDelay.toMillis() * (multiplier.pow(attempts - 1))).toLong())
-    }
-
-    private fun Random.randomizedDuration(
-      delay: Duration,
-      randomnessFactor: Double,
-    ): Duration {
-      if (randomnessFactor == 0.0) {
-        return delay
-      }
-      val maxOffset = randomnessFactor * delay.toMillis()
-      return delay.plusMillis(nextDouble(-maxOffset, maxOffset).toLong())
-    }
   }
 }

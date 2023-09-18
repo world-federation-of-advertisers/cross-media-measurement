@@ -580,28 +580,28 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     }
 
   @Test
-  fun `advanceComputationStage throws IllegalStateException when token is not the latest`() =
-    runBlocking {
-      val createComputationResp = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
-      clock.tickSeconds("1_second_later", 1)
-      service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
+  fun `advanceComputationStage throws ABORTED when token is not the latest`() = runBlocking {
+    val createComputationResp = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+    clock.tickSeconds("1_second_later", 1)
+    service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
 
-      val nextStage = computationStage {
-        liquidLegionsSketchAggregationV2 = Stage.WAIT_REQUISITIONS_AND_KEY_SET
-      }
-      val exception =
-        assertFailsWith<IllegalStateException> {
-          service.advanceComputationStage(
-            advanceComputationStageRequest {
-              token = createComputationResp.token
-              nextComputationStage = nextStage
-              afterTransition = AfterTransition.RETAIN_AND_EXTEND_LOCK
-            }
-          )
-        }
-
-      assertThat(exception.message).contains("editVersion mismatch")
+    val nextStage = computationStage {
+      liquidLegionsSketchAggregationV2 = Stage.WAIT_REQUISITIONS_AND_KEY_SET
     }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.advanceComputationStage(
+          advanceComputationStageRequest {
+            token = createComputationResp.token
+            nextComputationStage = nextStage
+            afterTransition = AfterTransition.RETAIN_AND_EXTEND_LOCK
+          }
+        )
+      }
+
+    assertThat(exception.message).ignoringCase().contains("version")
+    assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+  }
 
   @Test
   fun `advanceComputationStage enqueues the computation when afterTransition is ADD_UNCLAIMED_TO_QUEUE`() =
@@ -929,7 +929,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     }
 
   @Test
-  fun `recordOutputBlobPath throws IllegalArgumentException when blob is not OUTPUT type`(): Unit =
+  fun `recordOutputBlobPath throws IllegalStateException when blob is not OUTPUT type`(): Unit =
     runBlocking {
       service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
       val claimWorkResponse = service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
@@ -951,11 +951,11 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
         this.blobPath = "blob_path"
       }
       val exception =
-        assertFailsWith<IllegalArgumentException> {
+        assertFailsWith<IllegalStateException> {
           service.recordOutputBlobPath(recordOutputBlobPathRequest)
         }
 
-      assertThat(exception.message).contains("Cannot write to")
+      assertThat(exception.message).ignoringCase().contains("input")
     }
 
   @Test

@@ -15,6 +15,8 @@
 package org.wfanet.measurement.duchy.db.computation
 
 import com.google.protobuf.ByteString
+import io.grpc.Status
+import io.grpc.StatusException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
@@ -29,6 +31,7 @@ import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
+import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.Store.Blob
 
@@ -61,13 +64,23 @@ private constructor(
     inputsToNextStage: List<String> = listOf(),
     passThroughBlobs: List<String> = listOf(),
     stage: ComputationStage
-  ): ComputationToken =
-    computationsClient.advanceComputationStage(
-      computationToken = computationToken,
-      inputsToNextStage = inputsToNextStage,
-      passThroughBlobs = passThroughBlobs,
-      stage = stage
-    )
+  ): ComputationToken {
+    return try {
+      computationsClient.advanceComputationStage(
+        computationToken = computationToken,
+        inputsToNextStage = inputsToNextStage,
+        passThroughBlobs = passThroughBlobs,
+        stage = stage
+      )
+    } catch (e: StatusException) {
+      val message = "Error advancing computation stage"
+      throw when (e.status.code) {
+        Status.Code.UNAVAILABLE,
+        Status.Code.ABORTED -> TransientErrorException(message, e)
+        else -> PermanentErrorException(message, e)
+      }
+    }
+  }
 
   /**
    * Writes the content as a single output blob to the current stage if no output blob has yet been
@@ -115,16 +128,25 @@ private constructor(
 
     val blob =
       computationStore.write(ComputationBlobContext.fromToken(computationToken, metadata), content)
-    val response =
-      computationsClient.recordOutputBlobPath(
-        RecordOutputBlobPathRequest.newBuilder()
-          .apply {
-            token = computationToken
-            outputBlobId = metadata.blobId
-            blobPath = blob.blobKey
-          }
-          .build()
-      )
+    val response: RecordOutputBlobPathResponse =
+      try {
+        computationsClient.recordOutputBlobPath(
+          RecordOutputBlobPathRequest.newBuilder()
+            .apply {
+              token = computationToken
+              outputBlobId = metadata.blobId
+              blobPath = blob.blobKey
+            }
+            .build()
+        )
+      } catch (e: StatusException) {
+        val message = "Error recording blob output path"
+        throw when (e.status.code) {
+          Status.Code.UNAVAILABLE,
+          Status.Code.ABORTED -> TransientErrorException(message, e)
+          else -> PermanentErrorException(message, e)
+        }
+      }
     return response.token
   }
 
@@ -177,6 +199,20 @@ private constructor(
       return ComputationDataClients(computationStorageClient, computationStore, requisitionStore)
     }
   }
+
+  /**
+   * [Exception] which indicates a transient computation error, i.e. one that can be retried on in a
+   * future attempt to process the computation.
+   */
+  class TransientErrorException(message: String? = null, cause: Throwable? = null) :
+    Exception(message, cause)
+
+  /**
+   * [Exception] which indicates a permanent computation error, i.e. one that should result in
+   * immediate failure of the Computation.
+   */
+  class PermanentErrorException(message: String? = null, cause: Throwable? = null) :
+    Exception(message, cause)
 }
 
 /**
