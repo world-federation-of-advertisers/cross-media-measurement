@@ -25,6 +25,7 @@ import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.duchy.service.internal.ComputationAlreadyExistsException
 import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
+import org.wfanet.measurement.duchy.service.internal.ComputationTokenVersionMismatchException
 
 /** Insert a new row into the Postgres Computations table. */
 suspend fun PostgresWriter.TransactionScope.insertComputation(
@@ -203,7 +204,10 @@ private suspend fun setLock(
 /**
  * Checks if the version of local computation matches with the version in database.
  *
- * @throws [IllegalStateException] if versions mismatched.
+ * The token edit version is used similarly to an `etag`. See https://google.aip.dev/154
+ *
+ * @throws ComputationNotFoundException if the Computation with [localId] is not found
+ * @throws ComputationTokenVersionMismatchException if [editVersion] does not match
  */
 suspend fun PostgresWriter.TransactionScope.checkComputationUnmodified(
   localId: Long,
@@ -229,14 +233,19 @@ suspend fun PostgresWriter.TransactionScope.checkComputationUnmodified(
   val updateTimeMillis = updateTime.toEpochMilli()
   if (editVersion != updateTimeMillis) {
     val editVersionTime = Instant.ofEpochMilli(editVersion)
-    error(
+    val message =
       """
-          Failed to update because of editVersion mismatch.
-            Local computation's version: $editVersion ($editVersionTime)
-            Computations table's version: $updateTimeMillis ($updateTime)
-            Difference: ${Duration.between(editVersionTime, updateTime)}
-          """
+      Failed to update because of editVersion mismatch.
+        Local computation's version: $editVersion ($editVersionTime)
+        Computations table's version: $updateTimeMillis ($updateTime)
+        Difference: ${Duration.between(editVersionTime, updateTime)}
+      """
         .trimIndent()
+    throw ComputationTokenVersionMismatchException(
+      computationId = localId,
+      version = updateTimeMillis,
+      tokenVersion = editVersion,
+      message = message
     )
   }
 }
