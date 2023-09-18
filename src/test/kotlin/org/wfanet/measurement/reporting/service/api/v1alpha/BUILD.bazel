@@ -87,6 +87,7 @@ kt_jvm_test(
         "//src/main/proto/wfa/measurement/api/v2alpha:certificate_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/reporting:measurement_spec_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v1alpha:reporting_set_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",

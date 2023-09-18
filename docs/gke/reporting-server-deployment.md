@@ -302,6 +302,8 @@ in
     [`AuthorityKeyToPrincipalMap`](../../src/main/proto/wfa/measurement/config/authority_key_to_principal_map.proto)
 *   `encryption_key_pair_config.textproto` -
     [`EncryptionKeyPairConfig`](../../src/main/proto/wfa/measurement/config/reporting/encryption_key_pair_config.proto)
+*   `measurement_spec_config.textproto` -
+    [`MeasurementSpecConfig`](../../src/main/proto/wfa/measurement/config/reporting/measurement_spec_config.proto)
 
 Place these files into the `src/main/k8s/dev/reporting_config_files/` path
 within the Kustomization directory.

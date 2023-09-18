@@ -253,6 +253,7 @@ kustomization_dir(
         "config_files_kustomization.yaml",
         "empty_akid_mapping_config.textproto",
         "empty_encryption_key_pair_config.textproto",
+        "measurement_spec_config.textproto",
         "metric_spec_config.textproto",
         "//src/main/k8s/testing/data:synthetic_generation_specs",
     ],
@@ -267,8 +268,9 @@ kustomization_dir(
     name = "config_files",
     srcs = [
         "config_files_kustomization.yaml",
+        "measurement_spec_config.textproto",
+        "metric_spec_config.textproto",
         ":encryption_key_pair_config.textproto",
-        ":metric_spec_config.textproto",
         "//src/main/k8s/testing/data:synthetic_generation_specs",
     ],
     renames = {
