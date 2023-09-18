@@ -126,7 +126,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
     workflow: ExchangeWorkflow,
     initialDataProviderInputs: Map<String, ByteString>
   ) {
-
+    val outputDir = withContext(Dispatchers.IO) { tempDir.newFolder("resource-setup") }
     val k8sClient = KubernetesClient(ClientBuilder.defaultClient())
 
     val kingdomInternalPod =
@@ -157,74 +157,6 @@ abstract class AbstractPanelMatchCorrectnessTest {
         .items
         .first()
 
-/*
-    PortForwarder(kingdomPublicPod, SERVER_PORT)
-      .use { publicForward ->
-        val publicAddress: InetSocketAddress =
-          withContext(Dispatchers.IO) { publicForward.start() }
-        val publicChannel =
-          buildMutualTlsChannel(
-            publicAddress.toTarget(),
-            KINGDOM_SIGNING_CERTS
-          )
-        val client = org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub(
-          publicChannel
-        )
-
-        val client2 = MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(publicChannel)
-
-        try {
-          client2.createMeasurementConsumer(createMeasurementConsumerRequest {  })
-        } catch (e: StatusException) {
-          logger.info { "========================================== Error creating MC: ${e}" }
-        }
-
-        val eventGroupsClient = CertificatesGrpcKt.CertificatesCoroutineStub(publicChannel)
-        try{
-          eventGroupsClient.getCertificate(getCertificateRequest {
-
-          })
-        }catch (e: Exception){
-          logger.info { "========================================== there was an error1: ${e}" }
-        }
-
-        try{
-          try {
-            client.authenticate(authenticateRequest { issuer = "https://self-issued.me" })
-          } catch (e: StatusException) {
-            throw Exception("Error authenticating account ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", e)
-          }
-        }catch (e: Exception){
-          logger.info { "========================================== there was an error2: ${e}" }
-        }
-      }*/
-
-    /*
-        val publicApiForwarder = PortForwarder(kingdomPublicPod,
-          SERVER_PORT
-        )
-        portForwarders.add(publicApiForwarder)
-        val publicApiAddress: InetSocketAddress =
-          withContext(Dispatchers.IO) { publicApiForwarder.start() }
-        val publicApiChannel =
-          buildMutualTlsChannel(publicApiAddress.toTarget(),
-            KINGDOM_SIGNING_CERTS
-          )
-            .also { channels.add(it) }
-        val eventGroupsClient = CertificatesGrpcKt.CertificatesCoroutineStub(publicApiChannel)
-        try{
-          eventGroupsClient.getCertificate(getCertificateRequest {
-          })
-        }catch (e: Exception){
-          logger.info { "========================================== there was an error: ${e}" }
-        }
-        val exchangeClient = ExchangesGrpcKt.ExchangesCoroutineStub(publicApiChannel)
-        try{
-          val result = exchangeClient.getExchange(getExchangeRequest { name = "name" })
-        }catch (e: Exception){
-          logger.info { "========================================== there was an error WITH EXCHANGE: ${e}" }
-        }*/
-
 
     PortForwarder(kingdomInternalPod,
       SERVER_PORT
@@ -248,7 +180,8 @@ abstract class AbstractPanelMatchCorrectnessTest {
             PanelMatchResourceSetup(
               DataProvidersGrpcKt.DataProvidersCoroutineStub(internalChannel),
               ModelProvidersGrpcKt.ModelProvidersCoroutineStub(internalChannel),
-              RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub(internalChannel)
+              RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub(internalChannel),
+              outputDir
             )
           val panelMatchResourceKey = withContext(Dispatchers.IO) {
             panelMatchResourceSetup

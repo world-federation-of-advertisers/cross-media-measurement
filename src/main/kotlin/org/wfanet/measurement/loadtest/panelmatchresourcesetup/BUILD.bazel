@@ -24,6 +24,7 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/proto/google/type:date_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
+        "//src/main/proto/wfa/measurement/loadtest/panelmatch/resourcesetup:resources_kt_jvm_proto",
     ],
 )
 
