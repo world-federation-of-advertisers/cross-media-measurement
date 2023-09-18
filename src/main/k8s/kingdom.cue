@@ -24,12 +24,13 @@ import ("strings")
 
 	_kingdom_secret_name: string
 
-	_completedMeasurementsTimeToLive: string | *"180d"
-	_completedMeasurementsDryRun:     bool | *false
-	_pendingMeasurementsTimeToLive:   string | *"15d"
-	_pendingMeasurementsDryRun:       bool | *false
-	_exchangesDaysToLive:             int | *"100"
-	_exchangesDryRun:                 bool | *false
+	_completedMeasurementsTimeToLive:        string | *"180d"
+	_completedMeasurementsMaxToDeletePerRpc: int | *25
+	_completedMeasurementsDryRun:            bool | *false
+	_pendingMeasurementsTimeToLive:          string | *"15d"
+	_pendingMeasurementsDryRun:              bool | *false
+	_exchangesDaysToLive:                    int | *"100"
+	_exchangesDryRun:                        bool | *false
 
 	_imageSuffixes: [string]: string
 	_imageSuffixes: {
@@ -58,6 +59,7 @@ import ("strings")
 	_duchy_id_config_flag:                   "--duchy-id-config=/var/run/secrets/files/duchy_id_config.textproto"
 	_llv2_protocol_config_config:            "--llv2-protocol-config-config=/var/run/secrets/files/llv2_protocol_config_config.textproto"
 	_ro_llv2_protocol_config_config:         "--ro-llv2-protocol-config-config=/var/run/secrets/files/ro_llv2_protocol_config_config.textproto"
+	_ro_llv2_enable_flag:                    "--enable-ro-llv2-protocol"
 	_kingdom_tls_cert_file_flag:             "--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem"
 	_kingdom_tls_key_file_flag:              "--tls-key-file=/var/run/secrets/files/kingdom_tls.key"
 	_kingdom_cert_collection_file_flag:      "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
@@ -71,7 +73,14 @@ import ("strings")
 
 	_open_id_redirect_uri_flag: "--open-id-redirect-uri=https://localhost:2048"
 
+	_directNoiseMechanismFlags: [
+		"--direct-noise-mechanism=NONE",
+		"--direct-noise-mechanism=CONTINUOUS_LAPLACE",
+		"--direct-noise-mechanism=CONTINUOUS_GAUSSIAN",
+	]
+
 	_kingdomCompletedMeasurementsTimeToLiveFlag:            "--time-to-live=\(_completedMeasurementsTimeToLive)"
+	_kingdomCompletedMeasurementsMaxToDeletePerRpcFlag:     "--max-to-delete-per-rpc=\(_completedMeasurementsMaxToDeletePerRpc)"
 	_kingdomCompletedMeasurementsDryRunRetentionPolicyFlag: "--dry-run=\(_completedMeasurementsDryRun)"
 	_kingdomPendingMeasurementsTimeToLiveFlag:              "--time-to-live=\(_pendingMeasurementsTimeToLive)"
 	_kingdomPendingMeasurementsDryRunRetentionPolicyFlag:   "--dry-run=\(_pendingMeasurementsDryRun)"
@@ -168,7 +177,7 @@ import ("strings")
 					_akid_to_principal_map_file_flag,
 					_open_id_redirect_uri_flag,
 					_duchy_info_config_flag,
-				] + Container._commonServerFlags
+				] + _directNoiseMechanismFlags + Container._commonServerFlags
 			}
 			spec: template: spec: {
 				_mounts: "config-files": #ConfigMapMount
@@ -195,6 +204,7 @@ import ("strings")
 				_kingdom_tls_key_file_flag,
 				_kingdom_cert_collection_file_flag,
 				_kingdomCompletedMeasurementsTimeToLiveFlag,
+				_kingdomCompletedMeasurementsMaxToDeletePerRpcFlag,
 				_kingdomCompletedMeasurementsDryRunRetentionPolicyFlag,
 				_debug_verbose_grpc_client_logging_flag,
 				_otlpEndpoint,

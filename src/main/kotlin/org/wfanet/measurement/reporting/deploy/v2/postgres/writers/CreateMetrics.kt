@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.postgres.writers
 
+import io.r2dbc.postgresql.codec.Interval as PostgresInterval
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
@@ -24,6 +25,7 @@ import org.wfanet.measurement.common.db.r2dbc.BoundStatement
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.toDuration
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
@@ -171,9 +173,10 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
           VidSamplingIntervalWidth,
           CreateTime,
           MetricDetails,
-          MetricDetailsJson
+          MetricDetailsJson,
+          MaximumFrequency
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
       """
       ) {
         requests.forEach {
@@ -207,8 +210,9 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                   bind("$10", frequencyHistogram.reachPrivacyParams.delta)
                   bind("$11", frequencyHistogram.frequencyPrivacyParams.epsilon)
                   bind("$12", frequencyHistogram.reachPrivacyParams.delta)
-                  bind("$13", frequencyHistogram.maximumFrequencyPerUser)
-                  bind<Long?>("$14", null)
+                  bind<Long?>("$13", null)
+                  bind<PostgresInterval?>("$14", null)
+                  bind("$20", frequencyHistogram.maximumFrequency)
                 }
                 MetricSpec.TypeCase.REACH -> {
                   val reach = it.metric.metricSpec.reach
@@ -217,7 +221,8 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                   bind<Double?>("$11", null)
                   bind<Double?>("$12", null)
                   bind<Long?>("$13", null)
-                  bind<Long?>("$14", null)
+                  bind<PostgresInterval?>("$14", null)
+                  bind<Long?>("$20", null)
                 }
                 MetricSpec.TypeCase.IMPRESSION_COUNT -> {
                   val impressionCount = it.metric.metricSpec.impressionCount
@@ -226,7 +231,8 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                   bind<Double?>("$11", null)
                   bind<Double?>("$12", null)
                   bind("$13", impressionCount.maximumFrequencyPerUser)
-                  bind<Long?>("$14", null)
+                  bind<PostgresInterval?>("$14", null)
+                  bind<Long?>("$20", null)
                 }
                 MetricSpec.TypeCase.WATCH_DURATION -> {
                   val watchDuration = it.metric.metricSpec.watchDuration
@@ -235,7 +241,11 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                   bind<Double?>("$11", null)
                   bind<Double?>("$12", null)
                   bind<Long?>("$13", null)
-                  bind("$14", watchDuration.maximumWatchDurationPerUser)
+                  bind(
+                    "$14",
+                    PostgresInterval.of(watchDuration.maximumWatchDurationPerUser.toDuration())
+                  )
+                  bind<Long?>("$20", null)
                 }
                 MetricSpec.TypeCase.TYPE_NOT_SET -> {}
               }
@@ -337,9 +347,10 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
           MeasurementConsumerId,
           MetricId,
           MeasurementId,
-          Coefficient
+          Coefficient,
+          BinaryRepresentation
         )
-        VALUES ($1, $2, $3, $4)
+        VALUES ($1, $2, $3, $4, $5)
       """
       ) {
         metricMeasurementsBinders.forEach { addBinding(it) }
@@ -449,6 +460,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         bind("$2", metricId)
         bind("$3", measurementId)
         bind("$4", it.weight)
+        bind("$5", it.binaryRepresentation)
       }
 
       val primitiveReportingSetBasesBindings =

@@ -41,6 +41,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.listMeasurementsPageToken
 import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
@@ -72,6 +73,7 @@ private const val MISSING_RESOURCE_NAME_ERROR = "Resource name is either unspeci
 
 class MeasurementsService(
   private val internalMeasurementsStub: MeasurementsCoroutineStub,
+  private val noiseMechanisms: List<NoiseMechanism>
 ) : MeasurementsCoroutineImplBase() {
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
@@ -132,14 +134,11 @@ class MeasurementsService(
       "measurement_consumer_certificate does not belong to ${request.parent}"
     }
 
-    val measurementSpec = request.measurement.measurementSpec
-    grpcRequire(!measurementSpec.data.isEmpty && !measurementSpec.signature.isEmpty) {
-      "Measurement spec is unspecified"
-    }
+    grpcRequire(request.measurement.hasMeasurementSpec()) { "measurement_spec is unspecified" }
 
     val parsedMeasurementSpec =
       try {
-        MeasurementSpec.parseFrom(measurementSpec.data)
+        MeasurementSpec.parseFrom(request.measurement.measurementSpec.data)
       } catch (e: InvalidProtocolBufferException) {
         failGrpc(Status.INVALID_ARGUMENT) { "Failed to parse measurement spec" }
       }
@@ -167,7 +166,8 @@ class MeasurementsService(
         request.measurement.toInternal(
           measurementConsumerCertificateKey,
           dataProvidersMap,
-          parsedMeasurementSpec
+          parsedMeasurementSpec,
+          noiseMechanisms.map { it.toInternal() }
         )
       requestId = request.requestId
     }
@@ -267,7 +267,7 @@ class MeasurementsService(
   }
 }
 
-private fun DifferentialPrivacyParams.hasEpsilonAndDeltaSet(): Boolean {
+private fun DifferentialPrivacyParams.hasValidEpsilonAndDelta(): Boolean {
   return this.epsilon > 0 && this.delta >= 0
 }
 
@@ -282,26 +282,29 @@ private fun MeasurementSpec.validate() {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   when (measurementTypeCase) {
     MeasurementSpec.MeasurementTypeCase.REACH -> {
-      grpcRequire(reach.privacyParams.hasEpsilonAndDeltaSet()) {
-        "Reach privacy params are unspecified"
+      grpcRequire(reach.privacyParams.hasValidEpsilonAndDelta()) {
+        "Reach privacy params are invalid"
       }
 
       grpcRequire(vidSamplingInterval.width > 0) { "Vid sampling interval is unspecified" }
     }
     MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-      grpcRequire(reachAndFrequency.reachPrivacyParams.hasEpsilonAndDeltaSet()) {
-        "Reach privacy params are unspecified"
+      grpcRequire(reachAndFrequency.reachPrivacyParams.hasValidEpsilonAndDelta()) {
+        "Reach privacy params are invalid"
       }
 
-      grpcRequire(reachAndFrequency.frequencyPrivacyParams.hasEpsilonAndDeltaSet()) {
-        "Frequency privacy params are unspecified"
+      grpcRequire(reachAndFrequency.frequencyPrivacyParams.hasValidEpsilonAndDelta()) {
+        "Frequency privacy params are invalid"
+      }
+      grpcRequire(reachAndFrequency.maximumFrequency > 0) {
+        "maximum_frequency must be greater than 0"
       }
 
       grpcRequire(vidSamplingInterval.width > 0) { "Vid sampling interval is unspecified" }
     }
     MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
-      grpcRequire(impression.privacyParams.hasEpsilonAndDeltaSet()) {
-        "Impressions privacy params are unspecified"
+      grpcRequire(impression.privacyParams.hasValidEpsilonAndDelta()) {
+        "Impressions privacy params are invalid"
       }
 
       grpcRequire(impression.maximumFrequencyPerUser > 0) {
@@ -309,11 +312,11 @@ private fun MeasurementSpec.validate() {
       }
     }
     MeasurementSpec.MeasurementTypeCase.DURATION -> {
-      grpcRequire(duration.privacyParams.hasEpsilonAndDeltaSet()) {
-        "Duration privacy params are unspecified"
+      grpcRequire(duration.privacyParams.hasValidEpsilonAndDelta()) {
+        "Duration privacy params are invalid"
       }
 
-      grpcRequire(duration.maximumWatchDurationPerUser > 0) {
+      grpcRequire(duration.hasMaximumWatchDurationPerUser()) {
         "Maximum watch duration per user is unspecified"
       }
     }

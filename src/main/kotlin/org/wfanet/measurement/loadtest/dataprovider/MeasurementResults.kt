@@ -20,11 +20,11 @@ package org.wfanet.measurement.loadtest.dataprovider
 object MeasurementResults {
   data class ReachAndFrequency(val reach: Int, val relativeFrequencyDistribution: Map<Int, Double>)
 
-  /** Computes reach and frequency using the "deterministic count distinct" methodology. */
-  fun computeReachAndFrequency(
-    sampledVids: Iterable<Long>,
-    maxFrequency: Int = Int.MAX_VALUE
-  ): ReachAndFrequency {
+  /**
+   * Computes reach and frequency using the "deterministic count distinct" methodology and the
+   * "deterministic distribution" methodology.
+   */
+  fun computeReachAndFrequency(sampledVids: Iterable<Long>, maxFrequency: Int): ReachAndFrequency {
     val eventsPerVid: Map<Long, Int> = sampledVids.groupingBy { it }.eachCount()
     val reach: Int = eventsPerVid.keys.size
 

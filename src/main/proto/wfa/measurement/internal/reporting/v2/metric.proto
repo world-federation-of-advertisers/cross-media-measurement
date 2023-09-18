@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
+import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/internal/reporting/v2/measurement.proto";
@@ -35,7 +36,7 @@ message MetricSpec {
   message FrequencyHistogramParams {
     DifferentialPrivacyParams reach_privacy_params = 1;
     DifferentialPrivacyParams frequency_privacy_params = 2;
-    int32 maximum_frequency_per_user = 3;
+    int32 maximum_frequency = 3;
   }
   message ImpressionCountParams {
     DifferentialPrivacyParams privacy_params = 1;
@@ -43,8 +44,7 @@ message MetricSpec {
   }
   message WatchDurationParams {
     DifferentialPrivacyParams privacy_params = 1;
-    // In seconds.
-    int32 maximum_watch_duration_per_user = 2;
+    google.protobuf.Duration maximum_watch_duration_per_user = 2;
   }
 
   oneof type {
@@ -78,7 +78,8 @@ message Metric {
 
   message WeightedMeasurement {
     int32 weight = 1;
-    Measurement measurement = 2;
+    int32 binary_representation = 2;
+    Measurement measurement = 3;
   }
   repeated WeightedMeasurement weighted_measurements = 7;
 

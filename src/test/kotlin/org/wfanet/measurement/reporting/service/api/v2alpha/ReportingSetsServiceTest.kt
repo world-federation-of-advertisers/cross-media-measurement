@@ -67,200 +67,6 @@ private const val MAX_PAGE_SIZE = 1000
 private const val PAGE_SIZE = 2
 
 private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
-private val CONFIG = measurementConsumerConfig { apiKey = API_AUTHENTICATION_KEY }
-
-// Measurement consumers
-private val MEASUREMENT_CONSUMER_KEYS: List<MeasurementConsumerKey> =
-  (1L..2L).map { MeasurementConsumerKey(ExternalId(it + 110L).apiId.value) }
-
-// Data providers
-private val DATA_PROVIDER_KEYS: List<DataProviderKey> =
-  (1L..3L).map { DataProviderKey(ExternalId(it + 220L).apiId.value) }
-
-// Event group IDs and names
-private val CMMS_EVENT_GROUP_KEYS =
-  DATA_PROVIDER_KEYS.mapIndexed { index, dataProviderKey ->
-    CmmsEventGroupKey(dataProviderKey.dataProviderId, ExternalId(index + 330L).apiId.value)
-  }
-
-// Internal reporting sets
-private val INTERNAL_PRIMITIVE_REPORTING_SETS: List<InternalReportingSet> =
-  (0L..2L).map {
-    internalReportingSet {
-      cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-      externalReportingSetId = (it + 440L).toString()
-      filter = "AGE>18"
-      displayName = "primitive_reporting_set_display_name$it"
-      primitive =
-        InternalReportingSetKt.primitive {
-          eventGroupKeys += CMMS_EVENT_GROUP_KEYS[it.toInt()].toInternal()
-        }
-      weightedSubsetUnions +=
-        InternalReportingSetKt.weightedSubsetUnion {
-          primitiveReportingSetBases +=
-            InternalReportingSetKt.primitiveReportingSetBasis {
-              externalReportingSetId = this@internalReportingSet.externalReportingSetId
-              filters += this@internalReportingSet.filter
-            }
-          weight = 1
-        }
-    }
-  }
-
-private val INTERNAL_COMPOSITE_REPORTING_SET: InternalReportingSet = internalReportingSet {
-  cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-  externalReportingSetId = "450"
-  filter = "GENDER==MALE"
-  displayName = "composite_reporting_set_display_name"
-  composite =
-    InternalReportingSetKt.setExpression {
-      operation = InternalReportingSet.SetExpression.Operation.UNION
-      lhs =
-        InternalReportingSetKt.SetExpressionKt.operand {
-          externalReportingSetId = INTERNAL_PRIMITIVE_REPORTING_SETS[0].externalReportingSetId
-        }
-      rhs =
-        InternalReportingSetKt.SetExpressionKt.operand {
-          externalReportingSetId = INTERNAL_PRIMITIVE_REPORTING_SETS[1].externalReportingSetId
-        }
-    }
-  weightedSubsetUnions +=
-    InternalReportingSetKt.weightedSubsetUnion {
-      primitiveReportingSetBases +=
-        InternalReportingSetKt.primitiveReportingSetBasis {
-          externalReportingSetId = INTERNAL_PRIMITIVE_REPORTING_SETS[0].externalReportingSetId
-          filters += INTERNAL_PRIMITIVE_REPORTING_SETS[0].filter
-        }
-      primitiveReportingSetBases +=
-        InternalReportingSetKt.primitiveReportingSetBasis {
-          externalReportingSetId = INTERNAL_PRIMITIVE_REPORTING_SETS[1].externalReportingSetId
-          filters += INTERNAL_PRIMITIVE_REPORTING_SETS[1].filter
-        }
-      weight = 1
-    }
-}
-
-private val INTERNAL_COMPOSITE_REPORTING_SET2: InternalReportingSet =
-  INTERNAL_COMPOSITE_REPORTING_SET.copy {
-    externalReportingSetId += "2"
-    displayName = "composite_reporting_set_display_name2"
-  }
-
-private val INTERNAL_ROOT_COMPOSITE_REPORTING_SET: InternalReportingSet = internalReportingSet {
-  cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
-  externalReportingSetId = "451"
-  displayName = "root_composite_reporting_set_display_name"
-  composite =
-    InternalReportingSetKt.setExpression {
-      operation = InternalReportingSet.SetExpression.Operation.DIFFERENCE
-      lhs =
-        InternalReportingSetKt.SetExpressionKt.operand {
-          expression =
-            InternalReportingSetKt.setExpression {
-              operation = InternalReportingSet.SetExpression.Operation.UNION
-              lhs =
-                InternalReportingSetKt.SetExpressionKt.operand {
-                  externalReportingSetId =
-                    INTERNAL_PRIMITIVE_REPORTING_SETS[2].externalReportingSetId
-                }
-              rhs =
-                InternalReportingSetKt.SetExpressionKt.operand {
-                  externalReportingSetId = INTERNAL_COMPOSITE_REPORTING_SET2.externalReportingSetId
-                }
-            }
-        }
-      rhs =
-        InternalReportingSetKt.SetExpressionKt.operand {
-          externalReportingSetId = INTERNAL_COMPOSITE_REPORTING_SET.externalReportingSetId
-        }
-    }
-  weightedSubsetUnions +=
-    InternalReportingSetKt.weightedSubsetUnion {
-      primitiveReportingSetBases +=
-        InternalReportingSetKt.primitiveReportingSetBasis {
-          externalReportingSetId = INTERNAL_PRIMITIVE_REPORTING_SETS[0].externalReportingSetId
-          filters += INTERNAL_COMPOSITE_REPORTING_SET2.filter
-          filters += INTERNAL_PRIMITIVE_REPORTING_SETS[0].filter
-        }
-      primitiveReportingSetBases +=
-        InternalReportingSetKt.primitiveReportingSetBasis {
-          externalReportingSetId = INTERNAL_PRIMITIVE_REPORTING_SETS[1].externalReportingSetId
-          filters += INTERNAL_COMPOSITE_REPORTING_SET2.filter
-          filters += INTERNAL_PRIMITIVE_REPORTING_SETS[1].filter
-        }
-      primitiveReportingSetBases +=
-        InternalReportingSetKt.primitiveReportingSetBasis {
-          externalReportingSetId = INTERNAL_PRIMITIVE_REPORTING_SETS[2].externalReportingSetId
-          filters += INTERNAL_PRIMITIVE_REPORTING_SETS[2].filter
-        }
-      weight = 1
-    }
-  weightedSubsetUnions +=
-    InternalReportingSetKt.weightedSubsetUnion {
-      primitiveReportingSetBases +=
-        InternalReportingSetKt.primitiveReportingSetBasis {
-          externalReportingSetId = INTERNAL_PRIMITIVE_REPORTING_SETS[0].externalReportingSetId
-          filters += INTERNAL_COMPOSITE_REPORTING_SET.filter
-          filters += INTERNAL_PRIMITIVE_REPORTING_SETS[0].filter
-        }
-      primitiveReportingSetBases +=
-        InternalReportingSetKt.primitiveReportingSetBasis {
-          externalReportingSetId = INTERNAL_PRIMITIVE_REPORTING_SETS[1].externalReportingSetId
-          filters += INTERNAL_COMPOSITE_REPORTING_SET.filter
-          filters += INTERNAL_PRIMITIVE_REPORTING_SETS[1].filter
-        }
-      weight = -1
-    }
-}
-
-// Reporting sets
-private val PRIMITIVE_REPORTING_SETS: List<ReportingSet> =
-  INTERNAL_PRIMITIVE_REPORTING_SETS.map { internalReportingSet ->
-    reportingSet {
-      name = internalReportingSet.resourceName
-      filter = internalReportingSet.filter
-      displayName = internalReportingSet.displayName
-      primitive =
-        ReportingSetKt.primitive {
-          cmmsEventGroups +=
-            internalReportingSet.primitive.eventGroupKeysList.map {
-              CmmsEventGroupKey(it.cmmsDataProviderId, it.cmmsEventGroupId).toName()
-            }
-        }
-    }
-  }
-
-private val ROOT_COMPOSITE_REPORTING_SET: ReportingSet = reportingSet {
-  name = INTERNAL_ROOT_COMPOSITE_REPORTING_SET.resourceName
-  filter = INTERNAL_ROOT_COMPOSITE_REPORTING_SET.filter
-  displayName = INTERNAL_ROOT_COMPOSITE_REPORTING_SET.displayName
-  composite =
-    ReportingSetKt.composite {
-      expression =
-        ReportingSetKt.setExpression {
-          operation = ReportingSet.SetExpression.Operation.DIFFERENCE
-          lhs =
-            ReportingSetKt.SetExpressionKt.operand {
-              expression =
-                ReportingSetKt.setExpression {
-                  operation = ReportingSet.SetExpression.Operation.UNION
-                  lhs =
-                    ReportingSetKt.SetExpressionKt.operand {
-                      reportingSet = INTERNAL_PRIMITIVE_REPORTING_SETS[2].resourceName
-                    }
-                  rhs =
-                    ReportingSetKt.SetExpressionKt.operand {
-                      reportingSet = INTERNAL_COMPOSITE_REPORTING_SET2.resourceName
-                    }
-                }
-            }
-          rhs =
-            ReportingSetKt.SetExpressionKt.operand {
-              reportingSet = INTERNAL_COMPOSITE_REPORTING_SET.resourceName
-            }
-        }
-    }
-}
 
 @RunWith(JUnit4::class)
 class ReportingSetsServiceTest {
@@ -431,6 +237,7 @@ class ReportingSetsServiceTest {
                   filters += INTERNAL_PRIMITIVE_REPORTING_SETS[2].filter
                 }
               weight = 1
+              binaryRepresentation = (1 shl 5) - 1
             }
           weightedSubsetUnions +=
             InternalReportingSetKt.weightedSubsetUnion {
@@ -449,6 +256,7 @@ class ReportingSetsServiceTest {
                   filters += INTERNAL_PRIMITIVE_REPORTING_SETS[1].filter
                 }
               weight = -1
+              binaryRepresentation = (1 shl 3) + (1 shl 4)
             }
         }
 
@@ -1193,6 +1001,208 @@ class ReportingSetsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  companion object {
+    private val CONFIG = measurementConsumerConfig { apiKey = API_AUTHENTICATION_KEY }
+
+    // Measurement consumers
+    private val MEASUREMENT_CONSUMER_KEYS: List<MeasurementConsumerKey> =
+      (1L..2L).map { MeasurementConsumerKey(ExternalId(it + 110L).apiId.value) }
+
+    // Data providers
+    private val DATA_PROVIDER_KEYS: List<DataProviderKey> =
+      (1L..3L).map { DataProviderKey(ExternalId(it + 220L).apiId.value) }
+
+    // Event group IDs and names
+    private val CMMS_EVENT_GROUP_KEYS =
+      DATA_PROVIDER_KEYS.mapIndexed { index, dataProviderKey ->
+        CmmsEventGroupKey(dataProviderKey.dataProviderId, ExternalId(index + 330L).apiId.value)
+      }
+
+    // Internal reporting sets
+    private val INTERNAL_PRIMITIVE_REPORTING_SETS: List<InternalReportingSet> =
+      (0L..2L).map {
+        internalReportingSet {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+          externalReportingSetId = (it + 440L).toString()
+          filter = "AGE>18"
+          displayName = "primitive_reporting_set_display_name$it"
+          primitive =
+            InternalReportingSetKt.primitive {
+              eventGroupKeys += CMMS_EVENT_GROUP_KEYS[it.toInt()].toInternal()
+            }
+          weightedSubsetUnions +=
+            InternalReportingSetKt.weightedSubsetUnion {
+              primitiveReportingSetBases +=
+                InternalReportingSetKt.primitiveReportingSetBasis {
+                  externalReportingSetId = this@internalReportingSet.externalReportingSetId
+                  filters += this@internalReportingSet.filter
+                }
+              weight = 1
+              binaryRepresentation = 1
+            }
+        }
+      }
+
+    private val INTERNAL_COMPOSITE_REPORTING_SET: InternalReportingSet = internalReportingSet {
+      cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+      externalReportingSetId = "450"
+      filter = "GENDER==MALE"
+      displayName = "composite_reporting_set_display_name"
+      composite =
+        InternalReportingSetKt.setExpression {
+          operation = InternalReportingSet.SetExpression.Operation.UNION
+          lhs =
+            InternalReportingSetKt.SetExpressionKt.operand {
+              externalReportingSetId = INTERNAL_PRIMITIVE_REPORTING_SETS[0].externalReportingSetId
+            }
+          rhs =
+            InternalReportingSetKt.SetExpressionKt.operand {
+              externalReportingSetId = INTERNAL_PRIMITIVE_REPORTING_SETS[1].externalReportingSetId
+            }
+        }
+      weightedSubsetUnions +=
+        InternalReportingSetKt.weightedSubsetUnion {
+          primitiveReportingSetBases +=
+            InternalReportingSetKt.primitiveReportingSetBasis {
+              externalReportingSetId = INTERNAL_PRIMITIVE_REPORTING_SETS[0].externalReportingSetId
+              filters += INTERNAL_PRIMITIVE_REPORTING_SETS[0].filter
+            }
+          primitiveReportingSetBases +=
+            InternalReportingSetKt.primitiveReportingSetBasis {
+              externalReportingSetId = INTERNAL_PRIMITIVE_REPORTING_SETS[1].externalReportingSetId
+              filters += INTERNAL_PRIMITIVE_REPORTING_SETS[1].filter
+            }
+          weight = 1
+          binaryRepresentation = 3
+        }
+    }
+
+    private val INTERNAL_COMPOSITE_REPORTING_SET2: InternalReportingSet =
+      INTERNAL_COMPOSITE_REPORTING_SET.copy {
+        externalReportingSetId += "2"
+        displayName = "composite_reporting_set_display_name2"
+      }
+
+    private val INTERNAL_ROOT_COMPOSITE_REPORTING_SET: InternalReportingSet = internalReportingSet {
+      cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+      externalReportingSetId = "451"
+      displayName = "root_composite_reporting_set_display_name"
+      composite =
+        InternalReportingSetKt.setExpression {
+          operation = InternalReportingSet.SetExpression.Operation.DIFFERENCE
+          lhs =
+            InternalReportingSetKt.SetExpressionKt.operand {
+              expression =
+                InternalReportingSetKt.setExpression {
+                  operation = InternalReportingSet.SetExpression.Operation.UNION
+                  lhs =
+                    InternalReportingSetKt.SetExpressionKt.operand {
+                      externalReportingSetId =
+                        INTERNAL_PRIMITIVE_REPORTING_SETS[2].externalReportingSetId
+                    }
+                  rhs =
+                    InternalReportingSetKt.SetExpressionKt.operand {
+                      externalReportingSetId =
+                        INTERNAL_COMPOSITE_REPORTING_SET2.externalReportingSetId
+                    }
+                }
+            }
+          rhs =
+            InternalReportingSetKt.SetExpressionKt.operand {
+              externalReportingSetId = INTERNAL_COMPOSITE_REPORTING_SET.externalReportingSetId
+            }
+        }
+      weightedSubsetUnions +=
+        InternalReportingSetKt.weightedSubsetUnion {
+          primitiveReportingSetBases +=
+            InternalReportingSetKt.primitiveReportingSetBasis {
+              externalReportingSetId = INTERNAL_PRIMITIVE_REPORTING_SETS[0].externalReportingSetId
+              filters += INTERNAL_COMPOSITE_REPORTING_SET2.filter
+              filters += INTERNAL_PRIMITIVE_REPORTING_SETS[0].filter
+            }
+          primitiveReportingSetBases +=
+            InternalReportingSetKt.primitiveReportingSetBasis {
+              externalReportingSetId = INTERNAL_PRIMITIVE_REPORTING_SETS[1].externalReportingSetId
+              filters += INTERNAL_COMPOSITE_REPORTING_SET2.filter
+              filters += INTERNAL_PRIMITIVE_REPORTING_SETS[1].filter
+            }
+          primitiveReportingSetBases +=
+            InternalReportingSetKt.primitiveReportingSetBasis {
+              externalReportingSetId = INTERNAL_PRIMITIVE_REPORTING_SETS[2].externalReportingSetId
+              filters += INTERNAL_PRIMITIVE_REPORTING_SETS[2].filter
+            }
+          weight = 1
+          binaryRepresentation = 7
+        }
+      weightedSubsetUnions +=
+        InternalReportingSetKt.weightedSubsetUnion {
+          primitiveReportingSetBases +=
+            InternalReportingSetKt.primitiveReportingSetBasis {
+              externalReportingSetId = INTERNAL_PRIMITIVE_REPORTING_SETS[0].externalReportingSetId
+              filters += INTERNAL_COMPOSITE_REPORTING_SET.filter
+              filters += INTERNAL_PRIMITIVE_REPORTING_SETS[0].filter
+            }
+          primitiveReportingSetBases +=
+            InternalReportingSetKt.primitiveReportingSetBasis {
+              externalReportingSetId = INTERNAL_PRIMITIVE_REPORTING_SETS[1].externalReportingSetId
+              filters += INTERNAL_COMPOSITE_REPORTING_SET.filter
+              filters += INTERNAL_PRIMITIVE_REPORTING_SETS[1].filter
+            }
+          weight = -1
+          binaryRepresentation = 6
+        }
+    }
+
+    // Reporting sets
+    private val PRIMITIVE_REPORTING_SETS: List<ReportingSet> =
+      INTERNAL_PRIMITIVE_REPORTING_SETS.map { internalReportingSet ->
+        reportingSet {
+          name = internalReportingSet.resourceName
+          filter = internalReportingSet.filter
+          displayName = internalReportingSet.displayName
+          primitive =
+            ReportingSetKt.primitive {
+              cmmsEventGroups +=
+                internalReportingSet.primitive.eventGroupKeysList.map {
+                  CmmsEventGroupKey(it.cmmsDataProviderId, it.cmmsEventGroupId).toName()
+                }
+            }
+        }
+      }
+
+    private val ROOT_COMPOSITE_REPORTING_SET: ReportingSet = reportingSet {
+      name = INTERNAL_ROOT_COMPOSITE_REPORTING_SET.resourceName
+      filter = INTERNAL_ROOT_COMPOSITE_REPORTING_SET.filter
+      displayName = INTERNAL_ROOT_COMPOSITE_REPORTING_SET.displayName
+      composite =
+        ReportingSetKt.composite {
+          expression =
+            ReportingSetKt.setExpression {
+              operation = ReportingSet.SetExpression.Operation.DIFFERENCE
+              lhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  expression =
+                    ReportingSetKt.setExpression {
+                      operation = ReportingSet.SetExpression.Operation.UNION
+                      lhs =
+                        ReportingSetKt.SetExpressionKt.operand {
+                          reportingSet = INTERNAL_PRIMITIVE_REPORTING_SETS[2].resourceName
+                        }
+                      rhs =
+                        ReportingSetKt.SetExpressionKt.operand {
+                          reportingSet = INTERNAL_COMPOSITE_REPORTING_SET2.resourceName
+                        }
+                    }
+                }
+              rhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  reportingSet = INTERNAL_COMPOSITE_REPORTING_SET.resourceName
+                }
+            }
+        }
+    }
   }
 }
 

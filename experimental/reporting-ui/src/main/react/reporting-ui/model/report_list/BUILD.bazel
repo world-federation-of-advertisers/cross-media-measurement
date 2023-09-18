@@ -1,0 +1,34 @@
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("@aspect_rules_jest//jest:defs.bzl", "jest_test")
+
+package(
+    default_visibility = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui:__subpackages__",
+    ],
+)
+
+js_library(
+    name = "report_list",
+    srcs = [
+        "report_list_repository.ts",
+    ],
+    deps = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui/client",
+    ],
+)
+
+jest_test(
+    name = "report_list_test",
+    config = "//experimental/reporting-ui/src/main/react/reporting-ui:jest_config",
+    data = [
+        ":report_list",
+        ":report_list_repository_test.ts",
+        "//:tsconfig",
+        "//experimental/reporting-ui/src/main/react/reporting-ui:app",
+        "//experimental/reporting-ui/src/main/react/reporting-ui:node_deps",
+        "//experimental/reporting-ui/src/main/react/reporting-ui:test_node_deps",
+        "//experimental/reporting-ui/src/main/react/reporting-ui/view/report_list",
+        "//experimental/reporting-ui/src/main/react/testing/jest",
+    ],
+    node_modules = "//:node_modules",
+)

@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.duration
 import com.google.protobuf.timestamp
+import com.google.protobuf.util.Durations
 import com.google.type.Interval
 import com.google.type.interval
 import io.grpc.Status
@@ -119,7 +120,7 @@ private const val REACH_FREQUENCY_VID_SAMPLING_WIDTH = 5.0f / NUMBER_VID_BUCKETS
 private const val REACH_FREQUENCY_VID_SAMPLING_START = 48.0f / NUMBER_VID_BUCKETS
 private const val REACH_FREQUENCY_REACH_EPSILON = 0.0033
 private const val REACH_FREQUENCY_FREQUENCY_EPSILON = 0.115
-private const val REACH_FREQUENCY_MAXIMUM_FREQUENCY_PER_USER = 10
+private const val REACH_FREQUENCY_MAXIMUM_FREQUENCY = 10
 
 private const val IMPRESSION_VID_SAMPLING_WIDTH = 62.0f / NUMBER_VID_BUCKETS
 private const val IMPRESSION_VID_SAMPLING_START = 143.0f / NUMBER_VID_BUCKETS
@@ -129,7 +130,7 @@ private const val IMPRESSION_MAXIMUM_FREQUENCY_PER_USER = 60
 private const val WATCH_DURATION_VID_SAMPLING_WIDTH = 95.0f / NUMBER_VID_BUCKETS
 private const val WATCH_DURATION_VID_SAMPLING_START = 205.0f / NUMBER_VID_BUCKETS
 private const val WATCH_DURATION_EPSILON = 0.001
-private const val MAXIMUM_WATCH_DURATION_PER_USER = 4000
+private val MAXIMUM_WATCH_DURATION_PER_USER = Durations.fromSeconds(4000)
 
 private const val DIFFERENTIAL_PRIVACY_DELTA = 1e-12
 
@@ -3164,7 +3165,7 @@ class ReportsServiceTest {
               epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
               delta = DIFFERENTIAL_PRIVACY_DELTA
             }
-          maximumFrequencyPerUser = REACH_FREQUENCY_MAXIMUM_FREQUENCY_PER_USER
+          maximumFrequency = REACH_FREQUENCY_MAXIMUM_FREQUENCY
         }
       frequencyHistogramVidSamplingInterval =
         MetricSpecConfigKt.vidSamplingInterval {
@@ -3246,7 +3247,7 @@ class ReportsServiceTest {
               epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
               delta = DIFFERENTIAL_PRIVACY_DELTA
             }
-          maximumFrequencyPerUser = REACH_FREQUENCY_MAXIMUM_FREQUENCY_PER_USER
+          maximumFrequency = REACH_FREQUENCY_MAXIMUM_FREQUENCY
         }
       vidSamplingInterval =
         MetricSpecKt.vidSamplingInterval {
@@ -3267,7 +3268,7 @@ class ReportsServiceTest {
               epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
               delta = DIFFERENTIAL_PRIVACY_DELTA
             }
-          maximumFrequencyPerUser = REACH_FREQUENCY_MAXIMUM_FREQUENCY_PER_USER
+          maximumFrequency = REACH_FREQUENCY_MAXIMUM_FREQUENCY
         }
       vidSamplingInterval =
         InternalMetricSpecKt.vidSamplingInterval {

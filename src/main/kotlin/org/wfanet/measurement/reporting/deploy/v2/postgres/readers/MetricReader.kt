@@ -19,6 +19,7 @@ package org.wfanet.measurement.reporting.deploy.v2.postgres.readers
 import com.google.protobuf.Timestamp
 import com.google.type.Interval
 import com.google.type.interval
+import io.r2dbc.postgresql.codec.Interval as PostgresInterval
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
@@ -29,6 +30,7 @@ import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.Measurement
@@ -72,6 +74,7 @@ class MetricReader(private val readContext: ReadContext) {
 
   private data class WeightedMeasurementInfo(
     val weight: Int,
+    val binaryRepresentation: Int,
     val measurementInfo: MeasurementInfo,
   )
 
@@ -106,6 +109,7 @@ class MetricReader(private val readContext: ReadContext) {
       Metrics.DifferentialPrivacyDelta,
       Metrics.FrequencyDifferentialPrivacyEpsilon,
       Metrics.FrequencyDifferentialPrivacyDelta,
+      Metrics.MaximumFrequency,
       Metrics.MaximumFrequencyPerUser,
       Metrics.MaximumWatchDurationPerUser,
       Metrics.VidSamplingIntervalStart,
@@ -113,6 +117,7 @@ class MetricReader(private val readContext: ReadContext) {
       Metrics.CreateTime,
       Metrics.MetricDetails,
       MetricMeasurements.Coefficient,
+      MetricMeasurements.BinaryRepresentation,
       Measurements.MeasurementId,
       Measurements.CmmsCreateMeasurementRequestId,
       Measurements.CmmsMeasurementId,
@@ -321,6 +326,7 @@ class MetricReader(private val readContext: ReadContext) {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = it.weight
+            binaryRepresentation = it.binaryRepresentation
             measurement = measurement {
               cmmsMeasurementConsumerId = metricInfo.cmmsMeasurementConsumerId
               if (it.measurementInfo.cmmsMeasurementId != null) {
@@ -367,14 +373,16 @@ class MetricReader(private val readContext: ReadContext) {
       val differentialPrivacyDelta: Double = row["DifferentialPrivacyDelta"]
       val frequencyDifferentialPrivacyEpsilon: Double? = row["FrequencyDifferentialPrivacyEpsilon"]
       val frequencyDifferentialPrivacyDelta: Double? = row["FrequencyDifferentialPrivacyDelta"]
+      val maximumFrequency: Int? = row["MaximumFrequency"]
       val maximumFrequencyPerUser: Int? = row["MaximumFrequencyPerUser"]
-      val maximumWatchDurationPerUser: Int? = row["MaximumWatchDurationPerUser"]
+      val maximumWatchDurationPerUser: PostgresInterval? = row["MaximumWatchDurationPerUser"]
       val vidSamplingStart: Float = row["VidSamplingIntervalStart"]
       val vidSamplingWidth: Float = row["VidSamplingIntervalWidth"]
       val createTime: Instant = row["CreateTime"]
       val metricDetails: Metric.Details =
         row.getProtoMessage("MetricDetails", Metric.Details.parser())
       val weight: Int = row["Coefficient"]
+      val binaryRepresentation: Int = row["BinaryRepresentation"]
       val measurementId: InternalId = row["MeasurementId"]
       val cmmsCreateMeasurementRequestId: UUID = row["CmmsCreateMeasurementRequestId"]
       val cmmsMeasurementId: String? = row["CmmsMeasurementId"]
@@ -415,7 +423,7 @@ class MetricReader(private val readContext: ReadContext) {
                 if (
                   frequencyDifferentialPrivacyDelta == null ||
                     frequencyDifferentialPrivacyEpsilon == null ||
-                    maximumFrequencyPerUser == null
+                    maximumFrequency == null
                 ) {
                   throw IllegalStateException()
                 }
@@ -432,7 +440,7 @@ class MetricReader(private val readContext: ReadContext) {
                         epsilon = frequencyDifferentialPrivacyEpsilon
                         delta = frequencyDifferentialPrivacyDelta
                       }
-                    this.maximumFrequencyPerUser = maximumFrequencyPerUser
+                    this.maximumFrequency = maximumFrequency
                   }
               }
               MetricSpec.TypeCase.IMPRESSION_COUNT -> {
@@ -451,10 +459,6 @@ class MetricReader(private val readContext: ReadContext) {
                   }
               }
               MetricSpec.TypeCase.WATCH_DURATION -> {
-                if (maximumWatchDurationPerUser == null) {
-                  throw IllegalStateException()
-                }
-
                 watchDuration =
                   MetricSpecKt.watchDurationParams {
                     privacyParams =
@@ -462,7 +466,8 @@ class MetricReader(private val readContext: ReadContext) {
                         epsilon = differentialPrivacyEpsilon
                         delta = differentialPrivacyDelta
                       }
-                    this.maximumWatchDurationPerUser = maximumWatchDurationPerUser
+                    this.maximumWatchDurationPerUser =
+                      checkNotNull(maximumWatchDurationPerUser).duration.toProtoDuration()
                   }
               }
               MetricSpec.TypeCase.TYPE_NOT_SET -> throw IllegalStateException()
@@ -510,6 +515,7 @@ class MetricReader(private val readContext: ReadContext) {
 
           WeightedMeasurementInfo(
             weight = weight,
+            binaryRepresentation = binaryRepresentation,
             measurementInfo = measurementInfo,
           )
         }

@@ -237,6 +237,7 @@ fun buildMpcProtocolConfig(
                 .toSystemDifferentialPrivacyParams()
           }
           ellipticCurveId = protocolConfig.liquidLegionsV2.ellipticCurveId
+          @Suppress("DEPRECATION") // For legacy Measurements.
           maximumFrequency = protocolConfig.liquidLegionsV2.maximumFrequency
           // Use `GEOMETRIC` for unspecified InternalNoiseMechanism for old Measurements.
           noiseMechanism =
@@ -390,7 +391,10 @@ fun InternalNoiseMechanism.toSystemNoiseMechanism(): NoiseMechanism {
   return when (this) {
     InternalNoiseMechanism.GEOMETRIC -> NoiseMechanism.GEOMETRIC
     InternalNoiseMechanism.DISCRETE_GAUSSIAN -> NoiseMechanism.DISCRETE_GAUSSIAN
+    InternalNoiseMechanism.CONTINUOUS_LAPLACE,
+    InternalNoiseMechanism.CONTINUOUS_GAUSSIAN,
     InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
+    InternalNoiseMechanism.NONE,
     InternalNoiseMechanism.UNRECOGNIZED -> error("invalid internal noise mechanism.")
   }
 }

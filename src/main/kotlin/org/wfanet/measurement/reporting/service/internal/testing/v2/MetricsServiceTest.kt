@@ -19,6 +19,7 @@ package org.wfanet.measurement.reporting.service.internal.testing.v2
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.timestamp
+import com.google.protobuf.util.Durations
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -114,6 +115,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = interval {
@@ -137,6 +139,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 3
+          binaryRepresentation = 2
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = interval {
@@ -204,7 +207,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 epsilon = 1.0
                 delta = 2.0
               }
-            maximumFrequencyPerUser = 5
+            maximumFrequency = 5
           }
         vidSamplingInterval =
           MetricSpecKt.vidSamplingInterval {
@@ -215,6 +218,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = interval {
@@ -238,6 +242,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 3
+          binaryRepresentation = 2
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = interval {
@@ -311,6 +316,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = interval {
@@ -334,6 +340,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 3
+          binaryRepresentation = 2
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = interval {
@@ -396,7 +403,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 epsilon = 1.0
                 delta = 2.0
               }
-            maximumWatchDurationPerUser = 100
+            maximumWatchDurationPerUser = Durations.fromSeconds(100)
           }
         vidSamplingInterval =
           MetricSpecKt.vidSamplingInterval {
@@ -407,6 +414,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = interval {
@@ -430,6 +438,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 3
+          binaryRepresentation = 2
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = interval {
@@ -492,7 +501,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 epsilon = 1.0
                 delta = 2.0
               }
-            maximumWatchDurationPerUser = 100
+            maximumWatchDurationPerUser = Durations.fromSeconds(100)
           }
         vidSamplingInterval =
           MetricSpecKt.vidSamplingInterval {
@@ -503,6 +512,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = interval {
@@ -562,7 +572,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 epsilon = 1.0
                 delta = 2.0
               }
-            maximumFrequencyPerUser = 5
+            maximumFrequency = 5
           }
         vidSamplingInterval =
           MetricSpecKt.vidSamplingInterval {
@@ -573,6 +583,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = interval {
@@ -596,6 +607,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 3
+          binaryRepresentation = 2
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = interval {
@@ -673,7 +685,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                   epsilon = 1.0
                   delta = 2.0
                 }
-              maximumFrequencyPerUser = 5
+              maximumFrequency = 5
             }
           vidSamplingInterval =
             MetricSpecKt.vidSamplingInterval {
@@ -684,6 +696,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 2
+            binaryRepresentation = 1
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               timeInterval = interval {
@@ -707,6 +720,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 3
+            binaryRepresentation = 2
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               timeInterval = interval {
@@ -783,7 +797,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 epsilon = 3.0
                 delta = 4.0
               }
-            maximumFrequencyPerUser = 5
+            maximumFrequency = 5
           }
         vidSamplingInterval =
           MetricSpecKt.vidSamplingInterval {
@@ -794,6 +808,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = interval {
@@ -854,7 +869,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 epsilon = 1.0
                 delta = 2.0
               }
-            maximumFrequencyPerUser = 5
+            maximumFrequency = 5
           }
         vidSamplingInterval =
           MetricSpecKt.vidSamplingInterval {
@@ -865,6 +880,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = interval {
@@ -939,6 +955,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = interval {
@@ -996,6 +1013,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = interval {
@@ -1058,6 +1076,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 2
+            binaryRepresentation = 1
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               timeInterval = interval {
@@ -1168,7 +1187,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 epsilon = 1.0
                 delta = 2.0
               }
-            maximumFrequencyPerUser = 5
+            maximumFrequency = 5
           }
         vidSamplingInterval =
           MetricSpecKt.vidSamplingInterval {
@@ -1179,6 +1198,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = interval {
@@ -1239,7 +1259,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 epsilon = 1.0
                 delta = 2.0
               }
-            maximumFrequencyPerUser = 5
+            maximumFrequency = 5
           }
         vidSamplingInterval =
           MetricSpecKt.vidSamplingInterval {
@@ -1250,6 +1270,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = interval {
@@ -1316,7 +1337,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 epsilon = 1.0
                 delta = 2.0
               }
-            maximumFrequencyPerUser = 5
+            maximumFrequency = 5
           }
         vidSamplingInterval =
           MetricSpecKt.vidSamplingInterval {
@@ -1327,6 +1348,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = interval {
@@ -1404,7 +1426,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                   epsilon = 1.0
                   delta = 2.0
                 }
-              maximumFrequencyPerUser = 5
+              maximumFrequency = 5
             }
           vidSamplingInterval =
             MetricSpecKt.vidSamplingInterval {
@@ -1415,6 +1437,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 2
+            binaryRepresentation = 1
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               timeInterval = interval {
@@ -1501,7 +1524,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                   epsilon = 1.0
                   delta = 2.0
                 }
-              maximumFrequencyPerUser = 5
+              maximumFrequency = 5
             }
           vidSamplingInterval =
             MetricSpecKt.vidSamplingInterval {
@@ -1512,6 +1535,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 2
+            binaryRepresentation = 1
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               timeInterval = interval {
@@ -1591,7 +1615,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                   epsilon = 1.0
                   delta = 2.0
                 }
-              maximumFrequencyPerUser = 5
+              maximumFrequency = 5
             }
           vidSamplingInterval =
             MetricSpecKt.vidSamplingInterval {
@@ -1602,6 +1626,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 2
+            binaryRepresentation = 1
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               timeInterval = interval {
@@ -1670,7 +1695,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                   epsilon = 1.0
                   delta = 2.0
                 }
-              maximumFrequencyPerUser = 5
+              maximumFrequency = 5
             }
           vidSamplingInterval =
             MetricSpecKt.vidSamplingInterval {
@@ -1681,6 +1706,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 2
+            binaryRepresentation = 1
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               timeInterval = interval {
@@ -1748,7 +1774,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 epsilon = 1.0
                 delta = 2.0
               }
-            maximumFrequencyPerUser = 5
+            maximumFrequency = 5
           }
         vidSamplingInterval =
           MetricSpecKt.vidSamplingInterval {
@@ -1759,6 +1785,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = interval {
@@ -1828,7 +1855,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                   epsilon = 1.0
                   delta = 2.0
                 }
-              maximumFrequencyPerUser = 5
+              maximumFrequency = 5
             }
           vidSamplingInterval =
             MetricSpecKt.vidSamplingInterval {
@@ -1839,6 +1866,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 2
+            binaryRepresentation = 1
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               timeInterval = interval {
@@ -1909,7 +1937,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                   epsilon = 1.0
                   delta = 2.0
                 }
-              maximumFrequencyPerUser = 5
+              maximumFrequency = 5
             }
           vidSamplingInterval =
             MetricSpecKt.vidSamplingInterval {
@@ -1920,6 +1948,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 2
+            binaryRepresentation = 1
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               timeInterval = interval {
@@ -1989,7 +2018,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                   epsilon = 1.0
                   delta = 2.0
                 }
-              maximumFrequencyPerUser = 5
+              maximumFrequency = 5
             }
           vidSamplingInterval =
             MetricSpecKt.vidSamplingInterval {
@@ -2000,6 +2029,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 2
+            binaryRepresentation = 1
             measurement = measurement {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               timeInterval = interval {
@@ -2068,7 +2098,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 epsilon = 1.0
                 delta = 2.0
               }
-            maximumFrequencyPerUser = 5
+            maximumFrequency = 5
           }
         vidSamplingInterval =
           MetricSpecKt.vidSamplingInterval {
@@ -2079,6 +2109,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       weightedMeasurements +=
         MetricKt.weightedMeasurement {
           weight = 2
+          binaryRepresentation = 1
           measurement = measurement {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             timeInterval = interval {
@@ -2180,7 +2211,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                       epsilon = 1.0
                       delta = 2.0
                     }
-                  maximumFrequencyPerUser = 5
+                  maximumFrequency = 5
                 }
               vidSamplingInterval =
                 MetricSpecKt.vidSamplingInterval {
@@ -2262,7 +2293,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                       epsilon = 1.0
                       delta = 2.0
                     }
-                  maximumWatchDurationPerUser = 100
+                  maximumWatchDurationPerUser = Durations.fromSeconds(100)
                 }
               vidSamplingInterval =
                 MetricSpecKt.vidSamplingInterval {
@@ -2340,6 +2371,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
             weightedMeasurements +=
               MetricKt.weightedMeasurement {
                 weight = 2
+                binaryRepresentation = 1
                 measurement = measurement {
                   cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
                   timeInterval = interval {
@@ -2654,6 +2686,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 2
+            binaryRepresentation = 1
             measurement = measurement {
               this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
               timeInterval = interval {
@@ -2677,6 +2710,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         weightedMeasurements +=
           MetricKt.weightedMeasurement {
             weight = 3
+            binaryRepresentation = 2
             measurement = measurement {
               this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
               timeInterval = interval {

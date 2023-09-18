@@ -157,6 +157,7 @@ private val PUBLIC_API_MEASUREMENT_SPEC = measurementSpec {
       epsilon = 2.1
       delta = 2.2
     }
+    maximumFrequency = 10
   }
   nonceHashes += REACH_ONLY_REQUISITION_1.nonceHash
   nonceHashes += REACH_ONLY_REQUISITION_2.nonceHash
@@ -195,7 +196,6 @@ private val LLV2_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
       }
     }
     ellipticCurveId = 415
-    maximumFrequency = 10
     noiseMechanism = SystemNoiseMechanism.GEOMETRIC
   }
 }
@@ -413,7 +413,7 @@ class HeraldTest {
       buildComputationAtKingdom(
         "2",
         Computation.State.PENDING_REQUISITION_PARAMS,
-        listOf(systemApiRequisitions1, systemApiRequisitions2)
+        systemApiRequisitions = listOf(systemApiRequisitions1, systemApiRequisitions2)
       )
     mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
 
@@ -458,6 +458,7 @@ class HeraldTest {
             publicApiVersion = PUBLIC_API_VERSION
             measurementSpec = SERIALIZED_MEASUREMENT_SPEC
             measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+            participantCount = 3
           }
           liquidLegionsV2 =
             LiquidLegionsSketchAggregationV2Kt.computationDetails {
@@ -560,13 +561,13 @@ class HeraldTest {
             publicApiVersion = PUBLIC_API_VERSION
             measurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC
             measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+            participantCount = 3
           }
           liquidLegionsV2 =
             LiquidLegionsSketchAggregationV2Kt.computationDetails {
               role = RoleInComputation.AGGREGATOR
               parameters =
                 LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.parameters {
-                  maximumFrequency = 10
                   sketchParameters = liquidLegionsSketchParameters {
                     decayRate = 12.0
                     size = 100_000L
@@ -661,6 +662,7 @@ class HeraldTest {
             publicApiVersion = PUBLIC_API_VERSION
             measurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC
             measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+            participantCount = 3
           }
           reachOnlyLiquidLegionsV2 =
             ReachOnlyLiquidLegionsSketchAggregationV2Kt.computationDetails {
@@ -1333,29 +1335,44 @@ class HeraldTest {
         )
     }
 
-  /**
-   * Builds a kingdom system Api Computation using default values for fields not included in the
-   * parameters.
-   */
-  private fun buildComputationAtKingdom(
-    globalId: String,
-    stateAtKingdom: Computation.State,
-    systemApiRequisitions: List<Requisition> = listOf(),
-    systemComputationParticipant: List<SystemComputationParticipant> = listOf(),
-    serializedMeasurementSpec: ByteString = SERIALIZED_MEASUREMENT_SPEC,
-    mpcProtocolConfig: MpcProtocolConfig = LLV2_MPC_PROTOCOL_CONFIG
-  ): Computation {
-    return computation {
-      name = ComputationKey(globalId).toName()
-      publicApiVersion = PUBLIC_API_VERSION
-      measurementSpec = serializedMeasurementSpec
-      state = stateAtKingdom
-      requisitions += systemApiRequisitions
-      computationParticipants += systemComputationParticipant
-      this.mpcProtocolConfig = mpcProtocolConfig
+  private fun Computation.continuationToken(): String = key.computationId
+
+  companion object {
+    private val ALL_COMPUTATION_PARTICIPANTS =
+      listOf(
+        computationParticipant {
+          name = ComputationParticipantKey(COMPUTATION_GLOBAL_ID, DUCHY_ONE).toName()
+        },
+        computationParticipant {
+          name = ComputationParticipantKey(COMPUTATION_GLOBAL_ID, DUCHY_TWO).toName()
+        },
+        computationParticipant {
+          name = ComputationParticipantKey(COMPUTATION_GLOBAL_ID, DUCHY_THREE).toName()
+        },
+      )
+
+    /**
+     * Builds a kingdom system Api Computation using default values for fields not included in the
+     * parameters.
+     */
+    private fun buildComputationAtKingdom(
+      globalId: String,
+      stateAtKingdom: Computation.State,
+      systemApiRequisitions: List<Requisition> = listOf(),
+      systemComputationParticipant: List<SystemComputationParticipant> =
+        ALL_COMPUTATION_PARTICIPANTS,
+      serializedMeasurementSpec: ByteString = SERIALIZED_MEASUREMENT_SPEC,
+      mpcProtocolConfig: MpcProtocolConfig = LLV2_MPC_PROTOCOL_CONFIG
+    ): Computation {
+      return computation {
+        name = ComputationKey(globalId).toName()
+        publicApiVersion = PUBLIC_API_VERSION
+        measurementSpec = serializedMeasurementSpec
+        state = stateAtKingdom
+        requisitions += systemApiRequisitions
+        computationParticipants += systemComputationParticipant
+        this.mpcProtocolConfig = mpcProtocolConfig
+      }
     }
   }
-
-  private var continuationTokenTimeSeq = 0L
-  private fun Computation.continuationToken(): String = key.computationId.toString()
 }

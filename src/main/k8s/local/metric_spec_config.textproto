@@ -15,7 +15,7 @@ frequency_histogram_params {
     epsilon: 0.115
     delta: 1.0E-12
   }
-  maximum_frequency_per_user: 10
+  maximum_frequency: 10
 }
 impression_count_params {
   privacy_params {
@@ -29,7 +29,9 @@ watch_duration_params {
     epsilon: 0.001
     delta: 1.0E-12
   }
-  maximum_watch_duration_per_user: 4000
+  maximum_watch_duration_per_user {
+    seconds: 4000
+  }
 }
 reach_vid_sampling_interval {
   width: 0.01

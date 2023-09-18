@@ -17,6 +17,7 @@
 package org.wfanet.measurement.integration.common.reporting.v2
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.util.Durations
 import io.grpc.Channel
 import io.grpc.Status
 import io.grpc.StatusException
@@ -264,7 +265,7 @@ class InProcessReportingServer(
               epsilon = 0.0033
               delta = 1e-12
             }
-          maximumFrequencyPerUser = 10
+          maximumFrequency = 10
         }
       frequencyHistogramVidSamplingInterval =
         MetricSpecConfigKt.vidSamplingInterval {
@@ -294,7 +295,7 @@ class InProcessReportingServer(
               epsilon = 0.001
               delta = 1e-12
             }
-          maximumWatchDurationPerUser = 4000
+          maximumWatchDurationPerUser = Durations.fromSeconds(4000)
         }
       watchDurationVidSamplingInterval =
         MetricSpecConfigKt.vidSamplingInterval {

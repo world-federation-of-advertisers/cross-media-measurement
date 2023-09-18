@@ -16,9 +16,9 @@
 
 package org.wfanet.measurement.integration.deploy.gcloud
 
-import kotlinx.coroutines.debug.junit4.CoroutinesTimeout
 import org.junit.ClassRule
 import org.junit.Rule
+import org.junit.rules.Timeout
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
 import org.wfanet.measurement.duchy.deploy.common.postgres.testing.Schemata
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
@@ -36,7 +36,12 @@ class GCloudPostgresInProcessLifeOfAMeasurementIntegrationTest :
     PostgresDuchyDependencyProviderRule(databaseProvider, ALL_DUCHY_NAMES)
   ) {
 
-  @get:Rule val timeout = CoroutinesTimeout.seconds(90)
+  /**
+   * Rule to enforce test method timeout.
+   *
+   * TODO(Kotlin/kotlinx.coroutines#3865): Switch back to CoroutinesTimeout when fixed.
+   */
+  @get:Rule val timeout: Timeout = Timeout.seconds(90)
 
   companion object {
     @JvmStatic

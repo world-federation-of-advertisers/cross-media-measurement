@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
+import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/kingdom/certificate.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
@@ -26,6 +27,11 @@ service Certificates {
   rpc CreateCertificate(Certificate) returns (Certificate);
 
   rpc GetCertificate(GetCertificateRequest) returns (Certificate);
+
+  // Streams `Certificate` resources ordered by (`not_valid_before` descending,
+  // `external_certificate_id`, `parent`).
+  rpc StreamCertificates(StreamCertificatesRequest)
+      returns (stream Certificate);
 
   // Revokes a Certificate by setting its revocation state.
   rpc RevokeCertificate(RevokeCertificateRequest) returns (Certificate);
@@ -44,6 +50,41 @@ message GetCertificateRequest {
     fixed64 external_model_provider_id = 4;
   }
   fixed64 external_certificate_id = 5;
+}
+
+message StreamCertificatesRequest {
+  // Key of a position within the return ordering.
+  message OrderedKey {
+    google.protobuf.Timestamp not_valid_before = 1;
+    fixed64 external_certificate_id = 2;
+    oneof parent {
+      fixed64 external_data_provider_id = 3;
+      fixed64 external_measurement_consumer_id = 4;
+      string external_duchy_id = 5;
+      fixed64 external_model_provider_id = 6;
+    }
+  }
+
+  // Filter criteria as a conjunction of specified fields. Repeated fields are
+  // disjunctions of their items.
+  message Filter {
+    // External ID of the parent. Required.
+    oneof parent {
+      fixed64 external_data_provider_id = 1;
+      fixed64 external_measurement_consumer_id = 2;
+      string external_duchy_id = 3;
+      fixed64 external_model_provider_id = 4;
+    }
+
+    repeated bytes subject_key_identifiers = 5;
+
+    OrderedKey after = 6;
+  }
+  Filter filter = 1;
+
+  // The maximum number of results to return. If not specified, it implies
+  // unlimited.
+  int32 limit = 2;
 }
 
 message RevokeCertificateRequest {

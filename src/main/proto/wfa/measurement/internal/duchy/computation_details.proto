@@ -55,6 +55,11 @@ message ComputationDetails {
     // Public key for asymmetric encryption. Used when encrypting the final
     // result.
     EncryptionPublicKey measurement_public_key = 4;
+
+    // Count of Duchy participants in this Computation.
+    //
+    // This may not be set for legacy Computations.
+    int32 participant_count = 5;
   }
   KingdomComputationDetails kingdom_computation = 3;
 

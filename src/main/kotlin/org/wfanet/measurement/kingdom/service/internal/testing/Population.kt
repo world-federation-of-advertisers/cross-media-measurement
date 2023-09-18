@@ -57,6 +57,7 @@ import org.wfanet.measurement.internal.kingdom.ModelRelease
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelSuite
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.internal.kingdom.activateAccountRequest
@@ -312,6 +313,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
         apiVersion = API_VERSION
         measurementSpec = "MeasurementSpec".toByteStringUtf8()
         measurementSpecSignature = "MeasurementSpec signature".toByteStringUtf8()
+        protocolConfig = protocolConfig { direct = ProtocolConfig.Direct.getDefaultInstance() }
       }
     return createMeasurement(
       measurementsService,
@@ -347,7 +349,45 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
         this.externalDuchyId = externalDuchyId
         fillRequestCertificate(
           "Duchy cert",
-          "Duchy $externalDuchyId SKID",
+          "Duchy SKID " + idGenerator.generateExternalId().value,
+          notValidBefore,
+          notValidAfter
+        )
+      }
+    )
+  }
+
+  suspend fun createMeasurementConsumerCertificate(
+    certificatesService: CertificatesCoroutineImplBase,
+    parent: MeasurementConsumer,
+    notValidBefore: Instant = clock.instant(),
+    notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS)
+  ): Certificate {
+    return certificatesService.createCertificate(
+      certificate {
+        externalMeasurementConsumerId = parent.externalMeasurementConsumerId
+        fillRequestCertificate(
+          "MC cert",
+          "MC SKID " + idGenerator.generateExternalId().value,
+          notValidBefore,
+          notValidAfter
+        )
+      }
+    )
+  }
+
+  suspend fun createDataProviderCertificate(
+    certificatesService: CertificatesCoroutineImplBase,
+    parent: DataProvider,
+    notValidBefore: Instant = clock.instant(),
+    notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS)
+  ): Certificate {
+    return certificatesService.createCertificate(
+      certificate {
+        externalDataProviderId = parent.externalDataProviderId
+        fillRequestCertificate(
+          "EDP cert",
+          "EDP SKID " + idGenerator.generateExternalId().value,
           notValidBefore,
           notValidAfter
         )
