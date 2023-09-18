@@ -1,0 +1,15 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+
+package(default_testonly = True)
+
+kt_jvm_test(
+    name = "ExponentialBackoffTest",
+    srcs = ["ExponentialBackoffTest.kt"],
+    test_class = "org.wfanet.measurement.common.ExponentialBackoffTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common:exponential_backoff",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)

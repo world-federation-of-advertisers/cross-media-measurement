@@ -9,6 +9,7 @@ package(
 js_library(
     name = "report",
     srcs = [
+        "report_view.css",
         "report_view.tsx",
     ],
     deps = [

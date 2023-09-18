@@ -15,6 +15,8 @@
 package org.wfanet.measurement.duchy.service.system.v1alpha
 
 import com.google.protobuf.ByteString
+import io.grpc.Status
+import io.grpc.StatusException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.ConsumedFlowItem
@@ -88,13 +90,22 @@ class ComputationControlService(
     val stage = header.stageExpectingInput()
     val blob =
       computationStore.write(ComputationBlobContext(globalId, stage, blobMetadata.blobId), content)
-    asyncComputationControlClient.advanceComputation(
-      advanceComputationRequest {
-        globalComputationId = globalId
-        computationStage = stage
-        blobId = blobMetadata.blobId
-        blobPath = blob.blobKey
-      }
-    )
+    try {
+      asyncComputationControlClient.advanceComputation(
+        advanceComputationRequest {
+          globalComputationId = globalId
+          computationStage = stage
+          blobId = blobMetadata.blobId
+          blobPath = blob.blobKey
+        }
+      )
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          else -> Status.UNKNOWN
+        }
+        .withCause(e)
+        .asRuntimeException()
+    }
   }
 }
