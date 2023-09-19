@@ -41,10 +41,9 @@ CREATE TABLE Populations (
 ) PRIMARY KEY (DataProviderId, PopulationId)
   INTERLEAVE IN PARENT DataProviders ON DELETE CASCADE;
 
-ALTER TABLE Requisitions
-    ADD COLUMN PopulationId INT64 NOT NULL;
 
 ALTER TABLE ModelReleases
     ADD COLUMN PopulationId INT64 NOT NULL;
+
 
 RUN BATCH;

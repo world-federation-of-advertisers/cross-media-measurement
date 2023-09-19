@@ -18,6 +18,7 @@ package wfa.measurement.internal.kingdom;
 
 import "wfa/measurement/internal/kingdom/data_provider.proto";
 import "population.proto";
+import "google/protobuf/timestamp.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -28,7 +29,7 @@ service Populations {
 
   rpc GetPopulation(GetPopulationRequest) returns (Population);
 
-  rpc StreamPopulation(StreamPopulationRequest) returns (stream Population);
+  rpc StreamPopulations(StreamPopulationsRequest) returns (stream Population);
 }
 
 message GetPopulationRequest {
@@ -36,9 +37,15 @@ message GetPopulationRequest {
   fixed64 external_population_id = 2;
 }
 
-message StreamPopulationRequest {
+message StreamPopulationsRequest {
+  message AfterFilter {
+    int64 external_data_provider_id = 1;
+    google.protobuf.Timestamp create_time = 2;
+  }
+
   message Filter {
     int64 external_data_provider_id = 1;
+    AfterFilter after = 2;
   }
   Filter filter = 1;
 

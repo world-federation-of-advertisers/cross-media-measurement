@@ -154,13 +154,6 @@ message Measurement {
   // Output only. This may be sent on cancel and delete requests to ensure the
   // client has an up-to-date Measurement before proceeding.
   string etag = 14;
-
-  message Population {
-    // The population value.
-    int64 value = 1;
-  }
-  // The population result.
-  Population population = 15;
 }
 
 message Requisition {
