@@ -16,9 +16,9 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Struct
-import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getInternalId
@@ -68,10 +68,9 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
     return fillStatementBuilder {
         appendClause("WHERE ExternalDataProviderId = @externalDataProviderId")
         bind("externalDataProviderId").to(externalDataProviderId.value)
-        appendClause("LIMIT 1")
       }
       .execute(readContext)
-      .singleOrNull()
+      .singleOrNullIfEmpty()
   }
 
   private fun buildDataProvider(struct: Struct): DataProvider =
