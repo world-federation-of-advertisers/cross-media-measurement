@@ -126,6 +126,13 @@ jobs:
         echo "$ENCRYPTION_KEY_PAIR_CONFIG" | sed $'s/\r$//'  >
         "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_config_files/encryption_key_pair_config.textproto"
 
+    - name: Write measurement spec config
+      env:
+        MEASUREMENT_SPEC_CONFIG: ${{ vars.MEASUREMENT_SPEC_CONFIG }}
+      run: >
+        echo "$MEASUREMENT_SPEC_CONFIG" | sed $'s/\r$//'  >
+        "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_config_files/measurement_spec_config.textproto"        
+
     - name: Write measurement consumer config
       env:
         MEASUREMENT_CONSUMER_CONFIG: ${{ vars.MEASUREMENT_CONSUMER_CONFIG }}
