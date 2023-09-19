@@ -21,11 +21,8 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
-import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
 import org.wfanet.measurement.gcloud.spanner.getInternalId
-import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
-import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 
 class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result>() {
@@ -46,7 +43,11 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
       Certificates.RevocationState,
       Certificates.CertificateDetails
     FROM MeasurementConsumers
-    JOIN MeasurementConsumerCertificates USING (MeasurementConsumerId)
+    JOIN MeasurementConsumerCertificates 
+    ON (
+      MeasurementConsumerCertificates.MeasurementConsumerId = MeasurementConsumers.MeasurementConsumerId
+      AND MeasurementConsumerCertificates.CertificateId = MeasurementConsumers.PublicKeyCertificateId
+    )
     JOIN Certificates USING (CertificateId)
     """
       .trimIndent()
@@ -60,7 +61,7 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
         externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
         details =
           struct.getProtoMessage("MeasurementConsumerDetails", MeasurementConsumer.Details.parser())
-        certificate = buildCertificate(struct)
+        certificate = CertificateReader.buildMeasurementConsumerCertificate(struct)
       }
       .build()
 
@@ -76,21 +77,6 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
       .execute(readContext)
       .singleOrNull()
   }
-
-  // TODO(uakyol) : Move this function to CertificateReader when it is implemented.
-  private fun buildCertificate(struct: Struct): Certificate =
-    Certificate.newBuilder()
-      .apply {
-        externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-        externalCertificateId = struct.getLong("ExternalMeasurementConsumerCertificateId")
-        subjectKeyIdentifier = struct.getBytesAsByteString("SubjectKeyIdentifier")
-        notValidBefore = struct.getTimestamp("NotValidBefore").toProto()
-        notValidAfter = struct.getTimestamp("NotValidAfter").toProto()
-        revocationState =
-          struct.getProtoEnum("RevocationState", Certificate.RevocationState::forNumber)
-        details = struct.getProtoMessage("CertificateDetails", Certificate.Details.parser())
-      }
-      .build()
 
   companion object {
     /** Reads the [InternalId] for a MeasurementConsumer given its [ExternalId]. */
