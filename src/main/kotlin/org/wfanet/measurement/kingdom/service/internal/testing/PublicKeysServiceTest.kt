@@ -37,7 +37,6 @@ import org.wfanet.measurement.internal.kingdom.getMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.updatePublicKeyRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
-private const val RANDOM_SEED = 1
 private const val API_VERSION = "v2alpha"
 
 private val PUBLIC_KEY = ByteString.copyFromUtf8("new public key")
@@ -88,10 +87,20 @@ abstract class PublicKeysServiceTest<T : PublicKeysCoroutineImplBase> {
 
   @Test
   fun `updatePublicKey updates the public key info for a data provider`() = runBlocking {
-    val dataProvider = population.createDataProvider(dataProvidersService)
-    val certificate = population.createDataProviderCertificate(certificatesService, dataProvider)
+    val now = clock.instant()
+    val dataProvider = population.createDataProvider(dataProvidersService, notValidBefore = now)
+    val certificate =
+      population.createDataProviderCertificate(
+        certificatesService,
+        dataProvider,
+        notValidBefore = now
+      )
     // Insert another certificate to make sure it's not just using the most recent one.
-    population.createDataProviderCertificate(certificatesService, dataProvider)
+    population.createDataProviderCertificate(
+      certificatesService,
+      dataProvider,
+      notValidBefore = now
+    )
 
     publicKeysService.updatePublicKey(
       updatePublicKeyRequest {
@@ -114,10 +123,25 @@ abstract class PublicKeysServiceTest<T : PublicKeysCoroutineImplBase> {
 
   @Test
   fun `updatePublicKey updates the public key info for a measurement consumer`() = runBlocking {
+    val now = clock.instant()
     val measurementConsumer =
-      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      population.createMeasurementConsumer(
+        measurementConsumersService,
+        accountsService,
+        notValidBefore = now
+      )
     val certificate =
-      population.createMeasurementConsumerCertificate(certificatesService, measurementConsumer)
+      population.createMeasurementConsumerCertificate(
+        certificatesService,
+        measurementConsumer,
+        notValidBefore = now
+      )
+    // Insert another certificate to make sure it's not just using the most recent one.
+    population.createMeasurementConsumerCertificate(
+      certificatesService,
+      measurementConsumer,
+      notValidBefore = now
+    )
 
     publicKeysService.updatePublicKey(
       updatePublicKeyRequest {
