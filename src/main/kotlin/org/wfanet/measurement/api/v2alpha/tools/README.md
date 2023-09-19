@@ -14,21 +14,21 @@ for usage information.
 
 ### Examples
 
-*   Serializing testing ModelProvider encryption key
+*   Serialize the testing key for `DataProvider` "edp1".
 
     ```shell
     EncryptionPublicKeys serialize \
-      --data=src/main/k8s/testing/secretfiles/mp1_enc_public.tink \
-      --out=/tmp/mp1_enc_public.pb
+      --data=src/main/k8s/testing/secretfiles/edp1_enc_public.tink \
+      --out=/tmp/edp1_enc_public.binpb
     ```
 
 *   Signing above serialized `EncryptionPublicKey`
 
     ```shell
     EncryptionPublicKeys sign \
-      --certificate src/main/k8s/testing/secretfiles/mp1_cs_cert.der \
-      --signing-key src/main/k8s/testing/secretfiles/mp1_cs_private.der \
-      --in /tmp/mp1_enc_public.pb --out /tmp/mp1_enc_public_sig.sha256
+      --certificate src/main/k8s/testing/secretfiles/edp1_cs_cert.der \
+      --signing-key src/main/k8s/testing/secretfiles/edp1_cs_private.der \
+      --in /tmp/edp1_enc_public.binpb --out /tmp/edp1_enc_public_sig.bin
     ```
 
 ## `MeasurementSystem`
@@ -206,6 +206,26 @@ using the `--api-key` option.
     get \
     --encryption-private-key-file=secretfiles/mc_enc_private.tink \
     measurementConsumers/777/measurements/100
+    ```
+
+#### `public-keys`
+
+*   `update`
+
+    Given an encryption public key `/tmp/edp1_enc_public.binpb` and a signature
+    `/tmp/edp1_enc_public_sig.bin` that can be verified with
+    `dataProviders/FeQ5FqAQ5_0/certificates/I0oaV1_vGAM`:
+
+    ```shell
+    MeasurementSystem \
+    --tls-cert-file=secretfiles/edp1_tls.pem \
+    --tls-key-file=secretfiles/edp1_tls.key \
+    --cert-collection-file=secretfiles/kingdom_root.pem \
+    --kingdom-public-api-target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
+    public-keys update dataProviders/FeQ5FqAQ5_0/publicKey
+    --certificate=dataProviders/FeQ5FqAQ5_0/certificates/I0oaV1_vGAM \
+    --public-key=/tmp/edp1_enc_public.binpb \
+    --public-key-signature=/tmp/edp1_enc_public_sig.bin
     ```
 
 ## `EventTemplateValidator`
