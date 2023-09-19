@@ -2227,8 +2227,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           Population.AGGREGATOR_DUCHY.externalDuchyId,
           Population.WORKER1_DUCHY.externalDuchyId
         ),
-        2,
-        true
+        2
       )
     }
   }
