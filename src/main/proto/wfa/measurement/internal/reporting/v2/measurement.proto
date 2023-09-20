@@ -35,8 +35,14 @@ message Measurement {
 
   google.type.Interval time_interval = 4;
 
-  repeated ReportingSet.PrimitiveReportingSetBasis
-      primitive_reporting_set_bases = 5;
+  message PrimitiveReportingSetBasis {
+    // The reporting sets have to be primitive reporting sets.
+    string external_reporting_set_id = 1;
+    // Additional filters from the parent metric.
+    repeated string addon_filters = 2;
+  }
+
+  repeated PrimitiveReportingSetBasis primitive_reporting_set_bases = 5;
 
   enum State {
     STATE_UNSPECIFIED = 0;
