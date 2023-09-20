@@ -394,7 +394,6 @@ fun InternalNoiseMechanism.toSystemNoiseMechanism(): NoiseMechanism {
     InternalNoiseMechanism.CONTINUOUS_LAPLACE,
     InternalNoiseMechanism.CONTINUOUS_GAUSSIAN,
     InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
-    InternalNoiseMechanism.NONE,
     InternalNoiseMechanism.UNRECOGNIZED -> error("invalid internal noise mechanism.")
   }
 }

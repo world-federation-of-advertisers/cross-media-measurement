@@ -1255,7 +1255,8 @@ class EdpSimulator(
   ): Measurement.Result {
     val directProtocolConfig = directProtocol.directProtocolConfig
     val directNoiseMechanism = directProtocol.selectedDirectNoiseMechanism
-    val protocolConfigNoiseMechanism = directNoiseMechanism.toProtocolConfigNoiseMechanism()
+    val protocolConfigNoiseMechanism =
+      directNoiseMechanism.toProtocolConfigNoiseMechanism() ?: error("Noise mechanism is NONE.")
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
     return when (measurementSpec.measurementTypeCase) {
@@ -1558,9 +1559,14 @@ class EdpSimulator(
   }
 }
 
-private fun DirectNoiseMechanism.toProtocolConfigNoiseMechanism(): NoiseMechanism {
+/**
+ * Converts a [DirectNoiseMechanism] to a nullable [NoiseMechanism].
+ *
+ * @return [NoiseMechanism] when there is a matched, otherwise null.
+ */
+private fun DirectNoiseMechanism.toProtocolConfigNoiseMechanism(): NoiseMechanism? {
   return when (this) {
-    DirectNoiseMechanism.NONE -> NoiseMechanism.NONE
+    DirectNoiseMechanism.NONE -> null
     DirectNoiseMechanism.CONTINUOUS_LAPLACE -> NoiseMechanism.CONTINUOUS_LAPLACE
     DirectNoiseMechanism.CONTINUOUS_GAUSSIAN -> NoiseMechanism.CONTINUOUS_GAUSSIAN
   }
@@ -1573,7 +1579,6 @@ private fun DirectNoiseMechanism.toProtocolConfigNoiseMechanism(): NoiseMechanis
  */
 private fun NoiseMechanism.toDirectNoiseMechanism(): DirectNoiseMechanism? {
   return when (this) {
-    NoiseMechanism.NONE -> DirectNoiseMechanism.NONE
     NoiseMechanism.CONTINUOUS_LAPLACE -> DirectNoiseMechanism.CONTINUOUS_LAPLACE
     NoiseMechanism.CONTINUOUS_GAUSSIAN -> DirectNoiseMechanism.CONTINUOUS_GAUSSIAN
     NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,

@@ -19,7 +19,7 @@ data class DpParams(val epsilon: Double, val delta: Double)
 
 /** Noise mechanism for generating publisher noise for direct measurements. */
 enum class DirectNoiseMechanism {
-  /** NONE mechanism is testing only. */
+  /** NONE mechanism is testing only and should not move to public API. */
   NONE,
   CONTINUOUS_LAPLACE,
   CONTINUOUS_GAUSSIAN,

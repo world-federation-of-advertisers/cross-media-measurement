@@ -213,7 +213,6 @@ class InProcessKingdom(
     private const val DEFAULT_INTERNAL_DEADLINE_MILLIS = 30_000L
     private val MEASUREMENT_NOISE_MECHANISMS: List<ProtocolConfig.NoiseMechanism> =
       listOf(
-        ProtocolConfig.NoiseMechanism.NONE,
         ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE,
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
       )

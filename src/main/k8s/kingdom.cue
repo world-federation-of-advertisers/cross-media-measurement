@@ -74,7 +74,6 @@ import ("strings")
 	_open_id_redirect_uri_flag: "--open-id-redirect-uri=https://localhost:2048"
 
 	_directNoiseMechanismFlags: [
-		"--direct-noise-mechanism=NONE",
 		"--direct-noise-mechanism=CONTINUOUS_LAPLACE",
 		"--direct-noise-mechanism=CONTINUOUS_GAUSSIAN",
 	]

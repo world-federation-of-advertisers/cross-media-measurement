@@ -123,7 +123,6 @@ import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 /** Default options of direct noise mechanisms to data providers. */
 val DEFAULT_DIRECT_NOISE_MECHANISMS: List<NoiseMechanism> =
   listOf(
-    NoiseMechanism.NONE,
     NoiseMechanism.GEOMETRIC,
     NoiseMechanism.DISCRETE_GAUSSIAN,
     NoiseMechanism.CONTINUOUS_LAPLACE,
@@ -251,7 +250,6 @@ fun InternalDifferentialPrivacyParams.toDifferentialPrivacyParams(): Differentia
 /** Converts an internal [InternalNoiseMechanism] to a public [NoiseMechanism]. */
 fun InternalNoiseMechanism.toNoiseMechanism(): NoiseMechanism {
   return when (this) {
-    InternalNoiseMechanism.NONE -> NoiseMechanism.NONE
     InternalNoiseMechanism.GEOMETRIC -> NoiseMechanism.GEOMETRIC
     InternalNoiseMechanism.DISCRETE_GAUSSIAN -> NoiseMechanism.DISCRETE_GAUSSIAN
     InternalNoiseMechanism.CONTINUOUS_LAPLACE -> NoiseMechanism.CONTINUOUS_LAPLACE
@@ -266,7 +264,6 @@ fun NoiseMechanism.toInternal(): InternalNoiseMechanism {
   return when (this) {
     NoiseMechanism.GEOMETRIC -> InternalNoiseMechanism.GEOMETRIC
     NoiseMechanism.DISCRETE_GAUSSIAN -> InternalNoiseMechanism.DISCRETE_GAUSSIAN
-    NoiseMechanism.NONE -> InternalNoiseMechanism.NONE
     NoiseMechanism.CONTINUOUS_LAPLACE -> InternalNoiseMechanism.CONTINUOUS_LAPLACE
     NoiseMechanism.CONTINUOUS_GAUSSIAN -> InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
     NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,

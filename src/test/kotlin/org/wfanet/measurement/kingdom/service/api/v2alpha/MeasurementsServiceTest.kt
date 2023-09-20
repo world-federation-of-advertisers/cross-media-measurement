@@ -1772,16 +1772,8 @@ class MeasurementsServiceTest {
 
     private val NOISE_MECHANISMS =
       listOf(
-        ProtocolConfig.NoiseMechanism.NONE,
         ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE,
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
-      )
-
-    private val INTERNAL_NOISE_MECHANISMS =
-      listOf(
-        InternalNoiseMechanism.NONE,
-        InternalNoiseMechanism.CONTINUOUS_LAPLACE,
-        InternalNoiseMechanism.CONTINUOUS_GAUSSIAN,
       )
 
     private val DIFFERENTIAL_PRIVACY_PARAMS = differentialPrivacyParams {
@@ -2043,7 +2035,6 @@ class MeasurementsServiceTest {
       }
     private val DEFAULT_INTERNAL_DIRECT_NOISE_MECHANISMS: List<InternalNoiseMechanism> =
       listOf(
-        InternalNoiseMechanism.NONE,
         InternalNoiseMechanism.CONTINUOUS_LAPLACE,
         InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
       )

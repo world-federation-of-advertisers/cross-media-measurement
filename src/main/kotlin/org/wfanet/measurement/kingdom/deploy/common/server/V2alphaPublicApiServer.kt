@@ -242,7 +242,6 @@ private class V2alphaFlags {
   fun setDirectNoiseMechanisms(noiseMechanisms: List<NoiseMechanism>) {
     for (noiseMechanism in noiseMechanisms) {
       when (noiseMechanism) {
-        NoiseMechanism.NONE,
         NoiseMechanism.CONTINUOUS_LAPLACE,
         NoiseMechanism.CONTINUOUS_GAUSSIAN -> {}
         NoiseMechanism.GEOMETRIC,

@@ -1726,7 +1726,7 @@ class EdpSimulatorTest {
 
   @Test
   fun `fails to fulfill direct reach and frequency Requisition when no direct noise mechanism is picked by EDP`() {
-    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.NONE
+    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN
     val requisition =
       REQUISITION.copy {
         protocolConfig =
@@ -1972,7 +1972,7 @@ class EdpSimulatorTest {
       REACH_ONLY_MEASUREMENT_SPEC.copy {
         vidSamplingInterval = vidSamplingInterval.copy { width = 0.1f }
       }
-    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.NONE
+    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN
     val requisition =
       REQUISITION.copy {
         this.measurementSpec = signMeasurementSpec(measurementSpec, MC_SIGNING_KEY)
