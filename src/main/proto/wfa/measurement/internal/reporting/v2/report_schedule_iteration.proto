@@ -38,11 +38,8 @@ message ReportScheduleIteration {
   }
   State state = 5;
 
-  // Only incremented when state transitions to `GRPC_FAILURE` or
-  // `REPORT_CREATED`. Output-only.
   int32 num_attempts = 6;
 
-  // Only set if `Report` was successfully created. Output-only.
   string external_report_id = 7;
 
   google.protobuf.Timestamp report_creation_time = 8;
