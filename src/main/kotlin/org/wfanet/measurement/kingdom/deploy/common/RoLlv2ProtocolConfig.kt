@@ -23,9 +23,6 @@ import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import picocli.CommandLine
 
 object RoLlv2ProtocolConfig {
-  var enabled: Boolean by Delegates.notNull()
-    private set
-
   const val name = "rollv2"
   lateinit var protocolConfig: ProtocolConfig.LiquidLegionsV2
     private set
@@ -49,7 +46,6 @@ object RoLlv2ProtocolConfig {
     duchyProtocolConfig = configMessage.duchyProtocolConfig
     requiredExternalDuchyIds = configMessage.requiredExternalDuchyIdsList.toSet()
     minimumNumberOfRequiredDuchies = configMessage.minimumDuchyParticipantCount
-    enabled = flags.enableRoLlv2Protocol
   }
 
   fun setForTest(
@@ -57,10 +53,7 @@ object RoLlv2ProtocolConfig {
     duchyProtocolConfig: DuchyProtocolConfig.LiquidLegionsV2,
     requiredExternalDuchyIds: Set<String>,
     minimumNumberOfRequiredDuchies: Int,
-    enabled: Boolean,
   ) {
-    RoLlv2ProtocolConfig.enabled = enabled
-
     require(!RoLlv2ProtocolConfig::protocolConfig.isInitialized)
     require(!RoLlv2ProtocolConfig::duchyProtocolConfig.isInitialized)
     require(!RoLlv2ProtocolConfig::requiredExternalDuchyIds.isInitialized)
@@ -78,13 +71,5 @@ class RoLlv2ProtocolConfigFlags {
     required = true
   )
   lateinit var config: File
-    private set
-
-  @CommandLine.Option(
-    names = ["--enable-ro-llv2-protocol"],
-    description = ["Determine whether enable reach-only liquid legions v2 protocol."],
-    required = false
-  )
-  var enableRoLlv2Protocol: Boolean = false
     private set
 }

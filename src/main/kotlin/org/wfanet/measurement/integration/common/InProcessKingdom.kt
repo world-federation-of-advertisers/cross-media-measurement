@@ -151,7 +151,11 @@ class InProcessKingdom(
           EventGroupMetadataDescriptorsService(internalEventGroupMetadataDescriptorsClient)
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-          MeasurementsService(internalMeasurementsClient, MEASUREMENT_NOISE_MECHANISMS)
+          MeasurementsService(
+              internalMeasurementsClient,
+              MEASUREMENT_NOISE_MECHANISMS,
+              reachOnlyLlV2Enabled = true
+            )
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
           PublicKeysService(internalPublicKeysClient)

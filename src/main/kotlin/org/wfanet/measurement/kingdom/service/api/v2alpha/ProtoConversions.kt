@@ -907,7 +907,8 @@ fun Measurement.toInternal(
   measurementConsumerCertificateKey: MeasurementConsumerCertificateKey,
   dataProvidersMap: Map<Long, DataProviderValue>,
   measurementSpecProto: MeasurementSpec,
-  internalNoiseMechanisms: List<InternalProtocolConfig.NoiseMechanism>
+  internalNoiseMechanisms: List<InternalProtocolConfig.NoiseMechanism>,
+  reachOnlyLlV2Enabled: Boolean,
 ): InternalMeasurement {
   val publicMeasurement = this
 
@@ -927,7 +928,7 @@ fun Measurement.toInternal(
       when (measurementSpecProto.measurementTypeCase) {
         MeasurementSpec.MeasurementTypeCase.REACH -> {
           if (dataProvidersCount > 1) {
-            if (RoLlv2ProtocolConfig.enabled) {
+            if (reachOnlyLlV2Enabled) {
               protocolConfig = internalProtocolConfig {
                 externalProtocolConfigId = RoLlv2ProtocolConfig.name
                 reachOnlyLiquidLegionsV2 = RoLlv2ProtocolConfig.protocolConfig

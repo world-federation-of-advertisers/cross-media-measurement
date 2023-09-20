@@ -174,7 +174,8 @@ class MeasurementsServiceTest {
     service =
       MeasurementsService(
         MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
-        NOISE_MECHANISMS
+        NOISE_MECHANISMS,
+        reachOnlyLlV2Enabled = true
       )
   }
 
@@ -1765,8 +1766,7 @@ class MeasurementsServiceTest {
         RO_LLV2_INTERNAL_PROTOCOL_CONFIG.reachOnlyLiquidLegionsV2,
         RO_LLV2_DUCHY_PROTOCOL_CONFIG.reachOnlyLiquidLegionsV2,
         setOf("aggregator"),
-        2,
-        true
+        2
       )
     }
 
