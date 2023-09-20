@@ -33,6 +33,11 @@ service ReportSchedules {
   rpc ListReportSchedules(ListReportSchedulesRequest)
     returns (ListReportSchedulesResponse);
 
+  rpc StopReportSchedule(StopReportScheduleRequest)
+    returns (ReportSchedule);
+
+  // Associates a `Report` with a `ReportSchedule` and moves the
+  // `ReportSchedule` forward.
   rpc InsertReportScheduleReport(InsertReportScheduleReportRequest)
     returns (ReportSchedule);
 }
@@ -63,6 +68,12 @@ message ListReportSchedulesRequest {
 
 message ListReportSchedulesResponse {
   repeated ReportSchedule report_schedules = 1;
+}
+
+message StopReportScheduleRequest {
+  // `MeasurementConsumer` ID from the CMMS public API.
+  string cmms_measurement_consumer_id = 1;
+  string external_report_schedule_id = 2;
 }
 
 message InsertReportScheduleReportRequest {
