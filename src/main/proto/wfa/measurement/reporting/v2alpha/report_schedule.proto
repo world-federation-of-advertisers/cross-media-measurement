@@ -45,14 +45,14 @@ message ReportSchedule {
   string description = 3;
 
   // Template for every `Report` that is created. `time` is ignored.
-  Report report_template = 4
-  [(google.api.field_behavior) = REQUIRED];
+  Report report_template = 4 [(google.api.field_behavior) = REQUIRED];
 
-  // Specifies when the scheduling will start as well as the time of day used for
-  // every `Report`. If `utc_offset` is set, daylight savings is ignored and days
-  // will be 24 hours based on the time of day specified here. If `time_zone` is
-  // set, days will be based on the calendar and daylight savings will be
-  // considered; if 5 AM is chosen, the day will start with 5 AM year-round.
+  // Specifies when the scheduling will start as well as the time of day used
+  // for every `Report`. If `utc_offset` is set, daylight savings is ignored and
+  // days will be 24 hours based on the time of day specified here. If
+  // `time_zone` is set, days will be based on the calendar and daylight savings
+  // will be considered; if 5 AM is chosen, the day will start with 5 AM
+  // year-round.
   google.type.DateTime start = 5 [(google.api.field_behavior) = REQUIRED];
 
   // If specified, represents the last `Date` that a `Report` can be created on.
@@ -60,8 +60,7 @@ message ReportSchedule {
   google.type.Date end = 6;
 
   message Frequency {
-    message Daily {
-    }
+    message Daily {}
 
     message Weekly {
       google.type.DayOfWeek day_of_Week = 1
@@ -69,8 +68,8 @@ message ReportSchedule {
     }
 
     message Monthly {
-      // If this represents a date that is greater than the end of the month, then
-      // it will be coerced to the end of the month. Cannot be les than 1.
+      // If this represents a date that is greater than the end of the month,
+      // then it will be coerced to the end of the month. Cannot be les than 1.
       //
       // Required.
       int32 day_of_month = 1;
@@ -89,8 +88,7 @@ message ReportSchedule {
   message ReportWindow {
     // `count` represents how much of the `increment` to go back.
     message TrailingWindow {
-      int32 count = 1
-      [(google.api.field_behavior) = REQUIRED];
+      int32 count = 1 [(google.api.field_behavior) = REQUIRED];
 
       enum Increment {
         // Default value used if the state is omitted.
@@ -99,8 +97,7 @@ message ReportSchedule {
         WEEK = 2;
         MONTH = 3;
       }
-      Increment increment = 2
-      [(google.api.field_behavior) = REQUIRED];
+      Increment increment = 2 [(google.api.field_behavior) = REQUIRED];
     }
 
     // How far back the `Report` covers. Anchored on start hour. Required.

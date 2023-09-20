@@ -27,14 +27,12 @@ service ReportSchedules {
   rpc CreateReportSchedule(CreateReportScheduleRequest)
     returns (ReportSchedule);
 
-  rpc GetReportSchedule(GetReportScheduleRequest)
-    returns (ReportSchedule);
+  rpc GetReportSchedule(GetReportScheduleRequest) returns (ReportSchedule);
 
   rpc ListReportSchedules(ListReportSchedulesRequest)
     returns (ListReportSchedulesResponse);
 
-  rpc StopReportSchedule(StopReportScheduleRequest)
-    returns (ReportSchedule);
+  rpc StopReportSchedule(StopReportScheduleRequest) returns (ReportSchedule);
 
   // Associates a `Report` with a `ReportSchedule` and moves the
   // `ReportSchedule` forward.

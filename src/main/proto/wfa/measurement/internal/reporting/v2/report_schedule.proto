@@ -33,8 +33,7 @@ message ReportSchedule {
   string external_report_schedule_id = 2;
 
   message Frequency {
-    message Daily {
-    }
+    message Daily {}
 
     message Weekly {
       google.type.DayOfWeek day_of_Week = 1;

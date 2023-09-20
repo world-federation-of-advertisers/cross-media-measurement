@@ -168,4 +168,3 @@ kt_jvm_grpc_proto_library(
     name = "report_schedule_iterations_service_kt_jvm_grpc_proto",
     srcs = [":report_schedule_iterations_service_proto"],
 )
-
