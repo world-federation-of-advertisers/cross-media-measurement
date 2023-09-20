@@ -26,9 +26,10 @@ def wfa_measurement_system_repositories():
 
     wfa_repo_archive(
         name = "wfa_common_jvm",
+        # TODO(world-federation-of-advertisers/common-jvm#216): Use version.
+        commit = "3a59e8f2502b96f200436c885beda84c9bdad6b0",
         repo = "common-jvm",
-        sha256 = "c0e39569064363ed61b9b780bf2aa37b99d0c81933a7a434b6b320c2e81063b4",
-        version = "0.65.0",
+        sha256 = "265c274fd5a618dcb8bced9f1c881bc1e3a2e973e6b269a887544b3ab3162a4a",
     )
 
     wfa_repo_archive(
@@ -75,16 +76,18 @@ def wfa_measurement_system_repositories():
 
     wfa_repo_archive(
         name = "wfa_consent_signaling_client",
+        # TODO(world-federation-of-advertisers/consent-signaling-client#45): Use version.
+        commit = "c3112fbd76a37093c71a499e99b463ff9bb834b6",
         repo = "consent-signaling-client",
-        sha256 = "dbe586f8fb1da9ea88ab87a1acac036aa6142fe24005ae0577bba6dd60e185c8",
-        version = "0.16.0",
+        sha256 = "94491537a6e95097b0bcf9b2152d7ed3883660e7a2663e4e17b48f5e6a722c78",
     )
 
     wfa_repo_archive(
         name = "wfa_virtual_people_common",
+        # TODO(world-federation-of-advertisers/virtual-people-common#63): Use version.
+        commit = "1907988e6b15d5639ba1b7db77654f1f5086b5f4",
         repo = "virtual-people-common",
-        sha256 = "0a663e5517f50052ecc5e5745564935a3c15ebce2e9550b11dda451e341ea624",
-        version = "0.2.3",
+        sha256 = "b5463e7f6429db9a9f4ba4cfa0950c4aafc2c9988ee3967000b8e6885123e57d",
     )
 
     http_archive(
