@@ -17,30 +17,11 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "google/protobuf/timestamp.proto";
-import "event_group.proto";
-import "wfa/measurement/internal/kingdom/event_template.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
-message Population {
-  fixed64 external_data_provider_id = 1;
-  fixed64 external_population_id = 2;
-
-  string description = 3;
-
-  // When the 'Population' was created.
-  google.protobuf.Timestamp create_time = 4;
-
-  // A reference to a population blob.
-  message PopulationBlob {
-    //  A uri for the model blob.
-    string model_blob_uri = 1;
-  }
-
-  // The blob for the population.
-  PopulationBlob population_blob = 5;
-
-  // The EventTemplate that this population conforms to.
-  EventTemplate event_template = 6;
+message EventTemplate {
+  // The type of the Event Template. A fully-qualified protobuf message type.
+  string fully_qualified_type = 1;
 }
