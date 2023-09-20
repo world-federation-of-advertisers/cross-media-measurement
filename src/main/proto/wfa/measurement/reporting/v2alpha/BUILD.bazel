@@ -81,6 +81,54 @@ kt_jvm_proto_library(
 )
 
 proto_library(
+    name = "report_schedule_proto",
+    srcs = ["report_schedule.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":report_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_googleapis//google/type:date_proto",
+        "@com_google_googleapis//google/type:datetime_proto",
+        "@com_google_googleapis//google/type:dayofweek_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+java_proto_library(
+    name = "report_schedule_java_proto",
+    deps = [":report_schedule_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "report_schedule_kt_jvm_proto",
+    srcs = [":report_schedule_proto"],
+    deps = [":report_schedule_java_proto"],
+)
+
+
+proto_library(
+    name = "report_schedule_iteration_proto",
+    srcs = ["report_schedule_iteration.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+java_proto_library(
+    name = "report_schedule_iteration_java_proto",
+    deps = [":report_schedule_iteration_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "report_schedule_iteration_kt_jvm_proto",
+    srcs = [":report_schedule_iteration_proto"],
+    deps = [":report_schedule_iteration_java_proto"],
+)
+
+proto_library(
     name = "reporting_set_proto",
     srcs = ["reporting_set.proto"],
     strip_import_prefix = IMPORT_PREFIX,
@@ -191,6 +239,43 @@ kt_jvm_grpc_proto_library(
     name = "reports_service_kt_jvm_grpc_proto",
     srcs = [":reports_service_proto"],
 )
+
+proto_library(
+    name = "report_schedules_service_proto",
+    srcs = ["report_schedules_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":report_schedule_proto",
+        "@com_google_googleapis//google/api:annotations_proto",
+        "@com_google_googleapis//google/api:client_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "report_schedules_service_kt_jvm_grpc_proto",
+    srcs = [":report_schedules_service_proto"],
+)
+
+proto_library(
+    name = "report_schedule_iterations_service_proto",
+    srcs = ["report_schedule_iterations_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":report_schedule_iteration_proto",
+        "@com_google_googleapis//google/api:annotations_proto",
+        "@com_google_googleapis//google/api:client_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "report_schedule_iterations_service_kt_jvm_grpc_proto",
+    srcs = [":report_schedule_iterations_service_proto"],
+)
+
 
 proto_library(
     name = "reporting_sets_service_proto",

@@ -40,6 +40,9 @@ service Reports {
   rpc ListReports(ListReportsRequest) returns (ListReportsResponse) {
     option (google.api.http) = {
       get: "/v2alpha/{parent=measurementConsumers/*}/reports"
+      additional_bindings {
+        get: "/v2alpha/{parent=measurementConsumers/*/reportSchedules/*}/reports"
+      }
     };
     option (google.api.method_signature) = "parent";
   }
@@ -66,7 +69,8 @@ message GetReportRequest {
 
 // Request message for `ListReports` method.
 message ListReportsRequest {
-  // Format: measurementConsumers/{measurement_consumer}
+  // Format: measurementConsumers/{measurement_consumer} or
+  // measurementConsumers/{measurement_consumer}/reportSchedules/{report_schedule}
   string parent = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
@@ -93,8 +97,8 @@ message ListReportsRequest {
 
 // Response message for `ListReports` method.
 message ListReportsResponse {
-  // The reports from the specified measurement consumer. Ordered by
-  // `create_time`, ascending.
+  // The reports from the specified `MeasurementConsumer` or `ReportSchedule`.
+  // Ordered by `create_time`, ascending.
   repeated Report reports = 1;
 
   // A token, which can be sent as `page_token` to retrieve the next page.

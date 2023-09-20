@@ -1,0 +1,127 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.v2alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
+import "google/type/datetime.proto";
+import "google/type/dayofweek.proto";
+import "wfa/measurement/reporting/v2alpha/report.proto";
+
+option java_package = "org.wfanet.measurement.reporting.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "ReportScheduleProto";
+
+// Resource representing the creation of `Report`s based on a schedule.
+message ReportSchedule {
+  option (google.api.resource) = {
+    type: "reporting.halo-cmm.org/ReportSchedule"
+    pattern: "measurementConsumers/{measurement_consumer}/reportSchedules/{report_schedule}"
+  };
+
+  // Resource name.
+  string name = 1;
+
+  // Human-readable name.
+  string display_name = 2;
+
+  // Description.
+  string description = 3;
+
+  // Template for every `Report` that is created. `time` is ignored.
+  Report report_template = 4
+  [(google.api.field_behavior) = REQUIRED];
+
+  // Specifies when the scheduling will start as well as the time of day used for
+  // every `Report`. If `utc_offset` is set, daylight savings is ignored and days
+  // will be 24 hours based on the time of day specified here. If `time_zone` is
+  // set, days will be based on the calendar and daylight savings will be
+  // considered; if 5 AM is chosen, the day will start with 5 AM year-round.
+  google.type.DateTime start = 5 [(google.api.field_behavior) = REQUIRED];
+
+  // If specified, represents the last `Date` that a `Report` can be created on.
+  // If not unspecified, `Report` creation does not stop.
+  google.type.Date end = 6;
+
+  message Frequency {
+    message Daily {
+    }
+
+    message Weekly {
+      google.type.DayOfWeek day_of_Week = 1
+      [(google.api.field_behavior) = REQUIRED];
+    }
+
+    message Monthly {
+      // If this represents a date that is greater than the end of the month, then
+      // it will be coerced to the end of the month. Cannot be les than 1.
+      //
+      // Required.
+      int32 day_of_month = 1;
+    }
+
+    // How often a `Report` is created. Required.
+    oneof frequency {
+      Daily daily = 1;
+      Weekly weekly = 2;
+      Monthly monthly = 3;
+    }
+  }
+  Frequency frequency = 7 [(google.api.field_behavior) = REQUIRED];
+
+  // Defines the time interval that a `Report` will cover.
+  message ReportWindow {
+    // `count` represents how much of the `increment` to go back.
+    message TrailingWindow {
+      int32 count = 1
+      [(google.api.field_behavior) = REQUIRED];
+
+      enum Increment {
+        // Default value used if the state is omitted.
+        INCREMENT_UNSPECIFIED = 0;
+        DAY = 1;
+        WEEK = 2;
+        MONTH = 3;
+      }
+      Increment increment = 2
+      [(google.api.field_behavior) = REQUIRED];
+    }
+
+    // How far back the `Report` covers. Anchored on start hour. Required.
+    oneof window {
+      TrailingWindow trailing_window = 1;
+      // `Report` starts from this `Date`.
+      google.type.Date fixed_window = 2;
+    }
+  }
+  ReportWindow report_window = 8 [(google.api.field_behavior) = REQUIRED];
+
+  enum State {
+    // Default value used if the state is omitted.
+    STATE_UNSPECIFIED = 0;
+    // `ReportSchedule` has not been stopped.
+    ACTIVE = 1;
+    // `ReportSchedule` has been stopped. Terminal state.
+    STOPPED = 2;
+  }
+  State state = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  google.protobuf.Timestamp next_report_creation_time = 10
+  [(google.api.field_behavior) = OUTPUT_ONLY];
+}
