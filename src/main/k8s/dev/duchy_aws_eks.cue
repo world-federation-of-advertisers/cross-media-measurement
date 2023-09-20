@@ -81,11 +81,10 @@ duchy: #PostgresDuchy & {
 		"computation-control-server": {
 			metadata: {
 				annotations: {
-					"service.beta.kubernetes.io/aws-load-balancer-proxy-protocol":   "*"
 					"service.beta.kubernetes.io/aws-load-balancer-type":             "nlb"
 					"service.beta.kubernetes.io/aws-load-balancer-scheme":           "internet-facing"
 					"service.beta.kubernetes.io/aws-load-balancer-nlb-target-type":  "ip"
-					"service.beta.kubernetes.io/aws-load-balancer-eip-allocations":  "eipalloc-05874583414024ddf,eipalloc-09d7a0f47a1701600"
+					"service.beta.kubernetes.io/aws-load-balancer-eip-allocations":  "eipalloc-09d7a0f47a1701600,eipalloc-05874583414024ddf"
 				}
 			}
 		}
