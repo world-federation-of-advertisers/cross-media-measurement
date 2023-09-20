@@ -63,16 +63,14 @@ message ReportSchedule {
     message Daily {}
 
     message Weekly {
-      google.type.DayOfWeek day_of_Week = 1
+      google.type.DayOfWeek day_of_week = 1
           [(google.api.field_behavior) = REQUIRED];
     }
 
     message Monthly {
       // If this represents a date that is greater than the end of the month,
       // then it will be coerced to the end of the month. Cannot be les than 1.
-      //
-      // Required.
-      int32 day_of_month = 1;
+      int32 day_of_month = 1 [(google.api.field_behavior) = REQUIRED];
     }
 
     // How often a `Report` is created. Required.
@@ -86,12 +84,12 @@ message ReportSchedule {
 
   // Defines the time interval that a `Report` will cover.
   message ReportWindow {
-    // `count` represents how much of the `increment` to go back.
     message TrailingWindow {
+      // Represents how much of the `increment` to go back.
       int32 count = 1 [(google.api.field_behavior) = REQUIRED];
 
       enum Increment {
-        // Default value used if the state is omitted.
+        // Default value if the increment is omitted. Must not be used.
         INCREMENT_UNSPECIFIED = 0;
         DAY = 1;
         WEEK = 2;
@@ -102,6 +100,7 @@ message ReportSchedule {
 
     // How far back the `Report` covers. Anchored on start hour. Required.
     oneof window {
+      // `Report` start time is determined by how the window is defined.
       TrailingWindow trailing_window = 1;
       // `Report` starts from this `Date`.
       google.type.Date fixed_window = 2;
@@ -110,7 +109,7 @@ message ReportSchedule {
   ReportWindow report_window = 8 [(google.api.field_behavior) = REQUIRED];
 
   enum State {
-    // Default value used if the state is omitted.
+    // Default value if the state is omitted. Should not be used.
     STATE_UNSPECIFIED = 0;
     // `ReportSchedule` has not been stopped.
     ACTIVE = 1;

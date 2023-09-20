@@ -36,7 +36,7 @@ message ReportSchedule {
     message Daily {}
 
     message Weekly {
-      google.type.DayOfWeek day_of_Week = 1;
+      google.type.DayOfWeek day_of_week = 1;
     }
 
     message Monthly {
@@ -70,11 +70,8 @@ message ReportSchedule {
   }
 
   enum State {
-    // Default value used if the state is omitted.
     STATE_UNSPECIFIED = 0;
-    // `ReportSchedule` has not been stopped.
     ACTIVE = 1;
-    // `ReportSchedule` has been stopped. Terminal state.
     STOPPED = 2;
   }
   State state = 3;

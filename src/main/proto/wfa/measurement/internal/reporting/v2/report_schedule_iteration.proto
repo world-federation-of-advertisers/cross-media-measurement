@@ -31,13 +31,9 @@ message ReportScheduleIteration {
   string create_report_request_id = 4;
 
   enum State {
-    // Default value used if the state is omitted.
     STATE_UNSPECIFIED = 0;
-    // Data is not yet available for `Report` creation.
-    DATA_NOT_AVAILABLE = 1;
-    // Grpc call failed when attempting `Report` creation.
-    GRPC_FAILURE = 2;
-    // `Report` was successfully created. Terminal state.
+    WAITING_FOR_DATA_AVAILABILITY = 1;
+    RETRYING_REPORT_CREATION = 2;
     REPORT_CREATED = 3;
   }
   State state = 5;

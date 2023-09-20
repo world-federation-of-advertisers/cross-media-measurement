@@ -27,26 +27,27 @@ option java_outer_classname = "ReportScheduleIterationProto";
 message ReportScheduleIteration {
   option (google.api.resource) = {
     type: "reporting.halo-cmm.org/ReportScheduleIteration"
-    pattern: "measurementConsumers/{measurement_consumer}/reportSchedules/{report_schedule}/reportScheduleIterations/{report_schedule_iteration}"
+    pattern: "measurementConsumers/{measurement_consumer}/reportSchedules/{report_schedule}/iterations/{report_schedule_iteration}"
   };
 
   // Resource name.
   string name = 1;
 
   enum State {
-    // Default value used if the state is omitted.
+    // Default value if the state is omitted. Should not be used.
     STATE_UNSPECIFIED = 0;
     // Data is not yet available for `Report` creation.
-    DATA_NOT_AVAILABLE = 1;
+    WAITING_FOR_DATA_AVAILABILITY = 1;
     // Grpc call failed when attempting `Report` creation.
-    GRPC_FAILURE = 2;
+    RETRYING_REPORT_CREATION = 2;
     // `Report` was successfully created. Terminal state.
     REPORT_CREATED = 3;
   }
   State state = 2;
 
-  // Only incremented when state transitions to `GRPC_FAILURE` or
-  // `REPORT_CREATED`.
+  // Only incremented when state transitions to `RETRYING_REPORT_CREATION` or
+  // `REPORT_CREATED`. Transitioning to `WAITING_FOR_DATA_AVAILABILITY` does
+  // not increment this field.
   int32 num_attempts = 3;
 
   // Only set when state is `REPORT_CREATED`.

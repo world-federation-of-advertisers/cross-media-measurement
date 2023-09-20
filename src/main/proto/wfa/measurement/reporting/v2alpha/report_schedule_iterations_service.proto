@@ -32,7 +32,7 @@ service ReportScheduleIterations {
   rpc GetReportScheduleIteration(GetReportScheduleIterationRequest)
       returns (ReportScheduleIteration) {
     option (google.api.http) = {
-      get: "/v2alpha/{name=measurementConsumers/*/reportSchedules/*/reportScheduleIterations/*}"
+      get: "/v2alpha/{name=measurementConsumers/*/reportSchedules/*/iterations/*}"
     };
     option (google.api.method_signature) = "name";
   }
@@ -41,7 +41,7 @@ service ReportScheduleIterations {
   rpc ListReportScheduleIterations(ListReportScheduleIterationsRequest)
       returns (ListReportScheduleIterationsResponse) {
     option (google.api.http) = {
-      get: "/v2alpha/{parent=measurementConsumers/*/reportSchedules/*}/reportScheduleIterations"
+      get: "/v2alpha/{parent=measurementConsumers/*/reportSchedules/*}/iterations"
     };
     option (google.api.method_signature) = "parent";
   }
@@ -50,7 +50,7 @@ service ReportScheduleIterations {
 message GetReportScheduleIterationRequest {
   // The name of the `ReportScheduleIteration` to retrieve.
   // Format:
-  // measurementConsumers/{measurement_consumer}/reportSchedules/{report_schedule}/reportScheduleIterations/{report_schedule_iteration}
+  // measurementConsumers/{measurement_consumer}/reportSchedules/{report_schedule}/iterations/{report_schedule_iteration}
   string name = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
