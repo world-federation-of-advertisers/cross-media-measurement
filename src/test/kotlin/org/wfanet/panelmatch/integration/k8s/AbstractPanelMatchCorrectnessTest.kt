@@ -79,11 +79,9 @@ import org.wfanet.measurement.common.k8s.testing.Processes
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toProtoDate
-import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt
-import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
 import org.wfanet.measurement.internal.testing.ForwardedStorageGrpcKt
 import org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourceSetup
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
@@ -123,6 +121,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
 
   protected suspend fun runResourceSetup(
     dataProviderContent: EntityContent,
+    modelProviderContent: EntityContent,
     workflow: ExchangeWorkflow,
     initialDataProviderInputs: Map<String, ByteString>
   ) {
@@ -187,12 +186,20 @@ abstract class AbstractPanelMatchCorrectnessTest {
             panelMatchResourceSetup
               .process(
                 dataProviderContent,
+                modelProviderContent,
                 EXCHANGE_DATE.toProtoDate(),
                 workflow,
                 SCHEDULE,
                 API_VERSION
               )
           }
+
+          val akidPrincipalMap = outputDir.resolve(ResourceSetup.AKID_PRINCIPAL_MAP_FILE)
+
+          loadDpDaemonForPanelMatch(k8sClient, panelMatchResourceKey.dataProviderKey, akidPrincipalMap)
+          // loadMpDaemonForPanelMatch(k8sClient, panelMatchResourceKey.modelProviderKey)
+          logger.info { "------------------------------------- daemons created" }
+
           exchangeKey =
             ExchangeKey(
               recurringExchangeId = panelMatchResourceKey.recurringExchangeKey.recurringExchangeId,
@@ -324,9 +331,10 @@ abstract class AbstractPanelMatchCorrectnessTest {
             mpForwardedStorage.writeBlob(blobKey, value)
           }
           logger.info { "------------------------------------- mp setup completed" }
+          /*logger.info { "------------------------------------- mp setup completed" }
           loadDpDaemonForPanelMatch(k8sClient, panelMatchResourceKey.dataProviderKey)
           loadMpDaemonForPanelMatch(k8sClient, panelMatchResourceKey.modelProviderKey)
-          logger.info { "------------------------------------- daemons created" }
+          logger.info { "------------------------------------- daemons created" }*/
           val exchangeClient = ExchangesGrpcKt.ExchangesCoroutineStub(publicChannel)
           val exchangeStepsClient = ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub(publicChannel)
 
@@ -352,12 +360,19 @@ abstract class AbstractPanelMatchCorrectnessTest {
 
   }
 
-  private suspend fun loadDpDaemonForPanelMatch(k8sClient: KubernetesClient, dataProviderKey: DataProviderKey) {
+  private suspend fun loadDpDaemonForPanelMatch(k8sClient: KubernetesClient, dataProviderKey: DataProviderKey, akidPrincipalMap: File) {
     withContext(Dispatchers.IO) {
       val outputDir = tempDir.newFolder("edp_daemon")
       extractTar(
         getRuntimePath(LOCAL_K8S_PANELMATCH_PATH.resolve("edp_daemon.tar"))
           .toFile(), outputDir)
+
+      val configFilesDir = outputDir.toPath().resolve(CONFIG_FILES_PATH).toFile()
+      logger.info("================================= configFilesDir: ${configFilesDir}")
+      logger.info("================================= akidPrincipalMap: ${akidPrincipalMap}")
+      logger.info("Copying AKID $akidPrincipalMap to ${CONFIG_FILES_PATH}")
+      akidPrincipalMap.copyTo(configFilesDir.resolve(akidPrincipalMap.name))
+      logger.info("=================== COPIED!!!!")
       val configTemplate: File = outputDir.resolve("config.yaml")
       kustomize(
         outputDir.toPath().resolve(LOCAL_K8S_PANELMATCH_PATH).resolve("edp_daemon").toFile(),
@@ -373,6 +388,9 @@ abstract class AbstractPanelMatchCorrectnessTest {
       //logger.info { configContent }
 
       kubectlApply(configContent, k8sClient)
+      delay(1000)
+      logger.info("=================== DELAYYYYYY!!!!")
+      //delay(5000)
     }
   }
 
@@ -585,8 +603,8 @@ abstract class AbstractPanelMatchCorrectnessTest {
     private val WORKSPACE_PATH: Path = Paths.get("wfa_measurement_system")
     private val LOCAL_K8S_PATH = Paths.get("src", "main", "k8s", "local")
     private val LOCAL_K8S_PANELMATCH_PATH = Paths.get("src", "main", "k8s", "panelmatch", "local")
-    //private val LOCAL_K8S_TESTING_PATH = LOCAL_K8S_PATH.resolve("testing")
-    //private val CONFIG_FILES_PATH = LOCAL_K8S_TESTING_PATH.resolve("config_files")
+    private val LOCAL_K8S_TESTING_PATH = LOCAL_K8S_PANELMATCH_PATH.resolve("testing")
+    private val CONFIG_FILES_PATH = LOCAL_K8S_PANELMATCH_PATH.resolve("config_files")
     private val IMAGE_PUSHER_PATH = Paths.get("src", "main", "docker", "push_all_local_images")
     private val IMAGE_PANEL_MATCH_PUSHER_PATH = Paths.get("src", "main", "docker", "panel_exchange_client", "push_all_images")
     private val TEST_DATA_PATH =

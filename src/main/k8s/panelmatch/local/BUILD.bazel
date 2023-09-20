@@ -66,7 +66,10 @@ kustomization_dir(
     ],
     generate_kustomization = True,
     tags = ["manual"],
-    deps = ["//src/main/k8s/panelmatch/testing/secretfiles:kustomization"]
+    deps = [
+        ":config_files",
+        "//src/main/k8s/panelmatch/testing/secretfiles:kustomization"
+    ]
 )
 
 cue_dump(
@@ -92,5 +95,19 @@ kustomization_dir(
     ],
     generate_kustomization = True,
     tags = ["manual"],
-    deps = ["//src/main/k8s/panelmatch/testing/secretfiles:kustomization"]
+    deps = [
+        ":config_files",
+        "//src/main/k8s/panelmatch/testing/secretfiles:kustomization",
+    ]
+)
+
+kustomization_dir(
+    name = "config_files",
+    srcs = [
+        "config_files_kustomization.yaml",
+    ],
+    renames = {
+        "config_files_kustomization.yaml": "kustomization.yaml",
+    },
+    tags = ["manual"],
 )

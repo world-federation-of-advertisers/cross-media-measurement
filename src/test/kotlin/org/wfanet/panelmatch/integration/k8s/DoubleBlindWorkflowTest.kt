@@ -54,12 +54,13 @@ class DoubleBlindWorkflowTest : AbstractPanelMatchCorrectnessTest() {
   inner class LocalSetup() : TestRule {
 
     val dataProviderContent = createEntityContent("edp1")
+    val modelProviderContent = createEntityContent("mp1")
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
         override fun evaluate() {
           runBlocking {
             withTimeout(Duration.ofMinutes(5)) {
-              runResourceSetup(dataProviderContent, workflow, initialDataProviderInputs)
+              runResourceSetup(dataProviderContent, modelProviderContent, workflow, initialDataProviderInputs)
             }
           }
           base.evaluate()
