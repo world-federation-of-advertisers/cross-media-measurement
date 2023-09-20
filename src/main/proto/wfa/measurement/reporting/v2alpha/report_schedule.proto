@@ -64,7 +64,7 @@ message ReportSchedule {
 
     message Weekly {
       google.type.DayOfWeek day_of_Week = 1
-      [(google.api.field_behavior) = REQUIRED];
+          [(google.api.field_behavior) = REQUIRED];
     }
 
     message Monthly {
@@ -120,5 +120,5 @@ message ReportSchedule {
   State state = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   google.protobuf.Timestamp next_report_creation_time = 10
-  [(google.api.field_behavior) = OUTPUT_ONLY];
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 }

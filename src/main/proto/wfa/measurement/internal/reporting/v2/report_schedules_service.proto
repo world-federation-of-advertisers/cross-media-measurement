@@ -25,19 +25,19 @@ option java_multiple_files = true;
 // Internal service for persistence of ReportSchedule entities.
 service ReportSchedules {
   rpc CreateReportSchedule(CreateReportScheduleRequest)
-    returns (ReportSchedule);
+      returns (ReportSchedule);
 
   rpc GetReportSchedule(GetReportScheduleRequest) returns (ReportSchedule);
 
   rpc ListReportSchedules(ListReportSchedulesRequest)
-    returns (ListReportSchedulesResponse);
+      returns (ListReportSchedulesResponse);
 
   rpc StopReportSchedule(StopReportScheduleRequest) returns (ReportSchedule);
 
   // Associates a `Report` with a `ReportSchedule` and moves the
   // `ReportSchedule` forward.
   rpc InsertReportScheduleReport(InsertReportScheduleReportRequest)
-    returns (ReportSchedule);
+      returns (ReportSchedule);
 }
 
 message CreateReportScheduleRequest {

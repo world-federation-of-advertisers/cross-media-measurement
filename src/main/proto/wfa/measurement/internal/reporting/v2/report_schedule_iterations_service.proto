@@ -24,16 +24,16 @@ option java_multiple_files = true;
 // Internal service for persistence of ReportScheduleIteration entities.
 service ReportSchedules {
   rpc CreateReportScheduleIteration(ReportScheduleIteration)
-    returns (ReportScheduleIteration);
+      returns (ReportScheduleIteration);
 
   rpc SetReportScheduleIterationState(SetReportScheduleIterationStateRequest)
-    returns (ReportScheduleIteration);
+      returns (ReportScheduleIteration);
 
   rpc GetReportScheduleIteration(GetReportScheduleIterationRequest)
-    returns (ReportScheduleIteration);
+      returns (ReportScheduleIteration);
 
   rpc ListReportScheduleIterations(ListReportScheduleIterationsRequest)
-    returns (ListReportScheduleIterationsResponse);
+      returns (ListReportScheduleIterationsResponse);
 }
 
 message SetReportScheduleIterationStateRequest {

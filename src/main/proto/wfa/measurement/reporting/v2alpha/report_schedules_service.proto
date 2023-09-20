@@ -30,7 +30,7 @@ option java_outer_classname = "ReportSchedulesServiceProto";
 service ReportSchedules {
   // Creates a `ReportSchedule`.
   rpc CreateReportSchedule(CreateReportScheduleRequest)
-    returns (ReportSchedule) {
+      returns (ReportSchedule) {
     option (google.api.http) = {
       post: "/v2alpha/{parent=measurementConsumers/*}/reportSchedules"
       body: "report_schedule"
@@ -48,7 +48,7 @@ service ReportSchedules {
 
   // Lists `ReportSchedule`s.
   rpc ListReportSchedules(ListReportSchedulesRequest)
-    returns (ListReportSchedulesResponse) {
+      returns (ListReportSchedulesResponse) {
     option (google.api.http) = {
       get: "/v2alpha/{parent=measurementConsumers/*}/reportSchedules"
     };
@@ -105,7 +105,7 @@ message GetReportScheduleRequest {
 message ListReportSchedulesRequest {
   // Resource name of the parent `MeasurementConsumer`.
   string parent = 1 [(google.api.resource_reference).type =
-    "halo.wfanet.org/MeasurementConsumer"];
+                         "halo.wfanet.org/MeasurementConsumer"];
 
   // The maximum number of `ReportSchedule`s to return. The service
   // may return fewer than this value. If unspecified, at most 10

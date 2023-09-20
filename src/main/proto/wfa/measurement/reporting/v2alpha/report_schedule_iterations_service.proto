@@ -30,7 +30,7 @@ option java_outer_classname = "ReportScheduleIterationsServiceProto";
 service ReportScheduleIterations {
   // Returns the `ReportScheduleIteration` with the specified resource key.
   rpc GetReportScheduleIteration(GetReportScheduleIterationRequest)
-    returns (ReportScheduleIteration) {
+      returns (ReportScheduleIteration) {
     option (google.api.http) = {
       get: "/v2alpha/{name=measurementConsumers/*/reportSchedules/*/reportScheduleIterations/*}"
     };
@@ -39,7 +39,7 @@ service ReportScheduleIterations {
 
   // Lists `ReportScheduleIteration`s.
   rpc ListReportScheduleIterations(ListReportScheduleIterationsRequest)
-    returns (ListReportScheduleIterationsResponse) {
+      returns (ListReportScheduleIterationsResponse) {
     option (google.api.http) = {
       get: "/v2alpha/{parent=measurementConsumers/*/reportSchedules/*}/reportScheduleIterations"
     };
@@ -62,7 +62,7 @@ message GetReportScheduleIterationRequest {
 message ListReportScheduleIterationsRequest {
   // Resource name of the parent `ReportSchedule`.
   string parent = 1 [(google.api.resource_reference).type =
-    "reporting.halo-cmm.org/ReportSchedule"];
+                         "reporting.halo-cmm.org/ReportSchedule"];
 
   // The maximum number of `ReportScheduleIteration`s to return. The service
   // may return fewer than this value. If unspecified, at most 50
