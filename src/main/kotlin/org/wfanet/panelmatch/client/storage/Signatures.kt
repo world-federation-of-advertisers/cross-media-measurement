@@ -16,7 +16,6 @@ package org.wfanet.panelmatch.client.storage
 
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.StorageClient.Blob
-import org.wfanet.panelmatch.common.secrets.MutableSecretMap
 import org.wfanet.panelmatch.common.storage.toByteString
 import org.wfanet.panelmatch.protocol.NamedSignature
 
