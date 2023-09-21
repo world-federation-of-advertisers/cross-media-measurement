@@ -851,7 +851,6 @@ class RequisitionsServiceTest {
   }
 
   companion object {
-    private const val MAXIMUM_FREQUENCY_DIRECT_DISTRIBUTION = 10
     private val MEASUREMENT_SPEC = measurementSpec {
       measurementPublicKey = UPDATE_TIME.toByteString()
       reachAndFrequency =
@@ -873,8 +872,11 @@ class RequisitionsServiceTest {
       ProtocolConfigKt.direct {
         noiseMechanisms += ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE
         noiseMechanisms += ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
-        deterministicCountDistinct = ProtocolConfigKt.DirectKt.deterministicCountDistinct {}
-        liquidLegionsCountDistinct = ProtocolConfigKt.DirectKt.liquidLegionsCountDistinct {}
+        customDirectMethodology = ProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
+        deterministicCountDistinct =
+          ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
+        liquidLegionsCountDistinct =
+          ProtocolConfig.Direct.LiquidLegionsCountDistinct.getDefaultInstance()
         deterministicDistribution =
           ProtocolConfig.Direct.DeterministicDistribution.getDefaultInstance()
         liquidLegionsDistribution =
@@ -885,16 +887,16 @@ class RequisitionsServiceTest {
       InternalProtocolConfigKt.direct {
         noiseMechanisms += InternalProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE
         noiseMechanisms += InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
-        deterministicCountDistinct = InternalProtocolConfigKt.DirectKt.deterministicCountDistinct {}
-        liquidLegionsCountDistinct = InternalProtocolConfigKt.DirectKt.liquidLegionsCountDistinct {}
+        customDirectMethodology =
+          InternalProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
+        deterministicCountDistinct =
+          InternalProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
+        liquidLegionsCountDistinct =
+          InternalProtocolConfig.Direct.LiquidLegionsCountDistinct.getDefaultInstance()
         deterministicDistribution =
-          InternalProtocolConfigKt.DirectKt.deterministicDistribution {
-            maximumFrequency = MAXIMUM_FREQUENCY_DIRECT_DISTRIBUTION
-          }
+          InternalProtocolConfig.Direct.DeterministicDistribution.getDefaultInstance()
         liquidLegionsDistribution =
-          InternalProtocolConfigKt.DirectKt.liquidLegionsDistribution {
-            maximumFrequency = MAXIMUM_FREQUENCY_DIRECT_DISTRIBUTION
-          }
+          InternalProtocolConfig.Direct.LiquidLegionsDistribution.getDefaultInstance()
       }
 
     private val INTERNAL_REQUISITION: InternalRequisition = internalRequisition {
