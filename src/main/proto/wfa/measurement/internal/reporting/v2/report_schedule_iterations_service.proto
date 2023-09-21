@@ -58,8 +58,8 @@ message ListReportScheduleIterationsRequest {
     // `MeasurementConsumer` ID from the CMMS public API.
     string cmms_measurement_consumer_id = 1;
     string external_report_schedule_id = 2;
-    // Skips to results with a `report_creation_time` greater than this.
-    google.protobuf.Timestamp report_creation_time_after = 3;
+    // Skips to results with a `report_creation_time` less than this.
+    google.protobuf.Timestamp report_creation_time_before = 3;
   }
   Filter filter = 1;
 
