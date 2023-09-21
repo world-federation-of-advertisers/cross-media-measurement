@@ -42,7 +42,7 @@ class SharedStorageSelector(
   private val sharedStorageFactories:
     Map<PlatformCase, (StorageDetails, ExchangeDateKey) -> StorageFactory>,
   private val storageDetailsProvider: StorageDetailsProvider,
-  private val storageCredentialsProvider: Map<String, AwsSessionCredentials>,
+  private val awsStorageCredentialsProvider: Map<String, AwsSessionCredentials>,
 ) {
 
   /**
@@ -97,8 +97,11 @@ class SharedStorageSelector(
       requireNotNull(sharedStorageFactories[platform]) {
         "Missing private StorageFactory for $platform"
       }
-    val awsStorageCredentials = storageCredentialsProvider.get(context.recurringExchangeId)
-    return if (awsStorageCredentials !== null && storageDetails.hasAws()) {
+    val awsStorageCredentials = awsStorageCredentialsProvider.get(context.recurringExchangeId)
+    return if (awsStorageCredentials !== null) {
+      require(storageDetails.hasAws()) {
+        "${context.recurringExchangeId} has aws storage credentials but its storage details does not have aws."
+      }
       val awsSessionStorageDetails =
         storageDetails.copy {
           aws =
