@@ -103,7 +103,7 @@ jobs:
           S3_BUCKET: duchy-test
         run: >
           bazelisk build
-          "//src/main/k8s/dev:${DUCHY_NAME}_duchy.tar"
+          "//src/main/k8s/dev:${DUCHY_NAME}_duchy_aws.tar"
           //src/main/k8s/testing/secretfiles:archive
           --config ghcr
           --define "image_tag=$IMAGE_TAG"
