@@ -29,6 +29,7 @@ import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
+import java.util.logging.Logger
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.min
 import kotlinx.coroutines.Deferred
@@ -1300,6 +1301,17 @@ class MetricsService(
     val internalReportingSet: InternalReportingSet =
       getInternalReportingSet(cmmsMeasurementConsumerId, request.metric.reportingSet)
 
+    // Utilizes the property of the set expression compilation result -- If the set expression
+    // contains only union operators, the compilation result has to be a single component.
+    if (
+      request.metric.metricSpec.hasFrequencyHistogram() &&
+        internalReportingSet.weightedSubsetUnionsList.size != 1
+    ) {
+      failGrpc(Status.INVALID_ARGUMENT) {
+        "Frequency histogram metrics can only be computed on union-only set expressions."
+      }
+    }
+
     return internalCreateMetricRequest {
       requestId = request.requestId
       externalMetricId = request.metricId
@@ -1385,6 +1397,7 @@ class MetricsService(
 
   companion object {
     private val RESOURCE_ID_REGEX = Regex("^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$")
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
 
