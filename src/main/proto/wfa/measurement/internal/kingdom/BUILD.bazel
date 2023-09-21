@@ -137,10 +137,6 @@ proto_and_java_proto_library(
 )
 
 proto_and_java_proto_library(
-    name = "direct_computation",
-)
-
-proto_and_java_proto_library(
     name = "duchy_protocol_config",
     deps = [
         ":differential_privacy_proto",
