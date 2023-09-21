@@ -62,3 +62,12 @@ package k8s
 	instance: string @tag("postgres_instance")
 	region:   string @tag("postgres_region")
 }
+
+#AwsS3Config: {
+	bucket: string @tag("s3_bucket")
+	region: string @tag("s3_region")
+	flags: [
+		"--s3-storage-bucket=" + bucket,
+		"--s3-region=" + region,
+	]
+}

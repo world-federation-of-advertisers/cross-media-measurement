@@ -18,7 +18,7 @@ package k8s
 	#Duchy
 
 	_duchy:          _duchy
-	_postgresConfig: #PostgresConfig
+	_postgresConfig: #PostgresConfig | #AwsPostgresConfig
 
 	_imageSuffixes: {
 		"internal-api-server": string | *"duchy/postgres-internal-server"
