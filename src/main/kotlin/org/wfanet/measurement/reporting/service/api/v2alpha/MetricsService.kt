@@ -554,9 +554,7 @@ class MetricsService(
                 internalEventGroupKey.cmmsDataProviderId,
                 internalEventGroupKey.cmmsEventGroupId
               )
-            val filtersList =
-              (primitiveReportingSetBasis.filtersList + internalPrimitiveReportingSet.filter)
-                .filter { !it.isNullOrBlank() }
+            val filtersList = primitiveReportingSetBasis.filtersList.filter { !it.isNullOrBlank() }
             val filter: String? = if (filtersList.isEmpty()) null else buildConjunction(filtersList)
 
             cmmsEventGroupKey to
