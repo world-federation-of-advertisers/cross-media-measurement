@@ -14,11 +14,11 @@
 
 package k8s
 
-_duchy_name:                   string @tag("duchy_name")
-_duchy_protocols_setup_config: string @tag("duchy_protocols_setup_config")
-_secret_name:                  string @tag("secret_name")
-_cloudStorageBucket:           string @tag("cloud_storage_bucket")
-_certificateId:                string @tag("certificate_id")
+_duchy_name:                      string @tag("duchy_name")
+_duchy_protocols_setup_config:    string @tag("duchy_protocols_setup_config")
+_secret_name:                     string @tag("secret_name")
+_certificateId:                   string @tag("certificate_id")
+_computation_control_server_eips: string @tag("computation_control_server_eips")
 
 _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 
@@ -37,7 +37,7 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 }
 #MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu:    "3"
+		cpu:    "800m"
 		memory: "2Gi"
 	}
 	limits: {
@@ -55,11 +55,14 @@ objectSets: [
 	duchy.cronjobs,
 ]
 
-_cloudStorageConfig: #CloudStorageConfig & {
-	bucket: _cloudStorageBucket
-}
-
-duchy: {
+duchy: #PostgresDuchy & {
+	_imageSuffixes: {
+		"computation-control-server":     "duchy/aws-computation-control"
+		"liquid-legions-v2-mill-daemon":  "duchy/aws-liquid-legions-v2-mill"
+		"requisition-fulfillment-server": "duchy/aws-requisition-fulfillment"
+		"internal-api-server":            "duchy/aws-postgres-internal-server"
+		"update-duchy-schema":            "duchy/aws-postgres-update-schema"
+	}
 	_duchy: {
 		name:                   _duchy_name
 		protocols_setup_config: _duchy_protocols_setup_config
@@ -72,24 +75,36 @@ duchy: {
 		"worker2":    "v1alpha.system.aws.worker2.dev.halo-cmm.org:8443"
 	}
 	_kingdom_system_api_target: #KingdomSystemApiTarget
-	_blob_storage_flags:        _cloudStorageConfig.flags
+	_blob_storage_flags:        #AwsS3Config.flags
 	_verbose_grpc_logging:      "false"
-	_duchyMillParallelism:      4
-
-	deployments: {
-		"internal-api-server-deployment": {
-			_container: {
-				resources: #InternalServerResourceRequirements
-			}
-			spec: template: spec: #ServiceAccountPodSpec & {
-				serviceAccountName: #InternalServerServiceAccount
+	_postgresConfig:            #AwsPostgresConfig
+	services: {
+		"computation-control-server": {
+			metadata: {
+				annotations: {
+					"service.beta.kubernetes.io/aws-load-balancer-type":            "nlb"
+					"service.beta.kubernetes.io/aws-load-balancer-scheme":          "internet-facing"
+					"service.beta.kubernetes.io/aws-load-balancer-nlb-target-type": "ip"
+					"service.beta.kubernetes.io/aws-load-balancer-eip-allocations": _computation_control_server_eips
+				}
 			}
 		}
+		"requisition-fulfillment-server": {
+			metadata: {
+				annotations: {
+					"service.beta.kubernetes.io/aws-load-balancer-type":            "nlb"
+					"service.beta.kubernetes.io/aws-load-balancer-scheme":          "internet-facing"
+					"service.beta.kubernetes.io/aws-load-balancer-nlb-target-type": "ip"
+				}
+			}
+		}
+	}
+	deployments: {
 		"herald-daemon-deployment": {
 			_container: {
 				resources: #HeraldResourceRequirements
 			}
-			spec: template: spec: #SpotVmPodSpec
+			spec: template: spec: #PodSpec
 		}
 		"liquid-legions-v2-mill-daemon-deployment": {
 			_container: {
@@ -98,33 +113,28 @@ duchy: {
 			}
 			spec: {
 				replicas: #MillReplicas
-				template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
+				template: spec: #AwsServiceAccountPodSpec & #PodSpec & {
 					serviceAccountName: #StorageServiceAccount
 				}
 			}
 		}
 		"computation-control-server-deployment": {
-			spec: template: spec: #ServiceAccountPodSpec & {
+			spec: template: spec: #AwsServiceAccountPodSpec & {
 				serviceAccountName: #StorageServiceAccount
 			}
 		}
 		"requisition-fulfillment-server-deployment": {
-			spec: template: spec: #ServiceAccountPodSpec & {
+			spec: template: spec: #AwsServiceAccountPodSpec & {
 				serviceAccountName: #StorageServiceAccount
 			}
 		}
-	}
-}
-
-if (_duchy_name != "worker2") {
-	duchy: duchy & #SpannerDuchy
-}
-
-if (_duchy_name == "worker2") {
-	duchy: duchy & #PostgresDuchy & {
-		_postgresConfig: {
-			iamUserLocal: "worker2-duchy-internal"
-			database:     "worker2_duchy_computations"
+		"internal-api-server-deployment": {
+			_container: {
+				resources: #InternalServerResourceRequirements
+			}
+			spec: template: spec: #AwsServiceAccountPodSpec & {
+				serviceAccountName: #InternalServerServiceAccount
+			}
 		}
 	}
 }
