@@ -35,7 +35,6 @@ message ReportScheduleIteration {
     WAITING_FOR_DATA_AVAILABILITY = 1;
     RETRYING_REPORT_CREATION = 2;
     REPORT_CREATED = 3;
-    REPORT_READY = 4;
   }
   State state = 5;
 
@@ -43,7 +42,7 @@ message ReportScheduleIteration {
 
   string external_report_id = 7;
 
-  google.protobuf.Timestamp report_creation_time = 8;
+  google.protobuf.Timestamp report_event_time = 8;
 
   google.protobuf.Timestamp create_time = 9;
   google.protobuf.Timestamp update_time = 10;

@@ -79,7 +79,7 @@ message ListReportScheduleIterationsRequest {
 }
 
 message ListReportScheduleIterationsResponse {
-  // The `ReportScheduleIteration` resources. Ordered by `report_creation_time`,
+  // The `ReportScheduleIteration` resources. Ordered by `report_event_time`,
   // descending.
   repeated ReportScheduleIteration report_schedule_iterations = 1;
 

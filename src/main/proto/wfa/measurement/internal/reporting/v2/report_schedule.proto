@@ -91,5 +91,4 @@ message ReportSchedule {
 
   google.protobuf.Timestamp create_time = 7;
   google.protobuf.Timestamp update_time = 8;
-  google.protobuf.Timestamp stop_time = 9;
 }

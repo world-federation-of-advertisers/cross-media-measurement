@@ -135,7 +135,4 @@ message ReportSchedule {
   // When this `ReportSchedule` was last updated.
   google.protobuf.Timestamp update_time = 12
       [(google.api.field_behavior) = OUTPUT_ONLY];
-  // When the state of this `ReportSchedule` transitioned to `STOPPED`.
-  google.protobuf.Timestamp stop_time = 13
-      [(google.api.field_behavior) = OUTPUT_ONLY];
 }
