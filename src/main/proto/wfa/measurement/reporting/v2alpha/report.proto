@@ -107,7 +107,7 @@ message Report {
   ];
 
   // Types of time intervals for metric aggregation.
-  // Only required for `CreateReportRequest`.
+  // Required if not used for `report_template` in `ReportSchedule`.
   oneof time {
     // A list of time intervals with different start times and end times.
     TimeIntervals time_intervals = 3;
