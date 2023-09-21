@@ -41,14 +41,16 @@ message ReportScheduleIteration {
     WAITING_FOR_DATA_AVAILABILITY = 1;
     // Grpc call failed when attempting `Report` creation.
     RETRYING_REPORT_CREATION = 2;
-    // `Report` was successfully created. Terminal state.
+    // `Report` was successfully created.
     REPORT_CREATED = 3;
+    // `Report` is in a terminal state. Terminal state.
+    REPORT_READY = 4;
   }
   State state = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Only incremented when state transitions to `RETRYING_REPORT_CREATION` or
   // `REPORT_CREATED`. Transitioning to `WAITING_FOR_DATA_AVAILABILITY` does
-  // not increment this field.
+  // not increment this field. Initial value is 0.
   int32 num_attempts = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Only set when state is `REPORT_CREATED`.
@@ -56,5 +58,12 @@ message ReportScheduleIteration {
 
   // Scheduled time for `Report` creation for this iteration.
   google.protobuf.Timestamp report_creation_time = 5
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // When this `ReportScheduleIteration` was created.
+  google.protobuf.Timestamp create_time = 6
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+  // When this `ReportScheduleIteration` was last updated..
+  google.protobuf.Timestamp update_time = 7
       [(google.api.field_behavior) = OUTPUT_ONLY];
 }

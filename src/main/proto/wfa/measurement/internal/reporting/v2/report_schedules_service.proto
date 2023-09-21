@@ -36,7 +36,7 @@ service ReportSchedules {
 
   // Associates a `Report` with a `ReportSchedule` and moves the
   // `ReportSchedule` forward.
-  rpc InsertReportScheduleReport(InsertReportScheduleReportRequest)
+  rpc AddReportScheduleReport(AddReportScheduleReportRequest)
       returns (ReportSchedule);
 }
 
@@ -74,7 +74,7 @@ message StopReportScheduleRequest {
   string external_report_schedule_id = 2;
 }
 
-message InsertReportScheduleReportRequest {
+message AddReportScheduleReportRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
   string cmms_measurement_consumer_id = 1;
   string external_report_schedule_id = 2;

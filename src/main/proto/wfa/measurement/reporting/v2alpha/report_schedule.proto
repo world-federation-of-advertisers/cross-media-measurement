@@ -29,6 +29,13 @@ option java_multiple_files = true;
 option java_outer_classname = "ReportScheduleProto";
 
 // Resource representing the creation of `Report`s based on a schedule.
+//
+// Creation of any scheduled `Report` is dependent on data availability
+// information found in `DataProvider` and `EventGroup`. The information
+// represented by `event_start`, `event_end`, `frequency`, and `report_window`
+// determine the time interval of a scheduled `Report`, but the time that a
+// `Report` is actually created on is as soon as the data is available as long
+// as it is after the end time of the `Report` time interval.
 message ReportSchedule {
   option (google.api.resource) = {
     type: "reporting.halo-cmm.org/ReportSchedule"
@@ -53,11 +60,11 @@ message ReportSchedule {
   // `time_zone` is set, days will be based on the calendar and daylight savings
   // will be considered; if 5 AM is chosen, the day will start with 5 AM
   // year-round.
-  google.type.DateTime start = 5 [(google.api.field_behavior) = REQUIRED];
+  google.type.DateTime event_start = 5 [(google.api.field_behavior) = REQUIRED];
 
   // If specified, represents the last `Date` that a `Report` can be created on.
-  // If not unspecified, `Report` creation does not stop.
-  google.type.Date end = 6;
+  // If not specified, `Report` creation does not stop.
+  google.type.Date event_end = 6;
 
   message Frequency {
     message Daily {}
@@ -118,6 +125,17 @@ message ReportSchedule {
   }
   State state = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
 
+  // The earliest the next `Report` can be scheduled.
   google.protobuf.Timestamp next_report_creation_time = 10
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // When this `ReportSchedule` was created.
+  google.protobuf.Timestamp create_time = 11
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+  // When this `ReportSchedule` was last updated.
+  google.protobuf.Timestamp update_time = 12
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+  // When the state of this `ReportSchedule` transitioned to `STOPPED`.
+  google.protobuf.Timestamp stop_time = 13
       [(google.api.field_behavior) = OUTPUT_ONLY];
 }
