@@ -38,10 +38,13 @@ import picocli.CommandLine
 import picocli.CommandLine.Command
 import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.s3.S3AsyncClient
+import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider
+import software.amazon.awssdk.services.sts.model.AssumeRoleRequest
 
 @Command(
   name = "AwsExampleDaemon",
@@ -77,9 +80,16 @@ private class AwsExampleDaemon : ExampleDaemon() {
   @set:Option(
     names = ["--s3-from-beam"],
     description = ["Whether to configure s3 access from Apache Beam."],
-    defaultValue = "true"
+    defaultValue = "false"
   )
   private var s3FromBeam by Delegates.notNull<Boolean>()
+
+  @set:Option(
+    names = ["--s3-from-beam-assume-role"],
+    description = ["Whether to configure s3 access from Apache Beam."],
+    defaultValue = "false"
+  )
+  private var s3FromBeamAssumeRole by Delegates.notNull<Boolean>()
 
   override fun makePipelineOptions(): PipelineOptions {
     // TODO(jmolle): replace usage of DirectRunner.
@@ -91,10 +101,21 @@ private class AwsExampleDaemon : ExampleDaemon() {
     return if (!s3FromBeam) {
       baseOptions
     } else {
+      val awsCredentialsProvider: AwsCredentialsProvider =
+        if (s3FromBeamAssumeRole) {
+          val assumeRoleRequestBuilder =
+            AssumeRoleRequest.builder().roleArn("roleArn").roleSessionName("roleSessionName")
+          stsAssumeRoleCredentialsProviderBuilder =
+            StsAssumeRoleCredentialsProvider.builder()
+              .refreshRequest(assumeRoleRequestBuilder)
+              .build()
+        } else {
+          DefaultCredentialsProvider
+        }
       // aws-sdk-java-v2 casts responses to AwsSessionCredentials if its assumed you need a
       // sessionToken
       val awsCredentials =
-        DefaultCredentialsProvider.create().resolveCredentials() as AwsSessionCredentials
+        awsCredentialsProvider.create().resolveCredentials() as AwsSessionCredentials
       // TODO: Encrypt using KMS or store in Secrets
       // Think about moving this logic to a CredentialsProvider
       baseOptions.apply {
