@@ -100,14 +100,19 @@ message MetricSpec {
     // The reach frequency histogram given a set of event groups.
     //
     // Currently, we only support union operations for frequency histograms. Any
-    // other operations on frequency histograms won't guarantee the result is a
-    // frequency histogram.
+    // other types of operations won't guarantee the correctness of the result.
     FrequencyHistogramParams frequency_histogram = 2
         [(google.api.field_behavior) = IMMUTABLE];
     // The impression count given a set of event groups.
+    //
+    // Currently, we only support union operations for impression counts. Any
+    // other types of operations won't guarantee the correctness of the result.
     ImpressionCountParams impression_count = 3
         [(google.api.field_behavior) = IMMUTABLE];
     // The watch duration given a set of event groups.
+    //
+    // Currently, we only support union operations for watch durations. Any
+    // other types of operations won't guarantee the correctness of the result.
     WatchDurationParams watch_duration = 4
         [(google.api.field_behavior) = IMMUTABLE];
   }

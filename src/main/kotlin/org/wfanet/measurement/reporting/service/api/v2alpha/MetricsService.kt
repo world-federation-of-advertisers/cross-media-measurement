@@ -29,6 +29,7 @@ import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
+import java.util.logging.Logger
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.min
 import kotlinx.coroutines.Deferred
@@ -141,6 +142,7 @@ import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.histogramResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.impressionCountResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.reachResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.watchDurationResult
+import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.batchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.batchGetMetricsResponse
@@ -1300,6 +1302,12 @@ class MetricsService(
     val internalReportingSet: InternalReportingSet =
       getInternalReportingSet(cmmsMeasurementConsumerId, request.metric.reportingSet)
 
+    // Utilizes the property of the set expression compilation result -- If the set expression
+    // contains only union operators, the compilation result has to be a single component.
+    val unionOnlyOperation: Boolean = internalReportingSet.weightedSubsetUnionsList.size == 1
+
+    warnNonGuaranteedMetricOperation(request.metric.metricSpec.typeCase, unionOnlyOperation)
+
     return internalCreateMetricRequest {
       requestId = request.requestId
       externalMetricId = request.metricId
@@ -1325,6 +1333,29 @@ class MetricsService(
             internalReportingSet
           )
         details = InternalMetricKt.details { filters += request.metric.filtersList }
+      }
+    }
+  }
+
+  /*
+   * Checks if [MetricSpec.TypeCase] is suitable for the set expression operation.
+   */
+  private fun warnNonGuaranteedMetricOperation(
+    metricTypeCase: MetricSpec.TypeCase,
+    unionOnlyOperation: Boolean
+  ) {
+    if (!unionOnlyOperation) {
+      when (metricTypeCase) {
+        MetricSpec.TypeCase.REACH,
+        MetricSpec.TypeCase.TYPE_NOT_SET -> {}
+        MetricSpec.TypeCase.FREQUENCY_HISTOGRAM,
+        MetricSpec.TypeCase.IMPRESSION_COUNT,
+        MetricSpec.TypeCase.WATCH_DURATION -> {
+          logger.warning(
+            "Using operations other than union in Frequency Histogram, Impression Count, " +
+              "or Watch Duration cannot guarantee the correctness of the result."
+          )
+        }
       }
     }
   }
@@ -1385,6 +1416,7 @@ class MetricsService(
 
   companion object {
     private val RESOURCE_ID_REGEX = Regex("^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$")
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
 
