@@ -20,6 +20,7 @@ import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.storage.StorageFactory
 import org.wfanet.panelmatch.common.storage.withPrefix
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
 import software.amazon.awssdk.regions.Region
@@ -35,57 +36,48 @@ class S3StorageFactory(
 ) : StorageFactory {
 
   override fun build(): StorageClient {
-    if (
-      storageDetails.aws.sessionCredentials.accessKeyId.isNotEmpty() &&
-        storageDetails.aws.sessionCredentials.secretAccessKey.isNotEmpty() &&
-        storageDetails.aws.sessionCredentials.sessionToken.isNotEmpty()
-    ) {
-      val builtCredentials =
-        AwsSessionCredentials.create(
-          storageDetails.aws.sessionCredentials.accessKeyId,
-          storageDetails.aws.sessionCredentials.secretAccessKey,
-          storageDetails.aws.sessionCredentials.sessionToken
-        )
-      return S3StorageClient(
-          S3AsyncClient.builder()
-            .region(Region.of(storageDetails.aws.region))
-            .credentialsProvider(StaticCredentialsProvider.create(builtCredentials))
-            .build(),
+    val awsCredentialsProvider: AwsCredentialsProvider? =
+      if (
+        storageDetails.aws.sessionCredentials.accessKeyId.isNotEmpty() &&
+          storageDetails.aws.sessionCredentials.secretAccessKey.isNotEmpty() &&
+          storageDetails.aws.sessionCredentials.sessionToken.isNotEmpty()
+      ) {
+        val builtCredentials =
+          AwsSessionCredentials.create(
+            storageDetails.aws.sessionCredentials.accessKeyId,
+            storageDetails.aws.sessionCredentials.secretAccessKey,
+            storageDetails.aws.sessionCredentials.sessionToken
+          )
+        StaticCredentialsProvider.create(builtCredentials)
+      } else if (storageDetails.aws.role.roleArn.isNotEmpty()) {
+        val client: StsClient = StsClient.builder().build()
+        val assumeRoleRequestBuilder =
+          AssumeRoleRequest.builder()
+            .roleArn(storageDetails.aws.role.roleArn)
+            .roleSessionName(storageDetails.aws.role.roleSessionName)
+        val assumeRoleRequest: AssumeRoleRequest =
+          if (storageDetails.aws.role.roleExternalId.isEmpty()) {
+            assumeRoleRequestBuilder.build()
+          } else {
+            assumeRoleRequestBuilder.externalId(storageDetails.aws.role.roleExternalId).build()
+          }
+        StsAssumeRoleCredentialsProvider.builder()
+          .stsClient(client)
+          .refreshRequest(assumeRoleRequest)
+          .build()
+      } else {
+        null
+      }
+    val s3AsyncClientBuilder = S3AsyncClient.builder().region(Region.of(storageDetails.aws.region))
+    val storageClient: StorageClient =
+      if (awsCredentialsProvider === null) {
+        S3StorageClient(s3AsyncClientBuilder.build(), storageDetails.aws.bucket)
+      } else {
+        S3StorageClient(
+          s3AsyncClientBuilder.credentialsProvider(awsCredentialsProvider).build(),
           storageDetails.aws.bucket
         )
-        .withPrefix(exchangeDateKey.path)
-    } else if (storageDetails.aws.role.roleArn.isNotEmpty()) {
-      val client: StsClient = StsClient.builder().build()
-      val assumeRoleRequestBuilder =
-        AssumeRoleRequest.builder()
-          .roleArn(storageDetails.aws.role.roleArn)
-          .roleSessionName(storageDetails.aws.role.roleSessionName)
-      val assumeRoleRequest: AssumeRoleRequest =
-        if (storageDetails.aws.role.roleExternalId.isEmpty()) {
-          assumeRoleRequestBuilder.build()
-        } else {
-          assumeRoleRequestBuilder.externalId(storageDetails.aws.role.roleExternalId).build()
-        }
-
-      return S3StorageClient(
-          S3AsyncClient.builder()
-            .region(Region.of(storageDetails.aws.region))
-            .credentialsProvider(
-              StsAssumeRoleCredentialsProvider.builder()
-                .stsClient(client)
-                .refreshRequest(assumeRoleRequest)
-                .build()
-            )
-            .build(),
-          storageDetails.aws.bucket
-        )
-        .withPrefix(exchangeDateKey.path)
-    } else {
-      return S3StorageClient(
-          S3AsyncClient.builder().region(Region.of(storageDetails.aws.region)).build(),
-          storageDetails.aws.bucket
-        )
-        .withPrefix(exchangeDateKey.path)
-    }
+      }
+    return storageClient.withPrefix(exchangeDateKey.path)
   }
 }
