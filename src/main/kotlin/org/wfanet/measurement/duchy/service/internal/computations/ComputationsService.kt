@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.service.internal.computations
 
 import com.google.protobuf.Empty
 import io.grpc.Status
+import io.grpc.StatusException
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Level
@@ -372,8 +373,8 @@ class ComputationsService(
   private suspend fun sendStatusUpdateToKingdom(request: CreateComputationLogEntryRequest) {
     try {
       computationLogEntriesClient.createComputationLogEntry(request)
-    } catch (ignored: Exception) {
-      logger.log(Level.WARNING, "Failed to update status change to the kingdom. $ignored")
+    } catch (e: StatusException) {
+      logger.log(Level.WARNING, e) { "Failed to update status change to the kingdom." }
     }
   }
 
