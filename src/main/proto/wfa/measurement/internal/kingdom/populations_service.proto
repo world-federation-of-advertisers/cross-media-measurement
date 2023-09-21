@@ -16,14 +16,13 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
-import "wfa/measurement/internal/kingdom/data_provider.proto";
-import "population.proto";
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/kingdom/population.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
-// Internal service for persistence of DataProvider entities.
+// Internal service for persistence of Population entities.
 service Populations {
   rpc CreatePopulation(Population) returns (Population);
 
