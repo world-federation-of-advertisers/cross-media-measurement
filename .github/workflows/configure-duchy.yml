@@ -68,7 +68,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      # Authenticate to AWS Cloud. This will export some environment
+      # Authenticate to AWS Cloud. This will export some environment e.g. AWS_SESSION_TOKEN
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -79,12 +79,10 @@ jobs:
       - name: Export BAZEL_BIN
         run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
 
-#      - name: Get GKE cluster credentials
-#        uses: google-github-actions/get-gke-credentials@v1
-#        with:
-#          cluster_name: ${{ format('{0}-duchy', inputs.duchy-name) }}
-#          location: ${{ vars.GCLOUD_ZONE }}
-#
+      - name: Get EKS cluster credentials
+        run: |
+          aws eks update-kubeconfig --region us-west-2 --name worker2-duchy-cluster
+
 #      - name: Configure metrics
 #        uses: ./.github/actions/configure-metrics
 #        if: ${{ inputs.apply }}
