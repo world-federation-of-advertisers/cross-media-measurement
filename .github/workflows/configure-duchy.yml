@@ -76,12 +76,12 @@ jobs:
           role-to-assume: arn:aws:iam::010295286036:role/GitHubAction-AssumeRoleWithAction
           role-session-name: GitHubAction
 
+      - name: Get EKS cluster credentials
+        run: aws eks update-kubeconfig --region $AWS_REGION --name ${DUCHY_NAME}-duchy-cluster
+
       - name: Export BAZEL_BIN
         run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
 
-      - name: Get EKS cluster credentials
-        run: |
-          aws eks update-kubeconfig --region us-west-2 --name worker2-duchy-cluster
 
 #      - name: Configure metrics
 #        uses: ./.github/actions/configure-metrics
