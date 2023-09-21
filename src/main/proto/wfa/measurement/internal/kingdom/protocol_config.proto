@@ -82,7 +82,7 @@ message ProtocolConfig {
 
     // Deterministic count methodology.
     //
-    // Can be used in impression computations.
+    // Can be used in impression and population computations.
     DeterministicCount deterministic_count = 4;
 
     // Deterministic sum methodology.
