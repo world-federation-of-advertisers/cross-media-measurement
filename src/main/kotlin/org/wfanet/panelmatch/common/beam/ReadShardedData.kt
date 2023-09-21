@@ -64,9 +64,8 @@ private class ReadBlobFn<T : MessageLite>(
   @ProcessElement
   fun processElement(context: ProcessContext) =
     runBlocking(Dispatchers.IO) {
-      val pipelineOptions = context.getPipelineOptions()
       val blob: Blob =
-        storageFactory.build(pipelineOptions).getBlob(context.element()) ?: return@runBlocking
+        storageFactory.build().getBlob(context.element()) ?: return@runBlocking
       val inputStream: InputStream = blob.newInputStream(this)
 
       var elements = 0L

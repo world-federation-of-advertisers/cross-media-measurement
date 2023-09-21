@@ -15,13 +15,9 @@
 package org.wfanet.panelmatch.common.storage
 
 import java.io.Serializable
-import org.apache.beam.sdk.options.PipelineOptions
 import org.wfanet.measurement.storage.StorageClient
 
 fun interface StorageFactory : Serializable {
   fun build(): StorageClient
 
-  fun build(options: PipelineOptions?): StorageClient {
-    return build()
-  }
 }

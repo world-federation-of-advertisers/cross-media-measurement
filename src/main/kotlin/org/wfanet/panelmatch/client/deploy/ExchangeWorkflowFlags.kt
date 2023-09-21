@@ -99,7 +99,7 @@ class ExchangeWorkflowFlags {
   var debugVerboseGrpcClientLogging = false
     private set
 
-  @set:CommandLine.Option(
+  @set:Option(
     names = ["--preprocessing-max-byte-size"],
     defaultValue = "1000000",
     description = ["Max batch size for processing"],
@@ -108,7 +108,7 @@ class ExchangeWorkflowFlags {
   var preProcessingMaxByteSize by Delegates.notNull<Long>()
     private set
 
-  @set:CommandLine.Option(
+  @set:Option(
     names = ["--preprocessing-file-count"],
     defaultValue = "1000",
     description = ["Number of output files from event preprocessing step"],

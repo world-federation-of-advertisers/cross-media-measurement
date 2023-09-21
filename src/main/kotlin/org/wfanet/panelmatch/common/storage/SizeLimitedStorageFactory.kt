@@ -14,7 +14,6 @@
 
 package org.wfanet.panelmatch.common.storage
 
-import org.apache.beam.sdk.options.PipelineOptions
 import org.wfanet.measurement.storage.StorageClient
 
 /** [StorageFactory] for [SizeLimitedStorageClient]. */
@@ -26,9 +25,6 @@ private class SizeLimitedStorageFactory(
     return SizeLimitedStorageClient(sizeLimitBytes, delegate.build())
   }
 
-  override fun build(options: PipelineOptions?): StorageClient {
-    return SizeLimitedStorageClient(sizeLimitBytes, delegate.build(options))
-  }
 }
 
 /** Wraps a [StorageFactory] to limit blob sizes. */

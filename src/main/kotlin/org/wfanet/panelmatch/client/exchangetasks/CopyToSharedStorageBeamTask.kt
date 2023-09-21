@@ -59,9 +59,8 @@ private class CopyManifestToSharedDoFn(
 
   @DoFn.ProcessElement
   fun processElement(@Element manifest: ByteString, context: ProcessContext) {
-    val pipelineOptions = context.getPipelineOptions()
     runBlocking(Dispatchers.IO) {
-      destination.writeBlob(destinationManifestBlobKey, manifest, pipelineOptions)
+      destination.writeBlob(destinationManifestBlobKey, manifest)
     }
     context.output(manifest)
   }

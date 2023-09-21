@@ -98,10 +98,9 @@ private class WriteFilesFn<T : Message>(
 
   @ProcessElement
   fun processElement(context: ProcessContext) {
-    val pipelineOptions = context.getPipelineOptions()
     val kv = context.element()
     val blobKey = ShardedFileName(fileSpec).fileNameForShard(kv.key)
-    val storageClient = storageFactory.build(pipelineOptions)
+    val storageClient = storageFactory.build()
     val messageFlow = kv.value.asFlow().map { it.toDelimitedByteString() }
 
     runBlocking(Dispatchers.IO) { storageClient.writeBlob(blobKey, messageFlow) }

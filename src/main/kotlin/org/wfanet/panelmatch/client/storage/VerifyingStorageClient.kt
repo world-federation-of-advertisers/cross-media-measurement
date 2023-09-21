@@ -18,7 +18,6 @@ import com.google.protobuf.ByteString
 import java.io.Serializable
 import java.security.cert.X509Certificate
 import kotlinx.coroutines.flow.Flow
-import org.apache.beam.sdk.options.PipelineOptions
 import org.wfanet.measurement.common.crypto.SignedBlob
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.StorageClient
@@ -45,8 +44,8 @@ class VerifyingStorageClient(
    * [VerifiedBlob] is collected.
    */
   @Throws(BlobNotFoundException::class)
-  suspend fun getBlob(blobKey: String, pipelineOptions: PipelineOptions? = null): VerifiedBlob {
-    val sharedStorage: StorageClient = sharedStorageFactory.build(pipelineOptions)
+  suspend fun getBlob(blobKey: String): VerifiedBlob {
+    val sharedStorage: StorageClient = sharedStorageFactory.build()
     val sourceBlob: Blob = sharedStorage.getBlob(blobKey) ?: throw BlobNotFoundException(blobKey)
     val namedSignature: NamedSignature = sharedStorage.getBlobSignature(blobKey)
     return VerifiedBlob(SignedBlob(sourceBlob, namedSignature.signature), x509)
