@@ -82,75 +82,80 @@ jobs:
       - name: Export BAZEL_BIN
         run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
 
-
 #      - name: Configure metrics
 #        uses: ./.github/actions/configure-metrics
 #        if: ${{ inputs.apply }}
-#
-#      - name: Export DUCHY_CERT_ID
-#        env:
-#          AGGREGATOR_DUCHY_CERT_ID: ${{ vars.AGGREGATOR_DUCHY_CERT_ID }}
-#          WORKER1_DUCHY_CERT_ID: ${{ vars.WORKER1_DUCHY_CERT_ID }}
-#          WORKER2_DUCHY_CERT_ID: ${{ vars.WORKER2_DUCHY_CERT_ID }}
-#        run: ./.github/workflows/export-duchy-cert-id.sh
-#
-#      - name: Generate archives
-#        env:
-#          IMAGE_TAG: ${{ inputs.image-tag }}
-#          SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
-#          KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
-#          STORAGE_BUCKET: ${{ vars.STORAGE_BUCKET }}
-#        run: >
-#          bazelisk build
-#          "//src/main/k8s/dev:${DUCHY_NAME}_duchy.tar"
-#          //src/main/k8s/testing/secretfiles:archive
-#          --config ghcr
-#          --define "image_tag=$IMAGE_TAG"
-#          --define "google_cloud_project=$GCLOUD_PROJECT"
-#          --define "spanner_instance=$SPANNER_INSTANCE"
-#          --define "kingdom_system_api_target=$KINGDOM_SYSTEM_API_TARGET"
-#          --define "duchy_storage_bucket=$STORAGE_BUCKET"
-#          --define "duchy_cert_id=$DUCHY_CERT_ID"
-#
-#      - name: Make Kustomization dir
-#        run: mkdir -p "$KUSTOMIZATION_PATH"
-#
-#      - name: Extract Kustomization archive
-#        run: >
-#          tar -xf "$BAZEL_BIN/src/main/k8s/dev/${DUCHY_NAME}_duchy.tar"
-#          -C "$KUSTOMIZATION_PATH"
-#
-#      - name: Extract secret files archive
-#        run: >
-#          tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/archive.tar"
-#          -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/${DUCHY_NAME}_duchy_secret"
-#
-#      # Write map from configuration variable. Since it appears that GitHub
-#      # configuration variables use DOS (CRLF) line endings, we convert these to
-#      # Unix (LF) line endings.
-#      - name: Write AKID to principal map
-#        env:
-#          AKID_TO_PRINCIPAL_MAP: ${{ vars.AKID_TO_PRINCIPAL_MAP }}
-#        run: >
-#          echo "$AKID_TO_PRINCIPAL_MAP" | sed $'s/\r$//'  >
-#          "$KUSTOMIZATION_PATH/src/main/k8s/dev/config_files/authority_key_identifier_to_principal_map.textproto"
-#
-#      - name: Export KUSTOMIZE_PATH
-#        run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/${DUCHY_NAME}_duchy" >> $GITHUB_ENV
-#
-#      # Run kubectl diff, treating the command as succeeded even if the exit
-#      # code is 1 as kubectl uses this code to indicate there's a diff.
-#      - name: kubectl diff
-#        id: kubectl-diff
-#        run: kubectl diff -k "$KUSTOMIZE_PATH" || (( $? == 1 ))
-#
-#      - name: kubectl apply
-#        if: ${{ inputs.apply }}
-#        run: kubectl apply -k "$KUSTOMIZE_PATH"
-#
-#      - name: Wait for rollout
-#        if: ${{ inputs.apply }}
-#        run: |
-#          for deployment in $(kubectl get deployments -o name); do
-#            kubectl rollout status "$deployment" --timeout=5m
-#          done
+
+      - name: Export DUCHY_CERT_ID
+        env:
+          AGGREGATOR_DUCHY_CERT_ID: ${{ vars.AGGREGATOR_DUCHY_CERT_ID }}
+          WORKER1_DUCHY_CERT_ID: ${{ vars.WORKER1_DUCHY_CERT_ID }}
+          WORKER2_DUCHY_CERT_ID: ${{ vars.WORKER2_DUCHY_CERT_ID }}
+        run: ./.github/workflows/export-duchy-cert-id.sh
+
+      - name: Generate archives
+        env:
+          IMAGE_TAG: ${{ inputs.image-tag }}
+          POSTGRES_HOST: worker2-duchy-postgres.c7lbzsffeehq.us-west-2.rds.amazonaws.com
+          POSTGRES_CRED_SECRET_NAME: rds!db-1895107f-eab7-4e41-bb63-16deb42246e9
+          KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
+          $COMPUTATION_CONTROL_SERVER_EIPS: eipalloc-09d7a0f47a1701600,eipalloc-05874583414024ddf
+          S3_BUCKET: duchy-test
+        run: >
+          bazelisk build
+          "//src/main/k8s/dev:${DUCHY_NAME}_duchy.tar"
+          //src/main/k8s/testing/secretfiles:archive
+          --config ghcr
+          --define "image_tag=$IMAGE_TAG"
+          --define "kingdom_system_api_target=$KINGDOM_SYSTEM_API_TARGET"
+          --define "s3_bucket=$S3_BUCKET"
+          --define "s3_region=$AWS_REGION"
+          --define "duchy_cert_id=$DUCHY_CERT_ID"
+          --define "postgres_host=$POSTGRES_HOST"
+          --define "postgres_port=5432"
+          --define "postgres_region=$AWS_REGION"
+          --define "postgres_credential_secret_name=$POSTGRES_CRED_SECRET_NAME"
+          --define "computation_control_server_eips=$COMPUTATION_CONTROL_SERVER_EIPS"
+
+      - name: Make Kustomization dir
+        run: mkdir -p "$KUSTOMIZATION_PATH"
+
+      - name: Extract Kustomization archive
+        run: >
+          tar -xf "$BAZEL_BIN/src/main/k8s/dev/${DUCHY_NAME}_duchy.tar"
+          -C "$KUSTOMIZATION_PATH"
+
+      - name: Extract secret files archive
+        run: >
+          tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/archive.tar"
+          -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/${DUCHY_NAME}_duchy_secret"
+
+      # Write map from configuration variable. Since it appears that GitHub
+      # configuration variables use DOS (CRLF) line endings, we convert these to
+      # Unix (LF) line endings.
+      - name: Write AKID to principal map
+        env:
+          AKID_TO_PRINCIPAL_MAP: ${{ vars.AKID_TO_PRINCIPAL_MAP }}
+        run: >
+          echo "$AKID_TO_PRINCIPAL_MAP" | sed $'s/\r$//'  >
+          "$KUSTOMIZATION_PATH/src/main/k8s/dev/config_files/authority_key_identifier_to_principal_map.textproto"
+
+      - name: Export KUSTOMIZE_PATH
+        run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/${DUCHY_NAME}_duchy" >> $GITHUB_ENV
+
+      # Run kubectl diff, treating the command as succeeded even if the exit
+      # code is 1 as kubectl uses this code to indicate there's a diff.
+      - name: kubectl diff
+        id: kubectl-diff
+        run: kubectl diff -k "$KUSTOMIZE_PATH" || (( $? == 1 ))
+
+      - name: kubectl apply
+        if: ${{ inputs.apply }}
+        run: kubectl apply -k "$KUSTOMIZE_PATH"
+
+      - name: Wait for rollout
+        if: ${{ inputs.apply }}
+        run: |
+          for deployment in $(kubectl get deployments -o name); do
+            kubectl rollout status "$deployment" --timeout=5m
+          done
