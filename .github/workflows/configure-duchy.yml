@@ -122,7 +122,7 @@ jobs:
 
       - name: Extract Kustomization archive
         run: >
-          tar -xf "$BAZEL_BIN/src/main/k8s/dev/${DUCHY_NAME}_duchy.tar"
+          tar -xf "$BAZEL_BIN/src/main/k8s/dev/${DUCHY_NAME}_duchy_aws.tar"
           -C "$KUSTOMIZATION_PATH"
 
       - name: Extract secret files archive
@@ -141,7 +141,7 @@ jobs:
           "$KUSTOMIZATION_PATH/src/main/k8s/dev/config_files/authority_key_identifier_to_principal_map.textproto"
 
       - name: Export KUSTOMIZE_PATH
-        run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/${DUCHY_NAME}_duchy" >> $GITHUB_ENV
+        run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/${DUCHY_NAME}_duchy_aws" >> $GITHUB_ENV
 
       # Run kubectl diff, treating the command as succeeded even if the exit
       # code is 1 as kubectl uses this code to indicate there's a diff.
