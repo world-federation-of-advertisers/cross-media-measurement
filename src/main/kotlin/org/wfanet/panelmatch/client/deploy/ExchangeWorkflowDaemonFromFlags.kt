@@ -123,6 +123,10 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
 
   private fun createThrottler(): Throttler = MinimumIntervalThrottler(clock, flags.pollingInterval)
 
+  override val s3FromBeamRecurringExchanges: List<String> by lazy {
+    flags.s3FromBeamRecurringExchanges
+  }
+
   companion object {
     private val logger by loggerFor()
   }

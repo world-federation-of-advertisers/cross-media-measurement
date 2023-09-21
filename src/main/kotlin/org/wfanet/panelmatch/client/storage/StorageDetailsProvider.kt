@@ -21,7 +21,6 @@ import org.wfanet.panelmatch.common.secrets.SecretMap
  * Wraps a [SecretMap] to provide [StorageDetails].
  *
  * @param secretMap map from recurring exchange ids to serialized [StorageDetails] protos.
- * @param detailsType is a string used only for debugging strings.
  */
 class StorageDetailsProvider(
   private val secretMap: MutableSecretMap,

@@ -67,6 +67,14 @@ message StorageDetails {
 
     // The AWS Role to assume.
     AwsRole role = 3;
+
+    message SessionCredentials {
+      string access_key_id = 1;
+      string secret_access_key = 2;
+      string session_token = 3;
+    }
+
+    SessionCredentials session_credentials = 4;
   }
 
   message GcsStorage {

@@ -35,6 +35,11 @@ import org.wfanet.panelmatch.common.Timeout
 import org.wfanet.panelmatch.common.certificates.CertificateManager
 import org.wfanet.panelmatch.common.secrets.SecretMap
 import org.wfanet.panelmatch.common.storage.StorageFactory
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider
+import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider
+import software.amazon.awssdk.services.sts.model.AssumeRoleRequest
 
 /** Runs ExchangeWorkflows. */
 abstract class ExchangeWorkflowDaemon : Runnable {
@@ -86,9 +91,50 @@ abstract class ExchangeWorkflowDaemon : Runnable {
     PrivateStorageSelector(privateStorageFactories, privateStorageInfo)
   }
 
+  /** A list of RecurringExchanges that need session tokens created for beam. */
+  abstract val s3FromBeamRecurringExchanges: List<String>
+
+  /** A map of [RecurringExchange] to [AwsSessionCredentials] for use by beam. */
+  protected val awsSessionsCredentialsProvider: Map<String, AwsSessionCredentials> by lazy {
+    runBlocking {
+      s3FromBeamRecurringExchanges
+        .map { recurringExchangeId ->
+          val storageDetails: StorageDetails = sharedStorageInfo.get(recurringExchangeId)
+          val awsCredentialsProvider: AwsCredentialsProvider =
+            if (storageDetails.aws.role.roleArn.isEmpty()) {
+              DefaultCredentialsProvider.create()
+            } else {
+              val assumeRoleRequestBuilder =
+                AssumeRoleRequest.builder()
+                  .roleArn(storageDetails.aws.role.roleArn)
+                  .roleSessionName(storageDetails.aws.role.roleSessionName)
+              val assumeRoleRequest: AssumeRoleRequest =
+                if (storageDetails.aws.role.roleExternalId.isEmpty()) {
+                  assumeRoleRequestBuilder.build()
+                } else {
+                  assumeRoleRequestBuilder
+                    .externalId(storageDetails.aws.role.roleExternalId)
+                    .build()
+                }
+              StsAssumeRoleCredentialsProvider.builder().refreshRequest(assumeRoleRequest).build()
+            }
+          Pair(
+            recurringExchangeId,
+            awsCredentialsProvider.resolveCredentials() as AwsSessionCredentials
+          )
+        }
+        .toMap()
+    }
+  }
+
   /** [SharedStorageSelector] for writing to shared storage. */
   protected val sharedStorageSelector: SharedStorageSelector by lazy {
-    SharedStorageSelector(certificateManager, sharedStorageFactories, sharedStorageInfo)
+    SharedStorageSelector(
+      certificateManager,
+      sharedStorageFactories,
+      sharedStorageInfo,
+      awsSessionsCredentialsProvider
+    )
   }
 
   override fun run() = runBlocking { runSuspending() }

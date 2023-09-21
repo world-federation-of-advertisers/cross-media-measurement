@@ -16,7 +16,6 @@ package org.wfanet.panelmatch.client.deploy.example.aws
 
 import com.google.crypto.tink.integration.awskms.AwsKmsClient
 import java.util.Optional
-import kotlin.properties.Delegates
 import org.apache.beam.runners.direct.DirectRunner
 import org.apache.beam.sdk.options.PipelineOptions
 import org.apache.beam.sdk.options.PipelineOptionsFactory
@@ -38,13 +37,8 @@ import picocli.CommandLine
 import picocli.CommandLine.Command
 import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider
-import software.amazon.awssdk.auth.credentials.AwsSessionCredentials
-import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.s3.S3AsyncClient
-import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider
-import software.amazon.awssdk.services.sts.model.AssumeRoleRequest
 
 @Command(
   name = "AwsExampleDaemon",
@@ -77,52 +71,11 @@ private class AwsExampleDaemon : ExampleDaemon() {
   lateinit var s3Region: String
     private set
 
-  @set:Option(
-    names = ["--s3-from-beam"],
-    description = ["Whether to configure s3 access from Apache Beam."],
-    defaultValue = "false"
-  )
-  private var s3FromBeam by Delegates.notNull<Boolean>()
-
-  @set:Option(
-    names = ["--s3-from-beam-assume-role"],
-    description = ["Whether to configure s3 access from Apache Beam."],
-    defaultValue = "false"
-  )
-  private var s3FromBeamAssumeRole by Delegates.notNull<Boolean>()
-
   override fun makePipelineOptions(): PipelineOptions {
     // TODO(jmolle): replace usage of DirectRunner.
-    val baseOptions =
-      PipelineOptionsFactory.`as`(BeamOptions::class.java).apply {
-        runner = DirectRunner::class.java
-        defaultSdkHarnessLogLevel = SdkHarnessOptions.LogLevel.INFO
-      }
-    return if (!s3FromBeam) {
-      baseOptions
-    } else {
-      val awsCredentialsProvider: AwsCredentialsProvider =
-        if (s3FromBeamAssumeRole) {
-          val assumeRoleRequestBuilder =
-            AssumeRoleRequest.builder().roleArn("roleArn").roleSessionName("roleSessionName")
-          stsAssumeRoleCredentialsProviderBuilder =
-            StsAssumeRoleCredentialsProvider.builder()
-              .refreshRequest(assumeRoleRequestBuilder)
-              .build()
-        } else {
-          DefaultCredentialsProvider
-        }
-      // aws-sdk-java-v2 casts responses to AwsSessionCredentials if its assumed you need a
-      // sessionToken
-      val awsCredentials =
-        awsCredentialsProvider.create().resolveCredentials() as AwsSessionCredentials
-      // TODO: Encrypt using KMS or store in Secrets
-      // Think about moving this logic to a CredentialsProvider
-      baseOptions.apply {
-        awsAccessKey = awsCredentials.accessKeyId()
-        awsSecretAccessKey = awsCredentials.secretAccessKey()
-        awsSessionToken = awsCredentials.sessionToken()
-      }
+    return PipelineOptionsFactory.`as`(BeamOptions::class.java).apply {
+      runner = DirectRunner::class.java
+      defaultSdkHarnessLogLevel = SdkHarnessOptions.LogLevel.INFO
     }
   }
 

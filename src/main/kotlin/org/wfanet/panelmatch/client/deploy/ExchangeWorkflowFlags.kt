@@ -19,6 +19,7 @@ import kotlin.properties.Delegates
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party
 import org.wfanet.measurement.common.grpc.TlsFlags
 import picocli.CommandLine
+import picocli.CommandLine.ArgGroup
 import picocli.CommandLine.Option
 
 class ExchangeWorkflowFlags {
@@ -114,5 +115,13 @@ class ExchangeWorkflowFlags {
     required = true
   )
   var preProcessingFileCount by Delegates.notNull<Int>()
+    private set
+
+  @ArgGroup(
+    exclusive = false,
+    multiplicity = "0..*",
+    heading = "Recurring Exchanges that need s3 session credentials created for beam\n"
+  )
+  lateinit var s3FromBeamRecurringExchanges: List<String>
     private set
 }

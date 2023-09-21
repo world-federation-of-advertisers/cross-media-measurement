@@ -14,12 +14,10 @@
 
 package org.wfanet.panelmatch.client.storage.aws.s3
 
-import org.apache.beam.sdk.options.PipelineOptions
 import org.wfanet.measurement.aws.s3.S3StorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.common.ExchangeDateKey
-import org.wfanet.panelmatch.common.beam.BeamOptions
 import org.wfanet.panelmatch.common.storage.StorageFactory
 import org.wfanet.panelmatch.common.storage.withPrefix
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials
@@ -36,36 +34,27 @@ class S3StorageFactory(
   private val exchangeDateKey: ExchangeDateKey
 ) : StorageFactory {
 
-  override fun build(options: PipelineOptions?): StorageClient {
-    if (options == null) {
-      return build()
-    }
-    val beamOptions = options.`as`(BeamOptions::class.java)
-    val accessKey = beamOptions.awsAccessKey
-    val secretAccessKey = beamOptions.awsSecretAccessKey
-    val sessionToken = beamOptions.awsSessionToken
-    if (accessKey.isEmpty() || secretAccessKey.isEmpty() || sessionToken.isEmpty()) {
-      return build()
-    }
-    val builtCredentials = AwsSessionCredentials.create(accessKey, secretAccessKey, sessionToken)
-    return S3StorageClient(
-        S3AsyncClient.builder()
-          .region(Region.of(storageDetails.aws.region))
-          .credentialsProvider(StaticCredentialsProvider.create(builtCredentials))
-          .build(),
-        storageDetails.aws.bucket
-      )
-      .withPrefix(exchangeDateKey.path)
-  }
-
   override fun build(): StorageClient {
-    if (storageDetails.aws.role.roleArn.isEmpty()) {
+    if (
+      storageDetails.aws.sessionCredentials.accessKeyId.isNotEmpty() &&
+        storageDetails.aws.sessionCredentials.secretAccessKey.isNotEmpty() &&
+        storageDetails.aws.sessionCredentials.sessionToken.isNotEmpty()
+    ) {
+      val builtCredentials =
+        AwsSessionCredentials.create(
+          storageDetails.aws.sessionCredentials.accessKeyId,
+          storageDetails.aws.sessionCredentials.secretAccessKey,
+          storageDetails.aws.sessionCredentials.sessionToken
+        )
       return S3StorageClient(
-          S3AsyncClient.builder().region(Region.of(storageDetails.aws.region)).build(),
+          S3AsyncClient.builder()
+            .region(Region.of(storageDetails.aws.region))
+            .credentialsProvider(StaticCredentialsProvider.create(builtCredentials))
+            .build(),
           storageDetails.aws.bucket
         )
         .withPrefix(exchangeDateKey.path)
-    } else {
+    } else if (storageDetails.aws.role.roleArn.isNotEmpty()) {
       val client: StsClient = StsClient.builder().build()
       val assumeRoleRequestBuilder =
         AssumeRoleRequest.builder()
@@ -88,6 +77,12 @@ class S3StorageFactory(
                 .build()
             )
             .build(),
+          storageDetails.aws.bucket
+        )
+        .withPrefix(exchangeDateKey.path)
+    } else {
+      return S3StorageClient(
+          S3AsyncClient.builder().region(Region.of(storageDetails.aws.region)).build(),
           storageDetails.aws.bucket
         )
         .withPrefix(exchangeDateKey.path)

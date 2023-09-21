@@ -106,6 +106,8 @@ class ExchangeWorkflowDaemonForTest(
 
   override val throttler: Throttler = MinimumIntervalThrottler(clock, pollingInterval)
 
+  override val s3FromBeamRecurringExchanges: List<String> = emptyList()
+
   private val preprocessingParameters =
     PreprocessingParameters(
       maxByteSize = 1024 * 1024,

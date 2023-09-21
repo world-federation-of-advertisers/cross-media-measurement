@@ -65,7 +65,8 @@ fun makeTestSharedStorageSelector(
   return SharedStorageSelector(
     TestCertificateManager,
     makeTestStorageFactoryMap(InMemoryStorageFactory(underlyingClient)),
-    StorageDetailsProvider(secretMap)
+    StorageDetailsProvider(secretMap),
+    emptyMap()
   )
 }
 

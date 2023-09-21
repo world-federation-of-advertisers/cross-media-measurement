@@ -17,12 +17,15 @@ package org.wfanet.panelmatch.client.storage
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.StorageType
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.StorageType.AMAZON_S3
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.StorageType.GOOGLE_CLOUD_STORAGE
+import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.storage.StorageDetails.PlatformCase
+import org.wfanet.panelmatch.client.storage.StorageDetailsKt.AwsStorageKt.sessionCredentials
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.certificates.CertificateManager
 import org.wfanet.panelmatch.common.storage.StorageFactory
 import org.wfanet.panelmatch.protocol.namedSignature
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials
 
 private val EXPLICITLY_SUPPORTED_STORAGE_TYPES = setOf(PlatformCase.AWS, PlatformCase.GCS)
 
@@ -38,7 +41,8 @@ class SharedStorageSelector(
   private val certificateManager: CertificateManager,
   private val sharedStorageFactories:
     Map<PlatformCase, (StorageDetails, ExchangeDateKey) -> StorageFactory>,
-  private val storageDetailsProvider: StorageDetailsProvider
+  private val storageDetailsProvider: StorageDetailsProvider,
+  private val storageCredentialsProvider: Map<String, AwsSessionCredentials>,
 ) {
 
   /**
@@ -93,7 +97,23 @@ class SharedStorageSelector(
       requireNotNull(sharedStorageFactories[platform]) {
         "Missing private StorageFactory for $platform"
       }
-    return buildStorageFactory(storageDetails, context.exchangeDateKey)
+    val awsStorageCredentials = storageCredentialsProvider.get(context.recurringExchangeId)
+    return if (awsStorageCredentials !== null && storageDetails.hasAws()) {
+      val awsSessionStorageDetails =
+        storageDetails.copy {
+          aws =
+            aws.copy {
+              sessionCredentials = sessionCredentials {
+                accessKeyId = awsStorageCredentials.accessKeyId()
+                secretAccessKey = awsStorageCredentials.secretAccessKey()
+                sessionToken = awsStorageCredentials.sessionToken()
+              }
+            }
+        }
+      buildStorageFactory(awsSessionStorageDetails, context.exchangeDateKey)
+    } else {
+      buildStorageFactory(storageDetails, context.exchangeDateKey)
+    }
   }
 
   private fun validateStorageType(storageType: StorageType, storageDetails: StorageDetails) {
