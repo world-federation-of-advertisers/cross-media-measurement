@@ -19,5 +19,4 @@ import org.wfanet.measurement.storage.StorageClient
 
 fun interface StorageFactory : Serializable {
   fun build(): StorageClient
-
 }

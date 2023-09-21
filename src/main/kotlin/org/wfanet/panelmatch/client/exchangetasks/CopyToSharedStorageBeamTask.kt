@@ -59,9 +59,7 @@ private class CopyManifestToSharedDoFn(
 
   @DoFn.ProcessElement
   fun processElement(@Element manifest: ByteString, context: ProcessContext) {
-    runBlocking(Dispatchers.IO) {
-      destination.writeBlob(destinationManifestBlobKey, manifest)
-    }
+    runBlocking(Dispatchers.IO) { destination.writeBlob(destinationManifestBlobKey, manifest) }
     context.output(manifest)
   }
 }

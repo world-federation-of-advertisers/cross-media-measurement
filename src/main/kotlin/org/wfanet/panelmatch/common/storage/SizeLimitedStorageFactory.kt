@@ -24,7 +24,6 @@ private class SizeLimitedStorageFactory(
   override fun build(): StorageClient {
     return SizeLimitedStorageClient(sizeLimitBytes, delegate.build())
   }
-
 }
 
 /** Wraps a [StorageFactory] to limit blob sizes. */

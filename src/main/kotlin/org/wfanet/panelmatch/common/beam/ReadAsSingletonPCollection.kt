@@ -43,9 +43,7 @@ private class ReadByteStringFn(private val storageFactory: StorageFactory) :
   fun processElement(c: ProcessContext) {
     val blobKey = c.element()
     val bytes =
-      runBlocking(Dispatchers.IO) {
-        storageFactory.build().getBlob(blobKey)?.toByteString()
-      }
+      runBlocking(Dispatchers.IO) { storageFactory.build().getBlob(blobKey)?.toByteString() }
     c.output(requireNotNull(bytes))
   }
 }
