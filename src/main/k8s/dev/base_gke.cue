@@ -62,7 +62,6 @@ package k8s
 	serviceAccountName: string
 }
 
-
 #SpotVmPodSpec: {
 	#PodSpec
 

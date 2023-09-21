@@ -59,7 +59,7 @@ _cloudStorageConfig: #CloudStorageConfig & {
 	bucket: _cloudStorageBucket
 }
 
-duchy: {
+duchy: #SpannerDuchy & {
 	_duchy: {
 		name:                   _duchy_name
 		protocols_setup_config: _duchy_protocols_setup_config
@@ -69,7 +69,7 @@ duchy: {
 	_computation_control_targets: {
 		"aggregator": "system.aggregator.dev.halo-cmm.org:8443"
 		"worker1":    "system.worker1.dev.halo-cmm.org:8443"
-		"worker2":    "v1alpha.system.aws.worker2.dev.halo-cmm.org:8443"
+		"worker2":    "system.worker2.dev.halo-cmm.org:8443"
 	}
 	_kingdom_system_api_target: #KingdomSystemApiTarget
 	_blob_storage_flags:        _cloudStorageConfig.flags
@@ -112,19 +112,6 @@ duchy: {
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #StorageServiceAccount
 			}
-		}
-	}
-}
-
-if (_duchy_name != "worker2") {
-	duchy: duchy & #SpannerDuchy
-}
-
-if (_duchy_name == "worker2") {
-	duchy: duchy & #PostgresDuchy & {
-		_postgresConfig: {
-			iamUserLocal: "worker2-duchy-internal"
-			database:     "worker2_duchy_computations"
 		}
 	}
 }
