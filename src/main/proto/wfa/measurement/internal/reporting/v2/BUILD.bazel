@@ -161,6 +161,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":report_schedule_iteration_proto",
+        "@com_google_protobuf//:timestamp_proto",
     ],
 )
 

@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
+import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/reporting/v2/report_schedule_iteration.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
@@ -57,8 +58,8 @@ message ListReportScheduleIterationsRequest {
     // `MeasurementConsumer` ID from the CMMS public API.
     string cmms_measurement_consumer_id = 1;
     string external_report_schedule_id = 2;
-    // Skips to results with an external id greater than this.
-    string external_report_schedule_iteration_id_after = 3;
+    // Skips to results with a `report_creation_time` greater than this.
+    google.protobuf.Timestamp report_creation_time_after = 3;
   }
   Filter filter = 1;
 
