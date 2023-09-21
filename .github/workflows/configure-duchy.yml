@@ -99,7 +99,7 @@ jobs:
           POSTGRES_HOST: worker2-duchy-postgres.c7lbzsffeehq.us-west-2.rds.amazonaws.com
           POSTGRES_CRED_SECRET_NAME: rds!db-1895107f-eab7-4e41-bb63-16deb42246e9
           KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
-          $COMPUTATION_CONTROL_SERVER_EIPS: eipalloc-09d7a0f47a1701600,eipalloc-05874583414024ddf
+          $COMPUTATION_CONTROL_SERVER_EIPS: "eipalloc-09d7a0f47a1701600,eipalloc-05874583414024ddf"
           S3_BUCKET: duchy-test
         run: >
           bazelisk build
