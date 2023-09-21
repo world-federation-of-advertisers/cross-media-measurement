@@ -24,6 +24,7 @@ private constructor(
   val op: String
 ) {
   data class Replace(val path: String, val value: Any) : JsonPatchOperation("replace")
+
   data class Add(val path: String, val value: Any) : JsonPatchOperation("add")
 
   companion object {

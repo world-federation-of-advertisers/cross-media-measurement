@@ -3453,6 +3453,7 @@ class MetricsServiceTest {
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
+
   @Test
   fun `listMetrics with invalid page size replaced with the one in previous page token`() =
     runBlocking {

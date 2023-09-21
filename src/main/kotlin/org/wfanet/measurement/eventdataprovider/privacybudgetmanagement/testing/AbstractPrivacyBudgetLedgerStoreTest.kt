@@ -32,6 +32,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Referenc
 
 abstract class AbstractPrivacyBudgetLedgerStoreTest {
   protected abstract fun createBackingStore(): PrivacyBudgetLedgerBackingStore
+
   protected abstract fun recreateSchema()
 
   @Before

@@ -221,6 +221,7 @@ private val STATES_SUBSCRIBED =
 private object ContinuationTokenConverter {
   fun encode(token: StreamActiveComputationsContinuationToken): String =
     token.toByteArray().base64UrlEncode()
+
   fun decode(token: String): StreamActiveComputationsContinuationToken =
     StreamActiveComputationsContinuationToken.parseFrom(token.base64UrlDecode())
 }

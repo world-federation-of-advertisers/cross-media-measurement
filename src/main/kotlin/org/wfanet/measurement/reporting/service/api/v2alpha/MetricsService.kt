@@ -1080,6 +1080,7 @@ class MetricsService(
         }
     }
   }
+
   override suspend fun listMetrics(request: ListMetricsRequest): ListMetricsResponse {
     val parentKey =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {

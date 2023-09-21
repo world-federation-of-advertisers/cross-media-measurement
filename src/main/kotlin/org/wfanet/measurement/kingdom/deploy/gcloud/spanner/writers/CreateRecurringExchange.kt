@@ -42,15 +42,13 @@ class CreateRecurringExchange(private val recurringExchange: RecurringExchange) 
     val dataProviderId =
       DataProviderReader()
         .readByExternalDataProviderId(transactionContext, externalDataProviderId)
-        ?.dataProviderId
-        ?: throw DataProviderNotFoundException(externalDataProviderId)
+        ?.dataProviderId ?: throw DataProviderNotFoundException(externalDataProviderId)
 
     val externalModelProviderId = ExternalId(recurringExchange.externalModelProviderId)
     val modelProviderId =
       ModelProviderReader()
         .readByExternalModelProviderId(transactionContext, externalModelProviderId)
-        ?.modelProviderId
-        ?: throw ModelProviderNotFoundException(externalModelProviderId)
+        ?.modelProviderId ?: throw ModelProviderNotFoundException(externalModelProviderId)
 
     val externalId = idGenerator.generateExternalId()
     transactionContext.bufferInsertMutation("RecurringExchanges") {

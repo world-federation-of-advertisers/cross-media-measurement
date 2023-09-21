@@ -17,5 +17,6 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemory
 
 class TestInMemoryBackingStore : InMemoryBackingStore() {
   fun getDpBalancesMap() = dpBalances.toMap()
+
   fun getAcdpBalancesMap() = acdpBalances.toMap()
 }

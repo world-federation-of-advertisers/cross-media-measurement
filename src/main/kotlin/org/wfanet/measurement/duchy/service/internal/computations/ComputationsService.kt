@@ -224,8 +224,7 @@ class ComputationsService(
         KeyCase.REQUISITION_KEY -> computationsDatabase.readComputationToken(request.requisitionKey)
         KeyCase.KEY_NOT_SET ->
           throw Status.INVALID_ARGUMENT.withDescription("key not set").asRuntimeException()
-      }
-        ?: throw Status.NOT_FOUND.asRuntimeException()
+      } ?: throw Status.NOT_FOUND.asRuntimeException()
 
     return computationToken.toGetComputationTokenResponse()
   }

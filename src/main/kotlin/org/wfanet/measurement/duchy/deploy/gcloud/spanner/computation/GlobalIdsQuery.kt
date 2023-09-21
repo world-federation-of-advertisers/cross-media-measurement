@@ -39,6 +39,7 @@ class GlobalIdsQuery<StageT>(
       AND Protocol = @protocol
       """
   }
+
   override val sql: Statement =
     statement(parameterizedQuery) {
       bind("stages")
