@@ -23,7 +23,7 @@ option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
 // Internal service for persistence of ReportScheduleIteration entities.
-service ReportSchedules {
+service ReportScheduleIterations {
   rpc CreateReportScheduleIteration(ReportScheduleIteration)
       returns (ReportScheduleIteration);
 
