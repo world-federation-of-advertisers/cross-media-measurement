@@ -129,6 +129,7 @@ class MeasurementConsumerSimulator(
     val requisitionSpec: RequisitionSpec,
     val eventGroups: List<EventGroup>,
   )
+
   private data class MeasurementInfo(
     val measurement: Measurement,
     val measurementSpec: MeasurementSpec,
