@@ -44,7 +44,14 @@ class S3StorageFactory(
     val accessKey = beamOptions.awsAccessKey
     val secretAccessKey = beamOptions.awsSecretAccessKey
     val sessionToken = beamOptions.awsSessionToken
-    if (accessKey.isEmpty() || secretAccessKey.isEmpty() || sessionToken.isEmpty()) {
+    if (
+      accessKey === null ||
+        secretAccessKey === null ||
+        sessionToken === null ||
+        accessKey.isEmpty() ||
+        secretAccessKey.isEmpty() ||
+        sessionToken.isEmpty()
+    ) {
       return build()
     }
     val builtCredentials = AwsSessionCredentials.create(accessKey, secretAccessKey, sessionToken)
