@@ -14,13 +14,13 @@
 
 package k8s
 
-_duchy_name:                      string @tag("duchy_name")
-_duchy_protocols_setup_config:    string @tag("duchy_protocols_setup_config")
-_secret_name:                     string @tag("secret_name")
-_certificateId:                   string @tag("certificate_id")
-_computation_control_server_eips: string @tag("computation_control_server_eips")
+_duchyName:                    string @tag("duchy_name")
+_duchyProtocolsSetupConfig:    string @tag("duchy_protocols_setup_config")
+_secretName:                   string @tag("secret_name")
+_certificateId:                string @tag("certificate_id")
+_computationControlServerEips: string @tag("computation_control_server_eips")
 
-_duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
+_duchyCertName: "duchies/\(_duchyName)/certificates/\(_certificateId)"
 
 #KingdomSystemApiTarget:             string @tag("kingdom_system_api_target")
 #InternalServerServiceAccount:       "internal-server"
@@ -64,11 +64,11 @@ duchy: #PostgresDuchy & {
 		"update-duchy-schema":            "duchy/aws-postgres-update-schema"
 	}
 	_duchy: {
-		name:                   _duchy_name
-		protocols_setup_config: _duchy_protocols_setup_config
-		cs_cert_resource_name:  _duchy_cert_name
+		name:                   _duchyName
+		protocols_setup_config: _duchyProtocolsSetupConfig
+		cs_cert_resource_name:  _duchyCertName
 	}
-	_duchy_secret_name: _secret_name
+	_duchy_secret_name: _secretName
 	_computation_control_targets: {
 		"aggregator": "system.aggregator.dev.halo-cmm.org:8443"
 		"worker1":    "system.worker1.dev.halo-cmm.org:8443"
@@ -85,7 +85,7 @@ duchy: #PostgresDuchy & {
 					"service.beta.kubernetes.io/aws-load-balancer-type":            "nlb"
 					"service.beta.kubernetes.io/aws-load-balancer-scheme":          "internet-facing"
 					"service.beta.kubernetes.io/aws-load-balancer-nlb-target-type": "ip"
-					"service.beta.kubernetes.io/aws-load-balancer-eip-allocations": _computation_control_server_eips
+					"service.beta.kubernetes.io/aws-load-balancer-eip-allocations": _computationControlServerEips
 				}
 			}
 		}

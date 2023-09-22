@@ -56,12 +56,6 @@ package k8s
 	nodeSelector:       #ServiceAccountNodeSelector
 }
 
-#AwsServiceAccountPodSpec: {
-	#PodSpec
-
-	serviceAccountName: string
-}
-
 #SpotVmPodSpec: {
 	#PodSpec
 
