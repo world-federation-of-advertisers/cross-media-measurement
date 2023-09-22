@@ -41,11 +41,17 @@ class S3StorageFactory(
       return build()
     }
     val beamOptions = options.`as`(BeamOptions::class.java)
-    @Suppress("USELESS_ELVIS", ) // Beam returns String?
+    @Suppress(
+      "USELESS_ELVIS",
+    ) // Beam returns String?
     val accessKey = beamOptions.awsAccessKey ?: ""
-    @Suppress("USELESS_ELVIS", ) // Beam returns String?
+    @Suppress(
+      "USELESS_ELVIS",
+    ) // Beam returns String?
     val secretAccessKey = beamOptions.awsSecretAccessKey ?: ""
-    @Suppress("USELESS_ELVIS", ) // Beam returns String?
+    @Suppress(
+      "USELESS_ELVIS",
+    ) // Beam returns String?
     val sessionToken = beamOptions.awsSessionToken ?: ""
     if (accessKey.isEmpty() || secretAccessKey.isEmpty() || sessionToken.isEmpty()) {
       return build()
