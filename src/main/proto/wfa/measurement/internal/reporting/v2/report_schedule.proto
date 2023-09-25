@@ -77,11 +77,13 @@ message ReportSchedule {
   State state = 3;
 
   message Details {
-    Report report_template = 1;
-    google.type.DateTime start = 2;
-    google.type.Date end = 3;
-    Frequency frequency = 4;
-    ReportWindow report_window = 5;
+    string display_name = 1;
+    string description = 2;
+    Report report_template = 3;
+    google.type.DateTime event_start = 4;
+    google.type.Date event_end = 5;
+    Frequency frequency = 6;
+    ReportWindow report_window = 7;
   }
   Details details = 4;
 
