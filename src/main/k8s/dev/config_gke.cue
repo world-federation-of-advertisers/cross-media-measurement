@@ -48,15 +48,6 @@ package k8s
 	]
 }
 
-#ContainerRegistryConfig: {
-	registry:   string @tag("container_registry")
-	repoPrefix: string @tag("image_repo_prefix")
-}
-
-#ImageConfig: {
-	tag: string @tag("image_tag")
-}
-
 #PostgresConfig: {
 	project:  #GCloudProject
 	instance: string @tag("postgres_instance")

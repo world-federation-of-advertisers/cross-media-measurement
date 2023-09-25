@@ -113,18 +113,18 @@ duchy: #PostgresDuchy & {
 			}
 			spec: {
 				replicas: #MillReplicas
-				template: spec: #AwsServiceAccountPodSpec & #PodSpec & {
+				template: spec: #ServiceAccountPodSpec & #PodSpec & {
 					serviceAccountName: #StorageServiceAccount
 				}
 			}
 		}
 		"computation-control-server-deployment": {
-			spec: template: spec: #AwsServiceAccountPodSpec & {
+			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #StorageServiceAccount
 			}
 		}
 		"requisition-fulfillment-server-deployment": {
-			spec: template: spec: #AwsServiceAccountPodSpec & {
+			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #StorageServiceAccount
 			}
 		}
@@ -132,7 +132,7 @@ duchy: #PostgresDuchy & {
 			_container: {
 				resources: #InternalServerResourceRequirements
 			}
-			spec: template: spec: #AwsServiceAccountPodSpec & {
+			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalServerServiceAccount
 			}
 		}

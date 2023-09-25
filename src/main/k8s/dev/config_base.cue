@@ -14,26 +14,11 @@
 
 package k8s
 
-#ServiceAccountPodSpec: {
-	#PodSpec
-
-	serviceAccountName: string
+#ContainerRegistryConfig: {
+	registry:   string @tag("container_registry")
+	repoPrefix: string @tag("image_repo_prefix")
 }
 
-#ServerDeployment: {
-	_container: {
-		resources: Resources={
-			requests: {
-				memory: _ | *"320Mi"
-			}
-			limits: {
-				memory: _ | *Resources.requests.memory
-			}
-		}
-	}
-}
-
-#JavaOptions: {
-	initialHeapSize: _ | *"64M"
-	maxHeapSize:     _ | *"64M"
+#ImageConfig: {
+	tag: string @tag("image_tag")
 }

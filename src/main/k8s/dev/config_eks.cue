@@ -14,15 +14,6 @@
 
 package k8s
 
-#ContainerRegistryConfig: {
-	registry:   string @tag("container_registry")
-	repoPrefix: string @tag("image_repo_prefix")
-}
-
-#ImageConfig: {
-	tag: string @tag("image_tag")
-}
-
 #PostgresConfig: {
 	region:     string @tag("postgres_region")
 	host:       string @tag("postgres_host")

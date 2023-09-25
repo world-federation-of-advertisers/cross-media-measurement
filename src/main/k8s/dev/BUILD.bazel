@@ -31,9 +31,15 @@ cue_library(
 )
 
 cue_library(
+    name = "config_base",
+    srcs = ["config_base.cue"],
+)
+
+cue_library(
     name = "config_gke",
     srcs = ["config_gke.cue"],
     deps = [
+        ":config_base",
         "//src/main/k8s:postgres",
         "//src/main/k8s:spanner",
     ],
@@ -43,6 +49,7 @@ cue_library(
     name = "config_eks",
     srcs = ["config_eks.cue"],
     deps = [
+        "config_base",
         "//src/main/k8s:postgres",
     ],
 )
