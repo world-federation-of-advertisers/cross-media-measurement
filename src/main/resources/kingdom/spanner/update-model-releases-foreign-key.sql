@@ -22,6 +22,7 @@ CREATE TABLE ModelReleases (
     ModelReleaseId INT64 NOT NULL,
     ExternalModelReleaseId INT64 NOT NULL,
     CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+    PopulationId INT64 NOT NULL,
     FOREIGN KEY (Population) REFERENCES Populations(PopulationId),
 ) PRIMARY KEY (ModelProviderId, ModelSuiteId, ModelReleaseId),
   INTERLEAVE IN PARENT ModelSuites ON DELETE CASCADE;
