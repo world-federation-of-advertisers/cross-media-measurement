@@ -181,4 +181,8 @@ message Report {
   // Set only when `state` is `SUCCEEDED`.
   repeated MetricCalculationResult metric_calculation_results = 7
       [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Only set if there is a `ReportSchedule` that this `Report` was created for.
+  string report_schedule = 8
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 }

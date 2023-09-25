@@ -40,9 +40,6 @@ service Reports {
   rpc ListReports(ListReportsRequest) returns (ListReportsResponse) {
     option (google.api.http) = {
       get: "/v2alpha/{parent=measurementConsumers/*}/reports"
-      additional_bindings {
-        get: "/v2alpha/{parent=measurementConsumers/*/reportSchedules/*}/reports"
-      }
     };
     option (google.api.method_signature) = "parent";
   }
