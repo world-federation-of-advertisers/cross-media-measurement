@@ -1,0 +1,32 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@rules_java//java:defs.bzl", "java_proto_library")
+load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
+
+package(default_visibility = ["//visibility:public"])
+
+IMPORT_PREFIX = "/src/main/proto"
+
+# Resources and shared message types.
+
+proto_library(
+    name = "methodology_proto",
+    srcs = ["methodology.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:annotations_proto",
+        "@com_google_googleapis//google/api:client_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+java_proto_library(
+    name = "methodology_java_proto",
+    deps = [":methodology_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "methodology_kt_jvm_proto",
+    srcs = [":methodology_proto"],
+    deps = [":methodology_java_proto"],
+)

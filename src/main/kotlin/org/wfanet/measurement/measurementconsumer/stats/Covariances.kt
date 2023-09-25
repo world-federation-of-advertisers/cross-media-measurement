@@ -16,6 +16,14 @@
 
 package org.wfanet.measurement.measurementconsumer.stats
 
+import kotlin.math.max
+import kotlin.math.min
+
+class MeasurementSketchParamsNotMatchCovarianceException(
+  message: String? = null,
+  cause: Throwable? = null
+) : Exception(message, cause)
+
 /** Functions to compute different covariances. */
 object Covariances {
   /**
@@ -25,17 +33,20 @@ object Covariances {
    * Precisely, computes the covariance between any two reach measurements when at least one reach
    * is computed using deterministic count distinct methodology.
    */
-  fun computeDeterministicCovariance(reachCovarianceParams: ReachCovarianceParams): Double {
+  fun computeDeterministicCovariance(
+    reachMeasurementCovarianceParams: ReachMeasurementCovarianceParams
+  ): Double {
     val overlapReach =
-      reachCovarianceParams.reach + reachCovarianceParams.otherReach -
-        reachCovarianceParams.unionReach
+      reachMeasurementCovarianceParams.reach + reachMeasurementCovarianceParams.otherReach -
+        reachMeasurementCovarianceParams.unionReach
     val overlapSamplingWidth =
-      reachCovarianceParams.samplingWidth + reachCovarianceParams.otherSamplingWidth -
-        reachCovarianceParams.unionSamplingWidth
+      reachMeasurementCovarianceParams.samplingWidth +
+        reachMeasurementCovarianceParams.otherSamplingWidth -
+        reachMeasurementCovarianceParams.unionSamplingWidth
     return overlapReach *
       (overlapSamplingWidth /
-        reachCovarianceParams.samplingWidth /
-        reachCovarianceParams.otherSamplingWidth - 1.0)
+        reachMeasurementCovarianceParams.samplingWidth /
+        reachMeasurementCovarianceParams.otherSamplingWidth - 1.0)
   }
 
   /**
@@ -47,21 +58,188 @@ object Covariances {
    */
   fun computeLiquidLegionsCovariance(
     sketchParams: LiquidLegionsSketchParams,
-    reachCovarianceParams: ReachCovarianceParams,
+    reachMeasurementCovarianceParams: ReachMeasurementCovarianceParams,
   ): Double {
     return LiquidLegions.inflatedReachCovariance(
       sketchParams = sketchParams,
-      reach = reachCovarianceParams.reach,
-      otherReach = reachCovarianceParams.otherReach,
+      reach = reachMeasurementCovarianceParams.reach,
+      otherReach = reachMeasurementCovarianceParams.otherReach,
       overlapReach =
-        reachCovarianceParams.reach + reachCovarianceParams.otherReach -
-          reachCovarianceParams.unionReach,
-      samplingWidth = reachCovarianceParams.samplingWidth,
-      otherSamplingWidth = reachCovarianceParams.otherSamplingWidth,
+        reachMeasurementCovarianceParams.reach + reachMeasurementCovarianceParams.otherReach -
+          reachMeasurementCovarianceParams.unionReach,
+      samplingWidth = reachMeasurementCovarianceParams.samplingWidth,
+      otherSamplingWidth = reachMeasurementCovarianceParams.otherSamplingWidth,
       overlapSamplingWidth =
-        reachCovarianceParams.samplingWidth + reachCovarianceParams.otherSamplingWidth -
-          reachCovarianceParams.unionSamplingWidth,
+        reachMeasurementCovarianceParams.samplingWidth +
+          reachMeasurementCovarianceParams.otherSamplingWidth -
+          reachMeasurementCovarianceParams.unionSamplingWidth,
       inflation = 0.0
     )
+  }
+
+  /** Computes the covariance of two reach measurements based on their methodologies. */
+  fun computeMeasurementCovariance(
+    weightedMeasurementVarianceParams: WeightedReachMeasurementVarianceParams,
+    otherWeightedMeasurementVarianceParams: WeightedReachMeasurementVarianceParams,
+    unionWeightedMeasurementVarianceParams: WeightedReachMeasurementVarianceParams,
+  ): Double {
+    val unionSamplingWidth =
+      computeUnionSamplingWidth(
+        weightedMeasurementVarianceParams.measurementVarianceParams.measurementParams
+          .vidSamplingIntervalStart,
+        weightedMeasurementVarianceParams.measurementVarianceParams.measurementParams
+          .vidSamplingIntervalWidth,
+        otherWeightedMeasurementVarianceParams.measurementVarianceParams.measurementParams
+          .vidSamplingIntervalStart,
+        otherWeightedMeasurementVarianceParams.measurementVarianceParams.measurementParams
+          .vidSamplingIntervalWidth
+      )
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    val liquidLegionsSketchParams =
+      when (weightedMeasurementVarianceParams.methodology.typeCase) {
+        Methodology.TypeCase.DETERMINISTIC -> {
+          return computeDeterministicCovariance(
+            ReachMeasurementCovarianceParams(
+              reach = weightedMeasurementVarianceParams.measurementVarianceParams.reach,
+              otherReach = otherWeightedMeasurementVarianceParams.measurementVarianceParams.reach,
+              unionReach = unionWeightedMeasurementVarianceParams.measurementVarianceParams.reach,
+              samplingWidth =
+                weightedMeasurementVarianceParams.measurementVarianceParams.measurementParams
+                  .vidSamplingIntervalWidth,
+              otherSamplingWidth =
+                otherWeightedMeasurementVarianceParams.measurementVarianceParams.measurementParams
+                  .vidSamplingIntervalWidth,
+              unionSamplingWidth = unionSamplingWidth
+            )
+          )
+        }
+        Methodology.TypeCase.LIQUID_LEGIONS_SKETCH -> {
+          LiquidLegionsSketchParams(
+            weightedMeasurementVarianceParams.methodology.liquidLegionsSketch.decayRate,
+            weightedMeasurementVarianceParams.methodology.liquidLegionsSketch.maxSize.toDouble()
+          )
+        }
+        Methodology.TypeCase.LIQUID_LEGIONS_V2 -> {
+          LiquidLegionsSketchParams(
+            weightedMeasurementVarianceParams.methodology.liquidLegionsV2.decayRate,
+            weightedMeasurementVarianceParams.methodology.liquidLegionsV2.maxSize.toDouble()
+          )
+        }
+        Methodology.TypeCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
+          LiquidLegionsSketchParams(
+            weightedMeasurementVarianceParams.methodology.reachOnlyLiquidLegionsV2.decayRate,
+            weightedMeasurementVarianceParams.methodology.reachOnlyLiquidLegionsV2.maxSize
+              .toDouble()
+          )
+        }
+        Methodology.TypeCase.TYPE_NOT_SET -> {
+          error("Methodology is not set.")
+        }
+      }
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    when (otherWeightedMeasurementVarianceParams.methodology.typeCase) {
+      Methodology.TypeCase.DETERMINISTIC -> {
+        return computeDeterministicCovariance(
+          ReachMeasurementCovarianceParams(
+            reach = weightedMeasurementVarianceParams.measurementVarianceParams.reach,
+            otherReach = otherWeightedMeasurementVarianceParams.measurementVarianceParams.reach,
+            unionReach = unionWeightedMeasurementVarianceParams.measurementVarianceParams.reach,
+            samplingWidth =
+              weightedMeasurementVarianceParams.measurementVarianceParams.measurementParams
+                .vidSamplingIntervalWidth,
+            otherSamplingWidth =
+              otherWeightedMeasurementVarianceParams.measurementVarianceParams.measurementParams
+                .vidSamplingIntervalWidth,
+            unionSamplingWidth = unionSamplingWidth
+          )
+        )
+      }
+      Methodology.TypeCase.LIQUID_LEGIONS_SKETCH -> {
+        if (
+          liquidLegionsSketchParams.decayRate !=
+            otherWeightedMeasurementVarianceParams.methodology.liquidLegionsSketch.decayRate ||
+            liquidLegionsSketchParams.sketchSize !=
+              otherWeightedMeasurementVarianceParams.methodology.liquidLegionsSketch.maxSize
+                .toDouble()
+        ) {
+          throw MeasurementSketchParamsNotMatchCovarianceException(
+            "Covariance calculation for Liquid Legions based measurements requires two " +
+              "measurements using the same decay rate and sketch size.",
+            IllegalArgumentException("Measurements in the covariance calculation are not valid.")
+          )
+        }
+      }
+      Methodology.TypeCase.LIQUID_LEGIONS_V2 -> {
+        if (
+          liquidLegionsSketchParams.decayRate !=
+            otherWeightedMeasurementVarianceParams.methodology.liquidLegionsV2.decayRate ||
+            liquidLegionsSketchParams.sketchSize !=
+              otherWeightedMeasurementVarianceParams.methodology.liquidLegionsV2.maxSize.toDouble()
+        ) {
+          throw MeasurementSketchParamsNotMatchCovarianceException(
+            "Covariance calculation for Liquid Legions based measurements requires two " +
+              "measurements using the same decay rate and sketch size.",
+            IllegalArgumentException("Measurements in the covariance calculation are not valid.")
+          )
+        }
+      }
+      Methodology.TypeCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
+        if (
+          liquidLegionsSketchParams.decayRate !=
+            otherWeightedMeasurementVarianceParams.methodology.reachOnlyLiquidLegionsV2.decayRate ||
+            liquidLegionsSketchParams.sketchSize !=
+              otherWeightedMeasurementVarianceParams.methodology.reachOnlyLiquidLegionsV2.maxSize
+                .toDouble()
+        ) {
+          throw MeasurementSketchParamsNotMatchCovarianceException(
+            "Covariance calculation for Liquid Legions based measurements requires two " +
+              "measurements using the same decay rate and sketch size.",
+            IllegalArgumentException("Measurements in the covariance calculation are not valid.")
+          )
+        }
+      }
+      Methodology.TypeCase.TYPE_NOT_SET -> {
+        error("Methodology is not set.")
+      }
+    }
+    return computeLiquidLegionsCovariance(
+      sketchParams = liquidLegionsSketchParams,
+      ReachMeasurementCovarianceParams(
+        reach = weightedMeasurementVarianceParams.measurementVarianceParams.reach,
+        otherReach = otherWeightedMeasurementVarianceParams.measurementVarianceParams.reach,
+        unionReach = unionWeightedMeasurementVarianceParams.measurementVarianceParams.reach,
+        samplingWidth =
+          weightedMeasurementVarianceParams.measurementVarianceParams.measurementParams
+            .vidSamplingIntervalWidth,
+        otherSamplingWidth =
+          otherWeightedMeasurementVarianceParams.measurementVarianceParams.measurementParams
+            .vidSamplingIntervalWidth,
+        unionSamplingWidth = unionSamplingWidth
+      )
+    )
+  }
+
+  /** Computes the width of the union of two sampling intervals. */
+  private fun computeUnionSamplingWidth(
+    vidSamplingIntervalStart: Double,
+    vidSamplingIntervalWidth: Double,
+    otherVidSamplingIntervalStart: Double,
+    otherVidSamplingIntervalWidth: Double,
+  ): Double {
+    return max(
+      vidSamplingIntervalStart + vidSamplingIntervalWidth,
+      otherVidSamplingIntervalStart + otherVidSamplingIntervalWidth
+    ) -
+      min(vidSamplingIntervalStart, otherVidSamplingIntervalStart) -
+      max(
+        0.0,
+        otherVidSamplingIntervalStart - vidSamplingIntervalStart - vidSamplingIntervalWidth
+      ) -
+      max(
+        0.0,
+        vidSamplingIntervalStart - otherVidSamplingIntervalStart - otherVidSamplingIntervalWidth
+      )
   }
 }
