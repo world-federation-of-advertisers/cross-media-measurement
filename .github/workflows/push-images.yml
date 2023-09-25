@@ -87,4 +87,4 @@ jobs:
         run: |
           bazelisk run //src/main/docker:push_all_gke_images 
           bazelisk run //src/main/docker/panel_exchange_client:push_all_images
-          bazelist run //src/main/docker:push_all_duchy_eks_images
+          bazelisk run //src/main/docker:push_all_duchy_eks_images
