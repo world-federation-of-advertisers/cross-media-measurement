@@ -1,0 +1,49 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.reporting.v2;
+
+import "google/protobuf/timestamp.proto";
+
+option java_package = "org.wfanet.measurement.internal.reporting.v2";
+option java_multiple_files = true;
+
+// Proto representation of the internal ReportScheduleIteration entity type.
+message ReportScheduleIteration {
+  // `MeasurementConsumer` ID from the CMMS public API.
+  string cmms_measurement_consumer_id = 1;
+  string external_report_schedule_id = 2;
+  string external_report_schedule_iteration_id = 3;
+
+  string create_report_request_id = 4;
+
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    WAITING_FOR_DATA_AVAILABILITY = 1;
+    RETRYING_REPORT_CREATION = 2;
+    REPORT_CREATED = 3;
+  }
+  State state = 5;
+
+  int32 num_attempts = 6;
+
+  string external_report_id = 7;
+
+  google.protobuf.Timestamp report_event_time = 8;
+
+  google.protobuf.Timestamp create_time = 9;
+  google.protobuf.Timestamp update_time = 10;
+}

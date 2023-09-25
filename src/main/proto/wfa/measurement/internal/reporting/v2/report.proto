@@ -87,4 +87,7 @@ message Report {
     TimeIntervals time_intervals = 5;
     PeriodicTimeInterval periodic_time_interval = 6;
   }
+
+  // Only set if `Report` is associated with a `ReportSchedule`.
+  string external_report_schedule_id = 7;
 }
