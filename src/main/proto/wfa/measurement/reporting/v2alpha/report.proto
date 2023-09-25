@@ -43,6 +43,10 @@ message Report {
   // Resource name.
   string name = 1;
 
+  // A map of arbitrary key-value pairs to support tagging of Reports
+  // for upstream use by UIs and other rich clients.
+  map<string, string> tags = 8;
+
   // Contain the grouping predicates.
   message Grouping {
     // The CEL expressions that are applied to the corresponding event message

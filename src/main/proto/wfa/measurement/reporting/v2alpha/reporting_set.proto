@@ -36,6 +36,10 @@ message ReportingSet {
   // Human-readable name for display purposes.
   string display_name = 2;
 
+  // A map of arbitrary key-value pairs to support tagging of ReportingSets
+  // for upstream use by UIs and other rich clients.
+  map<string, string> tags = 8;
+
   // CEL filter predicate that applies to this reporting set.
   // If unspecified, evaluates to `true`.
   string filter = 3 [(google.api.field_behavior) = IMMUTABLE];
