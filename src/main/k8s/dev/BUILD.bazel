@@ -25,11 +25,25 @@ cue_library(
 )
 
 cue_library(
-    name = "config",
-    srcs = ["config.cue"],
+    name = "base_eks",
+    srcs = ["base_eks.cue"],
+    deps = ["//src/main/k8s:base"],
+)
+
+cue_library(
+    name = "config_gke",
+    srcs = ["config_gke.cue"],
     deps = [
         "//src/main/k8s:postgres",
         "//src/main/k8s:spanner",
+    ],
+)
+
+cue_library(
+    name = "config_eks",
+    srcs = ["config_eks.cue"],
+    deps = [
+        "//src/main/k8s:postgres",
     ],
 )
 
@@ -47,7 +61,7 @@ cue_dump(
     tags = ["manual"],
     deps = [
         ":base_gke",
-        ":config",
+        ":config_gke",
         "//src/main/k8s:kingdom",
     ],
 )
@@ -97,7 +111,7 @@ cue_dump(
     tags = ["manual"],
     deps = [
         ":base_gke",
-        ":config",
+        ":config_gke",
         "//src/main/k8s:base",
         "//src/main/k8s:spanner_duchy",
     ],
@@ -122,7 +136,7 @@ cue_dump(
     tags = ["manual"],
     deps = [
         ":base_gke",
-        ":config",
+        ":config_gke",
         "//src/main/k8s:base",
         "//src/main/k8s:spanner_duchy",
     ],
@@ -141,12 +155,13 @@ cue_dump(
         "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
         "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
         "google_cloud_project": GCLOUD_SETTINGS.project,
+        "spanner_instance": GCLOUD_SETTINGS.spanner_instance,
         "kingdom_system_api_target": KINGDOM_K8S_SETTINGS.system_api_target,
     },
     tags = ["manual"],
     deps = [
         ":base_gke",
-        ":config",
+        ":config_gke",
         "//src/main/k8s:base",
         "//src/main/k8s:spanner_duchy",
     ],
@@ -174,8 +189,8 @@ cue_dump(
     },
     tags = ["manual"],
     deps = [
-        ":base_gke",
-        ":config",
+        ":base_eks",
+        ":config_eks",
         "//src/main/k8s:base",
         "//src/main/k8s:duchy",
         "//src/main/k8s:postgres_duchy",
@@ -291,7 +306,7 @@ cue_library(
     srcs = ["edp_simulator_gke.cue"],
     deps = [
         ":base_gke",
-        ":config",
+        ":config_gke",
         "//src/main/k8s:edp_simulator",
     ],
 )
@@ -390,7 +405,7 @@ cue_dump(
     tags = ["manual"],
     deps = [
         ":base_gke",
-        ":config",
+        ":config_gke",
         "//src/main/k8s:reporting",
     ],
 )
@@ -436,7 +451,7 @@ cue_dump(
     tags = ["manual"],
     deps = [
         ":base_gke",
-        ":config",
+        ":config_gke",
         "//src/main/k8s:reporting_v2",
     ],
 )
