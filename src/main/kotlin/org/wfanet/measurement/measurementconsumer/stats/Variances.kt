@@ -31,7 +31,7 @@ object Variances {
    * Computes the variance of a reach measurement that is computed using the deterministic count
    * distinct methodology.
    */
-  fun computeDeterministicVariance(params: ReachVarianceParams): Double {
+  fun computeDeterministicVariance(params: ReachMeasurementVarianceParams): Double {
     return computeDeterministicScalarMeasurementVariance(
       params.reach.toDouble(),
       params.measurementParams.vidSamplingIntervalWidth,
@@ -45,7 +45,7 @@ object Variances {
    * Computes the variance of an impression measurement that is computed using the deterministic
    * count methodology.
    */
-  fun computeDeterministicVariance(params: ImpressionVarianceParams): Double {
+  fun computeDeterministicVariance(params: ImpressionMeasurementVarianceParams): Double {
     return computeDeterministicScalarMeasurementVariance(
       params.impression.toDouble(),
       params.measurementParams.vidSamplingIntervalWidth,
@@ -59,7 +59,7 @@ object Variances {
    * Computes the variance of a watch duration measurement that is computed using the deterministic
    * sum methodology.
    */
-  fun computeDeterministicVariance(params: WatchDurationVarianceParams): Double {
+  fun computeDeterministicVariance(params: WatchDurationMeasurementVarianceParams): Double {
     return computeDeterministicScalarMeasurementVariance(
       params.duration,
       params.measurementParams.vidSamplingIntervalWidth,
@@ -75,7 +75,7 @@ object Variances {
    *
    * Note that the reach measurement can be computed using any methodology.
    */
-  fun computeDeterministicVariance(params: FrequencyVarianceParams): FrequencyVariances {
+  fun computeDeterministicVariance(params: FrequencyMeasurementVarianceParams): FrequencyVariances {
     return frequencyVariance(
       params,
       ::deterministicFrequencyRelativeVariance,
@@ -156,7 +156,7 @@ object Variances {
    */
   fun computeLiquidLegionsSketchVariance(
     sketchParams: LiquidLegionsSketchParams,
-    varianceParams: ReachVarianceParams,
+    varianceParams: ReachMeasurementVarianceParams,
   ): Double {
     val noiseVariance: Double =
       computeNoiseVariance(
@@ -187,7 +187,7 @@ object Variances {
    */
   fun computeLiquidLegionsSketchVariance(
     sketchParams: LiquidLegionsSketchParams,
-    params: FrequencyVarianceParams
+    params: FrequencyMeasurementVarianceParams
   ): FrequencyVariances {
     return frequencyVariance(
       params,
@@ -227,7 +227,7 @@ object Variances {
   /** Computes the variance of a reach measurement which is computed using Liquid Legions V2. */
   fun computeLiquidLegionsV2Variance(
     sketchParams: LiquidLegionsSketchParams,
-    varianceParams: ReachVarianceParams,
+    varianceParams: ReachMeasurementVarianceParams,
   ): Double {
     val distributedGaussianNoiseVariance: Double =
       computeDistributedNoiseVariance(
@@ -256,7 +256,7 @@ object Variances {
    */
   fun computeLiquidLegionsV2Variance(
     sketchParams: LiquidLegionsSketchParams,
-    params: FrequencyVarianceParams
+    params: FrequencyMeasurementVarianceParams
   ): FrequencyVariances {
     return frequencyVariance(
       params,
@@ -334,7 +334,7 @@ object Variances {
 
   /** Common function that computes [FrequencyVariances]. */
   private fun frequencyVariance(
-    params: FrequencyVarianceParams,
+    params: FrequencyMeasurementVarianceParams,
     frequencyRelativeVarianceFun:
       (
         totalReach: Int,
@@ -353,7 +353,7 @@ object Variances {
     if (params.totalReach < 0.0) {
       throw IllegalArgumentException("The total reach value cannot be negative.")
     }
-    if (params.reachVariance < 0.0) {
+    if (params.reachMeasurementVariance < 0.0) {
       throw IllegalArgumentException("The reach variance value cannot be negative.")
     }
 
@@ -391,7 +391,7 @@ object Variances {
       (1..maximumFrequency).associateWith { frequency ->
         frequencyCountVarianceFun(
           params.totalReach,
-          params.reachVariance,
+          params.reachMeasurementVariance,
           params.relativeFrequencyDistribution.getOrDefault(frequency, 0.0),
           relativeVariances.getValue(frequency)
         )
@@ -401,7 +401,7 @@ object Variances {
       (1..maximumFrequency).associateWith { frequency ->
         frequencyCountVarianceFun(
           params.totalReach,
-          params.reachVariance,
+          params.reachMeasurementVariance,
           kPlusRelativeFrequencyDistribution.getValue(frequency),
           kPlusRelativeVariances.getValue(frequency)
         )
