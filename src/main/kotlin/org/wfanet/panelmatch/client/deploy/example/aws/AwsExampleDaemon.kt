@@ -77,7 +77,7 @@ private class AwsExampleDaemon : ExampleDaemon() {
   @set:Option(
     names = ["--s3-from-beam"],
     description = ["Whether to configure s3 access from Apache Beam."],
-    defaultValue = "true"
+    defaultValue = "false"
   )
   private var s3FromBeam by Delegates.notNull<Boolean>()
 

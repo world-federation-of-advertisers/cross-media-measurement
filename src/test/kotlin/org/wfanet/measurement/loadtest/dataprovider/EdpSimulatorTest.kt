@@ -820,6 +820,8 @@ class EdpSimulatorTest {
                   direct =
                     ProtocolConfigKt.direct {
                       noiseMechanisms += noiseMechanismOption
+                      customDirectMethodology =
+                        ProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
                       deterministicCountDistinct =
                         ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
                       deterministicDistribution =
@@ -1213,6 +1215,8 @@ class EdpSimulatorTest {
                 direct =
                   ProtocolConfigKt.direct {
                     noiseMechanisms += noiseMechanismOption
+                    customDirectMethodology =
+                      ProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
                     deterministicCountDistinct =
                       ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
                     deterministicDistribution =
