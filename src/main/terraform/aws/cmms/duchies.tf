@@ -13,6 +13,7 @@
 # limitations under the License.
 
 data "aws_availability_zones" "available" {}
+data "aws_caller_identity" "current" {}
 
 locals {
   az_count     = 2
@@ -110,6 +111,8 @@ provider "helm" {
 module "worker2-duchy" {
   source = "../modules/duchy"
 
+  account_id            = data.aws_caller_identity.current.account_id
+  aws_region            = var.aws_region
   eks_oidc_provider_arn = module.eks.oidc_provider_arn
   s3_bucket_arn         = module.storage.s3_bucket_arn
 }

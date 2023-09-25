@@ -12,13 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+variable "account_id" {
+  description = "ID of the target AWS account"
+  type        = string
+  nullable    = false
+}
+
+variable "aws_region" {
+  description = "AWS region"
+  type        = string
+  nullable    = false
+}
+
 variable "eks_oidc_provider_arn" {
+  description = "ARN of the EKS cluster's OIDC provider"
   type     = string
   nullable = false
 }
 
 variable "s3_bucket_arn" {
-  description = "arn of the s3 bucket"
+  description = "ARN of the s3 bucket"
   type        = string
   nullable    = false
 }

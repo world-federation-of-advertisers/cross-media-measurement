@@ -41,7 +41,7 @@ module "internal_server_iam_policy" {
           "secretsmanager:ListSecretVersionIds"
         ],
         "Resource" : [
-          "arn:aws:secretsmanager:us-west-2:010295286036:secret:rds!*"
+          "arn:aws:secretsmanager:${var.aws_region}:${var.account_id}:secret:rds!*"
         ]
       },
       {

@@ -14,14 +14,12 @@
 
 terraform {
   backend "s3" {
-    bucket = "halo-cmm-dev-tf-state"
     key    = "terraform.tfstate"
-    region = "us-west-2"
   }
 }
 
 provider "aws" {
-  region  = var.aws_region
+  region = var.aws_region
 
   default_tags {
     tags = {
