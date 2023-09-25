@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-output "s3_bucket_arn" {
-  value = aws_s3_bucket.bucket.arn
+output "s3_bucket" {
+  value = aws_s3_bucket.bucket
 }

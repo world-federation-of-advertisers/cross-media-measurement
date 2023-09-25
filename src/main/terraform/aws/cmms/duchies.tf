@@ -74,6 +74,7 @@ module "postgres" {
   subnet_group_name = module.vpc.database_subnet_group
   vpc_cidr_block    = module.vpc.vpc_cidr_block
   vpc_id            = module.vpc.vpc_id
+  instance_class    = "db.t3.micro"
 }
 
 module "eks" {
@@ -114,5 +115,5 @@ module "worker2-duchy" {
   account_id            = data.aws_caller_identity.current.account_id
   aws_region            = var.aws_region
   eks_oidc_provider_arn = module.eks.oidc_provider_arn
-  s3_bucket_arn         = module.storage.s3_bucket_arn
+  s3_bucket_arn         = module.storage.s3_bucket.arn
 }

@@ -41,7 +41,7 @@ module "db" {
   # All available versions: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_PostgreSQL.html#PostgreSQL.Concepts
   engine         = "postgres"
   engine_version = "15.4"
-  instance_class = "db.t3.micro"
+  instance_class = var.instance_class
 
   allocated_storage = 20
 

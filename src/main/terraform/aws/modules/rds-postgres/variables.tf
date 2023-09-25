@@ -42,3 +42,9 @@ variable "username" {
   default     = "postgres"
   nullable    = false
 }
+
+variable "instance_class" {
+  description = "postgres instance class"
+  type        = string
+  nullable    = false
+}
