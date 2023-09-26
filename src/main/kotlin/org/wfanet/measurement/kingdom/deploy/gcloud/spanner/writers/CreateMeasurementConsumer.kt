@@ -112,8 +112,7 @@ class CreateMeasurementConsumer(
       .readByMeasurementConsumerCreationTokenHash(
         transactionContext,
         measurementConsumerCreationTokenHash
-      )
-      ?: throw PermissionDeniedException()
+      ) ?: throw PermissionDeniedException()
 
   private suspend fun TransactionScope.readAccount(
     externalAccountId: ExternalId

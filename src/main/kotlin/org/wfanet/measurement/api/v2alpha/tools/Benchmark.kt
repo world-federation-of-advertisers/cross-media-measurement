@@ -616,6 +616,7 @@ class BenchmarkReport private constructor(val clock: Clock = Clock.systemUTC()) 
     buildMutualTlsChannel(apiFlags.apiTarget, clientCerts, apiFlags.apiCertHost)
       .withShutdownTimeout(JavaDuration.ofSeconds(1))
   }
+
   override fun run() {
     val benchmark =
       Benchmark(baseFlags, createMeasurementFlags, channel, apiAuthenticationKey, clock)

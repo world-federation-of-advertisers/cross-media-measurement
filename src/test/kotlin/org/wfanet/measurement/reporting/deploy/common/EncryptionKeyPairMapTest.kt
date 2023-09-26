@@ -79,6 +79,7 @@ class EncryptionKeyPairMapTest {
     keyPairMap: Map<String, List<Pair<ByteString, PrivateKeyHandle>>>,
   ) =
     keyPairMap[principal]?.find { (key, _): Pair<ByteString, PrivateKeyHandle> -> key == publicKey }
+
   @Test
   fun `keyPairMap returns corresponding private keys`() {
     val args =

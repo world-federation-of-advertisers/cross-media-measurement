@@ -95,7 +95,7 @@ class RequisitionsService(
     val parentKey =
       DataProviderKey.fromName(request.parent)
         ?: MeasurementKey.fromName(request.parent)
-          ?: throw Status.INVALID_ARGUMENT.withDescription("parent is invalid").asRuntimeException()
+        ?: throw Status.INVALID_ARGUMENT.withDescription("parent is invalid").asRuntimeException()
 
     val principal: MeasurementPrincipal = principalFromCurrentContext
     when (parentKey) {

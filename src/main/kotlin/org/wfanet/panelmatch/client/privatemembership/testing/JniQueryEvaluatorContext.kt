@@ -35,6 +35,7 @@ class JniQueryEvaluatorContext(shardCount: Int, bucketsPerShardCount: Int) : Ser
 
   val privateMembershipPublicKey: PublicKey
   val privateMembershipPrivateKey: PrivateKey
+
   init {
     val response =
       JniPrivateMembership.generateKeys(

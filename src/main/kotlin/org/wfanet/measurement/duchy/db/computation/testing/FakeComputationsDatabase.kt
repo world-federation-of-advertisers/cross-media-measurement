@@ -367,8 +367,7 @@ private constructor(
             globalId = it.globalComputationId,
           )
         }
-        .firstOrNull()
-        ?: return null
+        .firstOrNull() ?: return null
 
     updateToken(claimed) { existing ->
       claimedComputationIds.add(existing.globalComputationId)

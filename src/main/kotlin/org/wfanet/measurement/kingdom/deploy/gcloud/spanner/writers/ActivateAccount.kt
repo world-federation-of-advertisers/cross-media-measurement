@@ -90,8 +90,7 @@ class ActivateAccount(
         MeasurementConsumerReader.readMeasurementConsumerId(
           transactionContext,
           externalMeasurementConsumerId
-        )
-          ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
+        ) ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
 
       transactionContext.bufferInsertMutation("MeasurementConsumerOwners") {
         set("MeasurementConsumerId" to measurementConsumerId)

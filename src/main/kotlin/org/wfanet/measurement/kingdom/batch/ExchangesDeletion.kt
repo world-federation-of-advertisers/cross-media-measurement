@@ -83,6 +83,7 @@ class ExchangesDeletion(
       }
     }
   }
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }

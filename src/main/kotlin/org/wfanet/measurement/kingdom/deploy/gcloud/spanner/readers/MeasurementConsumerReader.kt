@@ -88,8 +88,7 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
           "MeasurementConsumersByExternalId",
           Key.of(externalMeasurementConsumerId.value),
           column
-        )
-          ?: return null
+        ) ?: return null
       return row.getInternalId(column)
     }
   }

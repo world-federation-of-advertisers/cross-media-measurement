@@ -50,8 +50,7 @@ class SpannerRequisitionsService(
         externalDataProviderId = request.externalDataProviderId,
         externalRequisitionId = request.externalRequisitionId
       )
-      ?.requisition
-      ?: failGrpc(Status.NOT_FOUND) { "Requisition not found" }
+      ?.requisition ?: failGrpc(Status.NOT_FOUND) { "Requisition not found" }
   }
 
   override fun streamRequisitions(request: StreamRequisitionsRequest): Flow<Requisition> {

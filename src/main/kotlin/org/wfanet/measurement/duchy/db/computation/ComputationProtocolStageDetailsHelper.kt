@@ -16,7 +16,11 @@ package org.wfanet.measurement.duchy.db.computation
 
 /** Deals with stage specific details for MPC protocols. */
 interface ComputationProtocolStageDetailsHelper<
-  ProtocolT, StageT, StageDetailsT, ComputationDetailsT> {
+  ProtocolT,
+  StageT,
+  StageDetailsT,
+  ComputationDetailsT
+> {
   /** Creates the stage specific details for a given computation stage. */
   fun detailsFor(stage: StageT, computationDetails: ComputationDetailsT): StageDetailsT
 

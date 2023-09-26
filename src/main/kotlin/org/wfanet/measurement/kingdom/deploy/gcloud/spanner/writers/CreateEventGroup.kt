@@ -47,8 +47,7 @@ class CreateEventGroup(private val request: CreateEventGroupRequest) :
       MeasurementConsumerReader.readMeasurementConsumerId(
         transactionContext,
         externalMeasurementConsumerId
-      )
-        ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
+      ) ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
 
     val externalDataProviderId = ExternalId(request.eventGroup.externalDataProviderId)
     val dataProviderId: InternalId =

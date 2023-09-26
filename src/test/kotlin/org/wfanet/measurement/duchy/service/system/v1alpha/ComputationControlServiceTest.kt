@@ -67,6 +67,7 @@ private const val BLOB_ID = 1234L
 class ComputationControlServiceTest {
   private val mockAsyncControlService: AsyncComputationControlCoroutineImplBase = mockService()
   private val advanceAsyncComputationRequests = mutableListOf<AsyncAdvanceComputationRequest>()
+
   private fun stubAsyncService() {
     mockAsyncControlService.stub {
       onBlocking { advanceComputation(any()) }
@@ -103,6 +104,7 @@ class ComputationControlServiceTest {
   @get:Rule val ruleChain = chainRulesSequentially(tempDirectory, duchyIdSetter, grpcTestServerRule)
 
   private lateinit var senderContext: SenderContext<ComputationControlService>
+
   private suspend fun <R> withSender(
     sender: DuchyIdentity,
     rpcCall: suspend ComputationControlService.() -> R

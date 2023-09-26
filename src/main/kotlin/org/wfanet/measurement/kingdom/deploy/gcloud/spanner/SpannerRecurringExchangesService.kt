@@ -44,7 +44,6 @@ class SpannerRecurringExchangesService(
         client.singleUse(),
         ExternalId(request.externalRecurringExchangeId)
       )
-      ?.recurringExchange
-      ?: failGrpc(Status.NOT_FOUND) { "RecurringExchange not found" }
+      ?.recurringExchange ?: failGrpc(Status.NOT_FOUND) { "RecurringExchange not found" }
   }
 }

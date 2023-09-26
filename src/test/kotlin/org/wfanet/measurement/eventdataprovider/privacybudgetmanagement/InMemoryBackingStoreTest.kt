@@ -19,6 +19,7 @@ class InMemoryBackingStoreTest : AbstractPrivacyBudgetLedgerStoreTest() {
   companion object {
     @JvmStatic private var backingStore: InMemoryBackingStore? = null
   }
+
   override fun createBackingStore(): PrivacyBudgetLedgerBackingStore {
     if (backingStore == null) {
       backingStore = InMemoryBackingStore()

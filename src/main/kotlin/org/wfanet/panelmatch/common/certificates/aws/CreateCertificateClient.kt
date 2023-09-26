@@ -21,5 +21,6 @@ import software.amazon.awssdk.services.acmpca.model.IssueCertificateResponse
 
 interface CreateCertificateClient {
   suspend fun issueCertificate(request: IssueCertificateRequest): IssueCertificateResponse
+
   suspend fun getCertificate(request: GetCertificateRequest): GetCertificateResponse
 }

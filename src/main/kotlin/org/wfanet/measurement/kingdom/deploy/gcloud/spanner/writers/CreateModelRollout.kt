@@ -49,6 +49,7 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
     val externalModelRolloutId: Long,
     val rolloutPeriodStartTime: Timestamp?
   )
+
   override suspend fun TransactionScope.runTransaction(): ModelRollout {
     val now = clock.instant().toProtoTime()
     if (Timestamps.compare(now, modelRollout.rolloutPeriodStartTime) >= 0) {

@@ -634,6 +634,7 @@ class CreateMeasurement : Runnable {
         }
     }
   }
+
   private fun getEventDataProviderEntry(
     eventDataProviderInput:
       CreateMeasurementFlags.MeasurementParams.EventMeasurementParams.EventDataProviderInput,
@@ -931,6 +932,7 @@ private class DataProviders {
     required = true,
   )
   private lateinit var dataProviderName: String
+
   @Command(name = "replace-required-duchies", description = ["Replaces DataProvider's duchy list"])
   fun replaceRequiredDuchyList(
     @Option(

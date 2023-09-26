@@ -127,8 +127,7 @@ class FinishExchangeStepAttempt(
         .singleOrNull()
         ?.recurringExchange
         ?.details
-        ?.exchangeWorkflow
-        ?: throw RecurringExchangeNotFoundException(externalRecurringExchangeId)
+        ?.exchangeWorkflow ?: throw RecurringExchangeNotFoundException(externalRecurringExchangeId)
 
     val steps = findNewlyUnblockedExchangeSteps(workflow)
     updateExchangeStepsToReady(

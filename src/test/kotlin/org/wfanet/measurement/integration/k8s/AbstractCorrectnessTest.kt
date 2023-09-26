@@ -32,6 +32,7 @@ import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSi
 abstract class AbstractCorrectnessTest(private val measurementSystem: MeasurementSystem) {
   private val runId: String
     get() = measurementSystem.runId
+
   private val testHarness: MeasurementConsumerSimulator
     get() = measurementSystem.testHarness
 

@@ -369,6 +369,7 @@ class CertificatesServiceTest {
       assertFailsWith<StatusRuntimeException> { runBlocking { service.getCertificate(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
+
   @Test
   fun `getCertificate throws PERMISSION_DENIED when MC caller doesn't match parent MC`() {
     val request = getCertificateRequest { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME_2 }

@@ -54,8 +54,7 @@ class SpannerModelSuitesService(
         ExternalId(request.externalModelProviderId),
         ExternalId(request.externalModelSuiteId)
       )
-      ?.modelSuite
-      ?: failGrpc(Status.NOT_FOUND) { "ModelSuite not found" }
+      ?.modelSuite ?: failGrpc(Status.NOT_FOUND) { "ModelSuite not found" }
   }
 
   override fun streamModelSuites(request: StreamModelSuitesRequest): Flow<ModelSuite> {

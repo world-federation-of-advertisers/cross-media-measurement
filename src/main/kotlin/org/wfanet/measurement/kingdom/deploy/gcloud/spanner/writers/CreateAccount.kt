@@ -63,8 +63,7 @@ class CreateAccount(
               ?.let {
                 externalOwnedMeasurementConsumerId = source.externalOwnedMeasurementConsumerId.value
                 set("OwnedMeasurementConsumerId" to it.measurementConsumerId)
-              }
-              ?: throw PermissionDeniedException()
+              } ?: throw PermissionDeniedException()
           }
         }
 

@@ -228,8 +228,7 @@ suspend fun PostgresWriter.TransactionScope.checkComputationUnmodified(
     transactionContext
       .executeQuery(sql)
       .consume { row -> row.get<Instant>("UpdateTime") }
-      .firstOrNull()
-      ?: throw ComputationNotFoundException(localId)
+      .firstOrNull() ?: throw ComputationNotFoundException(localId)
   val updateTimeMillis = updateTime.toEpochMilli()
   if (editVersion != updateTimeMillis) {
     val editVersionTime = Instant.ofEpochMilli(editVersion)

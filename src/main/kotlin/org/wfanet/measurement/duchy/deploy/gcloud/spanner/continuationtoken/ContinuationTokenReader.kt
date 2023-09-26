@@ -27,6 +27,7 @@ class ContinuationTokenReader() : SqlBasedQuery<ContinuationTokenReaderResult> {
       Limit 1
     """
   }
+
   override val sql: Statement = Statement.newBuilder(parameterizedQueryString).build()
 
   override fun asResult(struct: Struct): ContinuationTokenReaderResult =

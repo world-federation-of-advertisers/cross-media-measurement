@@ -57,6 +57,7 @@ class PendingMeasurementsCancellation(
       .counterBuilder("pending_measurements_cancellation_total")
       .setDescription("Total number of pending measurements cancelled under retention policy")
       .build()
+
   fun run() {
     if (timeToLive.toMillis() == 0L) {
       logger.warning("Time to live cannot be 0. TTL=$timeToLive")

@@ -66,6 +66,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
     val dataProvidersService: DataProvidersCoroutineImplBase,
     val accountsService: AccountsCoroutineImplBase
   )
+
   private val testClock: Clock = Clock.systemUTC()
   protected val idGenerator = RandomIdGenerator(testClock, Random(RANDOM_SEED))
   private val population = Population(testClock, idGenerator)

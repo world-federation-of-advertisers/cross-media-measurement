@@ -68,8 +68,7 @@ class DeleteModelShard(
   private suspend fun TransactionScope.readInternalDataProviderId(): Long =
     DataProviderReader()
       .readByExternalDataProviderId(transactionContext, externalDataProviderId)
-      ?.dataProviderId
-      ?: throw DataProviderNotFoundException(externalDataProviderId)
+      ?.dataProviderId ?: throw DataProviderNotFoundException(externalDataProviderId)
 
   private suspend fun TransactionScope.readModelShard(): ModelShardReader.Result =
     ModelShardReader()

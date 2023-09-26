@@ -106,8 +106,7 @@ class AsyncComputationControlService(
     val outputBlob =
       token.blobsList.firstOrNull {
         it.blobId == request.blobId && it.dependencyType == ComputationBlobDependency.OUTPUT
-      }
-        ?: failGrpc(Status.FAILED_PRECONDITION) { "No output blob with ID ${request.blobId}" }
+      } ?: failGrpc(Status.FAILED_PRECONDITION) { "No output blob with ID ${request.blobId}" }
     if (outputBlob.path.isNotEmpty()) {
       if (outputBlob.path != request.blobPath) {
         throw Status.FAILED_PRECONDITION.withDescription(

@@ -41,9 +41,11 @@ private const val MAX_BATCH_INSERT = 1000
  */
 class PostgresBackingStore(createConnection: () -> Connection) : PrivacyBudgetLedgerBackingStore {
   private val connection = createConnection()
+
   init {
     connection.autoCommit = false
   }
+
   private var previousTransactionContext: PostgresBackingStoreTransactionContext? = null
 
   override fun startTransaction(): PostgresBackingStoreTransactionContext {

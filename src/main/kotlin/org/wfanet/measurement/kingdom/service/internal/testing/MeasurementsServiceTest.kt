@@ -1807,6 +1807,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception).hasMessageThat().contains("exceeds limit")
   }
+
   @Test
   fun `batchDeleteMeasurements deletes Measurements when all etags match`() = runBlocking {
     val measurementConsumer =

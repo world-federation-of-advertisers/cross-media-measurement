@@ -60,8 +60,7 @@ class DeleteApiKey(
     MeasurementConsumerReader.readMeasurementConsumerId(
       transactionContext,
       externalMeasurementConsumerId
-    )
-      ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
+    ) ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
 
   private suspend fun TransactionScope.readApiKey(
     externalApiKeyId: ExternalId

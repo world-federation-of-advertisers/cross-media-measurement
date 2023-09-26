@@ -26,6 +26,7 @@ import java.io.File
  */
 internal sealed interface Output {
   fun resolve(relative: String): Output
+
   fun writer(): Writable
 }
 
