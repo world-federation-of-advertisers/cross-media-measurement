@@ -60,8 +60,7 @@ class ClaimReadyExchangeStep(
           limit = 1
         )
         .execute(transactionContext)
-        .singleOrNull()
-        ?: return Optional.absent()
+        .singleOrNull() ?: return Optional.absent()
 
     val exchangeStep = exchangeStepResult.exchangeStep
     val recurringExchangeId = exchangeStepResult.recurringExchangeId

@@ -54,8 +54,7 @@ class SpannerModelReleasesService(
         ExternalId(request.externalModelSuiteId),
         ExternalId(request.externalModelProviderId)
       )
-      ?.modelRelease
-      ?: failGrpc(Status.NOT_FOUND) { "ModelRelease not found." }
+      ?.modelRelease ?: failGrpc(Status.NOT_FOUND) { "ModelRelease not found." }
   }
 
   override fun streamModelReleases(request: StreamModelReleasesRequest): Flow<ModelRelease> {

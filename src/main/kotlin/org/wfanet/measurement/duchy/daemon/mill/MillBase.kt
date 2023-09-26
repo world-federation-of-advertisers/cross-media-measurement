@@ -554,6 +554,7 @@ abstract class MillBase(
 
   private inner class CpuDurationLogger(private val getTimeMillis: () -> Long) {
     private val start = getTimeMillis()
+
     suspend fun logStageDurationMetric(
       token: ComputationToken,
       metricName: String,
@@ -563,11 +564,13 @@ abstract class MillBase(
       logStageDurationMetric(token, metricName, time, histogram)
     }
   }
+
   private fun cpuDurationLogger(): CpuDurationLogger = CpuDurationLogger(this::getCpuTimeMillis)
 
   @OptIn(ExperimentalTime::class)
   private inner class WallDurationLogger() {
     private val timeMark = TimeSource.Monotonic.markNow()
+
     suspend fun logStageDurationMetric(
       token: ComputationToken,
       metricName: String,
@@ -577,6 +580,7 @@ abstract class MillBase(
       logStageDurationMetric(token, metricName, time, histogram)
     }
   }
+
   private fun wallDurationLogger(): WallDurationLogger = WallDurationLogger()
 
   companion object {

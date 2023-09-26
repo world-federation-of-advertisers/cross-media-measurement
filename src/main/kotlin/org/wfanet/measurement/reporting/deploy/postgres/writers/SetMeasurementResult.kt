@@ -60,8 +60,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
           transactionContext,
           measurementConsumerReferenceId = request.measurementConsumerReferenceId,
           measurementReferenceId = request.measurementReferenceId
-        )
-        ?: throw MeasurementNotFoundException()
+        ) ?: throw MeasurementNotFoundException()
 
     if (measurementResult.measurement.state != Measurement.State.PENDING) {
       throw MeasurementStateInvalidException()
