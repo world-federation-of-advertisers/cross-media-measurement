@@ -21,6 +21,7 @@ import kotlin.math.abs
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 
 @RunWith(JUnit4::class)
 class CovariancesTest {
@@ -165,6 +166,207 @@ class CovariancesTest {
       Covariances.computeLiquidLegionsCovariance(sketchParams, reachMeasurementCovarianceParams)
 
     val expect = 214283.93565983986
+    val percentageError = percentageError(covariance, expect)
+    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+  }
+
+  @Test
+  fun `computeMeasurementCovariance returns a value for reach when two reach measurements are deterministic`() {
+    val weightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 1,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 2e-4),
+                dpParams = DpParams(1.0, 1e-5),
+                noiseMechanism = NoiseMechanism.LAPLACE
+              )
+          ),
+        baseMethodology = DeterministicBaseMethodology
+      )
+
+    val otherWeightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 2,
+        weight = 1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 2,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(1e-4, 3e-4),
+                dpParams = DpParams(1.0, 1e-5),
+                noiseMechanism = NoiseMechanism.LAPLACE
+              )
+          ),
+        baseMethodology = DeterministicBaseMethodology
+      )
+
+    val unionWeightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 3,
+        weight = -1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 2,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 4e-4),
+                dpParams = DpParams(1.0, 1e-5),
+                noiseMechanism = NoiseMechanism.LAPLACE
+              )
+          ),
+        baseMethodology = DeterministicBaseMethodology
+      )
+
+    val covariance =
+      Covariances.computeMeasurementCovariance(
+        weightedReachMeasurementVarianceParams,
+        otherWeightedReachMeasurementVarianceParams,
+        unionWeightedReachMeasurementVarianceParams
+      )
+
+    val expect = 1665.6666666666665
+
+    val percentageError = percentageError(covariance, expect)
+    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+  }
+
+  @Test
+  fun `computeMeasurementCovariance returns a value for reach when one is LiquidLegionsSketch and one is deterministic`() {
+    val weightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 1,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 2e-4),
+                dpParams = DpParams(1.0, 1e-5),
+                noiseMechanism = NoiseMechanism.LAPLACE
+              )
+          ),
+        baseMethodology = LiquidLegionsSketchBaseMethodology(100.0, 100000.0)
+      )
+
+    val otherWeightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 2,
+        weight = 1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 2,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(1e-4, 3e-4),
+                dpParams = DpParams(1.0, 1e-5),
+                noiseMechanism = NoiseMechanism.LAPLACE
+              )
+          ),
+        baseMethodology = DeterministicBaseMethodology
+      )
+
+    val unionWeightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 3,
+        weight = -1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 2,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 4e-4),
+                dpParams = DpParams(1.0, 1e-5),
+                noiseMechanism = NoiseMechanism.LAPLACE
+              )
+          ),
+        baseMethodology = DeterministicBaseMethodology
+      )
+
+    val covariance =
+      Covariances.computeMeasurementCovariance(
+        weightedReachMeasurementVarianceParams,
+        otherWeightedReachMeasurementVarianceParams,
+        unionWeightedReachMeasurementVarianceParams
+      )
+
+    val expect = 1665.6666666666665
+
+    val percentageError = percentageError(covariance, expect)
+    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+  }
+
+  @Test
+  fun `computeMeasurementCovariance returns a value for reach when two reach measurements are LiquidLegionsSketch`() {
+    val decayRate = 100.0
+    val sketchSize = 1e5
+
+    val weightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 3e8.toLong(),
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.7),
+                dpParams = DpParams(1.0, 1e-5),
+                noiseMechanism = NoiseMechanism.LAPLACE
+              )
+          ),
+        baseMethodology = LiquidLegionsSketchBaseMethodology(decayRate, sketchSize)
+      )
+
+    val otherWeightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 2,
+        weight = 1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 3e8.toLong(),
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.7),
+                dpParams = DpParams(1.0, 1e-5),
+                noiseMechanism = NoiseMechanism.LAPLACE
+              )
+          ),
+        baseMethodology = LiquidLegionsSketchBaseMethodology(decayRate, sketchSize)
+      )
+
+    val unionWeightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 3,
+        weight = -1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 6e8.toLong(),
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.7),
+                dpParams = DpParams(1.0, 1e-5),
+                noiseMechanism = NoiseMechanism.LAPLACE
+              )
+          ),
+        baseMethodology = LiquidLegionsSketchBaseMethodology(decayRate, sketchSize)
+      )
+
+    val covariance =
+      Covariances.computeMeasurementCovariance(
+        weightedReachMeasurementVarianceParams,
+        otherWeightedReachMeasurementVarianceParams,
+        unionWeightedReachMeasurementVarianceParams
+      )
+
+    val expect = 214283.93565983986
+
     val percentageError = percentageError(covariance, expect)
     assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
   }
