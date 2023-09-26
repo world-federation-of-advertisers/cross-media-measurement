@@ -62,9 +62,11 @@ permissions:
 env:
   KUSTOMIZATION_PATH: "k8s/cmms"
   DUCHY_NAME: ${{ inputs.duchy-name }}
+  IS_AWS_DUCHY: ${{ inputs.duchy-name == 'worker2' }}
 
 jobs:
-  update-duchy:
+  generate-gcloud-duchy-archive:
+    if: ${{ !IS_AWS_DUCHY }}
     runs-on: ubuntu-20.04
     environment: ${{ inputs.environment }}
     steps:
@@ -124,6 +126,73 @@ jobs:
         tar -xf "$BAZEL_BIN/src/main/k8s/dev/${DUCHY_NAME}_duchy.tar"
         -C "$KUSTOMIZATION_PATH"
 
+  generate-aws-duchy-archive:
+    if: ${{ !IS_AWS_DUCHY }}
+    runs-on: ubuntu-20.04
+    environment: ${{ inputs.environment }}
+    env:
+      AWS_REGION:  us-west-2 # ${{ vars.AWS_REGION }}
+    steps:
+    - uses: actions/checkout@v3
+
+    # Authenticate to AWS Cloud. This will export some environment e.g. AWS_SESSION_TOKEN
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-region: ${{ env.AWS_REGION }}
+        role-to-assume: arn:aws:iam::010295286036:role/GitHubAction-AssumeRoleWithAction
+        role-session-name: GitHubAction
+
+    - name: Get EKS cluster credentials
+      run: aws eks update-kubeconfig --region $AWS_REGION --name ${DUCHY_NAME}-duchy-cluster
+
+    - name: Export BAZEL_BIN
+      run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
+
+    #      - name: Configure metrics
+    #        uses: ./.github/actions/configure-metrics
+    #        if: ${{ inputs.apply }}
+
+    - name: Export DUCHY_CERT_ID
+      env:
+        AGGREGATOR_DUCHY_CERT_ID: ${{ vars.AGGREGATOR_DUCHY_CERT_ID }}
+        WORKER1_DUCHY_CERT_ID: ${{ vars.WORKER1_DUCHY_CERT_ID }}
+        WORKER2_DUCHY_CERT_ID: ${{ vars.WORKER2_DUCHY_CERT_ID }}
+      run: ./.github/workflows/export-duchy-cert-id.sh
+
+    - name: Generate archives
+      env:
+        IMAGE_TAG: ${{ inputs.image-tag }}
+        POSTGRES_HOST: worker2-duchy-postgres.c7lbzsffeehq.us-west-2.rds.amazonaws.com
+        POSTGRES_CRED_SECRET_NAME: rds!db-1895107f-eab7-4e41-bb63-16deb42246e9
+        KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
+        COMPUTATION_CONTROL_SERVER_EIPS: "eipalloc-09d7a0f47a1701600,eipalloc-05874583414024ddf"
+        S3_BUCKET: duchy-test
+      run: >
+        bazelisk build
+        "//src/main/k8s/dev:${DUCHY_NAME}_duchy_aws.tar"
+        //src/main/k8s/testing/secretfiles:archive
+        --config ghcr
+        --define "image_tag=$IMAGE_TAG"
+        --define "kingdom_system_api_target=$KINGDOM_SYSTEM_API_TARGET"
+        --define "s3_bucket=$S3_BUCKET"
+        --define "s3_region=$AWS_REGION"
+        --define "duchy_cert_id=$DUCHY_CERT_ID"
+        --define "postgres_host=$POSTGRES_HOST"
+        --define "postgres_port=5432"
+        --define "postgres_region=$AWS_REGION"
+        --define "postgres_credential_secret_name=$POSTGRES_CRED_SECRET_NAME"
+        --define "computation_control_server_eips=$COMPUTATION_CONTROL_SERVER_EIPS"
+
+    - name: Make Kustomization dir
+      run: mkdir -p "$KUSTOMIZATION_PATH"
+
+    - name: Extract Kustomization archive
+      run: >
+        tar -xf "$BAZEL_BIN/src/main/k8s/dev/${DUCHY_NAME}_duchy_aws.tar"
+        -C "$KUSTOMIZATION_PATH"
+
+  update-duchy:
     - name: Extract secret files archive
       run: >
         tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/archive.tar"

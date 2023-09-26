@@ -14,16 +14,32 @@
 
 package k8s
 
-#PostgresDuchy: {
-	#Duchy
+#ServiceAccountPodSpec: {
+	#PodSpec
 
-	_duchy:          _duchy
-	_postgresConfig: #PostgresConfig | #AwsPostgresConfig
+	serviceAccountName: string
+}
 
-	_imageSuffixes: {
-		"internal-api-server": string | *"duchy/postgres-internal-server"
-		"update-duchy-schema": string | *"duchy/postgres-update-schema"
+#AwsServiceAccountPodSpec: {
+	#PodSpec
+
+	serviceAccountName: string
+}
+
+#ServerDeployment: {
+	_container: {
+		resources: Resources={
+			requests: {
+				memory: _ | *"320Mi"
+			}
+			limits: {
+				memory: _ | *Resources.requests.memory
+			}
+		}
 	}
+}
 
-	_duchyInternalServerContainerArgs: _postgresConfig.flags
+#JavaOptions: {
+	initialHeapSize: _ | *"64M"
+	maxHeapSize:     _ | *"64M"
 }

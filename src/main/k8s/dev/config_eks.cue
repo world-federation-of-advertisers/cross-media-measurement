@@ -1,4 +1,4 @@
-// Copyright 2022 The Cross-Media Measurement Authors
+// Copyright 2023 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,40 +14,6 @@
 
 package k8s
 
-#GCloudProject: string @tag("google_cloud_project")
-
-#GCloudConfig: {
-	project: #GCloudProject
-}
-
-#SpannerConfig: {
-	project:      #GCloudProject
-	instance:     string @tag("spanner_instance")
-	readyTimeout: "30s"
-}
-
-#CloudStorageConfig: Config={
-	#GCloudConfig
-
-	bucket: string
-	flags: [
-		"--google-cloud-storage-project=" + Config.project,
-		"--google-cloud-storage-bucket=" + bucket,
-	]
-}
-
-#BigQueryConfig: Config={
-	#GCloudConfig
-
-	dataset: string
-	table:   string
-	flags: [
-		"--big-query-project=" + Config.project,
-		"--big-query-dataset=" + dataset,
-		"--big-query-table=" + table,
-	]
-}
-
 #ContainerRegistryConfig: {
 	registry:   string @tag("container_registry")
 	repoPrefix: string @tag("image_repo_prefix")
@@ -58,7 +24,17 @@ package k8s
 }
 
 #PostgresConfig: {
-	project:  #GCloudProject
-	instance: string @tag("postgres_instance")
-	region:   string @tag("postgres_region")
+	region:     string @tag("postgres_region")
+	host:       string @tag("postgres_host")
+	port:       string @tag("postgres_port")
+	secretName: string @tag("postgres_credential_secret_name")
+}
+
+#AwsS3Config: {
+	bucket: string @tag("s3_bucket")
+	region: string @tag("s3_region")
+	flags: [
+		"--s3-storage-bucket=" + bucket,
+		"--s3-region=" + region,
+	]
 }
