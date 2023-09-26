@@ -108,8 +108,8 @@ jobs:
 
     - name: terraform init - aws
       env:
-        TF_STORAGE_BUCKET: ${{ vars.AWS_TF_STORAGE_BUCKET }}
-        AWS_REGION: ${{ vars.AWS_REGION }}
+        TF_STORAGE_BUCKET: halo-cmm-dev-tf-state
+        AWS_REGION: us-west-2
       working-directory: ${{ env.AWS_MODULE_PATH }}
       run: >
         terraform init
@@ -120,7 +120,7 @@ jobs:
 
     - name: terraform plan - aws
       env:
-        AWS_REGION: ${{ vars.AWS_REGION }}
+        AWS_REGION: us-west-2
       working-directory: ${{ env.AWS_MODULE_PATH }}
       run: >
         terraform plan
