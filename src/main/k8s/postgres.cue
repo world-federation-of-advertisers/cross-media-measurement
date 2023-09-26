@@ -17,12 +17,12 @@ package k8s
 #CommonPostgresConfig: {
 	_flags: [_=string]: string
 
-	user:      string
+	user?:     string
 	database?: string
 	flags: [ for name, value in _flags {"\(name)=\(value)"}]
 
 	_flags: {
-		"--postgres-user": user
+		if user != _|_ {"--postgres-user": user}
 		if database != _|_ {"--postgres-database": database}
 	}
 }
@@ -44,7 +44,23 @@ package k8s
 	}
 }
 
-#PostgresConfig: PostgresConfig=#CloudSqlPostgresConfig | *{
+#AwsPostgresConfig: {
+	#CommonPostgresConfig
+
+	secretName: string
+	region:     string
+	host:       string
+	port:       string
+
+	_flags: {
+		"--postgres-host":                   host
+		"--postgres-port":                   port
+		"--postgres-credential-secret-name": secretName
+		"--postgres-region":                 region
+	}
+}
+
+#PostgresConfig: PostgresConfig=#CloudSqlPostgresConfig | #AwsPostgresConfig | *{
 	#CommonPostgresConfig
 	*#CommonTarget | #ServiceTarget
 

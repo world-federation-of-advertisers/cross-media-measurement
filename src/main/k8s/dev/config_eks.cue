@@ -1,4 +1,4 @@
-// Copyright 2022 The Cross-Media Measurement Authors
+// Copyright 2023 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,11 +14,18 @@
 
 package k8s
 
-#ContainerRegistryConfig: {
-	registry:   string @tag("container_registry")
-	repoPrefix: string @tag("image_repo_prefix")
+#PostgresConfig: {
+	region:     string @tag("postgres_region")
+	host:       string @tag("postgres_host")
+	port:       string @tag("postgres_port")
+	secretName: string @tag("postgres_credential_secret_name")
 }
 
-#ImageConfig: {
-	tag: string @tag("image_tag")
+#AwsS3Config: {
+	bucket: string @tag("s3_bucket")
+	region: string @tag("s3_region")
+	flags: [
+		"--s3-storage-bucket=" + bucket,
+		"--s3-region=" + region,
+	]
 }
