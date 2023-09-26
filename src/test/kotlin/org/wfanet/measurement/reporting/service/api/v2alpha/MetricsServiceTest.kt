@@ -3289,7 +3289,7 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `createMetric throws INVALID_ARGUMENT when reporting set is not accessible to caller`() {
+  fun `createMetric throws PERMISSION_DENIED when reporting set is not accessible to caller`() {
     val inaccessibleReportingSetName =
       ReportingSetKey(
           MEASUREMENT_CONSUMERS.keys.last().measurementConsumerId,
@@ -3313,6 +3313,26 @@ class MetricsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
     assertThat(exception.status.description)
       .isEqualTo("No access to the reporting set [$inaccessibleReportingSetName].")
+  }
+
+  @Test
+  fun `createMetric throws INVALID_ARGUMENT when Frequency Histogram metric is computed on non-union-only set expression`() {
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric =
+        REQUESTING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
+          reportingSet = INTERNAL_INCREMENTAL_REPORTING_SET.resourceName
+        }
+      metricId = "metric-id"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.createMetric(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test

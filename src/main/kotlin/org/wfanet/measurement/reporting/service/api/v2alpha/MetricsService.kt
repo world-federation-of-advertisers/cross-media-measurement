@@ -1300,6 +1300,17 @@ class MetricsService(
     val internalReportingSet: InternalReportingSet =
       getInternalReportingSet(cmmsMeasurementConsumerId, request.metric.reportingSet)
 
+    // Utilizes the property of the set expression compilation result -- If the set expression
+    // contains only union operators, the compilation result has to be a single component.
+    if (
+      request.metric.metricSpec.hasFrequencyHistogram() &&
+        internalReportingSet.weightedSubsetUnionsList.size != 1
+    ) {
+      failGrpc(Status.INVALID_ARGUMENT) {
+        "Frequency histogram metrics can only be computed on union-only set expressions."
+      }
+    }
+
     return internalCreateMetricRequest {
       requestId = request.requestId
       externalMetricId = request.metricId
