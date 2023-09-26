@@ -16,6 +16,9 @@
 
 package org.wfanet.measurement.measurementconsumer.stats
 
+import kotlin.math.max
+import kotlin.math.min
+
 /** Functions to compute different covariances. */
 object Covariances {
   /**
@@ -67,5 +70,138 @@ object Covariances {
           reachMeasurementCovarianceParams.unionSamplingWidth,
       inflation = 0.0
     )
+  }
+
+  /** Computes the covariance of two reach measurements based on their methodologies. */
+  fun computeMeasurementCovariance(
+    weightedMeasurementVarianceParams: WeightedReachMeasurementVarianceParams,
+    otherWeightedMeasurementVarianceParams: WeightedReachMeasurementVarianceParams,
+    unionWeightedMeasurementVarianceParams: WeightedReachMeasurementVarianceParams,
+  ): Double {
+    val unionSamplingWidth =
+      computeUnionSamplingWidth(
+        weightedMeasurementVarianceParams.measurementVarianceParams.measurementParams
+          .vidSamplingInterval,
+        otherWeightedMeasurementVarianceParams.measurementVarianceParams.measurementParams
+          .vidSamplingInterval
+      )
+
+    val liquidLegionsSketchParams =
+      when (val baseMethodology = weightedMeasurementVarianceParams.baseMethodology) {
+        is CustomDirectScalarMethodology,
+        is CustomDirectFrequencyMethodology -> {
+          // Custom direct methodology must guarantee independence.
+          return 0.0
+        }
+        is DeterministicBaseMethodology -> {
+          return computeDeterministicCovariance(
+            ReachMeasurementCovarianceParams(
+              reach = weightedMeasurementVarianceParams.measurementVarianceParams.reach,
+              otherReach = otherWeightedMeasurementVarianceParams.measurementVarianceParams.reach,
+              unionReach = unionWeightedMeasurementVarianceParams.measurementVarianceParams.reach,
+              samplingWidth =
+                weightedMeasurementVarianceParams.measurementVarianceParams.measurementParams
+                  .vidSamplingInterval
+                  .width,
+              otherSamplingWidth =
+                otherWeightedMeasurementVarianceParams.measurementVarianceParams.measurementParams
+                  .vidSamplingInterval
+                  .width,
+              unionSamplingWidth = unionSamplingWidth
+            )
+          )
+        }
+        is LiquidLegionsSketchBaseMethodology -> {
+          LiquidLegionsSketchParams(baseMethodology.decayRate, baseMethodology.sketchSize)
+        }
+        is LiquidLegionsV2BaseMethodology -> {
+          LiquidLegionsSketchParams(baseMethodology.decayRate, baseMethodology.sketchSize)
+        }
+      }
+
+    when (val otherBaseMethodology = otherWeightedMeasurementVarianceParams.baseMethodology) {
+      is CustomDirectScalarMethodology,
+      is CustomDirectFrequencyMethodology -> {
+        // Custom direct methodology must guarantee independence.
+        return 0.0
+      }
+      is DeterministicBaseMethodology -> {
+        return computeDeterministicCovariance(
+          ReachMeasurementCovarianceParams(
+            reach = weightedMeasurementVarianceParams.measurementVarianceParams.reach,
+            otherReach = otherWeightedMeasurementVarianceParams.measurementVarianceParams.reach,
+            unionReach = unionWeightedMeasurementVarianceParams.measurementVarianceParams.reach,
+            samplingWidth =
+              weightedMeasurementVarianceParams.measurementVarianceParams.measurementParams
+                .vidSamplingInterval
+                .width,
+            otherSamplingWidth =
+              otherWeightedMeasurementVarianceParams.measurementVarianceParams.measurementParams
+                .vidSamplingInterval
+                .width,
+            unionSamplingWidth = unionSamplingWidth
+          )
+        )
+      }
+      is LiquidLegionsSketchBaseMethodology -> {
+        if (
+          liquidLegionsSketchParams.decayRate != otherBaseMethodology.decayRate ||
+            liquidLegionsSketchParams.sketchSize != otherBaseMethodology.sketchSize
+        ) {
+          throw IllegalArgumentException(
+            "Covariance calculation for Liquid Legions based measurements requires two " +
+              "measurements using the same decay rate and sketch size."
+          )
+        }
+      }
+      is LiquidLegionsV2BaseMethodology -> {
+        if (
+          liquidLegionsSketchParams.decayRate != otherBaseMethodology.decayRate ||
+            liquidLegionsSketchParams.sketchSize != otherBaseMethodology.sketchSize
+        ) {
+          throw IllegalArgumentException(
+            "Covariance calculation for Liquid Legions based measurements requires two " +
+              "measurements using the same decay rate and sketch size."
+          )
+        }
+      }
+    }
+    return computeLiquidLegionsCovariance(
+      sketchParams = liquidLegionsSketchParams,
+      ReachMeasurementCovarianceParams(
+        reach = weightedMeasurementVarianceParams.measurementVarianceParams.reach,
+        otherReach = otherWeightedMeasurementVarianceParams.measurementVarianceParams.reach,
+        unionReach = unionWeightedMeasurementVarianceParams.measurementVarianceParams.reach,
+        samplingWidth =
+          weightedMeasurementVarianceParams.measurementVarianceParams.measurementParams
+            .vidSamplingInterval
+            .width,
+        otherSamplingWidth =
+          otherWeightedMeasurementVarianceParams.measurementVarianceParams.measurementParams
+            .vidSamplingInterval
+            .width,
+        unionSamplingWidth = unionSamplingWidth
+      )
+    )
+  }
+
+  /** Computes the width of the union of two sampling intervals. */
+  private fun computeUnionSamplingWidth(
+    vidSamplingInterval: VidSamplingInterval,
+    otherVidSamplingInterval: VidSamplingInterval,
+  ): Double {
+    return max(
+      vidSamplingInterval.start + vidSamplingInterval.width,
+      otherVidSamplingInterval.start + otherVidSamplingInterval.width
+    ) -
+      min(vidSamplingInterval.start, otherVidSamplingInterval.start) -
+      max(
+        0.0,
+        otherVidSamplingInterval.start - vidSamplingInterval.start - vidSamplingInterval.width
+      ) -
+      max(
+        0.0,
+        vidSamplingInterval.start - otherVidSamplingInterval.start - otherVidSamplingInterval.width
+      )
   }
 }
