@@ -44,9 +44,11 @@ jobs:
     runs-on: ubuntu-20.04
     environment: ${{ inputs.environment }}
     env:
-      MODULE_PATH: src/main/terraform/gcloud/cmms
+      GCLOUD_MODULE_PATH: src/main/terraform/gcloud/cmms
       GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
       GCLOUD_ZONE: ${{ vars.GCLOUD_ZONE }}
+      AWS_MODULE_PATH: src/main/terraform/aws/cmms
+      AWS_REGION: ${{ vars.AWS_REGION }}
 
     steps:
     - uses: actions/checkout@v3
@@ -59,17 +61,17 @@ jobs:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
 
-    - name: terraform init
+    - name: terraform init - gcloud
       env:
         TF_STORAGE_BUCKET: ${{ vars.TF_STORAGE_BUCKET }}
-      working-directory: ${{ env.MODULE_PATH }}
+      working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
         terraform init
         -input=false
         -lockfile=readonly
         -backend-config="bucket=$TF_STORAGE_BUCKET"
 
-    - name: terraform plan
+    - name: terraform plan - gcloud
       env:
         KEY_RING: ${{ vars.KEY_RING }}
         SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
@@ -78,7 +80,7 @@ jobs:
         BIGQUERY_TABLE: ${{ vars.BIGQUERY_TABLE }}
         POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
         POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-      working-directory: ${{ env.MODULE_PATH }}
+      working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
         terraform plan
         -input=false
@@ -91,7 +93,42 @@ jobs:
         -var="postgres_password=$POSTGRES_PASSWORD"
         -out=tfplan
 
-    - name: terraform apply
+    - name: terraform apply - gcloud
       if: ${{ inputs.apply }}
-      working-directory: ${{ env.MODULE_PATH }}
+      working-directory: ${{ env.GCLOUD_MODULE_PATH }}
+      run: terraform apply -input=false tfplan
+
+    # Authenticate to AWS Cloud. This will export some environment
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-region: us-west-2
+        role-to-assume: arn:aws:iam::010295286036:role/GitHubAction-AssumeRoleWithAction
+        role-session-name: GitHubAction
+
+    - name: terraform init - aws
+      env:
+        TF_STORAGE_BUCKET: halo-cmm-dev-tf-state
+        AWS_REGION: us-west-2
+      working-directory: ${{ env.AWS_MODULE_PATH }}
+      run: >
+        terraform init
+        -input=false
+        -lockfile=readonly
+        -backend-config="bucket=$TF_STORAGE_BUCKET"
+        -backend-config="region=$AWS_REGION"
+
+    - name: terraform plan - aws
+      env:
+        AWS_REGION: us-west-2
+      working-directory: ${{ env.AWS_MODULE_PATH }}
+      run: >
+        terraform plan
+        -input=false
+        -var="aws_region=$AWS_REGION"
+        -out=tfplan
+
+    - name: terraform apply - aws
+      if: ${{ inputs.apply }}
+      working-directory: ${{ env.AWS_MODULE_PATH }}
       run: terraform apply -input=false tfplan
