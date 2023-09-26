@@ -107,7 +107,7 @@ jobs:
 
     - name: terraform init - aws
       env:
-        TF_STORAGE_BUCKET: halo-cmm-dev-tf-state
+        TF_STORAGE_BUCKET: ${{ vars.AWS_TF_STORAGE_BUCKET }}
       working-directory: ${{ env.AWS_MODULE_PATH }}
       run: >
         terraform init
