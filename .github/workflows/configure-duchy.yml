@@ -63,7 +63,7 @@ env:
   KUSTOMIZATION_PATH: "k8s/cmms"
   DUCHY_NAME: ${{ inputs.duchy-name }}
   DEPLOY_TO_AWS: ${{ inputs.duchy-name == 'worker2' }}
-  DEPLOY_TO_GCLOUD: ${{ !DEPLOY_TO_AWS }}
+  DEPLOY_TO_GCLOUD: ${{ inputs.duchy-name != 'worker2' }}
 
 jobs:
   update-duchy:
@@ -75,14 +75,14 @@ jobs:
     # Authenticate to Google Cloud. This will export some environment
     # variables, including GCLOUD_PROJECT.
     - name: Authenticate to Google Cloud
-      if: env.DEPLOY_TO_GCLOUD
+      if: env.DEPLOY_TO_GCLOUD == 'true'
       uses: google-github-actions/auth@v1
       with:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
 
     - name: Get GKE cluster credentials
-      if: env.DEPLOY_TO_GCLOUD
+      if: env.DEPLOY_TO_GCLOUD == 'true'
       uses: google-github-actions/get-gke-credentials@v1
       with:
         cluster_name: ${{ format('{0}-duchy', inputs.duchy-name) }}
@@ -91,7 +91,7 @@ jobs:
     # Authenticate to AWS Cloud. This will export some environment
     # e.g. AWS_REGION and AWS_SESSION_TOKEN
     - name: Configure AWS Credentials
-      if: env.DEPLOY_TO_AWS
+      if: env.DEPLOY_TO_AWS == 'true'
       uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-region: ${{ env.AWS_REGION }}
@@ -99,7 +99,7 @@ jobs:
         role-session-name: GitHubAction
 
     - name: Get EKS cluster credentials
-      if: env.DEPLOY_TO_AWS
+      if: env.DEPLOY_TO_AWS == 'true'
       run: aws eks update-kubeconfig --region $AWS_REGION --name ${DUCHY_NAME}-duchy-cluster
 
     - name: Export BAZEL_BIN
@@ -117,7 +117,7 @@ jobs:
       run: ./.github/workflows/export-duchy-cert-id.sh
 
     - name: Generate Gcloud duchy archives
-      if: env.DEPLOY_TO_GCLOUD
+      if: env.DEPLOY_TO_GCLOUD == 'true'
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
         SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
@@ -137,7 +137,7 @@ jobs:
 
 
     - name: Generate AWS duchy archives
-      if: env.DEPLOY_TO_AWS
+      if: env.DEPLOY_TO_AWS == 'true'
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
         POSTGRES_HOST: worker2-duchy-postgres.c7lbzsffeehq.us-west-2.rds.amazonaws.com
@@ -166,7 +166,7 @@ jobs:
 
     - name: Extract Kustomization archive
       env:
-        - ARCHIVE_NAME = ${{ env.DEPLOY_TO_AWS && '${DUCHY_NAME}_duchy_aws.tar' || ${DUCHY_NAME}_duchy.tar }}
+        - ARCHIVE_NAME = ${{ env.DEPLOY_TO_AWS == 'true' && '${DUCHY_NAME}_duchy_aws.tar' || ${DUCHY_NAME}_duchy.tar }}
       run: >
         tar -xf "$BAZEL_BIN/src/main/k8s/dev/${ARCHIVE_NAME}"
         -C "$KUSTOMIZATION_PATH"
