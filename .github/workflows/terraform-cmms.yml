@@ -115,7 +115,7 @@ jobs:
         terraform init
         -input=false
         -lockfile=readonly
-        -backend-config="bucket=$TF_STORAGE_BUCKET" \
+        -backend-config="bucket=$TF_STORAGE_BUCKET"
         -backend-config="region=$AWS_REGION"
 
     - name: terraform plan - aws
