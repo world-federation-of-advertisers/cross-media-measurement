@@ -296,22 +296,4 @@ object LiquidLegions {
 
     return max(0.0, variance)
   }
-
-  /**
-   * Outputs the variance of the given reach count at a certain frequency from the Liquid Legions
-   * based distribution methodology.
-   *
-   * Reach count = [totalReach] * [reachRatio]
-   */
-  fun liquidLegionsFrequencyCountVariance(
-    totalReach: Long,
-    totalReachVariance: Double,
-    reachRatio: Double,
-    reachRatioVariance: Double,
-  ): Double {
-    val variance =
-      (reachRatioVariance + reachRatio.pow(2.0)) *
-        (totalReachVariance + totalReach.toDouble().pow(2.0)) - (reachRatio * totalReach).pow(2.0)
-    return max(0.0, variance)
-  }
 }

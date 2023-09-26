@@ -2781,6 +2781,617 @@ class VariancesTest {
     }
   }
 
+  @Test
+  fun `computeMetricVariance returns a value for reach when sampling intervals are fully overlapped`() {
+    val weightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 3,
+        weight = 1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 2L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.5),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN
+              )
+          ),
+        baseMethodology = LiquidLegionsV2BaseMethodology(0.0, 1e6, 1e8)
+      )
+
+    val otherWeightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 2,
+        weight = -1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 1L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.5),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN
+              )
+          ),
+        baseMethodology = DeterministicBaseMethodology
+      )
+
+    val params =
+      ReachMetricVarianceParams(
+        listOf(weightedReachMeasurementVarianceParams, otherWeightedReachMeasurementVarianceParams)
+      )
+
+    val variance = Variances.computeMetricVariance(params)
+
+    val expect = 27396.052940381534
+    val percentageError = percentageError(variance, expect)
+    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+  }
+
+  @Test
+  fun `computeMetricVariance returns a value for reach when sampling intervals are partially overlapped`() {
+    val weightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 3,
+        weight = 1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 2L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.5),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN
+              )
+          ),
+        baseMethodology = LiquidLegionsV2BaseMethodology(0.0, 1e6, 1e8)
+      )
+
+    val otherWeightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = -1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 1L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.3, 0.8),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN
+              )
+          ),
+        baseMethodology = DeterministicBaseMethodology
+      )
+
+    val params =
+      ReachMetricVarianceParams(
+        listOf(weightedReachMeasurementVarianceParams, otherWeightedReachMeasurementVarianceParams)
+      )
+
+    val variance = Variances.computeMetricVariance(params)
+
+    val expect = 21253.74748438153
+    val percentageError = percentageError(variance, expect)
+    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+  }
+
+  @Test
+  fun `computeMetricVariance returns a value for reach when sampling intervals are not overlapped`() {
+    val weightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 3,
+        weight = 1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 2L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.5),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN
+              )
+          ),
+        baseMethodology = LiquidLegionsV2BaseMethodology(0.0, 1e6, 1e8)
+      )
+
+    val otherWeightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = -1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 1L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.5, 1.0),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN
+              )
+          ),
+        baseMethodology = DeterministicBaseMethodology
+      )
+
+    val params =
+      ReachMetricVarianceParams(
+        listOf(weightedReachMeasurementVarianceParams, otherWeightedReachMeasurementVarianceParams)
+      )
+
+    val variance = Variances.computeMetricVariance(params)
+
+    val expect = 19836.523148381533
+    val percentageError = percentageError(variance, expect)
+    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+  }
+
+  @Test
+  fun `computeMetricVariance returns a value for reach when one is from custom direct methodology`() {
+    val weightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 3,
+        weight = 1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 2L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.5),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN
+              )
+          ),
+        baseMethodology = LiquidLegionsV2BaseMethodology(0.0, 1e6, 1e8)
+      )
+
+    val varianceSingleMeasurement =
+      Variances.computeMetricVariance(
+        ReachMetricVarianceParams(listOf(weightedReachMeasurementVarianceParams))
+      )
+
+    val varianceOtherSingleMeasurement = 1e4
+
+    val otherWeightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = -1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 1L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.5, 1.0),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN
+              )
+          ),
+        baseMethodology = CustomDirectScalarMethodology(varianceOtherSingleMeasurement)
+      )
+
+    val params =
+      ReachMetricVarianceParams(
+        listOf(weightedReachMeasurementVarianceParams, otherWeightedReachMeasurementVarianceParams)
+      )
+
+    val variance = Variances.computeMetricVariance(params)
+
+    val expect = varianceSingleMeasurement + varianceOtherSingleMeasurement
+    val percentageError = percentageError(variance, expect)
+    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+  }
+
+  @Test
+  fun `computeMetricVariance returns a value for reach intersection`() {
+    val unionWeightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 3,
+        weight = -1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 4L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.1, 1.0),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN
+              )
+          ),
+        baseMethodology = LiquidLegionsV2BaseMethodology(0.0, 1e6, 1e8)
+      )
+
+    val weightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 2L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN
+              )
+          ),
+        baseMethodology = DeterministicBaseMethodology
+      )
+
+    val otherWeightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 2,
+        weight = 1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 1L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN
+              )
+          ),
+        baseMethodology = DeterministicBaseMethodology
+      )
+
+    val params =
+      ReachMetricVarianceParams(
+        listOf(
+          unionWeightedReachMeasurementVarianceParams,
+          weightedReachMeasurementVarianceParams,
+          otherWeightedReachMeasurementVarianceParams
+        )
+      )
+
+    val variance = Variances.computeMetricVariance(params)
+
+    val expect = 10554.13919363766
+    val percentageError = percentageError(variance, expect)
+    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+  }
+
+  @Test
+  fun `computeMetricVariance for reach throws IllegalArgumentException when no measurement params`() {
+    assertThrows(IllegalArgumentException::class.java) {
+      Variances.computeMetricVariance(ReachMetricVarianceParams(listOf()))
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for reach throws UnsupportedMethodologyException when using CustomDirectFrequencyMethodology`() {
+    val weightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 3,
+        weight = 1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 2L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.5),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN
+              )
+          ),
+        baseMethodology = CustomDirectFrequencyMethodology(mapOf(), mapOf())
+      )
+
+    assertThrows(UnsupportedMethodologyException::class.java) {
+      Variances.computeMetricVariance(
+        ReachMetricVarianceParams(listOf(weightedReachMeasurementVarianceParams))
+      )
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for reach-frequency throws IllegalArgumentException when no measurement params`() {
+    assertThrows(IllegalArgumentException::class.java) {
+      Variances.computeMetricVariance(FrequencyMetricVarianceParams(listOf()))
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for reach-frequency throws IllegalArgumentException when there are two measurements`() {
+    val weightedFrequencyMeasurementVarianceParams =
+      WeightedFrequencyMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          FrequencyMeasurementVarianceParams(
+            totalReach = 2L,
+            reachMeasurementVariance = 100.0,
+            relativeFrequencyDistribution = mapOf(1 to 1.0),
+            measurementParams =
+              FrequencyMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+                maximumFrequency = 10
+              )
+          ),
+        baseMethodology = DeterministicBaseMethodology
+      )
+
+    assertThrows(IllegalArgumentException::class.java) {
+      Variances.computeMetricVariance(
+        FrequencyMetricVarianceParams(
+          listOf(
+            weightedFrequencyMeasurementVarianceParams,
+            weightedFrequencyMeasurementVarianceParams
+          )
+        )
+      )
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for reach-frequency throws UnsupportedMethodologyException when CustomDirectScalarMethodology is used`() {
+    val weightedFrequencyMeasurementVarianceParams =
+      WeightedFrequencyMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          FrequencyMeasurementVarianceParams(
+            totalReach = 2L,
+            reachMeasurementVariance = 100.0,
+            relativeFrequencyDistribution = mapOf(1 to 1.0),
+            measurementParams =
+              FrequencyMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+                maximumFrequency = 10
+              )
+          ),
+        baseMethodology = CustomDirectScalarMethodology(0.0)
+      )
+
+    assertThrows(UnsupportedMethodologyException::class.java) {
+      Variances.computeMetricVariance(
+        FrequencyMetricVarianceParams(listOf(weightedFrequencyMeasurementVarianceParams))
+      )
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for impression throws IllegalArgumentException when no measurement params`() {
+    assertThrows(IllegalArgumentException::class.java) {
+      Variances.computeMetricVariance(ImpressionMetricVarianceParams(listOf()))
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for impression throws IllegalArgumentException when there are two measurements`() {
+    val weightedImpressionMeasurementVarianceParams =
+      WeightedImpressionMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          ImpressionMeasurementVarianceParams(
+            impression = 2L,
+            measurementParams =
+              ImpressionMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+                maximumFrequencyPerUser = 10
+              )
+          ),
+        baseMethodology = DeterministicBaseMethodology
+      )
+
+    assertThrows(IllegalArgumentException::class.java) {
+      Variances.computeMetricVariance(
+        ImpressionMetricVarianceParams(
+          listOf(
+            weightedImpressionMeasurementVarianceParams,
+            weightedImpressionMeasurementVarianceParams
+          )
+        )
+      )
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for impression throws UnsupportedMethodologyException when using CustomDirectFrequencyMethodology`() {
+    val weightedImpressionMeasurementVarianceParams =
+      WeightedImpressionMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          ImpressionMeasurementVarianceParams(
+            impression = 2L,
+            measurementParams =
+              ImpressionMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+                maximumFrequencyPerUser = 10
+              )
+          ),
+        baseMethodology = CustomDirectFrequencyMethodology(mapOf(), mapOf())
+      )
+
+    assertThrows(UnsupportedMethodologyException::class.java) {
+      Variances.computeMetricVariance(
+        ImpressionMetricVarianceParams(listOf(weightedImpressionMeasurementVarianceParams))
+      )
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for impression throws UnsupportedMethodologyException when using Liquid Legions Sketch base methodology`() {
+    val weightedImpressionMeasurementVarianceParams =
+      WeightedImpressionMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          ImpressionMeasurementVarianceParams(
+            impression = 2L,
+            measurementParams =
+              ImpressionMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+                maximumFrequencyPerUser = 10
+              )
+          ),
+        baseMethodology = LiquidLegionsSketchBaseMethodology(1.0, 1.0)
+      )
+
+    assertThrows(UnsupportedMethodologyException::class.java) {
+      Variances.computeMetricVariance(
+        ImpressionMetricVarianceParams(listOf(weightedImpressionMeasurementVarianceParams))
+      )
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for impression throws UnsupportedMethodologyException when using Liquid Legions V2 base methodology`() {
+    val weightedImpressionMeasurementVarianceParams =
+      WeightedImpressionMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          ImpressionMeasurementVarianceParams(
+            impression = 2L,
+            measurementParams =
+              ImpressionMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+                maximumFrequencyPerUser = 10
+              )
+          ),
+        baseMethodology = LiquidLegionsV2BaseMethodology(1.0, 1.0, 1.0)
+      )
+
+    assertThrows(UnsupportedMethodologyException::class.java) {
+      Variances.computeMetricVariance(
+        ImpressionMetricVarianceParams(listOf(weightedImpressionMeasurementVarianceParams))
+      )
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for watch duration throws IllegalArgumentException when no measurement params`() {
+    assertThrows(IllegalArgumentException::class.java) {
+      Variances.computeMetricVariance(WatchDurationMetricVarianceParams(listOf()))
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for watch duration throws IllegalArgumentException when there are two measurements`() {
+    val weightedWatchDurationMeasurementVarianceParams =
+      WeightedWatchDurationMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          WatchDurationMeasurementVarianceParams(
+            duration = 1.0,
+            measurementParams =
+              WatchDurationMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+                maximumDurationPerUser = 10.0
+              )
+          ),
+        baseMethodology = DeterministicBaseMethodology
+      )
+
+    assertThrows(IllegalArgumentException::class.java) {
+      Variances.computeMetricVariance(
+        WatchDurationMetricVarianceParams(
+          listOf(
+            weightedWatchDurationMeasurementVarianceParams,
+            weightedWatchDurationMeasurementVarianceParams
+          )
+        )
+      )
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for watch duration throws UnsupportedMethodologyException when using CustomDirectFrequencyMethodology`() {
+    val weightedWatchDurationMeasurementVarianceParams =
+      WeightedWatchDurationMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          WatchDurationMeasurementVarianceParams(
+            duration = 1.0,
+            measurementParams =
+              WatchDurationMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+                maximumDurationPerUser = 10.0
+              )
+          ),
+        baseMethodology = CustomDirectFrequencyMethodology(mapOf(), mapOf())
+      )
+
+    assertThrows(UnsupportedMethodologyException::class.java) {
+      Variances.computeMetricVariance(
+        WatchDurationMetricVarianceParams(listOf(weightedWatchDurationMeasurementVarianceParams))
+      )
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for watch duration throws UnsupportedMethodologyException when using Liquid Legions sketch base methodology`() {
+    val weightedWatchDurationMeasurementVarianceParams =
+      WeightedWatchDurationMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          WatchDurationMeasurementVarianceParams(
+            duration = 1.0,
+            measurementParams =
+              WatchDurationMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+                maximumDurationPerUser = 10.0
+              )
+          ),
+        baseMethodology = LiquidLegionsSketchBaseMethodology(1.0, 1.0)
+      )
+
+    assertThrows(UnsupportedMethodologyException::class.java) {
+      Variances.computeMetricVariance(
+        WatchDurationMetricVarianceParams(listOf(weightedWatchDurationMeasurementVarianceParams))
+      )
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for watch duration throws UnsupportedMethodologyException when using Liquid Legions V2 base methodology`() {
+    val weightedWatchDurationMeasurementVarianceParams =
+      WeightedWatchDurationMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          WatchDurationMeasurementVarianceParams(
+            duration = 1.0,
+            measurementParams =
+              WatchDurationMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+                maximumDurationPerUser = 10.0
+              )
+          ),
+        baseMethodology = LiquidLegionsV2BaseMethodology(1.0, 1.0, 1.0)
+      )
+
+    assertThrows(UnsupportedMethodologyException::class.java) {
+      Variances.computeMetricVariance(
+        WatchDurationMetricVarianceParams(listOf(weightedWatchDurationMeasurementVarianceParams))
+      )
+    }
+  }
+
   companion object {
     fun percentageError(estimate: Double, truth: Double): Double {
       return if (truth == 0.0) {

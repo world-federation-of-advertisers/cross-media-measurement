@@ -25,6 +25,9 @@ import org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiser
 import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpParamsConverter
 
+class UnsupportedMethodologyException(message: String? = null, cause: Throwable? = null) :
+  Exception(message, cause)
+
 /** Functions to compute different variances. */
 object Variances {
   /**
@@ -79,7 +82,7 @@ object Variances {
     return frequencyVariance(
       params,
       ::deterministicFrequencyRelativeVariance,
-      ::deterministicFrequencyCountVariance
+      ::frequencyCountVariance
     )
   }
 
@@ -108,12 +111,11 @@ object Variances {
   }
 
   /**
-   * Outputs the variance of the given reach count at a certain frequency and the reach ratio
-   * computed using the deterministic distribution methodology.
+   * Outputs the variance of the reach count and the reach ratio at a certain frequency.
    *
    * Reach count = [totalReach] * [reachRatio]
    */
-  private fun deterministicFrequencyCountVariance(
+  private fun frequencyCountVariance(
     totalReach: Long,
     totalReachVariance: Double,
     reachRatio: Double,
@@ -192,7 +194,7 @@ object Variances {
     return frequencyVariance(
       params,
       constructLiquidLegionsSketchFrequencyRelativeVariance(sketchParams, params.measurementParams),
-      LiquidLegions::liquidLegionsFrequencyCountVariance
+      ::frequencyCountVariance
     )
   }
 
@@ -261,7 +263,7 @@ object Variances {
     return frequencyVariance(
       params,
       constructLiquidLegionsV2FrequencyRelativeVariance(sketchParams, params.measurementParams),
-      LiquidLegions::liquidLegionsFrequencyCountVariance
+      ::frequencyCountVariance
     )
   }
 
@@ -414,4 +416,366 @@ object Variances {
       kPlusCountVariances
     )
   }
+  /**
+   * Common function that computes [FrequencyVariances] with known [relativeVariances] and
+   * [kPlusRelativeVariances].
+   */
+  private fun frequencyVariance(
+    params: FrequencyMeasurementVarianceParams,
+    relativeVariances: Map<Int, Double>,
+    kPlusRelativeVariances: Map<Int, Double>,
+    frequencyCountVarianceFun:
+      (
+        totalReach: Long,
+        totalReachVariance: Double,
+        reachRatio: Double,
+        reachRatioVariance: Double,
+      ) -> Double
+  ): FrequencyVariances {
+    if (params.totalReach < 0.0) {
+      throw IllegalArgumentException("The total reach value cannot be negative.")
+    }
+    if (params.reachMeasurementVariance < 0.0) {
+      throw IllegalArgumentException("The reach variance value cannot be negative.")
+    }
+
+    val maximumFrequency = params.measurementParams.maximumFrequency
+
+    var suffixSum = 0.0
+    // There is no estimate of zero-frequency reach
+    val kPlusRelativeFrequencyDistribution: Map<Int, Double> =
+      (maximumFrequency downTo 1).associateWith { frequency ->
+        suffixSum += params.relativeFrequencyDistribution.getOrDefault(frequency, 0.0)
+        suffixSum
+      }
+
+    val countVariances: Map<Int, Double> =
+      (1..maximumFrequency).associateWith { frequency ->
+        frequencyCountVarianceFun(
+          params.totalReach,
+          params.reachMeasurementVariance,
+          params.relativeFrequencyDistribution.getOrDefault(frequency, 0.0),
+          relativeVariances.getValue(frequency)
+        )
+      }
+
+    val kPlusCountVariances: Map<Int, Double> =
+      (1..maximumFrequency).associateWith { frequency ->
+        frequencyCountVarianceFun(
+          params.totalReach,
+          params.reachMeasurementVariance,
+          kPlusRelativeFrequencyDistribution.getValue(frequency),
+          kPlusRelativeVariances.getValue(frequency)
+        )
+      }
+
+    return FrequencyVariances(
+      relativeVariances,
+      kPlusRelativeVariances,
+      countVariances,
+      kPlusCountVariances
+    )
+  }
+
+  /** Computes variance of a reach metric. */
+  fun computeMetricVariance(params: ReachMetricVarianceParams): Double {
+    if (params.weightedMeasurementVarianceParamsList.isEmpty()) {
+      throw IllegalArgumentException(
+        "Invalid params: number of measurements must be greater than 0."
+      )
+    }
+
+    // Sum of weighted measurement variances = Sum_i a_i^2 * msmt_var_i
+    var metricVariance: Double =
+      params.weightedMeasurementVarianceParamsList.sumOf { weightedMeasurementVarianceParams ->
+        weightedMeasurementVarianceParams.weight.square() *
+          computeMeasurementVariance(
+            weightedMeasurementVarianceParams.baseMethodology,
+            weightedMeasurementVarianceParams.measurementVarianceParams
+          )
+      }
+
+    val weightedMeasurementVarianceParamsMap =
+      params.weightedMeasurementVarianceParamsList.associateBy { weightedMeasurementVarianceParams
+        ->
+        weightedMeasurementVarianceParams.binaryRepresentation
+      }
+    val numberMeasurements = params.weightedMeasurementVarianceParamsList.size
+
+    // For every two distinct measurements in the list
+    for (index in 0 until numberMeasurements) {
+      for (otherIndex in index + 1 until numberMeasurements) {
+        val weightedMeasurementVarianceParams = params.weightedMeasurementVarianceParamsList[index]
+        val otherWeightedMeasurementVarianceParams =
+          params.weightedMeasurementVarianceParamsList[otherIndex]
+        val unionWeightedMeasurementVarianceParams =
+          weightedMeasurementVarianceParamsMap.getValue(
+            weightedMeasurementVarianceParams.binaryRepresentation or
+              otherWeightedMeasurementVarianceParams.binaryRepresentation
+          )
+
+        // Add weighted measurement covariance = 2 * a_i * a_j * cov(msmt_i, msmt_j)
+        metricVariance +=
+          2 *
+            weightedMeasurementVarianceParams.weight *
+            otherWeightedMeasurementVarianceParams.weight *
+            Covariances.computeMeasurementCovariance(
+              weightedMeasurementVarianceParams,
+              otherWeightedMeasurementVarianceParams,
+              unionWeightedMeasurementVarianceParams
+            )
+      }
+    }
+
+    return max(0.0, metricVariance)
+  }
+
+  /** Computes variance of a reach measurement based on the base methodology. */
+  fun computeMeasurementVariance(
+    baseMethodology: BaseMethodology,
+    measurementVarianceParams: ReachMeasurementVarianceParams
+  ): Double {
+    return when (baseMethodology) {
+      is CustomDirectScalarMethodology -> {
+        baseMethodology.variance
+      }
+      is CustomDirectFrequencyMethodology -> {
+        throw UnsupportedMethodologyException(
+          "Custom direct methodology for frequency cannot be used for reach."
+        )
+      }
+      is DeterministicBaseMethodology -> {
+        computeDeterministicVariance(measurementVarianceParams)
+      }
+      is LiquidLegionsSketchBaseMethodology -> {
+        computeLiquidLegionsSketchVariance(
+          LiquidLegionsSketchParams(baseMethodology.decayRate, baseMethodology.sketchSize),
+          measurementVarianceParams
+        )
+      }
+      is LiquidLegionsV2BaseMethodology -> {
+        computeLiquidLegionsV2Variance(
+          LiquidLegionsSketchParams(baseMethodology.decayRate, baseMethodology.sketchSize),
+          measurementVarianceParams
+        )
+      }
+    }
+  }
+
+  /**
+   * Computes variance of a frequency metric.
+   *
+   * Currently, only support variance of frequency metrics that are computed on union-only set
+   * expression. That is, metrics that are composed of single source measurement.
+   */
+  fun computeMetricVariance(params: FrequencyMetricVarianceParams): FrequencyVariances {
+    if (params.weightedMeasurementVarianceParamsList.isEmpty()) {
+      throw IllegalArgumentException(
+        "Invalid params: number of measurements must be greater than 0."
+      )
+    }
+
+    if (params.weightedMeasurementVarianceParamsList.size != 1) {
+      throw IllegalArgumentException(
+        "Only support variance calculation of frequency metrics computed on union-only set " +
+          "expressions."
+      )
+    }
+
+    val weightedMeasurementVarianceParams = params.weightedMeasurementVarianceParamsList.first()
+
+    val coefficient = weightedMeasurementVarianceParams.weight.square()
+
+    val frequencyVariances: FrequencyVariances =
+      computeMeasurementVariance(
+        weightedMeasurementVarianceParams.baseMethodology,
+        weightedMeasurementVarianceParams.measurementVarianceParams
+      )
+
+    return FrequencyVariances(
+      relativeVariances = frequencyVariances.relativeVariances.mapValues { coefficient * it.value },
+      kPlusRelativeVariances =
+        frequencyVariances.relativeVariances.mapValues { coefficient * it.value },
+      countVariances = frequencyVariances.countVariances.mapValues { coefficient * it.value },
+      kPlusCountVariances =
+        frequencyVariances.kPlusCountVariances.mapValues { coefficient * it.value },
+    )
+  }
+
+  /** Computes variance of a frequency measurement based on the base methodology. */
+  fun computeMeasurementVariance(
+    baseMethodology: BaseMethodology,
+    measurementVarianceParams: FrequencyMeasurementVarianceParams
+  ): FrequencyVariances {
+    return when (baseMethodology) {
+      is CustomDirectScalarMethodology -> {
+        throw UnsupportedMethodologyException(
+          "Custom direct methodology for scalar cannot be used for frequency."
+        )
+      }
+      is CustomDirectFrequencyMethodology -> {
+        computeCustomDirectMethodologyVariance(baseMethodology, measurementVarianceParams)
+      }
+      is DeterministicBaseMethodology -> {
+        computeDeterministicVariance(measurementVarianceParams)
+      }
+      is LiquidLegionsSketchBaseMethodology -> {
+        computeLiquidLegionsSketchVariance(
+          LiquidLegionsSketchParams(baseMethodology.decayRate, baseMethodology.sketchSize),
+          measurementVarianceParams
+        )
+      }
+      is LiquidLegionsV2BaseMethodology -> {
+        computeLiquidLegionsV2Variance(
+          LiquidLegionsSketchParams(baseMethodology.decayRate, baseMethodology.sketchSize),
+          measurementVarianceParams
+        )
+      }
+    }
+  }
+
+  /**
+   * Computes [FrequencyVariances] of a reach-and-frequency measurement where the frequency
+   * distribution result is computed using a custom direct frequency methodology.
+   *
+   * Note that the reach can be computed using any methodology.
+   */
+  private fun computeCustomDirectMethodologyVariance(
+    baseMethodology: CustomDirectFrequencyMethodology,
+    params: FrequencyMeasurementVarianceParams,
+  ): FrequencyVariances {
+    return frequencyVariance(
+      params,
+      baseMethodology.relativeVariances,
+      baseMethodology.kPlusRelativeVariances,
+      ::frequencyCountVariance
+    )
+  }
+
+  /**
+   * Computes variance of an impression metric.
+   *
+   * Currently, only support variance of impression metrics that are computed on union-only set
+   * expression. That is, metrics that are composed of single source measurement.
+   */
+  fun computeMetricVariance(params: ImpressionMetricVarianceParams): Double {
+    if (params.weightedMeasurementVarianceParamsList.isEmpty()) {
+      throw IllegalArgumentException(
+        "Invalid params: number of measurements must be greater than 0."
+      )
+    }
+
+    if (params.weightedMeasurementVarianceParamsList.size != 1) {
+      throw IllegalArgumentException(
+        "Only support variance calculation of impression metrics computed on union-only set " +
+          "expressions."
+      )
+    }
+
+    val weightedMeasurementVarianceParams = params.weightedMeasurementVarianceParamsList.first()
+
+    return weightedMeasurementVarianceParams.weight.square() *
+      computeMeasurementVariance(
+        weightedMeasurementVarianceParams.baseMethodology,
+        weightedMeasurementVarianceParams.measurementVarianceParams
+      )
+  }
+
+  /** Computes variance of an impression measurement based on the base methodology. */
+  private fun computeMeasurementVariance(
+    baseMethodology: BaseMethodology,
+    measurementVarianceParams: ImpressionMeasurementVarianceParams,
+  ): Double {
+    return when (baseMethodology) {
+      is CustomDirectScalarMethodology -> {
+        baseMethodology.variance
+      }
+      is CustomDirectFrequencyMethodology -> {
+        throw UnsupportedMethodologyException(
+          "Custom direct methodology for frequency cannot be used for impression."
+        )
+      }
+      is DeterministicBaseMethodology -> {
+        computeDeterministicVariance(measurementVarianceParams)
+      }
+      is LiquidLegionsSketchBaseMethodology -> {
+        throw UnsupportedMethodologyException(
+          "BaseMethodology LIQUID_LEGIONS_SKETCH is not supported for impression.",
+          IllegalArgumentException("Invalid base methodology")
+        )
+      }
+      is LiquidLegionsV2BaseMethodology -> {
+        throw UnsupportedMethodologyException(
+          "BaseMethodology LIQUID_LEGIONS_V2 is not supported for impression.",
+          IllegalArgumentException("Invalid base methodology")
+        )
+      }
+    }
+  }
+
+  /**
+   * Computes variance of a watch duration metric.
+   *
+   * Currently, only support variance of watch duration metrics that are computed on union-only set
+   * expression. That is, metrics that are composed of single source measurement.
+   */
+  fun computeMetricVariance(params: WatchDurationMetricVarianceParams): Double {
+    if (params.weightedMeasurementVarianceParamsList.isEmpty()) {
+      throw IllegalArgumentException(
+        "Invalid params: number of measurements must be greater than 0."
+      )
+    }
+
+    if (params.weightedMeasurementVarianceParamsList.size != 1) {
+      throw IllegalArgumentException(
+        "Only support variance calculation of watch duration metrics computed on union-only set " +
+          "expressions."
+      )
+    }
+
+    val weightedMeasurementVarianceParams = params.weightedMeasurementVarianceParamsList.first()
+
+    return weightedMeasurementVarianceParams.weight.square() *
+      computeMeasurementVariance(
+        weightedMeasurementVarianceParams.baseMethodology,
+        weightedMeasurementVarianceParams.measurementVarianceParams
+      )
+  }
+
+  /** Computes variance of a watch duration measurement based on the base methodology. */
+  private fun computeMeasurementVariance(
+    baseMethodology: BaseMethodology,
+    measurementVarianceParams: WatchDurationMeasurementVarianceParams,
+  ): Double {
+    return when (baseMethodology) {
+      is CustomDirectScalarMethodology -> {
+        baseMethodology.variance
+      }
+      is CustomDirectFrequencyMethodology -> {
+        throw UnsupportedMethodologyException(
+          "Custom direct methodology for frequency cannot be used for watch duration."
+        )
+      }
+      is DeterministicBaseMethodology -> {
+        computeDeterministicVariance(measurementVarianceParams)
+      }
+      is LiquidLegionsSketchBaseMethodology -> {
+        throw UnsupportedMethodologyException(
+          "BaseMethodology LIQUID_LEGIONS_SKETCH is not supported for watch duration.",
+          IllegalArgumentException("Invalid base methodology")
+        )
+      }
+      is LiquidLegionsV2BaseMethodology -> {
+        throw UnsupportedMethodologyException(
+          "BaseMethodology LIQUID_LEGIONS_V2 is not supported for watch duration.",
+          IllegalArgumentException("Invalid base methodology")
+        )
+      }
+    }
+  }
+}
+
+/** Outputs the square of an [Int] value. */
+private fun Int.square(): Int {
+  return this * this
 }
