@@ -89,6 +89,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     val WORKER2_DUCHY = DuchyIds.Entry(3, "worker2", VALID_ACTIVE_START_TIME..VALID_ACTIVE_END_TIME)
     val DUCHIES = listOf(AGGREGATOR_DUCHY, WORKER1_DUCHY, WORKER2_DUCHY)
   }
+
   private fun buildRequestCertificate(
     derUtf8: String,
     skidUtf8: String,

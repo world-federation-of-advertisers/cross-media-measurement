@@ -209,8 +209,7 @@ class PostgresComputationsService(
         KeyCase.REQUISITION_KEY ->
           computationReader.readComputationToken(client, request.requisitionKey)
         KeyCase.KEY_NOT_SET -> failGrpc(Status.INVALID_ARGUMENT) { "key not set" }
-      }
-        ?: failGrpc(Status.NOT_FOUND) { "Computation not found" }
+      } ?: failGrpc(Status.NOT_FOUND) { "Computation not found" }
 
     return token.toGetComputationTokenResponse()
   }
