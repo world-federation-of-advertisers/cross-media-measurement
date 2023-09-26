@@ -259,11 +259,9 @@ message Requisition {
     // Refusal information. Set when Requisition state is REFUSED.
     Refusal refusal = 6;
 
-    // Encrypted `SignedData`containing the data for a population
-    // measurement or a direct and volumetric event measurement.
-    // Set when `Requisition` state is FULFILLED and the
-    // `measurement_spec` `measurement_type` of the Parent
-    // `Measurement` is Impression or Duration or Population.
+    // Encrypted SignedData containing the Measurement.Result for this
+    // Requisition. Set when Requisition state is FULFILLED and the protocol is
+    // Direct.
     bytes encrypted_data = 7;
   }
   Details details = 10;

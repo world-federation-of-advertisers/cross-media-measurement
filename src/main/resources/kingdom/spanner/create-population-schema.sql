@@ -14,9 +14,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- changeset marcopremier:5 dbms:cloudspanner
+-- changeset jojijacob:14 dbms:cloudspanner
 
--- Cloud Spanner database schema for the Kingdom StateTransitionMeasurementLogEntries table.
+-- Adding Cloud Spanner table for the Kingdom Populations table.
 --
 -- Table hierarchy:
 --  Root
@@ -43,5 +43,6 @@ CREATE TABLE Populations (
 
 ALTER TABLE ModelReleases
     ADD COLUMN PopulationId INT64 NOT NULL;
+    FOREIGN KEY (Population) REFERENCES Populations(PopulationId);
 
 RUN BATCH;
