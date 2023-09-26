@@ -48,7 +48,6 @@ jobs:
       GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
       GCLOUD_ZONE: ${{ vars.GCLOUD_ZONE }}
       AWS_MODULE_PATH: src/main/terraform/aws/cmms
-      AWS_REGION: ${{ vars.AWS_REGION }}
 
     steps:
     - uses: actions/checkout@v3
@@ -102,14 +101,13 @@ jobs:
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
-        aws-region: us-west-2
-        role-to-assume: arn:aws:iam::010295286036:role/GitHubAction-AssumeRoleWithAction
+        aws-region: ${{ vars.AWS_REGION }}
+        role-to-assume: ${{ vars.AWS_GHA_ROLE }}
         role-session-name: GitHubAction
 
     - name: terraform init - aws
       env:
         TF_STORAGE_BUCKET: halo-cmm-dev-tf-state
-        AWS_REGION: us-west-2
       working-directory: ${{ env.AWS_MODULE_PATH }}
       run: >
         terraform init
