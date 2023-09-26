@@ -25,9 +25,12 @@ kt_jvm_library(
     name = "variances",
     srcs = ["Variances.kt"],
     deps = [
+        ":covariances",
         ":liquid_legions",
         ":measurement_statistics",
+        ":metric_statistics",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
+        "//src/main/proto/wfa/measurement/measurementconsumer/stats:base_methodology_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/org/apache/commons:math3",
     ],
 )
@@ -38,7 +41,17 @@ kt_jvm_library(
     deps = [
         ":liquid_legions",
         ":measurement_statistics",
+        ":metric_statistics",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
         "@wfa_common_jvm//imports/java/org/apache/commons:math3",
+    ],
+)
+
+kt_jvm_library(
+    name = "metric_statistics",
+    srcs = ["MetricStatistics.kt"],
+    deps = [
+        ":measurement_statistics",
+        "//src/main/proto/wfa/measurement/measurementconsumer/stats:base_methodology_kt_jvm_proto",
     ],
 )

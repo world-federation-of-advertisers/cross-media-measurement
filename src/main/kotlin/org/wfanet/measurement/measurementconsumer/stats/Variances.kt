@@ -414,4 +414,251 @@ object Variances {
       kPlusCountVariances
     )
   }
+
+  /** Computes variance of a reach metric. */
+  fun computeMetricVariance(params: ReachMetricVarianceParams): Double {
+    if (params.weightedMeasurementVarianceParamsList.size < 1) {
+      error("Invalid params: number of measurements must be greater than 0.")
+    }
+
+    var metricVariance: Double =
+    // Sum of weighted measurement variances = Sum_i a_i^2 * msmt_var_i
+    params.weightedMeasurementVarianceParamsList.sumOf { weightedMeasurementVarianceParams ->
+        weightedMeasurementVarianceParams.weight *
+          weightedMeasurementVarianceParams.weight *
+          computeMeasurementVariance(
+            weightedMeasurementVarianceParams.baseMethodology,
+            weightedMeasurementVarianceParams.measurementVarianceParams
+          )
+      }
+
+    val weightedMeasurementVarianceParamsMap =
+      params.weightedMeasurementVarianceParamsList.associateBy { weightedMeasurementVarianceParams
+        ->
+        weightedMeasurementVarianceParams.binaryRepresentation
+      }
+    val numberMeasurements = params.weightedMeasurementVarianceParamsList.size
+
+    // For every two distinct measurements in the list
+    for (index in 0 until numberMeasurements) {
+      for (otherIndex in index + 1 until numberMeasurements) {
+        val weightedMeasurementVarianceParams = params.weightedMeasurementVarianceParamsList[index]
+        val otherWeightedMeasurementVarianceParams =
+          params.weightedMeasurementVarianceParamsList[otherIndex]
+        val unionWeightedMeasurementVarianceParams =
+          weightedMeasurementVarianceParamsMap.getValue(
+            weightedMeasurementVarianceParams.binaryRepresentation or
+              otherWeightedMeasurementVarianceParams.binaryRepresentation
+          )
+
+        // Add weighted measurement covariance = 2 * a_i * a_j * cov(msmt_i, msmt_j)
+        metricVariance +=
+          2 *
+            weightedMeasurementVarianceParams.weight *
+            otherWeightedMeasurementVarianceParams.weight *
+            Covariances.computeMeasurementCovariance(
+              weightedMeasurementVarianceParams,
+              otherWeightedMeasurementVarianceParams,
+              unionWeightedMeasurementVarianceParams
+            )
+      }
+    }
+
+    return metricVariance
+  }
+
+  /** Computes variance of a reach measurement based on the base methodology. */
+  fun computeMeasurementVariance(
+    baseMethodology: BaseMethodology,
+    measurementVarianceParams: ReachMeasurementVarianceParams
+  ): Double {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    return when (baseMethodology.typeCase) {
+      BaseMethodology.TypeCase.DETERMINISTIC -> {
+        computeDeterministicVariance(measurementVarianceParams)
+      }
+      BaseMethodology.TypeCase.LIQUID_LEGIONS_SKETCH -> {
+        computeLiquidLegionsSketchVariance(
+          LiquidLegionsSketchParams(
+            baseMethodology.liquidLegionsSketch.decayRate,
+            baseMethodology.liquidLegionsSketch.maxSize.toDouble()
+          ),
+          measurementVarianceParams
+        )
+      }
+      BaseMethodology.TypeCase.LIQUID_LEGIONS_V2 -> {
+        computeLiquidLegionsV2Variance(
+          LiquidLegionsSketchParams(
+            baseMethodology.liquidLegionsV2.decayRate,
+            baseMethodology.liquidLegionsV2.maxSize.toDouble()
+          ),
+          measurementVarianceParams
+        )
+      }
+      BaseMethodology.TypeCase.TYPE_NOT_SET -> {
+        error("BaseMethodology is not set.")
+      }
+    }
+  }
+
+  /**
+   * Computes variance of a frequency metric.
+   *
+   * Currently, only support variance of frequency metrics that are computed on union-only set
+   * expression. That is, metrics that are composed of single source measurement.
+   */
+  fun computeMetricVariance(params: FrequencyMetricVarianceParams): FrequencyVariances {
+    if (params.weightedMeasurementVarianceParamsList.size != 1) {
+      error(
+        "Only support variance calculation of frequency metrics computed on union-only set " +
+          "expressions."
+      )
+    }
+
+    val weightedMeasurementVarianceParams = params.weightedMeasurementVarianceParamsList.first()
+
+    val coefficient =
+      weightedMeasurementVarianceParams.weight * weightedMeasurementVarianceParams.weight
+
+    val frequencyVariances: FrequencyVariances =
+      computeMeasurementVariance(
+        weightedMeasurementVarianceParams.baseMethodology,
+        weightedMeasurementVarianceParams.measurementVarianceParams
+      )
+
+    return FrequencyVariances(
+      relativeVariances = frequencyVariances.relativeVariances.mapValues { coefficient * it.value },
+      kPlusRelativeVariances =
+        frequencyVariances.relativeVariances.mapValues { coefficient * it.value },
+      countVariances = frequencyVariances.countVariances.mapValues { coefficient * it.value },
+      kPlusCountVariances =
+        frequencyVariances.kPlusCountVariances.mapValues { coefficient * it.value },
+    )
+  }
+
+  /** Computes variance of a frequency measurement based on the base methodology. */
+  fun computeMeasurementVariance(
+    baseMethodology: BaseMethodology,
+    measurementVarianceParams: FrequencyMeasurementVarianceParams
+  ): FrequencyVariances {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    return when (baseMethodology.typeCase) {
+      BaseMethodology.TypeCase.DETERMINISTIC -> {
+        computeDeterministicVariance(measurementVarianceParams)
+      }
+      BaseMethodology.TypeCase.LIQUID_LEGIONS_SKETCH -> {
+        computeLiquidLegionsSketchVariance(
+          LiquidLegionsSketchParams(
+            baseMethodology.liquidLegionsSketch.decayRate,
+            baseMethodology.liquidLegionsSketch.maxSize.toDouble()
+          ),
+          measurementVarianceParams
+        )
+      }
+      BaseMethodology.TypeCase.LIQUID_LEGIONS_V2 -> {
+        computeLiquidLegionsV2Variance(
+          LiquidLegionsSketchParams(
+            baseMethodology.liquidLegionsV2.decayRate,
+            baseMethodology.liquidLegionsV2.maxSize.toDouble()
+          ),
+          measurementVarianceParams
+        )
+      }
+      BaseMethodology.TypeCase.TYPE_NOT_SET -> {
+        error("BaseMethodology is not set.")
+      }
+    }
+  }
+
+  /**
+   * Computes variance of an impression metric.
+   *
+   * Currently, only support variance of impression metrics that are computed on union-only set
+   * expression. That is, metrics that are composed of single source measurement.
+   */
+  fun computeMetricVariance(params: ImpressionMetricVarianceParams): Double {
+    if (params.weightedMeasurementVarianceParamsList.size != 1) {
+      error(
+        "Only support variance calculation of impression metrics computed on union-only set " +
+          "expressions."
+      )
+    }
+
+    val weightedMeasurementVarianceParams = params.weightedMeasurementVarianceParamsList.first()
+
+    return weightedMeasurementVarianceParams.weight *
+      weightedMeasurementVarianceParams.weight *
+      computeMeasurementVariance(
+        weightedMeasurementVarianceParams.baseMethodology,
+        weightedMeasurementVarianceParams.measurementVarianceParams
+      )
+  }
+
+  /** Computes variance of an impression measurement based on the base methodology. */
+  private fun computeMeasurementVariance(
+    baseMethodology: BaseMethodology,
+    measurementVarianceParams: ImpressionMeasurementVarianceParams,
+  ): Double {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    return when (baseMethodology.typeCase) {
+      BaseMethodology.TypeCase.DETERMINISTIC -> {
+        computeDeterministicVariance(measurementVarianceParams)
+      }
+      BaseMethodology.TypeCase.LIQUID_LEGIONS_SKETCH -> {
+        error("BaseMethodology LIQUID_LEGIONS_SKETCH is not supported for impression.")
+      }
+      BaseMethodology.TypeCase.LIQUID_LEGIONS_V2 -> {
+        error("BaseMethodology LIQUID_LEGIONS_V2 is not supported for impression.")
+      }
+      BaseMethodology.TypeCase.TYPE_NOT_SET -> {
+        error("BaseMethodology is not set.")
+      }
+    }
+  }
+
+  /**
+   * Computes variance of a watch duration metric.
+   *
+   * Currently, only support variance of watch duration metrics that are computed on union-only set
+   * expression. That is, metrics that are composed of single source measurement.
+   */
+  fun computeMetricVariance(params: WatchDurationMetricVarianceParams): Double {
+    if (params.weightedMeasurementVarianceParamsList.size != 1) {
+      error(
+        "Only support variance calculation of watch duration metrics computed on union-only set " +
+          "expressions."
+      )
+    }
+
+    val weightedMeasurementVarianceParams = params.weightedMeasurementVarianceParamsList.first()
+
+    return weightedMeasurementVarianceParams.weight *
+      weightedMeasurementVarianceParams.weight *
+      computeMeasurementVariance(
+        weightedMeasurementVarianceParams.baseMethodology,
+        weightedMeasurementVarianceParams.measurementVarianceParams
+      )
+  }
+
+  /** Computes variance of a watch duration measurement based on the base methodology. */
+  private fun computeMeasurementVariance(
+    baseMethodology: BaseMethodology,
+    measurementVarianceParams: WatchDurationMeasurementVarianceParams,
+  ): Double {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    return when (baseMethodology.typeCase) {
+      BaseMethodology.TypeCase.DETERMINISTIC -> {
+        computeDeterministicVariance(measurementVarianceParams)
+      }
+      BaseMethodology.TypeCase.LIQUID_LEGIONS_SKETCH -> {
+        error("BaseMethodology LIQUID_LEGIONS_SKETCH is not supported for watch duration.")
+      }
+      BaseMethodology.TypeCase.LIQUID_LEGIONS_V2 -> {
+        error("BaseMethodology LIQUID_LEGIONS_V2 is not supported for watch duration.")
+      }
+      BaseMethodology.TypeCase.TYPE_NOT_SET -> {
+        error("BaseMethodology is not set.")
+      }
+    }
+  }
 }

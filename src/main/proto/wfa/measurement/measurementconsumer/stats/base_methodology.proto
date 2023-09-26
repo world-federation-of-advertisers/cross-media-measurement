@@ -1,0 +1,60 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.measurementconsumer.stats;
+
+import "google/api/field_behavior.proto";
+
+option java_package = "org.wfanet.measurement.measurementconsumer.stats";
+option java_multiple_files = true;
+option java_outer_classname = "BaseMethodologyProto";
+
+// The base methodology that has the shared concept across different
+// methodologies.
+message BaseMethodology {
+  // Deterministic based methodology.
+  message Deterministic {}
+  // Liquid Legions Sketch based methodology.
+  message LiquidLegionsSketch {
+    // The decay rate of the Liquid Legions sketch.
+    double decay_rate = 1 [(google.api.field_behavior) = REQUIRED];
+
+    // The maximum size of the Liquid Legions sketch.
+    int64 max_size = 2 [(google.api.field_behavior) = REQUIRED];
+  }
+  // Liquid Legions V2 based methodology.
+  message LiquidLegionsV2 {
+    // The decay rate of the Liquid Legions sketch.
+    double decay_rate = 1 [(google.api.field_behavior) = REQUIRED];
+
+    // The maximum size of the Liquid Legions sketch.
+    int64 max_size = 2 [(google.api.field_behavior) = REQUIRED];
+
+    // The size of the distribution of the sampling indicator value, i.e.
+    // fingerprint size.
+    int64 sampling_indicator_size = 3;
+  }
+
+  // Type of base methodology. Required.
+  oneof type {
+    // Deterministic based methodology.
+    Deterministic deterministic = 1;
+    // Liquid Legions Sketch based methodology.
+    LiquidLegionsSketch liquid_legions_sketch = 2;
+    // Liquid Legions V2 based methodology.
+    LiquidLegionsV2 liquid_legions_v2 = 3;
+  }
+}
