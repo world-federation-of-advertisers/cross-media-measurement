@@ -1,4 +1,4 @@
-// Copyright 2022 The Cross-Media Measurement Authors
+// Copyright 2023 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,11 +14,26 @@
 
 package k8s
 
-#ContainerRegistryConfig: {
-	registry:   string @tag("container_registry")
-	repoPrefix: string @tag("image_repo_prefix")
+#ServiceAccountPodSpec: {
+	#PodSpec
+
+	serviceAccountName: string
 }
 
-#ImageConfig: {
-	tag: string @tag("image_tag")
+#ServerDeployment: {
+	_container: {
+		resources: Resources={
+			requests: {
+				memory: _ | *"320Mi"
+			}
+			limits: {
+				memory: _ | *Resources.requests.memory
+			}
+		}
+	}
+}
+
+#JavaOptions: {
+	initialHeapSize: _ | *"64M"
+	maxHeapSize:     _ | *"64M"
 }
