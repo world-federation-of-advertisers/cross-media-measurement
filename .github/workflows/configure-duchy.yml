@@ -62,11 +62,11 @@ permissions:
 env:
   KUSTOMIZATION_PATH: "k8s/cmms"
   DUCHY_NAME: ${{ inputs.duchy-name }}
-  IS_AWS_DUCHY: ${{ inputs.duchy-name == 'worker2' }}
+  DEPLOY_TO_AWS: ${{ inputs.duchy-name == 'worker2' }}
+  DEPLOY_TO_GCLOUD: ${{ !DEPLOY_TO_AWS }}
 
 jobs:
-  generate-gcloud-duchy-archive:
-    if: ${{ !IS_AWS_DUCHY }}
+  update-duchy:
     runs-on: ubuntu-20.04
     environment: ${{ inputs.environment }}
     steps:
@@ -75,23 +75,39 @@ jobs:
     # Authenticate to Google Cloud. This will export some environment
     # variables, including GCLOUD_PROJECT.
     - name: Authenticate to Google Cloud
+      if: env.DEPLOY_TO_GCLOUD
       uses: google-github-actions/auth@v1
       with:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
 
-    - name: Export BAZEL_BIN
-      run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
-
     - name: Get GKE cluster credentials
+      if: env.DEPLOY_TO_GCLOUD
       uses: google-github-actions/get-gke-credentials@v1
       with:
         cluster_name: ${{ format('{0}-duchy', inputs.duchy-name) }}
         location: ${{ vars.GCLOUD_ZONE }}
 
+    # Authenticate to AWS Cloud. This will export some environment
+    # e.g. AWS_REGION and AWS_SESSION_TOKEN
+    - name: Configure AWS Credentials
+      if: env.DEPLOY_TO_AWS
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-region: ${{ env.AWS_REGION }}
+        role-to-assume: arn:aws:iam::010295286036:role/GitHubAction-AssumeRoleWithAction
+        role-session-name: GitHubAction
+
+    - name: Get EKS cluster credentials
+      if: env.DEPLOY_TO_AWS
+      run: aws eks update-kubeconfig --region $AWS_REGION --name ${DUCHY_NAME}-duchy-cluster
+
+    - name: Export BAZEL_BIN
+      run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
+
     - name: Configure metrics
+      if: env.DEPLOY_TO_GCLOUD && inputs.apply
       uses: ./.github/actions/configure-metrics
-      if: ${{ inputs.apply }}
 
     - name: Export DUCHY_CERT_ID
       env:
@@ -100,7 +116,8 @@ jobs:
         WORKER2_DUCHY_CERT_ID: ${{ vars.WORKER2_DUCHY_CERT_ID }}
       run: ./.github/workflows/export-duchy-cert-id.sh
 
-    - name: Generate archives
+    - name: Generate Gcloud duchy archives
+      if: env.DEPLOY_TO_GCLOUD
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
         SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
@@ -118,49 +135,9 @@ jobs:
         --define "duchy_storage_bucket=$STORAGE_BUCKET"
         --define "duchy_cert_id=$DUCHY_CERT_ID"
 
-    - name: Make Kustomization dir
-      run: mkdir -p "$KUSTOMIZATION_PATH"
 
-    - name: Extract Kustomization archive
-      run: >
-        tar -xf "$BAZEL_BIN/src/main/k8s/dev/${DUCHY_NAME}_duchy.tar"
-        -C "$KUSTOMIZATION_PATH"
-
-  generate-aws-duchy-archive:
-    if: ${{ !IS_AWS_DUCHY }}
-    runs-on: ubuntu-20.04
-    environment: ${{ inputs.environment }}
-    env:
-      AWS_REGION:  us-west-2 # ${{ vars.AWS_REGION }}
-    steps:
-    - uses: actions/checkout@v3
-
-    # Authenticate to AWS Cloud. This will export some environment e.g. AWS_SESSION_TOKEN
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-region: ${{ env.AWS_REGION }}
-        role-to-assume: arn:aws:iam::010295286036:role/GitHubAction-AssumeRoleWithAction
-        role-session-name: GitHubAction
-
-    - name: Get EKS cluster credentials
-      run: aws eks update-kubeconfig --region $AWS_REGION --name ${DUCHY_NAME}-duchy-cluster
-
-    - name: Export BAZEL_BIN
-      run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
-
-    #      - name: Configure metrics
-    #        uses: ./.github/actions/configure-metrics
-    #        if: ${{ inputs.apply }}
-
-    - name: Export DUCHY_CERT_ID
-      env:
-        AGGREGATOR_DUCHY_CERT_ID: ${{ vars.AGGREGATOR_DUCHY_CERT_ID }}
-        WORKER1_DUCHY_CERT_ID: ${{ vars.WORKER1_DUCHY_CERT_ID }}
-        WORKER2_DUCHY_CERT_ID: ${{ vars.WORKER2_DUCHY_CERT_ID }}
-      run: ./.github/workflows/export-duchy-cert-id.sh
-
-    - name: Generate archives
+    - name: Generate AWS duchy archives
+      if: env.DEPLOY_TO_AWS
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
         POSTGRES_HOST: worker2-duchy-postgres.c7lbzsffeehq.us-west-2.rds.amazonaws.com
@@ -188,11 +165,12 @@ jobs:
       run: mkdir -p "$KUSTOMIZATION_PATH"
 
     - name: Extract Kustomization archive
+      env:
+        - ARCHIVE_NAME = ${{ env.DEPLOY_TO_AWS && '${DUCHY_NAME}_duchy_aws.tar' || ${DUCHY_NAME}_duchy.tar }}
       run: >
-        tar -xf "$BAZEL_BIN/src/main/k8s/dev/${DUCHY_NAME}_duchy_aws.tar"
+        tar -xf "$BAZEL_BIN/src/main/k8s/dev/${ARCHIVE_NAME}"
         -C "$KUSTOMIZATION_PATH"
 
-  update-duchy:
     - name: Extract secret files archive
       run: >
         tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/archive.tar"
