@@ -35,6 +35,7 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequestKt
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt
+import org.wfanet.measurement.internal.reporting.v2.DeterministicCountDistinct
 import org.wfanet.measurement.internal.reporting.v2.Measurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt
@@ -43,6 +44,7 @@ import org.wfanet.measurement.internal.reporting.v2.Metric
 import org.wfanet.measurement.internal.reporting.v2.MetricKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt
+import org.wfanet.measurement.internal.reporting.v2.NoiseMechanism
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt
@@ -450,7 +452,15 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
         measurementResults +=
           BatchSetMeasurementResultsRequestKt.measurementResult {
             cmmsMeasurementId = "1234"
-            result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 1 } }
+            results +=
+              MeasurementKt.result {
+                reach =
+                  MeasurementKt.ResultKt.reach {
+                    value = 1
+                    noiseMechanism = NoiseMechanism.GEOMETRIC
+                    deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
+                  }
+              }
           }
       }
     )
@@ -472,8 +482,16 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
               cmmsMeasurementId = "1234"
               details =
                 MeasurementKt.details {
-                  result =
-                    MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 1 } }
+                  results +=
+                    MeasurementKt.result {
+                      reach =
+                        MeasurementKt.ResultKt.reach {
+                          value = 1
+                          noiseMechanism = NoiseMechanism.GEOMETRIC
+                          deterministicCountDistinct =
+                            DeterministicCountDistinct.getDefaultInstance()
+                        }
+                    }
                 }
               state = Measurement.State.SUCCEEDED
             }
@@ -515,12 +533,30 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
         measurementResults +=
           BatchSetMeasurementResultsRequestKt.measurementResult {
             cmmsMeasurementId = "1234"
-            result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 1 } }
+            results +=
+              MeasurementKt.result {
+                reach =
+                  MeasurementKt.ResultKt.reach {
+                    value = 1
+
+                    noiseMechanism = NoiseMechanism.GEOMETRIC
+                    deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
+                  }
+              }
           }
         measurementResults +=
           BatchSetMeasurementResultsRequestKt.measurementResult {
             cmmsMeasurementId = "1235"
-            result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 2 } }
+            results +=
+              MeasurementKt.result {
+                reach =
+                  MeasurementKt.ResultKt.reach {
+                    value = 2
+
+                    noiseMechanism = NoiseMechanism.GEOMETRIC
+                    deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
+                  }
+              }
           }
       }
     )
@@ -542,8 +578,16 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
               cmmsMeasurementId = "1234"
               details =
                 MeasurementKt.details {
-                  result =
-                    MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 1 } }
+                  results +=
+                    MeasurementKt.result {
+                      reach =
+                        MeasurementKt.ResultKt.reach {
+                          value = 1
+                          noiseMechanism = NoiseMechanism.GEOMETRIC
+                          deterministicCountDistinct =
+                            DeterministicCountDistinct.getDefaultInstance()
+                        }
+                    }
                 }
               state = Measurement.State.SUCCEEDED
             }
@@ -554,8 +598,16 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
               cmmsMeasurementId = "1235"
               details =
                 MeasurementKt.details {
-                  result =
-                    MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 2 } }
+                  results +=
+                    MeasurementKt.result {
+                      reach =
+                        MeasurementKt.ResultKt.reach {
+                          value = 2
+                          noiseMechanism = NoiseMechanism.GEOMETRIC
+                          deterministicCountDistinct =
+                            DeterministicCountDistinct.getDefaultInstance()
+                        }
+                    }
                 }
               state = Measurement.State.SUCCEEDED
             }
@@ -599,12 +651,28 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
           measurementResults +=
             BatchSetMeasurementResultsRequestKt.measurementResult {
               cmmsMeasurementId = "1234"
-              result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 1 } }
+              results +=
+                MeasurementKt.result {
+                  reach =
+                    MeasurementKt.ResultKt.reach {
+                      value = 1
+                      noiseMechanism = NoiseMechanism.GEOMETRIC
+                      deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
+                    }
+                }
             }
           measurementResults +=
             BatchSetMeasurementResultsRequestKt.measurementResult {
               cmmsMeasurementId = "1235"
-              result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 2 } }
+              results +=
+                MeasurementKt.result {
+                  reach =
+                    MeasurementKt.ResultKt.reach {
+                      value = 2
+                      noiseMechanism = NoiseMechanism.GEOMETRIC
+                      deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
+                    }
+                }
             }
         }
       )
@@ -626,8 +694,16 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
                 cmmsMeasurementId = "1234"
                 details =
                   MeasurementKt.details {
-                    result =
-                      MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 1 } }
+                    results +=
+                      MeasurementKt.result {
+                        reach =
+                          MeasurementKt.ResultKt.reach {
+                            value = 1
+                            noiseMechanism = NoiseMechanism.GEOMETRIC
+                            deterministicCountDistinct =
+                              DeterministicCountDistinct.getDefaultInstance()
+                          }
+                      }
                   }
                 state = Measurement.State.SUCCEEDED
               }
@@ -638,8 +714,17 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
                 cmmsMeasurementId = "1235"
                 details =
                   MeasurementKt.details {
-                    result =
-                      MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 2 } }
+                    results +=
+                      MeasurementKt.result {
+                        reach =
+                          MeasurementKt.ResultKt.reach {
+                            value = 2
+
+                            noiseMechanism = NoiseMechanism.GEOMETRIC
+                            deterministicCountDistinct =
+                              DeterministicCountDistinct.getDefaultInstance()
+                          }
+                      }
                   }
                 state = Measurement.State.SUCCEEDED
               }
@@ -675,7 +760,15 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
         measurementResults +=
           BatchSetMeasurementResultsRequestKt.measurementResult {
             cmmsMeasurementId = "1234"
-            result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 1 } }
+            results +=
+              MeasurementKt.result {
+                reach =
+                  MeasurementKt.ResultKt.reach {
+                    value = 1
+                    noiseMechanism = NoiseMechanism.GEOMETRIC
+                    deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
+                  }
+              }
           }
       }
 
@@ -699,8 +792,16 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
                 cmmsMeasurementId = "1234"
                 details =
                   MeasurementKt.details {
-                    result =
-                      MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 1 } }
+                    results +=
+                      MeasurementKt.result {
+                        reach =
+                          MeasurementKt.ResultKt.reach {
+                            value = 1
+                            noiseMechanism = NoiseMechanism.GEOMETRIC
+                            deterministicCountDistinct =
+                              DeterministicCountDistinct.getDefaultInstance()
+                          }
+                      }
                   }
                 state = Measurement.State.SUCCEEDED
               }
@@ -739,12 +840,12 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
               measurementResults +=
                 BatchSetMeasurementResultsRequestKt.measurementResult {
                   cmmsMeasurementId = "1234"
-                  result = Measurement.Result.getDefaultInstance()
+                  results += Measurement.Result.getDefaultInstance()
                 }
               measurementResults +=
                 BatchSetMeasurementResultsRequestKt.measurementResult {
                   cmmsMeasurementId = "1235"
-                  result = Measurement.Result.getDefaultInstance()
+                  results += Measurement.Result.getDefaultInstance()
                 }
             }
           )
@@ -767,7 +868,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
               measurementResults +=
                 BatchSetMeasurementResultsRequestKt.measurementResult {
                   cmmsMeasurementId = "1234"
-                  result = Measurement.Result.getDefaultInstance()
+                  results += Measurement.Result.getDefaultInstance()
                 }
             }
           )
@@ -788,7 +889,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
               measurementResults +=
                 BatchSetMeasurementResultsRequestKt.measurementResult {
                   cmmsMeasurementId = "1234"
-                  result = Measurement.Result.getDefaultInstance()
+                  results += Measurement.Result.getDefaultInstance()
                 }
             }
           )
@@ -808,7 +909,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
               measurementResults +=
                 BatchSetMeasurementResultsRequestKt.measurementResult {
                   cmmsMeasurementId = "1234"
-                  result = Measurement.Result.getDefaultInstance()
+                  results += Measurement.Result.getDefaultInstance()
                 }
             }
           )
@@ -829,7 +930,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
                 measurementResults +=
                   BatchSetMeasurementResultsRequestKt.measurementResult {
                     cmmsMeasurementId = "1234"
-                    result = Measurement.Result.getDefaultInstance()
+                    results += Measurement.Result.getDefaultInstance()
                   }
               }
             }
