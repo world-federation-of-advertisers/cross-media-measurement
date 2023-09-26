@@ -789,10 +789,10 @@ class MeasurementSystemTest {
           "--api-key=$AUTHENTICATION_KEY",
           "create",
           "--reach-and-frequency",
-          "--reach-privacy-epsilon=0.015",
-          "--reach-privacy-delta=0.0",
-          "--frequency-privacy-epsilon=0.02",
-          "--frequency-privacy-delta=0.0",
+          "--rf-reach-privacy-epsilon=0.015",
+          "--rf-reach-privacy-delta=0.0",
+          "--rf-frequency-privacy-epsilon=0.02",
+          "--rf-frequency-privacy-delta=0.0",
           "--max-frequency=5",
           "--vid-sampling-start=0.1",
           "--vid-sampling-width=0.2",
@@ -1570,6 +1570,7 @@ class MeasurementSystemTest {
         }
       )
   }
+
   @Test
   fun `list model outages succeeds omitting optional params`() {
     val args =

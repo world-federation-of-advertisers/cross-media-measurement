@@ -154,16 +154,16 @@ using the `--api-key` option.
     create \
     --measurement-consumer=measurementConsumers/777 \
     --reach-and-frequency \
-    --reach-privacy-epsilon=0.0033 \
-    --reach-privacy-delta=0.00001 \
-    --frequency-privacy-epsilon=0.115 \
-    --frequency-privacy-delta=0.00001 \
-    --reach-max-frequency=10 \
+    --rf-reach-privacy-epsilon=0.0033 \
+    --rf-reach-privacy-delta=0.00001 \
+    --rf-frequency-privacy-epsilon=0.115 \
+    --rf-frequency-privacy-delta=0.00001 \
+    --max-frequency=10 \
     --vid-sampling-start=0.16 \
     --vid-sampling-width=0.016667 \
     --private-key-der-file=secretfiles/mc_cs_private.der \
     --measurement-ref-id=9999 \
-    --data-provider=dataProviders/1 \
+    --event-data-provider=dataProviders/1 \
     --event-group=dataProviders/1/eventGroups/1 \
     --event-filter="video_ad.age == 1" \
     --event-start-time=2022-05-22T01:00:00.000Z \
@@ -172,7 +172,7 @@ using the `--api-key` option.
     --event-filter="video_ad.age == 2" \
     --event-start-time=2022-05-22T01:22:32.250Z \
     --event-end-time=2022-05-23T03:14:55.450Z \
-    --data-provider=dataProviders/2 \
+    --event-data-provider=dataProviders/2 \
     --event-group=dataProviders/2/eventGroups/1 \
     --event-start-time=2022-04-22T01:19:42.336Z \
     --event-end-time=2022-05-22T01:56:12.257Z

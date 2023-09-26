@@ -158,6 +158,31 @@ class CreateMeasurementFlags {
         private set
 
       class EventMeasurementTypeParams {
+        class ReachParams {
+          @Option(
+            names = ["--reach"],
+            description = ["Measurement type of Reach Measurement."],
+            required = true,
+          )
+          var selected = false
+
+          @set:Option(
+            names = ["--reach-privacy-epsilon"],
+            description = ["Epsilon value of privacy params for Reach Measurement."],
+            required = true,
+          )
+          var privacyEpsilon by Delegates.notNull<Double>()
+            private set
+
+          @set:Option(
+            names = ["--reach-privacy-delta"],
+            description = ["Delta value of privacy params for Reach Measurement."],
+            required = true,
+          )
+          var privacyDelta by Delegates.notNull<Double>()
+            private set
+        }
+
         class ReachAndFrequencyParams {
           @Option(
             names = ["--reach-and-frequency"],
@@ -168,32 +193,36 @@ class CreateMeasurementFlags {
             private set
 
           @set:Option(
-            names = ["--reach-privacy-epsilon"],
-            description = ["Epsilon value of reach privacy params"],
+            names = ["--rf-reach-privacy-epsilon"],
+            description =
+              ["Epsilon value of reach privacy params for ReachAndFrequency Measurement."],
             required = true,
           )
           var reachPrivacyEpsilon by Delegates.notNull<Double>()
             private set
 
           @set:Option(
-            names = ["--reach-privacy-delta"],
-            description = ["Delta value of reach privacy params"],
+            names = ["--rf-reach-privacy-delta"],
+            description =
+              ["Delta value of reach privacy params for ReachAndFrequency Measurement."],
             required = true,
           )
           var reachPrivacyDelta by Delegates.notNull<Double>()
             private set
 
           @set:Option(
-            names = ["--frequency-privacy-epsilon"],
-            description = ["Epsilon value of frequency privacy params"],
+            names = ["--rf-frequency-privacy-epsilon"],
+            description =
+              ["Epsilon value of frequency privacy params for ReachAndFrequency Measurement."],
             required = true,
           )
           var frequencyPrivacyEpsilon by Delegates.notNull<Double>()
             private set
 
           @set:Option(
-            names = ["--frequency-privacy-delta"],
-            description = ["Epsilon value of frequency privacy params"],
+            names = ["--rf-frequency-privacy-delta"],
+            description =
+              ["Delta value of frequency privacy params for ReachAndFrequency Measurement."],
             required = true,
           )
           var frequencyPrivacyDelta by Delegates.notNull<Double>()
@@ -278,6 +307,8 @@ class CreateMeasurementFlags {
             private set
         }
 
+        @ArgGroup(exclusive = false, heading = "Measurement type Reach and params\n")
+        var reach = ReachParams()
         @ArgGroup(exclusive = false, heading = "Measurement type ReachAndFrequency and params\n")
         var reachAndFrequency = ReachAndFrequencyParams()
         @ArgGroup(exclusive = false, heading = "Measurement type Impression and params\n")
@@ -289,6 +320,7 @@ class CreateMeasurementFlags {
       @ArgGroup(exclusive = true, multiplicity = "1", heading = "Event Measurement and params\n")
       var eventMeasurementTypeParams = EventMeasurementTypeParams()
     }
+
     class PopulationMeasurementParams {
       class PopulationInput {
         @Option(
@@ -330,6 +362,7 @@ class CreateMeasurementFlags {
       @ArgGroup(exclusive = false, heading = "Population Params\n")
       lateinit var populationInputs: PopulationInput
         private set
+
       @ArgGroup(exclusive = false, heading = "Set Population Data Provider\n")
       lateinit var populationDataProviderInput: PopulationDataProviderInput
 
@@ -340,6 +373,17 @@ class CreateMeasurementFlags {
       )
       var selected = false
         private set
+    }
+  }
+
+  fun getReach(): MeasurementSpec.Reach {
+    return MeasurementSpecKt.reach {
+      privacyParams = differentialPrivacyParams {
+        epsilon =
+          measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reach.privacyEpsilon
+        delta =
+          measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reach.privacyDelta
+      }
     }
   }
 
