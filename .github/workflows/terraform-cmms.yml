@@ -103,7 +103,7 @@ jobs:
       uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-region: us-west-2
-        role-to-assume: {{ vars.AWS_GHA_ROLE }}
+        role-to-assume: arn:aws:iam::010295286036:role/GitHubAction-AssumeRoleWithAction
         role-session-name: GitHubAction
 
     - name: terraform init - aws
