@@ -117,8 +117,6 @@ jobs:
         -backend-config="region=$AWS_REGION"
 
     - name: terraform plan - aws
-      env:
-        AWS_REGION: us-west-2
       working-directory: ${{ env.AWS_MODULE_PATH }}
       run: >
         terraform plan
