@@ -32,13 +32,13 @@ class SpannerModelProvidersService(
   override suspend fun createModelProvider(request: ModelProvider): ModelProvider {
     return CreateModelProvider().execute(client, idGenerator)
   }
+
   override suspend fun getModelProvider(request: GetModelProviderRequest): ModelProvider {
     return ModelProviderReader()
       .readByExternalModelProviderId(
         client.singleUse(),
         ExternalId(request.externalModelProviderId)
       )
-      ?.modelProvider
-      ?: failGrpc(Status.NOT_FOUND) { "ModelProvider not found" }
+      ?.modelProvider ?: failGrpc(Status.NOT_FOUND) { "ModelProvider not found" }
   }
 }

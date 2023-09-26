@@ -73,8 +73,7 @@ class InMemoryBackingStoreTransactionContext(
     val lastEntry =
       transactionReferenceLedger[reference.measurementConsumerId]
         ?.filter { it.referenceId == reference.referenceId }
-        ?.maxByOrNull { it.createTime }
-        ?: return false
+        ?.maxByOrNull { it.createTime } ?: return false
 
     return lastEntry.isRefund == reference.isRefund
   }

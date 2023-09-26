@@ -48,6 +48,7 @@ class UnclaimedTasksQuery<StageT>(
       LIMIT 50
       """
   }
+
   override val sql: Statement =
     Statement.newBuilder(parameterizedQueryString)
       .bind("current_time")
@@ -55,6 +56,7 @@ class UnclaimedTasksQuery<StageT>(
       .bind("protocol")
       .to(protocol)
       .build()
+
   override fun asResult(struct: Struct): UnclaimedTaskQueryResult<StageT> =
     UnclaimedTaskQueryResult(
       computationId = struct.getLong("ComputationId"),

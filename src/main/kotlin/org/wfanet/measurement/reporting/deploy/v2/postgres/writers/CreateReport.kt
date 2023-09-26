@@ -52,6 +52,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     val metricCalculationSpecReportingMetricsBinders: List<BoundStatement.Binder.() -> Unit>,
     val updatedReportingMetricEntries: Map<String, Report.ReportingMetricCalculationSpec>,
   )
+
   override suspend fun TransactionScope.runTransaction(): Report {
     val measurementConsumerId =
       (MeasurementConsumerReader(transactionContext)

@@ -65,8 +65,7 @@ class SpannerExchangesService(
       }
       .execute(client.singleUse())
       .singleOrNull()
-      ?.exchange
-      ?: failGrpc(Status.NOT_FOUND) { "Exchange not found" }
+      ?.exchange ?: failGrpc(Status.NOT_FOUND) { "Exchange not found" }
   }
 
   override fun streamExchanges(request: StreamExchangesRequest): Flow<Exchange> {
