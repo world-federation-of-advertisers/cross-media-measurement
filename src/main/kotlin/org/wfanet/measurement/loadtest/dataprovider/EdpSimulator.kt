@@ -83,6 +83,7 @@ import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.customDirectMethodology
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
@@ -1316,8 +1317,7 @@ class EdpSimulator(
             // TODO: Calculate impression from data.
             value = apiIdToExternalId(DataProviderKey.fromName(edpData.name)!!.dataProviderId)
             noiseMechanism = protocolConfigNoiseMechanism
-            // TODO(@riemanli): specify impression computation methodology once the real impression
-            // calculation is done.
+            customDirectMethodology = customDirectMethodology { variance = 0.0 }
           }
         }
       }
@@ -1332,8 +1332,7 @@ class EdpSimulator(
               seconds = log2(externalDataProviderId.toDouble()).toLong()
             }
             noiseMechanism = protocolConfigNoiseMechanism
-            // TODO(@riemanli): specify duration computation methodology once the real duration
-            // calculation is done.
+            customDirectMethodology = customDirectMethodology { variance = 0.0 }
           }
         }
       }
