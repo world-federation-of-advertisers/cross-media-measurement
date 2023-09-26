@@ -71,7 +71,7 @@ class JniQueryEvaluator(parameters: Any) : QueryEvaluator {
 
     val response = JniPrivateMembership.applyQueries(request)
 
-    val inputQueryCount = queryBundles.sumBy { it.queryIdsCount }
+    val inputQueryCount = queryBundles.sumOf { it.queryIdsCount }
     require(response.queryResultsCount == inputQueryCount) {
       "Output query count (${response.queryResultsCount}) is not the same as the input query " +
         "count ($inputQueryCount)"
