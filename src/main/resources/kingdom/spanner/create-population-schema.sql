@@ -37,14 +37,26 @@ CREATE TABLE Populations (
 
     -- org.wfanet.measurement.internal.kingdom.Population.EventTemplate.type
     EventTemplateType STRING(MAX) NOT NULL,
-
-) PRIMARY KEY (DataProviderId, PopulationId)
+) PRIMARY KEY (DataProviderId, PopulationId),
   INTERLEAVE IN PARENT DataProviders ON DELETE CASCADE;
 
-ALTER TABLE ModelReleases ADD COLUMN PopulationId INT64; -- population used in model release
+CREATE UNIQUE INDEX PopulationsByExternalId
+    ON Populations(DataProviderId, ExternalPopulationId);
 
-ALTER TABLE ModelReleases ADD COLUMN PopulationDataProviderId INT64; -- population data provider that created population
+DROP TABLE ModelReleases;
+CREATE TABLE ModelReleases (
+    ModelProviderId INT64 NOT NULL,
+    ModelSuiteId INT64 NOT NULL,
+    ModelReleaseId INT64 NOT NULL,
+    ExternalModelReleaseId INT64 NOT NULL,
 
-ALTER TABLE ModelReleases FOREIGN KEY (PopulationDataProviderId, PopulationId) REFERENCES Populations(DataProviderId, PopulationId);
+    PopulationDataProviderId INT64 NOT NULL, -- population data provider that created population
+    PopulationId INT64 NOT NULL, -- population used in model release
+
+    CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+
+    FOREIGN KEY (PopulationDataProviderId, PopulationId) REFERENCES Populations(DataProviderId, PopulationId),
+) PRIMARY KEY (ModelProviderId, ModelSuiteId, ModelReleaseId),
+  INTERLEAVE IN PARENT ModelSuites ON DELETE CASCADE;
 
 RUN BATCH;
