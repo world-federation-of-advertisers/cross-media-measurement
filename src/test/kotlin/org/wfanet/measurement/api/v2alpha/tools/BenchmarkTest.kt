@@ -366,7 +366,7 @@ class BenchmarkTest {
     measurementsServiceMock =
       mockService() {
         onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT)
-        onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_REACH_AND_FREQUENCY_MEASUREMENT)
+        onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_REACH_MEASUREMENT)
       }
     initServer()
     val clock = Clock.fixed(Instant.parse(TIME_STRING_1), ZoneId.of("UTC"))
