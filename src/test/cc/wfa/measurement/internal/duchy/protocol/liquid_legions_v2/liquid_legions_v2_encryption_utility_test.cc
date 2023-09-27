@@ -299,7 +299,7 @@ class TestData {
     // Setup phase at Duchy 1.
     // We assume all test data comes from duchy 1 in the test.
     CompleteSetupPhaseRequest complete_setup_phase_request_1;
-    complete_setup_phase_request_1.set_combined_register_vector(
+    complete_setup_phase_request_1.set_requisition_register_vector(
         encrypted_sketch);
 
     if (reach_noise_parameters != nullptr) {
@@ -347,6 +347,7 @@ class TestData {
     complete_setup_phase_request_3.set_noise_mechanism(noise_mechanism);
     complete_setup_phase_request_3.set_parallelism(kParallelism);
     complete_setup_phase_request_3.set_combined_register_vector(combine_data);
+    complete_setup_phase_request_3.set_maximum_frequency(max_frequency);
 
     ASSIGN_OR_RETURN(CompleteSetupPhaseResponse complete_setup_phase_response_3,
                      CompleteSetupPhase(complete_setup_phase_request_3));
@@ -775,7 +776,7 @@ TEST(CompleteSetupPhase, GaussianNoiseSumAndMeanShouldBeCorrect) {
 
 TEST(CompleteSetupPhase, WrongInputSketchSizeShouldThrow) {
   CompleteSetupPhaseRequest request;
-  request.set_combined_register_vector("1234");
+  request.set_requisition_register_vector("1234");
   request.set_parallelism(kParallelism);
 
   auto result = CompleteSetupPhase(request);
@@ -796,7 +797,7 @@ TEST(CompleteSetupPhase, FrequencyOneWorksAsExpectedWithoutNoise) {
   }
   std::string registers = register1 + register2;
 
-  request.set_combined_register_vector(registers);
+  request.set_requisition_register_vector(registers);
   request.set_maximum_frequency(1);
 
   auto result = CompleteSetupPhase(request);
@@ -840,7 +841,7 @@ TEST(CompleteSetupPhase, FrequencyOneWorksAsExpectedWithGeometricNoise) {
   }
   std::string registers = register1 + register2;
 
-  request.set_combined_register_vector(registers);
+  request.set_requisition_register_vector(registers);
   request.set_maximum_frequency(1);
 
   auto result = CompleteSetupPhase(request);
@@ -879,7 +880,7 @@ TEST(CompleteSetupPhase, FrequencyOneWorksAsExpectedWithGaussianNoise) {
   }
   std::string registers = register1 + register2;
 
-  request.set_combined_register_vector(registers);
+  request.set_requisition_register_vector(registers);
   request.set_maximum_frequency(1);
 
   auto result = CompleteSetupPhase(request);

@@ -654,7 +654,7 @@ absl::Status AddAllFrequencyNoise(
 // the destroyed register flag and all counts with random values.
 absl::StatusOr<std::string> DestroyKeysAndCounts(
     const CompleteSetupPhaseRequest& request) {
-  std::string source = request.combined_register_vector();
+  std::string source = request.requisition_register_vector();
   std::string dest;
 
   if (source.empty()) {
@@ -764,15 +764,15 @@ absl::StatusOr<CompleteInitializationPhaseResponse> CompleteInitializationPhase(
 absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
     const CompleteSetupPhaseRequest& request) {
   StartedThreadCpuTimer timer;
-
   CompleteSetupPhaseResponse response;
   std::string* response_crv = response.mutable_combined_register_vector();
 
   if (request.maximum_frequency() == 1) {
-    *response_crv = *DestroyKeysAndCounts(request);
+    response_crv->append(*DestroyKeysAndCounts(request));
   } else {
-    *response_crv = request.combined_register_vector();
+    response_crv->append(request.requisition_register_vector());
   }
+  response_crv->append(request.combined_register_vector());
 
   if (request.has_noise_parameters()) {
     const RegisterNoiseGenerationParameters& noise_parameters =
@@ -800,7 +800,8 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
 
     // Resize the space to hold all output data.
     size_t pos = response_crv->size();
-    response_crv->resize(request.combined_register_vector().size() +
+    response_crv->resize(request.requisition_register_vector().size() +
+                         request.combined_register_vector().size() +
                          total_noise_registers_count * kBytesPerCipherRegister);
 
     RETURN_IF_ERROR(ValidateSetupNoiseParameters(noise_parameters));
