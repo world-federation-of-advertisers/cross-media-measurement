@@ -117,8 +117,6 @@ message CompleteSetupPhaseRequest {
   RegisterNoiseGenerationParameters noise_parameters = 3;
   // The maximum frequency that should be computed.
   // If set to 1, then no frequency histogram is returned.
-  // This needs to be set for the non-aggregator.
-  // Do NOT set it for the aggregator.
   int32 maximum_frequency = 4;
   // The mechanism used to generate noise.
   LiquidLegionsV2NoiseConfig.NoiseMechanism noise_mechanism = 5;

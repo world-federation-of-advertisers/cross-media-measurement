@@ -767,6 +767,9 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
   CompleteSetupPhaseResponse response;
   std::string* response_crv = response.mutable_combined_register_vector();
 
+  // When maximum frequency is 1, the keys from the requisition register vector
+  // (received from the EDPs) will be replaced with the destroy register flag,
+  // and the counts will be replaced with a random value.
   if (request.maximum_frequency() == 1) {
     response_crv->append(*DestroyKeysAndCounts(request));
   } else {
