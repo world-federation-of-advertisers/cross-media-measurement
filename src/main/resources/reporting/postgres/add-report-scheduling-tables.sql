@@ -58,6 +58,7 @@ CREATE TABLE ReportSchedules {
   ReportScheduleDetailsJson text NOT NULL,
 
   Primary Key(MeasurementConsumerId, ReportScheduleId),
+  UNIQUE(MeasurementConsumerId, CreateReportScheduleRequestId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId)
     ON DELETE CASCADE
