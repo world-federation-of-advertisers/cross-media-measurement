@@ -31,6 +31,8 @@ import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.db.computation.toDatabaseEditToken
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
+import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
+import org.wfanet.measurement.duchy.service.internal.ComputationTokenVersionMismatchException
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
@@ -181,17 +183,23 @@ class ComputationsService(
   override suspend fun finishComputation(
     request: FinishComputationRequest
   ): FinishComputationResponse {
-    computationsDatabase.endComputation(
-      request.token.toDatabaseEditToken(),
-      request.endingComputationStage,
-      when (val it = request.reason) {
-        ComputationDetails.CompletedReason.SUCCEEDED -> EndComputationReason.SUCCEEDED
-        ComputationDetails.CompletedReason.FAILED -> EndComputationReason.FAILED
-        ComputationDetails.CompletedReason.CANCELED -> EndComputationReason.CANCELED
-        else -> error("Unknown CompletedReason $it")
-      },
-      request.token.computationDetails
-    )
+    try {
+      computationsDatabase.endComputation(
+        request.token.toDatabaseEditToken(),
+        request.endingComputationStage,
+        when (val it = request.reason) {
+          ComputationDetails.CompletedReason.SUCCEEDED -> EndComputationReason.SUCCEEDED
+          ComputationDetails.CompletedReason.FAILED -> EndComputationReason.FAILED
+          ComputationDetails.CompletedReason.CANCELED -> EndComputationReason.CANCELED
+          else -> error("Unknown CompletedReason $it")
+        },
+        request.token.computationDetails
+      )
+    } catch (e: ComputationNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: ComputationTokenVersionMismatchException) {
+      throw e.asStatusRuntimeException(Status.Code.ABORTED)
+    }
 
     sendStatusUpdateToKingdom(
       newCreateComputationLogEntryRequest(
@@ -216,8 +224,7 @@ class ComputationsService(
         KeyCase.REQUISITION_KEY -> computationsDatabase.readComputationToken(request.requisitionKey)
         KeyCase.KEY_NOT_SET ->
           throw Status.INVALID_ARGUMENT.withDescription("key not set").asRuntimeException()
-      }
-        ?: throw Status.NOT_FOUND.asRuntimeException()
+      } ?: throw Status.NOT_FOUND.asRuntimeException()
 
     return computationToken.toGetComputationTokenResponse()
   }
@@ -228,11 +235,17 @@ class ComputationsService(
     require(request.token.computationDetails.protocolCase == request.details.protocolCase) {
       "The protocol type cannot change."
     }
-    computationsDatabase.updateComputationDetails(
-      request.token.toDatabaseEditToken(),
-      request.details,
-      request.requisitionsList
-    )
+    try {
+      computationsDatabase.updateComputationDetails(
+        request.token.toDatabaseEditToken(),
+        request.details,
+        request.requisitionsList
+      )
+    } catch (e: ComputationNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: ComputationTokenVersionMismatchException) {
+      throw e.asStatusRuntimeException(Status.Code.ABORTED)
+    }
     return computationsDatabase
       .readComputationToken(request.token.globalComputationId)!!
       .toUpdateComputationDetailsResponse()
@@ -241,10 +254,16 @@ class ComputationsService(
   override suspend fun recordOutputBlobPath(
     request: RecordOutputBlobPathRequest
   ): RecordOutputBlobPathResponse {
-    computationsDatabase.writeOutputBlobReference(
-      request.token.toDatabaseEditToken(),
-      BlobRef(request.outputBlobId, request.blobPath)
-    )
+    try {
+      computationsDatabase.writeOutputBlobReference(
+        request.token.toDatabaseEditToken(),
+        BlobRef(request.outputBlobId, request.blobPath)
+      )
+    } catch (e: ComputationNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: ComputationTokenVersionMismatchException) {
+      throw e.asStatusRuntimeException(Status.Code.ABORTED)
+    }
     return computationsDatabase
       .readComputationToken(request.token.globalComputationId)!!
       .toRecordOutputBlobPathResponse()
@@ -255,24 +274,30 @@ class ComputationsService(
   ): AdvanceComputationStageResponse {
     val lockExtension: Duration =
       if (request.hasLockExtension()) request.lockExtension.toDuration() else defaultLockDuration
-    computationsDatabase.updateComputationStage(
-      request.token.toDatabaseEditToken(),
-      request.nextComputationStage,
-      request.inputBlobsList,
-      request.passThroughBlobsList,
-      request.outputBlobs,
-      when (val it = request.afterTransition) {
-        AdvanceComputationStageRequest.AfterTransition.ADD_UNCLAIMED_TO_QUEUE ->
-          AfterTransition.ADD_UNCLAIMED_TO_QUEUE
-        AdvanceComputationStageRequest.AfterTransition.DO_NOT_ADD_TO_QUEUE ->
-          AfterTransition.DO_NOT_ADD_TO_QUEUE
-        AdvanceComputationStageRequest.AfterTransition.RETAIN_AND_EXTEND_LOCK ->
-          AfterTransition.CONTINUE_WORKING
-        else -> error("Unsupported AdvanceComputationStageRequest.AfterTransition '$it'. ")
-      },
-      request.stageDetails,
-      lockExtension
-    )
+    try {
+      computationsDatabase.updateComputationStage(
+        request.token.toDatabaseEditToken(),
+        request.nextComputationStage,
+        request.inputBlobsList,
+        request.passThroughBlobsList,
+        request.outputBlobs,
+        when (val it = request.afterTransition) {
+          AdvanceComputationStageRequest.AfterTransition.ADD_UNCLAIMED_TO_QUEUE ->
+            AfterTransition.ADD_UNCLAIMED_TO_QUEUE
+          AdvanceComputationStageRequest.AfterTransition.DO_NOT_ADD_TO_QUEUE ->
+            AfterTransition.DO_NOT_ADD_TO_QUEUE
+          AdvanceComputationStageRequest.AfterTransition.RETAIN_AND_EXTEND_LOCK ->
+            AfterTransition.CONTINUE_WORKING
+          else -> error("Unsupported AdvanceComputationStageRequest.AfterTransition '$it'. ")
+        },
+        request.stageDetails,
+        lockExtension
+      )
+    } catch (e: ComputationNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: ComputationTokenVersionMismatchException) {
+      throw e.asStatusRuntimeException(Status.Code.ABORTED)
+    }
 
     sendStatusUpdateToKingdom(
       newCreateComputationLogEntryRequest(
@@ -298,7 +323,13 @@ class ComputationsService(
     grpcRequire(request.delaySecond >= 0) {
       "DelaySecond ${request.delaySecond} should be non-negative."
     }
-    computationsDatabase.enqueue(request.token.toDatabaseEditToken(), request.delaySecond)
+    try {
+      computationsDatabase.enqueue(request.token.toDatabaseEditToken(), request.delaySecond)
+    } catch (e: ComputationNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: ComputationTokenVersionMismatchException) {
+      throw e.asStatusRuntimeException(Status.Code.ABORTED)
+    }
     return EnqueueComputationResponse.getDefaultInstance()
   }
 

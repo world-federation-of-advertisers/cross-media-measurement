@@ -75,8 +75,7 @@ class SpannerExchangeStepsService(
           appendClause("LIMIT 1")
         }
         .execute(client.singleUse())
-        .singleOrNull()
-        ?: failGrpc(Status.NOT_FOUND) { "ExchangeStep not found" }
+        .singleOrNull() ?: failGrpc(Status.NOT_FOUND) { "ExchangeStep not found" }
 
     return exchangeStepResult.exchangeStep
   }

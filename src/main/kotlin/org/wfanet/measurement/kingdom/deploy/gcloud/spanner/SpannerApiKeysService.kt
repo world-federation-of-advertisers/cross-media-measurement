@@ -71,8 +71,7 @@ class SpannerApiKeysService(
       val apiKey =
         MeasurementConsumerApiKeyReader()
           .readByAuthenticationKeyHash(txn, request.authenticationKeyHash)
-          ?.apiKey
-          ?: failGrpc(Status.NOT_FOUND) { "ApiKey not found for hash" }
+          ?.apiKey ?: failGrpc(Status.NOT_FOUND) { "ApiKey not found for hash" }
 
       return MeasurementConsumerReader()
         .readByExternalMeasurementConsumerId(txn, ExternalId(apiKey.externalMeasurementConsumerId))

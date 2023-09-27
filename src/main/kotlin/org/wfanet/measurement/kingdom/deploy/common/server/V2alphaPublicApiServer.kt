@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.common.server
 
 import io.grpc.ServerServiceDefinition
 import java.io.File
+import kotlin.properties.Delegates
 import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
@@ -144,7 +145,8 @@ private fun run(
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
       MeasurementsService(
           InternalMeasurementsCoroutineStub(channel),
-          v2alphaFlags.directNoiseMechanisms
+          v2alphaFlags.directNoiseMechanisms,
+          v2alphaFlags.reachOnlyLlV2Enabled
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
@@ -216,6 +218,16 @@ private class V2alphaFlags {
 
   @CommandLine.Spec
   lateinit var spec: CommandLine.Model.CommandSpec // injected by picocli
+    private set
+
+  @set:CommandLine.Option(
+    names = ["--enable-ro-llv2-protocol"],
+    description = ["Whether to enable the Reach-Only Liquid Legions v2 protocol"],
+    negatable = true,
+    required = false,
+    defaultValue = "false",
+  )
+  var reachOnlyLlV2Enabled by Delegates.notNull<Boolean>()
     private set
 
   @CommandLine.Option(

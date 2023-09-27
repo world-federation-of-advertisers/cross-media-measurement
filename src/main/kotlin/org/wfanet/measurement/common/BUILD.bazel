@@ -1,0 +1,14 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//visibility:public"])
+
+kt_jvm_library(
+    name = "exponential_backoff",
+    srcs = ["ExponentialBackoff.kt"],
+)
+
+kt_jvm_library(
+    name = "flows",
+    srcs = ["Flows.kt"],
+    deps = ["@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core"],
+)

@@ -54,10 +54,14 @@ import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationS
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.CreateComputationStatRequest
-import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
-import org.wfanet.measurement.internal.duchy.FinishComputationRequest
-import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
+import org.wfanet.measurement.internal.duchy.FinishComputationResponse
+import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
+import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
+import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsResponse
 import org.wfanet.measurement.internal.duchy.claimWorkRequest
+import org.wfanet.measurement.internal.duchy.enqueueComputationRequest
+import org.wfanet.measurement.internal.duchy.finishComputationRequest
+import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationKey
@@ -139,12 +143,12 @@ abstract class MillBase(
     val claimWorkResponse =
       try {
         dataClients.computationsClient.claimWork(claimWorkRequest)
-      } catch (ex: StatusException) {
-        if (!computationsServerReady && ex.status.code == Status.Code.UNAVAILABLE) {
+      } catch (e: StatusException) {
+        if (!computationsServerReady && e.status.code == Status.Code.UNAVAILABLE) {
           logger.info("ComputationServer not ready")
           return
         }
-        throw Exception("Error claiming work", ex)
+        throw Exception("Error claiming work", e)
       }
     computationsServerReady = true
 
@@ -189,10 +193,14 @@ abstract class MillBase(
     try {
       processComputationImpl(token)
     } catch (e: Exception) {
-      // The token version may have already changed. We need the latest token in order to complete
-      // or enqueue the computation.
-      val latestToken = getLatestComputationToken(globalId)
-      handleExceptions(latestToken, e)
+      try {
+        // The token version may have already changed. We need the latest token in order to complete
+        // or enqueue the computation.
+        val latestToken = getLatestComputationToken(globalId)
+        handleExceptions(latestToken, e)
+      } catch (e: Exception) {
+        handleExceptions(token, e)
+      }
     }
     logger.info("$globalId@$millId: Processed computation ")
   }
@@ -200,23 +208,26 @@ abstract class MillBase(
   private suspend fun handleExceptions(token: ComputationToken, e: Exception) {
     val globalId = token.globalComputationId
     when (e) {
-      is IllegalStateException,
-      is IllegalArgumentException,
-      is PermanentComputationError -> {
-        failComputation(token, "PERMANENT error: ${e.localizedMessage}")
-      }
-      else -> {
+      is ComputationDataClients.TransientErrorException -> {
         if (token.attempt > maximumAttempts) {
-          failComputation(token, "Failing computation due to too many failed attempts.")
+          failComputation(
+            token,
+            message = "Failing computation due to too many failed attempts.",
+            cause = e
+          )
         } else {
-          // Treat all other errors as transient.
-          logger.log(Level.WARNING, "$globalId@$millId: TRANSIENT error", e)
+          logger.log(Level.WARNING, e) { "$globalId@$millId: TRANSIENT error" }
           sendStatusUpdateToKingdom(
             newErrorUpdateRequest(token, e.localizedMessage, Type.TRANSIENT)
           )
           // Enqueue the computation again for future retry
           enqueueComputation(token)
         }
+      }
+      is StatusException -> throw IllegalStateException("Programming bug: uncaught gRPC error", e)
+      else -> {
+        // Treat any other exception type as a permanent computation error.
+        failComputation(token, cause = e)
       }
     }
   }
@@ -246,8 +257,24 @@ abstract class MillBase(
     systemComputationParticipantsClient.failComputationParticipant(request)
   }
 
-  private suspend fun failComputation(token: ComputationToken, errorMessage: String) {
-    logger.log(Level.SEVERE, "${token.globalComputationId}@$millId: $errorMessage")
+  private suspend fun failComputation(token: ComputationToken, cause: Exception) {
+    logger.log(Level.SEVERE, cause) { "${token.globalComputationId}@$millId: ${cause.message}" }
+    failComputationAtKingdom(token, cause.message.orEmpty())
+    completeComputation(token, CompletedReason.FAILED)
+  }
+
+  private suspend fun failComputation(
+    token: ComputationToken,
+    message: String? = null,
+    cause: Throwable? = null
+  ) {
+    val errorMessage: String = message ?: cause?.message.orEmpty()
+    val logMessageSupplier = { "${token.globalComputationId}@$millId: $errorMessage" }
+    if (cause == null) {
+      logger.log(Level.SEVERE, logMessageSupplier)
+    } else {
+      logger.log(Level.SEVERE, cause, logMessageSupplier)
+    }
     failComputationAtKingdom(token, errorMessage)
     completeComputation(token, CompletedReason.FAILED)
   }
@@ -381,7 +408,16 @@ abstract class MillBase(
           AdvanceComputationRequest.newBuilder().apply { bodyChunkBuilder.partialData = it }.build()
         }
         .onStart { emit(AdvanceComputationRequest.newBuilder().setHeader(header).build()) }
-    stub.advanceComputation(requestFlow)
+    try {
+      stub.advanceComputation(requestFlow)
+    } catch (e: StatusException) {
+      val message = "Error advancing computation at other Duchy"
+      throw when (e.status.code) {
+        Status.Code.UNAVAILABLE,
+        Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
+        else -> ComputationDataClients.PermanentErrorException(message, e)
+      }
+    }
   }
 
   /**
@@ -398,23 +434,16 @@ abstract class MillBase(
         token
       )
     }
-    val newResult: ByteString =
-      try {
-        val wallDurationLogger = wallDurationLogger()
-        val result = block()
-        wallDurationLogger.logStageDurationMetric(
-          token,
-          JNI_WALL_CLOCK_DURATION,
-          jniWallClockDurationHistogram
-        )
-        result
-      } catch (error: Throwable) {
-        // All errors from block() are permanent and would cause the computation to FAIL
-        throw PermanentComputationError(error)
-      }
+    val wallDurationLogger = wallDurationLogger()
+    val result = block()
+    wallDurationLogger.logStageDurationMetric(
+      token,
+      JNI_WALL_CLOCK_DURATION,
+      jniWallClockDurationHistogram
+    )
     return EncryptedComputationResult(
-      flowOf(newResult),
-      dataClients.writeSingleOutputBlob(token, newResult)
+      flowOf(result),
+      dataClients.writeSingleOutputBlob(token, result)
     )
   }
 
@@ -425,8 +454,8 @@ abstract class MillBase(
   ): ByteString {
     val blobMap: Map<BlobRef, ByteString> = dataClients.readInputBlobs(token)
     if (blobMap.size != count) {
-      throw PermanentComputationError(
-        Exception("Unexpected number of input blobs. expected $count, actual ${blobMap.size}.")
+      throw ComputationDataClients.PermanentErrorException(
+        "Unexpected number of input blobs. expected $count, actual ${blobMap.size}."
       )
     }
     return blobMap.values.flatten()
@@ -437,26 +466,43 @@ abstract class MillBase(
     token: ComputationToken,
     reason: CompletedReason
   ): ComputationToken {
-    val response =
-      dataClients.computationsClient.finishComputation(
-        FinishComputationRequest.newBuilder()
-          .also {
-            it.token = token
-            it.endingComputationStage = endingStage
-            it.reason = reason
+    val response: FinishComputationResponse =
+      try {
+        dataClients.computationsClient.finishComputation(
+          finishComputationRequest {
+            this.token = token
+            endingComputationStage = endingStage
+            this.reason = reason
           }
-          .build()
-      )
+        )
+      } catch (e: StatusException) {
+        val message = "Error finishing computation"
+        throw when (e.status.code) {
+          Status.Code.UNAVAILABLE,
+          Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
+          else -> ComputationDataClients.PermanentErrorException(message, e)
+        }
+      }
     return response.token
   }
 
   /** Gets the latest [ComputationToken] for computation with [globalId]. */
   private suspend fun getLatestComputationToken(globalId: String): ComputationToken {
-    return dataClients.computationsClient
-      .getComputationToken(
-        GetComputationTokenRequest.newBuilder().apply { globalComputationId = globalId }.build()
-      )
-      .token
+    val response: GetComputationTokenResponse =
+      try {
+        dataClients.computationsClient.getComputationToken(
+          getComputationTokenRequest { globalComputationId = globalId }
+        )
+      } catch (e: StatusException) {
+        val message = "Error retrieving computation token"
+        throw when (e.status.code) {
+          Status.Code.UNAVAILABLE,
+          Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
+          else -> ComputationDataClients.PermanentErrorException(message, e)
+        }
+      }
+
+    return response.token
   }
 
   /** Enqueue a computation with a delay. */
@@ -465,9 +511,22 @@ abstract class MillBase(
     val baseDelay = minOf(600.0, (2.0.pow(token.attempt))).toInt()
     // A random delay in the range of [baseDelay, 2*baseDelay]
     val delaySecond = baseDelay + Random.nextInt(baseDelay + 1)
-    dataClients.computationsClient.enqueueComputation(
-      EnqueueComputationRequest.newBuilder().setToken(token).setDelaySecond(delaySecond).build()
-    )
+
+    try {
+      dataClients.computationsClient.enqueueComputation(
+        enqueueComputationRequest {
+          this.token = token
+          this.delaySecond = delaySecond
+        }
+      )
+    } catch (e: StatusException) {
+      val message = "Error enqueuing computation"
+      throw when (e.status.code) {
+        Status.Code.UNAVAILABLE,
+        Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
+        else -> ComputationDataClients.PermanentErrorException(message, e)
+      }
+    }
   }
 
   private fun getCpuTimeMillis(): Long {
@@ -475,8 +534,27 @@ abstract class MillBase(
     return cpuTime.toMillis()
   }
 
+  protected suspend fun updateComputationDetails(
+    request: UpdateComputationDetailsRequest
+  ): ComputationToken {
+    val response: UpdateComputationDetailsResponse =
+      try {
+        dataClients.computationsClient.updateComputationDetails(request)
+      } catch (e: StatusException) {
+        val message = "Error updating computation details"
+        throw when (e.status.code) {
+          Status.Code.UNAVAILABLE,
+          Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
+          else -> ComputationDataClients.PermanentErrorException(message, e)
+        }
+      }
+
+    return response.token
+  }
+
   private inner class CpuDurationLogger(private val getTimeMillis: () -> Long) {
     private val start = getTimeMillis()
+
     suspend fun logStageDurationMetric(
       token: ComputationToken,
       metricName: String,
@@ -486,11 +564,13 @@ abstract class MillBase(
       logStageDurationMetric(token, metricName, time, histogram)
     }
   }
+
   private fun cpuDurationLogger(): CpuDurationLogger = CpuDurationLogger(this::getCpuTimeMillis)
 
   @OptIn(ExperimentalTime::class)
   private inner class WallDurationLogger() {
     private val timeMark = TimeSource.Monotonic.markNow()
+
     suspend fun logStageDurationMetric(
       token: ComputationToken,
       metricName: String,
@@ -500,6 +580,7 @@ abstract class MillBase(
       logStageDurationMetric(token, metricName, time, histogram)
     }
   }
+
   private fun wallDurationLogger(): WallDurationLogger = WallDurationLogger()
 
   companion object {
@@ -525,8 +606,6 @@ data class Certificate(
   // The value of the certificate.
   val value: X509Certificate
 )
-
-class PermanentComputationError(cause: Throwable) : Exception(cause)
 
 /** Converts a milliseconds to a human friendly string. */
 fun Long.toHumanFriendlyDuration(): String {
