@@ -657,8 +657,8 @@ CompleteReachOnlyExecutionPhaseAtAggregator(
   // Estimate the reach
   ASSIGN_OR_RETURN(
       int64_t reach,
-      EstimateReach(request.liquid_legions_parameters().decay_rate(),
-                    request.liquid_legions_parameters().size(),
+      EstimateReach(request.sketch_parameters().decay_rate(),
+                    request.sketch_parameters().size(),
                     non_empty_register_count,
                     request.vid_sampling_interval_width()));
 

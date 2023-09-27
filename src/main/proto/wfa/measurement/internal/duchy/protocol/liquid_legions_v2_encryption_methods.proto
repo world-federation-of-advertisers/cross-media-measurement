@@ -113,6 +113,8 @@ message CompleteSetupPhaseRequest {
   RegisterNoiseGenerationParameters noise_parameters = 2;
   // The maximum frequency that should be computed.
   // If set to 1, then no frequency histogram is returned.
+  // This needs to be set for the non-aggregator.
+  // Do NOT set it for the aggregator.
   int32 maximum_frequency = 3;
   // The mechanism used to generate noise.
   LiquidLegionsV2NoiseConfig.NoiseMechanism noise_mechanism = 4;
@@ -251,7 +253,7 @@ message CompleteExecutionPhaseTwoAtAggregatorRequest {
   // (maximum_frequency-1) will be the row dimension of the 2-D SKA matrix.
   int32 maximum_frequency = 5;
   // LiquidLegions parameters used for reach estimation.
-  LiquidLegionsSketchParameters liquid_legions_parameters = 6;
+  LiquidLegionsSketchParameters sketch_parameters = 6;
   // Parameters for computing the noise baseline of the global reach DP noise
   // registers added in the setup phase.
   // The baseline is subtracted before reach is estimated.

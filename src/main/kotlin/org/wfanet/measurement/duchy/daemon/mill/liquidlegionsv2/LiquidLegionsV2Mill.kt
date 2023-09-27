@@ -495,7 +495,7 @@ class LiquidLegionsV2Mill(
           dataClients
             .readAllRequisitionBlobs(token, duchyId)
             .concat(readAndCombineAllInputBlobs(token, inputBlobCount))
-            .toCompleteSetupPhaseRequest(
+            .toCompleteSetupPhaseRequestAtAggregator(
               llv2Details,
               token.requisitionsCount,
               token.participantCount
@@ -688,7 +688,7 @@ class LiquidLegionsV2Mill(
           curveId = llv2Parameters.ellipticCurveId.toLong()
           flagCountTuples = readAndCombineAllInputBlobs(token, 1)
           maximumFrequency = maximumRequestedFrequency
-          liquidLegionsParameters = liquidLegionsSketchParameters {
+          sketchParameters = liquidLegionsSketchParameters {
             decayRate = llv2Parameters.sketchParameters.decayRate
             size = llv2Parameters.sketchParameters.size
           }
@@ -963,6 +963,32 @@ class LiquidLegionsV2Mill(
     return completeSetupPhaseRequest {
       combinedRegisterVector = this@toCompleteSetupPhaseRequest
       maximumFrequency = llv2Details.parameters.maximumFrequency.coerceAtLeast(1)
+      if (noiseConfig.hasReachNoiseConfig()) {
+        noiseParameters = registerNoiseGenerationParameters {
+          compositeElGamalPublicKey = llv2Details.combinedPublicKey
+          curveId = llv2Details.parameters.ellipticCurveId.toLong()
+          contributorsCount = participantCount
+          totalSketchesCount = totalRequisitionsCount
+          dpParams = reachNoiseDifferentialPrivacyParams {
+            blindHistogram = noiseConfig.reachNoiseConfig.blindHistogramNoise
+            noiseForPublisherNoise = noiseConfig.reachNoiseConfig.noiseForPublisherNoise
+            globalReachDpNoise = noiseConfig.reachNoiseConfig.globalReachDpNoise
+          }
+        }
+        noiseMechanism = llv2Details.parameters.noise.noiseMechanism
+        parallelism = this@LiquidLegionsV2Mill.parallelism
+      }
+    }
+  }
+
+  private fun ByteString.toCompleteSetupPhaseRequestAtAggregator(
+    llv2Details: LiquidLegionsSketchAggregationV2.ComputationDetails,
+    totalRequisitionsCount: Int,
+    participantCount: Int,
+  ): CompleteSetupPhaseRequest {
+    val noiseConfig = llv2Details.parameters.noise
+    return completeSetupPhaseRequest {
+      combinedRegisterVector = this@toCompleteSetupPhaseRequestAtAggregator
       if (noiseConfig.hasReachNoiseConfig()) {
         noiseParameters = registerNoiseGenerationParameters {
           compositeElGamalPublicKey = llv2Details.combinedPublicKey

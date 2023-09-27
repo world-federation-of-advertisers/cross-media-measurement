@@ -578,7 +578,7 @@ class ReachOnlyLiquidLegionsV2Mill(
               globalReachDpNoise = rollv2Parameters.noise.reachNoiseConfig.globalReachDpNoise
             }
           }
-          liquidLegionsParameters = liquidLegionsSketchParameters {
+          sketchParameters = liquidLegionsSketchParameters {
             decayRate = rollv2Parameters.sketchParameters.decayRate
             size = rollv2Parameters.sketchParameters.size
           }

@@ -1296,7 +1296,6 @@ class LiquidLegionsV2MillTest {
               globalReachDpNoise = TEST_NOISE_CONFIG.reachNoiseConfig.globalReachDpNoise
             }
           }
-          maximumFrequency = MAX_FREQUENCY
           parallelism = PARALLELISM
         }
       )
@@ -1401,7 +1400,6 @@ class LiquidLegionsV2MillTest {
               globalReachDpNoise = TEST_NOISE_CONFIG.reachNoiseConfig.globalReachDpNoise
             }
           }
-          maximumFrequency = MAX_FREQUENCY
           parallelism = PARALLELISM
         }
       )
@@ -2059,7 +2057,7 @@ class LiquidLegionsV2MillTest {
             curveId = CURVE_ID
             maximumFrequency = MAX_FREQUENCY
             vidSamplingIntervalWidth = 0.5f
-            liquidLegionsParametersBuilder.apply {
+            sketchParametersBuilder.apply {
               decayRate = DECAY_RATE
               size = SKETCH_SIZE
             }
@@ -2176,7 +2174,7 @@ class LiquidLegionsV2MillTest {
           curveId = CURVE_ID
           maximumFrequency = 1
           vidSamplingIntervalWidth = 0.0f
-          liquidLegionsParameters = liquidLegionsSketchParameters {
+          sketchParameters = liquidLegionsSketchParameters {
             decayRate = DECAY_RATE
             size = SKETCH_SIZE
           }
@@ -2294,7 +2292,7 @@ class LiquidLegionsV2MillTest {
             curveId = CURVE_ID
             maximumFrequency = 1
             vidSamplingIntervalWidth = 0.0f
-            liquidLegionsParametersBuilder.apply {
+            sketchParametersBuilder.apply {
               decayRate = DECAY_RATE
               size = SKETCH_SIZE
             }
