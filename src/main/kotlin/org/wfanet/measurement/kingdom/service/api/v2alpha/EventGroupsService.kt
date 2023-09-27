@@ -67,6 +67,7 @@ import org.wfanet.measurement.internal.kingdom.createEventGroupRequest as intern
 import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
 import org.wfanet.measurement.internal.kingdom.eventGroupKey
+import org.wfanet.measurement.internal.kingdom.eventTemplate as internalEventTemplate
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest as internalGetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest
@@ -514,7 +515,7 @@ private fun EventGroup.toInternal(
       vidModelLines += this@toInternal.vidModelLinesList
       eventTemplates.addAll(
         this@toInternal.eventTemplatesList.map { event ->
-          org.wfanet.measurement.internal.kingdom.eventTemplate { fullyQualifiedType = event.type }
+          internalEventTemplate { fullyQualifiedType = event.type }
         }
       )
       encryptedMetadata = this@toInternal.encryptedMetadata

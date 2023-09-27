@@ -1,6 +1,6 @@
 -- liquibase formatted sql
 
--- Copyright 2022 The Cross-Media Measurement Authors
+-- Copyright 2023 The Cross-Media Measurement Authors
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -41,8 +41,10 @@ CREATE TABLE Populations (
 ) PRIMARY KEY (DataProviderId, PopulationId)
   INTERLEAVE IN PARENT DataProviders ON DELETE CASCADE;
 
-ALTER TABLE ModelReleases
-    ADD COLUMN PopulationId INT64 NOT NULL;
-    FOREIGN KEY (Population) REFERENCES Populations(PopulationId);
+ALTER TABLE ModelReleases ADD COLUMN PopulationId INT64 NOT NULL; -- population used in model release
+
+ALTER TABLE ModelReleases ADD COLUMN PopulationDataProviderId INT64 NOT NULL; -- population data provider that created population
+
+ALTER TABLE ModelReleases FOREIGN KEY (PopulationDataProviderId, PopulationId) REFERENCES Populations(DataProviderId, PopulationId);
 
 RUN BATCH;
