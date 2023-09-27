@@ -1,0 +1,12 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "DynamicClipperTest",
+    srcs = ["DynamicClipperTest.kt"],
+    test_class = "org.wfanet.measurement.eventdataprovider.directmeasurement.DynamicClipperTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/directmeasurement:dynamic_clipper",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
