@@ -41,9 +41,9 @@ CREATE TABLE Populations (
 ) PRIMARY KEY (DataProviderId, PopulationId)
   INTERLEAVE IN PARENT DataProviders ON DELETE CASCADE;
 
-ALTER TABLE ModelReleases ADD COLUMN PopulationId INT64 NOT NULL; -- population used in model release
+ALTER TABLE ModelReleases ADD COLUMN PopulationId INT64; -- population used in model release
 
-ALTER TABLE ModelReleases ADD COLUMN PopulationDataProviderId INT64 NOT NULL; -- population data provider that created population
+ALTER TABLE ModelReleases ADD COLUMN PopulationDataProviderId INT64; -- population data provider that created population
 
 ALTER TABLE ModelReleases FOREIGN KEY (PopulationDataProviderId, PopulationId) REFERENCES Populations(DataProviderId, PopulationId);
 
