@@ -143,7 +143,8 @@ using the `--api-key` option.
     `dataProviders/1/eventGroups/2` while `dataProviders/2` contains
     `dataProviders/2/eventGroups/1`. The order of options within a group does
     not matter.
-
+    
+    `Measurement` type of `ReachAndFrequency`:
     ```shell
     MeasurementSystem \
     --tls-cert-file=secretfiles/mc_tls.pem --tls-key-file=secretfiles/mc_tls.key \
@@ -163,6 +164,38 @@ using the `--api-key` option.
     --vid-sampling-width=0.016667 \
     --private-key-der-file=secretfiles/mc_cs_private.der \
     --measurement-ref-id=9999 \
+    --event-data-provider=dataProviders/1 \
+    --event-group=dataProviders/1/eventGroups/1 \
+    --event-filter="video_ad.age == 1" \
+    --event-start-time=2022-05-22T01:00:00.000Z \
+    --event-end-time=2022-05-24T05:00:00.000Z \
+    --event-group=dataProviders/1/eventGroups/2 \
+    --event-filter="video_ad.age == 2" \
+    --event-start-time=2022-05-22T01:22:32.250Z \
+    --event-end-time=2022-05-23T03:14:55.450Z \
+    --event-data-provider=dataProviders/2 \
+    --event-group=dataProviders/2/eventGroups/1 \
+    --event-start-time=2022-04-22T01:19:42.336Z \
+    --event-end-time=2022-05-22T01:56:12.257Z
+    ```
+    
+    `Measurement` type of `Reach`:
+    ```shell
+    MeasurementSystem \
+    --tls-cert-file=secretfiles/mc_tls.pem --tls-key-file=secretfiles/mc_tls.key \
+    --cert-collection-file=secretfiles/kingdom_root.pem \
+    --kingdom-public-api-target=public.kingdom.dev.halo-cmm.org:8443 \
+    measurements \
+    --api-key=nR5QPN7ptx \
+    create \
+    --measurement-consumer=measurementConsumers/777 \
+    --reach \
+    --reach-privacy-epsilon=0.0033 \
+    --reach-privacy-delta=0.00001 \
+    --vid-sampling-start=0.0 \
+    --vid-sampling-width=0.5 \
+    --private-key-der-file=secretfiles/mc_cs_private.der \
+    --measurement-ref-id=7777 \
     --event-data-provider=dataProviders/1 \
     --event-group=dataProviders/1/eventGroups/1 \
     --event-filter="video_ad.age == 1" \
