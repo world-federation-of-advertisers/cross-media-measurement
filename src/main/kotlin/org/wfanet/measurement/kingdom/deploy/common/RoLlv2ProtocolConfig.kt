@@ -26,8 +26,10 @@ object RoLlv2ProtocolConfig {
   const val name = "rollv2"
   lateinit var protocolConfig: ProtocolConfig.LiquidLegionsV2
     private set
+
   lateinit var duchyProtocolConfig: DuchyProtocolConfig.LiquidLegionsV2
     private set
+
   lateinit var requiredExternalDuchyIds: Set<String>
     private set
 

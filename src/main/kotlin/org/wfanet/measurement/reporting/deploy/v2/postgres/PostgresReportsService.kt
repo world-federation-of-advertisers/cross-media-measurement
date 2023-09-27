@@ -79,8 +79,7 @@ class PostgresReportsService(
     return try {
       ReportReader(readContext)
         .readReportByExternalId(request.cmmsMeasurementConsumerId, request.externalReportId)
-        ?.report
-        ?: throw Status.NOT_FOUND.withDescription("Report not found.").asRuntimeException()
+        ?.report ?: throw Status.NOT_FOUND.withDescription("Report not found.").asRuntimeException()
     } finally {
       readContext.close()
     }
