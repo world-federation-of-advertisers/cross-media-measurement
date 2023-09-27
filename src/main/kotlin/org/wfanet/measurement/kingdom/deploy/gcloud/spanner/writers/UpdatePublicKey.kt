@@ -87,8 +87,7 @@ class UpdatePublicKey(private val request: UpdatePublicKeyRequest) : SimpleSpann
           .readByExternalDataProviderId(
             transactionContext,
             ExternalId(request.externalDataProviderId)
-          )
-          ?: throw DataProviderNotFoundException(ExternalId(request.externalDataProviderId))
+          ) ?: throw DataProviderNotFoundException(ExternalId(request.externalDataProviderId))
 
       val certificateId: InternalId =
         CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)

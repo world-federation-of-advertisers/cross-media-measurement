@@ -53,7 +53,11 @@ import org.wfanet.measurement.internal.duchy.copy
 
 /** Implementation of [ComputationsDatabaseTransactor] using GCP Spanner Database. */
 class GcpSpannerComputationsDatabaseTransactor<
-  ProtocolT, StageT, StageDT : Message, ComputationDT : Message>(
+  ProtocolT,
+  StageT,
+  StageDT : Message,
+  ComputationDT : Message
+>(
   private val databaseClient: AsyncDatabaseClient,
   private val computationMutations: ComputationMutations<ProtocolT, StageT, StageDT, ComputationDT>,
   private val clock: Clock = Clock.systemUTC()
@@ -319,8 +323,7 @@ class GcpSpannerComputationsDatabaseTransactor<
       val detailsBytes =
         txn
           .readRow("Computations", Key.of(token.localId), listOf("ComputationDetails"))
-          ?.getBytesAsByteArray("ComputationDetails")
-          ?: error("Computation missing $token")
+          ?.getBytesAsByteArray("ComputationDetails") ?: error("Computation missing $token")
       val details = computationMutations.parseComputationDetails(detailsBytes)
       txn.buffer(
         computationMutations.updateComputation(
@@ -399,8 +402,7 @@ class GcpSpannerComputationsDatabaseTransactor<
             "RequisitionsByExternalId",
             Key.of(it.key.externalRequisitionId, it.key.requisitionFingerprint.toGcloudByteArray()),
             listOf("ComputationId", "RequisitionId")
-          )
-            ?: error("No Computation found row for this requisition: ${it.key}")
+          ) ?: error("No Computation found row for this requisition: ${it.key}")
         txn.buffer(
           computationMutations.updateRequisition(
             localComputationId = row.getLong("ComputationId"),
@@ -645,8 +647,7 @@ class GcpSpannerComputationsDatabaseTransactor<
             externalRequisitionKey.requisitionFingerprint.toGcloudByteArray()
           ),
           listOf("ComputationId", "RequisitionId")
-        )
-          ?: error("No Computation found row for this requisition: $externalRequisitionKey")
+        ) ?: error("No Computation found row for this requisition: $externalRequisitionKey")
       val localComputationId = row.getLong("ComputationId")
       val requisitionId = row.getLong("RequisitionId")
       require(localComputationId == token.localId) {

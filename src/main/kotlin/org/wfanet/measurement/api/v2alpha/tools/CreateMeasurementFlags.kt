@@ -289,6 +289,7 @@ class CreateMeasurementFlags {
       @ArgGroup(exclusive = true, multiplicity = "1", heading = "Event Measurement and params\n")
       var eventMeasurementTypeParams = EventMeasurementTypeParams()
     }
+
     class PopulationMeasurementParams {
       class PopulationInput {
         @Option(
@@ -330,6 +331,7 @@ class CreateMeasurementFlags {
       @ArgGroup(exclusive = false, heading = "Population Params\n")
       lateinit var populationInputs: PopulationInput
         private set
+
       @ArgGroup(exclusive = false, heading = "Set Population Data Provider\n")
       lateinit var populationDataProviderInput: PopulationDataProviderInput
 

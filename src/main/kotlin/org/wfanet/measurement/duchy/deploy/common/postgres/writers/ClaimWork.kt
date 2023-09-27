@@ -117,8 +117,7 @@ class ClaimWork<ProtocolT, StageT>(
             unclaimedTask.computationId,
             stageLongValue,
             currentAttempt
-          )
-          ?: throw IllegalStateException("Computation stage details is missing.")
+          ) ?: throw IllegalStateException("Computation stage details is missing.")
       // If the computation was locked, but that lock was expired we need to finish off the
       // current attempt of the stage.
       updateComputationStageAttempt(

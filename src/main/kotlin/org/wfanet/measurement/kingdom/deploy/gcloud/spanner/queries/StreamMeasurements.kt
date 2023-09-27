@@ -169,12 +169,14 @@ class StreamMeasurements(
       "externalMeasurementConsumerCertificateId"
     const val UPDATED_AFTER = "updatedAfter"
     const val STATES_PARAM = "states"
+
     object AfterParams {
       const val UPDATE_TIME = "after_updateTime"
       const val EXTERNAL_MEASUREMENT_CONSUMER_ID = "after_externalMeasurementConsumerId"
       const val EXTERNAL_MEASUREMENT_ID = "after_externalMeasurementId"
       const val EXTERNAL_COMPUTATION_ID = "after_externalComputationId"
     }
+
     const val UPDATED_BEFORE = "updatedBefore"
     const val CREATED_BEFORE = "createdBefore"
   }

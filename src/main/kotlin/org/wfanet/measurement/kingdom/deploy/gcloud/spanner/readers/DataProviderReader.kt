@@ -104,8 +104,7 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
           "DataProvidersByExternalId",
           Key.of(externalDataProviderId.value),
           column
-        )
-          ?: return null
+        ) ?: return null
 
       return row.getInternalId(column)
     }

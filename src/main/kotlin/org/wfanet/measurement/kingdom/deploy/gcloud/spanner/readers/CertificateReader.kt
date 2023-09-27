@@ -294,8 +294,7 @@ class CertificateReader(private val parentType: ParentType) :
           "DuchyCertificatesByExternalId",
           Key.of(duchyId.value, externalDuchyCertificateId.value),
           "CertificateId"
-        )
-          ?: return null
+        ) ?: return null
       return InternalId(struct.getLong("CertificateId"))
     }
   }

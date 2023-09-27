@@ -14,40 +14,6 @@
 
 package k8s
 
-#GCloudProject: string @tag("google_cloud_project")
-
-#GCloudConfig: {
-	project: #GCloudProject
-}
-
-#SpannerConfig: {
-	project:      #GCloudProject
-	instance:     string @tag("spanner_instance")
-	readyTimeout: "30s"
-}
-
-#CloudStorageConfig: Config={
-	#GCloudConfig
-
-	bucket: string
-	flags: [
-		"--google-cloud-storage-project=" + Config.project,
-		"--google-cloud-storage-bucket=" + bucket,
-	]
-}
-
-#BigQueryConfig: Config={
-	#GCloudConfig
-
-	dataset: string
-	table:   string
-	flags: [
-		"--big-query-project=" + Config.project,
-		"--big-query-dataset=" + dataset,
-		"--big-query-table=" + table,
-	]
-}
-
 #ContainerRegistryConfig: {
 	registry:   string @tag("container_registry")
 	repoPrefix: string @tag("image_repo_prefix")
@@ -55,10 +21,4 @@ package k8s
 
 #ImageConfig: {
 	tag: string @tag("image_tag")
-}
-
-#PostgresConfig: {
-	project:  #GCloudProject
-	instance: string @tag("postgres_instance")
-	region:   string @tag("postgres_region")
 }

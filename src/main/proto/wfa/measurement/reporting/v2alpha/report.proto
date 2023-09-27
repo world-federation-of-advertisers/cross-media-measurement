@@ -107,7 +107,7 @@ message Report {
   ];
 
   // Types of time intervals for metric aggregation.
-  // REQUIRED
+  // Required if not used for `report_template` in `ReportSchedule`.
   oneof time {
     // A list of time intervals with different start times and end times.
     TimeIntervals time_intervals = 3;
@@ -181,4 +181,7 @@ message Report {
   // Set only when `state` is `SUCCEEDED`.
   repeated MetricCalculationResult metric_calculation_results = 7
       [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Only set if there is a `ReportSchedule` that this `Report` was created for.
+  string report_schedule = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
