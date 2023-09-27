@@ -21,7 +21,9 @@ interface ProtocolStageEnumHelper<StageT> {
   fun validInitialStage(stage: StageT): Boolean {
     return stage in validInitialStages
   }
+
   val validTerminalStages: Set<StageT>
+
   fun validTerminalStage(stage: StageT): Boolean = stage in validTerminalStages
 
   val validSuccessors: Map<StageT, Set<StageT>>

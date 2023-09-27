@@ -66,6 +66,5 @@ class CreateApiKey(
     MeasurementConsumerReader.readMeasurementConsumerId(
       transactionContext,
       externalMeasurementConsumerId
-    )
-      ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
+    ) ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
 }

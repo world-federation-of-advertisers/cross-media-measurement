@@ -80,6 +80,7 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
 
     return internalDataProvider.toDataProvider()
   }
+
   override suspend fun replaceDataProviderRequiredDuchies(
     request: ReplaceDataProviderRequiredDuchiesRequest
   ): DataProvider {

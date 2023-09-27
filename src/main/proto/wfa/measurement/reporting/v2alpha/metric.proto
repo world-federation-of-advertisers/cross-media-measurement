@@ -100,8 +100,7 @@ message MetricSpec {
     // The reach frequency histogram given a set of event groups.
     //
     // Currently, we only support union operations for frequency histograms. Any
-    // other operations on frequency histograms won't guarantee the result is a
-    // frequency histogram.
+    // other types of operations won't guarantee the correctness of the result.
     FrequencyHistogramParams frequency_histogram = 2
         [(google.api.field_behavior) = IMMUTABLE];
     // The impression count given a set of event groups.
@@ -142,7 +141,10 @@ message MetricResult {
   message ReachResult {
     // Reach value.
     int64 value = 1;
-    // Univariate statistics of the reach value above
+    // Univariate statistics of the reach value above.
+    //
+    // Only set when all source Measurements contain sufficient information to
+    // calculate univariate statistics.
     UnivariateStatistics univariate_statistics = 2;
   }
   // Histogram result format.
@@ -159,21 +161,30 @@ message MetricResult {
       // The result of the bin.
       BinResult bin_result = 2;
 
-      // Univariate statistics of the result at this bin
+      // Univariate statistics of the result at this bin.
+      //
+      // Only set when all source Measurements contain sufficient information to
+      // calculate univariate statistics.
       UnivariateStatistics result_univariate_statistics = 3;
       // Univariate statistics of the relative result at this bin.
       //
-      // Relative result = (bin value) / (sum of all bin values)
+      // Only set when all source Measurements contain sufficient information to
+      // calculate univariate statistics. Relative result = (bin value) / (sum
+      // of all bin values)
       UnivariateStatistics relative_univariate_statistics = 4;
       // Univariate statistics of the k+ count from the current bin (i.e. k-th
       // bin, inclusive) to the last bin (inclusive).
       //
-      // A K+ count is the sum of the values from the k-th bin to the last bin.
+      // Only set when all source Measurements contain sufficient information to
+      // calculate univariate statistics. A K+ count is the sum of the values
+      // from the k-th bin to the last bin.
       UnivariateStatistics k_plus_univariate_statistics = 5;
       // Univariate statistics of the relative k+ count from the current bin
       // (i.e. k-th bin, inclusive) to the last bin (inclusive).
       //
-      // A relative K+ count = (K+ count) / (sum of all bin values)
+      // Only set when all source Measurements contain sufficient information to
+      // calculate univariate statistics. A relative K+ count = (K+ count) /
+      // (sum of all bin values)
       UnivariateStatistics relative_k_plus_univariate_statistics = 6;
     }
     // The bins that form a histogram. Ordering is not guaranteed.
@@ -183,14 +194,22 @@ message MetricResult {
   message ImpressionCountResult {
     // Impression value.
     int64 value = 1;
-    // Univariate statistics of the impression value above
+    // Univariate statistics of the impression value above.
+    //
+    // Only set when all of the set operations for the result are unions and all
+    // source Measurements contain sufficient information to calculate
+    // univariate statistics.
     UnivariateStatistics univariate_statistics = 2;
   }
   // Watch duration result format.
   message WatchDurationResult {
     // Watch duration value in second.
     double value = 1;
-    // Univariate statistics of the watch duration value above
+    // Univariate statistics of the watch duration value above.
+    //
+    // Only set when all of the set operations for the result are unions and all
+    // source Measurements contain sufficient information to calculate
+    // univariate statistics.
     UnivariateStatistics univariate_statistics = 2;
   }
 
