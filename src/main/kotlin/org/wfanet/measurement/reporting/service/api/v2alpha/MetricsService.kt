@@ -96,6 +96,7 @@ import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRe
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequestKt.measurementFailure
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt.measurementResult
 import org.wfanet.measurement.internal.reporting.v2.CreateMetricRequest as InternalCreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
@@ -770,15 +771,11 @@ class MetricsService(
         cmmsMeasurementConsumerId = principal.resourceKey.measurementConsumerId
         measurementResults +=
           succeededMeasurementsList.map { measurement ->
-            measurementResult {
-              cmmsMeasurementId = MeasurementKey.fromName(measurement.name)!!.measurementId
-              result =
-                buildInternalMeasurementResult(
-                  measurement,
-                  apiAuthenticationKey,
-                  principal.resourceKey.toName()
-                )
-            }
+            buildInternalMeasurementResult(
+              measurement,
+              apiAuthenticationKey,
+              principal.resourceKey.toName()
+            )
           }
       }
 
@@ -839,7 +836,7 @@ class MetricsService(
       measurement: Measurement,
       apiAuthenticationKey: String,
       principalName: String,
-    ): InternalMeasurement.Result {
+    ): BatchSetMeasurementResultsRequest.MeasurementResult {
       val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
       val encryptionPrivateKeyHandle =
         encryptionKeyPairStore.getPrivateKeyHandle(
@@ -850,13 +847,22 @@ class MetricsService(
             "Encryption private key not found for the measurement ${measurement.name}."
           }
 
-      return aggregateResults(
-        measurement.resultsList
-          .map {
-            decryptMeasurementResultPair(it, encryptionPrivateKeyHandle, apiAuthenticationKey)
+      val decryptedMeasurementResults: List<Measurement.Result> =
+        measurement.resultsList.map {
+          decryptMeasurementResultPair(it, encryptionPrivateKeyHandle, apiAuthenticationKey)
+        }
+
+      return measurementResult {
+        cmmsMeasurementId = MeasurementKey.fromName(measurement.name)!!.measurementId
+        results +=
+          decryptedMeasurementResults.map {
+            try {
+              it.toInternal(measurement.protocolConfig)
+            } catch (e: Throwable) {
+              failGrpc(Status.UNKNOWN) { e.message ?: "Unable to read measurement result." }
+            }
           }
-          .map(Measurement.Result::toInternal)
-      )
+      }
     }
 
     /** Decrypts a [Measurement.ResultPair] to [Measurement.Result] */
@@ -903,66 +909,6 @@ class MetricsService(
         throw Exception("Measurement result signature is invalid", e)
       }
       return Measurement.Result.parseFrom(signedResult.data)
-    }
-
-    /** Aggregates a list of [InternalMeasurement.Result]s to a [InternalMeasurement.Result] */
-    private fun aggregateResults(
-      internalMeasurementResults: List<InternalMeasurement.Result>
-    ): InternalMeasurement.Result {
-      if (internalMeasurementResults.isEmpty()) {
-        error("No measurement result.")
-      }
-      var reachValue = 0L
-      var impressionValue = 0L
-      val frequencyDistribution = mutableMapOf<Long, Double>()
-      var watchDurationValue = duration {
-        seconds = 0
-        nanos = 0
-      }
-
-      // Aggregation
-      for (result in internalMeasurementResults) {
-        if (result.hasFrequency()) {
-          if (!result.hasReach()) {
-            error("Missing reach measurement in the Reach-Frequency measurement.")
-          }
-          for ((frequency, percentage) in result.frequency.relativeFrequencyDistributionMap) {
-            val previousTotalReachCount =
-              frequencyDistribution.getOrDefault(frequency, 0.0) * reachValue
-            val currentReachCount = percentage * result.reach.value
-            frequencyDistribution[frequency] =
-              (previousTotalReachCount + currentReachCount) / (reachValue + result.reach.value)
-          }
-        }
-        if (result.hasReach()) {
-          reachValue += result.reach.value
-        }
-        if (result.hasImpression()) {
-          impressionValue += result.impression.value
-        }
-        if (result.hasWatchDuration()) {
-          watchDurationValue += result.watchDuration.value
-        }
-      }
-
-      return InternalMeasurementKt.result {
-        if (internalMeasurementResults.first().hasReach()) {
-          this.reach = InternalMeasurementKt.ResultKt.reach { value = reachValue }
-        }
-        if (internalMeasurementResults.first().hasFrequency()) {
-          this.frequency =
-            InternalMeasurementKt.ResultKt.frequency {
-              relativeFrequencyDistribution.putAll(frequencyDistribution)
-            }
-        }
-        if (internalMeasurementResults.first().hasImpression()) {
-          this.impression = InternalMeasurementKt.ResultKt.impression { value = impressionValue }
-        }
-        if (internalMeasurementResults.first().hasWatchDuration()) {
-          this.watchDuration =
-            InternalMeasurementKt.ResultKt.watchDuration { value = watchDurationValue }
-        }
-      }
     }
   }
 
@@ -1080,6 +1026,7 @@ class MetricsService(
         }
     }
   }
+
   override suspend fun listMetrics(request: ListMetricsRequest): ListMetricsResponse {
     val parentKey =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
@@ -1353,6 +1300,17 @@ class MetricsService(
     val internalReportingSet: InternalReportingSet =
       getInternalReportingSet(cmmsMeasurementConsumerId, request.metric.reportingSet)
 
+    // Utilizes the property of the set expression compilation result -- If the set expression
+    // contains only union operators, the compilation result has to be a single component.
+    if (
+      request.metric.metricSpec.hasFrequencyHistogram() &&
+        internalReportingSet.weightedSubsetUnionsList.size != 1
+    ) {
+      failGrpc(Status.INVALID_ARGUMENT) {
+        "Frequency histogram metrics can only be computed on union-only set expressions."
+      }
+    }
+
     return internalCreateMetricRequest {
       requestId = request.requestId
       externalMetricId = request.metricId
@@ -1527,6 +1485,66 @@ private fun buildMetricResult(metric: InternalMetric): MetricResult {
   }
 }
 
+/** Aggregates a list of [InternalMeasurement.Result]s to a [InternalMeasurement.Result] */
+private fun aggregateResults(
+  internalMeasurementResults: List<InternalMeasurement.Result>
+): InternalMeasurement.Result {
+  if (internalMeasurementResults.isEmpty()) {
+    error("No measurement result.")
+  }
+  var reachValue = 0L
+  var impressionValue = 0L
+  val frequencyDistribution = mutableMapOf<Long, Double>()
+  var watchDurationValue = duration {
+    seconds = 0
+    nanos = 0
+  }
+
+  // Aggregation
+  for (result in internalMeasurementResults) {
+    if (result.hasFrequency()) {
+      if (!result.hasReach()) {
+        error("Missing reach measurement in the Reach-Frequency measurement.")
+      }
+      for ((frequency, percentage) in result.frequency.relativeFrequencyDistributionMap) {
+        val previousTotalReachCount =
+          frequencyDistribution.getOrDefault(frequency, 0.0) * reachValue
+        val currentReachCount = percentage * result.reach.value
+        frequencyDistribution[frequency] =
+          (previousTotalReachCount + currentReachCount) / (reachValue + result.reach.value)
+      }
+    }
+    if (result.hasReach()) {
+      reachValue += result.reach.value
+    }
+    if (result.hasImpression()) {
+      impressionValue += result.impression.value
+    }
+    if (result.hasWatchDuration()) {
+      watchDurationValue += result.watchDuration.value
+    }
+  }
+
+  return InternalMeasurementKt.result {
+    if (internalMeasurementResults.first().hasReach()) {
+      this.reach = InternalMeasurementKt.ResultKt.reach { value = reachValue }
+    }
+    if (internalMeasurementResults.first().hasFrequency()) {
+      this.frequency =
+        InternalMeasurementKt.ResultKt.frequency {
+          relativeFrequencyDistribution.putAll(frequencyDistribution)
+        }
+    }
+    if (internalMeasurementResults.first().hasImpression()) {
+      this.impression = InternalMeasurementKt.ResultKt.impression { value = impressionValue }
+    }
+    if (internalMeasurementResults.first().hasWatchDuration()) {
+      this.watchDuration =
+        InternalMeasurementKt.ResultKt.watchDuration { value = watchDurationValue }
+    }
+  }
+}
+
 /** Calculates the watch duration result by summing up [WeightedMeasurement]s. */
 private fun calculateWatchDurationResults(
   weightedMeasurements: List<WeightedMeasurement>
@@ -1535,11 +1553,12 @@ private fun calculateWatchDurationResults(
     val watchDuration: Duration =
       weightedMeasurements
         .map { weightedMeasurement ->
-          if (!weightedMeasurement.measurement.details.result.hasWatchDuration()) {
+          if (weightedMeasurement.measurement.details.resultsList.any { !it.hasWatchDuration() }) {
             error("Watch duration measurement is missing.")
           }
-          weightedMeasurement.measurement.details.result.watchDuration.value *
-            weightedMeasurement.weight
+          aggregateResults(weightedMeasurement.measurement.details.resultsList)
+            .watchDuration
+            .value * weightedMeasurement.weight
         }
         .reduce { sum, element -> sum + element }
     value = watchDuration.seconds + (watchDuration.nanos.toDouble() / NANOS_PER_SECOND)
@@ -1553,10 +1572,11 @@ private fun calculateImpressionResults(
   return impressionCountResult {
     value =
       weightedMeasurements.sumOf { weightedMeasurement ->
-        if (!weightedMeasurement.measurement.details.result.hasImpression()) {
+        if (weightedMeasurement.measurement.details.resultsList.any { !it.hasImpression() }) {
           error("Impression measurement is missing.")
         }
-        weightedMeasurement.measurement.details.result.impression.value * weightedMeasurement.weight
+        aggregateResults(weightedMeasurement.measurement.details.resultsList).impression.value *
+          weightedMeasurement.weight
       }
   }
 }
@@ -1569,10 +1589,14 @@ private fun calculateFrequencyHistogramResults(
   val aggregatedFrequencyHistogramMap: MutableMap<Long, Double> =
     weightedMeasurements
       .map { weightedMeasurement ->
-        val result = weightedMeasurement.measurement.details.result
-        if (!result.hasFrequency() || !result.hasReach()) {
+        if (
+          weightedMeasurement.measurement.details.resultsList.any {
+            !it.hasReach() || !it.hasFrequency()
+          }
+        ) {
           error("Reach-Frequency measurement is missing.")
         }
+        val result = aggregateResults(weightedMeasurement.measurement.details.resultsList)
         val reach = result.reach.value
         result.frequency.relativeFrequencyDistributionMap.mapValues { (_, rate) ->
           rate * weightedMeasurement.weight * reach
@@ -1613,10 +1637,11 @@ private fun calculateReachResults(
   return reachResult {
     value =
       weightedMeasurements.sumOf { weightedMeasurement ->
-        if (!weightedMeasurement.measurement.details.result.hasReach()) {
+        if (weightedMeasurement.measurement.details.resultsList.any { !it.hasReach() }) {
           error("Reach measurement is missing.")
         }
-        weightedMeasurement.measurement.details.result.reach.value * weightedMeasurement.weight
+        aggregateResults(weightedMeasurement.measurement.details.resultsList).reach.value *
+          weightedMeasurement.weight
       }
   }
 }

@@ -1038,6 +1038,7 @@ class LiquidLegionsV2Mill(
         directoryPath = Paths.get("any_sketch_java/src/main/java/org/wfanet/anysketch/crypto")
       )
     }
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

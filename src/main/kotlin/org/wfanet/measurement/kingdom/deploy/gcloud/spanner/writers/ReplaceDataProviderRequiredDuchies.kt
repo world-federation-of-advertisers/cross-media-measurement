@@ -64,6 +64,7 @@ class ReplaceDataProviderRequiredDuchies(
       .addAllRequiredExternalDuchyIds(desiredRequiredDuchyList)
       .build()
   }
+
   override fun ResultScope<DataProvider>.buildResult(): DataProvider {
     return checkNotNull(transactionResult)
   }

@@ -38,6 +38,7 @@ private class JobTestClass1 {
     delay(100)
     logger.addToTaskLog("logWithDelay: Log Message B")
   }
+
   companion object {
     private val logger by loggerFor()
   }
@@ -51,6 +52,7 @@ private class JobTestClass2 {
       logger.addToTaskLog("logWithDelay: Log Message D")
     }
   }
+
   companion object {
     private val logger by loggerFor()
   }
@@ -64,6 +66,7 @@ private class JobTestClass3 {
       logger.addToTaskLog("logWithDelay: Log Message D")
     }
   }
+
   companion object {
     private val logger by loggerFor()
   }

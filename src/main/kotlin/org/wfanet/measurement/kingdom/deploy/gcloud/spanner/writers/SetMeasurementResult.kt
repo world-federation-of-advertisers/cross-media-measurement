@@ -100,6 +100,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
       }
     }
   }
+
   override fun ResultScope<Measurement>.buildResult(): Measurement {
     return checkNotNull(transactionResult).copy {
       updateTime = commitTimestamp.toProto()
