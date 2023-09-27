@@ -1139,12 +1139,11 @@ CompleteExecutionPhaseTwoAtAggregator(
   // non_empty_register_count could be negative if there is too few registers in
   // the sketch and the number of noise registers is smaller than the baseline.
   non_empty_register_count = std::max(non_empty_register_count, 0L);
-  ASSIGN_OR_RETURN(
-      int64_t reach,
-      EstimateReach(request.sketch_parameters().decay_rate(),
-                    request.sketch_parameters().size(),
-                    non_empty_register_count,
-                    request.vid_sampling_interval_width()));
+  ASSIGN_OR_RETURN(int64_t reach,
+                   EstimateReach(request.sketch_parameters().decay_rate(),
+                                 request.sketch_parameters().size(),
+                                 non_empty_register_count,
+                                 request.vid_sampling_interval_width()));
   response.set_reach(reach);
 
   response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
