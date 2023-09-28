@@ -263,7 +263,7 @@ object LiquidLegions {
         sketchParams,
         collisionResolution,
         totalReach,
-        frequencyMeasurementParams.vidSamplingIntervalWidth
+        frequencyMeasurementParams.vidSamplingInterval.width
       )
     if (expectedRegisterNum < 1.0) {
       return 0.0
@@ -274,7 +274,7 @@ object LiquidLegions {
         sketchParams,
         collisionResolution,
         totalReach,
-        frequencyMeasurementParams.vidSamplingIntervalWidth
+        frequencyMeasurementParams.vidSamplingInterval.width
       )
     val registerNumVariancePerFrequency =
       varianceOfNumberOfNonDestroyedRegistersPerFrequency(
@@ -282,7 +282,7 @@ object LiquidLegions {
         collisionResolution,
         totalReach,
         reachRatio,
-        frequencyMeasurementParams.vidSamplingIntervalWidth
+        frequencyMeasurementParams.vidSamplingInterval.width
       )
 
     val covariance = (reachRatio * registerNumVariance + multiplier * frequencyNoiseVariance)
