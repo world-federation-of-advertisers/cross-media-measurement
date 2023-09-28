@@ -17,7 +17,6 @@ package org.wfanet.panelmatch.common
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.produceIn
 import org.junit.Test
@@ -88,7 +87,7 @@ class BlockingIteratorTest {
   }
 
   private fun CoroutineScope.blockingIteratorOf(vararg items: String): BlockingIterator<String> {
-    @OptIn(FlowPreview::class) val channel = flowOf(*items).produceIn(this)
-    return BlockingIterator(channel.iterator(), this.coroutineContext)
+    val channel = flowOf(*items).produceIn(this)
+    return BlockingIterator(channel, this.coroutineContext)
   }
 }

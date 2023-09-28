@@ -1,5 +1,5 @@
 load("@wfa_common_jvm//build:defs.bzl", "test_target")
-load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = [
     test_target(":__pkg__"),

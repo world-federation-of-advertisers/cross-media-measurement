@@ -1,4 +1,4 @@
-load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
 load("//src/main/proto/wfa/measurement/internal/kingdom:all_protos.bzl", "KINGDOM_INTERNAL_PROTOS")  # buildifier: disable=bzl-visibility
 
 package(default_visibility = [

@@ -17,25 +17,43 @@ package org.wfanet.panelmatch.common
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.channels.ChannelIterator
+import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.runBlocking
 
 /** [Iterator] that wraps [channelIterator] using [runBlocking]. */
-class BlockingIterator<T>(
-  private val channelIterator: ChannelIterator<T>,
+class BlockingIterator<T : Any>(
+  channel: ReceiveChannel<T>,
   private val context: CoroutineContext = EmptyCoroutineContext
 ) : Iterator<T> {
-  override fun hasNext(): Boolean = runBlocking(context) { channelIterator.hasNext() }
+  private val channelIterator: ChannelIterator<T> = channel.iterator()
+  private var next: T? = null
 
-  override fun next(): T =
-    runBlocking(context) {
-      // Note that ChannelIterator throws IllegalStateException when next() is called without a
-      // preceding call to hasNext(). Thus we call hasNext() to avoid that exception and better
-      // conform to Iterator's contract by throwing NoSuchElementException when the iterator is
-      // empty.
-      if (hasNext()) {
-        channelIterator.next()
-      } else {
-        throw NoSuchElementException("No remaining elements")
-      }
+  /**
+   * Internal version of [hasNext] which accounts for the fact that [ChannelIterator.hasNext]
+   * advances the iterator.
+   */
+  private suspend fun hasNextInternal(): Boolean {
+    if (next != null) {
+      return true
     }
+
+    return if (channelIterator.hasNext()) {
+      next = channelIterator.next()
+      true
+    } else {
+      false
+    }
+  }
+
+  override fun hasNext(): Boolean = runBlocking(context) { hasNextInternal() }
+
+  override fun next(): T {
+    if (!hasNext()) {
+      throw NoSuchElementException("No more elements")
+    }
+
+    val element = next!!
+    next = null
+    return element
+  }
 }

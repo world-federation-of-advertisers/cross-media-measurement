@@ -17,7 +17,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Value
 import java.time.Clock
-import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flattenConcat
 import kotlinx.coroutines.flow.map
@@ -385,7 +385,7 @@ private suspend fun TransactionScope.readMeasurementConsumerId(
     }
 }
 
-@OptIn(FlowPreview::class) // For `flattenConcat`.
+@OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
 private suspend fun TransactionScope.readDataProviderRequiredDuchies(
   externalDataProviderIds: Set<ExternalId>
 ): Set<String> {

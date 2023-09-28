@@ -1,5 +1,5 @@
 load("@rules_java//java:defs.bzl", "java_binary")
-load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
 load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 
 kt_jvm_library(
@@ -25,13 +25,13 @@ kt_jvm_library(
 
 java_binary(
     name = "CompletedMeasurementsDeletionJob",
-    main_class = "org.wfanet.measurement.kingdom.deploy.common.job.CompletedMeasurementsDeletionJobKt",
+    main_class = "org.wfanet.measurement.kingdom.deploy.common.job.CompletedMeasurementsDeletionJob",
     runtime_deps = [":completed_measurements_deletion_job"],
 )
 
 java_image(
     name = "completed_measurements_deletion_image",
-    main_class = "org.wfanet.measurement.kingdom.deploy.common.job.CompletedMeasurementsDeletionJobKt",
+    main_class = "org.wfanet.measurement.kingdom.deploy.common.job.CompletedMeasurementsDeletionJob",
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":completed_measurements_deletion_job"],
 )

@@ -113,7 +113,7 @@ class BeamTest : BeamTestBase() {
 
   @Test
   fun mapValues() {
-    assertThat(collection.mapValues { it.toLowerCase() })
+    assertThat(collection.mapValues { it.lowercase() })
       .containsInAnyOrder(kvOf(1, "a"), kvOf(2, "b"), kvOf(3, "c"))
   }
 
