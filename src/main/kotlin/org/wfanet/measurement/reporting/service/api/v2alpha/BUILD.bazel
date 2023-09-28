@@ -77,6 +77,7 @@ kt_jvm_library(
     name = "proto_conversions",
     srcs = ["ProtoConversions.kt"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:measurement_statistics",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:metric_spec_defaults",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:reporting_principal",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:resource_key",
@@ -166,6 +167,9 @@ kt_jvm_library(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:measurement_statistics",
+        "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:metric_statistics",
+        "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:variances",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:encryption_key_pair_store",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:submit_batch_requests",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:metric_spec_defaults",

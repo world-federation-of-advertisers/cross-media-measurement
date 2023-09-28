@@ -89,6 +89,7 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurement
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
+import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequest.MeasurementIds
@@ -99,6 +100,7 @@ import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresR
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt.measurementResult
 import org.wfanet.measurement.internal.reporting.v2.CreateMetricRequest as InternalCreateMetricRequest
+import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodology
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
@@ -121,6 +123,18 @@ import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest as internalCreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.measurement as internalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.metric as internalMetric
+import org.wfanet.measurement.measurementconsumer.stats.BaseMethodology
+import org.wfanet.measurement.measurementconsumer.stats.CustomDirectScalarMethodology
+import org.wfanet.measurement.measurementconsumer.stats.DeterministicBaseMethodology
+import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchBaseMethodology
+import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2BaseMethodology
+import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
+import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
+import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.Variances
+import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval
+import org.wfanet.measurement.measurementconsumer.stats.WeightedReachMeasurementVarianceParams
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
@@ -149,6 +163,7 @@ import org.wfanet.measurement.reporting.v2alpha.listMetricsPageToken
 import org.wfanet.measurement.reporting.v2alpha.listMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.metric
 import org.wfanet.measurement.reporting.v2alpha.metricResult
+import org.wfanet.measurement.reporting.v2alpha.univariateStatistics
 
 private const val MAX_BATCH_SIZE = 1000
 private const val MIN_PAGE_SIZE = 1
@@ -856,6 +871,11 @@ class MetricsService(
           decryptedMeasurementResults.map {
             try {
               it.toInternal(measurement.protocolConfig)
+            } catch (e: NoiseMechanismUnrecognizedException) {
+              failGrpc(Status.UNKNOWN) {
+                listOfNotNull("Unrecognized noise mechanism.", e.message, e.cause?.message)
+                  .joinToString(separator = "\n")
+              }
             } catch (e: Throwable) {
               failGrpc(Status.UNKNOWN) { e.message ?: "Unable to read measurement result." }
             }
@@ -1461,7 +1481,12 @@ private fun buildMetricResult(metric: InternalMetric): MetricResult {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (metric.metricSpec.typeCase) {
       InternalMetricSpec.TypeCase.REACH -> {
-        reach = calculateReachResults(metric.weightedMeasurementsList)
+        reach =
+          calculateReachResults(
+            metric.weightedMeasurementsList,
+            metric.metricSpec.vidSamplingInterval,
+            metric.metricSpec.reach.privacyParams,
+          )
       }
       InternalMetricSpec.TypeCase.FREQUENCY_HISTOGRAM -> {
         frequencyHistogram =
@@ -1630,18 +1655,134 @@ private fun calculateFrequencyHistogramResults(
 
 /** Calculates the reach result by summing up [WeightedMeasurement]s. */
 private fun calculateReachResults(
-  weightedMeasurements: List<WeightedMeasurement>
+  weightedMeasurements: List<WeightedMeasurement>,
+  vidSamplingInterval: InternalMetricSpec.VidSamplingInterval,
+  privacyParams: InternalMetricSpec.DifferentialPrivacyParams
 ): MetricResult.ReachResult {
+  for (weightedMeasurement in weightedMeasurements) {
+    if (weightedMeasurement.measurement.details.resultsList.any { !it.hasReach() }) {
+      error("Reach measurement is missing.")
+    }
+  }
+
   return reachResult {
     value =
       weightedMeasurements.sumOf { weightedMeasurement ->
-        if (weightedMeasurement.measurement.details.resultsList.any { !it.hasReach() }) {
-          error("Reach measurement is missing.")
-        }
         aggregateResults(weightedMeasurement.measurement.details.resultsList).reach.value *
           weightedMeasurement.weight
       }
+
+    val weightedMeasurementVarianceParamsList: List<WeightedReachMeasurementVarianceParams> =
+      weightedMeasurements.mapNotNull { weightedMeasurements ->
+        buildWeightedReachMeasurementVarianceParams(
+          weightedMeasurements,
+          vidSamplingInterval,
+          privacyParams
+        )
+      }
+
+    // If any measurement contains insufficient data for variance calculation, univariate statistics
+    // won't be set.
+    if (weightedMeasurementVarianceParamsList.size == weightedMeasurements.size) {
+      univariateStatistics = univariateStatistics {
+        standardDeviation =
+          Variances.computeMetricVariance(
+            ReachMetricVarianceParams(weightedMeasurementVarianceParamsList)
+          )
+      }
+    }
   }
+}
+
+/** Builds a [WeightedReachMeasurementVarianceParams]. */
+private fun buildWeightedReachMeasurementVarianceParams(
+  weightedMeasurement: WeightedMeasurement,
+  vidSamplingInterval: InternalMetricSpec.VidSamplingInterval,
+  privacyParams: InternalMetricSpec.DifferentialPrivacyParams
+): WeightedReachMeasurementVarianceParams? {
+  if (weightedMeasurement.measurement.details.resultsList.size > 1) {
+    error("No supported methodology generates more than one reach result.")
+  }
+
+  val reachResult = weightedMeasurement.measurement.details.resultsList.first().reach
+
+  val statsNoiseMechanism: StatsNoiseMechanism =
+    try {
+      reachResult.noiseMechanism.toStatsNoiseMechanism()
+    } catch (e: NoiseMechanismUnspecifiedException) {
+      return null
+    } catch (e: NoiseMechanismUnrecognizedException) {
+      failGrpc(Status.UNKNOWN) {
+        listOfNotNull("Unrecognized noise mechanism.", e.message, e.cause?.message)
+          .joinToString(separator = "\n")
+      }
+    }
+
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+  val baseMethodology: BaseMethodology =
+    when (reachResult.methodologyCase) {
+      InternalMeasurement.Result.Reach.MethodologyCase.CUSTOM_DIRECT_METHODOLOGY -> {
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+        when (reachResult.customDirectMethodology.varianceCase) {
+          CustomDirectMethodology.VarianceCase.SCALAR -> {
+            CustomDirectScalarMethodology(reachResult.customDirectMethodology.scalar)
+          }
+          CustomDirectMethodology.VarianceCase.FREQUENCY -> {
+            error("Custom direct methodology for frequency is not supported for reach.")
+          }
+          CustomDirectMethodology.VarianceCase.VARIANCE_NOT_SET -> {
+            return null
+          }
+        }
+      }
+      InternalMeasurement.Result.Reach.MethodologyCase.DETERMINISTIC_COUNT_DISTINCT -> {
+        DeterministicBaseMethodology
+      }
+      InternalMeasurement.Result.Reach.MethodologyCase.LIQUID_LEGIONS_COUNT_DISTINCT -> {
+        LiquidLegionsSketchBaseMethodology(
+          decayRate = reachResult.liquidLegionsCountDistinct.decayRate,
+          sketchSize = reachResult.liquidLegionsCountDistinct.maxSize.toDouble()
+        )
+      }
+      InternalMeasurement.Result.Reach.MethodologyCase.LIQUID_LEGIONS_V2 -> {
+        LiquidLegionsV2BaseMethodology(
+          decayRate = reachResult.liquidLegionsV2.sketchParams.decayRate,
+          sketchSize = reachResult.liquidLegionsV2.sketchParams.maxSize.toDouble(),
+          samplingIndicatorSize =
+            reachResult.liquidLegionsV2.sketchParams.samplingIndicatorSize.toDouble()
+        )
+      }
+      InternalMeasurement.Result.Reach.MethodologyCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
+        LiquidLegionsV2BaseMethodology(
+          decayRate = reachResult.reachOnlyLiquidLegionsV2.sketchParams.decayRate,
+          sketchSize = reachResult.reachOnlyLiquidLegionsV2.sketchParams.maxSize.toDouble(),
+          samplingIndicatorSize = Double.NaN
+        )
+      }
+      InternalMeasurement.Result.Reach.MethodologyCase.METHODOLOGY_NOT_SET -> {
+        return null
+      }
+    }
+
+  return WeightedReachMeasurementVarianceParams(
+    binaryRepresentation = weightedMeasurement.binaryRepresentation,
+    weight = weightedMeasurement.weight,
+    measurementVarianceParams =
+      ReachMeasurementVarianceParams(
+        reach = reachResult.value,
+        measurementParams =
+          ReachMeasurementParams(
+            vidSamplingInterval =
+              VidSamplingInterval(
+                vidSamplingInterval.start.toDouble(),
+                vidSamplingInterval.width.toDouble()
+              ),
+            dpParams = DpParams(privacyParams.epsilon, privacyParams.delta),
+            noiseMechanism = statsNoiseMechanism
+          )
+      ),
+    baseMethodology = baseMethodology
+  )
 }
 
 private operator fun Duration.times(weight: Int): Duration {

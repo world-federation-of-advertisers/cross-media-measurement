@@ -45,6 +45,7 @@ import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasu
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.reporting.v2.NoiseMechanism
 import org.wfanet.measurement.internal.reporting.v2.PeriodicTimeInterval as InternalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.ReachOnlyLiquidLegionsV2
@@ -70,6 +71,7 @@ import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals as internalTimeIntervals
+import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageToken
@@ -795,18 +797,18 @@ fun ListReportsPageToken.toStreamReportsRequest(): StreamReportsRequest {
   }
 }
 
-/** Converts a CMMS [ProtocolConfig.NoiseMechanism] to an internal [NoiseMechanism]. */
-fun ProtocolConfig.NoiseMechanism.toInternal(): NoiseMechanism {
+/** Converts a CMMS [ProtocolConfig.NoiseMechanism] to an internal [InternalNoiseMechanism]. */
+fun ProtocolConfig.NoiseMechanism.toInternal(): InternalNoiseMechanism {
   return when (this) {
-    ProtocolConfig.NoiseMechanism.NONE -> NoiseMechanism.NONE
-    ProtocolConfig.NoiseMechanism.GEOMETRIC -> NoiseMechanism.GEOMETRIC
-    ProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN -> NoiseMechanism.DISCRETE_GAUSSIAN
+    ProtocolConfig.NoiseMechanism.NONE -> InternalNoiseMechanism.NONE
+    ProtocolConfig.NoiseMechanism.GEOMETRIC -> InternalNoiseMechanism.GEOMETRIC
+    ProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN -> InternalNoiseMechanism.DISCRETE_GAUSSIAN
     ProtocolConfig.NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED ->
-      NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED
-    ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE -> NoiseMechanism.CONTINUOUS_LAPLACE
-    ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN -> NoiseMechanism.CONTINUOUS_GAUSSIAN
+      InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED
+    ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE -> InternalNoiseMechanism.CONTINUOUS_LAPLACE
+    ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN -> InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
     ProtocolConfig.NoiseMechanism.UNRECOGNIZED -> {
-      error { "Noise mechanism $this is not recognized." }
+      throw NoiseMechanismUnrecognizedException("Noise mechanism $this is not recognized.")
     }
   }
 }
@@ -879,3 +881,26 @@ fun LiquidLegionsDistribution.toInternal(): InternalLiquidLegionsDistribution {
     maxSize = source.maxSize
   }
 }
+
+/** Converts an internal [InternalNoiseMechanism] to a [StatsNoiseMechanism]. */
+fun InternalNoiseMechanism.toStatsNoiseMechanism(): StatsNoiseMechanism {
+  return when (this) {
+    NoiseMechanism.NONE -> StatsNoiseMechanism.NONE
+    NoiseMechanism.GEOMETRIC,
+    NoiseMechanism.CONTINUOUS_LAPLACE -> StatsNoiseMechanism.LAPLACE
+    NoiseMechanism.DISCRETE_GAUSSIAN,
+    NoiseMechanism.CONTINUOUS_GAUSSIAN -> StatsNoiseMechanism.GAUSSIAN
+    NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED -> {
+      throw NoiseMechanismUnspecifiedException("Internal noise mechanism unspecified.")
+    }
+    NoiseMechanism.UNRECOGNIZED -> {
+      throw NoiseMechanismUnrecognizedException("Internal noise mechanism $this is unrecognized.")
+    }
+  }
+}
+
+class NoiseMechanismUnspecifiedException(message: String? = null, cause: Throwable? = null) :
+  Exception(message, cause)
+
+class NoiseMechanismUnrecognizedException(message: String? = null, cause: Throwable? = null) :
+  Exception(message, cause)
