@@ -25,17 +25,20 @@ object Covariances {
    * Precisely, computes the covariance between any two reach measurements when at least one reach
    * is computed using deterministic count distinct methodology.
    */
-  fun computeDeterministicCovariance(reachCovarianceParams: ReachCovarianceParams): Double {
+  fun computeDeterministicCovariance(
+    reachMeasurementCovarianceParams: ReachMeasurementCovarianceParams
+  ): Double {
     val overlapReach =
-      reachCovarianceParams.reach + reachCovarianceParams.otherReach -
-        reachCovarianceParams.unionReach
+      reachMeasurementCovarianceParams.reach + reachMeasurementCovarianceParams.otherReach -
+        reachMeasurementCovarianceParams.unionReach
     val overlapSamplingWidth =
-      reachCovarianceParams.samplingWidth + reachCovarianceParams.otherSamplingWidth -
-        reachCovarianceParams.unionSamplingWidth
+      reachMeasurementCovarianceParams.samplingWidth +
+        reachMeasurementCovarianceParams.otherSamplingWidth -
+        reachMeasurementCovarianceParams.unionSamplingWidth
     return overlapReach *
       (overlapSamplingWidth /
-        reachCovarianceParams.samplingWidth /
-        reachCovarianceParams.otherSamplingWidth - 1.0)
+        reachMeasurementCovarianceParams.samplingWidth /
+        reachMeasurementCovarianceParams.otherSamplingWidth - 1.0)
   }
 
   /**
@@ -47,20 +50,21 @@ object Covariances {
    */
   fun computeLiquidLegionsCovariance(
     sketchParams: LiquidLegionsSketchParams,
-    reachCovarianceParams: ReachCovarianceParams,
+    reachMeasurementCovarianceParams: ReachMeasurementCovarianceParams,
   ): Double {
     return LiquidLegions.inflatedReachCovariance(
       sketchParams = sketchParams,
-      reach = reachCovarianceParams.reach,
-      otherReach = reachCovarianceParams.otherReach,
+      reach = reachMeasurementCovarianceParams.reach,
+      otherReach = reachMeasurementCovarianceParams.otherReach,
       overlapReach =
-        reachCovarianceParams.reach + reachCovarianceParams.otherReach -
-          reachCovarianceParams.unionReach,
-      samplingWidth = reachCovarianceParams.samplingWidth,
-      otherSamplingWidth = reachCovarianceParams.otherSamplingWidth,
+        reachMeasurementCovarianceParams.reach + reachMeasurementCovarianceParams.otherReach -
+          reachMeasurementCovarianceParams.unionReach,
+      samplingWidth = reachMeasurementCovarianceParams.samplingWidth,
+      otherSamplingWidth = reachMeasurementCovarianceParams.otherSamplingWidth,
       overlapSamplingWidth =
-        reachCovarianceParams.samplingWidth + reachCovarianceParams.otherSamplingWidth -
-          reachCovarianceParams.unionSamplingWidth,
+        reachMeasurementCovarianceParams.samplingWidth +
+          reachMeasurementCovarianceParams.otherSamplingWidth -
+          reachMeasurementCovarianceParams.unionSamplingWidth,
       inflation = 0.0
     )
   }
