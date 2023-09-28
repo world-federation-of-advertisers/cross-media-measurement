@@ -54,6 +54,8 @@ CREATE TABLE ReportSchedules {
 
   NextReportCreationTime timestamp with time zone NOT NULL,
 
+  LatestReportScheduleIterationId bigint,
+
   ReportScheduleDetails bytea NOT NULL,
   ReportScheduleDetailsJson text NOT NULL,
 
