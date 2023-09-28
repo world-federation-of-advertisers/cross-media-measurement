@@ -55,5 +55,5 @@ class GcsStorageFactory(
 
 private fun fingerprint(data: String): String {
   val digest = MessageDigest.getInstance("SHA-512").digest(data.toByteArray(Charsets.UTF_8))
-  return HexString(digest.toByteString()).value.toLowerCase()
+  return HexString(digest.toByteString()).value.lowercase()
 }
