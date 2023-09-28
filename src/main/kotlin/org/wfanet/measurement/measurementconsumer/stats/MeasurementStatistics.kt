@@ -25,16 +25,18 @@ enum class NoiseMechanism {
   GAUSSIAN,
 }
 
+data class VidSamplingInterval(val start: Double, val width: Double)
+
 /** The parameters used to compute a reach measurement. */
 data class ReachMeasurementParams(
-  val vidSamplingIntervalWidth: Double,
+  val vidSamplingInterval: VidSamplingInterval,
   val dpParams: DpParams,
   val noiseMechanism: NoiseMechanism
 )
 
 /** The parameters used to compute a reach-and-frequency measurement. */
 data class FrequencyMeasurementParams(
-  val vidSamplingIntervalWidth: Double,
+  val vidSamplingInterval: VidSamplingInterval,
   val dpParams: DpParams,
   val noiseMechanism: NoiseMechanism,
   val maximumFrequency: Int,
@@ -42,7 +44,7 @@ data class FrequencyMeasurementParams(
 
 /** The parameters used to compute an impression measurement. */
 data class ImpressionMeasurementParams(
-  val vidSamplingIntervalWidth: Double,
+  val vidSamplingInterval: VidSamplingInterval,
   val dpParams: DpParams,
   val maximumFrequencyPerUser: Int,
   val noiseMechanism: NoiseMechanism
@@ -50,38 +52,41 @@ data class ImpressionMeasurementParams(
 
 /** The parameters used to compute a watch duration measurement. */
 data class WatchDurationMeasurementParams(
-  val vidSamplingIntervalWidth: Double,
+  val vidSamplingInterval: VidSamplingInterval,
   val dpParams: DpParams,
   val maximumDurationPerUser: Double,
   val noiseMechanism: NoiseMechanism
 )
 
 /** The parameters used to compute the variance of a reach measurement. */
-data class ReachVarianceParams(val reach: Int, val measurementParams: ReachMeasurementParams)
+data class ReachMeasurementVarianceParams(
+  val reach: Int,
+  val measurementParams: ReachMeasurementParams
+)
 
 /** The parameters used to compute the variance of a reach-and-frequency measurement. */
-data class FrequencyVarianceParams(
+data class FrequencyMeasurementVarianceParams(
   val totalReach: Int,
-  val reachVariance: Double,
+  val reachMeasurementVariance: Double,
   val relativeFrequencyDistribution: Map<Int, Double>,
   val measurementParams: FrequencyMeasurementParams
 )
 
 /** The parameters used to compute the variance of an impression measurement. */
-data class ImpressionVarianceParams(
+data class ImpressionMeasurementVarianceParams(
   val impression: Int,
   val measurementParams: ImpressionMeasurementParams
 )
 
 /** The parameters used to compute the variance of a watch duration measurement. */
-data class WatchDurationVarianceParams(
+data class WatchDurationMeasurementVarianceParams(
   val duration: Double,
   val measurementParams: WatchDurationMeasurementParams
 )
 
 typealias FrequencyVariance = Map<Int, Double>
 
-/** A data class that wraps different types of variances of a reach-and-frequency measurement. */
+/** A data class that wraps different types of variances of a reach-and-frequency result. */
 data class FrequencyVariances(
   val relativeVariances: FrequencyVariance,
   val kPlusRelativeVariances: FrequencyVariance,
@@ -90,7 +95,7 @@ data class FrequencyVariances(
 )
 
 /** The parameters used to compute the covariance of two reach measurements. */
-data class ReachCovarianceParams(
+data class ReachMeasurementCovarianceParams(
   val reach: Int,
   val otherReach: Int,
   val unionReach: Int,
