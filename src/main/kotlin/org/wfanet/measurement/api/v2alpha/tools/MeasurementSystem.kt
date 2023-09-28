@@ -734,7 +734,9 @@ class CreateMeasurement : Runnable {
             start = measurementParams.eventMeasurementParams.vidSamplingStart
             width = measurementParams.eventMeasurementParams.vidSamplingWidth
           }
-          if (
+          if (measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reach.selected) {
+            reach = createMeasurementFlags.getReach()
+          } else if (
             measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency
               .selected
           ) {
