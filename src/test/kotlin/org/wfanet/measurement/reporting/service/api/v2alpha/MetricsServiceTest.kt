@@ -57,6 +57,7 @@ import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.CustomDirectMethodology
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
@@ -5335,6 +5336,82 @@ class MetricsServiceTest {
       assertThat(exception)
         .hasMessageThat()
         .contains(SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name)
+    }
+
+  @Test
+  fun `getMetric throws UNKNOWN when variance in CustomMethdology in a measurement is not set`() =
+    runBlocking {
+      whenever(
+          internalMetricsMock.batchGetMetrics(
+            eq(
+              internalBatchGetMetricsRequest {
+                cmmsMeasurementConsumerId =
+                  INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.cmmsMeasurementConsumerId
+                externalMetricIds +=
+                  INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.externalMetricId
+              }
+            )
+          )
+        )
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics += INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC
+          },
+          internalBatchGetMetricsResponse {
+            metrics += INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC
+          },
+        )
+
+      whenever(
+          measurementsMock.getMeasurement(
+            eq(
+              getMeasurementRequest {
+                name = PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.name
+              }
+            )
+          )
+        )
+        .thenReturn(
+          SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.copy {
+            results.clear()
+            results += resultPair {
+              val result =
+                MeasurementKt.result {
+                  reach =
+                    MeasurementKt.ResultKt.reach {
+                      value = REACH_FREQUENCY_REACH_VALUE
+                      noiseMechanism = ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE
+                      customDirectMethodology = CustomDirectMethodology.getDefaultInstance()
+                    }
+                  frequency =
+                    MeasurementKt.ResultKt.frequency {
+                      relativeFrequencyDistribution.putAll(REACH_FREQUENCY_FREQUENCY_VALUE)
+                      noiseMechanism = ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE
+                      liquidLegionsDistribution = liquidLegionsDistribution {
+                        decayRate = LL_DISTRIBUTION_DECAY_RATE
+                        maxSize = LL_DISTRIBUTION_SKETCH_SIZE
+                      }
+                    }
+                }
+              encryptedResult =
+                encryptResult(
+                  signResult(result, AGGREGATOR_SIGNING_KEY),
+                  MEASUREMENT_CONSUMER_PUBLIC_KEY
+                )
+              certificate = AGGREGATOR_CERTIFICATE.name
+            }
+          }
+        )
+
+      val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+            runBlocking { service.getMetric(request) }
+          }
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.UNKNOWN)
     }
 
   @Test
