@@ -49,6 +49,8 @@ jobs:
       - name: Check out revision
         uses: actions/checkout@v3
 
+      - uses: ./.github/actions/free-disk-space
+
       - name: Write ~/.bazelrc
         run: |
           cat << EOF > ~/.bazelrc
