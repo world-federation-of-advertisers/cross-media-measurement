@@ -3,8 +3,6 @@
 This guide describes steps to enable Reach-Only LLV2 protocol. Kingdom,
 Duchies, and EDPs need to deploy these operations.
 
-# Steps
-
 ## EDP Fulfills Reach-Only Sketches
 
 Reach-only llv2 protocol uses different format of sketches. EDPs should generate
@@ -23,7 +21,7 @@ protocol.
 A new format of sketch is required for the ReachOnlyLiquidLegionsV2 protocol
 described in the next section.
 
-### Generate Reach Only Sketches
+#### Generate Reach Only Sketches
 
 The difference between llv2 sketch and reach-only llv2
 sketch is that reach-only sketches only have 1 field in a
