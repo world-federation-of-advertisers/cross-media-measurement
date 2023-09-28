@@ -33,6 +33,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodology as InternalCustomDirectMethodology
+import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodologyKt
 import org.wfanet.measurement.internal.reporting.v2.DeterministicCount
 import org.wfanet.measurement.internal.reporting.v2.DeterministicCountDistinct
 import org.wfanet.measurement.internal.reporting.v2.DeterministicDistribution
@@ -813,7 +814,22 @@ fun ProtocolConfig.NoiseMechanism.toInternal(): NoiseMechanism {
 /** Converts a CMMS [CustomDirectMethodology] to an internal [InternalCustomDirectMethodology]. */
 fun CustomDirectMethodology.toInternal(): InternalCustomDirectMethodology {
   val source = this
-  return customDirectMethodology { variance = source.variance }
+  return customDirectMethodology {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+    when (source.varianceCase) {
+      CustomDirectMethodology.VarianceCase.SCALAR -> {
+        scalar = source.scalar
+      }
+      CustomDirectMethodology.VarianceCase.FREQUENCY -> {
+        frequency =
+          CustomDirectMethodologyKt.frequencyVariances {
+            variances.putAll(source.frequency.variancesMap)
+            kPlusVariances.putAll(source.frequency.kPlusVariancesMap)
+          }
+      }
+      CustomDirectMethodology.VarianceCase.VARIANCE_NOT_SET -> {}
+    }
+  }
 }
 
 /**
