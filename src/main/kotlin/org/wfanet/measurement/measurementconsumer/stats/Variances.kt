@@ -90,7 +90,7 @@ object Variances {
    * Different types of frequency histograms have different values of [multiplier].
    */
   private fun deterministicFrequencyRelativeVariance(
-    totalReach: Int,
+    totalReach: Long,
     reachRatio: Double,
     measurementParams: FrequencyMeasurementParams,
     multiplier: Int
@@ -114,7 +114,7 @@ object Variances {
    * Reach count = [totalReach] * [reachRatio]
    */
   private fun deterministicFrequencyCountVariance(
-    totalReach: Int,
+    totalReach: Long,
     totalReachVariance: Double,
     reachRatio: Double,
     reachRatioVariance: Double,
@@ -204,7 +204,7 @@ object Variances {
     sketchParams: LiquidLegionsSketchParams,
     measurementParams: FrequencyMeasurementParams,
   ): (
-    totalReach: Int,
+    totalReach: Long,
     reachRatio: Double,
     measurementParams: FrequencyMeasurementParams,
     multiplier: Int
@@ -273,7 +273,7 @@ object Variances {
     sketchParams: LiquidLegionsSketchParams,
     measurementParams: FrequencyMeasurementParams,
   ): (
-    totalReach: Int,
+    totalReach: Long,
     reachRatio: Double,
     measurementParams: FrequencyMeasurementParams,
     multiplier: Int
@@ -337,14 +337,14 @@ object Variances {
     params: FrequencyMeasurementVarianceParams,
     frequencyRelativeVarianceFun:
       (
-        totalReach: Int,
+        totalReach: Long,
         reachRatio: Double,
         measurementParams: FrequencyMeasurementParams,
         multiplier: Int
       ) -> Double,
     frequencyCountVarianceFun:
       (
-        totalReach: Int,
+        totalReach: Long,
         totalReachVariance: Double,
         reachRatio: Double,
         reachRatioVariance: Double,
