@@ -211,6 +211,7 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
 
     assertThat(dataProviderRead).isEqualTo(createdDataProvider)
   }
+
   @Test
   fun `replaceDataProviderRequiredDuchies succeeds`() = runBlocking {
     val dataProvider = dataProvider {

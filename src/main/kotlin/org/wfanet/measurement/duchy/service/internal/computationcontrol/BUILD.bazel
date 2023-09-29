@@ -1,5 +1,5 @@
 load("@wfa_common_jvm//build:defs.bzl", "test_target")
-load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
 
 package(
     default_visibility = [
@@ -17,6 +17,7 @@ kt_jvm_library(
     ],
     deps = [
         ":protocol_stages",
+        "//src/main/kotlin/org/wfanet/measurement/common:exponential_backoff",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/proto/wfa/measurement/internal/duchy:async_computation_control_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",

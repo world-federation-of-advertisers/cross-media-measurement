@@ -18,6 +18,7 @@ import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
+import com.google.cloud.spanner.Struct
 import com.google.protobuf.Message
 import java.time.Clock
 import java.time.Duration
@@ -32,13 +33,14 @@ import org.wfanet.measurement.duchy.db.computation.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
+import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
+import org.wfanet.measurement.duchy.service.internal.ComputationTokenVersionMismatchException
 import org.wfanet.measurement.gcloud.common.gcloudTimestamp
 import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.TransactionWork
-import org.wfanet.measurement.gcloud.spanner.getBytesAsByteArray
 import org.wfanet.measurement.gcloud.spanner.getNullableString
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
@@ -50,7 +52,11 @@ import org.wfanet.measurement.internal.duchy.copy
 
 /** Implementation of [ComputationsDatabaseTransactor] using GCP Spanner Database. */
 class GcpSpannerComputationsDatabaseTransactor<
-  ProtocolT, StageT, StageDT : Message, ComputationDT : Message>(
+  ProtocolT,
+  StageT,
+  StageDT : Message,
+  ComputationDT : Message
+>(
   private val databaseClient: AsyncDatabaseClient,
   private val computationMutations: ComputationMutations<ProtocolT, StageT, StageDT, ComputationDT>,
   private val clock: Clock = Clock.systemUTC()
@@ -313,12 +319,16 @@ class GcpSpannerComputationsDatabaseTransactor<
     }
     runIfTokenFromLastUpdate(token) { txn ->
       val writeTime = clock.gcloudTimestamp()
-      val detailsBytes =
-        txn
-          .readRow("Computations", Key.of(token.localId), listOf("ComputationDetails"))
-          ?.getBytesAsByteArray("ComputationDetails")
-          ?: error("Computation missing $token")
-      val details = computationMutations.parseComputationDetails(detailsBytes)
+      val row: Struct =
+        checkNotNull(
+          txn.readRow("Computations", Key.of(token.localId), listOf("ComputationDetails"))
+        ) {
+          "Computations row not found for ID ${token.localId}"
+        }
+      val details =
+        computationMutations.parseComputationDetails(
+          row.getBytes("ComputationDetails").toByteArray()
+        )
       txn.buffer(
         computationMutations.updateComputation(
           localId = token.localId,
@@ -330,24 +340,41 @@ class GcpSpannerComputationsDatabaseTransactor<
           details = computationMutations.setEndingState(details, endComputationReason)
         )
       )
-      txn.buffer(
-        computationMutations.updateComputationStage(
-          localId = token.localId,
-          stage = token.stage,
-          endTime = writeTime,
-          followingStage = endingStage
+
+      if (token.stage == endingStage) {
+        // TODO(world-federation-of-advertisers/cross-media-measurement#774): Determine whether this
+        // actually works around this bug and come up with a better fix.
+        logger.warning { "Computation ${token.localId} is already in ending stage" }
+        txn.buffer(
+          computationMutations.updateComputationStage(
+            localId = token.localId,
+            stage = token.stage,
+            endTime = writeTime,
+            nextAttempt = 1,
+            details = computationMutations.detailsFor(endingStage, computationDetails)
+          )
         )
-      )
-      txn.buffer(
-        computationMutations.insertComputationStage(
-          localId = token.localId,
-          stage = endingStage,
-          creationTime = writeTime,
-          previousStage = token.stage,
-          nextAttempt = 1,
-          details = computationMutations.detailsFor(endingStage, computationDetails)
+      } else {
+        txn.buffer(
+          computationMutations.updateComputationStage(
+            localId = token.localId,
+            stage = token.stage,
+            endTime = writeTime,
+            followingStage = endingStage
+          )
         )
-      )
+        txn.buffer(
+          computationMutations.insertComputationStage(
+            localId = token.localId,
+            stage = endingStage,
+            creationTime = writeTime,
+            previousStage = token.stage,
+            nextAttempt = 1,
+            details = computationMutations.detailsFor(endingStage, computationDetails)
+          )
+        )
+      }
+
       UnfinishedAttemptQuery(computationMutations::longValuesToComputationStageEnum, token.localId)
         .execute(txn)
         .collect { unfinished ->
@@ -396,8 +423,7 @@ class GcpSpannerComputationsDatabaseTransactor<
             "RequisitionsByExternalId",
             Key.of(it.key.externalRequisitionId, it.key.requisitionFingerprint.toGcloudByteArray()),
             listOf("ComputationId", "RequisitionId")
-          )
-            ?: error("No Computation found row for this requisition: ${it.key}")
+          ) ?: error("No Computation found row for this requisition: ${it.key}")
         txn.buffer(
           computationMutations.updateRequisition(
             localComputationId = row.getLong("ComputationId"),
@@ -608,7 +634,7 @@ class GcpSpannerComputationsDatabaseTransactor<
             "No ComputationBlobReferences row for " +
               "(${token.localId}, ${token.stage}, ${blobRef.idInRelationalDatabase})"
           )
-      require(type == ComputationBlobDependency.OUTPUT) { "Cannot write to $type blob" }
+      check(type == ComputationBlobDependency.OUTPUT) { "Cannot write to $type blob" }
       txn.buffer(
         listOf(
           computationMutations.updateComputation(
@@ -642,8 +668,7 @@ class GcpSpannerComputationsDatabaseTransactor<
             externalRequisitionKey.requisitionFingerprint.toGcloudByteArray()
           ),
           listOf("ComputationId", "RequisitionId")
-        )
-          ?: error("No Computation found row for this requisition: $externalRequisitionKey")
+        ) ?: error("No Computation found row for this requisition: $externalRequisitionKey")
       val localComputationId = row.getLong("ComputationId")
       val requisitionId = row.getLong("RequisitionId")
       require(localComputationId == token.localId) {
@@ -693,32 +718,44 @@ class GcpSpannerComputationsDatabaseTransactor<
    * Runs [readWriteTransactionBlock] if the ComputationToken is from the most recent update to a
    * computation. This is done atomically with in read/write transaction.
    *
+   * The [token] edit version is used similarly to an `etag`. See https://google.aip.dev/154
+   *
    * @return [R] which is the result of the [readWriteTransactionBlock]
-   * @throws IllegalStateException if the token is not for the most recent update
+   * @throws ComputationNotFoundException if the Computation with
+   *   [token].[localId][ComputationEditToken.localId] is not found
+   * @throws ComputationTokenVersionMismatchException if
+   *   [token].[editVersion][ComputationEditToken.editVersion] does not match
    */
   private suspend fun <R> runIfTokenFromLastUpdate(
     token: ComputationEditToken<ProtocolT, StageT>,
     readWriteTransactionBlock: TransactionWork<R>
   ): R {
+    val localId = token.localId
     return databaseClient.readWriteTransaction().execute { txn ->
-      val current =
-        txn.readRow("Computations", Key.of(token.localId), listOf("UpdateTime"))
-          ?: error("No row for computation (${token.localId})")
+      val current: Struct =
+        txn.readRow("Computations", Key.of(localId), listOf("UpdateTime"))
+          ?: throw ComputationNotFoundException(localId)
+
       val updateTime = current.getTimestamp("UpdateTime").toInstant()
-      val updateTimeMillis = updateTime.toEpochMilli()
-      val tokenTimeMillis = token.editVersion
-      if (updateTimeMillis == tokenTimeMillis) {
+      val version: Long = updateTime.toEpochMilli()
+      val tokenVersion: Long = token.editVersion
+      if (version == tokenVersion) {
         readWriteTransactionBlock(txn)
       } else {
-        val tokenTime = Instant.ofEpochMilli(tokenTimeMillis)
-        error(
+        val tokenTime = Instant.ofEpochMilli(tokenVersion)
+        val message =
           """
           Failed to update because of editVersion mismatch.
-            Token's editVersion: $tokenTimeMillis ($tokenTime)
-            Computations table's UpdateTime: $updateTimeMillis ($updateTime)
+            Token version: $tokenVersion ($tokenTime)
+            Version: $version ($updateTime)
             Difference: ${Duration.between(tokenTime, updateTime)}
           """
             .trimIndent()
+        throw ComputationTokenVersionMismatchException(
+          computationId = localId,
+          version = version,
+          tokenVersion = tokenVersion,
+          message = message
         )
       }
     }

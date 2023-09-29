@@ -14,10 +14,16 @@
 
 syntax = "proto3";
 
-package wfa.measurement.internal.kingdom;
+package wfa.measurement.internal.reporting.v2;
 
-option java_package = "org.wfanet.measurement.internal.kingdom";
+option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
+
+// Information about the custom direct methodology.
+message CustomDirectMethodology {
+  // The variance of the result computed with the custom direct methodology.
+  double variance = 1;
+}
 
 // Parameters used when applying the deterministic count distinct methodology.
 message DeterministicCountDistinct {}
@@ -37,10 +43,10 @@ message DeterministicSum {}
 // To obtain differentially private result, one should add a DP noise to the
 // estimate number of sampled registers instead of the target estimate.
 message LiquidLegionsCountDistinct {
-  // The decay rate of the Liquid Legions sketch. Required.
+  // The decay rate of the Liquid Legions sketch. REQUIRED.
   double decay_rate = 1;
 
-  // The maximum size of the Liquid Legions sketch. Required.
+  // The maximum size of the Liquid Legions sketch. REQUIRED.
   int64 max_size = 2;
 }
 
@@ -50,12 +56,35 @@ message LiquidLegionsCountDistinct {
 // `Requisition`s using this protocol can be fulfilled by calling
 // RequisitionFulfillment/FulfillRequisition with an encrypted sketch.
 message LiquidLegionsDistribution {
-  // The decay rate of the Liquid Legions sketch. Required.
+  // The decay rate of the Liquid Legions sketch. REQUIRED.
   double decay_rate = 1;
 
-  // The maximum size of the Liquid Legions sketch. Required.
+  // The maximum size of the Liquid Legions sketch. REQUIRED.
   int64 max_size = 2;
+}
 
-  // The size of the distribution of the sampling indicator value. Required.
-  int64 sampling_indicator_size = 3;
+// Parameters used when applying the Liquid Legions count methodology
+//
+// May only be set when the measurement type is IMPRESSION.
+// To obtain differentially private result, one should add a DP noise scaled by
+// `maximum_frequency_per_user` to the sampled count before scaling up.
+message LiquidLegionsCount {
+  // The decay rate of the Liquid Legions sketch. REQUIRED.
+  double decay_rate = 1;
+
+  // The maximum size of the Liquid Legions sketch. REQUIRED.
+  int64 max_size = 2;
+}
+
+// Parameters used when applying the Liquid Legions sum methodology
+//
+// May only be set when the measurement type is WATCH_DURATION.
+// To obtain differentially private result, one should add a DP noise scaled by
+// `maximum_duration_per_user` to the sampled sum before scaling up.
+message LiquidLegionsSum {
+  // The decay rate of the Liquid Legions sketch. REQUIRED.
+  double decay_rate = 1;
+
+  // The maximum size of the Liquid Legions sketch. REQUIRED.
+  int64 max_size = 2;
 }

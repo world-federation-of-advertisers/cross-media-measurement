@@ -73,7 +73,8 @@ private const val MISSING_RESOURCE_NAME_ERROR = "Resource name is either unspeci
 
 class MeasurementsService(
   private val internalMeasurementsStub: MeasurementsCoroutineStub,
-  private val noiseMechanisms: List<NoiseMechanism>
+  private val noiseMechanisms: List<NoiseMechanism>,
+  private val reachOnlyLlV2Enabled: Boolean,
 ) : MeasurementsCoroutineImplBase() {
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
@@ -167,7 +168,8 @@ class MeasurementsService(
           measurementConsumerCertificateKey,
           dataProvidersMap,
           parsedMeasurementSpec,
-          noiseMechanisms.map { it.toInternal() }
+          noiseMechanisms.map { it.toInternal() },
+          reachOnlyLlV2Enabled
         )
       requestId = request.requestId
     }
@@ -316,7 +318,7 @@ private fun MeasurementSpec.validate() {
         "Duration privacy params are invalid"
       }
 
-      grpcRequire(duration.maximumWatchDurationPerUser > 0) {
+      grpcRequire(duration.hasMaximumWatchDurationPerUser()) {
         "Maximum watch duration per user is unspecified"
       }
     }

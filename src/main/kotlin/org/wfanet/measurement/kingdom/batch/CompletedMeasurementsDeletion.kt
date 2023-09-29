@@ -36,14 +36,14 @@ import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 
 private val COMPLETED_MEASUREMENT_STATES =
   listOf(Measurement.State.SUCCEEDED, Measurement.State.FAILED, Measurement.State.CANCELLED)
-private const val MAX_BATCH_DELETE = 1000
 
 class CompletedMeasurementsDeletion(
   private val measurementsService: MeasurementsCoroutineStub,
+  private val maxToDeletePerRpc: Int,
   private val timeToLive: Duration,
   private val dryRun: Boolean = false,
   private val clock: Clock = Clock.systemUTC(),
-  private val openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get()
+  private val openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get(),
 ) {
   private val meter: Meter = openTelemetry.getMeter(CompletedMeasurementsDeletion::class.java.name)
   private val completedMeasurementDeletionCounter: LongCounter =
@@ -51,6 +51,7 @@ class CompletedMeasurementsDeletion(
       .counterBuilder("completed_measurements_deletion_total")
       .setDescription("Total number of completed measurements deleted under retention policy")
       .build()
+
   fun run() {
     if (timeToLive.toMillis() == 0L) {
       logger.warning("Time to live cannot be 0. TTL=$timeToLive")
@@ -74,7 +75,7 @@ class CompletedMeasurementsDeletion(
         logger.info { "Measurements that would have been deleted: $measurementsToDelete" }
       } else {
         while (measurementsToDelete.isNotEmpty()) {
-          val batchMeasurementsToDelete = measurementsToDelete.take(MAX_BATCH_DELETE)
+          val batchMeasurementsToDelete = measurementsToDelete.take(maxToDeletePerRpc)
           val deleteRequests: List<DeleteMeasurementRequest> =
             batchMeasurementsToDelete.map {
               deleteMeasurementRequest {

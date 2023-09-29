@@ -28,7 +28,7 @@ import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Clock
-import java.time.Duration as systemDuration
+import java.time.Duration as JavaDuration
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.CoroutineDispatcher
@@ -157,7 +157,7 @@ import picocli.CommandLine.Parameters
 import picocli.CommandLine.ParentCommand
 import picocli.CommandLine.Spec
 
-private val CHANNEL_SHUTDOWN_TIMEOUT = systemDuration.ofSeconds(30)
+private val CHANNEL_SHUTDOWN_TIMEOUT = JavaDuration.ofSeconds(30)
 
 @Command(
   name = "MeasurementSystem",
@@ -634,6 +634,7 @@ class CreateMeasurement : Runnable {
         }
     }
   }
+
   private fun getEventDataProviderEntry(
     eventDataProviderInput:
       CreateMeasurementFlags.MeasurementParams.EventMeasurementParams.EventDataProviderInput,
@@ -733,7 +734,9 @@ class CreateMeasurement : Runnable {
             start = measurementParams.eventMeasurementParams.vidSamplingStart
             width = measurementParams.eventMeasurementParams.vidSamplingWidth
           }
-          if (
+          if (measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reach.selected) {
+            reach = createMeasurementFlags.getReach()
+          } else if (
             measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency
               .selected
           ) {
@@ -931,6 +934,7 @@ private class DataProviders {
     required = true,
   )
   private lateinit var dataProviderName: String
+
   @Command(name = "replace-required-duchies", description = ["Replaces DataProvider's duchy list"])
   fun replaceRequiredDuchyList(
     @Option(

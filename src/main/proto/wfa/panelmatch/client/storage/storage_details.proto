@@ -52,6 +52,21 @@ message StorageDetails {
   message AwsStorage {
     string bucket = 1;
     string region = 2;
+
+    // By default, the daemon uses the default AWS role credentials found in the
+    // environment variables. Specify, if a different role is required.
+    message AwsRole {
+      // Role ARN
+      string role_arn = 1;
+      // The optional owner-provided external identifier used in the assume role
+      // request. Only used with role_arn.
+      string role_external_id = 2;
+      // An identifier for the assumed role session.
+      string role_session_name = 3;
+    }
+
+    // The AWS Role to assume.
+    AwsRole role = 3;
   }
 
   message GcsStorage {

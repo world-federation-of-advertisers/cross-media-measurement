@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
+import com.google.protobuf.util.Durations
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
@@ -173,7 +174,8 @@ class MeasurementsServiceTest {
     service =
       MeasurementsService(
         MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
-        NOISE_MECHANISMS
+        NOISE_MECHANISMS,
+        reachOnlyLlV2Enabled = true
       )
   }
 
@@ -1764,8 +1766,7 @@ class MeasurementsServiceTest {
         RO_LLV2_INTERNAL_PROTOCOL_CONFIG.reachOnlyLiquidLegionsV2,
         RO_LLV2_DUCHY_PROTOCOL_CONFIG.reachOnlyLiquidLegionsV2,
         setOf("aggregator"),
-        2,
-        true
+        2
       )
     }
 
@@ -1904,7 +1905,7 @@ class MeasurementsServiceTest {
             epsilon = 1.0
             delta = 0.0
           }
-          maximumWatchDurationPerUser = 1
+          maximumWatchDurationPerUser = Durations.fromMinutes(5)
         }
       }
 
@@ -2047,36 +2048,27 @@ class MeasurementsServiceTest {
         InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
       )
 
-    private val DEFAULT_INTERNAL_DIRECT_REACH_PROTOCOL_CONFIG: InternalProtocolConfig.Direct =
-      direct {
-        noiseMechanisms += DEFAULT_INTERNAL_DIRECT_NOISE_MECHANISMS
-        deterministicCountDistinct =
-          InternalProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
-        liquidLegionsCountDistinct =
-          InternalProtocolConfig.Direct.LiquidLegionsCountDistinct.getDefaultInstance()
-      }
-
     private val DEFAULT_INTERNAL_DIRECT_REACH_AND_FREQUENCY_PROTOCOL_CONFIG:
       InternalProtocolConfig.Direct =
       direct {
         noiseMechanisms += DEFAULT_INTERNAL_DIRECT_NOISE_MECHANISMS
+        customDirectMethodology =
+          InternalProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
         deterministicCountDistinct =
           InternalProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
         liquidLegionsCountDistinct =
           InternalProtocolConfig.Direct.LiquidLegionsCountDistinct.getDefaultInstance()
         deterministicDistribution =
-          InternalProtocolConfigKt.DirectKt.deterministicDistribution {
-            maximumFrequency = DEFAULT_MAXIMUM_FREQUENCY_DIRECT_DISTRIBUTION
-          }
+          InternalProtocolConfig.Direct.DeterministicDistribution.getDefaultInstance()
         liquidLegionsDistribution =
-          InternalProtocolConfigKt.DirectKt.liquidLegionsDistribution {
-            maximumFrequency = DEFAULT_MAXIMUM_FREQUENCY_DIRECT_DISTRIBUTION
-          }
+          InternalProtocolConfig.Direct.LiquidLegionsDistribution.getDefaultInstance()
       }
 
     private val DEFAULT_INTERNAL_DIRECT_IMPRESSION_PROTOCOL_CONFIG: InternalProtocolConfig.Direct =
       direct {
         noiseMechanisms += DEFAULT_INTERNAL_DIRECT_NOISE_MECHANISMS
+        customDirectMethodology =
+          InternalProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
         deterministicCount = InternalProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
       }
 
@@ -2084,6 +2076,8 @@ class MeasurementsServiceTest {
       InternalProtocolConfig.Direct =
       direct {
         noiseMechanisms += DEFAULT_INTERNAL_DIRECT_NOISE_MECHANISMS
+        customDirectMethodology =
+          InternalProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
         deterministicSum = InternalProtocolConfig.Direct.DeterministicSum.getDefaultInstance()
       }
 

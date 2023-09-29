@@ -16,16 +16,13 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Struct
-import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
-import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
 import org.wfanet.measurement.gcloud.spanner.getInternalId
-import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
-import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 
 class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result>() {
@@ -39,14 +36,16 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
       MeasurementConsumers.MeasurementConsumerDetails,
       MeasurementConsumers.MeasurementConsumerDetailsJson,
       MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId,
-      Certificates.CertificateId,
       Certificates.SubjectKeyIdentifier,
       Certificates.NotValidBefore,
       Certificates.NotValidAfter,
       Certificates.RevocationState,
       Certificates.CertificateDetails
     FROM MeasurementConsumers
-    JOIN MeasurementConsumerCertificates USING (MeasurementConsumerId)
+    JOIN MeasurementConsumerCertificates ON (
+      MeasurementConsumerCertificates.MeasurementConsumerId = MeasurementConsumers.MeasurementConsumerId
+      AND MeasurementConsumerCertificates.CertificateId = MeasurementConsumers.PublicKeyCertificateId
+    )
     JOIN Certificates USING (CertificateId)
     """
       .trimIndent()
@@ -60,7 +59,7 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
         externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
         details =
           struct.getProtoMessage("MeasurementConsumerDetails", MeasurementConsumer.Details.parser())
-        certificate = buildCertificate(struct)
+        certificate = CertificateReader.buildMeasurementConsumerCertificate(struct)
       }
       .build()
 
@@ -71,26 +70,10 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
     return fillStatementBuilder {
         appendClause("WHERE ExternalMeasurementConsumerId = @externalMeasurementConsumerId")
         bind("externalMeasurementConsumerId").to(externalMeasurementConsumerId.value)
-        appendClause("LIMIT 1")
       }
       .execute(readContext)
-      .singleOrNull()
+      .singleOrNullIfEmpty()
   }
-
-  // TODO(uakyol) : Move this function to CertificateReader when it is implemented.
-  private fun buildCertificate(struct: Struct): Certificate =
-    Certificate.newBuilder()
-      .apply {
-        externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-        externalCertificateId = struct.getLong("ExternalMeasurementConsumerCertificateId")
-        subjectKeyIdentifier = struct.getBytesAsByteString("SubjectKeyIdentifier")
-        notValidBefore = struct.getTimestamp("NotValidBefore").toProto()
-        notValidAfter = struct.getTimestamp("NotValidAfter").toProto()
-        revocationState =
-          struct.getProtoEnum("RevocationState", Certificate.RevocationState::forNumber)
-        details = struct.getProtoMessage("CertificateDetails", Certificate.Details.parser())
-      }
-      .build()
 
   companion object {
     /** Reads the [InternalId] for a MeasurementConsumer given its [ExternalId]. */
@@ -105,8 +88,7 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
           "MeasurementConsumersByExternalId",
           Key.of(externalMeasurementConsumerId.value),
           column
-        )
-          ?: return null
+        ) ?: return null
       return row.getInternalId(column)
     }
   }

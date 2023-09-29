@@ -259,7 +259,7 @@ class CertificateReader(private val parentType: ParentType) :
       externalCertificateId = struct.getLong(parentType.externalCertificateIdColumnName)
     }
 
-    private fun buildMeasurementConsumerCertificate(struct: Struct) = certificate {
+    fun buildMeasurementConsumerCertificate(struct: Struct) = certificate {
       fillCommon(struct)
 
       val parentType = ParentType.MEASUREMENT_CONSUMER
@@ -294,8 +294,7 @@ class CertificateReader(private val parentType: ParentType) :
           "DuchyCertificatesByExternalId",
           Key.of(duchyId.value, externalDuchyCertificateId.value),
           "CertificateId"
-        )
-          ?: return null
+        ) ?: return null
       return InternalId(struct.getLong("CertificateId"))
     }
   }

@@ -15,6 +15,7 @@
 package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
+import org.wfanet.measurement.common.api.ResourceKey
 
 private val parser =
   ResourceNameParser("modelProviders/{model_provider}/certificates/{certificate}")
@@ -23,7 +24,9 @@ private val parser =
 data class ModelProviderCertificateKey(
   val modelProviderId: String,
   override val certificateId: String
-) : CertificateParentKey {
+) : CertificateKey {
+  override val parentKey = ModelProviderKey(modelProviderId)
+
   override fun toName(): String {
     return parser.assembleName(
       mapOf(IdVariable.MODEL_PROVIDER to modelProviderId, IdVariable.CERTIFICATE to certificateId)

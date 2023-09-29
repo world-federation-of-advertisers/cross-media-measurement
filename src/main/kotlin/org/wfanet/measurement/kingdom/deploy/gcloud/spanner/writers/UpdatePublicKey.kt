@@ -56,16 +56,17 @@ class UpdatePublicKey(private val request: UpdatePublicKeyRequest) : SimpleSpann
             ExternalId(request.externalMeasurementConsumerId)
           )
 
-      CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
-        .readMeasurementConsumerCertificateIdByExternalId(
-          transactionContext,
-          InternalId(measurementConsumerResult.measurementConsumerId),
-          ExternalId(request.externalCertificateId)
-        )
-        ?: throw MeasurementConsumerCertificateNotFoundException(
-          ExternalId(request.externalMeasurementConsumerId),
-          ExternalId(request.externalCertificateId)
-        )
+      val certificateId: InternalId =
+        CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
+          .readMeasurementConsumerCertificateIdByExternalId(
+            transactionContext,
+            InternalId(measurementConsumerResult.measurementConsumerId),
+            ExternalId(request.externalCertificateId)
+          )
+          ?: throw MeasurementConsumerCertificateNotFoundException(
+            ExternalId(request.externalMeasurementConsumerId),
+            ExternalId(request.externalCertificateId)
+          )
 
       val measurementConsumerDetails =
         measurementConsumerResult.measurementConsumer.details.copy {
@@ -76,6 +77,7 @@ class UpdatePublicKey(private val request: UpdatePublicKeyRequest) : SimpleSpann
 
       transactionContext.bufferUpdateMutation("MeasurementConsumers") {
         set("MeasurementConsumerId" to measurementConsumerResult.measurementConsumerId)
+        set("PublicKeyCertificateId" to certificateId)
         set("MeasurementConsumerDetails" to measurementConsumerDetails)
         setJson("MeasurementConsumerDetailsJson" to measurementConsumerDetails)
       }
@@ -85,19 +87,19 @@ class UpdatePublicKey(private val request: UpdatePublicKeyRequest) : SimpleSpann
           .readByExternalDataProviderId(
             transactionContext,
             ExternalId(request.externalDataProviderId)
-          )
-          ?: throw DataProviderNotFoundException(ExternalId(request.externalDataProviderId))
+          ) ?: throw DataProviderNotFoundException(ExternalId(request.externalDataProviderId))
 
-      CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
-        .readDataProviderCertificateIdByExternalId(
-          transactionContext,
-          InternalId(dataProviderResult.dataProviderId),
-          ExternalId(request.externalCertificateId)
-        )
-        ?: throw DataProviderCertificateNotFoundException(
-          ExternalId(request.externalDataProviderId),
-          ExternalId(request.externalCertificateId)
-        )
+      val certificateId: InternalId =
+        CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
+          .readDataProviderCertificateIdByExternalId(
+            transactionContext,
+            InternalId(dataProviderResult.dataProviderId),
+            ExternalId(request.externalCertificateId)
+          )
+          ?: throw DataProviderCertificateNotFoundException(
+            ExternalId(request.externalDataProviderId),
+            ExternalId(request.externalCertificateId)
+          )
 
       val dataProviderDetails =
         dataProviderResult.dataProvider.details.copy {
@@ -108,6 +110,7 @@ class UpdatePublicKey(private val request: UpdatePublicKeyRequest) : SimpleSpann
 
       transactionContext.bufferUpdateMutation("DataProviders") {
         set("DataProviderId" to dataProviderResult.dataProviderId)
+        set("PublicKeyCertificateId" to certificateId)
         set("DataProviderDetails" to dataProviderDetails)
         setJson("DataProviderDetailsJson" to dataProviderDetails)
       }

@@ -116,8 +116,7 @@ class SpannerMeasurementsService(
         ExternalId(request.externalMeasurementConsumerId),
         ExternalId(request.externalMeasurementId)
       )
-      ?.measurement
-      ?: failGrpc(Status.NOT_FOUND) { "Measurement not found" }
+      ?.measurement ?: failGrpc(Status.NOT_FOUND) { "Measurement not found" }
   }
 
   override suspend fun getMeasurementByComputationId(
@@ -125,8 +124,7 @@ class SpannerMeasurementsService(
   ): Measurement {
     return MeasurementReader(Measurement.View.COMPUTATION)
       .readByExternalComputationId(client.singleUse(), ExternalId(request.externalComputationId))
-      ?.measurement
-      ?: failGrpc(Status.NOT_FOUND) { "Measurement not found" }
+      ?.measurement ?: failGrpc(Status.NOT_FOUND) { "Measurement not found" }
   }
 
   override fun streamMeasurements(request: StreamMeasurementsRequest): Flow<Measurement> {

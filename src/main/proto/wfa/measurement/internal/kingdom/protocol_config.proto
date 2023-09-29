@@ -44,24 +44,20 @@ message ProtocolConfig {
   // The `DataProvider` may choose from the specified noise mechanisms and
   // methodologies.
   message Direct {
+    // Configuration parameters for custom direct methodology.
+    message CustomDirectMethodology {}
     // Configuration parameters for the deterministic count distinct
     // methodology.
     message DeterministicCountDistinct {}
     // Configuration parameters for the deterministic distribution methodology.
-    message DeterministicDistribution {
-      // The maximum frequency to reveal in the distribution.
-      int32 maximum_frequency = 1;
-    }
+    message DeterministicDistribution {}
     // Configuration parameters for the deterministic count methodology.
     message DeterministicCount {}
     // Configuration parameters for the deterministic sum methodology.
     message DeterministicSum {}
     // Configuration parameters for the direct Liquid Legions distribution
     // methodology.
-    message LiquidLegionsDistribution {
-      // The maximum frequency to reveal in the distribution.
-      int32 maximum_frequency = 1;
-    }
+    message LiquidLegionsDistribution {}
     // Configuration parameters for the direct Liquid Legions count distinct
     // methodology.
     message LiquidLegionsCountDistinct {}
@@ -70,35 +66,41 @@ message ProtocolConfig {
     // computation.
     repeated NoiseMechanism noise_mechanisms = 1;
 
+    // Custom direct methodology.
+    //
+    // Used when data provider wants to use a methodology that is not listed in
+    // protocol config to compute direct measurements.
+    CustomDirectMethodology custom_direct_methodology = 2;
+
     // Deterministic count distinct methodology.
     //
     // Can be used in reach computations.
-    DeterministicCountDistinct deterministic_count_distinct = 2;
+    DeterministicCountDistinct deterministic_count_distinct = 3;
 
     // Deterministic distribution methodology.
     //
     // Can be used in frequency computations.
-    DeterministicDistribution deterministic_distribution = 3;
+    DeterministicDistribution deterministic_distribution = 4;
 
     // Deterministic count methodology.
     //
     // Can be used in impression and population computations.
-    DeterministicCount deterministic_count = 4;
+    DeterministicCount deterministic_count = 5;
 
     // Deterministic sum methodology.
     //
     // Can be used in watch duration computations.
-    DeterministicSum deterministic_sum = 5;
+    DeterministicSum deterministic_sum = 6;
 
     // Liquid Legions count distinct methodology.
     //
     // Can be used in reach computations.
-    LiquidLegionsCountDistinct liquid_legions_count_distinct = 6;
+    LiquidLegionsCountDistinct liquid_legions_count_distinct = 7;
 
     // Liquid Legions distribution methodology.
     //
     // Can be used in frequency computations.
-    LiquidLegionsDistribution liquid_legions_distribution = 7;
+    LiquidLegionsDistribution liquid_legions_distribution = 8;
   }
 
   // Configuration for Liquid Legions v2 protocols.

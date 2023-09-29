@@ -1,4 +1,4 @@
-load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
@@ -11,6 +11,7 @@ kt_jvm_library(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/common",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal:internal_exception",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_blob_dependency_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_token_kt_jvm_proto",

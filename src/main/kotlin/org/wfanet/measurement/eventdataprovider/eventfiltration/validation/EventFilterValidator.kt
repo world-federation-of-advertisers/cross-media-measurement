@@ -295,8 +295,7 @@ private fun Expr.nonOperativeComparisonNode(operativeFields: Set<String>): Boole
       val selectExpr =
         listOf(callExpr.argsList[0], callExpr.argsList[1])
           .singleOrNull { it.hasSelectExpr() }
-          ?.selectExpr
-          ?: return false
+          ?.selectExpr ?: return false
 
       val fieldName: String = getFieldName(selectExpr)
       if (!operativeFields.contains(fieldName)) {

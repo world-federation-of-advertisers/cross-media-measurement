@@ -16,16 +16,13 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Struct
-import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
-import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
 import org.wfanet.measurement.gcloud.spanner.getInternalId
-import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
-import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
@@ -40,7 +37,6 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
       DataProviders.DataProviderDetails,
       DataProviders.DataProviderDetailsJson,
       DataProviderCertificates.ExternalDataProviderCertificateId,
-      Certificates.CertificateId,
       Certificates.SubjectKeyIdentifier,
       Certificates.NotValidBefore,
       Certificates.NotValidAfter,
@@ -54,7 +50,10 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
           JOIN DataProviderRequiredDuchies USING (DataProviderId)
       ) AS DataProviderRequiredDuchies,
     FROM DataProviders
-    JOIN DataProviderCertificates USING (DataProviderId)
+    JOIN DataProviderCertificates ON (
+      DataProviderCertificates.DataProviderId = DataProviders.DataProviderId
+      AND DataProviderCertificates.CertificateId = DataProviders.PublicKeyCertificateId
+    )
     JOIN Certificates USING (CertificateId)
     """
       .trimIndent()
@@ -69,10 +68,9 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
     return fillStatementBuilder {
         appendClause("WHERE ExternalDataProviderId = @externalDataProviderId")
         bind("externalDataProviderId").to(externalDataProviderId.value)
-        appendClause("LIMIT 1")
       }
       .execute(readContext)
-      .singleOrNull()
+      .singleOrNullIfEmpty()
   }
 
   private fun buildDataProvider(struct: Struct): DataProvider =
@@ -80,7 +78,7 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
       .apply {
         externalDataProviderId = struct.getLong("ExternalDataProviderId")
         details = struct.getProtoMessage("DataProviderDetails", DataProvider.Details.parser())
-        certificate = buildCertificate(struct)
+        certificate = CertificateReader.buildDataProviderCertificate(struct)
         addAllRequiredExternalDuchyIds(buildExternalDuchyIdList(struct))
       }
       .build()
@@ -92,21 +90,6 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
       }
     }
   }
-
-  // TODO(uakyol) : Move this function to CertificateReader when it is implemented.
-  private fun buildCertificate(struct: Struct): Certificate =
-    Certificate.newBuilder()
-      .apply {
-        externalDataProviderId = struct.getLong("ExternalDataProviderId")
-        externalCertificateId = struct.getLong("ExternalDataProviderCertificateId")
-        subjectKeyIdentifier = struct.getBytesAsByteString("SubjectKeyIdentifier")
-        notValidBefore = struct.getTimestamp("NotValidBefore").toProto()
-        notValidAfter = struct.getTimestamp("NotValidAfter").toProto()
-        revocationState =
-          struct.getProtoEnum("RevocationState", Certificate.RevocationState::forNumber)
-        details = struct.getProtoMessage("CertificateDetails", Certificate.Details.parser())
-      }
-      .build()
 
   companion object {
     /** Reads the [InternalId] for a DataProvider given its [ExternalId]. */
@@ -121,8 +104,7 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
           "DataProvidersByExternalId",
           Key.of(externalDataProviderId.value),
           column
-        )
-          ?: return null
+        ) ?: return null
 
       return row.getInternalId(column)
     }

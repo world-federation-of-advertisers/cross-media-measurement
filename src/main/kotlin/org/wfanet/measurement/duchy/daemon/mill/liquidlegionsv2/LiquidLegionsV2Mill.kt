@@ -15,6 +15,8 @@
 package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2
 
 import com.google.protobuf.ByteString
+import io.grpc.Status
+import io.grpc.StatusException
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.metrics.LongHistogram
 import io.opentelemetry.api.metrics.Meter
@@ -41,7 +43,6 @@ import org.wfanet.measurement.consent.client.duchy.verifyElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_LIB_CPU_DURATION
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
 import org.wfanet.measurement.duchy.daemon.mill.MillBase
-import org.wfanet.measurement.duchy.daemon.mill.PermanentComputationError
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.LiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.daemon.utils.ComputationResult
 import org.wfanet.measurement.duchy.daemon.utils.ReachAndFrequencyResult
@@ -247,7 +248,16 @@ class LiquidLegionsV2Mill(
           }
         }
         .build()
-    systemComputationParticipantsClient.setParticipantRequisitionParams(request)
+    try {
+      systemComputationParticipantsClient.setParticipantRequisitionParams(request)
+    } catch (e: StatusException) {
+      val message = "Error setting participant requisition params"
+      throw when (e.status.code) {
+        Status.Code.UNAVAILABLE,
+        Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
+        else -> ComputationDataClients.PermanentErrorException(message, e)
+      }
+    }
   }
 
   /** Processes computation in the initialization phase */
@@ -275,20 +285,18 @@ class LiquidLegionsV2Mill(
         )
 
         // Updates the newly generated localElgamalKey to the ComputationDetails.
-        dataClients.computationsClient
-          .updateComputationDetails(
-            UpdateComputationDetailsRequest.newBuilder()
-              .also {
-                it.token = token
-                it.details =
-                  token.computationDetails
-                    .toBuilder()
-                    .apply { liquidLegionsV2Builder.localElgamalKey = cryptoResult.elGamalKeyPair }
-                    .build()
-              }
-              .build()
-          )
-          .token
+        updateComputationDetails(
+          UpdateComputationDetailsRequest.newBuilder()
+            .also {
+              it.token = token
+              it.details =
+                token.computationDetails
+                  .toBuilder()
+                  .apply { liquidLegionsV2Builder.localElgamalKey = cryptoResult.elGamalKeyPair }
+                  .build()
+            }
+            .build()
+        )
       }
 
     sendRequisitionParamsToKingdom(nextToken)
@@ -369,7 +377,7 @@ class LiquidLegionsV2Mill(
     val errorMessage =
       "@Mill $millId, Computation ${token.globalComputationId} failed due to:\n" +
         errorList.joinToString(separator = "\n")
-    throw PermanentComputationError(Exception(errorMessage))
+    throw ComputationDataClients.PermanentErrorException(errorMessage)
   }
 
   private fun List<ElGamalPublicKey>.toCombinedPublicKey(curveId: Int): ElGamalPublicKey {
@@ -412,34 +420,41 @@ class LiquidLegionsV2Mill(
         UNRECOGNIZED -> error("Invalid role ${llv2Details.role}")
       }
 
-    return dataClients.computationsClient
-      .updateComputationDetails(
-        UpdateComputationDetailsRequest.newBuilder()
-          .apply {
-            this.token = token
-            details =
-              token.computationDetails
-                .toBuilder()
-                .apply {
-                  liquidLegionsV2Builder.also {
-                    it.combinedPublicKey = combinedPublicKey
-                    it.partiallyCombinedPublicKey = partiallyCombinedPublicKey
-                  }
+    return updateComputationDetails(
+      UpdateComputationDetailsRequest.newBuilder()
+        .apply {
+          this.token = token
+          details =
+            token.computationDetails
+              .toBuilder()
+              .apply {
+                liquidLegionsV2Builder.also {
+                  it.combinedPublicKey = combinedPublicKey
+                  it.partiallyCombinedPublicKey = partiallyCombinedPublicKey
                 }
-                .build()
-          }
-          .build()
-      )
-      .token
+              }
+              .build()
+        }
+        .build()
+    )
   }
 
   /** Sends confirmation to the kingdom and transits the local computation to the next stage. */
   private suspend fun passConfirmationPhase(token: ComputationToken): ComputationToken {
-    systemComputationParticipantsClient.confirmComputationParticipant(
-      ConfirmComputationParticipantRequest.newBuilder()
-        .apply { name = ComputationParticipantKey(token.globalComputationId, duchyId).toName() }
-        .build()
-    )
+    try {
+      systemComputationParticipantsClient.confirmComputationParticipant(
+        ConfirmComputationParticipantRequest.newBuilder()
+          .apply { name = ComputationParticipantKey(token.globalComputationId, duchyId).toName() }
+          .build()
+      )
+    } catch (e: StatusException) {
+      val message = "Error confirming computation participant"
+      throw when (e.status.code) {
+        Status.Code.UNAVAILABLE,
+        Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
+        else -> ComputationDataClients.PermanentErrorException(message, e)
+      }
+    }
     val latestToken = updatePublicElgamalKey(token)
     return dataClients.transitionComputationToStage(
       latestToken,
@@ -473,16 +488,18 @@ class LiquidLegionsV2Mill(
   private suspend fun completeSetupPhaseAtAggregator(token: ComputationToken): ComputationToken {
     val llv2Details = token.computationDetails.liquidLegionsV2
     require(AGGREGATOR == llv2Details.role) { "invalid role for this function." }
-    // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to
-    // handle the case where the set of computation participants is a subset of all Duchies.
-    val inputBlobCount = workerStubs.size
+    val inputBlobCount = token.participantCount - 1
     val (bytes, nextToken) =
       existingOutputOr(token) {
         val request =
           dataClients
             .readAllRequisitionBlobs(token, duchyId)
             .concat(readAndCombineAllInputBlobs(token, inputBlobCount))
-            .toCompleteSetupPhaseRequest(llv2Details, token.requisitionsCount)
+            .toCompleteSetupPhaseRequest(
+              llv2Details,
+              token.requisitionsCount,
+              token.participantCount
+            )
         val cryptoResult: CompleteSetupPhaseResponse = cryptoWorker.completeSetupPhase(request)
         logStageDurationMetric(
           token,
@@ -518,7 +535,11 @@ class LiquidLegionsV2Mill(
         val request =
           dataClients
             .readAllRequisitionBlobs(token, duchyId)
-            .toCompleteSetupPhaseRequest(llv2Details, token.requisitionsCount)
+            .toCompleteSetupPhaseRequest(
+              llv2Details,
+              token.requisitionsCount,
+              token.participantCount
+            )
         val cryptoResult: CompleteSetupPhaseResponse = cryptoWorker.completeSetupPhase(request)
         logStageDurationMetric(
           token,
@@ -564,7 +585,7 @@ class LiquidLegionsV2Mill(
           totalSketchesCount = token.requisitionsCount
           noiseMechanism = llv2Details.parameters.noise.noiseMechanism
           if (llv2Parameters.noise.hasFrequencyNoiseConfig() && maximumRequestedFrequency > 1) {
-            noiseParameters = getFrequencyNoiseParams(llv2Parameters)
+            noiseParameters = getFrequencyNoiseParams(llv2Parameters, token.participantCount)
           }
         }
         val cryptoResult: CompleteExecutionPhaseOneAtAggregatorResponse =
@@ -674,17 +695,13 @@ class LiquidLegionsV2Mill(
           vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width
           if (llv2Parameters.noise.hasReachNoiseConfig()) {
             reachDpNoiseBaseline = globalReachDpNoiseBaseline {
-              // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to
-              // handle the case where the computation participants is a subset of all Duchies.
-              contributorsCount = workerStubs.size + 1
+              contributorsCount = token.participantCount
               globalReachDpNoise = llv2Parameters.noise.reachNoiseConfig.globalReachDpNoise
             }
           }
           if (llv2Parameters.noise.hasFrequencyNoiseConfig() && (maximumRequestedFrequency > 1)) {
             frequencyNoiseParameters = flagCountTupleNoiseGenerationParameters {
-              // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to
-              // handle the case where the computation participants is a subset of all Duchies.
-              contributorsCount = workerStubs.size + 1
+              contributorsCount = token.participantCount
               maximumFrequency = maximumRequestedFrequency
               dpParams = llv2Parameters.noise.frequencyNoiseConfig
             }
@@ -710,20 +727,18 @@ class LiquidLegionsV2Mill(
         tempToken
       } else {
         // Update the newly calculated reach to the ComputationDetails.
-        dataClients.computationsClient
-          .updateComputationDetails(
-            UpdateComputationDetailsRequest.newBuilder()
-              .also {
-                it.token = tempToken
-                it.details =
-                  token.computationDetails
-                    .toBuilder()
-                    .apply { liquidLegionsV2Builder.reachEstimateBuilder.reach = reach }
-                    .build()
-              }
-              .build()
-          )
-          .token
+        updateComputationDetails(
+          UpdateComputationDetailsRequest.newBuilder()
+            .also {
+              it.token = tempToken
+              it.details =
+                token.computationDetails
+                  .toBuilder()
+                  .apply { liquidLegionsV2Builder.reachEstimateBuilder.reach = reach }
+                  .build()
+            }
+            .build()
+        )
       }
 
     // If this is a reach-only computation, then our job is done.
@@ -768,7 +783,7 @@ class LiquidLegionsV2Mill(
           if (llv2Parameters.noise.hasFrequencyNoiseConfig()) {
             partialCompositeElGamalPublicKey = llv2Details.partiallyCombinedPublicKey
             if (maximumRequestedFrequency > 1) {
-              noiseParameters = getFrequencyNoiseParams(llv2Parameters)
+              noiseParameters = getFrequencyNoiseParams(llv2Parameters, token.participantCount)
             }
           }
           noiseMechanism = llv2Details.parameters.noise.noiseMechanism
@@ -824,9 +839,7 @@ class LiquidLegionsV2Mill(
           maximumFrequency = llv2Parameters.maximumFrequency.coerceAtLeast(1)
           if (llv2Parameters.noise.hasFrequencyNoiseConfig()) {
             globalFrequencyDpNoisePerBucket = perBucketFrequencyDpNoiseBaseline {
-              // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to
-              // handle the case where the computation participants is a subset of all Duchies.
-              contributorsCount = workerStubs.size + 1
+              contributorsCount = token.participantCount
               dpParams = llv2Parameters.noise.frequencyNoiseConfig
             }
           }
@@ -929,23 +942,22 @@ class LiquidLegionsV2Mill(
     val index = duchyList.indexOfFirst { it.duchyId == duchyId }
     val nextDuchy = duchyList[(index + 1) % duchyList.size].duchyId
     return workerStubs[nextDuchy]
-      ?: throw PermanentComputationError(
-        IllegalArgumentException("No ComputationControlService stub for next duchy '$nextDuchy'")
+      ?: throw ComputationDataClients.PermanentErrorException(
+        "No ComputationControlService stub for next duchy '$nextDuchy'"
       )
   }
 
   private fun aggregatorDuchyStub(aggregatorId: String): ComputationControlCoroutineStub {
     return workerStubs[aggregatorId]
-      ?: throw PermanentComputationError(
-        IllegalArgumentException(
-          "No ComputationControlService stub for the Aggregator duchy '$aggregatorId'"
-        )
+      ?: throw ComputationDataClients.PermanentErrorException(
+        "No ComputationControlService stub for the Aggregator duchy '$aggregatorId'"
       )
   }
 
   private fun ByteString.toCompleteSetupPhaseRequest(
     llv2Details: LiquidLegionsSketchAggregationV2.ComputationDetails,
-    totalRequisitionsCount: Int
+    totalRequisitionsCount: Int,
+    participantCount: Int,
   ): CompleteSetupPhaseRequest {
     val noiseConfig = llv2Details.parameters.noise
     return completeSetupPhaseRequest {
@@ -955,9 +967,7 @@ class LiquidLegionsV2Mill(
         noiseParameters = registerNoiseGenerationParameters {
           compositeElGamalPublicKey = llv2Details.combinedPublicKey
           curveId = llv2Details.parameters.ellipticCurveId.toLong()
-          // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to handle
-          // the case where the computation participants is a subset of all Duchies.
-          contributorsCount = workerStubs.size + 1
+          contributorsCount = participantCount
           totalSketchesCount = totalRequisitionsCount
           dpParams = reachNoiseDifferentialPrivacyParams {
             blindHistogram = noiseConfig.reachNoiseConfig.blindHistogramNoise
@@ -972,16 +982,24 @@ class LiquidLegionsV2Mill(
   }
 
   private fun getFrequencyNoiseParams(
-    llv2Parameters: Parameters
+    llv2Parameters: Parameters,
+    participantCount: Int,
   ): FlagCountTupleNoiseGenerationParameters {
     return flagCountTupleNoiseGenerationParameters {
       maximumFrequency = llv2Parameters.maximumFrequency
-      // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to handle the
-      // case where the computation participants is a subset of all Duchies.
-      contributorsCount = workerStubs.size + 1
+      contributorsCount = participantCount
       dpParams = llv2Parameters.noise.frequencyNoiseConfig
     }
   }
+
+  private val ComputationToken.participantCount: Int
+    get() =
+      if (computationDetails.kingdomComputation.participantCount != 0) {
+        computationDetails.kingdomComputation.participantCount
+      } else {
+        // For legacy Computations. See world-federation-of-advertisers/cross-media-measurement#1194
+        workerStubs.size + 1
+      }
 
   companion object {
     init {
@@ -994,6 +1012,7 @@ class LiquidLegionsV2Mill(
         directoryPath = Paths.get("any_sketch_java/src/main/java/org/wfanet/anysketch/crypto")
       )
     }
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

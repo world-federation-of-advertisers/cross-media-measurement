@@ -253,8 +253,9 @@ kustomization_dir(
         "config_files_kustomization.yaml",
         "empty_akid_mapping_config.textproto",
         "empty_encryption_key_pair_config.textproto",
-        "metric_spec_config.textproto",
         "//src/main/k8s/testing/data:synthetic_generation_specs",
+        "//src/main/k8s/testing/secretfiles:measurement_spec_config.textproto",
+        "//src/main/k8s/testing/secretfiles:metric_spec_config.textproto",
     ],
     renames = {
         "config_files_kustomization.yaml": "kustomization.yaml",
@@ -268,8 +269,9 @@ kustomization_dir(
     srcs = [
         "config_files_kustomization.yaml",
         ":encryption_key_pair_config.textproto",
-        ":metric_spec_config.textproto",
         "//src/main/k8s/testing/data:synthetic_generation_specs",
+        "//src/main/k8s/testing/secretfiles:measurement_spec_config.textproto",
+        "//src/main/k8s/testing/secretfiles:metric_spec_config.textproto",
     ],
     renames = {
         "config_files_kustomization.yaml": "kustomization.yaml",

@@ -15,6 +15,8 @@
 package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2
 
 import com.google.protobuf.ByteString
+import io.grpc.Status
+import io.grpc.StatusException
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.metrics.LongHistogram
 import io.opentelemetry.api.metrics.Meter
@@ -38,7 +40,6 @@ import org.wfanet.measurement.consent.client.duchy.verifyElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_LIB_CPU_DURATION
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
 import org.wfanet.measurement.duchy.daemon.mill.MillBase
-import org.wfanet.measurement.duchy.daemon.mill.PermanentComputationError
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.ReachOnlyLiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.daemon.utils.ComputationResult
 import org.wfanet.measurement.duchy.daemon.utils.ReachResult
@@ -162,8 +163,7 @@ class ReachOnlyLiquidLegionsV2Mill(
   private val executionPhaseCryptoCpuTimeDurationHistogram: LongHistogram =
     meter.histogramBuilder("execution_phase_crypto_cpu_time_duration_millis").ofLongs().build()
 
-  override val endingStage =
-    ReachOnlyLiquidLegionsSketchAggregationV2.Stage.COMPLETE.toProtocolStage()
+  override val endingStage = Stage.COMPLETE.toProtocolStage()
 
   private val actions =
     mapOf(
@@ -176,8 +176,6 @@ class ReachOnlyLiquidLegionsV2Mill(
       Pair(Stage.EXECUTION_PHASE, AGGREGATOR) to ::completeExecutionPhaseAtAggregator,
       Pair(Stage.EXECUTION_PHASE, NON_AGGREGATOR) to ::completeExecutionPhaseAtNonAggregator,
     )
-
-  private val kBytesPerCipherText = 66
 
   override suspend fun processComputationImpl(token: ComputationToken) {
     require(token.computationDetails.hasReachOnlyLiquidLegionsV2()) {
@@ -219,7 +217,16 @@ class ReachOnlyLiquidLegionsV2Mill(
             }
         }
     }
-    systemComputationParticipantsClient.setParticipantRequisitionParams(request)
+    try {
+      systemComputationParticipantsClient.setParticipantRequisitionParams(request)
+    } catch (e: StatusException) {
+      val message = "Error setting participant requisition params"
+      throw when (e.status.code) {
+        Status.Code.UNAVAILABLE,
+        Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
+        else -> ComputationDataClients.PermanentErrorException(message, e)
+      }
+    }
   }
 
   /** Processes computation in the initialization phase */
@@ -246,27 +253,25 @@ class ReachOnlyLiquidLegionsV2Mill(
         )
 
         // Updates the newly generated localElgamalKey to the ComputationDetails.
-        dataClients.computationsClient
-          .updateComputationDetails(
-            updateComputationDetailsRequest {
-              this.token = token
-              this.details = computationDetails {
-                this.blobsStoragePrefix = token.computationDetails.blobsStoragePrefix
-                this.endingState = token.computationDetails.endingState
-                this.kingdomComputation = token.computationDetails.kingdomComputation
-                this.reachOnlyLiquidLegionsV2 =
-                  ReachOnlyLiquidLegionsSketchAggregationV2Kt.computationDetails {
-                    this.role = token.computationDetails.reachOnlyLiquidLegionsV2.role
-                    this.parameters = token.computationDetails.reachOnlyLiquidLegionsV2.parameters
-                    participant.addAll(
-                      token.computationDetails.reachOnlyLiquidLegionsV2.participantList
-                    )
-                    this.localElgamalKey = cryptoResult.elGamalKeyPair
-                  }
-              }
+        updateComputationDetails(
+          updateComputationDetailsRequest {
+            this.token = token
+            this.details = computationDetails {
+              this.blobsStoragePrefix = token.computationDetails.blobsStoragePrefix
+              this.endingState = token.computationDetails.endingState
+              this.kingdomComputation = token.computationDetails.kingdomComputation
+              this.reachOnlyLiquidLegionsV2 =
+                ReachOnlyLiquidLegionsSketchAggregationV2Kt.computationDetails {
+                  this.role = token.computationDetails.reachOnlyLiquidLegionsV2.role
+                  this.parameters = token.computationDetails.reachOnlyLiquidLegionsV2.parameters
+                  participant.addAll(
+                    token.computationDetails.reachOnlyLiquidLegionsV2.participantList
+                  )
+                  this.localElgamalKey = cryptoResult.elGamalKeyPair
+                }
             }
-          )
-          .token
+          }
+        )
       }
 
     sendRequisitionParamsToKingdom(nextToken)
@@ -347,7 +352,7 @@ class ReachOnlyLiquidLegionsV2Mill(
     val errorMessage =
       "@Mill $millId, Computation ${token.globalComputationId} failed due to:\n" +
         errorList.joinToString(separator = "\n")
-    throw PermanentComputationError(Exception(errorMessage))
+    throw ComputationDataClients.PermanentErrorException(errorMessage)
   }
 
   private fun List<ElGamalPublicKey>.toCombinedPublicKey(curveId: Int): ElGamalPublicKey {
@@ -387,39 +392,46 @@ class ReachOnlyLiquidLegionsV2Mill(
         UNRECOGNIZED -> error("Invalid role ${rollv2Details.role}")
       }
 
-    return dataClients.computationsClient
-      .updateComputationDetails(
-        updateComputationDetailsRequest {
-          this.token = token
-          details = computationDetails {
-            this.blobsStoragePrefix = token.computationDetails.blobsStoragePrefix
-            this.endingState = token.computationDetails.endingState
-            this.kingdomComputation = token.computationDetails.kingdomComputation
-            this.reachOnlyLiquidLegionsV2 =
-              ReachOnlyLiquidLegionsSketchAggregationV2Kt.computationDetails {
-                this.role = token.computationDetails.reachOnlyLiquidLegionsV2.role
-                this.parameters = token.computationDetails.reachOnlyLiquidLegionsV2.parameters
-                token.computationDetails.reachOnlyLiquidLegionsV2.participantList.forEach {
-                  this.participant += it
-                }
-                this.localElgamalKey =
-                  token.computationDetails.reachOnlyLiquidLegionsV2.localElgamalKey
-                this.combinedPublicKey = combinedPublicKey
-                this.partiallyCombinedPublicKey = partiallyCombinedPublicKey
+    return updateComputationDetails(
+      updateComputationDetailsRequest {
+        this.token = token
+        details = computationDetails {
+          this.blobsStoragePrefix = token.computationDetails.blobsStoragePrefix
+          this.endingState = token.computationDetails.endingState
+          this.kingdomComputation = token.computationDetails.kingdomComputation
+          this.reachOnlyLiquidLegionsV2 =
+            ReachOnlyLiquidLegionsSketchAggregationV2Kt.computationDetails {
+              this.role = token.computationDetails.reachOnlyLiquidLegionsV2.role
+              this.parameters = token.computationDetails.reachOnlyLiquidLegionsV2.parameters
+              token.computationDetails.reachOnlyLiquidLegionsV2.participantList.forEach {
+                this.participant += it
               }
-          }
+              this.localElgamalKey =
+                token.computationDetails.reachOnlyLiquidLegionsV2.localElgamalKey
+              this.combinedPublicKey = combinedPublicKey
+              this.partiallyCombinedPublicKey = partiallyCombinedPublicKey
+            }
         }
-      )
-      .token
+      }
+    )
   }
 
   /** Sends confirmation to the kingdom and transits the local computation to the next stage. */
   private suspend fun passConfirmationPhase(token: ComputationToken): ComputationToken {
-    systemComputationParticipantsClient.confirmComputationParticipant(
-      confirmComputationParticipantRequest {
-        name = ComputationParticipantKey(token.globalComputationId, duchyId).toName()
+    try {
+      systemComputationParticipantsClient.confirmComputationParticipant(
+        confirmComputationParticipantRequest {
+          name = ComputationParticipantKey(token.globalComputationId, duchyId).toName()
+        }
+      )
+    } catch (e: StatusException) {
+      val message = "Error confirming computation participant"
+      throw when (e.status.code) {
+        Status.Code.UNAVAILABLE,
+        Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
+        else -> ComputationDataClients.PermanentErrorException(message, e)
       }
-    )
+    }
     val latestToken = updatePublicElgamalKey(token)
     return dataClients.transitionComputationToStage(
       latestToken,
@@ -454,16 +466,18 @@ class ReachOnlyLiquidLegionsV2Mill(
   private suspend fun completeSetupPhaseAtAggregator(token: ComputationToken): ComputationToken {
     val rollv2Details = token.computationDetails.reachOnlyLiquidLegionsV2
     require(AGGREGATOR == rollv2Details.role) { "invalid role for this function." }
-    // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to
-    // handle the case where the set of computation participants is a subset of all Duchies.
-    val inputBlobCount = workerStubs.size
+    val inputBlobCount = token.participantCount - 1
     val (bytes, nextToken) =
       existingOutputOr(token) {
         val request =
           dataClients
             .readAllRequisitionBlobs(token, duchyId)
             .concat(readAndCombineAllInputBlobsSetupPhaseAtAggregator(token, inputBlobCount))
-            .toCompleteSetupPhaseAtAggregatorRequest(rollv2Details, token.requisitionsCount)
+            .toCompleteSetupPhaseAtAggregatorRequest(
+              rollv2Details,
+              token.requisitionsCount,
+              token.participantCount
+            )
         val cryptoResult: CompleteReachOnlySetupPhaseResponse =
           cryptoWorker.completeReachOnlySetupPhaseAtAggregator(request)
         logStageDurationMetric(
@@ -501,7 +515,11 @@ class ReachOnlyLiquidLegionsV2Mill(
         val request =
           dataClients
             .readAllRequisitionBlobs(token, duchyId)
-            .toCompleteReachOnlySetupPhaseRequest(rollv2Details, token.requisitionsCount)
+            .toCompleteReachOnlySetupPhaseRequest(
+              rollv2Details,
+              token.requisitionsCount,
+              token.participantCount
+            )
         val cryptoResult: CompleteReachOnlySetupPhaseResponse =
           cryptoWorker.completeReachOnlySetupPhase(request)
         logStageDurationMetric(
@@ -541,24 +559,22 @@ class ReachOnlyLiquidLegionsV2Mill(
     val measurementSpec =
       MeasurementSpec.parseFrom(token.computationDetails.kingdomComputation.measurementSpec)
     val inputBlob = readAndCombineAllInputBlobs(token, 1)
-    require(inputBlob.size() >= kBytesPerCipherText) {
-      ("Invalid input blob size. Input blob ${inputBlob.toStringUtf8()} has size " +
-        "${inputBlob.size()} which is less than ($kBytesPerCipherText).")
+    require(inputBlob.size() >= BYTES_PER_CIPHERTEXT) {
+      "Invalid input blob size. Input blob ${inputBlob.toStringUtf8()} has size " +
+        "${inputBlob.size()} which is less than ($BYTES_PER_CIPHERTEXT)."
     }
     var reach = 0L
-    val (bytes, nextToken) =
+    val (_, nextToken) =
       existingOutputOr(token) {
         val request = completeReachOnlyExecutionPhaseAtAggregatorRequest {
-          combinedRegisterVector = inputBlob.substring(0, inputBlob.size() - kBytesPerCipherText)
+          combinedRegisterVector = inputBlob.substring(0, inputBlob.size() - BYTES_PER_CIPHERTEXT)
           localElGamalKeyPair = rollv2Details.localElgamalKey
           curveId = rollv2Details.parameters.ellipticCurveId.toLong()
           serializedExcessiveNoiseCiphertext =
-            inputBlob.substring(inputBlob.size() - kBytesPerCipherText, inputBlob.size())
+            inputBlob.substring(inputBlob.size() - BYTES_PER_CIPHERTEXT, inputBlob.size())
           if (rollv2Parameters.noise.hasReachNoiseConfig()) {
             reachDpNoiseBaseline = globalReachDpNoiseBaseline {
-              // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to
-              // handle the case where the computation participants is a subset of all Duchies.
-              contributorsCount = workerStubs.size + 1
+              contributorsCount = token.participantCount
               globalReachDpNoise = rollv2Parameters.noise.reachNoiseConfig.globalReachDpNoise
             }
           }
@@ -571,9 +587,7 @@ class ReachOnlyLiquidLegionsV2Mill(
             noiseParameters = registerNoiseGenerationParameters {
               compositeElGamalPublicKey = rollv2Details.combinedPublicKey
               curveId = rollv2Details.parameters.ellipticCurveId.toLong()
-              // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to
-              // handle the case where the computation participants is a subset of all Duchies.
-              contributorsCount = workerStubs.size + 1
+              contributorsCount = token.participantCount
               totalSketchesCount = token.requisitionsCount
               dpParams = reachNoiseDifferentialPrivacyParams {
                 blindHistogram = noiseConfig.reachNoiseConfig.blindHistogramNoise
@@ -607,9 +621,9 @@ class ReachOnlyLiquidLegionsV2Mill(
     val rollv2Details = token.computationDetails.reachOnlyLiquidLegionsV2
     require(NON_AGGREGATOR == rollv2Details.role) { "invalid role for this function." }
     val inputBlob = readAndCombineAllInputBlobs(token, 1)
-    require(inputBlob.size() >= kBytesPerCipherText) {
-      ("Invalid input blob size. Input blob ${inputBlob.toStringUtf8()} has size " +
-        "${inputBlob.size()} which is less than ($kBytesPerCipherText).")
+    require(inputBlob.size() >= BYTES_PER_CIPHERTEXT) {
+      "Invalid input blob size. Input blob ${inputBlob.toStringUtf8()} has size " +
+        "${inputBlob.size()} which is less than ($BYTES_PER_CIPHERTEXT)."
     }
     val (bytes, nextToken) =
       existingOutputOr(token) {
@@ -617,11 +631,11 @@ class ReachOnlyLiquidLegionsV2Mill(
           cryptoWorker.completeReachOnlyExecutionPhase(
             completeReachOnlyExecutionPhaseRequest {
               combinedRegisterVector =
-                inputBlob.substring(0, inputBlob.size() - kBytesPerCipherText)
+                inputBlob.substring(0, inputBlob.size() - BYTES_PER_CIPHERTEXT)
               localElGamalKeyPair = rollv2Details.localElgamalKey
               curveId = rollv2Details.parameters.ellipticCurveId.toLong()
               serializedExcessiveNoiseCiphertext =
-                inputBlob.substring(inputBlob.size() - kBytesPerCipherText, inputBlob.size())
+                inputBlob.substring(inputBlob.size() - BYTES_PER_CIPHERTEXT, inputBlob.size())
               parallelism = this@ReachOnlyLiquidLegionsV2Mill.parallelism
             }
           )
@@ -679,23 +693,22 @@ class ReachOnlyLiquidLegionsV2Mill(
     val index = duchyList.indexOfFirst { it.duchyId == duchyId }
     val nextDuchy = duchyList[(index + 1) % duchyList.size].duchyId
     return workerStubs[nextDuchy]
-      ?: throw PermanentComputationError(
-        IllegalArgumentException("No ComputationControlService stub for next duchy '$nextDuchy'")
+      ?: throw ComputationDataClients.PermanentErrorException(
+        "No ComputationControlService stub for next duchy '$nextDuchy'"
       )
   }
 
   private fun aggregatorDuchyStub(aggregatorId: String): ComputationControlCoroutineStub {
     return workerStubs[aggregatorId]
-      ?: throw PermanentComputationError(
-        IllegalArgumentException(
-          "No ComputationControlService stub for the Aggregator duchy '$aggregatorId'"
-        )
+      ?: throw ComputationDataClients.PermanentErrorException(
+        "No ComputationControlService stub for the Aggregator duchy '$aggregatorId'"
       )
   }
 
   private fun ByteString.toCompleteReachOnlySetupPhaseRequest(
     rollv2Details: ReachOnlyLiquidLegionsSketchAggregationV2.ComputationDetails,
-    totalRequisitionsCount: Int
+    totalRequisitionsCount: Int,
+    participantCount: Int,
   ): CompleteReachOnlySetupPhaseRequest {
     val noiseConfig = rollv2Details.parameters.noise
     return completeReachOnlySetupPhaseRequest {
@@ -705,9 +718,7 @@ class ReachOnlyLiquidLegionsV2Mill(
         noiseParameters = registerNoiseGenerationParameters {
           compositeElGamalPublicKey = rollv2Details.combinedPublicKey
           curveId = rollv2Details.parameters.ellipticCurveId.toLong()
-          // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to handle
-          // the case where the set of computation participants is a subset of all Duchies.
-          contributorsCount = workerStubs.size + 1
+          contributorsCount = participantCount
           totalSketchesCount = totalRequisitionsCount
           dpParams = reachNoiseDifferentialPrivacyParams {
             blindHistogram = noiseConfig.reachNoiseConfig.blindHistogramNoise
@@ -725,26 +736,21 @@ class ReachOnlyLiquidLegionsV2Mill(
 
   private fun ByteString.toCompleteSetupPhaseAtAggregatorRequest(
     rollv2Details: ReachOnlyLiquidLegionsSketchAggregationV2.ComputationDetails,
-    totalRequisitionsCount: Int
+    totalRequisitionsCount: Int,
+    participantCount: Int,
   ): CompleteReachOnlySetupPhaseRequest {
     val noiseConfig = rollv2Details.parameters.noise
     val combinedInputBlobs = this@toCompleteSetupPhaseAtAggregatorRequest
+    val combinedRegisterVectorSizeBytes =
+      combinedInputBlobs.size() - (participantCount - 1) * BYTES_PER_CIPHERTEXT
     return completeReachOnlySetupPhaseRequest {
-      combinedRegisterVector =
-        combinedInputBlobs.substring(
-          0,
-          // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to handle
-          // the case where the set of computation participants is a subset of all Duchies.
-          combinedInputBlobs.size() - workerStubs.size * kBytesPerCipherText
-        )
+      combinedRegisterVector = combinedInputBlobs.substring(0, combinedRegisterVectorSizeBytes)
       curveId = rollv2Details.parameters.ellipticCurveId.toLong()
       if (noiseConfig.hasReachNoiseConfig()) {
         noiseParameters = registerNoiseGenerationParameters {
           compositeElGamalPublicKey = rollv2Details.combinedPublicKey
           curveId = rollv2Details.parameters.ellipticCurveId.toLong()
-          // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to handle
-          // the case where the set of computation participants is a subset of all Duchies.
-          contributorsCount = workerStubs.size + 1
+          contributorsCount = participantCount
           totalSketchesCount = totalRequisitionsCount
           dpParams = reachNoiseDifferentialPrivacyParams {
             blindHistogram = noiseConfig.reachNoiseConfig.blindHistogramNoise
@@ -756,43 +762,49 @@ class ReachOnlyLiquidLegionsV2Mill(
       }
       compositeElGamalPublicKey = rollv2Details.combinedPublicKey
       serializedExcessiveNoiseCiphertext =
-        combinedInputBlobs.substring(
-          // TODO(world-federation-of-advertisers/cross-media-measurement#1194): Fix this to handle
-          // the case where the set of computation participants is a subset of all Duchies.
-          combinedInputBlobs.size() - workerStubs.size * kBytesPerCipherText,
-          combinedInputBlobs.size()
-        )
+        combinedInputBlobs.substring(combinedRegisterVectorSizeBytes, combinedInputBlobs.size())
       parallelism = this@ReachOnlyLiquidLegionsV2Mill.parallelism
     }
   }
 
   /** Reads all input blobs and combines all the bytes together. */
-  protected suspend fun readAndCombineAllInputBlobsSetupPhaseAtAggregator(
+  private suspend fun readAndCombineAllInputBlobsSetupPhaseAtAggregator(
     token: ComputationToken,
     count: Int
   ): ByteString {
     val blobMap: Map<BlobRef, ByteString> = dataClients.readInputBlobs(token)
     if (blobMap.size != count) {
-      throw PermanentComputationError(
-        Exception("Unexpected number of input blobs. expected $count, actual ${blobMap.size}.")
+      throw ComputationDataClients.PermanentErrorException(
+        "Unexpected number of input blobs. expected $count, actual ${blobMap.size}."
       )
     }
     var combinedRegisterVector = ByteString.EMPTY
     var combinedNoiseCiphertext = ByteString.EMPTY
     for (str in blobMap.values) {
-      require(str.size() >= kBytesPerCipherText) {
-        ("Invalid input blob size. Input blob ${str.toStringUtf8()} has size " +
-          "${str.size()} which is less than ($kBytesPerCipherText).")
+      require(str.size() >= BYTES_PER_CIPHERTEXT) {
+        "Invalid input blob size. Input blob ${str.toStringUtf8()} has size " +
+          "${str.size()} which is less than ($BYTES_PER_CIPHERTEXT)."
       }
       combinedRegisterVector =
-        combinedRegisterVector.concat(str.substring(0, str.size() - kBytesPerCipherText))
+        combinedRegisterVector.concat(str.substring(0, str.size() - BYTES_PER_CIPHERTEXT))
       combinedNoiseCiphertext =
-        combinedNoiseCiphertext.concat(str.substring(str.size() - kBytesPerCipherText, str.size()))
+        combinedNoiseCiphertext.concat(str.substring(str.size() - BYTES_PER_CIPHERTEXT, str.size()))
     }
     return combinedRegisterVector.concat(combinedNoiseCiphertext)
   }
 
+  private val ComputationToken.participantCount: Int
+    get() =
+      if (computationDetails.kingdomComputation.participantCount != 0) {
+        computationDetails.kingdomComputation.participantCount
+      } else {
+        // For legacy Computations. See world-federation-of-advertisers/cross-media-measurement#1194
+        workerStubs.size + 1
+      }
+
   companion object {
+    private const val BYTES_PER_CIPHERTEXT = 66
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

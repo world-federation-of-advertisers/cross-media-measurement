@@ -13,13 +13,31 @@
 // limitations under the License.
 
 import {useState} from 'react';
-import { Report, ReportState } from '../../model/reporting';
+import {
+  Demographic,
+  Overview,
+  Reach,
+  Report,
+  ReportState,
+  SummaryPublisherData,
+  TargetReach,
+  UniqueReach,
+} from '../../model/reporting';
 import { ReportRepository } from '../../model/report/report_repository';
 
 type UiReport = {
   id: string,
   name: string,
   status: ReportState,
+  overview: Overview,
+  summary: SummaryPublisherData[],
+  targetReach: Reach[],
+  totalReach: Reach[],
+  xmediaReach: TargetReach[],
+  onTargetReach: TargetReach[],
+  onTargetUniqueReach: UniqueReach[],
+  uniqueReachByPlat: UniqueReach[],
+  demo: Demographic[],
 }
 
 const handleUiReport = (report: Report|undefined) => {
@@ -31,6 +49,15 @@ const handleUiReport = (report: Report|undefined) => {
     id: report.id,
     name: report.name,
     status: report.status,
+    overview: report.overview,
+    summary: report.summary,
+    targetReach: report.targetReach,
+    totalReach: report.totalReach,
+    xmediaReach: report.targetXmediaReachByFreq,
+    onTargetReach: report.targetXmediaReachByFreq,
+    onTargetUniqueReach: report.targetUniqueReachByPlatform,
+    uniqueReachByPlat: report.uniqueReachByPlatform,
+    demo: report.demo,
   };
 };
 

@@ -9,9 +9,11 @@ package(
 js_library(
     name = "report",
     srcs = [
+        "report_view.css",
         "report_view.tsx",
     ],
     deps = [
+        "//experimental/reporting-ui/src/main/react/reporting-ui/view/report/component:terminal_report",
         "//experimental/reporting-ui/src/main/react/reporting-ui/view_model/report",
     ],
 )

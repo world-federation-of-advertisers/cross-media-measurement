@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2023 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,10 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.api.v2alpha
+package k8s
 
-import org.wfanet.measurement.common.api.ResourceKey
+#ServiceAccountPodSpec: {
+	#PodSpec
 
-interface CertificateParentKey : ResourceKey {
-  val certificateId: String
+	serviceAccountName: string
+}
+
+#ServerDeployment: {
+	_container: {
+		resources: Resources={
+			requests: {
+				memory: _ | *"320Mi"
+			}
+			limits: {
+				memory: _ | *Resources.requests.memory
+			}
+		}
+	}
+}
+
+#JavaOptions: {
+	initialHeapSize: _ | *"64M"
+	maxHeapSize:     _ | *"64M"
 }

@@ -307,7 +307,7 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
     val parentKey: ResourceKey =
       DataProviderKey.fromName(request.parent)
         ?: MeasurementConsumerKey.fromName(request.parent)
-          ?: throw Status.INVALID_ARGUMENT.withDescription("parent unspecified or invalid")
+        ?: throw Status.INVALID_ARGUMENT.withDescription("parent unspecified or invalid")
           .asRuntimeException()
     if (parentKey != principalFromCurrentContext.resourceKey) {
       throw permissionDeniedStatus().asRuntimeException()
