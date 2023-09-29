@@ -16,10 +16,14 @@
 
 package org.wfanet.measurement.api.v2alpha.tools
 
+import com.google.protobuf.ByteString
 import java.io.File
+import java.security.PrivateKey
+import java.security.cert.X509Certificate
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.crypto.SignatureAlgorithm
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
@@ -93,7 +97,10 @@ private class Deserialize : Runnable {
   }
 }
 
-@CommandLine.Command(name = "sign")
+@CommandLine.Command(
+  name = "sign",
+  description = ["Signs the input message, outputting a digital signature"]
+)
 private class Sign : Runnable {
   @CommandLine.Option(
     names = ["--certificate"],
@@ -108,6 +115,13 @@ private class Sign : Runnable {
     required = true
   )
   private lateinit var signingKeyFile: File
+
+  @CommandLine.Option(
+    names = ["--algorithm", "--signature-algorithm"],
+    description = ["Signature algorithm. One will be chosen if not specified."],
+    required = false
+  )
+  private var algorithm: SignatureAlgorithm? = null
 
   @CommandLine.Option(
     names = ["--in", "-i"],
@@ -125,10 +139,14 @@ private class Sign : Runnable {
     // Validate that input is an EncryptionPublicKey message.
     EncryptionPublicKey.parseFrom(serialized)
 
-    val certificate = certificateFile.inputStream().use { readCertificate(it) }
-    val privateKey =
+    val certificate: X509Certificate = certificateFile.inputStream().use { readCertificate(it) }
+    val privateKey: PrivateKey =
       readPrivateKey(signingKeyFile.readByteString(), certificate.publicKey.algorithm)
-    val signature = SigningKeyHandle(certificate, privateKey).sign(serialized)
+    val keyHandle = SigningKeyHandle(certificate, privateKey)
+    val algorithm = algorithm ?: keyHandle.defaultAlgorithm
+    val signature: ByteString = keyHandle.sign(algorithm, serialized)
+
+    println("Signature algorithm: $algorithm (${algorithm.oid})")
 
     outFile.outputStream().use { signature.writeTo(it) }
   }
