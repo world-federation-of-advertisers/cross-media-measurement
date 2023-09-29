@@ -40,7 +40,7 @@
 --           └── ReportSchedulesReports
 
 -- changeset tristanvuong2021:create-report-schedules-table dbms:postgresql
-CREATE TABLE ReportSchedules {
+CREATE TABLE ReportSchedules (
   MeasurementConsumerId bigint NOT NULL,
   ReportScheduleId bigint NOT NULL,
   ExternalReportScheduleId text NOT NULL,
@@ -64,10 +64,10 @@ CREATE TABLE ReportSchedules {
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId)
     ON DELETE CASCADE
-};
+);
 
 -- changeset tristanvuong2021:create-report-schedule-iterations-table dbms:postgresql
-CREATE TABLE ReportScheduleIterations {
+CREATE TABLE ReportScheduleIterations (
   MeasurementConsumerId bigint NOT NULL,
   ReportScheduleId bigint NOT NULL,
   ReportScheduleIterationId bigint NOT NULL,
@@ -88,10 +88,10 @@ CREATE TABLE ReportScheduleIterations {
   FOREIGN KEY(MeasurementConsumerId, ReportScheduleId)
     REFERENCES ReportSchedules(MeasurementConsumerId, ReportScheduleId)
     ON DELETE CASCADE
-};
+);
 
 -- changeset tristanvuong2021:create-reports-report-schedules-table dbms:postgresql
-CREATE TABLE ReportsReportSchedules {
+CREATE TABLE ReportsReportSchedules (
   MeasurementConsumerId bigint NOT NULL,
   ReportId bigint NOT NULL,
   ReportScheduleId bigint NOT NULL,
@@ -103,4 +103,4 @@ CREATE TABLE ReportsReportSchedules {
   FOREIGN KEY(MeasurementConsumerId, ReportScheduleId)
     REFERENCES ReportSchedules(MeasurementConsumerId, ReportScheduleId)
     ON DELETE CASCADE
-};
+);
