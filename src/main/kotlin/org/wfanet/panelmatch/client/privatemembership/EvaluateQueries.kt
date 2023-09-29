@@ -185,7 +185,7 @@ private class EvaluateQueriesForShardFn(
     combinedEncryptedQueryBundleSizeDistribution.update(queriesSize)
     bucketCountDistribution.update(buckets.size.toLong())
 
-    val numQueries = queries.sumBy { it.queryIdsCount }
+    val numQueries = queries.sumOf { it.queryIdsCount }
     queryCountsDistribution.update(numQueries.toLong())
     require(numQueries <= maxQueriesPerShard) {
       "Shard has $numQueries queries ($maxQueriesPerShard allowed)"
