@@ -39,7 +39,7 @@ message GetPopulationRequest {
 message StreamPopulationsRequest {
   message AfterFilter {
     int64 external_data_provider_id = 1;
-    int64  external_population_id = 2;
+    int64 external_population_id = 2;
     google.protobuf.Timestamp create_time = 3;
   }
 
