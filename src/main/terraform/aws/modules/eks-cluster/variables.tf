@@ -49,7 +49,7 @@ variable "instance_types" {
 }
 
 variable "max_node_count" {
-  description = "Maximum number of nodes to be created"
+  description = "Maximum number of nodes that can be created"
   type = number
   nullable = false
 }

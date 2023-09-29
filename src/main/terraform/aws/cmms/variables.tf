@@ -26,7 +26,7 @@ variable "postgres_instance_name" {
 }
 
 variable "postgres_instance_tier" {
-  description = "Tier (machine type) of the PostgreSQL Cloud SQL instance."
+  description = "Tier (machine type) of the RDS PostgreSQL instance."
   type        = string
   default     = "db.t3.micro"
   nullable    = false

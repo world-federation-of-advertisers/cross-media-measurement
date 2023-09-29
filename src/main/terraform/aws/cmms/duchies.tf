@@ -29,7 +29,7 @@ module "clusters" {
   max_node_count           = 2
 }
 
-# aws_load_balancer_controller addon
+# IAM role to be used by aws_load_balancer_controller addons across all clusters
 module "load_balancer_controller_irsa_role" {
   source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
 
