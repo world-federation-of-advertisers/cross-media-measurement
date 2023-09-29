@@ -12,6 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+variable "eks_oidc_provider_arn" {
+  description = "ARN of the EKS cluster's OIDC provider"
+  type        = string
+  nullable    = false
+}
+
+variable "load_balancer_controller_sa_name" {
+  description = "Service account name of the load balancer controller"
+  type        = string
+  default     = "aws-load-balancer-controller"
+}
+
+variable "load_balancer_controller_irsa_role_arn" {
+  description = "ARN of the load balancer controller role"
+  type        = string
+  nullable    = false
+}
+
 variable "aws_region" {
   description = "AWS region"
   type        = string
@@ -28,28 +46,4 @@ variable "vpc_id" {
   description = "Vpc id"
   type        = string
   nullable    = false
-}
-
-variable "subnet_ids" {
-  description = "List of subnet ids"
-  type        = list(string)
-  nullable    = false
-}
-
-variable "control_plane_subnet_ids" {
-  description = "List of subnet ids used by control plane"
-  type        = list(string)
-  nullable    = false
-}
-
-variable "instance_types" {
-  description = "List of node instance types"
-  type = list(string)
-  nullable = false
-}
-
-variable "max_node_count" {
-  description = "Maximum number of nodes to be created"
-  type = number
-  nullable = false
 }

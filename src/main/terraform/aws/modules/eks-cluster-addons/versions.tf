@@ -12,22 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-variable "aws_region" {
-  description = "AWS region"
-  type        = string
-  nullable    = false
-}
-
-variable "postgres_instance_name" {
-  description = "Name of the RDS PostgreSQL instance."
-  type        = string
-  default     = "halo"
-  nullable    = false
-}
-
-variable "postgres_instance_tier" {
-  description = "Tier (machine type) of the PostgreSQL Cloud SQL instance."
-  type        = string
-  default     = "db.t3.micro"
-  nullable    = false
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0.0"
+    }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.20.0"
+    }
+    helm = {
+      source = "hashicorp/helm"
+      version = "~> 2.11.0"
+    }
+  }
 }
