@@ -263,9 +263,12 @@ private fun InternalReportScheduleIteration.State.toPublic(): ReportScheduleIter
       ReportScheduleIteration.State.RETRYING_REPORT_CREATION
     InternalReportScheduleIteration.State.REPORT_CREATED ->
       ReportScheduleIteration.State.REPORT_CREATED
-    InternalReportScheduleIteration.State.STATE_UNSPECIFIED,
-    InternalReportScheduleIteration.State.UNRECOGNIZED ->
+    InternalReportScheduleIteration.State.STATE_UNSPECIFIED ->
       ReportScheduleIteration.State.STATE_UNSPECIFIED
+    InternalReportScheduleIteration.State.UNRECOGNIZED ->
+      throw Status.FAILED_PRECONDITION
+        .withDescription("There is a problem with ReportScheduleIteration creation")
+        .asRuntimeException()
   }
 }
 
