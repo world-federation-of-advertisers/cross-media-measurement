@@ -19,7 +19,6 @@ import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
-import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -28,7 +27,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
@@ -39,11 +37,10 @@ import org.wfanet.measurement.internal.kingdom.getMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.updatePublicKeyRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
-private const val RANDOM_SEED = 1
 private const val API_VERSION = "v2alpha"
 
-private val PUBLIC_KEY = ByteString.copyFromUtf8("public key")
-private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("public key signature")
+private val PUBLIC_KEY = ByteString.copyFromUtf8("new public key")
+private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("new public key signature")
 
 @RunWith(JUnit4::class)
 abstract class PublicKeysServiceTest<T : PublicKeysCoroutineImplBase> {
@@ -59,7 +56,7 @@ abstract class PublicKeysServiceTest<T : PublicKeysCoroutineImplBase> {
   )
 
   protected val clock: Clock = Clock.systemUTC()
-  protected val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
+  protected val idGenerator = SequentialIdGenerator()
   private val population = Population(clock, idGenerator)
 
   private lateinit var publicKeysService: T
@@ -90,15 +87,28 @@ abstract class PublicKeysServiceTest<T : PublicKeysCoroutineImplBase> {
 
   @Test
   fun `updatePublicKey updates the public key info for a data provider`() = runBlocking {
-    val dataProvider = population.createDataProvider(dataProvidersService)
+    val now = clock.instant()
+    val dataProvider = population.createDataProvider(dataProvidersService, notValidBefore = now)
+    val certificate =
+      population.createDataProviderCertificate(
+        certificatesService,
+        dataProvider,
+        notValidBefore = now
+      )
+    // Insert another certificate to make sure it's not just using the most recent one.
+    population.createDataProviderCertificate(
+      certificatesService,
+      dataProvider,
+      notValidBefore = now
+    )
 
     publicKeysService.updatePublicKey(
       updatePublicKeyRequest {
         externalDataProviderId = dataProvider.externalDataProviderId
-        externalCertificateId = dataProvider.certificate.externalCertificateId
+        externalCertificateId = certificate.externalCertificateId
         apiVersion = API_VERSION
-        publicKey = dataProvider.details.publicKey.concat(PUBLIC_KEY)
-        publicKeySignature = dataProvider.details.publicKeySignature.concat(PUBLIC_KEY_SIGNATURE)
+        publicKey = PUBLIC_KEY
+        publicKeySignature = PUBLIC_KEY_SIGNATURE
       }
     )
 
@@ -106,25 +116,40 @@ abstract class PublicKeysServiceTest<T : PublicKeysCoroutineImplBase> {
       dataProvidersService.getDataProvider(
         getDataProviderRequest { externalDataProviderId = dataProvider.externalDataProviderId }
       )
-
-    assertThat(dataProvider.details.publicKey).isNotEqualTo(updatedDataProvider.details.publicKey)
-    assertThat(dataProvider.details.publicKeySignature)
-      .isNotEqualTo(updatedDataProvider.details.publicKeySignature)
+    assertThat(updatedDataProvider.certificate).isEqualTo(certificate)
+    assertThat(updatedDataProvider.details.publicKey).isEqualTo(PUBLIC_KEY)
+    assertThat(updatedDataProvider.details.publicKeySignature).isEqualTo(PUBLIC_KEY_SIGNATURE)
   }
 
   @Test
   fun `updatePublicKey updates the public key info for a measurement consumer`() = runBlocking {
+    val now = clock.instant()
     val measurementConsumer =
-      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      population.createMeasurementConsumer(
+        measurementConsumersService,
+        accountsService,
+        notValidBefore = now
+      )
+    val certificate =
+      population.createMeasurementConsumerCertificate(
+        certificatesService,
+        measurementConsumer,
+        notValidBefore = now
+      )
+    // Insert another certificate to make sure it's not just using the most recent one.
+    population.createMeasurementConsumerCertificate(
+      certificatesService,
+      measurementConsumer,
+      notValidBefore = now
+    )
 
     publicKeysService.updatePublicKey(
       updatePublicKeyRequest {
         externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-        externalCertificateId = measurementConsumer.certificate.externalCertificateId
+        externalCertificateId = certificate.externalCertificateId
         apiVersion = API_VERSION
-        publicKey = measurementConsumer.details.publicKey.concat(PUBLIC_KEY)
-        publicKeySignature =
-          measurementConsumer.details.publicKeySignature.concat(PUBLIC_KEY_SIGNATURE)
+        publicKey = PUBLIC_KEY
+        publicKeySignature = PUBLIC_KEY_SIGNATURE
       }
     )
 
@@ -134,11 +159,10 @@ abstract class PublicKeysServiceTest<T : PublicKeysCoroutineImplBase> {
           externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
         }
       )
-
-    assertThat(measurementConsumer.details.publicKey)
-      .isNotEqualTo(updatedMeasurementConsumer.details.publicKey)
-    assertThat(measurementConsumer.details.publicKeySignature)
-      .isNotEqualTo(updatedMeasurementConsumer.details.publicKeySignature)
+    assertThat(updatedMeasurementConsumer.certificate).isEqualTo(certificate)
+    assertThat(updatedMeasurementConsumer.details.publicKey).isEqualTo(PUBLIC_KEY)
+    assertThat(updatedMeasurementConsumer.details.publicKeySignature)
+      .isEqualTo(PUBLIC_KEY_SIGNATURE)
   }
 
   @Test

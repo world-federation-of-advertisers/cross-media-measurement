@@ -150,6 +150,7 @@ private class CreateDataProviderCommand : CreatePrincipalCommand() {
     required = false,
   )
   private var requiredDuchies: List<String> = emptyList()
+
   override fun run() {
     val dataProvider = dataProvider {
       certificate = this@CreateDataProviderCommand.certificate

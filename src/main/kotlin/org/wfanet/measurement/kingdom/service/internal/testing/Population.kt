@@ -89,6 +89,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     val WORKER2_DUCHY = DuchyIds.Entry(3, "worker2", VALID_ACTIVE_START_TIME..VALID_ACTIVE_END_TIME)
     val DUCHIES = listOf(AGGREGATOR_DUCHY, WORKER1_DUCHY, WORKER2_DUCHY)
   }
+
   private fun buildRequestCertificate(
     derUtf8: String,
     skidUtf8: String,
@@ -349,7 +350,45 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
         this.externalDuchyId = externalDuchyId
         fillRequestCertificate(
           "Duchy cert",
-          "Duchy $externalDuchyId SKID",
+          "Duchy SKID " + idGenerator.generateExternalId().value,
+          notValidBefore,
+          notValidAfter
+        )
+      }
+    )
+  }
+
+  suspend fun createMeasurementConsumerCertificate(
+    certificatesService: CertificatesCoroutineImplBase,
+    parent: MeasurementConsumer,
+    notValidBefore: Instant = clock.instant(),
+    notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS)
+  ): Certificate {
+    return certificatesService.createCertificate(
+      certificate {
+        externalMeasurementConsumerId = parent.externalMeasurementConsumerId
+        fillRequestCertificate(
+          "MC cert",
+          "MC SKID " + idGenerator.generateExternalId().value,
+          notValidBefore,
+          notValidAfter
+        )
+      }
+    )
+  }
+
+  suspend fun createDataProviderCertificate(
+    certificatesService: CertificatesCoroutineImplBase,
+    parent: DataProvider,
+    notValidBefore: Instant = clock.instant(),
+    notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS)
+  ): Certificate {
+    return certificatesService.createCertificate(
+      certificate {
+        externalDataProviderId = parent.externalDataProviderId
+        fillRequestCertificate(
+          "EDP cert",
+          "EDP SKID " + idGenerator.generateExternalId().value,
           notValidBefore,
           notValidAfter
         )

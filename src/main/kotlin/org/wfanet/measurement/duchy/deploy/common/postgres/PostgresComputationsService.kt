@@ -53,6 +53,7 @@ import org.wfanet.measurement.duchy.service.internal.ComputationAlreadyExistsExc
 import org.wfanet.measurement.duchy.service.internal.ComputationDetailsNotFoundException
 import org.wfanet.measurement.duchy.service.internal.ComputationInitialStageInvalidException
 import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
+import org.wfanet.measurement.duchy.service.internal.ComputationTokenVersionMismatchException
 import org.wfanet.measurement.duchy.service.internal.computations.toAdvanceComputationStageResponse
 import org.wfanet.measurement.duchy.service.internal.computations.toClaimWorkResponse
 import org.wfanet.measurement.duchy.service.internal.computations.toCreateComputationResponse
@@ -70,6 +71,7 @@ import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
+import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
@@ -207,8 +209,7 @@ class PostgresComputationsService(
         KeyCase.REQUISITION_KEY ->
           computationReader.readComputationToken(client, request.requisitionKey)
         KeyCase.KEY_NOT_SET -> failGrpc(Status.INVALID_ARGUMENT) { "key not set" }
-      }
-        ?: failGrpc(Status.NOT_FOUND) { "Computation not found" }
+      } ?: failGrpc(Status.NOT_FOUND) { "Computation not found" }
 
     return token.toGetComputationTokenResponse()
   }
@@ -264,24 +265,31 @@ class PostgresComputationsService(
   override suspend fun finishComputation(
     request: FinishComputationRequest,
   ): FinishComputationResponse {
-    val token =
+    val writer =
       FinishComputation(
-          request.token.toDatabaseEditToken(),
-          endingStage = request.endingComputationStage,
-          endComputationReason =
-            when (request.reason) {
-              ComputationDetails.CompletedReason.SUCCEEDED -> EndComputationReason.SUCCEEDED
-              ComputationDetails.CompletedReason.FAILED -> EndComputationReason.FAILED
-              ComputationDetails.CompletedReason.CANCELED -> EndComputationReason.CANCELED
-              else -> error("Unknown CompletedReason ${request.reason}")
-            },
-          computationDetails = request.token.computationDetails,
-          clock = clock,
-          protocolStagesEnumHelper = protocolStagesEnumHelper,
-          protocolStageDetailsHelper = computationProtocolStageDetailsHelper,
-          computationReader = computationReader,
-        )
-        .execute(client, idGenerator)
+        request.token.toDatabaseEditToken(),
+        endingStage = request.endingComputationStage,
+        endComputationReason =
+          when (request.reason) {
+            ComputationDetails.CompletedReason.SUCCEEDED -> EndComputationReason.SUCCEEDED
+            ComputationDetails.CompletedReason.FAILED -> EndComputationReason.FAILED
+            ComputationDetails.CompletedReason.CANCELED -> EndComputationReason.CANCELED
+            else -> error("Unknown CompletedReason ${request.reason}")
+          },
+        computationDetails = request.token.computationDetails,
+        clock = clock,
+        protocolStagesEnumHelper = protocolStagesEnumHelper,
+        protocolStageDetailsHelper = computationProtocolStageDetailsHelper,
+        computationReader = computationReader,
+      )
+    val token: ComputationToken =
+      try {
+        writer.execute(client, idGenerator)
+      } catch (e: ComputationNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+      } catch (e: ComputationTokenVersionMismatchException) {
+        throw e.asStatusRuntimeException(Status.Code.ABORTED)
+      }
 
     sendStatusUpdateToKingdom(
       newCreateComputationLogEntryRequest(
@@ -300,15 +308,22 @@ class PostgresComputationsService(
       "The protocol type cannot change."
     }
 
-    val token =
+    val writer =
       UpdateComputationDetails(
-          token = request.token.toDatabaseEditToken(),
-          clock = clock,
-          computationDetails = request.details,
-          requisitionEntries = request.requisitionsList,
-          computationReader = computationReader,
-        )
-        .execute(client, idGenerator)
+        token = request.token.toDatabaseEditToken(),
+        clock = clock,
+        computationDetails = request.details,
+        requisitionEntries = request.requisitionsList,
+        computationReader = computationReader,
+      )
+    val token: ComputationToken =
+      try {
+        writer.execute(client, idGenerator)
+      } catch (e: ComputationNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+      } catch (e: ComputationTokenVersionMismatchException) {
+        throw e.asStatusRuntimeException(Status.Code.ABORTED)
+      }
 
     return token.toUpdateComputationDetailsResponse()
   }
@@ -316,15 +331,22 @@ class PostgresComputationsService(
   override suspend fun recordOutputBlobPath(
     request: RecordOutputBlobPathRequest,
   ): RecordOutputBlobPathResponse {
-    val token =
+    val writer =
       RecordOutputBlobPath(
-          token = request.token.toDatabaseEditToken(),
-          clock = clock,
-          blobRef = BlobRef(request.outputBlobId, request.blobPath),
-          protocolStagesEnumHelper = protocolStagesEnumHelper,
-          computationReader = computationReader,
-        )
-        .execute(client, idGenerator)
+        token = request.token.toDatabaseEditToken(),
+        clock = clock,
+        blobRef = BlobRef(request.outputBlobId, request.blobPath),
+        protocolStagesEnumHelper = protocolStagesEnumHelper,
+        computationReader = computationReader,
+      )
+    val token: ComputationToken =
+      try {
+        writer.execute(client, idGenerator)
+      } catch (e: ComputationNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+      } catch (e: ComputationTokenVersionMismatchException) {
+        throw e.asStatusRuntimeException(Status.Code.ABORTED)
+      }
 
     return token.toRecordOutputBlobPathResponse()
   }
@@ -348,21 +370,28 @@ class PostgresComputationsService(
           )
       }
 
-    val token =
+    val writer =
       AdvanceComputationStage(
-          request.token.toDatabaseEditToken(),
-          nextStage = request.nextComputationStage,
-          nextStageDetails = request.stageDetails,
-          inputBlobPaths = request.inputBlobsList,
-          passThroughBlobPaths = request.passThroughBlobsList,
-          outputBlobs = request.outputBlobs,
-          afterTransition = afterTransition,
-          lockExtension = lockExtension,
-          clock = clock,
-          protocolStagesEnumHelper = protocolStagesEnumHelper,
-          computationReader = computationReader,
-        )
-        .execute(client, idGenerator)
+        request.token.toDatabaseEditToken(),
+        nextStage = request.nextComputationStage,
+        nextStageDetails = request.stageDetails,
+        inputBlobPaths = request.inputBlobsList,
+        passThroughBlobPaths = request.passThroughBlobsList,
+        outputBlobs = request.outputBlobs,
+        afterTransition = afterTransition,
+        lockExtension = lockExtension,
+        clock = clock,
+        protocolStagesEnumHelper = protocolStagesEnumHelper,
+        computationReader = computationReader,
+      )
+    val token: ComputationToken =
+      try {
+        writer.execute(client, idGenerator)
+      } catch (e: ComputationNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+      } catch (e: ComputationTokenVersionMismatchException) {
+        throw e.asStatusRuntimeException(Status.Code.ABORTED)
+      }
 
     sendStatusUpdateToKingdom(
       newCreateComputationLogEntryRequest(
@@ -387,13 +416,21 @@ class PostgresComputationsService(
     grpcRequire(request.delaySecond >= 0) {
       "DelaySecond ${request.delaySecond} should be non-negative."
     }
-    EnqueueComputation(
+    val writer =
+      EnqueueComputation(
         request.token.localComputationId,
         request.token.version,
         request.delaySecond.toLong(),
         clock,
       )
-      .execute(client, idGenerator)
+    try {
+      writer.execute(client, idGenerator)
+    } catch (e: ComputationNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: ComputationTokenVersionMismatchException) {
+      throw e.asStatusRuntimeException(Status.Code.ABORTED)
+    }
+
     return EnqueueComputationResponse.getDefaultInstance()
   }
 

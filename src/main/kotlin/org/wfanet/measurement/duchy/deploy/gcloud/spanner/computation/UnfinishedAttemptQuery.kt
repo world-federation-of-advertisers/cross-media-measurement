@@ -36,8 +36,10 @@ class UnfinishedAttemptQuery<StageT>(
         AND EndTime IS NULL
       """
   }
+
   override val sql: Statement =
     Statement.newBuilder(parameterizedQueryString).bind("local_id").to(localId).build()
+
   override fun asResult(struct: Struct): UnfinishedAttemptQueryResult<StageT> =
     UnfinishedAttemptQueryResult(
       computationId = localId,

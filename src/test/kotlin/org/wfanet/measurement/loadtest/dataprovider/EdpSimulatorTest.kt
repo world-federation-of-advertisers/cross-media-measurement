@@ -175,7 +175,7 @@ private const val EDP_NAME = "dataProviders/$EDP_ID"
 
 private const val LLV2_DECAY_RATE = 12.0
 private const val LLV2_MAX_SIZE = 100_000L
-private val NOISE_MECHANISM = ProtocolConfig.NoiseMechanism.GEOMETRIC
+private val NOISE_MECHANISM = ProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN
 
 private val MEASUREMENT_CONSUMER_CERTIFICATE_DER =
   SECRET_FILES_PATH.resolve("mc_cs_cert.der").toFile().readByteString()
@@ -200,7 +200,7 @@ private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..
 
 private const val DUCHY_ID = "worker1"
 private const val RANDOM_SEED: Long = 0
-private val COMPOSITION_MECHANISM = CompositionMechanism.DP_ADVANCED
+private val COMPOSITION_MECHANISM = CompositionMechanism.ACDP
 
 // Resource ID for EventGroup that fails Requisitions with CONSENT_SIGNAL_INVALID if used.
 private const val CONSENT_SIGNAL_INVALID_EVENT_GROUP_ID = "consent-signal-invalid"
@@ -522,7 +522,7 @@ class EdpSimulatorTest {
   }
 
   @Test
-  fun `charges privacy budget with Geometric(Laplace) noise and DP_ADVANCED composition mechanism for mpc reach and frequency Requisition`() {
+  fun `charges privacy budget with Geometric noise and DP_ADVANCED composition mechanism for mpc reach and frequency Requisition`() {
     val measurementSpec =
       MEASUREMENT_SPEC.copy {
         vidSamplingInterval =
@@ -531,14 +531,34 @@ class EdpSimulatorTest {
             width = PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           }
       }
-    val requisition =
+    val requisitionGeometric =
       REQUISITION.copy {
         this.measurementSpec = signMeasurementSpec(measurementSpec, MC_SIGNING_KEY)
+        protocolConfig =
+          protocolConfig.copy {
+            protocols.clear()
+            protocols +=
+              ProtocolConfigKt.protocol {
+                liquidLegionsV2 =
+                  ProtocolConfigKt.liquidLegionsV2 {
+                    noiseMechanism = ProtocolConfig.NoiseMechanism.GEOMETRIC
+                    sketchParams = liquidLegionsSketchParams {
+                      decayRate = LLV2_DECAY_RATE
+                      maxSize = LLV2_MAX_SIZE
+                      samplingIndicatorSize = 10_000_000
+                    }
+                    ellipticCurveId = 415
+                    maximumFrequency = 12
+                  }
+              }
+          }
       }
+
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }
-        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+        .thenReturn(listRequisitionsResponse { requisitions += requisitionGeometric })
     }
+
     val matchingEvents =
       generateEvents(
         1L..10L,
@@ -588,7 +608,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM
+        compositionMechanism = CompositionMechanism.DP_ADVANCED
       )
     runBlocking {
       edpSimulator.ensureEventGroup(TEST_METADATA)
@@ -659,31 +679,13 @@ class EdpSimulatorTest {
               width = PRIVACY_BUCKET_VID_SAMPLE_WIDTH
             }
         }
-      val requisitionDiscreteGaussian =
+      val requisition =
         REQUISITION.copy {
           this.measurementSpec = signMeasurementSpec(measurementSpec, MC_SIGNING_KEY)
-          protocolConfig =
-            protocolConfig.copy {
-              protocols.clear()
-              protocols +=
-                ProtocolConfigKt.protocol {
-                  liquidLegionsV2 =
-                    ProtocolConfigKt.liquidLegionsV2 {
-                      noiseMechanism = ProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN
-                      sketchParams = liquidLegionsSketchParams {
-                        decayRate = LLV2_DECAY_RATE
-                        maxSize = LLV2_MAX_SIZE
-                        samplingIndicatorSize = 10_000_000
-                      }
-                      ellipticCurveId = 415
-                    }
-                }
-            }
         }
-
       requisitionsServiceMock.stub {
         onBlocking { listRequisitions(any()) }
-          .thenReturn(listRequisitionsResponse { requisitions += requisitionDiscreteGaussian })
+          .thenReturn(listRequisitionsResponse { requisitions += requisition })
       }
 
       val matchingEvents =
@@ -818,6 +820,8 @@ class EdpSimulatorTest {
                   direct =
                     ProtocolConfigKt.direct {
                       noiseMechanisms += noiseMechanismOption
+                      customDirectMethodology =
+                        ProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
                       deterministicCountDistinct =
                         ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
                       deterministicDistribution =
@@ -1211,6 +1215,8 @@ class EdpSimulatorTest {
                 direct =
                   ProtocolConfigKt.direct {
                     noiseMechanisms += noiseMechanismOption
+                    customDirectMethodology =
+                      ProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
                     deterministicCountDistinct =
                       ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
                     deterministicDistribution =
@@ -1590,7 +1596,7 @@ class EdpSimulatorTest {
 
   @Test
   fun `fulfills direct reach and frequency Requisition`() {
-    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE
+    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
     val requisition =
       REQUISITION.copy {
         protocolConfig =
@@ -1644,15 +1650,18 @@ class EdpSimulatorTest {
     assertThat(result.reach.hasDeterministicCountDistinct())
     assertThat(result.frequency.noiseMechanism == noiseMechanismOption)
     assertThat(result.frequency.hasDeterministicDistribution())
-    assertThat(result).reachValue().isEqualTo(2000L)
-    assertThat(result).frequencyDistribution().isWithin(0.001).of(mapOf(2L to 0.5, 4L to 0.5))
+    assertThat(result).reachValue().isEqualTo(2001L)
+    assertThat(result)
+      .frequencyDistribution()
+      .isWithin(0.001)
+      .of(mapOf(2L to 0.5011303262418495, 4L to 0.5062662903291533))
   }
 
   @Test
   fun `fulfills direct reach and frequency Requisition with sampling rate less than 1`() {
     val measurementSpec =
       MEASUREMENT_SPEC.copy { vidSamplingInterval = vidSamplingInterval.copy { width = 0.1f } }
-    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE
+    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
     val requisition =
       REQUISITION.copy {
         this.measurementSpec = signMeasurementSpec(measurementSpec, MC_SIGNING_KEY)
@@ -1708,11 +1717,11 @@ class EdpSimulatorTest {
     assertThat(result.reach.hasDeterministicCountDistinct())
     assertThat(result.frequency.noiseMechanism == noiseMechanismOption)
     assertThat(result.frequency.hasDeterministicDistribution())
-    assertThat(result).reachValue().isEqualTo(1920)
+    assertThat(result).reachValue().isEqualTo(1930)
     assertThat(result)
       .frequencyDistribution()
       .isWithin(0.00001)
-      .of(mapOf(2L to 0.5010227687681921, 4L to 0.5072032690534161))
+      .of(mapOf(2L to 0.5065658983525991, 4L to 0.5704821909286802))
   }
 
   @Test
@@ -1781,7 +1790,7 @@ class EdpSimulatorTest {
 
   @Test
   fun `fails to fulfill direct reach and frequency Requisition when no direct methodology is picked by EDP`() {
-    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE
+    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
     val requisition =
       REQUISITION.copy {
         protocolConfig =
@@ -1839,7 +1848,7 @@ class EdpSimulatorTest {
   @Test
   fun `fulfills direct reach-only Requisition`() {
     val measurementSpec = REACH_ONLY_MEASUREMENT_SPEC
-    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE
+    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
     val requisition =
       REQUISITION.copy {
         this.measurementSpec = signMeasurementSpec(measurementSpec, MC_SIGNING_KEY)
@@ -1891,7 +1900,7 @@ class EdpSimulatorTest {
 
     assertThat(result.reach.noiseMechanism == noiseMechanismOption)
     assertThat(result.reach.hasDeterministicCountDistinct())
-    assertThat(result).reachValue().isEqualTo(2000L)
+    assertThat(result).reachValue().isEqualTo(2001L)
     assertThat(result.hasFrequency()).isFalse()
   }
 
@@ -1901,7 +1910,7 @@ class EdpSimulatorTest {
       REACH_ONLY_MEASUREMENT_SPEC.copy {
         vidSamplingInterval = vidSamplingInterval.copy { width = 0.1f }
       }
-    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE
+    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
     val requisition =
       REQUISITION.copy {
         this.measurementSpec = signMeasurementSpec(measurementSpec, MC_SIGNING_KEY)
@@ -1953,7 +1962,7 @@ class EdpSimulatorTest {
 
     assertThat(result.reach.noiseMechanism == noiseMechanismOption)
     assertThat(result.reach.hasDeterministicCountDistinct())
-    assertThat(result).reachValue().isEqualTo(1920)
+    assertThat(result).reachValue().isEqualTo(1930)
     assertThat(result.hasFrequency()).isFalse()
   }
 
@@ -2030,7 +2039,7 @@ class EdpSimulatorTest {
       REACH_ONLY_MEASUREMENT_SPEC.copy {
         vidSamplingInterval = vidSamplingInterval.copy { width = 0.1f }
       }
-    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE
+    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
     val requisition =
       REQUISITION.copy {
         this.measurementSpec = signMeasurementSpec(measurementSpec, MC_SIGNING_KEY)

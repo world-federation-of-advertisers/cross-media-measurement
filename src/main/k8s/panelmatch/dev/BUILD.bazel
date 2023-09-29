@@ -5,6 +5,18 @@ load("//build/k8s:defs.bzl", "kustomization_dir")
 
 SECRET_NAME = "certs-and-configs"
 
+kustomization_dir(
+    name = "edp_daemon_secret",
+    srcs = ["edp_daemon_secret_kustomization.yaml"],
+    renames = {"edp_daemon_secret_kustomization.yaml": "kustomization.yaml"},
+)
+
+kustomization_dir(
+    name = "mp_daemon_secret",
+    srcs = ["mp_daemon_secret_kustomization.yaml"],
+    renames = {"mp_daemon_secret_kustomization.yaml": "kustomization.yaml"},
+)
+
 cue_library(
     name = "base_gke",
     srcs = ["base_gke.cue"],
@@ -51,6 +63,7 @@ kustomization_dir(
     ],
     generate_kustomization = True,
     tags = ["manual"],
+    deps = [":edp_daemon_secret"],
 )
 
 cue_dump(
@@ -72,6 +85,7 @@ kustomization_dir(
     ],
     generate_kustomization = True,
     tags = ["manual"],
+    deps = [":mp_daemon_secret"],
 )
 
 cue_dump(
@@ -93,6 +107,7 @@ kustomization_dir(
     ],
     generate_kustomization = True,
     tags = ["manual"],
+    deps = [":edp_daemon_secret"],
 )
 
 cue_dump(
@@ -114,4 +129,5 @@ kustomization_dir(
     ],
     generate_kustomization = True,
     tags = ["manual"],
+    deps = [":mp_daemon_secret"],
 )

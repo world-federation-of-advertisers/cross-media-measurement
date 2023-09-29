@@ -34,6 +34,7 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.parseTextProto
@@ -45,7 +46,7 @@ import org.wfanet.measurement.loadtest.measurementconsumer.MetadataBigQueryEvent
 
 /**
  * Test for correctness of an existing CMMS on Kubernetes where the EDP simulators use
- * [BigQueryEventQuery].
+ * [BigQueryEventQuery]. The computation composition is using ACDP by assumption.
  *
  * This currently assumes that the CMMS instance is using the certificates and keys from this Bazel
  * workspace.
@@ -111,7 +112,8 @@ class BigQueryCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         CertificatesGrpcKt.CertificatesCoroutineStub(publicApiChannel),
         RESULT_POLLING_DELAY,
         MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
-        eventQuery
+        eventQuery,
+        ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
       )
     }
 

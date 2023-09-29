@@ -95,8 +95,7 @@ class CreateCertificate(private val certificate: Certificate) :
         MeasurementConsumerReader.readMeasurementConsumerId(
           transactionContext,
           externalMeasurementConsumerId
-        )
-          ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
+        ) ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
       }
       Certificate.ParentCase.EXTERNAL_DUCHY_ID ->
         DuchyIds.getInternalId(certificate.externalDuchyId)?.let { InternalId(it) }
@@ -131,7 +130,7 @@ class CreateCertificate(private val certificate: Certificate) :
 
   override suspend fun handleSpannerException(e: SpannerException): Certificate? {
     when (e.errorCode) {
-      SpannerErrorCode.ALREADY_EXISTS -> throw CertSubjectKeyIdAlreadyExistsException()
+      SpannerErrorCode.ALREADY_EXISTS -> throw CertSubjectKeyIdAlreadyExistsException(e)
       else -> throw e
     }
   }

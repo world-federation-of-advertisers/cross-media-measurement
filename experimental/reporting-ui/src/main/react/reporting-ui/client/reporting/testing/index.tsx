@@ -14,12 +14,12 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import '../../../index.css';
 import AppConfig from '../../initialize';
 import { FakeReportingClient } from './fake_reporting_client';
 import { RouterProvider, createBrowserRouter } from 'react-router-dom';
 import { routes } from '../../../route';
 import 'bootstrap/dist/css/bootstrap.min.css';
+import '../../../index.css';
 
 const config = {
   reportingClient: new FakeReportingClient(),

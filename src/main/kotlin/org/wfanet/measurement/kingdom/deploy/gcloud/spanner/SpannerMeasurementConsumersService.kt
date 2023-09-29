@@ -83,8 +83,7 @@ class SpannerMeasurementConsumersService(
         client.singleUse(),
         ExternalId(request.externalMeasurementConsumerId)
       )
-      ?.measurementConsumer
-      ?: failGrpc(Status.NOT_FOUND) { "MeasurementConsumer not found" }
+      ?.measurementConsumer ?: failGrpc(Status.NOT_FOUND) { "MeasurementConsumer not found" }
   }
 
   override suspend fun addMeasurementConsumerOwner(

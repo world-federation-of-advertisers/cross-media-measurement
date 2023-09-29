@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
+import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/internal/reporting/v2/measurement.proto";
@@ -43,8 +44,7 @@ message MetricSpec {
   }
   message WatchDurationParams {
     DifferentialPrivacyParams privacy_params = 1;
-    // In seconds.
-    int32 maximum_watch_duration_per_user = 2;
+    google.protobuf.Duration maximum_watch_duration_per_user = 2;
   }
 
   oneof type {

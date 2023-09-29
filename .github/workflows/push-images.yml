@@ -81,8 +81,10 @@ jobs:
           bazelisk build
           //src/main/docker:push_all_gke_images 
           //src/main/docker/panel_exchange_client:push_all_images
+          //src/main/docker:push_all_eks_images
 
       - name: Push images
         run: |
           bazelisk run //src/main/docker:push_all_gke_images 
           bazelisk run //src/main/docker/panel_exchange_client:push_all_images
+          bazelisk run //src/main/docker:push_all_eks_images

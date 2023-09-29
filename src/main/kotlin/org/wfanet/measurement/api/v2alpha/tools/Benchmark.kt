@@ -63,6 +63,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.Measurement
@@ -411,7 +412,11 @@ class Benchmark(
                 start = vidSamplingStartForMeasurement
                 width = eventMeasurementParams.vidSamplingWidth
               }
-              if (eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency.selected) {
+              if (eventMeasurementParams.eventMeasurementTypeParams.reach.selected) {
+                reach = createMeasurementFlags.getReach()
+              } else if (
+                eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency.selected
+              ) {
                 reachAndFrequency = createMeasurementFlags.getReachAndFrequency()
               } else if (eventMeasurementParams.eventMeasurementTypeParams.impression.selected) {
                 impression = createMeasurementFlags.getImpression()
@@ -512,6 +517,8 @@ class Benchmark(
       out.print("replica,startTime,ackTime,computeTime,endTime,status,msg,")
       if (createMeasurementFlags.measurementParams.populationMeasurementParams.selected) {
         out.println("population")
+      } else if (eventMeasurementParams.eventMeasurementTypeParams.reach.selected) {
+        out.println("reach")
       } else if (eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency.selected) {
         out.println("reach,freq1,freq2,freq3,freq4,freq5")
       } else if (eventMeasurementParams.eventMeasurementTypeParams.impression.selected) {
@@ -534,6 +541,12 @@ class Benchmark(
         out.print("${task.status},${task.errorMessage},")
         if (createMeasurementFlags.measurementParams.populationMeasurementParams.selected) {
           out.println("${task.result.population.value}")
+        } else if (eventMeasurementParams.eventMeasurementTypeParams.reach.selected) {
+          if (task.status == "success" && task.result.hasReach()) {
+            out.print(task.result.reach.value)
+          } else {
+            out.print(-1)
+          }
         } else if (eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency.selected) {
           var reach = 0L
           if (task.status == "success" && task.result.hasReach()) {
@@ -591,7 +604,7 @@ class Benchmark(
   description = ["Benchmark report from Kingdom"],
   sortOptions = false,
 )
-class BenchmarkReport(val clock: Clock = Clock.systemUTC()) : Runnable {
+class BenchmarkReport private constructor(val clock: Clock = Clock.systemUTC()) : Runnable {
   @CommandLine.Mixin private lateinit var tlsFlags: TlsFlags
   @CommandLine.Mixin private lateinit var apiFlags: ApiFlags
   @CommandLine.Mixin private lateinit var baseFlags: BaseFlags
@@ -615,16 +628,23 @@ class BenchmarkReport(val clock: Clock = Clock.systemUTC()) : Runnable {
     buildMutualTlsChannel(apiFlags.apiTarget, clientCerts, apiFlags.apiCertHost)
       .withShutdownTimeout(JavaDuration.ofSeconds(1))
   }
+
   override fun run() {
     val benchmark =
       Benchmark(baseFlags, createMeasurementFlags, channel, apiAuthenticationKey, clock)
     benchmark.generateBenchmarkReport()
   }
-}
 
-/**
- * Create a benchmarking report of the public Kingdom API.
- *
- * Use the `help` command to see usage details.
- */
-fun main(args: Array<String>) = commandLineMain(BenchmarkReport(), args)
+  companion object {
+    /**
+     * Create a benchmarking report of the public Kingdom API.
+     *
+     * Use the `help` command to see usage details.
+     */
+    fun main(args: Array<String>) = commandLineMain(BenchmarkReport(), args)
+
+    @VisibleForTesting
+    internal fun main(args: Array<String>, clock: Clock) =
+      commandLineMain(BenchmarkReport(clock), args)
+  }
+}

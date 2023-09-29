@@ -10,7 +10,7 @@ js_library(
     name = "font",
     srcs = glob(
         include = [
-            "open-san-light.ttf",
+            "open-sans-light.ttf",
         ],
     ),
 )

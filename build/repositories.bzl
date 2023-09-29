@@ -27,8 +27,8 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_common_jvm",
         repo = "common-jvm",
-        sha256 = "328f4707c79ff1b309784463309f4c5918c6a2fab8c0187efda014f8b3bc79eb",
-        version = "0.63.0",
+        sha256 = "2719f6147eccd2a493e573720c64fa3a13f344840f8416060753d97fe13ab942",
+        version = "0.66.0",
     )
 
     wfa_repo_archive(
@@ -38,13 +38,11 @@ def wfa_measurement_system_repositories():
         version = "0.10.0",
     )
 
-    # DO_NOT_SUBMIT(world-federation-of-advertisers/cross-media-measurement-api/#163):
-    # switch to a release version before submitting the PR.
     wfa_repo_archive(
         name = "wfa_measurement_proto",
         repo = "cross-media-measurement-api",
-        sha256 = "d8f13212e6f56e3bee74263800a8710a99616bedf96be5347bf2e290f83865cd",
-        version = "0.40.0",
+        sha256 = "2106c2fd73775f5b0ad8d02c0ac01761b497920b363e1c90f12663d5321f5873",
+        version = "0.43.0",
     )
 
     wfa_repo_archive(
@@ -78,15 +76,15 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_consent_signaling_client",
         repo = "consent-signaling-client",
-        sha256 = "dbe586f8fb1da9ea88ab87a1acac036aa6142fe24005ae0577bba6dd60e185c8",
-        version = "0.16.0",
+        sha256 = "bf9c4665f3e97f970465cfcc0e671d98d8c0521c96d2938b3b04a9ec9ee5e681",
+        version = "0.17.0",
     )
 
     wfa_repo_archive(
         name = "wfa_virtual_people_common",
         repo = "virtual-people-common",
-        sha256 = "0a663e5517f50052ecc5e5745564935a3c15ebce2e9550b11dda451e341ea624",
-        version = "0.2.3",
+        sha256 = "89f22bc07ba8d8271f58454d603028ce09c01654ac92537076e45bb726c0ca60",
+        version = "0.3.0",
     )
 
     http_archive(
