@@ -43,20 +43,15 @@ CREATE TABLE Populations (
 CREATE UNIQUE INDEX PopulationsByExternalId
     ON Populations(DataProviderId, ExternalPopulationId);
 
-DROP TABLE ModelReleases;
-CREATE TABLE ModelReleases (
-    ModelProviderId INT64 NOT NULL,
-    ModelSuiteId INT64 NOT NULL,
-    ModelReleaseId INT64 NOT NULL,
-    ExternalModelReleaseId INT64 NOT NULL,
+ALTER TABLE ModelReleases
+    ADD COLUMN PopulationDataProviderId INT64; -- population data provider that created population
 
-    PopulationDataProviderId INT64 NOT NULL, -- population data provider that created population
-    PopulationId INT64 NOT NULL, -- population used in model release
+ALTER TABLE ModelReleases
+    ADD COLUMN PopulationId INT64; -- population used in model release
 
-    CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+ALTER TABLE ModelReleases
+    ADD FOREIGN KEY (PopulationDataProviderId, PopulationId) REFERENCES Populations(DataProviderId, PopulationId);
 
-    FOREIGN KEY (PopulationDataProviderId, PopulationId) REFERENCES Populations(DataProviderId, PopulationId),
-) PRIMARY KEY (ModelProviderId, ModelSuiteId, ModelReleaseId),
-  INTERLEAVE IN PARENT ModelSuites ON DELETE CASCADE;
+
 
 RUN BATCH;
