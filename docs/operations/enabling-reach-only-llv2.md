@@ -36,8 +36,8 @@ SketchConfig [here](../../src/main/kotlin/org/wfanet/measurement/loadtest/datapr
 The logic of code does not need to change because given the updated
 SketchConfig, the extra fields of LiquidLegionsV2’s sketch will be ignored.
 However, it is welcomed to update the code to reduce unnecessary processing.
-The `index` is set as `UNIQUE`, it will automatically ignore duplicate
-insertion.
+Since the `index` already has the attribution of `UNIQUE`, it will automatically 
+resolve duplicate insertion.
 
 ## Duchies Update Deployment
 
