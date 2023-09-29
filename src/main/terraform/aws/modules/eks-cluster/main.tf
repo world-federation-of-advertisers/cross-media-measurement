@@ -50,15 +50,35 @@ module "eks" {
   eks_managed_node_groups = {
     default = {
       min_size     = 1
-      max_size     = var.max_node_count
+      max_size     = var.default_max_node_count
       desired_size = 1
 
-      instance_types = var.instance_types
+      instance_types = var.default_instance_types
       capacity_type  = "ON_DEMAND"
 
       update_config = {
         max_unavailable_percentage = 1 # Minimum is 1
       }
+    }
+    high_perf= {
+      min_size     = 1
+      max_size     = var.high_perf_max_node_count
+      desired_size = 1
+
+      instance_types = var.high_perf_instance_types
+      capacity_type  = "SPOT"
+
+      update_config = {
+        max_unavailable_percentage = 1 # Minimum is 1
+      }
+
+      taints = [
+        {
+          key    = "high_perf_spot_node"
+          value  = "true"
+          effect = "NO_SCHEDULE"
+        }
+      ]
     }
   }
 

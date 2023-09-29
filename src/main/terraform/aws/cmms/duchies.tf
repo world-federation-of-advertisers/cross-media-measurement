@@ -25,8 +25,10 @@ module "clusters" {
   control_plane_subnet_ids = module.vpc.intra_subnets
   subnet_ids               = module.vpc.private_subnets
   vpc_id                   = module.vpc.vpc_id
-  instance_types           = ["m5.xlarge"]
-  max_node_count           = 2
+  default_instance_types   = ["m5.large"]
+  default_max_node_count   = 2
+  high_perf_instance_types = ["c5.xlarge"]
+  high_perf_max_node_count = 2
 }
 
 # IAM role to be used by aws_load_balancer_controller addons across all clusters

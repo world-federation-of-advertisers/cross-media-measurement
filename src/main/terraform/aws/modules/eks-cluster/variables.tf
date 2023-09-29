@@ -42,14 +42,26 @@ variable "control_plane_subnet_ids" {
   nullable    = false
 }
 
-variable "instance_types" {
-  description = "List of node instance types"
+variable "default_instance_types" {
+  description = "List of instance types used by default node group"
   type = list(string)
   nullable = false
 }
 
-variable "max_node_count" {
-  description = "Maximum number of nodes that can be created"
+variable "default_max_node_count" {
+  description = "Maximum number of nodes that can be created in default node group"
+  type = number
+  nullable = false
+}
+
+variable "high_perf_instance_types" {
+  description = "List of instance types used by high_perf node group"
+  type = list(string)
+  nullable = false
+}
+
+variable "high_perf_max_node_count" {
+  description = "Maximum number of nodes that can be created in high_perf node group"
   type = number
   nullable = false
 }
