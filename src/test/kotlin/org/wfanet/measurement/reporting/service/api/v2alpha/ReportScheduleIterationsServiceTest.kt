@@ -101,7 +101,7 @@ class ReportScheduleIterationsServiceTest {
       )
       .thenReturn(INTERNAL_REPORT_SCHEDULE_ITERATION.copy { clearExternalReportId() })
 
-    val request = getReportScheduleIterationRequest { name = REPORT_SCHEDULE_NAME }
+    val request = getReportScheduleIterationRequest { name = REPORT_SCHEDULE_ITERATION_NAME }
 
     val reportScheduleIteration =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
