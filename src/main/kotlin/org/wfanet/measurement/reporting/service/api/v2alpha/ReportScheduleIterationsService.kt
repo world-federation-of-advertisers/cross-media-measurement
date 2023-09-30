@@ -266,9 +266,9 @@ private fun InternalReportScheduleIteration.State.toPublic(): ReportScheduleIter
     InternalReportScheduleIteration.State.STATE_UNSPECIFIED ->
       ReportScheduleIteration.State.STATE_UNSPECIFIED
     InternalReportScheduleIteration.State.UNRECOGNIZED ->
-      // State is set by the system so if this is reached, something is wrong with the system.
-      throw Status.FAILED_PRECONDITION.withDescription(
-          "There is a problem with ReportScheduleIteration creation"
+      // State is set by the system so if this is reached, something went wrong.
+      throw Status.UNKNOWN.withDescription(
+          "There is an unknown problem with the ReportScheduleIteration"
         )
         .asRuntimeException()
   }
