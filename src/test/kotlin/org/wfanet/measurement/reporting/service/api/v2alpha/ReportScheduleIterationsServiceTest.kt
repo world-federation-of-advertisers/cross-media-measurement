@@ -171,6 +171,38 @@ class ReportScheduleIterationsServiceTest {
   }
 
   @Test
+  fun `getReportScheduleIteration throws FAILED_PRECONDITION when state is UNRECOGNIZED`() {
+    runBlocking {
+      whenever(
+        internalReportScheduleIterationsMock.getReportScheduleIteration(
+          eq(
+            internalGetReportScheduleIterationRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              externalReportScheduleId = REPORT_SCHEDULE_ID
+              externalReportScheduleIterationId = REPORT_SCHEDULE_ITERATION_ID
+            }
+          )
+        )
+      )
+        .thenReturn(INTERNAL_REPORT_SCHEDULE_ITERATION.copy {
+          state = InternalReportScheduleIteration.State.UNRECOGNIZED
+        })
+    }
+
+    val request = getReportScheduleIterationRequest { name = REPORT_SCHEDULE_ITERATION_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.getReportScheduleIteration(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.message).contains("problem")
+  }
+
+  @Test
   fun `getReportScheduleIteration throws INVALID_ARGUMENT when name is invalid`() {
     val invalidReportScheduleIterationName =
       "measurementConsumers/$CMMS_MEASUREMENT_CONSUMER_ID/reportSchedules/$REPORT_SCHEDULE_ID"
