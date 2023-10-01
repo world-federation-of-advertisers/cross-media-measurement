@@ -19,7 +19,13 @@ variable "aws_region" {
 }
 
 variable "cluster_name" {
-  description = "Name of the eks cluster"
+  description = "Name of the EKS cluster"
+  type        = string
+  nullable    = false
+}
+
+variable "cluster_version" {
+  description = "Version of the EKS cluster"
   type        = string
   nullable    = false
 }
@@ -44,24 +50,24 @@ variable "control_plane_subnet_ids" {
 
 variable "default_instance_types" {
   description = "List of instance types used by default node group"
-  type = list(string)
-  nullable = false
+  type        = list(string)
+  nullable    = false
 }
 
 variable "default_max_node_count" {
   description = "Maximum number of nodes that can be created in default node group"
-  type = number
-  nullable = false
+  type        = number
+  nullable    = false
 }
 
 variable "high_perf_instance_types" {
   description = "List of instance types used by high_perf node group"
-  type = list(string)
-  nullable = false
+  type        = list(string)
+  nullable    = false
 }
 
 variable "high_perf_max_node_count" {
   description = "Maximum number of nodes that can be created in high_perf node group"
-  type = number
-  nullable = false
+  type        = number
+  nullable    = false
 }

@@ -12,16 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-locals {
-  cluster_version       = "1.28"
-}
-
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 19.16"
 
   cluster_name    = var.cluster_name
-  cluster_version = local.cluster_version
+  cluster_version = var.cluster_version
 
   vpc_id                   = var.vpc_id
   subnet_ids               = var.subnet_ids
@@ -44,7 +40,7 @@ module "eks" {
   }
 
   eks_managed_node_group_defaults = {
-    ami_type                   = "AL2_x86_64"
+    ami_type = "AL2_x86_64"
   }
 
   eks_managed_node_groups = {
@@ -60,7 +56,7 @@ module "eks" {
         max_unavailable_percentage = 1 # Minimum is 1
       }
     }
-    high_perf= {
+    high_perf = {
       min_size     = 1
       max_size     = var.high_perf_max_node_count
       desired_size = 1

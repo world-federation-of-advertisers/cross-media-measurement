@@ -22,6 +22,7 @@ module "clusters" {
 
   aws_region               = var.aws_region
   cluster_name             = "${each.key}-duchy"
+  cluster_version          = "1.28"
   control_plane_subnet_ids = module.vpc.intra_subnets
   subnet_ids               = module.vpc.private_subnets
   vpc_id                   = module.vpc.vpc_id
