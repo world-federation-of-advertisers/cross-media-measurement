@@ -85,6 +85,8 @@ class ComputationParticipantsService(
           liquidLegionsV2 = liquidLegionsV2Details {
             elGamalPublicKey = requisitionParams.liquidLegionsV2.elGamalPublicKey
             elGamalPublicKeySignature = requisitionParams.liquidLegionsV2.elGamalPublicKeySignature
+            elGamalPublicKeySignatureAlgorithmOid =
+              requisitionParams.liquidLegionsV2.elGamalPublicKeySignatureAlgorithmOid
           }
         }
         ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {

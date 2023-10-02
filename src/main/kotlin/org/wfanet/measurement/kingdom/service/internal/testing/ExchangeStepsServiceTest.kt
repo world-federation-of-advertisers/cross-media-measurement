@@ -139,6 +139,7 @@ private val DATA_PROVIDER = dataProvider {
     apiVersion = "2"
     publicKey = ByteString.copyFromUtf8("This is a  public key.")
     publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
+    publicKeySignatureAlgorithmOid = "2.9999"
   }
   requiredExternalDuchyIds += DUCHIES.map { it.externalDuchyId }
 }
