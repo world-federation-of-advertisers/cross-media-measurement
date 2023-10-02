@@ -159,6 +159,7 @@ class PanelMatchResourceSetup(
               apiVersion = API_VERSION.string
               publicKey = signedPublicKey.data
               publicKeySignature = signedPublicKey.signature
+              publicKeySignatureAlgorithmOid = signedPublicKey.signatureAlgorithmOid
             }
         }
       )
