@@ -78,6 +78,7 @@ module "eks" {
     }
   }
 
+  kms_key_administrators    = var.kms_key_administrators
   create_kms_key            = true
   enable_kms_key_rotation   = true
   cluster_encryption_config = {

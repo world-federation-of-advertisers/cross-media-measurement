@@ -48,6 +48,12 @@ variable "control_plane_subnet_ids" {
   nullable    = false
 }
 
+variable "kms_key_administrators" {
+  description = "List of kms key administrators ARNs"
+  type        = list(string)
+  default     = null
+}
+
 variable "default_instance_types" {
   description = "List of instance types used by default node group"
   type        = list(string)
