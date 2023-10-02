@@ -26,6 +26,9 @@ objectSets: [
 
 openTelemetry: #OpenTelemetry & {
 	  _serviceAccount: "adot-collector"
+	  _sampler: {
+	  	type: "always_on"
+	  }
 		_exporters: """
 exporters:
   prometheusremotewrite:
@@ -33,6 +36,8 @@ exporters:
     auth:
       authenticator: sigv4auth
 """
+	_serviceExporters: "[prometheusremotewrite]"
+
 	_extensions: """
 extensions:
   health_check:

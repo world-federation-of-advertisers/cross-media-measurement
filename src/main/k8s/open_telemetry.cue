@@ -40,10 +40,24 @@ package k8s
 }
 
 #OpenTelemetry: {
-	_exporters: string
 	_serviceAccount?: string
-	_extensions: string
-	_serviceExtensions: string
+	_sampler?: {...}
+
+	_exporters: string | *"""
+exporters:
+  prometheus:
+    send_timestamps: true
+    endpoint: 0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)
+    resource_to_telemetry_conversion:
+      enabled: true
+"""
+	_serviceExporters: string | *"[prometheus]"
+
+	_extensions: string | *"""
+extensions:
+  health_check:
+"""
+	_serviceExtensions: string | *"[health_check]"
 
 	collectors: [Name=string]: #OpenTelemetryCollector & {
 		metadata: name: Name
@@ -72,12 +86,12 @@ processors:
 \(_extensions)
 
 service:
-  \(_serviceExtensions)
+  extensions: \(_serviceExtensions)
   pipelines:
     metrics:
       receivers: [otlp]
       processors: [batch]
-      exporters: [prometheus]
+      exporters: \(_serviceExporters)
 """
 			}
 		}
@@ -89,6 +103,9 @@ service:
 			kind:       "Instrumentation"
 			metadata: name: "open-telemetry-java-agent"
 			spec: {
+		    if _sampler != _|_ {
+					sampler: _sampler
+				}
 				env: [
 					{
 						name:  "OTEL_TRACES_EXPORTER"
