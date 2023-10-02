@@ -12,16 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-locals {
-  load_balancer_sa_name = "aws-load-balancer-controller"
-}
-
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
-  version = "~> 19.0"
+  version = "~> 19.16"
 
   cluster_name    = var.cluster_name
-  cluster_version = "1.27"
+  cluster_version = var.cluster_version
 
   vpc_id                   = var.vpc_id
   subnet_ids               = var.subnet_ids
@@ -33,119 +29,61 @@ module "eks" {
 
   cluster_addons = {
     coredns = {
-      most_recent          = true
-      configuration_values = jsonencode({
-        computeType = "Fargate"
-      })
+      most_recent = true
     }
     kube-proxy = {
       most_recent = true
     }
     vpc-cni = {
-      most_recent       = true
-      resolve_conflicts = "OVERWRITE"
+      most_recent = true
     }
   }
 
-  # Fargate
-  fargate_profiles = {
+  eks_managed_node_group_defaults = {
+    ami_type = "AL2_x86_64"
+  }
+
+  eks_managed_node_groups = {
     default = {
-      name      = "default"
-      selectors = [
-        {
-          namespace = "kube-system"
-        },
-        {
-          namespace = "default"
-        }
-      ]
-      subnet_ids = var.subnet_ids
-      timeouts   = {
-        create = "20m"
-        delete = "20m"
+      min_size     = 1
+      max_size     = var.default_max_node_count
+      desired_size = 1
+
+      instance_types = var.default_instance_types
+      capacity_type  = "ON_DEMAND"
+
+      update_config = {
+        max_unavailable_percentage = 1 # Minimum is 1
       }
     }
+    high_perf = {
+      min_size     = 1
+      max_size     = var.high_perf_max_node_count
+      desired_size = 1
+
+      instance_types = var.high_perf_instance_types
+      capacity_type  = "SPOT"
+
+      update_config = {
+        max_unavailable_percentage = 1 # Minimum is 1
+      }
+
+      taints = [
+        {
+          key    = "high_perf_spot_node"
+          value  = "true"
+          effect = "NO_SCHEDULE"
+        }
+      ]
+    }
   }
 
+  kms_key_administrators    = var.kms_key_administrators
   create_kms_key            = true
   enable_kms_key_rotation   = true
   cluster_encryption_config = {
     "resources" : [
       "secrets"
     ]
-  }
-}
-
-# aws_load_balancer_controller addon
-module "load_balancer_controller_irsa_role" {
-  source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
-
-  role_name                              = "load-balancer-controller"
-  attach_load_balancer_controller_policy = true
-
-  oidc_providers = {
-    main = {
-      provider_arn               = module.eks.oidc_provider_arn
-      namespace_service_accounts = ["kube-system:aws-load-balancer-controller"]
-    }
-  }
-}
-
-module "load_balancer_controller_targetgroup_binding_only_irsa_role" {
-  source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
-
-  role_name                                                       = "load-balancer-controller-targetgroup-binding-only"
-  attach_load_balancer_controller_targetgroup_binding_only_policy = true
-
-  oidc_providers = {
-    main = {
-      provider_arn               = module.eks.oidc_provider_arn
-      namespace_service_accounts = ["kube-system:${local.load_balancer_sa_name}"]
-    }
-  }
-}
-
-resource "kubernetes_service_account" "load-balancer-controller-service-account" {
-  metadata {
-    name      = local.load_balancer_sa_name
-    namespace = "kube-system"
-
-    annotations = {
-      "eks.amazonaws.com/role-arn" = module.load_balancer_controller_irsa_role.iam_role_arn
-    }
-  }
-}
-
-resource "helm_release" "aws_load_balancer_controller" {
-  name            = "aws-load-balancer-controller"
-  chart           = "aws-load-balancer-controller"
-  version         = "1.6.1"
-  repository      = "https://aws.github.io/eks-charts"
-  namespace       = "kube-system"
-  cleanup_on_fail = true
-
-  set {
-    name  = "clusterName"
-    value = module.eks.cluster_name
-  }
-
-  set {
-    name  = "region"
-    value = var.aws_region
-  }
-
-  set {
-    name  = "vpcId"
-    value = var.vpc_id
-  }
-
-  set {
-    name  = "serviceAccount.create"
-    value = "false"
-  }
-
-  set {
-    name  = "serviceAccount.name"
-    value = local.load_balancer_sa_name
   }
 }

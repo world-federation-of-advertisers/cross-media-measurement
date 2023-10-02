@@ -20,6 +20,16 @@ package k8s
 	serviceAccountName: string
 }
 
+#SpotVmPodSpec: {
+	#PodSpec
+
+	_tolerations: "high_perf_spot_node": {
+		operator: "Equal"
+		value:    "true"
+		effect:   "NoSchedule"
+	}
+}
+
 #ServerDeployment: {
 	_container: {
 		resources: Resources={

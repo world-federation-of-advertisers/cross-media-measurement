@@ -19,25 +19,61 @@ variable "aws_region" {
 }
 
 variable "cluster_name" {
-  description = "name of the eks cluster"
+  description = "Name of the EKS cluster"
+  type        = string
+  nullable    = false
+}
+
+variable "cluster_version" {
+  description = "Version of the EKS cluster"
   type        = string
   nullable    = false
 }
 
 variable "vpc_id" {
-  description = "vpc id"
+  description = "Vpc id"
   type        = string
   nullable    = false
 }
 
 variable "subnet_ids" {
-  description = "list of subnet ids"
+  description = "List of subnet ids"
   type        = list(string)
   nullable    = false
 }
 
 variable "control_plane_subnet_ids" {
-  description = "list of subnet ids used by control plane"
+  description = "List of subnet ids used by control plane"
   type        = list(string)
+  nullable    = false
+}
+
+variable "kms_key_administrators" {
+  description = "List of kms key administrators ARNs"
+  type        = list(string)
+  default     = null
+}
+
+variable "default_instance_types" {
+  description = "List of instance types used by default node group"
+  type        = list(string)
+  nullable    = false
+}
+
+variable "default_max_node_count" {
+  description = "Maximum number of nodes that can be created in default node group"
+  type        = number
+  nullable    = false
+}
+
+variable "high_perf_instance_types" {
+  description = "List of instance types used by high_perf node group"
+  type        = list(string)
+  nullable    = false
+}
+
+variable "high_perf_max_node_count" {
+  description = "Maximum number of nodes that can be created in high_perf node group"
+  type        = number
   nullable    = false
 }
