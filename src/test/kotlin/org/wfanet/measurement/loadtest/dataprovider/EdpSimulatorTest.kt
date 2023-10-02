@@ -67,6 +67,7 @@ import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
@@ -174,7 +175,7 @@ private val SECRET_FILES_PATH: Path =
       Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
     )
   )
-private const val EDP_ID = "someDataProvider"
+private const val EDP_ID = "CLcg73nxnVo"
 private const val EDP_NAME = "dataProviders/$EDP_ID"
 
 private const val LLV2_DECAY_RATE = 12.0
@@ -1787,7 +1788,64 @@ class EdpSimulatorTest {
   }
 
   @Test
-  fun `fails to fulfill direct reach and frequency Requisition when no direct noise mechanism is picked by EDP`() {
+  fun `fulfills impression Requisition`() {
+    val measurementSpec = IMPRESSION_MEASUREMENT_SPEC
+    val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+    val requisition =
+      REQUISITION.copy {
+        this.measurementSpec = signMeasurementSpec(measurementSpec, MC_SIGNING_KEY)
+        protocolConfig =
+          protocolConfig.copy {
+            protocols.clear()
+            protocols +=
+              ProtocolConfigKt.protocol {
+                direct =
+                  ProtocolConfigKt.direct {
+                    noiseMechanisms += noiseMechanismOption
+                    deterministicCount =
+                      ProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
+                  }
+              }
+          }
+      }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+    val simulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        syntheticGeneratorEventQuery,
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        random = Random(RANDOM_SEED),
+        compositionMechanism = COMPOSITION_MECHANISM
+      )
+
+    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+
+    val request: FulfillDirectRequisitionRequest =
+      verifyAndCapture(
+        requisitionsServiceMock,
+        RequisitionsCoroutineImplBase::fulfillDirectRequisition
+      )
+    val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
+
+    assertThat(result.impression.noiseMechanism == noiseMechanismOption)
+    assertThat(result.impression.hasDeterministicCount()).isTrue()
+    assertThat(result.impression.value).isEqualTo(6001L)
+  }
+
+  @Test
+  fun `fails to fulfill direct reach and frequency Requisition when no valid directNoiseMechanism option is provided by Kingdom`() {
     val noiseMechanismOption = ProtocolConfig.NoiseMechanism.NONE
     val requisition =
       REQUISITION.copy {
@@ -1851,7 +1909,7 @@ class EdpSimulatorTest {
   }
 
   @Test
-  fun `fails to fulfill direct reach and frequency Requisition when no direct methodology is picked by EDP`() {
+  fun `fails to fulfill direct reach and frequency Requisition when no valid direct computation methodology option is provided by Kingdom`() {
     val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
     val requisition =
       REQUISITION.copy {
@@ -2027,7 +2085,7 @@ class EdpSimulatorTest {
   }
 
   @Test
-  fun `fails to fulfill direct reach-only Requisition when no direct noise mechanism is picked by EDP`() {
+  fun `fails to fulfill direct reach-only Requisition when no valid directNoiseMechanism option is provided by Kingdom`() {
     val measurementSpec =
       REACH_ONLY_MEASUREMENT_SPEC.copy {
         vidSamplingInterval = vidSamplingInterval.copy { width = 0.1f }
@@ -2094,7 +2152,7 @@ class EdpSimulatorTest {
   }
 
   @Test
-  fun `fails to fulfill direct reach-only Requisition when no direct methodology is picked by EDP`() {
+  fun `fails to fulfill direct reach-only Requisition when no valid direct computation methodology option is provided by Kingdom`() {
     val measurementSpec =
       REACH_ONLY_MEASUREMENT_SPEC.copy {
         vidSamplingInterval = vidSamplingInterval.copy { width = 0.1f }
@@ -2274,6 +2332,16 @@ class EdpSimulatorTest {
       MEASUREMENT_SPEC.copy {
         clearReachAndFrequency()
         reach = reach { privacyParams = OUTPUT_DP_PARAMS }
+      }
+
+    val IMPRESSION_MAXIMUM_FREQUENCY_PER_USER = 100
+    private val IMPRESSION_MEASUREMENT_SPEC =
+      MEASUREMENT_SPEC.copy {
+        clearReachAndFrequency()
+        impression = impression {
+          privacyParams = OUTPUT_DP_PARAMS
+          maximumFrequencyPerUser = IMPRESSION_MAXIMUM_FREQUENCY_PER_USER
+        }
       }
 
     private val LIQUID_LEGIONS_SKETCH_PARAMS = liquidLegionsSketchParams {

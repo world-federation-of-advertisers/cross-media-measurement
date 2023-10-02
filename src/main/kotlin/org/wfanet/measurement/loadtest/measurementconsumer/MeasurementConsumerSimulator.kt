@@ -415,25 +415,27 @@ class MeasurementConsumerSimulator(
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val measurementInfo =
-      createMeasurement(measurementConsumer, runId, ::newImpressionMeasurementSpec)
+      createMeasurement(measurementConsumer, runId, ::newImpressionMeasurementSpec, 1)
     val measurementName = measurementInfo.measurement.name
     logger.info("Created impression Measurement $measurementName.")
 
     val impressionResults = pollForResults { getImpressionResults(measurementName) }
+    // Used only 1 dataProvider for direct measurements
+    val resultPair = impressionResults[0]
+    val impressionResult = parseAndVerifyResult(resultPair)
 
-    impressionResults.forEach {
-      val result = parseAndVerifyResult(it)
-      assertThat(result.impression.value)
-        .isEqualTo(
-          // EdpSimulator sets it to this value.
-          apiIdToExternalId(DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId)
-        )
-      assertThat(result.impression.customDirectMethodology)
-        .isEqualTo(
-          customDirectMethodology { variance = CustomDirectMethodologyKt.variance { scalar = 0.0 } }
-        )
-      assertThat(result.impression.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
-    }
+    val expectedResult: Result = getExpectedResult(measurementInfo)
+    logger.info("Expected impression result: $expectedResult")
+
+    assertThat(impressionResult)
+      .impressionValue()
+      .isWithinPercent(0.5)
+      .of(expectedResult.impression.value)
+
+    //    assertThat(impressionResult.impression.customDirectMethodology)
+    //      .isEqualTo(customDirectMethodology { variance = 0.0 })
+    assertThat(impressionResult.impression.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
+
     logger.info("Impression result is equal to the expected result")
   }
 
@@ -725,14 +727,14 @@ class MeasurementConsumerSimulator(
     return signedResult.unpack()
   }
 
-  /** Gets the expected result of a [Measurement] using raw sketches. */
+  /** Gets the expected result of a [Measurement]. */
   private fun getExpectedResult(measurementInfo: MeasurementInfo): Result {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
     return when (measurementInfo.measurementSpec.measurementTypeCase) {
       MeasurementSpec.MeasurementTypeCase.REACH -> getExpectedReachResult(measurementInfo)
       MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
         getExpectedReachAndFrequencyResult(measurementInfo)
-      MeasurementSpec.MeasurementTypeCase.IMPRESSION -> getExpectedImpressionResult()
+      MeasurementSpec.MeasurementTypeCase.IMPRESSION -> getExpectedImpressionResult(measurementInfo)
       MeasurementSpec.MeasurementTypeCase.DURATION -> getExpectedDurationResult()
       MeasurementSpec.MeasurementTypeCase.POPULATION -> getExpectedPopulationResult()
       MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
@@ -744,8 +746,16 @@ class MeasurementConsumerSimulator(
     TODO("Not yet implemented")
   }
 
-  private fun getExpectedImpressionResult(): Result {
-    TODO("Not yet implemented")
+  private fun getExpectedImpressionResult(measurementInfo: MeasurementInfo): Result {
+    val impression =
+      MeasurementResults.computeImpression(
+        measurementInfo.sampledVids.asIterable(),
+        measurementInfo.measurementSpec.impression.maximumFrequencyPerUser
+      )
+
+    return result {
+      this.impression = MeasurementKt.ResultKt.impression { value = impression.toLong() }
+    }
   }
 
   private fun getExpectedPopulationResult(): Result {
@@ -858,7 +868,11 @@ class MeasurementConsumerSimulator(
       measurementPublicKey = packedMeasurementPublicKey
       impression = impression {
         privacyParams = outputDpParams
-        maximumFrequencyPerUser = 1
+        maximumFrequencyPerUser = 100
+      }
+      vidSamplingInterval = vidSamplingInterval {
+        start = 0.0f
+        width = 1.0f
       }
       this.nonceHashes += nonceHashes
     }
@@ -873,6 +887,10 @@ class MeasurementConsumerSimulator(
       duration = duration {
         privacyParams = outputDpParams
         maximumWatchDurationPerUser = Durations.fromMinutes(1)
+      }
+      vidSamplingInterval = vidSamplingInterval {
+        start = 0.0f
+        width = 1.0f
       }
       this.nonceHashes += nonceHashes
     }
