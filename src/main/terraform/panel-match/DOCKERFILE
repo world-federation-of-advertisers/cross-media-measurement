@@ -44,7 +44,7 @@ RUN apt-get update && apt-get install -y ca-certificates curl gnupg lsb-release 
 # get panel-exchange-client github project
 RUN mkdir Repos \
   && cd Repos \
-  && git clone https://github.com/world-federation-of-advertisers/panel-exchange-client.git
+  && git clone https://github.com/world-federation-of-advertisers/cross-media-measurement.git
 
 # install jq
 RUN apt-get install -y jq
