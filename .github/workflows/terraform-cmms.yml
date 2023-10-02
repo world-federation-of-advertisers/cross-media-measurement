@@ -117,6 +117,8 @@ jobs:
         -backend-config="region=$AWS_REGION"
 
     - name: terraform plan - aws
+      env:
+        POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
       working-directory: ${{ env.AWS_MODULE_PATH }}
       run: >
         terraform plan
