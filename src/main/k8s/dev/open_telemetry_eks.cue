@@ -25,11 +25,11 @@ objectSets: [
 }
 
 openTelemetry: #OpenTelemetry & {
-	  _serviceAccount: "adot-collector"
-	  _sampler: {
-	  	type: "always_on"
-	  }
-		_exporters: """
+	_serviceAccount: "adot-collector"
+	_sampler: {
+		type: "always_on"
+	}
+	_exporters:        """
 exporters:
   prometheusremotewrite:
     endpoint: \(#AMPIngestEndpoint)
@@ -38,12 +38,12 @@ exporters:
 """
 	_serviceExporters: "[prometheusremotewrite]"
 
-	_extensions: """
+	_extensions:        """
 extensions:
   health_check:
   sigv4auth:
-  	region: \(#AMPRegion)
-  	service: "aps"
+    region: \(#AMPRegion)
+    service: "aps"
 """
-	_serviceExtensions: "extensions: [health_check, sigv4auth]"
+	_serviceExtensions: "[health_check, sigv4auth]"
 }

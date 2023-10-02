@@ -43,7 +43,7 @@ package k8s
 	_serviceAccount?: string
 	_sampler?: {...}
 
-	_exporters: string | *"""
+	_exporters:        string | *"""
 exporters:
   prometheus:
     send_timestamps: true
@@ -53,10 +53,10 @@ exporters:
 """
 	_serviceExporters: string | *"[prometheus]"
 
-	_extensions: string | *"""
-extensions:
-  health_check:
-"""
+	_extensions:        string | *"""
+		extensions:
+		  health_check:
+		"""
 	_serviceExtensions: string | *"[health_check]"
 
 	collectors: [Name=string]: #OpenTelemetryCollector & {
@@ -103,7 +103,7 @@ service:
 			kind:       "Instrumentation"
 			metadata: name: "open-telemetry-java-agent"
 			spec: {
-		    if _sampler != _|_ {
+				if _sampler != _|_ {
 					sampler: _sampler
 				}
 				env: [
