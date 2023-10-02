@@ -68,7 +68,6 @@ import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
-import org.wfanet.measurement.internal.kingdom.EventGroupKt as internalEventGroupKt
 import org.wfanet.measurement.internal.kingdom.EventGroupKt.details
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -79,6 +78,7 @@ import org.wfanet.measurement.internal.kingdom.createEventGroupRequest as intern
 import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest as internalDeleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
 import org.wfanet.measurement.internal.kingdom.eventGroupKey
+import org.wfanet.measurement.internal.kingdom.eventTemplate
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest as internalGetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest as internalUpdateEventGroupRequest
@@ -122,9 +122,7 @@ private val EVENT_TEMPLATE_TYPES = listOf("type1", "type2")
 private val EVENT_TEMPLATES =
   EVENT_TEMPLATE_TYPES.map { type -> EventGroupKt.eventTemplate { this.type = type } }
 private val INTERNAL_EVENT_TEMPLATES =
-  EVENT_TEMPLATE_TYPES.map { type ->
-    internalEventGroupKt.eventTemplate { fullyQualifiedType = type }
-  }
+  EVENT_TEMPLATE_TYPES.map { type -> eventTemplate { fullyQualifiedType = type } }
 
 private val EVENT_GROUP: EventGroup = eventGroup {
   name = EVENT_GROUP_NAME
