@@ -73,6 +73,7 @@ class UpdatePublicKey(private val request: UpdatePublicKeyRequest) : SimpleSpann
           apiVersion = request.apiVersion
           publicKey = request.publicKey
           publicKeySignature = request.publicKeySignature
+          publicKeySignatureAlgorithmOid = request.publicKeySignatureAlgorithmOid
         }
 
       transactionContext.bufferUpdateMutation("MeasurementConsumers") {
@@ -106,6 +107,7 @@ class UpdatePublicKey(private val request: UpdatePublicKeyRequest) : SimpleSpann
           apiVersion = request.apiVersion
           publicKey = request.publicKey
           publicKeySignature = request.publicKeySignature
+          publicKeySignatureAlgorithmOid = request.publicKeySignatureAlgorithmOid
         }
 
       transactionContext.bufferUpdateMutation("DataProviders") {

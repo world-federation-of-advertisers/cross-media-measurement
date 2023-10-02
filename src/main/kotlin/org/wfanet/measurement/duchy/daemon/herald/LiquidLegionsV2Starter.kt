@@ -37,6 +37,7 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.Parameters
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.ParametersKt
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.computationParticipant
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.parameters
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig.NoiseMechanism
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfigKt.reachNoiseConfig
@@ -268,18 +269,18 @@ object LiquidLegionsV2Starter {
     require(requisitionParams.hasLiquidLegionsV2()) {
       "Missing liquid legions v2 requisition params."
     }
-    return ComputationParticipant.newBuilder()
-      .also {
-        it.duchyId = key.duchyId
-        it.publicKey =
-          requisitionParams.liquidLegionsV2.elGamalPublicKey.toDuchyElGamalPublicKey(
-            Version.fromString(publicApiVersion)
-          )
-        it.elGamalPublicKey = requisitionParams.liquidLegionsV2.elGamalPublicKey
-        it.elGamalPublicKeySignature = requisitionParams.liquidLegionsV2.elGamalPublicKeySignature
-        it.duchyCertificateDer = requisitionParams.duchyCertificateDer
-      }
-      .build()
+    return computationParticipant {
+      duchyId = key.duchyId
+      publicKey =
+        requisitionParams.liquidLegionsV2.elGamalPublicKey.toDuchyElGamalPublicKey(
+          Version.fromString(publicApiVersion)
+        )
+      elGamalPublicKey = requisitionParams.liquidLegionsV2.elGamalPublicKey
+      elGamalPublicKeySignature = requisitionParams.liquidLegionsV2.elGamalPublicKeySignature
+      elGamalPublicKeySignatureAlgorithmOid =
+        requisitionParams.liquidLegionsV2.elGamalPublicKeySignatureAlgorithmOid
+      duchyCertificateDer = requisitionParams.duchyCertificateDer
+    }
   }
 
   private fun SystemNoiseMechanism.toInternalNoiseMechanism(): NoiseMechanism {

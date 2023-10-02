@@ -111,10 +111,10 @@ import org.wfanet.measurement.consent.client.common.toPublicKeyHandle
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
+import org.wfanet.measurement.consent.client.dataprovider.signResult
 import org.wfanet.measurement.consent.client.dataprovider.verifyElGamalPublicKey
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
-import org.wfanet.measurement.consent.client.duchy.signResult
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 import org.wfanet.measurement.eventdataprovider.noiser.AbstractNoiser
@@ -1495,19 +1495,15 @@ class EdpSimulator(
   ) {
     val measurementEncryptionPublicKey =
       EncryptionPublicKey.parseFrom(measurementSpec.measurementPublicKey)
-
-    // TODO(world-federation-of-advertisers/consent-signaling-client#41): Use method from
-    // DataProviders client instead of Duchies client.
-    val signedData = signResult(measurementResult, edpData.signingKey)
-
-    val encryptedData =
-      measurementEncryptionPublicKey.toPublicKeyHandle().hybridEncrypt(signedData.toByteString())
+    val signedResult: SignedData = signResult(measurementResult, edpData.signingKey)
+    val encryptedResult: ByteString =
+      measurementEncryptionPublicKey.toPublicKeyHandle().hybridEncrypt(signedResult.toByteString())
 
     try {
       requisitionsStub.fulfillDirectRequisition(
         fulfillDirectRequisitionRequest {
           name = requisition.name
-          this.encryptedData = encryptedData
+          encryptedData = encryptedResult
           this.nonce = nonce
         }
       )

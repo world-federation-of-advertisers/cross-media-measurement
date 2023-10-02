@@ -174,6 +174,7 @@ class DataProvidersServiceTest {
     private val SIGNED_PUBLIC_KEY = signedData {
       data = ENCRYPTION_PUBLIC_KEY.toByteString()
       signature = ByteString.copyFromUtf8("Fake signature of public key")
+      signatureAlgorithmOid = "2.9999"
     }
 
     private val DATA_PROVIDER = dataProvider {

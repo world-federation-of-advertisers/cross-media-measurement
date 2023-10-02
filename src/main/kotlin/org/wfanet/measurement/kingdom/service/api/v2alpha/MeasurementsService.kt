@@ -356,6 +356,7 @@ private fun DataProviderEntry.validateAndMap(): Map.Entry<Long, DataProviderValu
     externalDataProviderCertificateId = apiIdToExternalId(dataProviderCertificateKey.certificateId)
     dataProviderPublicKey = publicKey.data
     dataProviderPublicKeySignature = publicKey.signature
+    dataProviderPublicKeySignatureAlgorithmOid = publicKey.signatureAlgorithmOid
     encryptedRequisitionSpec = value.encryptedRequisitionSpec
     nonceHash = value.nonceHash
   }

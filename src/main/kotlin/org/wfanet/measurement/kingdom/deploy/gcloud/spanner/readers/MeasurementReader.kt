@@ -395,6 +395,8 @@ private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
       this.externalDataProviderCertificateId = externalDataProviderCertificateId
       dataProviderPublicKey = requisitionDetails.dataProviderPublicKey
       dataProviderPublicKeySignature = requisitionDetails.dataProviderPublicKeySignature
+      dataProviderPublicKeySignatureAlgorithmOid =
+        requisitionDetails.dataProviderPublicKeySignatureAlgorithmOid
       encryptedRequisitionSpec = requisitionDetails.encryptedRequisitionSpec
     }
 

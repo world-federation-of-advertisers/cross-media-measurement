@@ -18,7 +18,6 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.Duration as ProtoDuration
-import com.google.protobuf.duration
 import com.google.protobuf.util.Durations
 import com.google.protobuf.util.Timestamps
 import com.google.type.Interval
@@ -204,7 +203,7 @@ class ReportsService(
   private val secureRandom: SecureRandom,
   private val signingPrivateKeyDir: File,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
-  private val measurementSpecConfig: MeasurementSpecConfig,
+  measurementSpecConfig: MeasurementSpecConfig,
 ) : ReportsCoroutineImplBase() {
   private val setOperationCompiler = SetOperationCompiler()
   private val measurementSpecComponentFactory =

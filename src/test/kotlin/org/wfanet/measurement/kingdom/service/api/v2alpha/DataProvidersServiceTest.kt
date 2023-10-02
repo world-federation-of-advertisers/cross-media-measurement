@@ -362,6 +362,7 @@ class DataProvidersServiceTest {
     private val SIGNED_PUBLIC_KEY = signedData {
       data = ENCRYPTION_PUBLIC_KEY.toByteString()
       signature = ByteString.copyFromUtf8("Fake signature of public key")
+      signatureAlgorithmOid = "2.9999"
     }
 
     private val INTERNAL_DATA_PROVIDER: InternalDataProvider = internalDataProvider {
@@ -370,6 +371,7 @@ class DataProvidersServiceTest {
         apiVersion = Version.V2_ALPHA.string
         publicKey = SIGNED_PUBLIC_KEY.data
         publicKeySignature = SIGNED_PUBLIC_KEY.signature
+        publicKeySignatureAlgorithmOid = SIGNED_PUBLIC_KEY.signatureAlgorithmOid
       }
       certificate = internalCertificate {
         externalDataProviderId = DATA_PROVIDER_ID

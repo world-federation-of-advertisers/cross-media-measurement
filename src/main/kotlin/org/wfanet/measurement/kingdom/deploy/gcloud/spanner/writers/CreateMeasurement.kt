@@ -310,6 +310,8 @@ class CreateMeasurement(private val request: CreateMeasurementRequest) :
       RequisitionKt.details {
         dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
         dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
+        dataProviderPublicKeySignatureAlgorithmOid =
+          dataProviderValue.dataProviderPublicKeySignatureAlgorithmOid
         encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
         nonceHash = dataProviderValue.nonceHash
       }

@@ -913,6 +913,7 @@ class RequisitionsServiceTest {
         liquidLegionsV2 = liquidLegionsV2Details {
           elGamalPublicKey = UPDATE_TIME.toByteString()
           elGamalPublicKeySignature = UPDATE_TIME.toByteString()
+          elGamalPublicKeySignatureAlgorithmOid = "2.9999"
         }
       }
       dataProviderCertificate = internalCertificate {
@@ -957,6 +958,8 @@ class RequisitionsServiceTest {
       measurementSpec = signedData {
         data = INTERNAL_REQUISITION.parentMeasurement.measurementSpec
         signature = INTERNAL_REQUISITION.parentMeasurement.measurementSpecSignature
+        signatureAlgorithmOid =
+          INTERNAL_REQUISITION.parentMeasurement.measurementSpecSignatureAlgorithmOid
       }
       protocolConfig = protocolConfig {
         measurementType = ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
@@ -972,6 +975,8 @@ class RequisitionsServiceTest {
       dataProviderPublicKey = signedData {
         data = INTERNAL_REQUISITION.details.dataProviderPublicKey
         signature = INTERNAL_REQUISITION.details.dataProviderPublicKeySignature
+        signatureAlgorithmOid =
+          INTERNAL_REQUISITION.details.dataProviderPublicKeySignatureAlgorithmOid
       }
 
       val internalDuchyValue: InternalRequisition.DuchyValue =
@@ -984,6 +989,8 @@ class RequisitionsServiceTest {
             elGamalPublicKey = signedData {
               data = internalDuchyValue.liquidLegionsV2.elGamalPublicKey
               signature = internalDuchyValue.liquidLegionsV2.elGamalPublicKeySignature
+              signatureAlgorithmOid =
+                internalDuchyValue.liquidLegionsV2.elGamalPublicKeySignatureAlgorithmOid
             }
           }
         }

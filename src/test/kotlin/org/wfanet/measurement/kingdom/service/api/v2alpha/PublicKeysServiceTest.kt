@@ -99,6 +99,7 @@ class PublicKeysServiceTest {
           apiVersion = Version.V2_ALPHA.toString()
           publicKey = PUBLIC_KEY.publicKey.data
           publicKeySignature = PUBLIC_KEY.publicKey.signature
+          publicKeySignatureAlgorithmOid = PUBLIC_KEY.publicKey.signatureAlgorithmOid
         }
       )
 
@@ -139,6 +140,7 @@ class PublicKeysServiceTest {
           apiVersion = Version.V2_ALPHA.toString()
           publicKey = PUBLIC_KEY.publicKey.data
           publicKeySignature = PUBLIC_KEY.publicKey.signature
+          publicKeySignatureAlgorithmOid = PUBLIC_KEY.publicKey.signatureAlgorithmOid
         }
       )
 
@@ -313,6 +315,7 @@ private val PUBLIC_KEY: PublicKey = publicKey {
   publicKey = signedData {
     data = ByteString.copyFromUtf8("1")
     signature = ByteString.copyFromUtf8("1")
+    signatureAlgorithmOid = "2.9999"
   }
   certificate = DATA_PROVIDERS_CERTIFICATE_NAME
 }

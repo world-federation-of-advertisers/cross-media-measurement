@@ -42,6 +42,7 @@ message EventGroup {
     // Serialized `EncryptionPublicKey` message from the public API.
     bytes measurement_consumer_public_key = 2;
     bytes measurement_consumer_public_key_signature = 3;
+    string measurement_consumer_public_key_signature_algorithm_oid = 7;
 
     // The set of VID model lines used to label events in this Event Group.
     repeated string vid_model_lines = 4;

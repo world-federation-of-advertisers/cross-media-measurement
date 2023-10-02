@@ -52,9 +52,9 @@ to the executable.
 
     Assuming you have a serialized `EncryptionPublicKey` message containing
     [`edp1_enc_public.tink`](../../../../../../../k8s/testing/secretfiles/edp1_enc_public.tink)
-    at `/tmp/edp1_enc_public.pb`, and a signature of that using
+    at `/tmp/edp1_enc_public.binpb`, and a signature of that using
     [`edp1_cs_private.der`](../../../../../../../k8s/testing/secretfiles/edp1_cs_private.der)
-    at `/tmp/edp1_enc_public_sig.sha256`.
+    at `/tmp/edp1_enc_public.sig`.
 
     ```shell
     CreateResource \
@@ -64,8 +64,9 @@ to the executable.
       --internal-api-target=localhost:8443 --internal-api-cert-host=localhost \
       data-provider \
       --certificate-der-file=src/main/k8s/testing/secretfiles/edp1_cs_cert.der \
-      --encryption-public-key-file=/tmp/edp1_enc_public.pb \
-      --encryption-public-key-signature-file=/tmp/edp1_enc_public_sig.sha256
+      --encryption-public-key-file=/tmp/edp1_enc_public.binpb \
+      --encryption-public-key-signature-file=/tmp/edp1_enc_public.sig \
+      --encryption-public-key-signature-algorithm=ECDSA_WITH_SHA256
     ```
 
 *   Creating a `ModelProvider` in the `dev` environment

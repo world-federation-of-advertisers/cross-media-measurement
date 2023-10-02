@@ -53,6 +53,7 @@ private const val FIXED_GENERATED_INTERNAL_ID = 2345L
 private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
 private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
+private const val PUBLIC_KEY_SIGNATURE_ALGORITHM_OID = "2.9999"
 private val CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
 
 private val MEASUREMENT_CONSUMER = measurementConsumer {
@@ -65,6 +66,7 @@ private val MEASUREMENT_CONSUMER = measurementConsumer {
     apiVersion = "v2alpha"
     publicKey = PUBLIC_KEY
     publicKeySignature = PUBLIC_KEY_SIGNATURE
+    publicKeySignatureAlgorithmOid = PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
   }
 }
 

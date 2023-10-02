@@ -535,6 +535,7 @@ class MeasurementConsumersServiceTest {
     private val SIGNED_PUBLIC_KEY = signedData {
       data = ENCRYPTION_PUBLIC_KEY.toByteString()
       signature = ByteString.copyFromUtf8("Fake signature of public key")
+      signatureAlgorithmOid = "2.9999"
     }
 
     private val INTERNAL_MEASUREMENT_CONSUMER: InternalMeasurementConsumer =
@@ -544,6 +545,7 @@ class MeasurementConsumersServiceTest {
           apiVersion = Version.V2_ALPHA.string
           publicKey = SIGNED_PUBLIC_KEY.data
           publicKeySignature = SIGNED_PUBLIC_KEY.signature
+          publicKeySignatureAlgorithmOid = SIGNED_PUBLIC_KEY.signatureAlgorithmOid
         }
         certificate = certificate {
           externalMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
@@ -565,6 +567,7 @@ class MeasurementConsumersServiceTest {
       publicKey = signedData {
         data = INTERNAL_MEASUREMENT_CONSUMER.details.publicKey
         signature = INTERNAL_MEASUREMENT_CONSUMER.details.publicKeySignature
+        signatureAlgorithmOid = INTERNAL_MEASUREMENT_CONSUMER.details.publicKeySignatureAlgorithmOid
       }
     }
 

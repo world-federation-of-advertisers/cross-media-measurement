@@ -246,6 +246,7 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
         struct.getLong("ExternalMeasurementConsumerCertificateId")
       measurementSpec = measurementDetails.measurementSpec
       measurementSpecSignature = measurementDetails.measurementSpecSignature
+      measurementSpecSignatureAlgorithmOid = measurementDetails.measurementSpecSignatureAlgorithmOid
       protocolConfig = measurementDetails.protocolConfig
       state = struct.getProtoEnum("MeasurementState", Measurement.State::forNumber)
       dataProvidersCount = dataProviderCount

@@ -93,6 +93,7 @@ private val MEASUREMENT = measurement {
       apiVersion = API_VERSION
       measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
       measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
+      measurementSpecSignatureAlgorithmOid = "2.9999"
       duchyProtocolConfig = duchyProtocolConfig {
         liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
       }
@@ -102,21 +103,18 @@ private val MEASUREMENT = measurement {
     }
 }
 
-private val REACH_ONLY_MEASUREMENT = measurement {
-  providedMeasurementId = PROVIDED_MEASUREMENT_ID
-  details =
-    MeasurementKt.details {
-      apiVersion = API_VERSION
-      measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
-      measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
-      duchyProtocolConfig = duchyProtocolConfig {
-        reachOnlyLiquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+private val REACH_ONLY_MEASUREMENT =
+  MEASUREMENT.copy {
+    details =
+      details.copy {
+        duchyProtocolConfig = duchyProtocolConfig {
+          reachOnlyLiquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+        }
+        protocolConfig = protocolConfig {
+          reachOnlyLiquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+        }
       }
-      protocolConfig = protocolConfig {
-        reachOnlyLiquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
-      }
-    }
-}
+  }
 
 private val INVALID_WORKER_DUCHY =
   DuchyIds.Entry(4, "worker3", Instant.now().minusSeconds(100L)..Instant.now().minusSeconds(50L))
@@ -883,6 +881,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
               state = createdMeasurement.state
               measurementSpec = createdMeasurement.details.measurementSpec
               measurementSpecSignature = createdMeasurement.details.measurementSpecSignature
+              measurementSpecSignatureAlgorithmOid =
+                createdMeasurement.details.measurementSpecSignatureAlgorithmOid
               protocolConfig = protocolConfig {
                 liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
               }
@@ -891,6 +891,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             details = details {
               dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
               dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
+              dataProviderPublicKeySignatureAlgorithmOid =
+                dataProviderValue.dataProviderPublicKeySignatureAlgorithmOid
               encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
               nonceHash = dataProviderValue.nonceHash
             }

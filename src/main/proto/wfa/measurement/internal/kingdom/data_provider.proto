@@ -36,6 +36,7 @@ message DataProvider {
     // Serialized `EncryptionPublicKey` from public API.
     bytes public_key = 2;
     bytes public_key_signature = 3;
+    string public_key_signature_algorithm_oid = 4;
   }
   Details details = 3;
 

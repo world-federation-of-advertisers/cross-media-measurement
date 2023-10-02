@@ -473,6 +473,7 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
       measurementConsumerPublicKey = signedData {
         data = details.measurementConsumerPublicKey
         signature = details.measurementConsumerPublicKeySignature
+        signatureAlgorithmOid = details.measurementConsumerPublicKeySignatureAlgorithmOid
       }
     }
     vidModelLines += details.vidModelLinesList
@@ -490,12 +491,13 @@ private fun EventGroup.toInternal(
   eventGroupId: String = ""
 ): InternalEventGroup {
   val measurementConsumerKey =
-    grpcRequireNotNull(MeasurementConsumerKey.fromName(this.measurementConsumer)) {
+    grpcRequireNotNull(MeasurementConsumerKey.fromName(measurementConsumer)) {
       "Measurement consumer is either unspecified or invalid"
     }
   val measurementConsumerCertificateKey =
-    MeasurementConsumerCertificateKey.fromName(this.measurementConsumerCertificate)
+    MeasurementConsumerCertificateKey.fromName(measurementConsumerCertificate)
 
+  val source = this
   return internalEventGroup {
     externalDataProviderId = apiIdToExternalId(dataProviderId)
     if (eventGroupId.isNotEmpty()) {
@@ -507,18 +509,20 @@ private fun EventGroup.toInternal(
         apiIdToExternalId(measurementConsumerCertificateKey.certificateId)
     }
 
-    providedEventGroupId = eventGroupReferenceId
+    providedEventGroupId = source.eventGroupReferenceId
     details = details {
       apiVersion = Version.V2_ALPHA.string
-      measurementConsumerPublicKey = this@toInternal.measurementConsumerPublicKey.data
-      measurementConsumerPublicKeySignature = this@toInternal.measurementConsumerPublicKey.signature
-      vidModelLines += this@toInternal.vidModelLinesList
+      measurementConsumerPublicKey = source.measurementConsumerPublicKey.data
+      measurementConsumerPublicKeySignature = source.measurementConsumerPublicKey.signature
+      measurementConsumerPublicKeySignatureAlgorithmOid =
+        source.measurementConsumerPublicKey.signatureAlgorithmOid
+      vidModelLines += source.vidModelLinesList
       eventTemplates.addAll(
-        this@toInternal.eventTemplatesList.map { event ->
+        source.eventTemplatesList.map { event ->
           internalEventTemplate { fullyQualifiedType = event.type }
         }
       )
-      encryptedMetadata = this@toInternal.encryptedMetadata
+      encryptedMetadata = source.encryptedMetadata
     }
   }
 }

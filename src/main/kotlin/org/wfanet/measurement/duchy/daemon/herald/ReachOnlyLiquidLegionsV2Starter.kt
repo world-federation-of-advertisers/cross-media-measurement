@@ -266,6 +266,8 @@ object ReachOnlyLiquidLegionsV2Starter {
       elGamalPublicKey = requisitionParams.reachOnlyLiquidLegionsV2.elGamalPublicKey
       elGamalPublicKeySignature =
         requisitionParams.reachOnlyLiquidLegionsV2.elGamalPublicKeySignature
+      elGamalPublicKeySignatureAlgorithmOid =
+        requisitionParams.reachOnlyLiquidLegionsV2.elGamalPublicKeySignatureAlgorithmOid
       duchyCertificateDer = requisitionParams.duchyCertificateDer
     }
   }

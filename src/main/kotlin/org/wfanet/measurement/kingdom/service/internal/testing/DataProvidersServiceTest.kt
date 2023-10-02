@@ -37,6 +37,7 @@ import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.certificate
+import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest
@@ -48,6 +49,7 @@ private const val FIXED_GENERATED_INTERNAL_ID = 2345L
 private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
 private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
+private const val PUBLIC_KEY_SIGNATURE_ALGORITHM_OID = "2.9999"
 private val CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
 
 @RunWith(JUnit4::class)
@@ -114,42 +116,40 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
 
   @Test
   fun `createDataProvider succeeds`() = runBlocking {
-    val dataProvider =
-      DataProvider.newBuilder()
-        .apply {
-          certificateBuilder.apply {
-            notValidBeforeBuilder.seconds = 12345
-            notValidAfterBuilder.seconds = 23456
-            detailsBuilder.x509Der = CERTIFICATE_DER
-          }
-          detailsBuilder.apply {
-            apiVersion = "v2alpha"
-            publicKey = PUBLIC_KEY
-            publicKeySignature = PUBLIC_KEY_SIGNATURE
-          }
-          addAllRequiredExternalDuchyIds(DUCHIES.map { it.externalDuchyId })
+    val request = dataProvider {
+      certificate {
+        notValidBefore = timestamp { seconds = 12345 }
+        notValidAfter = timestamp { seconds = 23456 }
+        details = CertificateKt.details { x509Der = CERTIFICATE_DER }
+      }
+      details =
+        DataProviderKt.details {
+          apiVersion = "v2alpha"
+          publicKey = PUBLIC_KEY
+          publicKeySignature = PUBLIC_KEY_SIGNATURE
+          publicKeySignatureAlgorithmOid = PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
         }
-        .build()
-    val createdDataProvider = dataProvidersService.createDataProvider(dataProvider)
+      requiredExternalDuchyIds += DUCHIES.map { it.externalDuchyId }
+    }
 
-    assertThat(createdDataProvider)
+    val response: DataProvider = dataProvidersService.createDataProvider(request)
+
+    assertThat(response)
       .isEqualTo(
-        dataProvider
-          .toBuilder()
-          .apply {
-            externalDataProviderId = FIXED_GENERATED_EXTERNAL_ID
-            certificateBuilder.apply {
+        request.copy {
+          externalDataProviderId = FIXED_GENERATED_EXTERNAL_ID
+          certificate =
+            certificate.copy {
               externalDataProviderId = FIXED_GENERATED_EXTERNAL_ID
               externalCertificateId = FIXED_GENERATED_EXTERNAL_ID
             }
-          }
-          .build()
+        }
       )
   }
 
   @Test
   fun `createDataProvider succeeds when requiredExternalDuchyIds is empty`() = runBlocking {
-    val dataProvider =
+    val request =
       DataProvider.newBuilder()
         .apply {
           certificateBuilder.apply {
@@ -161,14 +161,16 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
             apiVersion = "v2alpha"
             publicKey = PUBLIC_KEY
             publicKeySignature = PUBLIC_KEY_SIGNATURE
+            publicKeySignatureAlgorithmOid = PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
           }
         }
         .build()
-    val createdDataProvider = dataProvidersService.createDataProvider(dataProvider)
 
-    assertThat(createdDataProvider)
+    val response = dataProvidersService.createDataProvider(request)
+
+    assertThat(response)
       .isEqualTo(
-        dataProvider
+        request
           .toBuilder()
           .apply {
             externalDataProviderId = FIXED_GENERATED_EXTERNAL_ID
@@ -214,42 +216,42 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
 
   @Test
   fun `replaceDataProviderRequiredDuchies succeeds`() = runBlocking {
-    val dataProvider = dataProvider {
-      certificate {
-        notValidBefore = timestamp { seconds = 12345 }
-        notValidAfter = timestamp { seconds = 23456 }
-        details = CertificateKt.details { x509Der = CERTIFICATE_DER }
-      }
-      details =
-        DataProviderKt.details {
-          apiVersion = "v2alpha"
-          publicKey = PUBLIC_KEY
-          publicKeySignature = PUBLIC_KEY_SIGNATURE
+    val dataProvider =
+      dataProvidersService.createDataProvider(
+        dataProvider {
+          certificate {
+            notValidBefore = timestamp { seconds = 12345 }
+            notValidAfter = timestamp { seconds = 23456 }
+            details = CertificateKt.details { x509Der = CERTIFICATE_DER }
+          }
+          details =
+            DataProviderKt.details {
+              apiVersion = "v2alpha"
+              publicKey = PUBLIC_KEY
+              publicKeySignature = PUBLIC_KEY_SIGNATURE
+              publicKeySignatureAlgorithmOid = PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
+            }
+          requiredExternalDuchyIds += DUCHIES.map { it.externalDuchyId }
         }
-      requiredExternalDuchyIds += DUCHIES.map { it.externalDuchyId }
-    }
-
-    val createdDataProvider = dataProvidersService.createDataProvider(dataProvider)
+      )
     val desiredDuchyList = listOf(Population.AGGREGATOR_DUCHY.externalDuchyId)
+
     val updatedDataProvider =
       dataProvidersService.replaceDataProviderRequiredDuchies(
         replaceDataProviderRequiredDuchiesRequest {
-          externalDataProviderId = createdDataProvider.externalDataProviderId
+          externalDataProviderId = dataProvider.externalDataProviderId
           requiredExternalDuchyIds += desiredDuchyList
         }
       )
 
-    // Ensure DataProvider with updated duchy list is returned from function
+    // Ensure DataProvider with updated duchy list is returned from function.
     assertThat(updatedDataProvider.requiredExternalDuchyIdsList).isEqualTo(desiredDuchyList)
-
-    val dataProviderRead =
-      dataProvidersService.getDataProvider(
-        getDataProviderRequest {
-          externalDataProviderId = createdDataProvider.externalDataProviderId
-        }
+    // Ensure changes were persisted.
+    assertThat(
+        dataProvidersService.getDataProvider(
+          getDataProviderRequest { externalDataProviderId = dataProvider.externalDataProviderId }
+        )
       )
-
-    // Ensure changes were written to DataProviderRequiredDuchies table
-    assertThat(dataProviderRead.requiredExternalDuchyIdsList).isEqualTo(desiredDuchyList)
+      .isEqualTo(updatedDataProvider)
   }
 }

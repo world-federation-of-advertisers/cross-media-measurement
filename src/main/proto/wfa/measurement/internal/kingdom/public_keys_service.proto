@@ -38,6 +38,7 @@ message UpdatePublicKeyRequest {
   // Serialized `EncryptionPublicKey` from public API.
   bytes public_key = 5;
   bytes public_key_signature = 6;
+  string public_key_signature_algorithm_oid = 7;
 }
 
 message UpdatePublicKeyResponse {}
