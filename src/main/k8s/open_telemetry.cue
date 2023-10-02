@@ -40,6 +40,9 @@ package k8s
 }
 
 #OpenTelemetry: {
+	_exporters: string
+	_serviceAccount?: string
+
 	collectors: [Name=string]: #OpenTelemetryCollector & {
 		metadata: name: Name
 	}
@@ -47,6 +50,9 @@ package k8s
 	collectors: {
 		"default": {
 			spec: {
+				if _serviceAccount != _|_ {
+					serviceAccount: _serviceAccount
+				}
 				config: """
 receivers:
   otlp:
@@ -59,12 +65,7 @@ processors:
     send_batch_size: 200
     timeout: 10s
 
-exporters:
-  prometheus:
-    send_timestamps: true
-    endpoint: 0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)
-    resource_to_telemetry_conversion:
-      enabled: true
+\(_exporters)
 
 extensions:
   health_check:

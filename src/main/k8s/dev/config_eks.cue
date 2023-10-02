@@ -14,6 +14,8 @@
 
 package k8s
 
+#AMPIngestEndpoint: string @tag("amp_ingest_endpoint")
+
 #PostgresConfig: {
 	region:     string @tag("postgres_region")
 	host:       string @tag("postgres_host")

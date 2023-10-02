@@ -16,4 +16,13 @@ package k8s
 
 objectSets: [openTelemetry.collectors, openTelemetry.instrumentations]
 
-openTelemetry: #OpenTelemetry
+openTelemetry: #OpenTelemetry & {
+	 _exporters: """
+exporters:
+  prometheus:
+    send_timestamps: true
+    endpoint: 0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)
+    resource_to_telemetry_conversion:
+      enabled: true
+"""
+}
