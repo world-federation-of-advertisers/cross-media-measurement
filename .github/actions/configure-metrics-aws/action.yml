@@ -23,6 +23,9 @@ inputs:
   amp-ingest-endpoint:
     description: 'The ingest endpoint of the AWS Managed Prometheus'
     required: true
+  amp-region:
+    description: 'The AWS region of the target AMP service'
+    required: true
 
 runs:
   using: composite
@@ -45,6 +48,7 @@ runs:
       bazelisk build
       //src/main/k8s/dev:open_telemetry_eks
       --define amp_ingest_endpoint="${{ inputs.amp-ingest-endpoint }}"
+      --define amp_region="${{ inputs.amp_region }}"
 
   - name: Apply configurations
     shell: bash

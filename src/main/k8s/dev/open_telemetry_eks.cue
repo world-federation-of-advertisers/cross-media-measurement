@@ -33,4 +33,12 @@ exporters:
     auth:
       authenticator: sigv4auth
 """
+	_extensions: """
+extensions:
+  health_check:
+  sigv4auth:
+  	region: \(#AMPRegion)
+  	service: "aps"
+"""
+	_serviceExtensions: "extensions: [health_check, sigv4auth]"
 }

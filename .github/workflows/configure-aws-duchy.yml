@@ -88,6 +88,7 @@ jobs:
 #      if: ${{ inputs.apply }}
       with:
         amp-ingest-endpoint: https://aps-workspaces.us-west-2.amazonaws.com/workspaces/ws-65b9edc1-dda8-4037-8464-01eebe0e7651/api/v1/remote_write
+        amp-region: ${{ vars.AWS_REGION }}
 
     - name: Export DUCHY_CERT_ID
       env:

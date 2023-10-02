@@ -69,6 +69,7 @@ AWS_SETTINGS = struct(
     s3_region = "$(s3_region)",
     computation_control_server_eips = "$(computation_control_server_eips)",
     amp_ingest_endpoint = "$(amp_ingest_endpoint)",
+    amp_region = "$(amp_region)",
 )
 
 # Settings for Kingdom Kubernetes deployments.

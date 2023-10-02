@@ -25,4 +25,9 @@ exporters:
     resource_to_telemetry_conversion:
       enabled: true
 """
+	_extensions: """
+extensions:
+  health_check:
+"""
+	_serviceExtensions: "extensions: [health_check]"
 }

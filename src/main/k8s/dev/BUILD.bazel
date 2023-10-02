@@ -501,6 +501,7 @@ cue_dump(
     srcs = ["open_telemetry_eks.cue"],
     cue_tags = {
         "amp_ingest_endpoint": AWS_SETTINGS.amp_ingest_endpoint,
+        "amp_region": AWS_SETTINGS.amp_region,
     },
     tags = ["manual"],
     deps = [

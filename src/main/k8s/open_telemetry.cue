@@ -42,6 +42,8 @@ package k8s
 #OpenTelemetry: {
 	_exporters: string
 	_serviceAccount?: string
+	_extensions: string
+	_serviceExtensions: string
 
 	collectors: [Name=string]: #OpenTelemetryCollector & {
 		metadata: name: Name
@@ -67,11 +69,10 @@ processors:
 
 \(_exporters)
 
-extensions:
-  health_check:
+\(_extensions)
 
 service:
-  extensions: [health_check]
+  \(_serviceExtensions)
   pipelines:
     metrics:
       receivers: [otlp]
