@@ -117,6 +117,7 @@ private val MEASUREMENT_CONSUMER_EXTERNAL_ID =
 
 private val MEASUREMENT_CONSUMER_PUBLIC_KEY_DATA = ByteString.copyFromUtf8("foodata")
 private val MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("foosig")
+private const val MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID = "2.9999"
 private val VID_MODEL_LINES = listOf("model1", "model2")
 private val EVENT_TEMPLATE_TYPES = listOf("type1", "type2")
 private val EVENT_TEMPLATES =
@@ -132,6 +133,7 @@ private val EVENT_GROUP: EventGroup = eventGroup {
   measurementConsumerPublicKey = signedData {
     data = MEASUREMENT_CONSUMER_PUBLIC_KEY_DATA
     signature = MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE
+    signatureAlgorithmOid = MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
   }
   vidModelLines.addAll(VID_MODEL_LINES)
   eventTemplates.addAll(EVENT_TEMPLATES)
@@ -161,6 +163,8 @@ private val INTERNAL_EVENT_GROUP: InternalEventGroup = internalEventGroup {
     apiVersion = API_VERSION.string
     measurementConsumerPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY_DATA
     measurementConsumerPublicKeySignature = MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE
+    measurementConsumerPublicKeySignatureAlgorithmOid =
+      MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
     vidModelLines.addAll(VID_MODEL_LINES)
     eventTemplates.addAll(INTERNAL_EVENT_TEMPLATES)
     encryptedMetadata = ENCRYPTED_METADATA

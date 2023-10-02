@@ -25,6 +25,7 @@ import java.time.Duration
 import java.util.logging.Logger
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.common.crypto.SignatureAlgorithm
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.identity.DuchyInfo
@@ -149,13 +150,21 @@ abstract class LiquidLegionsV2MillBase(
       requireNotNull(DuchyInfo.getByDuchyId(duchy.duchyId)) {
         "DuchyInfo not found for ${duchy.duchyId}"
       }
+    val duchyCertificate: X509Certificate = readCertificate(duchy.duchyCertificateDer)
+    val signatureAlgorithmOid =
+      duchy.elGamalPublicKeySignatureAlgorithmOid.ifEmpty { duchyCertificate.sigAlgOID }
+    val signatureAlgorithm =
+      requireNotNull(SignatureAlgorithm.fromOid(signatureAlgorithmOid)) {
+        "Unsupported signature algorithm OID $signatureAlgorithmOid"
+      }
     when (publicApiVersion) {
       Version.V2_ALPHA -> {
         try {
           verifyElGamalPublicKey(
             duchy.elGamalPublicKey,
             duchy.elGamalPublicKeySignature,
-            readCertificate(duchy.duchyCertificateDer),
+            signatureAlgorithm,
+            duchyCertificate,
             trustedCertificates.getValue(duchyInfo.rootCertificateSkid)
           )
         } catch (e: CertPathValidatorException) {

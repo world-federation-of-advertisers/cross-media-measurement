@@ -20,9 +20,6 @@ import io.grpc.StatusException
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.metrics.LongHistogram
 import io.opentelemetry.api.metrics.Meter
-import java.nio.file.Paths
-import java.security.SignatureException
-import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
@@ -31,38 +28,27 @@ import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
-import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.common.identity.DuchyInfo
-import org.wfanet.measurement.common.loadLibrary
-import org.wfanet.measurement.consent.client.duchy.encryptResult
 import org.wfanet.measurement.consent.client.duchy.signElgamalPublicKey
-import org.wfanet.measurement.consent.client.duchy.signResult
-import org.wfanet.measurement.consent.client.duchy.verifyDataProviderParticipation
-import org.wfanet.measurement.consent.client.duchy.verifyElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_LIB_CPU_DURATION
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
-import org.wfanet.measurement.duchy.daemon.mill.MillBase
+import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2MillBase
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.LiquidLegionsV2Encryption
-import org.wfanet.measurement.duchy.daemon.utils.ComputationResult
 import org.wfanet.measurement.duchy.daemon.utils.ReachAndFrequencyResult
 import org.wfanet.measurement.duchy.daemon.utils.ReachResult
 import org.wfanet.measurement.duchy.daemon.utils.toAnySketchElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toCmmsElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaElGamalPublicKey
-import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaEncryptionPublicKey
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.service.internal.computations.outputPathList
 import org.wfanet.measurement.duchy.service.system.v1alpha.advanceComputationHeader
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
-import org.wfanet.measurement.internal.duchy.ComputationDetails.KingdomComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
-import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.NON_AGGREGATOR
@@ -81,7 +67,6 @@ import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.FlagCountTupleNoiseGenerationParameters
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.Parameters
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseOneAtAggregatorRequest
@@ -246,6 +231,7 @@ class LiquidLegionsV2Mill(
             liquidLegionsV2Builder.apply {
               elGamalPublicKey = signedElgamalPublicKey.data
               elGamalPublicKeySignature = signedElgamalPublicKey.signature
+              elGamalPublicKeySignatureAlgorithmOid = signedElgamalPublicKey.signatureAlgorithmOid
             }
           }
         }

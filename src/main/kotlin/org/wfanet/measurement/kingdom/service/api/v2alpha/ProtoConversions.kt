@@ -827,6 +827,7 @@ fun InternalMeasurement.toMeasurement(): Measurement {
     measurementSpec = signedData {
       data = source.details.measurementSpec
       signature = source.details.measurementSpecSignature
+      signatureAlgorithmOid = source.details.measurementSpecSignatureAlgorithmOid
     }
     dataProviders +=
       source.dataProvidersMap.entries.map(Map.Entry<Long, DataProviderValue>::toDataProviderEntry)
@@ -882,6 +883,7 @@ fun DataProviderValue.toDataProviderEntryValue(dataProviderId: String): DataProv
     dataProviderPublicKey = signedData {
       data = dataProviderValue.dataProviderPublicKey
       signature = dataProviderPublicKeySignature
+      signatureAlgorithmOid = dataProviderPublicKeySignatureAlgorithmOid
     }
     encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
     nonceHash = dataProviderValue.nonceHash
@@ -922,6 +924,7 @@ fun Measurement.toInternal(
       apiVersion = Version.V2_ALPHA.string
       measurementSpec = publicMeasurement.measurementSpec.data
       measurementSpecSignature = publicMeasurement.measurementSpec.signature
+      measurementSpecSignatureAlgorithmOid = publicMeasurement.measurementSpec.signatureAlgorithmOid
 
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (measurementSpecProto.measurementTypeCase) {
