@@ -122,6 +122,7 @@ jobs:
         terraform plan
         -input=false
         -var="aws_region=$AWS_REGION"
+        -var="postgres_instance_name=$POSTGRES_INSTANCE"
         -out=tfplan
 
     - name: terraform apply - aws
