@@ -78,7 +78,7 @@ jobs:
         role-session-name: GitHubAction
 
     - name: Get EKS cluster credentials
-      run: aws eks update-kubeconfig --region $AWS_REGION --name ${DUCHY_NAME}-duchy-cluster
+      run: aws eks update-kubeconfig --region $AWS_REGION --name ${DUCHY_NAME}-duchy
 
     - name: Export BAZEL_BIN
       run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
