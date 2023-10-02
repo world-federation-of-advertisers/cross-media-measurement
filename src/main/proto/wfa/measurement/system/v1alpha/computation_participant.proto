@@ -90,6 +90,11 @@ message ComputationParticipant {
       // `duchy_certificate`.
       bytes el_gamal_public_key_signature = 2
           [(google.api.field_behavior) = REQUIRED];
+      // Object identifier (OID) of the signature algorithm in dot notation.
+      //
+      // If not specified, this is assumed to be the signature algorithm of the
+      // accompanying certificate.
+      string el_gamal_public_key_signature_algorithm_oid = 3;
     }
 
     // Protocol. Required.
