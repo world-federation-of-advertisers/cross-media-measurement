@@ -30,7 +30,7 @@ module "internal_server_iam_policy" {
         Action = [
           "s3:*",
         ]
-        Resource = var.s3_bucket_arn
+        Resource = "${var.s3_bucket_arn}/*"
       },
       {
         "Effect" : "Allow",
@@ -98,7 +98,7 @@ module "storage_iam_policy" {
         Action = [
           "s3:*",
         ]
-        Resource = var.s3_bucket_arn
+        Resource = "${var.s3_bucket_arn}/*"
       }
     ]
   })

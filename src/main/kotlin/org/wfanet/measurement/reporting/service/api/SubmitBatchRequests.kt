@@ -16,7 +16,7 @@
 
 package org.wfanet.measurement.reporting.service.api
 
-import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flatMapConcat
@@ -48,7 +48,7 @@ fun <T> Flow<T>.chunked(chunkSize: Int): Flow<List<T>> {
 }
 
 /** Submits multiple RPCs by dividing the input items to batches. */
-@OptIn(FlowPreview::class) // For `flatMapConcat`.
+@OptIn(ExperimentalCoroutinesApi::class) // For `flatMapConcat`.
 suspend fun <ITEM, RESP, RESULT> submitBatchRequests(
   items: Flow<ITEM>,
   limit: Int,

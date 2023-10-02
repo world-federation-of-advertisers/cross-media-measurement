@@ -412,7 +412,11 @@ class Benchmark(
                 start = vidSamplingStartForMeasurement
                 width = eventMeasurementParams.vidSamplingWidth
               }
-              if (eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency.selected) {
+              if (eventMeasurementParams.eventMeasurementTypeParams.reach.selected) {
+                reach = createMeasurementFlags.getReach()
+              } else if (
+                eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency.selected
+              ) {
                 reachAndFrequency = createMeasurementFlags.getReachAndFrequency()
               } else if (eventMeasurementParams.eventMeasurementTypeParams.impression.selected) {
                 impression = createMeasurementFlags.getImpression()
@@ -513,6 +517,8 @@ class Benchmark(
       out.print("replica,startTime,ackTime,computeTime,endTime,status,msg,")
       if (createMeasurementFlags.measurementParams.populationMeasurementParams.selected) {
         out.println("population")
+      } else if (eventMeasurementParams.eventMeasurementTypeParams.reach.selected) {
+        out.println("reach")
       } else if (eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency.selected) {
         out.println("reach,freq1,freq2,freq3,freq4,freq5")
       } else if (eventMeasurementParams.eventMeasurementTypeParams.impression.selected) {
@@ -535,6 +541,12 @@ class Benchmark(
         out.print("${task.status},${task.errorMessage},")
         if (createMeasurementFlags.measurementParams.populationMeasurementParams.selected) {
           out.println("${task.result.population.value}")
+        } else if (eventMeasurementParams.eventMeasurementTypeParams.reach.selected) {
+          if (task.status == "success" && task.result.hasReach()) {
+            out.print(task.result.reach.value)
+          } else {
+            out.print(-1)
+          }
         } else if (eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency.selected) {
           var reach = 0L
           if (task.status == "success" && task.result.hasReach()) {
