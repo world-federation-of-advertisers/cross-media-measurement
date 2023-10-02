@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,19 +17,29 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/kingdom/event_template.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
-// Proto representation of the internal ModelRelease entity type.
-message ModelRelease {
-  fixed64 external_model_provider_id = 1;
-  fixed64 external_model_suite_id = 2;
-  fixed64 external_model_release_id = 3;
+message Population {
+  fixed64 external_data_provider_id = 1;
+  fixed64 external_population_id = 2;
 
-  // When the 'ModelRelease' was created.
+  string description = 3;
+
+  // When the 'Population' was created.
   google.protobuf.Timestamp create_time = 4;
 
-  fixed64 external_data_provider_id = 5;
-  fixed64 external_population_id = 6;
+  // A reference to a population blob.
+  message PopulationBlob {
+    //  A uri for the model blob.
+    string model_blob_uri = 1;
+  }
+
+  // The blob for the population.
+  PopulationBlob population_blob = 5;
+
+  // The EventTemplate that this population conforms to.
+  EventTemplate event_template = 6;
 }
