@@ -20,11 +20,6 @@ kt_jvm_test(
     name = "PrivacyBudgetLedgerTest",
     srcs = ["PrivacyBudgetLedgerTest.kt"],
     test_class = "org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerTest",
-    runtime_deps = [
-        # Workaround for `NoClassDefFoundError: kotlin/jdk7/AutoCloseableKt`.
-        # See https://github.com/bazelbuild/rules_kotlin/issues/333
-        "@wfa_common_jvm//imports/kotlin/kotlin:stdlib_jdk7",
-    ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/testing",
@@ -86,11 +81,6 @@ kt_jvm_test(
     name = "InMemoryBackingStoreTest",
     srcs = ["InMemoryBackingStoreTest.kt"],
     test_class = "org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemoryBackingStoreTest",
-    runtime_deps = [
-        # Workaround for `NoClassDefFoundError: kotlin/jdk7/AutoCloseableKt`.
-        # See https://github.com/bazelbuild/rules_kotlin/issues/333
-        "@wfa_common_jvm//imports/kotlin/kotlin:stdlib_jdk7",
-    ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/testing",

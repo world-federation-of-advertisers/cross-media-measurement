@@ -120,9 +120,9 @@ object LiquidLegions {
   /** The covariance between two LiquidLegions-based reach measurements with an inflation term. */
   fun inflatedReachCovariance(
     sketchParams: LiquidLegionsSketchParams,
-    reach: Int,
-    otherReach: Int,
-    overlapReach: Int,
+    reach: Long,
+    otherReach: Long,
+    overlapReach: Long,
     samplingWidth: Double,
     otherSamplingWidth: Double,
     overlapSamplingWidth: Double,
@@ -157,7 +157,7 @@ object LiquidLegions {
   private fun expectedNumberOfNonDestroyedRegisters(
     sketchParams: LiquidLegionsSketchParams,
     collisionResolution: Boolean,
-    totalReach: Int,
+    totalReach: Long,
     vidSamplingIntervalWidth: Double,
   ): Double {
     // Expected sampled reach
@@ -176,7 +176,7 @@ object LiquidLegions {
   private fun varianceOfNumberOfNonDestroyedRegisters(
     sketchParams: LiquidLegionsSketchParams,
     collisionResolution: Boolean,
-    totalReach: Int,
+    totalReach: Long,
     vidSamplingIntervalWidth: Double,
   ): Double {
     // Expected sampled reach
@@ -222,7 +222,7 @@ object LiquidLegions {
   private fun varianceOfNumberOfNonDestroyedRegistersPerFrequency(
     sketchParams: LiquidLegionsSketchParams,
     collisionResolution: Boolean,
-    totalReach: Int,
+    totalReach: Long,
     reachRatio: Double,
     vidSamplingIntervalWidth: Double,
   ): Double {
@@ -253,7 +253,7 @@ object LiquidLegions {
     sketchParams: LiquidLegionsSketchParams,
     collisionResolution: Boolean,
     frequencyNoiseVariance: Double,
-    totalReach: Int,
+    totalReach: Long,
     reachRatio: Double,
     frequencyMeasurementParams: FrequencyMeasurementParams,
     multiplier: Int,
@@ -263,7 +263,7 @@ object LiquidLegions {
         sketchParams,
         collisionResolution,
         totalReach,
-        frequencyMeasurementParams.vidSamplingIntervalWidth
+        frequencyMeasurementParams.vidSamplingInterval.width
       )
     if (expectedRegisterNum < 1.0) {
       return 0.0
@@ -274,7 +274,7 @@ object LiquidLegions {
         sketchParams,
         collisionResolution,
         totalReach,
-        frequencyMeasurementParams.vidSamplingIntervalWidth
+        frequencyMeasurementParams.vidSamplingInterval.width
       )
     val registerNumVariancePerFrequency =
       varianceOfNumberOfNonDestroyedRegistersPerFrequency(
@@ -282,7 +282,7 @@ object LiquidLegions {
         collisionResolution,
         totalReach,
         reachRatio,
-        frequencyMeasurementParams.vidSamplingIntervalWidth
+        frequencyMeasurementParams.vidSamplingInterval.width
       )
 
     val covariance = (reachRatio * registerNumVariance + multiplier * frequencyNoiseVariance)
@@ -304,7 +304,7 @@ object LiquidLegions {
    * Reach count = [totalReach] * [reachRatio]
    */
   fun liquidLegionsFrequencyCountVariance(
-    totalReach: Int,
+    totalReach: Long,
     totalReachVariance: Double,
     reachRatio: Double,
     reachRatioVariance: Double,

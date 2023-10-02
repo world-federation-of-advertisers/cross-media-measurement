@@ -26,8 +26,9 @@ import org.junit.runners.JUnit4
 class CovariancesTest {
   @Test
   fun `computeDeterministicCovariance returns a value for reach when small reaches overlap and small sampling widths overlap `() {
-    val reachCovarianceParams = ReachCovarianceParams(1, 2, 2, 2e-4, 3e-4, 4e-4)
-    val covariance = Covariances.computeDeterministicCovariance(reachCovarianceParams)
+    val reachMeasurementCovarianceParams =
+      ReachMeasurementCovarianceParams(1, 2, 2, 2e-4, 3e-4, 4e-4)
+    val covariance = Covariances.computeDeterministicCovariance(reachMeasurementCovarianceParams)
     val expect = 1665.6666666666665
     val percentageError = percentageError(covariance, expect)
     assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
@@ -35,8 +36,8 @@ class CovariancesTest {
 
   @Test
   fun `computeDeterministicCovariance returns a value for reach when small reaches not overlap and large sampling widths not overlap `() {
-    val reachCovarianceParams = ReachCovarianceParams(1, 2, 3, 0.5, 0.5, 1.0)
-    val covariance = Covariances.computeDeterministicCovariance(reachCovarianceParams)
+    val reachMeasurementCovarianceParams = ReachMeasurementCovarianceParams(1, 2, 3, 0.5, 0.5, 1.0)
+    val covariance = Covariances.computeDeterministicCovariance(reachMeasurementCovarianceParams)
     val expect = 0.0
     val percentageError = percentageError(covariance, expect)
     assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
@@ -44,9 +45,9 @@ class CovariancesTest {
 
   @Test
   fun `computeDeterministicCovariance returns a value for reach when large reaches overlap and small sampling widths not overlap`() {
-    val reachCovarianceParams =
-      ReachCovarianceParams(3e8.toInt(), 3e8.toInt(), 4e8.toInt(), 1e-4, 1e-4, 2e-4)
-    val covariance = Covariances.computeDeterministicCovariance(reachCovarianceParams)
+    val reachMeasurementCovarianceParams =
+      ReachMeasurementCovarianceParams(3e8.toLong(), 3e8.toLong(), 4e8.toLong(), 1e-4, 1e-4, 2e-4)
+    val covariance = Covariances.computeDeterministicCovariance(reachMeasurementCovarianceParams)
 
     val expect = -2e+8
     val percentageError = percentageError(covariance, expect)
@@ -55,8 +56,9 @@ class CovariancesTest {
 
   @Test
   fun `computeDeterministicCovariance returns a value for reach when one reach is small`() {
-    val reachCovarianceParams = ReachCovarianceParams(1, 3e6.toInt(), 3e6.toInt(), 0.5, 0.4, 0.7)
-    val covariance = Covariances.computeDeterministicCovariance(reachCovarianceParams)
+    val reachMeasurementCovarianceParams =
+      ReachMeasurementCovarianceParams(1, 3e6.toLong(), 3e6.toLong(), 0.5, 0.4, 0.7)
+    val covariance = Covariances.computeDeterministicCovariance(reachMeasurementCovarianceParams)
     val expect = 2.220446049250313e-16
     val percentageError = percentageError(covariance, expect)
     assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
@@ -64,16 +66,16 @@ class CovariancesTest {
 
   @Test
   fun `computeDeterministicCovariance returns a value for reach when large reaches not overlap and large sampling widths overlap`() {
-    val reachCovarianceParams =
-      ReachCovarianceParams(
-        3e8.toInt(),
-        3e8.toInt(),
-        6e8.toInt(),
+    val reachMeasurementCovarianceParams =
+      ReachMeasurementCovarianceParams(
+        3e8.toLong(),
+        3e8.toLong(),
+        6e8.toLong(),
         0.7,
         0.7,
         0.7,
       )
-    val covariance = Covariances.computeDeterministicCovariance(reachCovarianceParams)
+    val covariance = Covariances.computeDeterministicCovariance(reachMeasurementCovarianceParams)
     val expect = 0.0
     assertThat(covariance).isEqualTo(expect)
   }
@@ -83,8 +85,10 @@ class CovariancesTest {
     val decayRate = 1e-3
     val sketchSize = 1e5
     val sketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
-    val reachCovarianceParams = ReachCovarianceParams(5, 5, 5, 0.01, 0.01, 0.02)
-    val covariance = Covariances.computeLiquidLegionsCovariance(sketchParams, reachCovarianceParams)
+    val reachMeasurementCovarianceParams =
+      ReachMeasurementCovarianceParams(5, 5, 5, 0.01, 0.01, 0.02)
+    val covariance =
+      Covariances.computeLiquidLegionsCovariance(sketchParams, reachMeasurementCovarianceParams)
 
     val expect = -4.849999813860015
     val percentageError = percentageError(covariance, expect)
@@ -96,8 +100,9 @@ class CovariancesTest {
     val decayRate = 15.0
     val sketchSize = 1e5
     val sketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
-    val reachCovarianceParams = ReachCovarianceParams(1, 1, 2, 0.5, 0.4, 0.5)
-    val covariance = Covariances.computeLiquidLegionsCovariance(sketchParams, reachCovarianceParams)
+    val reachMeasurementCovarianceParams = ReachMeasurementCovarianceParams(1, 1, 2, 0.5, 0.4, 0.5)
+    val covariance =
+      Covariances.computeLiquidLegionsCovariance(sketchParams, reachMeasurementCovarianceParams)
 
     val expect = 0.000562525536043962
     val percentageError = percentageError(covariance, expect)
@@ -109,9 +114,10 @@ class CovariancesTest {
     val decayRate = 15.0
     val sketchSize = 1e5
     val sketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
-    val reachCovarianceParams =
-      ReachCovarianceParams(1e6.toInt(), 3e8.toInt(), 3e8.toInt(), 0.02, 0.01, 0.02)
-    val covariance = Covariances.computeLiquidLegionsCovariance(sketchParams, reachCovarianceParams)
+    val reachMeasurementCovarianceParams =
+      ReachMeasurementCovarianceParams(1e6.toLong(), 3e8.toLong(), 3e8.toLong(), 0.02, 0.01, 0.02)
+    val covariance =
+      Covariances.computeLiquidLegionsCovariance(sketchParams, reachMeasurementCovarianceParams)
 
     val expect = 156079036.5929788
     val percentageError = percentageError(covariance, expect)
@@ -123,9 +129,10 @@ class CovariancesTest {
     val decayRate = 100.0
     val sketchSize = 1e5
     val sketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
-    val reachCovarianceParams =
-      ReachCovarianceParams(3e8.toInt(), 3e8.toInt(), 6e8.toInt(), 0.3, 0.4, 0.7)
-    val covariance = Covariances.computeLiquidLegionsCovariance(sketchParams, reachCovarianceParams)
+    val reachMeasurementCovarianceParams =
+      ReachMeasurementCovarianceParams(3e8.toLong(), 3e8.toLong(), 6e8.toLong(), 0.3, 0.4, 0.7)
+    val covariance =
+      Covariances.computeLiquidLegionsCovariance(sketchParams, reachMeasurementCovarianceParams)
 
     val expect = 428562.31521871715
     val percentageError = percentageError(covariance, expect)
@@ -137,8 +144,10 @@ class CovariancesTest {
     val decayRate = 1.0
     val sketchSize = 1e5
     val sketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
-    val reachCovarianceParams = ReachCovarianceParams(1, 3e6.toInt(), 3e6.toInt(), 0.5, 0.4, 0.7)
-    val covariance = Covariances.computeLiquidLegionsCovariance(sketchParams, reachCovarianceParams)
+    val reachMeasurementCovarianceParams =
+      ReachMeasurementCovarianceParams(1, 3e6.toLong(), 3e6.toLong(), 0.5, 0.4, 0.7)
+    val covariance =
+      Covariances.computeLiquidLegionsCovariance(sketchParams, reachMeasurementCovarianceParams)
 
     val expect = 0.0002056053253447586
     val percentageError = percentageError(covariance, expect)
@@ -150,9 +159,10 @@ class CovariancesTest {
     val decayRate = 100.0
     val sketchSize = 1e5
     val sketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
-    val reachCovarianceParams =
-      ReachCovarianceParams(3e8.toInt(), 3e8.toInt(), 6e8.toInt(), 0.7, 0.7, 0.7)
-    val covariance = Covariances.computeLiquidLegionsCovariance(sketchParams, reachCovarianceParams)
+    val reachMeasurementCovarianceParams =
+      ReachMeasurementCovarianceParams(3e8.toLong(), 3e8.toLong(), 6e8.toLong(), 0.7, 0.7, 0.7)
+    val covariance =
+      Covariances.computeLiquidLegionsCovariance(sketchParams, reachMeasurementCovarianceParams)
 
     val expect = 214283.93565983986
     val percentageError = percentageError(covariance, expect)

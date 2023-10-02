@@ -22,9 +22,6 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.deploy.common.postgres.PostgresBackingStoreTest",
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/postgresql:j2dbc",
-        # Workaround for `NoClassDefFoundError: kotlin/jdk7/AutoCloseableKt`.
-        # See https://github.com/bazelbuild/rules_kotlin/issues/333
-        "@wfa_common_jvm//imports/kotlin/kotlin:stdlib_jdk7",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/deploy/common/postgres",

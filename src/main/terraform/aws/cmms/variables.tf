@@ -17,3 +17,17 @@ variable "aws_region" {
   type        = string
   nullable    = false
 }
+
+variable "postgres_instance_name" {
+  description = "Name of the RDS PostgreSQL instance."
+  type        = string
+  default     = "halo"
+  nullable    = false
+}
+
+variable "postgres_instance_tier" {
+  description = "Tier (machine type) of the RDS PostgreSQL instance."
+  type        = string
+  default     = "db.t3.micro"
+  nullable    = false
+}

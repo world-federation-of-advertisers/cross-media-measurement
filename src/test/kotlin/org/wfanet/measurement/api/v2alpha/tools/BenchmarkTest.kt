@@ -49,6 +49,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.population
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.certificate
@@ -136,6 +137,20 @@ private val AGGREGATOR_CERTIFICATE = certificate { x509Der = AGGREGATOR_CERTIFIC
 
 private const val MEASUREMENT_NAME = "$MEASUREMENT_CONSUMER_NAME/measurements/100"
 private val MEASUREMENT = measurement { name = MEASUREMENT_NAME }
+private val SUCCEEDED_REACH_MEASUREMENT = measurement {
+  name = MEASUREMENT_NAME
+  state = Measurement.State.SUCCEEDED
+
+  val measurementPublicKey = encryptionPublicKey {
+    format = EncryptionPublicKey.Format.TINK_KEYSET
+    data = MEASUREMENT_PUBLIC_KEY
+  }
+  results += resultPair {
+    val result = result { reach = ResultKt.reach { value = 4096 } }
+    encryptedResult = getEncryptedResult(result, measurementPublicKey)
+    certificate = DATA_PROVIDER_CERTIFICATE_NAME
+  }
+}
 private val SUCCEEDED_REACH_AND_FREQUENCY_MEASUREMENT = measurement {
   name = MEASUREMENT_NAME
   state = Measurement.State.SUCCEEDED
@@ -286,10 +301,10 @@ class BenchmarkTest {
         "--measurement-consumer=measurementConsumers/777",
         "--reach-and-frequency",
         "--max-frequency=5",
-        "--reach-privacy-epsilon=0.015",
-        "--reach-privacy-delta=0.0",
-        "--frequency-privacy-epsilon=0.02",
-        "--frequency-privacy-delta=0.0",
+        "--rf-reach-privacy-epsilon=0.015",
+        "--rf-reach-privacy-delta=0.0",
+        "--rf-frequency-privacy-epsilon=0.02",
+        "--rf-frequency-privacy-delta=0.0",
         "--vid-sampling-start=0.1",
         "--vid-sampling-width=0.2",
         "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
@@ -344,6 +359,75 @@ class BenchmarkTest {
       .isEqualTo(
         "1,0.0,0.0,0.0,0.0,success,,4096,682.6666666666666,2048.0,1365.3333333333333,0.0,0.0"
       )
+  }
+
+  @Test
+  fun `Benchmark reach`() {
+    measurementsServiceMock =
+      mockService() {
+        onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT)
+        onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_REACH_MEASUREMENT)
+      }
+    initServer()
+    val clock = Clock.fixed(Instant.parse(TIME_STRING_1), ZoneId.of("UTC"))
+    val tempFile = Files.createTempFile("benchmarks-reach", ".csv")
+
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
+        "--kingdom-public-api-target=$HOST:$port",
+        "--api-key=$API_KEY",
+        "--measurement-consumer=measurementConsumers/777",
+        "--reach",
+        "--reach-privacy-epsilon=0.015",
+        "--reach-privacy-delta=0.0",
+        "--vid-sampling-start=0.1",
+        "--vid-sampling-width=0.2",
+        "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
+        "--encryption-private-key-file=$SECRETS_DIR/mc_enc_private.tink",
+        "--event-data-provider=dataProviders/1",
+        "--event-group=dataProviders/1/eventGroups/1",
+        "--event-filter=abcd",
+        "--event-start-time=$TIME_STRING_1",
+        "--event-end-time=$TIME_STRING_2",
+        "--output-file=$tempFile",
+      )
+
+    BenchmarkReport.main(args, clock)
+
+    val request =
+      captureFirst<CreateMeasurementRequest> {
+        runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
+      }
+
+    val measurement = request.measurement
+    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
+    assertThat(measurementSpec)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        measurementSpec {
+          reach = reach {
+            privacyParams = differentialPrivacyParams {
+              epsilon = 0.015
+              delta = 0.0
+            }
+          }
+          vidSamplingInterval =
+            MeasurementSpecKt.vidSamplingInterval {
+              start = 0.1f
+              width = 0.2f
+            }
+        }
+      )
+
+    val result = Files.readAllLines(tempFile)
+
+    assertThat(result.size).isEqualTo(2)
+    assertThat(result[0])
+      .isEqualTo("replica,startTime,ackTime,computeTime,endTime,status,msg,reach")
+    assertThat(result[1]).isEqualTo("1,0.0,0.0,0.0,0.0,success,,4096")
   }
 
   @Test

@@ -113,7 +113,7 @@ duchy: #PostgresDuchy & {
 			}
 			spec: {
 				replicas: #MillReplicas
-				template: spec: #ServiceAccountPodSpec & #PodSpec & {
+				template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
 					serviceAccountName: #StorageServiceAccount
 				}
 			}
