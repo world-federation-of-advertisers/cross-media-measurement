@@ -48,7 +48,7 @@ runs:
       bazelisk build
       //src/main/k8s/dev:open_telemetry_eks
       --define amp_ingest_endpoint="${{ inputs.amp-ingest-endpoint }}"
-      --define amp_region="${{ inputs.amp_region }}"
+      --define amp_region="${{ inputs.amp-region }}"
 
   - name: Apply configurations
     shell: bash
