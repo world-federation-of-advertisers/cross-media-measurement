@@ -53,4 +53,4 @@ runs:
   - name: Apply configurations
     shell: bash
     run: |
-      kubectl diff -f "$BAZEL_BIN/src/main/k8s/dev/open_telemetry_eks.yaml"
+      kubectl apply -f "$BAZEL_BIN/src/main/k8s/dev/open_telemetry_eks.yaml"
