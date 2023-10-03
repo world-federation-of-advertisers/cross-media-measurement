@@ -35,6 +35,8 @@ import org.wfanet.measurement.internal.duchy.copy
 import org.wfanet.measurement.internal.duchy.createComputationRequest
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfigKt
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2Kt
 import org.wfanet.measurement.internal.duchy.protocol.copy
@@ -90,13 +92,11 @@ object ReachOnlyLiquidLegionsV2Starter {
    * computation id, the aggregator is placed at the end of the list. This return order is also the
    * order of all participants in the MPC ring structure.
    */
-  private fun List<
-    ReachOnlyLiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant
-  >
+  private fun List<LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant>
     .orderByRoles(
     globalComputationId: String,
     aggregatorId: String
-  ): List<ReachOnlyLiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant> {
+  ): List<LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant> {
     val aggregator =
       this.find { it.duchyId == aggregatorId }
         ?: error("Aggregator duchy is missing from the participants.")
@@ -253,11 +253,11 @@ object ReachOnlyLiquidLegionsV2Starter {
 
   private fun ComputationParticipant.toDuchyComputationParticipant(
     publicApiVersion: String
-  ): ReachOnlyLiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant {
+  ): LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant {
     require(requisitionParams.hasReachOnlyLiquidLegionsV2()) {
       "Missing reach-only liquid legions v2 requisition params."
     }
-    return ReachOnlyLiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.computationParticipant {
+    return LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.computationParticipant {
       duchyId = key.duchyId
       publicKey =
         requisitionParams.reachOnlyLiquidLegionsV2.elGamalPublicKey.toDuchyElGamalPublicKey(
