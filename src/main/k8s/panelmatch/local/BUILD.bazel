@@ -14,18 +14,6 @@ package(
 
 SECRET_NAME = "certs-and-configs"
 
-#kustomization_dir(
-#    name = "edp_daemon_secret",
-#    srcs = ["edp_daemon_secret_kustomization.yaml"],
-#    renames = {"edp_daemon_secret_kustomization.yaml": "kustomization.yaml"},
-#)
-
-#kustomization_dir(
-#    name = "mp_daemon_secret",
-#    srcs = ["mp_daemon_secret_kustomization.yaml"],
-#    renames = {"mp_daemon_secret_kustomization.yaml": "kustomization.yaml"},
-#)
-
 cue_library(
     name = "config_cue",
     srcs = ["config.cue"],
@@ -63,12 +51,13 @@ kustomization_dir(
     name = "edp_daemon",
     srcs = [
         ":forwarded_storage_edp_daemon",
+        "//src/main/k8s/local:kingdom",
     ],
     generate_kustomization = True,
     tags = ["manual"],
     deps = [
         ":config_files",
-        "//src/main/k8s/panelmatch/testing/secretfiles:kustomization"
+        "//src/main/k8s/testing/secretfiles:kustomization"
     ]
 )
 
@@ -97,7 +86,7 @@ kustomization_dir(
     tags = ["manual"],
     deps = [
         ":config_files",
-        "//src/main/k8s/panelmatch/testing/secretfiles:kustomization",
+        "//src/main/k8s/testing/secretfiles:kustomization"
     ]
 )
 

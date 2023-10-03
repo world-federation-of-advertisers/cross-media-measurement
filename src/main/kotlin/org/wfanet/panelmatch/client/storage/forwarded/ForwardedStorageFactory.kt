@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.client.storage.forwarded
 
 import java.io.File
+import java.util.logging.Logger
 import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.grpc.buildTlsChannel
 import org.wfanet.measurement.internal.testing.ForwardedStorageGrpcKt
@@ -34,9 +35,7 @@ class ForwardedStorageFactory(
   override fun build(): StorageClient {
 
     val forwardedStorage = storageDetails.custom.details.unpack(ForwardedStorage::class.java)
-
-
-    return ForwardedStorageClient(
+     return ForwardedStorageClient(
       ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(
         buildTlsChannel(
           forwardedStorage.target,
@@ -44,7 +43,7 @@ class ForwardedStorageFactory(
           forwardedStorage.forwardedStorageCertHost
         )
       )
-    ).withPrefix(exchangeDateKey.path)
+    )
   }
 
 }

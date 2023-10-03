@@ -110,6 +110,7 @@ genrule(
 
 SECRET_FILES = [
     "all_root_certs.pem",
+    "edp_trusted_certs.pem",
     "kingdom_root.pem",
     "kingdom_tls.key",
     "kingdom_tls.pem",

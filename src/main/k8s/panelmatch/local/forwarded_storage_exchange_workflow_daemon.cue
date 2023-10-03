@@ -36,7 +36,6 @@ package k8s
 		}
 	}
 }
-#DebugVerboseGrpcLogging: true
 
 #ExchangeDaemonConfig: {
 	secretName:         string

@@ -5,5 +5,8 @@ package(
 
 filegroup(
     name = "exchange_workflow",
-    srcs = ["double_blind_exchange_workflow.textproto"],
+    srcs = [
+        "double_blind_exchange_workflow.textproto",
+        "mini_exchange_workflow.textproto"
+    ],
 )

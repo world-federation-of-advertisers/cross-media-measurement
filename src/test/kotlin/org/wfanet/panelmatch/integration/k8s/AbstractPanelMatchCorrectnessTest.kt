@@ -16,6 +16,7 @@
 
 package org.wfanet.panelmatch.integration.k8s
 
+import com.google.common.truth.Truth
 import com.google.privatemembership.batch.Shared
 import com.google.protobuf.Any.pack
 import com.google.protobuf.ByteString
@@ -28,6 +29,7 @@ import io.grpc.StatusException
 import io.kubernetes.client.common.KubernetesObject
 import io.kubernetes.client.openapi.Configuration
 import io.kubernetes.client.openapi.models.V1Deployment
+import io.kubernetes.client.openapi.models.V1Pod
 import io.kubernetes.client.util.ClientBuilder
 import java.io.File
 import java.net.InetSocketAddress
@@ -49,9 +51,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
-import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.Exchange
 import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
@@ -59,20 +59,13 @@ import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ExchangesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepsRequestKt
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
-import org.wfanet.measurement.api.v2alpha.authenticateRequest
-import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
-import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getExchangeRequest
 import org.wfanet.measurement.api.v2alpha.listExchangeStepsRequest
-import org.wfanet.measurement.api.v2alpha.withPrincipal
-import org.wfanet.measurement.api.withIdToken
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.jceProvider
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
-import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.k8s.KubernetesClient
 import org.wfanet.measurement.common.k8s.testing.PortForwarder
 import org.wfanet.measurement.common.k8s.testing.Processes
@@ -83,271 +76,229 @@ import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt
 import org.wfanet.measurement.internal.testing.ForwardedStorageGrpcKt
+import org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourceKeys
 import org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourceSetup
+import org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourceSetup.Companion.AKID_PRINCIPAL_MAP_FILE
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
-import org.wfanet.measurement.loadtest.resourcesetup.ResourceSetup
 import org.wfanet.measurement.storage.forwarded.ForwardedStorageClient
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
+import org.wfanet.panelmatch.client.exchangetasks.JoinKeyAndIdCollection
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetailsKt.customStorage
 import org.wfanet.panelmatch.client.storage.StorageDetailsKt.forwardedStorage
 import org.wfanet.panelmatch.client.storage.storageDetails
 import org.wfanet.panelmatch.common.certificates.testing.TestCertificateManager
 import org.wfanet.panelmatch.common.storage.testing.FakeTinkKeyStorageProvider
+import org.wfanet.panelmatch.common.storage.toByteString
+
+
+
 
 abstract class AbstractPanelMatchCorrectnessTest {
 
   private val channels = mutableListOf<ManagedChannel>()
   private val portForwarders = mutableListOf<PortForwarder>()
-  private val TERMINAL_EXCHANGE_STATES = setOf(Exchange.State.SUCCEEDED, Exchange.State.FAILED)
   private lateinit var exchangeKey: ExchangeKey
-  private class Images : TestRule {
-    override fun apply(base: Statement, description: Description): Statement {
-      return object : Statement() {
-        override fun evaluate() {
-          pushImages()
-          base.evaluate()
-        }
-      }
-    }
+  protected abstract val initialDataProviderInputs: Map<String, ByteString>
+  protected abstract val initialModelProviderInputs: Map<String, ByteString>
+  protected abstract val workflow: ExchangeWorkflow
+  val k8sClient = KubernetesClient(ClientBuilder.defaultClient())
+  private val TERMINAL_STEP_STATES = setOf(ExchangeStep.State.SUCCEEDED, ExchangeStep.State.FAILED)
+  private val READY_STEP_STATES =
+    setOf(
+      ExchangeStep.State.IN_PROGRESS,
+      ExchangeStep.State.READY,
+      ExchangeStep.State.READY_FOR_RETRY
+    )
+  private val TERMINAL_EXCHANGE_STATES = setOf(Exchange.State.SUCCEEDED, Exchange.State.FAILED)
+  private val KINGDOM_INTERNAL_DEPLOYMENT_NAME = "gcp-kingdom-data-server-deployment"
+  private val KINGDOM_PUBLIC_DEPLOYMENT_NAME = "v2alpha-public-api-server-deployment"
+  protected val MP_PRIVATE_STORAGE_DEPLOYMENT_NAME = "mp-private-storage-server-deployment"
+  private val DP_PRIVATE_STORAGE_DEPLOYMENT_NAME = "dp-private-storage-server-deployment"
+  private val SHARED_STORAGE_DEPLOYMENT_NAME = "shared-storage-server-deployment"
+  protected val SERVER_PORT: Int = 8443
+  private val API_VERSION = "v2alpha"
+  private val SCHEDULE = "@daily"
 
-    private fun pushImages() {
-      val pusherRuntimePath = getRuntimePath(IMAGE_PUSHER_PATH)
-      Processes.runCommand(pusherRuntimePath.toString())
-      val panelMatchPusherRuntimePath = getRuntimePath(IMAGE_PANEL_MATCH_PUSHER_PATH)
-      Processes.runCommand(panelMatchPusherRuntimePath.toString())
-    }
-  }
+  val EXCHANGE_DATE: LocalDate = LocalDate.now()
+
+  private val DEFAULT_RPC_DEADLINE = Duration.ofSeconds(30)
 
   protected suspend fun runResourceSetup(
     dataProviderContent: EntityContent,
     modelProviderContent: EntityContent,
     workflow: ExchangeWorkflow,
-    initialDataProviderInputs: Map<String, ByteString>
+    initialDataProviderInputs: Map<String, ByteString>,
+    initialModelProviderInputs: Map<String, ByteString>
   ) {
     val outputDir = withContext(Dispatchers.IO) { tempDir.newFolder("resource-setup") }
-    val k8sClient = KubernetesClient(ClientBuilder.defaultClient())
 
-    val kingdomInternalPod =
-      k8sClient
-        .listPodsByMatchLabels(
-          k8sClient.waitUntilDeploymentReady(KINGDOM_INTERNAL_DEPLOYMENT_NAME)
-        )
-        .items
-        .first()
-    val kingdomPublicPod =
-      k8sClient
-        .listPodsByMatchLabels(k8sClient.waitUntilDeploymentReady(KINGDOM_PUBLIC_DEPLOYMENT_NAME))
-        .items
-        .first()
-    val mpPrivateStoragePod =
-      k8sClient
-        .listPodsByMatchLabels(k8sClient.waitUntilDeploymentReady(MP_PRIVATE_STORAGE_DEPLOYMENT_NAME))
-        .items
-        .first()
-    val dpPrivateStoragePod =
-      k8sClient
-        .listPodsByMatchLabels(k8sClient.waitUntilDeploymentReady(DP_PRIVATE_STORAGE_DEPLOYMENT_NAME))
-        .items
-        .first()
-    val sharedStoragePod =
-      k8sClient
-        .listPodsByMatchLabels(k8sClient.waitUntilDeploymentReady(SHARED_STORAGE_DEPLOYMENT_NAME))
-        .items
-        .first()
-
+    val kingdomInternalPod = getPod(KINGDOM_INTERNAL_DEPLOYMENT_NAME)
+    val mpPrivateStoragePod = getPod(MP_PRIVATE_STORAGE_DEPLOYMENT_NAME)
+    val dpPrivateStoragePod = getPod(DP_PRIVATE_STORAGE_DEPLOYMENT_NAME)
+    val sharedStoragePod = getPod(SHARED_STORAGE_DEPLOYMENT_NAME)
 
     PortForwarder(kingdomInternalPod,
       SERVER_PORT
     ).use { internalForward ->
       val internalAddress: InetSocketAddress =
-        withContext(Dispatchers.IO) { internalForward.start() }
-      logger.info { "=========================================== GET internal channel target" }
+        withContext(Dispatchers.IO) { internalForward.start() }.also { portForwarders.add(internalForward) }
       val internalChannel =
-        buildMutualTlsChannel(internalAddress.toTarget(), KINGDOM_SIGNING_CERTS)
-      PortForwarder(kingdomPublicPod, SERVER_PORT)
-        .use { publicForward ->
-          val publicAddress: InetSocketAddress =
-            withContext(Dispatchers.IO) { publicForward.start() }
-          logger.info { "=========================================== GET public channel target" }
-          val publicChannel =
-            buildMutualTlsChannel(
-              publicAddress.toTarget(),
-              KINGDOM_SIGNING_CERTS
-            )
-          val panelMatchResourceSetup =
-            PanelMatchResourceSetup(
-              DataProvidersGrpcKt.DataProvidersCoroutineStub(internalChannel),
-              ModelProvidersGrpcKt.ModelProvidersCoroutineStub(internalChannel),
-              RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub(internalChannel),
-              outputDir
-            )
-          val panelMatchResourceKey = withContext(Dispatchers.IO) {
-            panelMatchResourceSetup
-              .process(
-                dataProviderContent,
-                modelProviderContent,
-                EXCHANGE_DATE.toProtoDate(),
-                workflow,
-                SCHEDULE,
-                API_VERSION
-              )
-          }
+        buildMutualTlsChannel(internalAddress.toTarget(), KINGDOM_SIGNING_CERTS).also { channels.add(it) }
 
-          val akidPrincipalMap = outputDir.resolve(ResourceSetup.AKID_PRINCIPAL_MAP_FILE)
+      val panelMatchResourceSetup =
+        PanelMatchResourceSetup(
+          DataProvidersGrpcKt.DataProvidersCoroutineStub(internalChannel),
+          ModelProvidersGrpcKt.ModelProvidersCoroutineStub(internalChannel),
+          RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub(internalChannel),
+          outputDir
+        )
+      val panelMatchResourceKey = withContext(Dispatchers.IO) {
+        panelMatchResourceSetup
+          .process(
+            dataProviderContent,
+            modelProviderContent,
+            EXCHANGE_DATE.toProtoDate(),
+            workflow,
+            SCHEDULE,
+            API_VERSION
+          )
+      }
 
-          loadDpDaemonForPanelMatch(k8sClient, panelMatchResourceKey.dataProviderKey, akidPrincipalMap)
-          // loadMpDaemonForPanelMatch(k8sClient, panelMatchResourceKey.modelProviderKey)
-          logger.info { "------------------------------------- daemons created" }
+      exchangeKey =
+        ExchangeKey(
+          recurringExchangeId = panelMatchResourceKey.recurringExchangeKey.recurringExchangeId,
+          exchangeId = EXCHANGE_DATE.toString()
+        )
 
-          exchangeKey =
-            ExchangeKey(
-              recurringExchangeId = panelMatchResourceKey.recurringExchangeKey.recurringExchangeId,
-              exchangeId = EXCHANGE_DATE.toString()
-            )
-          val sharedStorageForwarder = PortForwarder(sharedStoragePod, SERVER_PORT)
-          portForwarders.add(sharedStorageForwarder)
-          val sharedStorageAddress: InetSocketAddress =
-            withContext(Dispatchers.IO) { sharedStorageForwarder.start() }
-          // Setup data provider resources
-          val dpStorageForwarder = PortForwarder(dpPrivateStoragePod, SERVER_PORT)
-          portForwarders.add(dpStorageForwarder)
-          val dpStorageAddress: InetSocketAddress =
-            withContext(Dispatchers.IO) { dpStorageForwarder.start() }
-          val dpStorageChannel: Channel =
-            buildMutualTlsChannel(dpStorageAddress.toTarget(), KINGDOM_SIGNING_CERTS)
-              .also { channels.add(it) }
-              .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
-          val dpForwardedStorage = ForwardedStorageClient(
-            ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(dpStorageChannel)
-          )
-          val dataProviderDefaults by lazy {
-            DaemonStorageClientDefaults(
-              dpForwardedStorage,
-              "",
-              FakeTinkKeyStorageProvider()
-            )
-          }
-          dataProviderDefaults.validExchangeWorkflows.put(
-            panelMatchResourceKey.recurringExchangeKey.recurringExchangeId,
-            workflow.toByteString()
-          )
-          dataProviderDefaults.rootCertificates.put(
-            panelMatchResourceKey.dataProviderKey.toName(),
-            TestCertificateManager.CERTIFICATE.encoded.toByteString()
-          )
-          val dpPrivateForwarderStorage = forwardedStorage {
-            target = dpStorageAddress.toTarget()
-            certCollectionPath = "/var/run/secrets/files/trusted_certs.pem"
-            forwardedStorageCertHost = "localhost"
-          }
-          val dataProviderPrivateStorageDetails = storageDetails {
-            custom = customStorage {
-              details = pack(dpPrivateForwarderStorage)
-            }
-            visibility = StorageDetails.Visibility.PRIVATE
-          }
-          dataProviderDefaults.privateStorageInfo.put(
-            panelMatchResourceKey.recurringExchangeKey.recurringExchangeId,
-            dataProviderPrivateStorageDetails
-          )
-          val dpSharedForwarderStorage = forwardedStorage {
-            target = sharedStorageAddress.toTarget()
-            certCollectionPath = "/var/run/secrets/files/trusted_certs.pem"
-            forwardedStorageCertHost = "localhost"
-          }
-          val dataProviderSharedStorageDetails = storageDetails {
-            custom = customStorage {
-              details = pack(dpSharedForwarderStorage)
-            }
-            visibility = StorageDetails.Visibility.SHARED
-          }
-          dataProviderDefaults.sharedStorageInfo.put(
-            panelMatchResourceKey.recurringExchangeKey.recurringExchangeId,
-            dataProviderSharedStorageDetails
-          )
-          for ((blobKey, value) in initialDataProviderInputs) {
-            dpForwardedStorage.writeBlob(blobKey, value)
-          }
-          logger.info { "------------------------------------- dp setup completed" }
-          // Setup model provider resources
-          val mpStorageForwarder = PortForwarder(mpPrivateStoragePod, SERVER_PORT)
-          portForwarders.add(mpStorageForwarder)
-          val mpStorageAddress: InetSocketAddress =
-            withContext(Dispatchers.IO) { mpStorageForwarder.start() }
-          val mpStorageChannel: Channel =
-            buildMutualTlsChannel(mpStorageAddress.toTarget(), KINGDOM_SIGNING_CERTS)
-              .also { channels.add(it) }
-              .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
-          val mpForwardedStorage = ForwardedStorageClient(
-            ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(mpStorageChannel)
-          )
-          val modelProviderDefaults by lazy {
-            DaemonStorageClientDefaults(
-              mpForwardedStorage,
-              "",
-              FakeTinkKeyStorageProvider()
-            )
-          }
-          modelProviderDefaults.validExchangeWorkflows.put(
-            panelMatchResourceKey.recurringExchangeKey.recurringExchangeId,
-            workflow.toByteString()
-          )
-          modelProviderDefaults.rootCertificates.put(
-            panelMatchResourceKey.modelProviderKey.toName(),
-            TestCertificateManager.CERTIFICATE.encoded.toByteString()
-          )
-          val mpPrivateForwarderStorage = forwardedStorage {
-            target = mpStorageAddress.toTarget()
-            certCollectionPath = "/var/run/secrets/files/trusted_certs.pem"
-            forwardedStorageCertHost = "localhost"
-          }
-          val modelProviderPrivateStorageDetails = storageDetails {
-            custom = customStorage {
-              details = pack(mpPrivateForwarderStorage)
-            }
-            visibility = StorageDetails.Visibility.PRIVATE
-          }
-          modelProviderDefaults.privateStorageInfo.put(
-            panelMatchResourceKey.recurringExchangeKey.recurringExchangeId,
-            modelProviderPrivateStorageDetails
-          )
-          val mpSharedForwarderStorage = forwardedStorage {
-            target = sharedStorageAddress.toTarget()
-            certCollectionPath = "/var/run/secrets/files/trusted_certs.pem"
-            forwardedStorageCertHost = "localhost"
-          }
-          val modelProviderSharedStorageDetails = storageDetails {
-            custom = customStorage {
-              details = pack(mpSharedForwarderStorage)
-            }
-            visibility = StorageDetails.Visibility.SHARED
-          }
-          modelProviderDefaults.sharedStorageInfo.put(
-            panelMatchResourceKey.recurringExchangeKey.recurringExchangeId,
-            modelProviderSharedStorageDetails
-          )
-          for ((blobKey, value) in initialDataProviderInputs) {
-            mpForwardedStorage.writeBlob(blobKey, value)
-          }
-          logger.info { "------------------------------------- mp setup completed" }
-          /*logger.info { "------------------------------------- mp setup completed" }
-          loadDpDaemonForPanelMatch(k8sClient, panelMatchResourceKey.dataProviderKey)
-          loadMpDaemonForPanelMatch(k8sClient, panelMatchResourceKey.modelProviderKey)
-          logger.info { "------------------------------------- daemons created" }*/
-          val exchangeClient = ExchangesGrpcKt.ExchangesCoroutineStub(publicChannel)
-          val exchangeStepsClient = ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub(publicChannel)
+      val dpStorageForwarder = PortForwarder(dpPrivateStoragePod, SERVER_PORT)
+      portForwarders.add(dpStorageForwarder)
+      val dpStorageAddress: InetSocketAddress =
+        withContext(Dispatchers.IO) { dpStorageForwarder.start() }
+      val dpStorageChannel =
+      buildMutualTlsChannel(dpStorageAddress.toTarget(), EDP_SIGNING_CERTS)
+          .also { channels.add(it) }
+          .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
+      val dpForwardedStorage = ForwardedStorageClient(
+        ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(dpStorageChannel)
+      )
+      val dataProviderDefaults by lazy {
+        DaemonStorageClientDefaults(
+          dpForwardedStorage,
+          "",
+          FakeTinkKeyStorageProvider()
+        )
+      }
+      dataProviderDefaults.validExchangeWorkflows.put(
+        panelMatchResourceKey.recurringExchangeKey.recurringExchangeId,
+        workflow.toByteString()
+      )
+      dataProviderDefaults.rootCertificates.put(
+        panelMatchResourceKey.dataProviderKey.toName(),
+        TestCertificateManager.CERTIFICATE.encoded.toByteString()
+      )
 
-          logger.info { "------------------------------------- ATTEMPT EXCHANGE CALL" }
-          val result = exchangeClient.withPrincipalName(panelMatchResourceKey.dataProviderKey.toName()).getExchange(getExchangeRequest { name = exchangeKey.toName() })
-          logger.info { "------------------------------------- TEST SUCCESFUL: ${result.date}" }
-          while (!isDone(exchangeClient, exchangeStepsClient)) {
-            delay(500)
-          }
-          publicChannel.shutdown()
-          internalChannel.shutdown()
+      val dpPrivateForwarderStorage = forwardedStorage {
+        target = dpPrivateStoragePod.status?.podIP + ":8443"
+        certCollectionPath = "/var/run/secrets/files/edp_trusted_certs.pem"
+        forwardedStorageCertHost = "localhost"
+      }
+      val dataProviderPrivateStorageDetails = storageDetails {
+        custom = customStorage {
+          details = pack(dpPrivateForwarderStorage)
         }
-      // Setup share storage
+        visibility = StorageDetails.Visibility.PRIVATE
+      }
+      dataProviderDefaults.privateStorageInfo.put(
+        panelMatchResourceKey.recurringExchangeKey.recurringExchangeId,
+        dataProviderPrivateStorageDetails
+      )
+
+      val dpSharedForwarderStorage = forwardedStorage {
+        target = sharedStoragePod.status?.podIP + ":8443"
+        certCollectionPath = "/var/run/secrets/files/edp_trusted_certs.pem"
+        forwardedStorageCertHost = "localhost"
+      }
+      val dataProviderSharedStorageDetails = storageDetails {
+        custom = customStorage {
+          details = pack(dpSharedForwarderStorage)
+        }
+        visibility = StorageDetails.Visibility.SHARED
+      }
+      dataProviderDefaults.sharedStorageInfo.put(
+        panelMatchResourceKey.recurringExchangeKey.recurringExchangeId,
+        dataProviderSharedStorageDetails
+      )
+      for ((blobKey, value) in initialDataProviderInputs) {
+        dpForwardedStorage.writeBlob(blobKey, value)
+      }
+      logger.info { "DataProvider setup completed" }
+
+      // Setup model provider resources
+      val mpStorageForwarder = PortForwarder(mpPrivateStoragePod, SERVER_PORT)
+      portForwarders.add(mpStorageForwarder)
+      val mpStorageAddress: InetSocketAddress =
+        withContext(Dispatchers.IO) { mpStorageForwarder.start() }
+      val mpStorageChannel =
+        buildMutualTlsChannel(mpStorageAddress.toTarget(), KINGDOM_SIGNING_CERTS)
+          .also { channels.add(it) }
+          .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
+      val mpForwardedStorage = ForwardedStorageClient(
+        ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(mpStorageChannel)
+      )
+      val modelProviderDefaults by lazy {
+        DaemonStorageClientDefaults(
+          mpForwardedStorage,
+          "",
+          FakeTinkKeyStorageProvider()
+        )
+      }
+      modelProviderDefaults.validExchangeWorkflows.put(
+        panelMatchResourceKey.recurringExchangeKey.recurringExchangeId,
+        workflow.toByteString()
+      )
+      modelProviderDefaults.rootCertificates.put(
+        panelMatchResourceKey.modelProviderKey.toName(),
+        TestCertificateManager.CERTIFICATE.encoded.toByteString()
+      )
+      val mpPrivateForwarderStorage = forwardedStorage {
+        target = mpPrivateStoragePod.status?.podIP + ":8443"
+        certCollectionPath = "/var/run/secrets/files/edp_trusted_certs.pem"
+        forwardedStorageCertHost = "localhost"
+      }
+      val modelProviderPrivateStorageDetails = storageDetails {
+        custom = customStorage {
+          details = pack(mpPrivateForwarderStorage)
+        }
+        visibility = StorageDetails.Visibility.PRIVATE
+      }
+      modelProviderDefaults.privateStorageInfo.put(
+        panelMatchResourceKey.recurringExchangeKey.recurringExchangeId,
+        modelProviderPrivateStorageDetails
+      )
+      val mpSharedForwarderStorage = forwardedStorage {
+        target = sharedStoragePod.status?.podIP + ":8443"
+        certCollectionPath = "/var/run/secrets/files/edp_trusted_certs.pem"
+        forwardedStorageCertHost = "localhost"
+      }
+      val modelProviderSharedStorageDetails = storageDetails {
+        custom = customStorage {
+          details = pack(mpSharedForwarderStorage)
+        }
+        visibility = StorageDetails.Visibility.SHARED
+      }
+      modelProviderDefaults.sharedStorageInfo.put(
+        panelMatchResourceKey.recurringExchangeKey.recurringExchangeId,
+        modelProviderSharedStorageDetails
+      )
+      for ((blobKey, value) in initialModelProviderInputs) {
+        mpForwardedStorage.writeBlob(blobKey, value)
+      }
+
+      val akidPrincipalMap = outputDir.resolve(AKID_PRINCIPAL_MAP_FILE)
+      loadDpDaemonForPanelMatch(k8sClient, panelMatchResourceKey.dataProviderKey, akidPrincipalMap)
+      loadMpDaemonForPanelMatch(k8sClient, panelMatchResourceKey.modelProviderKey, akidPrincipalMap)
+
       for (channel in channels) {
         channel.shutdown()
       }
@@ -356,9 +307,46 @@ abstract class AbstractPanelMatchCorrectnessTest {
       }
     }
 
-    logger.info { "------------------------------------- EXIT" }
+  }
+
+  protected suspend fun runTest() {
+
+    PortForwarder(getPod(KINGDOM_PUBLIC_DEPLOYMENT_NAME),
+      SERVER_PORT
+    ).use { publicForward ->
+      val publicAddress: InetSocketAddress =
+        withContext(Dispatchers.IO) { publicForward.start() }
+
+      val publicChannel =
+        buildMutualTlsChannel(
+          publicAddress.toTarget(),
+          EDP_SIGNING_CERTS,
+        )
+
+      val exchangeClient = ExchangesGrpcKt.ExchangesCoroutineStub(publicChannel)
+      val exchangeStepsClient = ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub(publicChannel)
+      while (!isDone(exchangeClient, exchangeStepsClient)) {
+        delay(5000)
+      }
+      validate()
+
+      publicChannel.shutdown()
+      publicForward.stop()
+    }
+
 
   }
+
+  protected suspend fun getPod(deploymentName: String): V1Pod {
+    return k8sClient
+        .listPodsByMatchLabels(
+          k8sClient.waitUntilDeploymentReady(deploymentName)
+        )
+        .items
+        .first()
+  }
+
+  abstract protected suspend fun validate();
 
   private suspend fun loadDpDaemonForPanelMatch(k8sClient: KubernetesClient, dataProviderKey: DataProviderKey, akidPrincipalMap: File) {
     withContext(Dispatchers.IO) {
@@ -368,11 +356,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
           .toFile(), outputDir)
 
       val configFilesDir = outputDir.toPath().resolve(CONFIG_FILES_PATH).toFile()
-      logger.info("================================= configFilesDir: ${configFilesDir}")
-      logger.info("================================= akidPrincipalMap: ${akidPrincipalMap}")
-      logger.info("Copying AKID $akidPrincipalMap to ${CONFIG_FILES_PATH}")
       akidPrincipalMap.copyTo(configFilesDir.resolve(akidPrincipalMap.name))
-      logger.info("=================== COPIED!!!!")
       val configTemplate: File = outputDir.resolve("config.yaml")
       kustomize(
         outputDir.toPath().resolve(LOCAL_K8S_PANELMATCH_PATH).resolve("edp_daemon").toFile(),
@@ -384,22 +368,20 @@ abstract class AbstractPanelMatchCorrectnessTest {
           .readText(StandardCharsets.UTF_8)
           .replace("{party_name}", dataProviderKey.dataProviderId)
 
-      //logger.info { "----------------------------- CONTENT!" }
-      //logger.info { configContent }
-
       kubectlApply(configContent, k8sClient)
-      delay(1000)
-      logger.info("=================== DELAYYYYYY!!!!")
-      //delay(5000)
     }
   }
 
-  private suspend fun loadMpDaemonForPanelMatch(k8sClient: KubernetesClient, modelProviderKey: ModelProviderKey) {
+  private suspend fun loadMpDaemonForPanelMatch(k8sClient: KubernetesClient, modelProviderKey: ModelProviderKey, akidPrincipalMap: File) {
     withContext(Dispatchers.IO) {
       val outputDir = tempDir.newFolder("mp_daemon")
       extractTar(
         getRuntimePath(LOCAL_K8S_PANELMATCH_PATH.resolve("mp_daemon.tar"))
           .toFile(), outputDir)
+
+      val configFilesDir = outputDir.toPath().resolve(CONFIG_FILES_PATH).toFile()
+      akidPrincipalMap.copyTo(configFilesDir.resolve(akidPrincipalMap.name))
+
       val configTemplate: File = outputDir.resolve("config.yaml")
       kustomize(
         outputDir.toPath().resolve(LOCAL_K8S_PANELMATCH_PATH).resolve("mp_daemon").toFile(),
@@ -414,44 +396,21 @@ abstract class AbstractPanelMatchCorrectnessTest {
     }
   }
 
-  private fun extractTar(archive: File, outputDirectory: File) {
-    Processes.runCommand("tar", "-xf", archive.toString(), "-C", outputDirectory.toString())
-  }
-
-  @Blocking
-  private fun kustomize(kustomizationDir: File, output: File) {
-    Processes.runCommand(
-      "kubectl",
-      "kustomize",
-      kustomizationDir.toString(),
-      "--output",
-      output.toString()
-    )
-  }
-
-  @Blocking
-  private fun kubectlApply(config: String,  k8sClient: KubernetesClient): List<KubernetesObject> {
-    return k8sClient
-      .kubectlApply(config)
-      .onEach { logger.info { "Applied ${it.kind} ${it.metadata.name}" } }
-      .toList()
-  }
-
   private suspend fun isDone(exchangesClient: ExchangesGrpcKt.ExchangesCoroutineStub, exchangeStepsClient: ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub): Boolean {
-    logger.info { "------------------------------------- IS DONE 1" }
     val request = getExchangeRequest { name = exchangeKey.toName() }
     logger.info { "------------------------------------- IS DONE 2" }
     return try {
-      logger.info { "------------------------------------- IS DONE 3 (request): ${request}" }
       val exchange = exchangesClient.getExchange(request)
-      logger.info { "------------------------------------- IS DONE 4" }
+      logger.info { "------------------------------------- IS DONE 3" }
       val steps = getSteps(exchangeStepsClient)
-      //logStepStates(steps)
-      //assertNotDeadlocked(steps)
-
+      logger.info { "------------------------------------- IS DONE 4" }
+      assertNotDeadlocked(steps)
+      logger.info { "------------------------------------- IS DONE 5" }
       logger.info("Exchange is in state: ${exchange.state}.")
       exchange.state in TERMINAL_EXCHANGE_STATES
+
     } catch (e: StatusException) {
+      logger.severe { "${e}" }
       false
     }
   }
@@ -469,30 +428,43 @@ abstract class AbstractPanelMatchCorrectnessTest {
       .sortedBy { step -> step.stepIndex }
   }
 
-  class LocalSystem(k8sClient: Lazy<KubernetesClient>, tempDir: Lazy<TemporaryFolder>) : TestRule {
-    private val portForwarders = mutableListOf<PortForwarder>()
-    private val channels = mutableListOf<ManagedChannel>()
+  private fun assertNotDeadlocked(steps: Iterable<ExchangeStep>) {
+    if (steps.any { it.state !in TERMINAL_STEP_STATES }) {
+      Truth.assertThat(steps.any { it.state in READY_STEP_STATES }).isTrue()
+    }
+  }
 
+  class Images : TestRule {
+    override fun apply(base: Statement, description: Description): Statement {
+      return object : Statement() {
+        override fun evaluate() {
+          pushImages()
+          base.evaluate()
+        }
+      }
+    }
+
+    private fun pushImages() {
+      val pusherRuntimePath = getRuntimePath(IMAGE_PUSHER_PATH)
+      Processes.runCommand(pusherRuntimePath.toString())
+      val panelMatchPusherRuntimePath = getRuntimePath(IMAGE_PANEL_MATCH_PUSHER_PATH)
+      Processes.runCommand(panelMatchPusherRuntimePath.toString())
+    }
+  }
+
+  class LocalSystem(k8sClient: Lazy<KubernetesClient>, tempDir: Lazy<TemporaryFolder>) : TestRule {
     private val k8sClient: KubernetesClient by k8sClient
     private val tempDir: TemporaryFolder by tempDir
-    /*override val runId: String by runId
-    private lateinit var _testHarness: MeasurementConsumerSimulator
-    override val testHarness: MeasurementConsumerSimulator
-      get() = _testHarness*/
 
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
         override fun evaluate() {
-          try {
-            runBlocking {
-              withTimeout(Duration.ofMinutes(5)) {
-                populateCluster()
-              }
+          runBlocking {
+            withTimeout(Duration.ofMinutes(5)) {
+              populateCluster()
             }
-            base.evaluate()
-          } finally {
-            stopPortForwarding()
           }
+          base.evaluate()
         }
       }
     }
@@ -508,11 +480,6 @@ abstract class AbstractPanelMatchCorrectnessTest {
       k8sClient.waitForServiceAccount("default", timeout = READY_TIMEOUT)
 
       loadKingdomForPanelMatch()
-
-      //val edpEntityContent = createEntityContent("edp1")
-      //runResourceSetup(edpEntityContent)
-
-
     }
 
     private suspend fun loadKingdomForPanelMatch() {
@@ -526,47 +493,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
           outputDir.toPath().resolve(LOCAL_K8S_PATH).resolve("kingdom_for_panelmatch_setup").toFile(),
           config
         )
-        kubectlApply(config)
-      }
-    }
-
-    private fun extractTar(archive: File, outputDirectory: File) {
-      Processes.runCommand("tar", "-xf", archive.toString(), "-C", outputDirectory.toString())
-    }
-
-    @Blocking
-    private fun kustomize(kustomizationDir: File, output: File) {
-      Processes.runCommand(
-        "kubectl",
-        "kustomize",
-        kustomizationDir.toString(),
-        "--output",
-        output.toString()
-      )
-    }
-
-    @Blocking
-    private fun kubectlApply(config: File): List<KubernetesObject> {
-      return k8sClient
-        .kubectlApply(config)
-        .onEach { logger.info { "Applied ${it.kind} ${it.metadata.name}" } }
-        .toList()
-    }
-
-    @Blocking
-    private fun kubectlApply(config: String): List<KubernetesObject> {
-      return k8sClient
-        .kubectlApply(config)
-        .onEach { logger.info { "Applied ${it.kind} ${it.metadata.name}" } }
-        .toList()
-    }
-
-    fun stopPortForwarding() {
-      for (channel in channels) {
-        channel.shutdown()
-      }
-      for (portForwarder in portForwarders) {
-        portForwarder.close()
+        kubectlApply(config, k8sClient)
       }
     }
 
@@ -581,36 +508,20 @@ abstract class AbstractPanelMatchCorrectnessTest {
 
     val logger = Logger.getLogger(this::class.java.name)
 
-    private const val KINGDOM_INTERNAL_DEPLOYMENT_NAME = "gcp-kingdom-data-server-deployment"
-    private const val KINGDOM_PUBLIC_DEPLOYMENT_NAME = "v2alpha-public-api-server-deployment"
-    private const val MP_PRIVATE_STORAGE_DEPLOYMENT_NAME = "mp-private-storage-server-deployment"
-    private const val DP_PRIVATE_STORAGE_DEPLOYMENT_NAME = "dp-private-storage-server-deployment"
-    private const val SHARED_STORAGE_DEPLOYMENT_NAME = "shared-storage-server-deployment"
-    private const val SERVER_PORT: Int = 8443
-    private const val API_VERSION = "v2alpha"
-    private const val SCHEDULE = "@daily"
-    private val typeRegistry =
-      TypeRegistry.newBuilder().add(Shared.Parameters.getDescriptor()).build()
-
-    val EXCHANGE_DATE: LocalDate = LocalDate.now()
-
-    private val DEFAULT_RPC_DEADLINE = Duration.ofSeconds(30)
-    /*private val DEFAULT_RPC_DEADLINE = Duration.ofSeconds(30)
-    private const val NUM_DATA_PROVIDERS = 6
-    private val EDP_DISPLAY_NAMES: List<String> = (1..NUM_DATA_PROVIDERS).map { "edp$it" }*/
     private val READY_TIMEOUT = Duration.ofMinutes(2L)
 
     private val WORKSPACE_PATH: Path = Paths.get("wfa_measurement_system")
     private val LOCAL_K8S_PATH = Paths.get("src", "main", "k8s", "local")
     private val LOCAL_K8S_PANELMATCH_PATH = Paths.get("src", "main", "k8s", "panelmatch", "local")
-    private val LOCAL_K8S_TESTING_PATH = LOCAL_K8S_PANELMATCH_PATH.resolve("testing")
     private val CONFIG_FILES_PATH = LOCAL_K8S_PANELMATCH_PATH.resolve("config_files")
+
     private val IMAGE_PUSHER_PATH = Paths.get("src", "main", "docker", "push_all_local_images")
     private val IMAGE_PANEL_MATCH_PUSHER_PATH = Paths.get("src", "main", "docker", "panel_exchange_client", "push_all_images")
     private val TEST_DATA_PATH =
       Paths.get("wfa_measurement_system", "src", "main", "k8s", "panelmatch", "testing", "data")
 
     val SECRET_FILES_PATH: Path = Paths.get("src", "main", "k8s", "testing", "secretfiles")
+    val PANELMATCH_SECRET_FILES_PATH: Path = Paths.get("src", "main", "k8s", "panelmatch", "testing", "secretfiles")
 
     val KINGDOM_SIGNING_CERTS: SigningCerts by lazy {
       val secretFiles =
@@ -618,6 +529,15 @@ abstract class AbstractPanelMatchCorrectnessTest {
       val trustedCerts = secretFiles.resolve("kingdom_root.pem").toFile()
       val cert = secretFiles.resolve("kingdom_tls.pem").toFile()
       val key = secretFiles.resolve("kingdom_tls.key").toFile()
+      SigningCerts.fromPemFiles(cert, key, trustedCerts)
+    }
+
+    val EDP_SIGNING_CERTS: SigningCerts by lazy {
+      val secretFiles =
+        getRuntimePath(PANELMATCH_SECRET_FILES_PATH)
+      val trustedCerts = secretFiles.resolve("edp_trusted_certs.pem").toFile()
+      val cert = secretFiles.resolve("edp1_tls.pem").toFile()
+      val key = secretFiles.resolve("edp1_tls.key").toFile()
       SigningCerts.fromPemFiles(cert, key, trustedCerts)
     }
 
@@ -641,32 +561,6 @@ abstract class AbstractPanelMatchCorrectnessTest {
     @JvmField
     val chainedRule = chainRulesSequentially(tempDir, Images(), localSystem)
 
-    /*private suspend fun EventGroupsGrpcKt.EventGroupsCoroutineStub.waitForEventGroups(
-      measurementConsumer: String,
-      apiKey: String
-    ) {
-      logger.info { "Waiting for all event groups to be created..." }
-      while (currentCoroutineContext().isActive) {
-        val eventGroups =
-          withAuthenticationKey(apiKey)
-            .listEventGroups(
-              listEventGroupsRequest {
-                parent = measurementConsumer
-                filter =
-                  ListEventGroupsRequestKt.filter { measurementConsumers += measurementConsumer }
-              }
-            )
-            .eventGroupsList
-        // Each EDP simulator creates one event group, so we wait until there are as many event
-        // groups as EDP simulators.
-        if (eventGroups.size == NUM_DATA_PROVIDERS) {
-          logger.info { "All event groups created" }
-          return
-        }
-        delay(Duration.ofSeconds(1))
-      }
-    }*/
-
     fun getRuntimePath(workspaceRelativePath: Path): Path {
       return checkNotNull(
         org.wfanet.measurement.common.getRuntimePath(WORKSPACE_PATH.resolve(workspaceRelativePath))
@@ -680,20 +574,40 @@ abstract class AbstractPanelMatchCorrectnessTest {
       }
     }
 
-    /*private suspend fun KubernetesClient.waitUntilDeploymentReady(
-      deployment: V1Deployment
-    ): V1Deployment {
-      val deploymentName = requireNotNull(deployment.metadata?.name)
-      logger.info { "Waiting for Deployment $deploymentName to be ready..." }
-      return waitUntilDeploymentReady(deployment, timeout = READY_TIMEOUT).also {
-        logger.info { "Deployment $deploymentName ready" }
-      }
-    }*/
-  }
+    @Blocking
+    private fun kubectlApply(config: String,  k8sClient: KubernetesClient): List<KubernetesObject> {
+      return k8sClient
+        .kubectlApply(config)
+        .onEach { logger.info { "Applied ${it.kind} ${it.metadata.name}" } }
+        .toList()
+    }
 
+    @Blocking
+    private fun kubectlApply(config: File,  k8sClient: KubernetesClient): List<KubernetesObject> {
+      return k8sClient
+        .kubectlApply(config)
+        .onEach { logger.info { "Applied ${it.kind} ${it.metadata.name}" } }
+        .toList()
+    }
+
+    @Blocking
+    private fun kustomize(kustomizationDir: File, output: File) {
+      Processes.runCommand(
+        "kubectl",
+        "kustomize",
+        kustomizationDir.toString(),
+        "--output",
+        output.toString()
+      )
+    }
+
+    private fun extractTar(archive: File, outputDirectory: File) {
+      Processes.runCommand("tar", "-xf", archive.toString(), "-C", outputDirectory.toString())
+    }
+
+  }
 }
 
-private fun InetSocketAddress.toTarget(): String {
-  AbstractPanelMatchCorrectnessTest.logger.info { "=========================================== TARGET: ${hostName} - ${port}" }
+fun InetSocketAddress.toTarget(): String {
   return "$hostName:$port"
 }

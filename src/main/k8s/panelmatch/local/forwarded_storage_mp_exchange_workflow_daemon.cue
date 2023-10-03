@@ -42,14 +42,14 @@ deployments: {
 			image:          _localStorageImageConfig.image
 			imagePullPolicy: "Always"
 			args:           _exchangeDaemonConfig.args + [
-						"--cert-collection-file=/var/run/secrets/files/trusted_certs.pem",
+						"--cert-collection-file=/var/run/secrets/files/edp_trusted_certs.pem",
 						"--storage-signing-algorithm=EC",
 						"--task-timeout=10m",
 						"--exchange-api-target=" + #KingdomPublicApiTarget,
 						"--exchange-api-cert-host=localhost",
-						"--debug-verbose-grpc-client-logging=\(#DebugVerboseGrpcLogging)",
+						"--debug-verbose-grpc-client-logging=true",
 						"--channel-shutdown-timeout=3s",
-						"--polling-interval=1m",
+						"--polling-interval=3s",
 						"--preprocessing-max-byte-size=1000000",
                         "--preprocessing-file-count=1000",
                         "--forwarded-storage-service-target=" + (#Target & {name: "mp-private-storage-server"}).target,

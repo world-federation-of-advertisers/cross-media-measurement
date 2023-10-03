@@ -15,6 +15,14 @@ filegroup(
     srcs = glob(["*_root.pem"]),
 )
 
+filegroup(
+    name = "edp_trusted_certs",
+    srcs = [
+        "kingdom_root.pem",
+        "edp1_root.pem",
+    ],
+)
+
 genrule(
     name = "gen_trusted_certs",
     srcs = [":root_certs"],
@@ -22,12 +30,21 @@ genrule(
     cmd = "cat $(SRCS) > $@",
 )
 
+genrule(
+    name = "gen_edp_trusted_certs",
+    srcs = [":edp_trusted_certs"],
+    outs = ["edp_trusted_certs.pem"],
+    cmd = "cat $(SRCS) > $@",
+)
+
 SECRET_FILES = [
     "edp1_tls.key",
     "edp1_tls.pem",
+    "edp1_root.pem",
     "mp1_tls.key",
     "mp1_tls.pem",
     "trusted_certs.pem",
+    "edp_trusted_certs.pem",
 ]
 
 filegroup(
