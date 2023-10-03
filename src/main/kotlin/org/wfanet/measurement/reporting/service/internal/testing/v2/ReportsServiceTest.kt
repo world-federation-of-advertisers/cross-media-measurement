@@ -1264,9 +1264,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
               StreamReportsRequestKt.filter {
                 cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
                 after =
-                  StreamReportsRequestKt.afterFilter {
-                    createTime = createdReport2.createTime
-                  }
+                  StreamReportsRequestKt.afterFilter { createTime = createdReport2.createTime }
               }
           }
         )
@@ -1287,13 +1285,14 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
       usePeriodicTimeInterval = false,
       "external-report-id"
     )
-    val createdReport2 = createReport(
-      CMMS_MEASUREMENT_CONSUMER_ID,
-      service,
-      reportingSetsService,
-      usePeriodicTimeInterval = false,
-      "external-report-id2"
-    )
+    val createdReport2 =
+      createReport(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        service,
+        reportingSetsService,
+        usePeriodicTimeInterval = false,
+        "external-report-id2"
+      )
 
     val retrievedReports =
       service.streamReports(
