@@ -60,6 +60,14 @@ filegroup(
 )
 
 filegroup(
+    name = "mp_trusted_certs",
+    srcs = [
+        "kingdom_root.pem",
+        "mp1_root.pem",
+    ],
+)
+
+filegroup(
     name = "encryption_public_keys",
     srcs = [
         ":mc_enc_public.pb",
@@ -89,6 +97,13 @@ genrule(
 )
 
 genrule(
+    name = "gen_mp_trusted_certs",
+    srcs = [":mp_trusted_certs"],
+    outs = ["mp_trusted_certs.pem"],
+    cmd = "cat $(SRCS) > $@",
+)
+
+genrule(
     name = "gen_serialized_mc_public_key",
     srcs = ["mc_enc_public.tink"],
     outs = ["mc_enc_public.pb"],
@@ -111,6 +126,7 @@ genrule(
 SECRET_FILES = [
     "all_root_certs.pem",
     "edp_trusted_certs.pem",
+    "mp_trusted_certs.pem",
     "kingdom_root.pem",
     "kingdom_tls.key",
     "kingdom_tls.pem",
