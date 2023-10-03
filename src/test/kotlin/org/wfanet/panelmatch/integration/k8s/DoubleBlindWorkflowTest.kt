@@ -118,7 +118,7 @@ class DoubleBlindWorkflowTest : AbstractPanelMatchCorrectnessTest() {
       val mpStorageAddress: InetSocketAddress =
         withContext(Dispatchers.IO) { mpStorageForwarder.start() }
       val mpStorageChannel =
-        buildMutualTlsChannel(mpStorageAddress.toTarget(), KINGDOM_SIGNING_CERTS)
+        buildMutualTlsChannel(mpStorageAddress.toTarget(), MP_SIGNING_CERTS)
       val mpForwardedStorage = ForwardedStorageClient(
         ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(mpStorageChannel)
       )

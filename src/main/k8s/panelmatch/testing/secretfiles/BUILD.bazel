@@ -23,6 +23,14 @@ filegroup(
     ],
 )
 
+filegroup(
+     name = "mp_trusted_certs",
+     srcs = [
+         "kingdom_root.pem",
+         "mp1_root.pem",
+     ],
+ )
+
 genrule(
     name = "gen_trusted_certs",
     srcs = [":root_certs"],
@@ -37,6 +45,13 @@ genrule(
     cmd = "cat $(SRCS) > $@",
 )
 
+genrule(
+    name = "gen_mp_trusted_certs",
+    srcs = [":mp_trusted_certs"],
+    outs = ["mp_trusted_certs.pem"],
+    cmd = "cat $(SRCS) > $@",
+)
+
 SECRET_FILES = [
     "edp1_tls.key",
     "edp1_tls.pem",
@@ -45,6 +60,7 @@ SECRET_FILES = [
     "mp1_tls.pem",
     "trusted_certs.pem",
     "edp_trusted_certs.pem",
+    "mp_trusted_certs.pem",
 ]
 
 filegroup(

@@ -17,6 +17,7 @@ kt_jvm_library(
         "//src/main/k8s/testing/secretfiles:secret_files",
         "//src/main/k8s/panelmatch/testing/secretfiles:secret_files",
         "//src/main/k8s/panelmatch/testing/secretfiles:edp_trusted_certs.pem",
+        "//src/main/k8s/panelmatch/testing/secretfiles:mp_trusted_certs.pem",
         "//src/main/k8s/panelmatch/testing/data:exchange_workflow",
     ],
     deps = [

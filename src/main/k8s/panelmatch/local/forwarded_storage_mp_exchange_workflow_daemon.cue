@@ -42,7 +42,7 @@ deployments: {
 			image:          _localStorageImageConfig.image
 			imagePullPolicy: "Always"
 			args:           _exchangeDaemonConfig.args + [
-						"--cert-collection-file=/var/run/secrets/files/edp_trusted_certs.pem",
+						"--cert-collection-file=/var/run/secrets/files/mp_trusted_certs.pem",
 						"--storage-signing-algorithm=EC",
 						"--task-timeout=10m",
 						"--exchange-api-target=" + #KingdomPublicApiTarget,

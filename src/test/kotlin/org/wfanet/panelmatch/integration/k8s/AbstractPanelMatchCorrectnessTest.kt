@@ -240,7 +240,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
       val mpStorageAddress: InetSocketAddress =
         withContext(Dispatchers.IO) { mpStorageForwarder.start() }
       val mpStorageChannel =
-        buildMutualTlsChannel(mpStorageAddress.toTarget(), KINGDOM_SIGNING_CERTS)
+        buildMutualTlsChannel(mpStorageAddress.toTarget(), MP_SIGNING_CERTS)
           .also { channels.add(it) }
           .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
       val mpForwardedStorage = ForwardedStorageClient(
@@ -263,7 +263,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
       )
       val mpPrivateForwarderStorage = forwardedStorage {
         target = mpPrivateStoragePod.status?.podIP + ":8443"
-        certCollectionPath = "/var/run/secrets/files/edp_trusted_certs.pem"
+        certCollectionPath = "/var/run/secrets/files/mp_trusted_certs.pem"
         forwardedStorageCertHost = "localhost"
       }
       val modelProviderPrivateStorageDetails = storageDetails {
@@ -278,7 +278,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
       )
       val mpSharedForwarderStorage = forwardedStorage {
         target = sharedStoragePod.status?.podIP + ":8443"
-        certCollectionPath = "/var/run/secrets/files/edp_trusted_certs.pem"
+        certCollectionPath = "/var/run/secrets/files/mp_trusted_certs.pem"
         forwardedStorageCertHost = "localhost"
       }
       val modelProviderSharedStorageDetails = storageDetails {
@@ -320,7 +320,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
       val publicChannel =
         buildMutualTlsChannel(
           publicAddress.toTarget(),
-          EDP_SIGNING_CERTS,
+          MP_SIGNING_CERTS,
         )
 
       val exchangeClient = ExchangesGrpcKt.ExchangesCoroutineStub(publicChannel)
@@ -398,19 +398,14 @@ abstract class AbstractPanelMatchCorrectnessTest {
 
   private suspend fun isDone(exchangesClient: ExchangesGrpcKt.ExchangesCoroutineStub, exchangeStepsClient: ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub): Boolean {
     val request = getExchangeRequest { name = exchangeKey.toName() }
-    logger.info { "------------------------------------- IS DONE 2" }
     return try {
       val exchange = exchangesClient.getExchange(request)
-      logger.info { "------------------------------------- IS DONE 3" }
       val steps = getSteps(exchangeStepsClient)
-      logger.info { "------------------------------------- IS DONE 4" }
       assertNotDeadlocked(steps)
-      logger.info { "------------------------------------- IS DONE 5" }
       logger.info("Exchange is in state: ${exchange.state}.")
       exchange.state in TERMINAL_EXCHANGE_STATES
 
     } catch (e: StatusException) {
-      logger.severe { "${e}" }
       false
     }
   }
@@ -538,6 +533,15 @@ abstract class AbstractPanelMatchCorrectnessTest {
       val trustedCerts = secretFiles.resolve("edp_trusted_certs.pem").toFile()
       val cert = secretFiles.resolve("edp1_tls.pem").toFile()
       val key = secretFiles.resolve("edp1_tls.key").toFile()
+      SigningCerts.fromPemFiles(cert, key, trustedCerts)
+    }
+
+    val MP_SIGNING_CERTS: SigningCerts by lazy {
+      val secretFiles =
+        getRuntimePath(PANELMATCH_SECRET_FILES_PATH)
+      val trustedCerts = secretFiles.resolve("mp_trusted_certs.pem").toFile()
+      val cert = secretFiles.resolve("mp1_tls.pem").toFile()
+      val key = secretFiles.resolve("mp1_tls.key").toFile()
       SigningCerts.fromPemFiles(cert, key, trustedCerts)
     }
 
