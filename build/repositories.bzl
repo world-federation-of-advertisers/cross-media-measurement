@@ -38,11 +38,12 @@ def wfa_measurement_system_repositories():
         version = "0.10.0",
     )
 
+    # TODO: Update with latest version before merge
     wfa_repo_archive(
         name = "wfa_measurement_proto",
         repo = "cross-media-measurement-api",
-        sha256 = "2106c2fd73775f5b0ad8d02c0ac01761b497920b363e1c90f12663d5321f5873",
-        version = "0.43.0",
+        sha256 = "91e03fd1a6e7082babcfd9a53ee18869fd27781d1150ad85c2f8b2093d606237",
+        commit = "f1439bb5e95dbe756905224f8cf55ce0a0861cfa",
     )
 
     wfa_repo_archive(

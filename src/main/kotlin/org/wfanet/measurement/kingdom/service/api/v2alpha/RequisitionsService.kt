@@ -64,6 +64,7 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.common.Provider
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
+import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.resultCertificate
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.Requisition.DuchyValue
 import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
@@ -235,6 +236,12 @@ class RequisitionsService(
       directParams = directRequisitionParams {
         externalDataProviderId = apiIdToExternalId(key.dataProviderId)
         encryptedData = request.encryptedData
+      }
+      if (request.certificate.isNotEmpty()) {
+        val dataProviderCertificateKey = DataProviderCertificateKey.fromName(request.certificate)!!
+        certificate = resultCertificate {
+          externalCertificateId = apiIdToExternalId(dataProviderCertificateKey.certificateId)
+        }
       }
     }
     try {

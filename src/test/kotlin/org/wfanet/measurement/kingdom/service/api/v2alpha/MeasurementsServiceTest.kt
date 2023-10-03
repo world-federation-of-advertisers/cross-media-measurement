@@ -121,6 +121,8 @@ import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 private const val DEFAULT_LIMIT = 50
 private const val DATA_PROVIDERS_CERTIFICATE_NAME =
   "dataProviders/AAAAAAAAAHs/certificates/AAAAAAAAAHs"
+private const val DATA_PROVIDERS_RESULT_CERTIFICATE_NAME =
+  "dataProviders/AAAAAAAAALs/certificates/AAAAAAAAALs"
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val MEASUREMENT_CONSUMER_NAME_2 = "measurementConsumers/BBBBBBBBBHs"
 private const val MEASUREMENT_NAME = "$MEASUREMENT_CONSUMER_NAME/measurements/AAAAAAAAAHs"
@@ -1941,7 +1943,7 @@ class MeasurementsServiceTest {
         message = "Measurement Consumer Certificate has been revoked"
       }
       results += resultPair {
-        certificate = DATA_PROVIDERS_CERTIFICATE_NAME
+        certificate = DATA_PROVIDERS_RESULT_CERTIFICATE_NAME
         encryptedResult = ENCRYPTED_DATA
       }
       results += resultPair {
@@ -2000,11 +2002,11 @@ class MeasurementsServiceTest {
       results += resultInfo {
         externalDataProviderId =
           apiIdToExternalId(
-            DataProviderCertificateKey.fromName(DATA_PROVIDERS_CERTIFICATE_NAME)!!.dataProviderId
+            DataProviderCertificateKey.fromName(DATA_PROVIDERS_RESULT_CERTIFICATE_NAME)!!.dataProviderId
           )
         externalCertificateId =
           apiIdToExternalId(
-            DataProviderCertificateKey.fromName(DATA_PROVIDERS_CERTIFICATE_NAME)!!.certificateId
+            DataProviderCertificateKey.fromName(DATA_PROVIDERS_RESULT_CERTIFICATE_NAME)!!.certificateId
           )
         encryptedResult = ENCRYPTED_DATA
       }

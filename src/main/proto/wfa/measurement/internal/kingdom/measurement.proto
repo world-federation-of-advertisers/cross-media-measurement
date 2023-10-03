@@ -264,6 +264,13 @@ message Requisition {
     // `measurement_spec` `measurement_type` of the Parent
     // `Measurement` is Impression or Duration.
     bytes encrypted_data = 7;
+
+    // Used to verify Measurement.Result. If not present,
+    // `data_provider_certificate` should be used.
+    message ResultCertificate {
+      fixed64 data_provider_certificate_id = 1;
+    }
+    ResultCertificate certificate = 8;
   }
   Details details = 10;
 

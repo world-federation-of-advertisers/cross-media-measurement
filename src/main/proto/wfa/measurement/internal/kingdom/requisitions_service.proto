@@ -88,6 +88,12 @@ message FulfillRequisitionRequest {
     ComputedRequisitionParams computed_params = 3;
     DirectRequisitionParams direct_params = 4;
   }
+
+  message ResultCertificate {
+    fixed64 external_certificate_id = 1;
+  }
+
+  ResultCertificate certificate = 5;
 }
 
 message RefuseRequisitionRequest {
