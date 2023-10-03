@@ -548,7 +548,6 @@ class EdpSimulatorTest {
                       samplingIndicatorSize = 10_000_000
                     }
                     ellipticCurveId = 415
-                    maximumFrequency = 12
                   }
               }
           }
