@@ -18,18 +18,18 @@ filegroup(
 filegroup(
     name = "edp_trusted_certs",
     srcs = [
-        "kingdom_root.pem",
         "edp1_root.pem",
+        "kingdom_root.pem",
     ],
 )
 
 filegroup(
-     name = "mp_trusted_certs",
-     srcs = [
-         "kingdom_root.pem",
-         "mp1_root.pem",
-     ],
- )
+    name = "mp_trusted_certs",
+    srcs = [
+        "kingdom_root.pem",
+        "mp1_root.pem",
+    ],
+)
 
 genrule(
     name = "gen_trusted_certs",

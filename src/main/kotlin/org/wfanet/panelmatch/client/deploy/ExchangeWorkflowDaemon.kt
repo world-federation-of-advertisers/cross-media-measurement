@@ -19,7 +19,6 @@ import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.Throttler
-import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.common.Identity
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.launcher.ApiClient

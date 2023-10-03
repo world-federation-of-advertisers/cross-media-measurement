@@ -18,8 +18,6 @@ import java.time.Clock
 import org.apache.beam.sdk.options.PipelineOptions
 import org.apache.beam.sdk.options.PipelineOptionsFactory
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.grpc.TlsFlags
-import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.forwarded.ForwardedStorageFromFlags
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
 import org.wfanet.panelmatch.client.deploy.ExchangeWorkflowDaemonFromFlags
@@ -36,9 +34,8 @@ import org.wfanet.panelmatch.common.storage.StorageFactory
 import org.wfanet.panelmatch.common.storage.testing.FakeTinkKeyStorageProvider
 import picocli.CommandLine
 
-class ForwardedStorageExchangeWorkflowDaemon(
-  override val clock: Clock = Clock.systemUTC())
-  : ExchangeWorkflowDaemonFromFlags() {
+class ForwardedStorageExchangeWorkflowDaemon(override val clock: Clock = Clock.systemUTC()) :
+  ExchangeWorkflowDaemonFromFlags() {
 
   @CommandLine.Mixin private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
 
@@ -88,6 +85,4 @@ class ForwardedStorageExchangeWorkflowDaemon(
       commandLineMain(ForwardedStorageExchangeWorkflowDaemon(), args)
     }
   }
-
 }
-

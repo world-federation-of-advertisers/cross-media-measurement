@@ -15,17 +15,15 @@
 package org.wfanet.panelmatch.client.storage.forwarded
 
 import java.io.File
-import java.util.logging.Logger
 import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.grpc.buildTlsChannel
 import org.wfanet.measurement.internal.testing.ForwardedStorageGrpcKt
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.forwarded.ForwardedStorageClient
 import org.wfanet.panelmatch.client.storage.StorageDetails
+import org.wfanet.panelmatch.client.storage.StorageDetails.ForwardedStorage
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.storage.StorageFactory
-import org.wfanet.panelmatch.client.storage.StorageDetails.ForwardedStorage
-import org.wfanet.panelmatch.common.storage.withPrefix
 
 class ForwardedStorageFactory(
   private val storageDetails: StorageDetails,
@@ -35,7 +33,7 @@ class ForwardedStorageFactory(
   override fun build(): StorageClient {
 
     val forwardedStorage = storageDetails.custom.details.unpack(ForwardedStorage::class.java)
-     return ForwardedStorageClient(
+    return ForwardedStorageClient(
       ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(
         buildTlsChannel(
           forwardedStorage.target,
@@ -45,6 +43,4 @@ class ForwardedStorageFactory(
       )
     )
   }
-
 }
-
