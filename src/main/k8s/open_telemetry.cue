@@ -14,6 +14,8 @@
 
 package k8s
 
+import "encoding/yaml"
+
 // K8s custom resource defined by OpenTelemetry Operator used for creating
 // an OpenTelemetry Collector.
 #OpenTelemetryCollector: {
@@ -40,24 +42,45 @@ package k8s
 }
 
 #OpenTelemetry: {
-	_serviceAccount?: string
-	_sampler?: {...}
+	_defaultCollectorConfig: {
+		receivers: {
+			otlp:
+				protocols:
+					grpc:
+						endpoint: "0.0.0.0:\(#OpenTelemetryReceiverPort)"
+		}
 
-	_exporters:        string | *"""
-exporters:
-  prometheus:
-    send_timestamps: true
-    endpoint: 0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)
-    resource_to_telemetry_conversion:
-      enabled: true
-"""
-	_serviceExporters: string | *"[prometheus]"
+		processors: {
+			batch: {
+				send_batch_size: 200
+				timeout:         "10s"
+			}
+		}
 
-	_extensions:        string | *"""
-		extensions:
-		  health_check:
-		"""
-	_serviceExtensions: string | *"[health_check]"
+		exporters: {...} | *{
+			prometheus: {
+				send_timestamps: true
+				endpoint:        "0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)"
+				resource_to_telemetry_conversion:
+					enabled: true
+			}
+		}
+
+		extensions: {...} | *{
+			health_check: {}
+		}
+
+		service: {
+			extensions: [...] | *["health_check"]
+			pipelines: {
+				metrics: {
+					receivers: ["otlp"]
+					processors: ["batch"]
+					exporters: [...] | *["prometheus"]
+				}
+			}
+		}
+	}
 
 	collectors: [Name=string]: #OpenTelemetryCollector & {
 		metadata: name: Name
@@ -66,33 +89,7 @@ exporters:
 	collectors: {
 		"default": {
 			spec: {
-				if _serviceAccount != _|_ {
-					serviceAccount: _serviceAccount
-				}
-				config: """
-receivers:
-  otlp:
-    protocols:
-      grpc:
-        endpoint: 0.0.0.0:\(#OpenTelemetryReceiverPort)
-
-processors:
-  batch:
-    send_batch_size: 200
-    timeout: 10s
-
-\(_exporters)
-
-\(_extensions)
-
-service:
-  extensions: \(_serviceExtensions)
-  pipelines:
-    metrics:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: \(_serviceExporters)
-"""
+				config: yaml.Marshal(_defaultCollectorConfig)
 			}
 		}
 	}
@@ -103,9 +100,6 @@ service:
 			kind:       "Instrumentation"
 			metadata: name: "open-telemetry-java-agent"
 			spec: {
-				if _sampler != _|_ {
-					sampler: _sampler
-				}
 				env: [
 					{
 						name:  "OTEL_TRACES_EXPORTER"
