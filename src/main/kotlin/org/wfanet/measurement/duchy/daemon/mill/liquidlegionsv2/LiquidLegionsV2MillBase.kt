@@ -15,11 +15,7 @@
 package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2
 
 import com.google.protobuf.ByteString
-import io.grpc.Status
-import io.grpc.StatusException
 import io.opentelemetry.api.OpenTelemetry
-import io.opentelemetry.api.metrics.LongHistogram
-import io.opentelemetry.api.metrics.Meter
 import java.nio.file.Paths
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
@@ -27,82 +23,31 @@ import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
-import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
-import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.consent.client.duchy.encryptResult
-import org.wfanet.measurement.consent.client.duchy.signElgamalPublicKey
 import org.wfanet.measurement.consent.client.duchy.signResult
 import org.wfanet.measurement.consent.client.duchy.verifyDataProviderParticipation
 import org.wfanet.measurement.consent.client.duchy.verifyElGamalPublicKey
-import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_LIB_CPU_DURATION
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
 import org.wfanet.measurement.duchy.daemon.mill.MillBase
-import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.LiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.daemon.utils.ComputationResult
-import org.wfanet.measurement.duchy.daemon.utils.ReachAndFrequencyResult
-import org.wfanet.measurement.duchy.daemon.utils.ReachResult
-import org.wfanet.measurement.duchy.daemon.utils.toAnySketchElGamalPublicKey
-import org.wfanet.measurement.duchy.daemon.utils.toCmmsElGamalPublicKey
-import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaEncryptionPublicKey
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
-import org.wfanet.measurement.duchy.service.internal.computations.outputPathList
-import org.wfanet.measurement.duchy.service.system.v1alpha.advanceComputationHeader
-import org.wfanet.measurement.duchy.toProtocolStage
-import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
 import org.wfanet.measurement.internal.duchy.ComputationDetails.KingdomComputationDetails
-import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
-import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
-import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
-import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR
-import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.NON_AGGREGATOR
-import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.UNKNOWN
-import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.UNRECOGNIZED
-import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorResponse
-import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneRequest
-import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneResponse
-import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseThreeAtAggregatorResponse
-import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseThreeRequest
-import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseThreeResponse
-import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoAtAggregatorResponse
-import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoResponse
-import org.wfanet.measurement.internal.duchy.protocol.CompleteInitializationPhaseRequest
-import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseRequest
-import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseResponse
-import org.wfanet.measurement.internal.duchy.protocol.FlagCountTupleNoiseGenerationParameters
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.Parameters
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
-import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseOneAtAggregatorRequest
-import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseThreeAtAggregatorRequest
-import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseTwoAtAggregatorRequest
-import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseTwoRequest
-import org.wfanet.measurement.internal.duchy.protocol.completeSetupPhaseRequest
-import org.wfanet.measurement.internal.duchy.protocol.flagCountTupleNoiseGenerationParameters
-import org.wfanet.measurement.internal.duchy.protocol.globalReachDpNoiseBaseline
-import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsSketchParameters
-import org.wfanet.measurement.internal.duchy.protocol.perBucketFrequencyDpNoiseBaseline
-import org.wfanet.measurement.internal.duchy.protocol.reachNoiseDifferentialPrivacyParams
-import org.wfanet.measurement.internal.duchy.protocol.registerNoiseGenerationParameters
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
-import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
-import org.wfanet.measurement.system.v1alpha.ConfirmComputationParticipantRequest
-import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
-import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequest
 
 /**
  * Mill works on computations using the LiquidLegionSketchAggregationProtocol.
@@ -125,8 +70,6 @@ import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequ
  * @param maximumAttempts The maximum number of attempts on a computation at the same stage.
  * @param workerStubs A map from other duchies' Ids to their corresponding
  *   computationControlClients, used for passing computation to other duchies.
- * @param cryptoWorker The cryptoWorker that performs the actual computation.
- * @param parallelism The maximum number of threads used for crypto actions.
  */
 abstract class LiquidLegionsV2MillBase(
   millId: String,

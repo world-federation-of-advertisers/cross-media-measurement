@@ -33,10 +33,10 @@ import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
 import org.wfanet.measurement.internal.duchy.copy
 import org.wfanet.measurement.internal.duchy.createComputationRequest
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfigKt
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfigKt
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2Kt
 import org.wfanet.measurement.internal.duchy.protocol.copy

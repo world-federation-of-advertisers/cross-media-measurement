@@ -115,7 +115,8 @@ message ReachOnlyLiquidLegionsSketchAggregationV2 {
     // The list is sorted by the duchy order in the MPC ring, with the first
     // element being the first non-aggregator and the last element being the
     // aggregator.
-    repeated LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant participant = 3;
+    repeated LiquidLegionsSketchAggregationV2.ComputationDetails
+        .ComputationParticipant participant = 3;
 
     message ReachEstimate {
       int64 reach = 1;
