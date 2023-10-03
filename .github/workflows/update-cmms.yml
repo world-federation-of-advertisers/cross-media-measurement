@@ -74,7 +74,7 @@ jobs:
       apply: ${{ inputs.apply }}
 
   update-worker2-duchy:
-    uses: ./.github/workflows/configure-duchy.yml
+    uses: ./.github/workflows/configure-aws-duchy.yml
     needs: [publish-images, terraform]
     with:
       duchy-name: worker2

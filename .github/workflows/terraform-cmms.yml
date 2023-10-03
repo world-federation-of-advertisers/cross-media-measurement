@@ -117,11 +117,14 @@ jobs:
         -backend-config="region=$AWS_REGION"
 
     - name: terraform plan - aws
+      env:
+        POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
       working-directory: ${{ env.AWS_MODULE_PATH }}
       run: >
         terraform plan
         -input=false
         -var="aws_region=$AWS_REGION"
+        -var="postgres_instance_name=$POSTGRES_INSTANCE"
         -out=tfplan
 
     - name: terraform apply - aws
