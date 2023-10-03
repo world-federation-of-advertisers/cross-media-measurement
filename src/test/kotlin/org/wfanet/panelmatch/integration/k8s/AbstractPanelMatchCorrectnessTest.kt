@@ -17,13 +17,10 @@
 package org.wfanet.panelmatch.integration.k8s
 
 import com.google.common.truth.Truth
-import com.google.privatemembership.batch.Shared
 import com.google.protobuf.Any.pack
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
-import com.google.protobuf.TypeRegistry
 import com.google.protobuf.kotlin.toByteString
-import io.grpc.Channel
 import io.grpc.ManagedChannel
 import io.grpc.StatusException
 import io.kubernetes.client.common.KubernetesObject
@@ -76,13 +73,11 @@ import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt
 import org.wfanet.measurement.internal.testing.ForwardedStorageGrpcKt
-import org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourceKeys
 import org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourceSetup
 import org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourceSetup.Companion.AKID_PRINCIPAL_MAP_FILE
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.storage.forwarded.ForwardedStorageClient
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
-import org.wfanet.panelmatch.client.exchangetasks.JoinKeyAndIdCollection
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetailsKt.customStorage
 import org.wfanet.panelmatch.client.storage.StorageDetailsKt.forwardedStorage
@@ -90,9 +85,6 @@ import org.wfanet.panelmatch.client.storage.storageDetails
 import org.wfanet.panelmatch.common.certificates.testing.TestCertificateManager
 import org.wfanet.panelmatch.common.storage.testing.FakeTinkKeyStorageProvider
 import org.wfanet.panelmatch.common.storage.toByteString
-
-
-
 
 abstract class AbstractPanelMatchCorrectnessTest {
 
@@ -138,13 +130,14 @@ abstract class AbstractPanelMatchCorrectnessTest {
     val dpPrivateStoragePod = getPod(DP_PRIVATE_STORAGE_DEPLOYMENT_NAME)
     val sharedStoragePod = getPod(SHARED_STORAGE_DEPLOYMENT_NAME)
 
-    PortForwarder(kingdomInternalPod,
-      SERVER_PORT
-    ).use { internalForward ->
+    PortForwarder(kingdomInternalPod, SERVER_PORT).use { internalForward ->
       val internalAddress: InetSocketAddress =
-        withContext(Dispatchers.IO) { internalForward.start() }.also { portForwarders.add(internalForward) }
+        withContext(Dispatchers.IO) { internalForward.start() }
+          .also { portForwarders.add(internalForward) }
       val internalChannel =
-        buildMutualTlsChannel(internalAddress.toTarget(), KINGDOM_SIGNING_CERTS).also { channels.add(it) }
+        buildMutualTlsChannel(internalAddress.toTarget(), KINGDOM_SIGNING_CERTS).also {
+          channels.add(it)
+        }
 
       val panelMatchResourceSetup =
         PanelMatchResourceSetup(
@@ -153,9 +146,9 @@ abstract class AbstractPanelMatchCorrectnessTest {
           RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub(internalChannel),
           outputDir
         )
-      val panelMatchResourceKey = withContext(Dispatchers.IO) {
-        panelMatchResourceSetup
-          .process(
+      val panelMatchResourceKey =
+        withContext(Dispatchers.IO) {
+          panelMatchResourceSetup.process(
             dataProviderContent,
             modelProviderContent,
             EXCHANGE_DATE.toProtoDate(),
@@ -163,7 +156,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
             SCHEDULE,
             API_VERSION
           )
-      }
+        }
 
       exchangeKey =
         ExchangeKey(
@@ -176,18 +169,15 @@ abstract class AbstractPanelMatchCorrectnessTest {
       val dpStorageAddress: InetSocketAddress =
         withContext(Dispatchers.IO) { dpStorageForwarder.start() }
       val dpStorageChannel =
-      buildMutualTlsChannel(dpStorageAddress.toTarget(), EDP_SIGNING_CERTS)
+        buildMutualTlsChannel(dpStorageAddress.toTarget(), EDP_SIGNING_CERTS)
           .also { channels.add(it) }
           .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
-      val dpForwardedStorage = ForwardedStorageClient(
-        ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(dpStorageChannel)
-      )
-      val dataProviderDefaults by lazy {
-        DaemonStorageClientDefaults(
-          dpForwardedStorage,
-          "",
-          FakeTinkKeyStorageProvider()
+      val dpForwardedStorage =
+        ForwardedStorageClient(
+          ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(dpStorageChannel)
         )
+      val dataProviderDefaults by lazy {
+        DaemonStorageClientDefaults(dpForwardedStorage, "", FakeTinkKeyStorageProvider())
       }
       dataProviderDefaults.validExchangeWorkflows.put(
         panelMatchResourceKey.recurringExchangeKey.recurringExchangeId,
@@ -204,9 +194,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
         forwardedStorageCertHost = "localhost"
       }
       val dataProviderPrivateStorageDetails = storageDetails {
-        custom = customStorage {
-          details = pack(dpPrivateForwarderStorage)
-        }
+        custom = customStorage { details = pack(dpPrivateForwarderStorage) }
         visibility = StorageDetails.Visibility.PRIVATE
       }
       dataProviderDefaults.privateStorageInfo.put(
@@ -220,9 +208,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
         forwardedStorageCertHost = "localhost"
       }
       val dataProviderSharedStorageDetails = storageDetails {
-        custom = customStorage {
-          details = pack(dpSharedForwarderStorage)
-        }
+        custom = customStorage { details = pack(dpSharedForwarderStorage) }
         visibility = StorageDetails.Visibility.SHARED
       }
       dataProviderDefaults.sharedStorageInfo.put(
@@ -243,15 +229,12 @@ abstract class AbstractPanelMatchCorrectnessTest {
         buildMutualTlsChannel(mpStorageAddress.toTarget(), MP_SIGNING_CERTS)
           .also { channels.add(it) }
           .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
-      val mpForwardedStorage = ForwardedStorageClient(
-        ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(mpStorageChannel)
-      )
-      val modelProviderDefaults by lazy {
-        DaemonStorageClientDefaults(
-          mpForwardedStorage,
-          "",
-          FakeTinkKeyStorageProvider()
+      val mpForwardedStorage =
+        ForwardedStorageClient(
+          ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(mpStorageChannel)
         )
+      val modelProviderDefaults by lazy {
+        DaemonStorageClientDefaults(mpForwardedStorage, "", FakeTinkKeyStorageProvider())
       }
       modelProviderDefaults.validExchangeWorkflows.put(
         panelMatchResourceKey.recurringExchangeKey.recurringExchangeId,
@@ -267,9 +250,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
         forwardedStorageCertHost = "localhost"
       }
       val modelProviderPrivateStorageDetails = storageDetails {
-        custom = customStorage {
-          details = pack(mpPrivateForwarderStorage)
-        }
+        custom = customStorage { details = pack(mpPrivateForwarderStorage) }
         visibility = StorageDetails.Visibility.PRIVATE
       }
       modelProviderDefaults.privateStorageInfo.put(
@@ -282,9 +263,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
         forwardedStorageCertHost = "localhost"
       }
       val modelProviderSharedStorageDetails = storageDetails {
-        custom = customStorage {
-          details = pack(mpSharedForwarderStorage)
-        }
+        custom = customStorage { details = pack(mpSharedForwarderStorage) }
         visibility = StorageDetails.Visibility.SHARED
       }
       modelProviderDefaults.sharedStorageInfo.put(
@@ -306,16 +285,12 @@ abstract class AbstractPanelMatchCorrectnessTest {
         portForwarder.stop()
       }
     }
-
   }
 
   protected suspend fun runTest() {
 
-    PortForwarder(getPod(KINGDOM_PUBLIC_DEPLOYMENT_NAME),
-      SERVER_PORT
-    ).use { publicForward ->
-      val publicAddress: InetSocketAddress =
-        withContext(Dispatchers.IO) { publicForward.start() }
+    PortForwarder(getPod(KINGDOM_PUBLIC_DEPLOYMENT_NAME), SERVER_PORT).use { publicForward ->
+      val publicAddress: InetSocketAddress = withContext(Dispatchers.IO) { publicForward.start() }
 
       val publicChannel =
         buildMutualTlsChannel(
@@ -333,27 +308,28 @@ abstract class AbstractPanelMatchCorrectnessTest {
       publicChannel.shutdown()
       publicForward.stop()
     }
-
-
   }
 
   protected suspend fun getPod(deploymentName: String): V1Pod {
     return k8sClient
-        .listPodsByMatchLabels(
-          k8sClient.waitUntilDeploymentReady(deploymentName)
-        )
-        .items
-        .first()
+      .listPodsByMatchLabels(k8sClient.waitUntilDeploymentReady(deploymentName))
+      .items
+      .first()
   }
 
-  abstract protected suspend fun validate();
+  abstract protected suspend fun validate()
 
-  private suspend fun loadDpDaemonForPanelMatch(k8sClient: KubernetesClient, dataProviderKey: DataProviderKey, akidPrincipalMap: File) {
+  private suspend fun loadDpDaemonForPanelMatch(
+    k8sClient: KubernetesClient,
+    dataProviderKey: DataProviderKey,
+    akidPrincipalMap: File
+  ) {
     withContext(Dispatchers.IO) {
       val outputDir = tempDir.newFolder("edp_daemon")
       extractTar(
-        getRuntimePath(LOCAL_K8S_PANELMATCH_PATH.resolve("edp_daemon.tar"))
-          .toFile(), outputDir)
+        getRuntimePath(LOCAL_K8S_PANELMATCH_PATH.resolve("edp_daemon.tar")).toFile(),
+        outputDir
+      )
 
       val configFilesDir = outputDir.toPath().resolve(CONFIG_FILES_PATH).toFile()
       akidPrincipalMap.copyTo(configFilesDir.resolve(akidPrincipalMap.name))
@@ -372,12 +348,17 @@ abstract class AbstractPanelMatchCorrectnessTest {
     }
   }
 
-  private suspend fun loadMpDaemonForPanelMatch(k8sClient: KubernetesClient, modelProviderKey: ModelProviderKey, akidPrincipalMap: File) {
+  private suspend fun loadMpDaemonForPanelMatch(
+    k8sClient: KubernetesClient,
+    modelProviderKey: ModelProviderKey,
+    akidPrincipalMap: File
+  ) {
     withContext(Dispatchers.IO) {
       val outputDir = tempDir.newFolder("mp_daemon")
       extractTar(
-        getRuntimePath(LOCAL_K8S_PANELMATCH_PATH.resolve("mp_daemon.tar"))
-          .toFile(), outputDir)
+        getRuntimePath(LOCAL_K8S_PANELMATCH_PATH.resolve("mp_daemon.tar")).toFile(),
+        outputDir
+      )
 
       val configFilesDir = outputDir.toPath().resolve(CONFIG_FILES_PATH).toFile()
       akidPrincipalMap.copyTo(configFilesDir.resolve(akidPrincipalMap.name))
@@ -396,7 +377,10 @@ abstract class AbstractPanelMatchCorrectnessTest {
     }
   }
 
-  private suspend fun isDone(exchangesClient: ExchangesGrpcKt.ExchangesCoroutineStub, exchangeStepsClient: ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub): Boolean {
+  private suspend fun isDone(
+    exchangesClient: ExchangesGrpcKt.ExchangesCoroutineStub,
+    exchangeStepsClient: ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
+  ): Boolean {
     val request = getExchangeRequest { name = exchangeKey.toName() }
     return try {
       val exchange = exchangesClient.getExchange(request)
@@ -404,19 +388,21 @@ abstract class AbstractPanelMatchCorrectnessTest {
       assertNotDeadlocked(steps)
       logger.info("Exchange is in state: ${exchange.state}.")
       exchange.state in TERMINAL_EXCHANGE_STATES
-
     } catch (e: StatusException) {
       false
     }
   }
 
-  private suspend fun getSteps(exchangeStepsClient: ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub): List<ExchangeStep> {
+  private suspend fun getSteps(
+    exchangeStepsClient: ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
+  ): List<ExchangeStep> {
     return exchangeStepsClient
       .listExchangeSteps(
         listExchangeStepsRequest {
           parent = exchangeKey.toName()
           pageSize = 50
-          filter = ListExchangeStepsRequestKt.filter { exchangeDates += EXCHANGE_DATE.toProtoDate() }
+          filter =
+            ListExchangeStepsRequestKt.filter { exchangeDates += EXCHANGE_DATE.toProtoDate() }
         }
       )
       .exchangeStepsList
@@ -454,11 +440,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
         override fun evaluate() {
-          runBlocking {
-            withTimeout(Duration.ofMinutes(5)) {
-              populateCluster()
-            }
-          }
+          runBlocking { withTimeout(Duration.ofMinutes(5)) { populateCluster() } }
           base.evaluate()
         }
       }
@@ -481,17 +463,21 @@ abstract class AbstractPanelMatchCorrectnessTest {
       withContext(Dispatchers.IO) {
         val outputDir = tempDir.newFolder("kingdom-for-panelmatch-setup")
         extractTar(
-          getRuntimePath(LOCAL_K8S_PATH.resolve("kingdom_for_panelmatch_setup.tar"))
-            .toFile(), outputDir)
+          getRuntimePath(LOCAL_K8S_PATH.resolve("kingdom_for_panelmatch_setup.tar")).toFile(),
+          outputDir
+        )
         val config: File = outputDir.resolve("config.yaml")
         kustomize(
-          outputDir.toPath().resolve(LOCAL_K8S_PATH).resolve("kingdom_for_panelmatch_setup").toFile(),
+          outputDir
+            .toPath()
+            .resolve(LOCAL_K8S_PATH)
+            .resolve("kingdom_for_panelmatch_setup")
+            .toFile(),
           config
         )
         kubectlApply(config, k8sClient)
       }
     }
-
   }
 
   companion object {
@@ -511,16 +497,17 @@ abstract class AbstractPanelMatchCorrectnessTest {
     private val CONFIG_FILES_PATH = LOCAL_K8S_PANELMATCH_PATH.resolve("config_files")
 
     private val IMAGE_PUSHER_PATH = Paths.get("src", "main", "docker", "push_all_local_images")
-    private val IMAGE_PANEL_MATCH_PUSHER_PATH = Paths.get("src", "main", "docker", "panel_exchange_client", "push_all_images")
+    private val IMAGE_PANEL_MATCH_PUSHER_PATH =
+      Paths.get("src", "main", "docker", "panel_exchange_client", "push_all_images")
     private val TEST_DATA_PATH =
       Paths.get("wfa_measurement_system", "src", "main", "k8s", "panelmatch", "testing", "data")
 
     val SECRET_FILES_PATH: Path = Paths.get("src", "main", "k8s", "testing", "secretfiles")
-    val PANELMATCH_SECRET_FILES_PATH: Path = Paths.get("src", "main", "k8s", "panelmatch", "testing", "secretfiles")
+    val PANELMATCH_SECRET_FILES_PATH: Path =
+      Paths.get("src", "main", "k8s", "panelmatch", "testing", "secretfiles")
 
     val KINGDOM_SIGNING_CERTS: SigningCerts by lazy {
-      val secretFiles =
-        getRuntimePath(SECRET_FILES_PATH)
+      val secretFiles = getRuntimePath(SECRET_FILES_PATH)
       val trustedCerts = secretFiles.resolve("kingdom_root.pem").toFile()
       val cert = secretFiles.resolve("kingdom_tls.pem").toFile()
       val key = secretFiles.resolve("kingdom_tls.key").toFile()
@@ -528,8 +515,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
     }
 
     val EDP_SIGNING_CERTS: SigningCerts by lazy {
-      val secretFiles =
-        getRuntimePath(PANELMATCH_SECRET_FILES_PATH)
+      val secretFiles = getRuntimePath(PANELMATCH_SECRET_FILES_PATH)
       val trustedCerts = secretFiles.resolve("edp_trusted_certs.pem").toFile()
       val cert = secretFiles.resolve("edp1_tls.pem").toFile()
       val key = secretFiles.resolve("edp1_tls.key").toFile()
@@ -537,8 +523,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
     }
 
     val MP_SIGNING_CERTS: SigningCerts by lazy {
-      val secretFiles =
-        getRuntimePath(PANELMATCH_SECRET_FILES_PATH)
+      val secretFiles = getRuntimePath(PANELMATCH_SECRET_FILES_PATH)
       val trustedCerts = secretFiles.resolve("mp_trusted_certs.pem").toFile()
       val cert = secretFiles.resolve("mp1_tls.pem").toFile()
       val key = secretFiles.resolve("mp1_tls.key").toFile()
@@ -548,22 +533,15 @@ abstract class AbstractPanelMatchCorrectnessTest {
     private val tempDir = TemporaryFolder()
 
     private val localSystem =
-      LocalSystem(
-        lazy { KubernetesClient(ClientBuilder.defaultClient()) },
-        lazy { tempDir }
-      )
+      LocalSystem(lazy { KubernetesClient(ClientBuilder.defaultClient()) }, lazy { tempDir })
 
     @JvmStatic
     protected fun <T : Message> loadTestData(fileName: String, defaultInstance: T): T {
-      val testDataRuntimePath = org.wfanet.measurement.common.getRuntimePath(
-        TEST_DATA_PATH
-      )!!
+      val testDataRuntimePath = org.wfanet.measurement.common.getRuntimePath(TEST_DATA_PATH)!!
       return parseTextProto(testDataRuntimePath.resolve(fileName).toFile(), defaultInstance)
     }
 
-    @ClassRule
-    @JvmField
-    val chainedRule = chainRulesSequentially(tempDir, Images(), localSystem)
+    @ClassRule @JvmField val chainedRule = chainRulesSequentially(tempDir, Images(), localSystem)
 
     fun getRuntimePath(workspaceRelativePath: Path): Path {
       return checkNotNull(
@@ -579,7 +557,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
     }
 
     @Blocking
-    private fun kubectlApply(config: String,  k8sClient: KubernetesClient): List<KubernetesObject> {
+    private fun kubectlApply(config: String, k8sClient: KubernetesClient): List<KubernetesObject> {
       return k8sClient
         .kubectlApply(config)
         .onEach { logger.info { "Applied ${it.kind} ${it.metadata.name}" } }
@@ -587,7 +565,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
     }
 
     @Blocking
-    private fun kubectlApply(config: File,  k8sClient: KubernetesClient): List<KubernetesObject> {
+    private fun kubectlApply(config: File, k8sClient: KubernetesClient): List<KubernetesObject> {
       return k8sClient
         .kubectlApply(config)
         .onEach { logger.info { "Applied ${it.kind} ${it.metadata.name}" } }
@@ -608,7 +586,6 @@ abstract class AbstractPanelMatchCorrectnessTest {
     private fun extractTar(archive: File, outputDirectory: File) {
       Processes.runCommand("tar", "-xf", archive.toString(), "-C", outputDirectory.toString())
     }
-
   }
 }
 

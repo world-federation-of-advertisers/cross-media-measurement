@@ -27,7 +27,7 @@ cue_library(
     srcs = ["forwarded_storage_exchange_workflow_daemon.cue"],
     deps = [
         ":config_cue",
-        "//src/main/k8s/panelmatch:base"
+        "//src/main/k8s/panelmatch:base",
     ],
 )
 
@@ -57,8 +57,8 @@ kustomization_dir(
     tags = ["manual"],
     deps = [
         ":config_files",
-        "//src/main/k8s/testing/secretfiles:kustomization"
-    ]
+        "//src/main/k8s/testing/secretfiles:kustomization",
+    ],
 )
 
 cue_dump(
@@ -86,8 +86,8 @@ kustomization_dir(
     tags = ["manual"],
     deps = [
         ":config_files",
-        "//src/main/k8s/testing/secretfiles:kustomization"
-    ]
+        "//src/main/k8s/testing/secretfiles:kustomization",
+    ],
 )
 
 kustomization_dir(

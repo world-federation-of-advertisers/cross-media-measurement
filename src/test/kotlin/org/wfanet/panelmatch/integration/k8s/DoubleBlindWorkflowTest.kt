@@ -16,7 +16,6 @@
 
 package org.wfanet.panelmatch.integration.k8s
 
-import com.google.common.truth.Truth
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import java.net.InetSocketAddress
@@ -58,10 +57,8 @@ class DoubleBlindWorkflowTest : AbstractPanelMatchCorrectnessTest() {
   private val EDP_COMMUTATIVE_DETERMINISTIC_KEY = "some-key".toByteStringUtf8()
 
   override val workflow: ExchangeWorkflow by lazy {
-    loadTestData(
-      "double_blind_exchange_workflow.textproto",
-      ExchangeWorkflow.getDefaultInstance()
-    ).copy { firstExchangeDate = EXCHANGE_DATE.toProtoDate() }
+    loadTestData("double_blind_exchange_workflow.textproto", ExchangeWorkflow.getDefaultInstance())
+      .copy { firstExchangeDate = EXCHANGE_DATE.toProtoDate() }
   }
 
   /*val workflow: ExchangeWorkflow by lazy {
@@ -75,16 +72,14 @@ class DoubleBlindWorkflowTest : AbstractPanelMatchCorrectnessTest() {
     mapOf("edp-commutative-deterministic-key" to EDP_COMMUTATIVE_DETERMINISTIC_KEY)
 
   /*val initialDataProviderInputs: Map<String, ByteString> =
-    mapOf("edp-hkdf-pepper" to "some-hkdf-pepper".toByteStringUtf8())*/
+  mapOf("edp-hkdf-pepper" to "some-hkdf-pepper".toByteStringUtf8())*/
 
-  //val initialModelProviderInputs: Map<String, ByteString> = emptyMap()
+  // val initialModelProviderInputs: Map<String, ByteString> = emptyMap()
 
   override val initialModelProviderInputs: Map<String, ByteString> =
     mapOf("mp-plaintext-join-keys" to PLAINTEXT_JOIN_KEYS.toByteString())
 
-  @Rule
-  @JvmField
-  val testRule = LocalSetup()
+  @Rule @JvmField val testRule = LocalSetup()
 
   inner class LocalSetup() : TestRule {
 
@@ -95,7 +90,13 @@ class DoubleBlindWorkflowTest : AbstractPanelMatchCorrectnessTest() {
         override fun evaluate() {
           runBlocking {
             withTimeout(Duration.ofMinutes(5)) {
-              runResourceSetup(dataProviderContent, modelProviderContent, workflow, initialDataProviderInputs, initialModelProviderInputs)
+              runResourceSetup(
+                dataProviderContent,
+                modelProviderContent,
+                workflow,
+                initialDataProviderInputs,
+                initialModelProviderInputs
+              )
             }
           }
           base.evaluate()
@@ -104,33 +105,26 @@ class DoubleBlindWorkflowTest : AbstractPanelMatchCorrectnessTest() {
     }
   }
 
-  //val logger = Logger.getLogger(this::class.java.name)
-  @Test(timeout = 3 * 60 * 1000)
-  fun `Double blind workflow test`() = runBlocking {
-    runTest()
-  }
+  // val logger = Logger.getLogger(this::class.java.name)
+  @Test(timeout = 3 * 60 * 1000) fun `Double blind workflow test`() = runBlocking { runTest() }
 
   override suspend fun validate() {
 
-    PortForwarder(getPod(MP_PRIVATE_STORAGE_DEPLOYMENT_NAME), SERVER_PORT
-    ).use { mpStorageForwarder ->
-
+    PortForwarder(getPod(MP_PRIVATE_STORAGE_DEPLOYMENT_NAME), SERVER_PORT).use { mpStorageForwarder
+      ->
       val mpStorageAddress: InetSocketAddress =
         withContext(Dispatchers.IO) { mpStorageForwarder.start() }
-      val mpStorageChannel =
-        buildMutualTlsChannel(mpStorageAddress.toTarget(), MP_SIGNING_CERTS)
-      val mpForwardedStorage = ForwardedStorageClient(
-        ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(mpStorageChannel)
-      )
+      val mpStorageChannel = buildMutualTlsChannel(mpStorageAddress.toTarget(), MP_SIGNING_CERTS)
+      val mpForwardedStorage =
+        ForwardedStorageClient(
+          ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(mpStorageChannel)
+        )
 
       val result = mpForwardedStorage.getBlob("mp-decrypted-join-keys")
       JoinKeyAndIdCollection.parseFrom(result?.toByteString())
 
       mpStorageChannel.shutdown()
       mpStorageForwarder.stop()
-
     }
-
   }
-
 }

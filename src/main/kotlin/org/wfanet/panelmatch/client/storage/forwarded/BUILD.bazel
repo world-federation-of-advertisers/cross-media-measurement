@@ -7,7 +7,7 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc:grpc",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/forwarded:forwarded",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/forwarded",
     ],
 )

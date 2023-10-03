@@ -18,8 +18,8 @@ kt_jvm_library(
         "//imports/java/org/apache/beam/runners/direct",
     ],
     deps = [
-        "//src/main/kotlin/org/wfanet/panelmatch/client/storage/forwarded:forwarded_storage",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/storage/forwarded:forwarded_storage",
         "//src/main/kotlin/org/wfanet/panelmatch/common/certificates/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/common/storage/testing",
     ],

@@ -9,9 +9,9 @@ package(
     default_testonly = True,
     default_visibility = [
         ":__subpackages__",
+        "//src/main/k8s/panelmatch:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/integration/k8s:__pkg__",
         "//src/test/kotlin/org/wfanet/panelmatch/integration/k8s:__pkg__",
-        "//src/main/k8s/panelmatch:__subpackages__",
     ],
 )
 
@@ -340,8 +340,8 @@ kustomization_dir(
 kustomization_dir(
     name = "kingdom_for_panelmatch_setup",
     srcs = [
-        ":panelmatch_storage_emulators",
         ":kingdom",
+        ":panelmatch_storage_emulators",
     ],
     generate_kustomization = True,
     tags = ["manual"],
