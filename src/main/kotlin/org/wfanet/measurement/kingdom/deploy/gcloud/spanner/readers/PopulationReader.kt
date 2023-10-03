@@ -6,6 +6,8 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.internal.kingdom.Population
+import org.wfanet.measurement.internal.kingdom.PopulationKt.populationBlob
+import org.wfanet.measurement.internal.kingdom.eventTemplate
 import org.wfanet.measurement.internal.kingdom.population
 
 class PopulationReader : SpannerReader<PopulationReader.Result>() {
@@ -52,15 +54,11 @@ class PopulationReader : SpannerReader<PopulationReader.Result>() {
     externalPopulationId = struct.getLong("ExternalPopulationId")
     description = struct.getString("Description")
     createTime = struct.getTimestamp("CreateTime").toProto()
-    populationBlob =
-      populationBlob
-        .newBuilderForType()
-        .apply { modelBlobUri = struct.getString("ModelBlobUri") }
-        .build()
-    eventTemplate =
-      eventTemplate
-        .newBuilderForType()
-        .apply { fullyQualifiedType = struct.getString("EventTemplateType") }
-        .build()
+    populationBlob = populationBlob {
+      modelBlobUri = struct.getString("ModelBlobUri")
+    }
+    eventTemplate = eventTemplate {
+      fullyQualifiedType = struct.getString("EventTemplateType")
+    }
   }
 }

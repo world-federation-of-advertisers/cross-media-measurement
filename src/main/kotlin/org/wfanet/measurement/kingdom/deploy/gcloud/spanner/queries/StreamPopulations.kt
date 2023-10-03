@@ -16,7 +16,7 @@ class StreamPopulations(
       appendWhereClause(requestFilter)
       appendClause(
         """
-          ORDER BY Populations.CreateTime ASC,
+          ORDER BY Populations.CreateTime DESC,
           Populations.ExternalDataProviderId ASC,
           Populations.ExternalPopulationId ASC,
         """
@@ -39,18 +39,20 @@ class StreamPopulations(
     if (filter.hasAfter()) {
       conjuncts.add(
         """
-          ((Populations.CreateTime > @${CREATED_AFTER})
-          OR (Populations.CreateTime  = @${CREATED_AFTER}
-          AND DataProviders.ExternalDataProviderId = @${EXTERNAL_DATA_PROVIDER_ID}
-          AND Populations.ExternalPopulationId > @${EXTERNAL_POPULATION_ID})
-          OR (Populations.CreateTime  = @${CREATED_AFTER}
-          AND DataProviders.ExternalDataProviderId > @${EXTERNAL_DATA_PROVIDER_ID}))
+          Populations.CreateTime > @${CREATED_AFTER} OR (
+            Populations.CreateTime = @${CREATED_AFTER} AND (
+              DataProviders.ExternalDataProviderId = @${AFTER_EXTERNAL_DATA_PROVIDER_ID} AND
+                Populations.ExternalPopulationId > @${EXTERNAL_POPULATION_ID}
+            ) OR (
+              DataProviders.ExternalDataProviderId > @${AFTER_EXTERNAL_DATA_PROVIDER_ID}
+            )
+          )
         """
           .trimIndent()
       )
       bind(CREATED_AFTER to filter.after.createTime.toGcloudTimestamp())
       bind(EXTERNAL_POPULATION_ID to filter.after.externalPopulationId)
-      bind(EXTERNAL_DATA_PROVIDER_ID to filter.after.externalDataProviderId)
+      bind(AFTER_EXTERNAL_DATA_PROVIDER_ID to filter.after.externalDataProviderId)
     }
 
     if (conjuncts.isEmpty()) {
@@ -62,9 +64,10 @@ class StreamPopulations(
   }
 
   companion object {
-    const val LIMIT_PARAM = "limit"
-    const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
-    const val EXTERNAL_POPULATION_ID = "externalPopulationId"
-    const val CREATED_AFTER = "createdAfter"
+    private const val LIMIT_PARAM = "limit"
+    private const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
+    private const val AFTER_EXTERNAL_DATA_PROVIDER_ID = "afterExternalDataProviderId"
+    private const val EXTERNAL_POPULATION_ID = "externalPopulationId"
+    private const val CREATED_AFTER = "createdAfter"
   }
 }
