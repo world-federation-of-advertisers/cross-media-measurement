@@ -16,29 +16,46 @@ package org.wfanet.measurement.loadtest.panelmatchresourcesetup
 import com.google.protobuf.TextFormat
 import com.google.protobuf.kotlin.toByteString
 import com.google.type.Date
-import java.time.LocalDate
+import io.grpc.Status
 import io.grpc.StatusException
 import java.io.File
+import java.time.Clock
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.retry
+import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.Blocking
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.AccountKey
+import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt
+import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.RecurringExchangeKey
+import org.wfanet.measurement.api.v2alpha.activateAccountRequest
+import org.wfanet.measurement.api.v2alpha.apiKey
+import org.wfanet.measurement.api.v2alpha.authenticateRequest
+import org.wfanet.measurement.api.v2alpha.createApiKeyRequest
+import org.wfanet.measurement.api.withIdToken
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
+import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMapKt
 import org.wfanet.measurement.config.authorityKeyToPrincipalMap
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
+import org.wfanet.measurement.internal.kingdom.Account
+import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt
+import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.internal.kingdom.createRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.modelProvider
@@ -46,21 +63,26 @@ import org.wfanet.measurement.internal.kingdom.recurringExchange
 import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.toInternal
-import org.wfanet.measurement.loadtest.panelmatchresourcesetup.ConsoleOutput
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
-import org.wfanet.measurement.loadtest.panelmatchresourcesetup.FileOutput
 import org.wfanet.measurement.loadtest.panelmatch.resourcesetup.Resources
 import org.wfanet.measurement.loadtest.panelmatch.resourcesetup.ResourcesKt.resource
 import org.wfanet.measurement.loadtest.panelmatch.resourcesetup.ResourcesKt
 
+
 private val API_VERSION = Version.V2_ALPHA
 
-class PanelMatchResourceSetup(private val internalDataProvidersClient: DataProvidersGrpcKt.DataProvidersCoroutineStub,
+class PanelMatchResourceSetup(
+                              private val internalDataProvidersClient: DataProvidersGrpcKt.DataProvidersCoroutineStub,
                               private val internalModelProvidersClient: ModelProvidersGrpcKt.ModelProvidersCoroutineStub,
                               private val recurringExchangesStub: RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub,
                               private val outputDir: File? = null,
                               private val bazelConfigName: String = DEFAULT_BAZEL_CONFIG_NAME,
 ) {
+
+  /*data class DataProviderAndKey(
+    val dataProvider: DataProvider,
+    val apiAuthenticationKey: String
+  )*/
   suspend fun process(dataProviderContent: EntityContent,
                       modelProviderContent: EntityContent,
                       exchangeDate: Date,
@@ -70,22 +92,24 @@ class PanelMatchResourceSetup(private val internalDataProvidersClient: DataProvi
     logger.info("Starting resource setup ...")
     val resources = mutableListOf<Resources.Resource>()
 
-    val externalDataProviderId = createDataProvider(dataProviderContent)
-    val dataProviderKey = DataProviderKey(externalIdToApiId(externalDataProviderId))
+    val externalDataProviderId = createDataProvider(dataProviderContent/*, internalAccount*/)
 
+    logger.info("Successfully created data provider: ${externalDataProviderId}")
+
+    val dataProviderKey = DataProviderKey(externalIdToApiId(externalDataProviderId))
     resources.add(
       resource {
         name = dataProviderKey.toName()
         dataProvider =
           ResourcesKt.ResourceKt.dataProvider {
             displayName = dataProviderContent.displayName
-
             // Assume signing cert uses same issuer as TLS client cert.
             authorityKeyIdentifier =
               checkNotNull(dataProviderContent.signingKey.certificate.authorityKeyIdentifier)
           }
       }
     )
+
 
     val externalModelProviderId = createModelProvider()
     val modelProviderKey = ModelProviderKey(externalIdToApiId(externalModelProviderId))
@@ -112,7 +136,7 @@ class PanelMatchResourceSetup(private val internalDataProvidersClient: DataProvi
     return PanelMatchResourceKeys(dataProviderKey, modelProviderKey, recurringExchangeKey, resources)
   }
 
-  suspend fun createDataProvider(dataProviderContent: EntityContent): Long {
+  suspend fun createDataProvider(dataProviderContent: EntityContent/*, internalAccount: Account*/): Long {
     val encryptionPublicKey = dataProviderContent.encryptionPublicKey
     val signedPublicKey =
       signEncryptionPublicKey(encryptionPublicKey, dataProviderContent.signingKey)
@@ -134,6 +158,7 @@ class PanelMatchResourceSetup(private val internalDataProvidersClient: DataProvi
         throw Exception("Error creating DataProvider", e)
       }
     logger.info("InternalDataProvider: ${internalDataProvider.externalDataProviderId}")
+
     return internalDataProvider.externalDataProviderId
   }
 
@@ -205,11 +230,9 @@ class PanelMatchResourceSetup(private val internalDataProvidersClient: DataProvi
           }
       }
     }
-    logger.info { "===================================> WRITING AKID PRINCIPAL FILE: ${output}" }
     output.resolve(AKID_PRINCIPAL_MAP_FILE).writer().use { writer ->
       TextFormat.printer().print(akidMap, writer)
     }
-    logger.info { "===================================> WROTE AKID PRINCIPAL FILE" }
     val configName = bazelConfigName
     output.resolve(BAZEL_RC_FILE).writer().use { writer ->
       for (resource in resources) {
@@ -244,5 +267,5 @@ data class PanelMatchResourceKeys(
   val dataProviderKey: DataProviderKey,
   val modelProviderKey: ModelProviderKey,
   val recurringExchangeKey: RecurringExchangeKey,
-  val resources: List<Resources.Resource>
+  val resources: List<Resources.Resource>,
 )

@@ -47,10 +47,6 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
 
   override val clock: Clock = Clock.systemUTC()
 
-  /**
-   * Maps Exchange paths (i.e. recurring_exchanges/{recurring_exchange_id}/exchanges/{date}) to
-   * serialized SigningKeys protos.
-   */
   protected abstract val privateKeys: MutableSecretMap
 
   /** Apache Beam options. */

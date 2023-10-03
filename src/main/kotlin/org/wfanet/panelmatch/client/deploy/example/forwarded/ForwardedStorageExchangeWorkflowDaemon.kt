@@ -19,6 +19,7 @@ import org.apache.beam.sdk.options.PipelineOptions
 import org.apache.beam.sdk.options.PipelineOptionsFactory
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.TlsFlags
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.forwarded.ForwardedStorageFromFlags
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
 import org.wfanet.panelmatch.client.deploy.ExchangeWorkflowDaemonFromFlags
@@ -43,8 +44,6 @@ class ForwardedStorageExchangeWorkflowDaemon(
 
   private val storageClient by lazy {
     logger.info { "Creating storage Client" }
-    logger.info { "target: ${forwardedStorageFlags.forwardedStorageServiceTarget}" }
-    logger.info { "host: ${forwardedStorageFlags.forwardedStorageCertHost}" }
     ForwardedStorageFromFlags(forwardedStorageFlags, flags.tlsFlags).storageClient
   }
 
@@ -53,7 +52,6 @@ class ForwardedStorageExchangeWorkflowDaemon(
   private val defaults by lazy {
     DaemonStorageClientDefaults(storageClient, tinkKeyUri, FakeTinkKeyStorageProvider())
   }
-
   override val validExchangeWorkflows: SecretMap
     get() = defaults.validExchangeWorkflows
 

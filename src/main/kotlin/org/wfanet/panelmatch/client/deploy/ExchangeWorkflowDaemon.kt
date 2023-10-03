@@ -15,9 +15,11 @@
 package org.wfanet.panelmatch.client.deploy
 
 import java.time.Clock
+import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.common.Identity
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.launcher.ApiClient
@@ -94,6 +96,8 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   override fun run() = runBlocking { runSuspending() }
 
   suspend fun runSuspending() {
+    val logger = Logger.getLogger(this::class.java.name)
+
     val stepExecutor =
       ExchangeTaskExecutor(
         apiClient = apiClient,
@@ -103,14 +107,12 @@ abstract class ExchangeWorkflowDaemon : Runnable {
       )
 
     val launcher = CoroutineLauncher(stepExecutor = stepExecutor)
-
     val exchangeStepLauncher =
       ExchangeStepLauncher(
         apiClient = apiClient,
         validator = ExchangeStepValidatorImpl(identity.party, validExchangeWorkflows, clock),
         jobLauncher = launcher
       )
-
     runDaemon(exchangeStepLauncher)
   }
 
