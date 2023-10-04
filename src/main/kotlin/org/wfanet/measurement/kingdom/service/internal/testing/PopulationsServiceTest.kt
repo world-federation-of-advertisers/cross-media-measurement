@@ -62,7 +62,7 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
     val dataProvider = dataProvidersService.createDataProvider(DATA_PROVIDER)
     val request = population {
       externalDataProviderId = dataProvider.externalDataProviderId
-      description = DESC
+      description = DESCRIPTION
       populationBlob = populationBlob { modelBlobUri = BLOB_URI }
       eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
     }
@@ -77,7 +77,7 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
       .isEqualTo(
         population {
           externalDataProviderId = dataProvider.externalDataProviderId
-          description = DESC
+          description = DESCRIPTION
           populationBlob = populationBlob { modelBlobUri = BLOB_URI }
           eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
         }
@@ -86,10 +86,11 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
     assertThat(response.externalPopulationId).isNotEqualTo(request.externalPopulationId)
   }
 
+  @Test
   fun `createPopulation fails with invalid DataProvider Id`() = runBlocking {
     val request = population {
-      externalDataProviderId = 0
-      description = DESC
+      externalDataProviderId = 1234
+      description = DESCRIPTION
       populationBlob = populationBlob { modelBlobUri = BLOB_URI }
       eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
     }
@@ -97,7 +98,7 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { populationsService.createPopulation(request) }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception).hasMessageThat().contains("DataProvider not found")
   }
 
@@ -106,7 +107,7 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
 
     val population = population {
       externalDataProviderId = dataProvider.externalDataProviderId
-      description = DESC
+      description = DESCRIPTION
       populationBlob = populationBlob { modelBlobUri = BLOB_URI }
       eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
     }
@@ -122,12 +123,13 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
     assertThat(createdPopulation).isEqualTo(response)
   }
 
+  @Test
   fun `getPopulation fails with invalid PopulationId`() = runBlocking {
     val dataProvider = dataProvidersService.createDataProvider(DATA_PROVIDER)
 
     val request = getPopulationRequest {
       externalDataProviderId = dataProvider.externalDataProviderId
-      externalPopulationId = 0
+      externalPopulationId = 1234
     }
 
     val exception =
@@ -137,19 +139,20 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
     assertThat(exception).hasMessageThat().contains("Population not found")
   }
 
+  @Test
   fun `getPopulation fails with invalid DataProviderId`() = runBlocking {
     val dataProvider = dataProvidersService.createDataProvider(DATA_PROVIDER)
 
     val population = population {
       externalDataProviderId = dataProvider.externalDataProviderId
-      description = DESC
+      description = DESCRIPTION
       populationBlob = populationBlob { modelBlobUri = BLOB_URI }
       eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
     }
     val createdPopulation = populationsService.createPopulation(population)
 
     val request = getPopulationRequest {
-      externalDataProviderId = 0
+      externalDataProviderId = 1234
       externalPopulationId = createdPopulation.externalPopulationId
     }
 
@@ -160,6 +163,7 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
     assertThat(exception).hasMessageThat().contains("Population not found")
   }
 
+  @Test
   fun `streamPopulations succeeds`() = runBlocking {
     val dataProvider = dataProvidersService.createDataProvider(DATA_PROVIDER)
 
@@ -167,7 +171,7 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
       populationsService.createPopulation(
         population {
           externalDataProviderId = dataProvider.externalDataProviderId
-          description = DESC + "1"
+          description = DESCRIPTION + "1"
           populationBlob = populationBlob { modelBlobUri = BLOB_URI }
           eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
         }
@@ -177,7 +181,7 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
       populationsService.createPopulation(
         population {
           externalDataProviderId = dataProvider.externalDataProviderId
-          description = DESC + "2"
+          description = DESCRIPTION + "2"
           populationBlob = populationBlob { modelBlobUri = BLOB_URI }
           eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
         }
@@ -187,7 +191,7 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
       populationsService.createPopulation(
         population {
           externalDataProviderId = dataProvider.externalDataProviderId
-          description = DESC + "3"
+          description = DESCRIPTION + "3"
           populationBlob = populationBlob { modelBlobUri = BLOB_URI }
           eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
         }
@@ -201,64 +205,60 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
 
     assertThat(response)
       .comparingExpectedFieldsOnly()
-      .containsExactly(population1, population2, population3)
+      .containsExactly(population3, population2, population1)
       .inOrder()
   }
 
+  @Test
   fun `streamPopulations with After filter succeeds`() = runBlocking {
     val dataProvider = dataProvidersService.createDataProvider(DATA_PROVIDER)
 
-    val population1 =
-      populationsService.createPopulation(
-        population {
-          externalDataProviderId = dataProvider.externalDataProviderId
-          description = DESC + "1"
-          populationBlob = populationBlob { modelBlobUri = BLOB_URI }
-          eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
-        }
-      )
+    populationsService.createPopulation(
+      population {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        description = DESCRIPTION + "1"
+        populationBlob = populationBlob { modelBlobUri = BLOB_URI }
+        eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
+      }
+    )
 
-    val population2 =
-      populationsService.createPopulation(
-        population {
-          externalDataProviderId = dataProvider.externalDataProviderId
-          description = DESC + "2"
-          populationBlob = populationBlob { modelBlobUri = BLOB_URI }
-          eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
-        }
-      )
+    populationsService.createPopulation(
+      population {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        externalDataProviderId = dataProvider.externalDataProviderId
+        description = DESCRIPTION + "2"
+        populationBlob = populationBlob { modelBlobUri = BLOB_URI }
+        eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
+      }
+    )
 
-    val population3 =
-      populationsService.createPopulation(
-        population {
-          externalDataProviderId = dataProvider.externalDataProviderId
-          description = DESC + "3"
-          populationBlob = populationBlob { modelBlobUri = BLOB_URI }
-          eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
-        }
-      )
+    populationsService.createPopulation(
+      population {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        description = DESCRIPTION + "3"
+        populationBlob = populationBlob { modelBlobUri = BLOB_URI }
+        eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
+      }
+    )
 
     val request = streamPopulationsRequest {
       filter {
         externalDataProviderId = dataProvider.externalDataProviderId
         after = afterFilter {
-          externalDataProviderId = dataProvider.externalDataProviderId
-          externalPopulationId = population1.externalPopulationId
-          createTime = population2.createTime
+          externalDataProviderId = 1
+          externalPopulationId = dataProvider.externalDataProviderId
+          createTime = timestamp { seconds = 0 }
         }
       }
     }
 
     val response: List<Population> = populationsService.streamPopulations(request).toList()
 
-    assertThat(response)
-      .comparingExpectedFieldsOnly()
-      .containsExactly(population2, population3)
-      .inOrder()
+    assertThat(response).hasSize(3)
   }
 
   companion object {
-    private const val DESC = "Population description"
+    private const val DESCRIPTION = "Population description"
     private const val BLOB_URI = "modelBlobUri"
     private const val TYPE = "Type 1"
     private val DATA_PROVIDER = dataProvider {

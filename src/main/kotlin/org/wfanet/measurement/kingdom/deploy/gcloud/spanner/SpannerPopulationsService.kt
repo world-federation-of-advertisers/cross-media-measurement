@@ -12,6 +12,7 @@ import org.wfanet.measurement.internal.kingdom.GetPopulationRequest
 import org.wfanet.measurement.internal.kingdom.Population
 import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamPopulationsRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamPopulations
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.PopulationReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreatePopulation
@@ -21,7 +22,11 @@ class SpannerPopulationsService(
   private val client: AsyncDatabaseClient
 ) : PopulationsCoroutineImplBase() {
   override suspend fun createPopulation(request: Population): Population {
-    return CreatePopulation(request).execute(client, idGenerator)
+    try {
+      return CreatePopulation(request).execute(client, idGenerator)
+    } catch (e: DataProviderNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
+    }
   }
 
   override suspend fun getPopulation(request: GetPopulationRequest): Population {

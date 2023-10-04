@@ -17,8 +17,8 @@ class StreamPopulations(
       appendClause(
         """
           ORDER BY Populations.CreateTime DESC,
-          Populations.ExternalDataProviderId ASC,
-          Populations.ExternalPopulationId ASC,
+          DataProviders.ExternalDataProviderId ASC,
+          Populations.ExternalPopulationId ASC
         """
           .trimIndent()
       )
