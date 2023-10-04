@@ -23,7 +23,8 @@ option java_multiple_files = true;
 
 // Internal service for persistence of MetricCalculationSpec entities.
 service MetricCalculationSpecs {
-  rpc CreateMetricCalculationSpec(CreateMetricCalculationSpecRequest) returns (MetricCalculationSpec);
+  rpc CreateMetricCalculationSpec(CreateMetricCalculationSpecRequest)
+      returns (MetricCalculationSpec);
 
   rpc GetMetricCalculationSpec(GetMetricCalculationSpecRequest)
       returns (MetricCalculationSpec);
