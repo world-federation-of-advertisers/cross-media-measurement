@@ -15,31 +15,25 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Statement
-import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
-import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
-import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ConfirmComputationParticipantRequest
-import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByComputationException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByComputationException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ComputationParticipantReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.computationParticipantsInState
@@ -118,7 +112,8 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
     }
 
     val duchyIds: List<InternalId> =
-      getComputationParticipants(InternalId(measurementConsumerId), InternalId(measurementId)).filter { it.value != duchyId }
+      getComputationParticipants(InternalId(measurementConsumerId), InternalId(measurementId))
+        .filter { it.value != duchyId }
 
     if (
       computationParticipantsInState(
@@ -147,7 +142,10 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
     return computationParticipant.copy { state = NEXT_COMPUTATION_PARTICIPANT_STATE }
   }
 
-  private suspend fun TransactionScope.getComputationParticipants(measurementConsumerId: InternalId, measurementId: InternalId): List<InternalId> {
+  private suspend fun TransactionScope.getComputationParticipants(
+    measurementConsumerId: InternalId,
+    measurementId: InternalId
+  ): List<InternalId> {
     val sql =
       """
       SELECT DuchyId
@@ -161,7 +159,10 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
         bind("measurement_consumer_id" to measurementConsumerId.value)
         bind("measurement_id" to measurementId)
       }
-    return transactionContext.executeQuery(statement).map { InternalId(it.getLong("DuchyId")) }.toList()
+    return transactionContext
+      .executeQuery(statement)
+      .map { InternalId(it.getLong("DuchyId")) }
+      .toList()
   }
 
   override fun ResultScope<ComputationParticipant>.buildResult(): ComputationParticipant {
