@@ -39,7 +39,7 @@ class StreamPopulations(
     if (filter.hasAfter()) {
       conjuncts.add(
         """
-          Populations.CreateTime > @${CREATED_AFTER} OR (
+          Populations.CreateTime < @${CREATED_AFTER} OR (
             Populations.CreateTime = @${CREATED_AFTER} AND (
               DataProviders.ExternalDataProviderId = @${AFTER_EXTERNAL_DATA_PROVIDER_ID} AND
                 Populations.ExternalPopulationId > @${EXTERNAL_POPULATION_ID}
