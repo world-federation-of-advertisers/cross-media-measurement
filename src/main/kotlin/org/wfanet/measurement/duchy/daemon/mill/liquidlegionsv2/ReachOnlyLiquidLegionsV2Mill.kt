@@ -29,6 +29,7 @@ import java.util.logging.Logger
 import org.wfanet.anysketch.crypto.combineElGamalPublicKeysRequest
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.common.crypto.SignatureAlgorithm
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.identity.DuchyInfo
@@ -214,6 +215,7 @@ class ReachOnlyLiquidLegionsV2Mill(
             ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
               elGamalPublicKey = signedElgamalPublicKey.data
               elGamalPublicKeySignature = signedElgamalPublicKey.signature
+              elGamalPublicKeySignatureAlgorithmOid = signedElgamalPublicKey.signatureAlgorithmOid
             }
         }
     }
@@ -324,13 +326,21 @@ class ReachOnlyLiquidLegionsV2Mill(
       requireNotNull(DuchyInfo.getByDuchyId(duchy.duchyId)) {
         "DuchyInfo not found for ${duchy.duchyId}"
       }
+    val duchyCertificate: X509Certificate = readCertificate(duchy.duchyCertificateDer)
+    val signatureAlgorithmOid =
+      duchy.elGamalPublicKeySignatureAlgorithmOid.ifEmpty { duchyCertificate.sigAlgOID }
+    val signatureAlgorithm =
+      requireNotNull(SignatureAlgorithm.fromOid(signatureAlgorithmOid)) {
+        "Unsupported signature algorithm OID $signatureAlgorithmOid"
+      }
     when (publicApiVersion) {
       Version.V2_ALPHA -> {
         try {
           verifyElGamalPublicKey(
             duchy.elGamalPublicKey,
             duchy.elGamalPublicKeySignature,
-            readCertificate(duchy.duchyCertificateDer),
+            signatureAlgorithm,
+            duchyCertificate,
             trustedCertificates.getValue(duchyInfo.rootCertificateSkid)
           )
         } catch (e: CertPathValidatorException) {

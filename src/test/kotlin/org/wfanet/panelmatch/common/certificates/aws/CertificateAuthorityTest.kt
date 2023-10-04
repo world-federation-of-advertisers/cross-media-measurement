@@ -14,7 +14,7 @@
 
 package org.wfanet.panelmatch.common.certificates.aws
 
-import com.google.common.truth.Truth
+import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.kotlin.toByteStringUtf8
 import java.security.KeyPair
 import kotlinx.coroutines.runBlocking
@@ -26,6 +26,8 @@ import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.common.crypto.HashAlgorithm
+import org.wfanet.measurement.common.crypto.SignatureAlgorithm
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.sign
@@ -67,7 +69,7 @@ private val CERTIFICATE_LIFETIME =
 class CertificateAuthorityTest {
   @Test
   fun generateX509CertificateAndPrivateKey() = runBlocking {
-    val mockCreateCertificateClient: CreateCertificateClient = mock<CreateCertificateClient>()
+    val mockCreateCertificateClient: CreateCertificateClient = mock()
 
     val expectedCertificateParams =
       ApiPassthrough.builder()
@@ -121,24 +123,26 @@ class CertificateAuthorityTest {
       )
 
     val (x509, privateKey) = certificateAuthority.generateX509CertificateAndPrivateKey()
+    val signatureAlgorithm =
+      SignatureAlgorithm.fromKeyAndHashAlgorithm(privateKey, HashAlgorithm.SHA256)!!
 
-    argumentCaptor<IssueCertificateRequest> {
-      verify(mockCreateCertificateClient).issueCertificate(capture())
-      Truth.assertThat(firstValue.templateArn()).isEqualTo(AWS_CERTIFICATE_TEMPLATE_ARN)
-      Truth.assertThat(firstValue.apiPassthrough()).isEqualTo(expectedCertificateParams)
-      Truth.assertThat(firstValue.certificateAuthorityArn()).isEqualTo(CERTIFICATE_AUTHORITY_ARN)
-      Truth.assertThat(firstValue.signingAlgorithm()).isEqualTo(AWS_CERTIFICATE_SIGNING_ALGORITHM)
-      Truth.assertThat(firstValue.validity()).isEqualTo(CERTIFICATE_LIFETIME)
-    }
+    val issueCertificateRequest: IssueCertificateRequest =
+      argumentCaptor { verify(mockCreateCertificateClient).issueCertificate(capture()) }.firstValue
+    assertThat(issueCertificateRequest.templateArn()).isEqualTo(AWS_CERTIFICATE_TEMPLATE_ARN)
+    assertThat(issueCertificateRequest.apiPassthrough()).isEqualTo(expectedCertificateParams)
+    assertThat(issueCertificateRequest.certificateAuthorityArn())
+      .isEqualTo(CERTIFICATE_AUTHORITY_ARN)
+    assertThat(issueCertificateRequest.signingAlgorithm())
+      .isEqualTo(AWS_CERTIFICATE_SIGNING_ALGORITHM)
+    assertThat(issueCertificateRequest.validity()).isEqualTo(CERTIFICATE_LIFETIME)
 
-    argumentCaptor<GetCertificateRequest> {
-      verify(mockCreateCertificateClient).getCertificate(capture())
-      Truth.assertThat(firstValue).isEqualTo(expectedGetCertificateRequest)
-    }
+    val getCertificateRequest =
+      argumentCaptor { verify(mockCreateCertificateClient).getCertificate(capture()) }.firstValue
+    assertThat(getCertificateRequest).isEqualTo(expectedGetCertificateRequest)
 
     val data = "some-data-to-be-signed".toByteStringUtf8()
-    val signature = privateKey.sign(x509, data)
+    val signature = privateKey.sign(signatureAlgorithm, data)
 
-    Truth.assertThat(x509.verifySignature(data, signature)).isTrue()
+    assertThat(x509.verifySignature(signatureAlgorithm, data, signature)).isTrue()
   }
 }

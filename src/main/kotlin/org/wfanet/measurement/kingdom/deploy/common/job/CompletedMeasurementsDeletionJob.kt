@@ -38,26 +38,26 @@ import org.wfanet.measurement.kingdom.batch.CompletedMeasurementsDeletion
 import org.wfanet.measurement.kingdom.deploy.common.server.KingdomApiServerFlags
 import picocli.CommandLine
 
-private class Flags {
-  @CommandLine.Mixin
-  lateinit var tlsFlags: TlsFlags
-    private set
+@CommandLine.Command(
+  name = "CompletedMeasurementsDeletionJob",
+  mixinStandardHelpOptions = true,
+  showDefaultValues = true
+)
+class CompletedMeasurementsDeletionJob private constructor() : Runnable {
+  @CommandLine.Mixin private lateinit var tlsFlags: TlsFlags
 
-  @CommandLine.Mixin
-  lateinit var kingdomApiServerFlags: KingdomApiServerFlags
-    private set
+  @CommandLine.Mixin private lateinit var kingdomApiServerFlags: KingdomApiServerFlags
 
-  @CommandLine.Option(
+  @set:CommandLine.Option(
     names = ["--max-to-delete-per-rpc"],
     defaultValue = "25",
     description =
       [
-        "The maximum number of measurements to delete in a single call to the API. " +
-          "This flag can be adjusted to ensure the RPC does not timeout."
+        "The maximum number of measurements to delete in a single call to the API.",
+        "This flag can be adjusted to ensure the RPC does not timeout."
       ],
   )
-  lateinit var maxToDeletePerRpc: Integer
-    private set
+  private var maxToDeletePerRpc by Delegates.notNull<Int>()
 
   @CommandLine.Option(
     names = ["--time-to-live"],
@@ -68,24 +68,21 @@ private class Flags {
           "completion, a Measurement won't live longer than this duration."
       ],
   )
-  lateinit var measurementsTimeToLive: Duration
-    private set
+  private lateinit var measurementsTimeToLive: Duration
 
   @CommandLine.Option(
     names = ["--otel-exporter-otlp-endpoint"],
     description = ["Endpoint for OpenTelemetry Collector."],
     required = true,
   )
-  lateinit var otelExporterOtlpEndpoint: String
-    private set
+  private lateinit var otelExporterOtlpEndpoint: String
 
   @CommandLine.Option(
     names = ["--otel-service-name"],
     description = ["Service name to label cronjob metrics with."],
     required = true,
   )
-  lateinit var otelServiceName: String
-    private set
+  private lateinit var otelServiceName: String
 
   @set:CommandLine.Option(
     names = ["--dry-run"],
@@ -96,66 +93,63 @@ private class Flags {
     required = false,
     defaultValue = "false"
   )
-  var dryRun by Delegates.notNull<Boolean>()
-    private set
-}
+  private var dryRun by Delegates.notNull<Boolean>()
 
-@CommandLine.Command(
-  name = "CompletedMeasurementsDeletionJob",
-  mixinStandardHelpOptions = true,
-  showDefaultValues = true
-)
-private fun run(@CommandLine.Mixin flags: Flags) {
-  val clientCerts =
-    SigningCerts.fromPemFiles(
-      certificateFile = flags.tlsFlags.certFile,
-      privateKeyFile = flags.tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
-    )
-
-  val channel =
-    buildMutualTlsChannel(
-        flags.kingdomApiServerFlags.internalApiFlags.target,
-        clientCerts,
-        flags.kingdomApiServerFlags.internalApiFlags.certHost
+  override fun run() {
+    val clientCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = tlsFlags.certFile,
+        privateKeyFile = tlsFlags.privateKeyFile,
+        trustedCertCollectionFile = tlsFlags.certCollectionFile
       )
-      .withVerboseLogging(flags.kingdomApiServerFlags.debugVerboseGrpcClientLogging)
-      .withDefaultDeadline(flags.kingdomApiServerFlags.internalApiFlags.defaultDeadlineDuration)
 
-  val internalMeasurementsClient = MeasurementsCoroutineStub(channel)
+    val channel =
+      buildMutualTlsChannel(
+          kingdomApiServerFlags.internalApiFlags.target,
+          clientCerts,
+          kingdomApiServerFlags.internalApiFlags.certHost
+        )
+        .withVerboseLogging(kingdomApiServerFlags.debugVerboseGrpcClientLogging)
+        .withDefaultDeadline(kingdomApiServerFlags.internalApiFlags.defaultDeadlineDuration)
 
-  val otlpEndpoint = flags.otelExporterOtlpEndpoint
-  val otelServiceName = flags.otelServiceName
-  val resource: Resource =
-    Resource.getDefault()
-      .merge(Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, otelServiceName)))
-  val meterProvider =
-    SdkMeterProvider.builder()
-      .setResource(resource)
-      .registerMetricReader(
-        PeriodicMetricReader.builder(
-            OtlpGrpcMetricExporter.builder()
-              .setTimeout(Duration.ofSeconds(30L))
-              .setEndpoint(otlpEndpoint)
-              .build()
-          )
-          .setInterval(Duration.ofSeconds(60L))
-          .build()
+    val internalMeasurementsClient = MeasurementsCoroutineStub(channel)
+
+    val otlpEndpoint = otelExporterOtlpEndpoint
+    val otelServiceName = otelServiceName
+    val resource: Resource =
+      Resource.getDefault()
+        .merge(Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, otelServiceName)))
+    val meterProvider =
+      SdkMeterProvider.builder()
+        .setResource(resource)
+        .registerMetricReader(
+          PeriodicMetricReader.builder(
+              OtlpGrpcMetricExporter.builder()
+                .setTimeout(Duration.ofSeconds(30L))
+                .setEndpoint(otlpEndpoint)
+                .build()
+            )
+            .setInterval(Duration.ofSeconds(60L))
+            .build()
+        )
+        .build()
+    val openTelemetry: OpenTelemetry =
+      OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build()
+
+    val completedMeasurementsDeletion =
+      CompletedMeasurementsDeletion(
+        internalMeasurementsClient,
+        maxToDeletePerRpc,
+        measurementsTimeToLive,
+        dryRun,
+        Clock.systemUTC(),
+        openTelemetry
       )
-      .build()
-  val openTelemetry: OpenTelemetry =
-    OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build()
+    completedMeasurementsDeletion.run()
+  }
 
-  val completedMeasurementsDeletion =
-    CompletedMeasurementsDeletion(
-      internalMeasurementsClient,
-      flags.maxToDeletePerRpc.toInt(),
-      flags.measurementsTimeToLive,
-      flags.dryRun,
-      Clock.systemUTC(),
-      openTelemetry
-    )
-  completedMeasurementsDeletion.run()
+  companion object {
+    @JvmStatic
+    fun main(args: Array<String>) = commandLineMain(CompletedMeasurementsDeletionJob(), args)
+  }
 }
-
-fun main(args: Array<String>) = commandLineMain(::run, args)

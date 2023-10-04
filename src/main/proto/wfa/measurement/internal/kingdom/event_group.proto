@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/kingdom/event_template.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -34,10 +35,6 @@ message EventGroup {
   google.protobuf.Timestamp create_time = 6;
   google.protobuf.Timestamp update_time = 7;
 
-  message EventTemplate {
-    string fully_qualified_type = 1;
-  }
-
   message Details {
     // Version of the public API for serialized message definitions.
     string api_version = 1;
@@ -45,6 +42,7 @@ message EventGroup {
     // Serialized `EncryptionPublicKey` message from the public API.
     bytes measurement_consumer_public_key = 2;
     bytes measurement_consumer_public_key_signature = 3;
+    string measurement_consumer_public_key_signature_algorithm_oid = 7;
 
     // The set of VID model lines used to label events in this Event Group.
     repeated string vid_model_lines = 4;
