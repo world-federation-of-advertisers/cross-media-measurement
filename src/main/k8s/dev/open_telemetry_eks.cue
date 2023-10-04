@@ -25,33 +25,33 @@ objectSets: [
 }
 
 openTelemetry: #OpenTelemetry & {
-	_defaultCollectorConfig: {
-		exporters: {
-			prometheusremotewrite: {
-				endpoint: #AMPIngestEndpoint
-				auth:
-					authenticator: "sigv4auth"
-			}
-		}
-
-		extensions: {
-			health_check: {}
-			sigv4auth: {
-				region:  #AMPRegion
-				service: "aps"
-			}
-		}
-		service: {
-			extensions: ["health_check", "sigv4auth"]
-			pipelines:
-				metrics:
-					exporters: ["prometheusremotewrite"]
-		}
-	}
 	collectors: {
 		"default": {
 			spec: {
 				serviceAccount: "adot-collector"
+				_config: {
+					exporters: {
+						prometheusremotewrite: {
+							endpoint: #AMPIngestEndpoint
+							auth:
+								authenticator: "sigv4auth"
+						}
+					}
+
+					extensions: {
+						health_check: {}
+						sigv4auth: {
+							region:  #AMPRegion
+							service: "aps"
+						}
+					}
+					service: {
+						extensions: ["health_check", "sigv4auth"]
+						pipelines:
+							metrics:
+								exporters: ["prometheusremotewrite"]
+					}
+				}
 			}
 		}
 	}

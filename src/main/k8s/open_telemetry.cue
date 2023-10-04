@@ -42,46 +42,6 @@ import "encoding/yaml"
 }
 
 #OpenTelemetry: {
-	_defaultCollectorConfig: {
-		receivers: {
-			otlp:
-				protocols:
-					grpc:
-						endpoint: "0.0.0.0:\(#OpenTelemetryReceiverPort)"
-		}
-
-		processors: {
-			batch: {
-				send_batch_size: 200
-				timeout:         "10s"
-			}
-		}
-
-		exporters: {...} | *{
-			prometheus: {
-				send_timestamps: true
-				endpoint:        "0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)"
-				resource_to_telemetry_conversion:
-					enabled: true
-			}
-		}
-
-		extensions: {...} | *{
-			health_check: {}
-		}
-
-		service: {
-			extensions: [...] | *["health_check"]
-			pipelines: {
-				metrics: {
-					receivers: ["otlp"]
-					processors: ["batch"]
-					exporters: [...] | *["prometheus"]
-				}
-			}
-		}
-	}
-
 	collectors: [Name=string]: #OpenTelemetryCollector & {
 		metadata: name: Name
 	}
@@ -89,7 +49,47 @@ import "encoding/yaml"
 	collectors: {
 		"default": {
 			spec: {
-				config: yaml.Marshal(_defaultCollectorConfig)
+				_config: {
+					receivers: {
+						otlp:
+							protocols:
+								grpc:
+									endpoint: "0.0.0.0:\(#OpenTelemetryReceiverPort)"
+					}
+
+					processors: {
+						batch: {
+							send_batch_size: 200
+							timeout:         "10s"
+						}
+					}
+
+					exporters: {...} | *{
+						prometheus: {
+							send_timestamps: true
+							endpoint:        "0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)"
+							resource_to_telemetry_conversion:
+								enabled: true
+						}
+					}
+
+					extensions: {...} | *{
+						health_check: {}
+					}
+
+					service: {
+						extensions: [...] | *["health_check"]
+						pipelines: {
+							metrics: {
+								receivers: ["otlp"]
+								processors: ["batch"]
+								exporters: [...] | *["prometheus"]
+							}
+						}
+					}
+				}
+
+				config: yaml.Marshal(_config)
 			}
 		}
 	}
