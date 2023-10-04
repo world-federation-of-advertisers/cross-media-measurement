@@ -96,7 +96,7 @@ message ReachOnlyLiquidLegionsSketchAggregationV2 {
   message ComputationDetails {
     // The duchy's role in the computation.
     org.wfa.measurement.config.LiquidLegionsV2SetupConfig.RoleInComputation
-      role = 1;
+        role = 1;
 
     // Parameters used in this computation.
     message Parameters {
@@ -116,7 +116,7 @@ message ReachOnlyLiquidLegionsSketchAggregationV2 {
     // element being the first non-aggregator and the last element being the
     // aggregator.
     repeated LiquidLegionsSketchAggregationV2.ComputationDetails
-      .ComputationParticipant participant = 3;
+        .ComputationParticipant participant = 3;
 
     message ReachEstimate {
       int64 reach = 1;
