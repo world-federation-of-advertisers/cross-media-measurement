@@ -1,3 +1,19 @@
+/*
+ * Copyright 2023 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.wfanet.measurement.reporting.deploy.v2.postgres
 
 import io.grpc.Status
@@ -9,18 +25,20 @@ import org.wfanet.measurement.internal.reporting.v2.GetMetricCalculationSpecRequ
 import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsResponse
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
-import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsResponse
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MetricCalculationSpecReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateMetricCalculationSpec
+import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.MetricCalculationSpecAlreadyExistsException
 
 class PostgresMetricCalculationSpecsService(
   private val idGenerator: IdGenerator,
   private val client: DatabaseClient,
 ) : MetricCalculationSpecsCoroutineImplBase() {
-  override suspend fun createMetricCalculationSpec(request: CreateMetricCalculationSpecRequest): MetricCalculationSpec {
+  override suspend fun createMetricCalculationSpec(
+    request: CreateMetricCalculationSpecRequest
+  ): MetricCalculationSpec {
     grpcRequire(request.externalMetricCalculationSpecId.isNotEmpty()) {
       "external_metric_calculation_spec_id is not set."
     }
@@ -32,7 +50,10 @@ class PostgresMetricCalculationSpecsService(
     return try {
       CreateMetricCalculationSpec(request).execute(client, idGenerator)
     } catch (e: MetricCalculationSpecAlreadyExistsException) {
-      throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS, "Metric Calculation Spec already exists")
+      throw e.asStatusRuntimeException(
+        Status.Code.ALREADY_EXISTS,
+        "Metric Calculation Spec already exists"
+      )
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
@@ -41,7 +62,9 @@ class PostgresMetricCalculationSpecsService(
     }
   }
 
-  override suspend fun getMetricCalculationSpec(request: GetMetricCalculationSpecRequest): MetricCalculationSpec {
+  override suspend fun getMetricCalculationSpec(
+    request: GetMetricCalculationSpecRequest
+  ): MetricCalculationSpec {
     grpcRequire(request.cmmsMeasurementConsumerId.isNotEmpty()) {
       "cmms_measurement_consumer_id is not set."
     }
@@ -52,15 +75,22 @@ class PostgresMetricCalculationSpecsService(
 
     val readContext = client.readTransaction()
     return try {
-      MetricCalculationSpecReader(readContext).readMetricCalculationSpecByExternalId(request.cmmsMeasurementConsumerId, request.externalMetricCalculationSpecId)
+      MetricCalculationSpecReader(readContext)
+        .readMetricCalculationSpecByExternalId(
+          request.cmmsMeasurementConsumerId,
+          request.externalMetricCalculationSpecId
+        )
         ?.metricCalculationSpec
-        ?: throw Status.NOT_FOUND.withDescription("Metric Calculation Spec not found.").asRuntimeException()
+        ?: throw Status.NOT_FOUND.withDescription("Metric Calculation Spec not found.")
+          .asRuntimeException()
     } finally {
       readContext.close()
     }
   }
 
-  override suspend fun listMetricCalculationSpecs(request: ListMetricCalculationSpecsRequest): ListMetricCalculationSpecsResponse {
+  override suspend fun listMetricCalculationSpecs(
+    request: ListMetricCalculationSpecsRequest
+  ): ListMetricCalculationSpecsResponse {
     grpcRequire(request.filter.cmmsMeasurementConsumerId.isNotEmpty()) {
       "cmms_measurement_consumer_id is not set."
     }
@@ -68,9 +98,10 @@ class PostgresMetricCalculationSpecsService(
     val readContext = client.readTransaction()
     return try {
       listMetricCalculationSpecsResponse {
-        metricCalculationSpecs += MetricCalculationSpecReader(readContext).readMetricCalculationSpecs(request).map {
-          it.metricCalculationSpec
-        }
+        metricCalculationSpecs +=
+          MetricCalculationSpecReader(readContext).readMetricCalculationSpecs(request).map {
+            it.metricCalculationSpec
+          }
       }
     } finally {
       readContext.close()

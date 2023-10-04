@@ -42,15 +42,21 @@ class CreateMetricCalculationSpec(private val request: CreateMetricCalculationSp
 
     val measurementConsumerId =
       (MeasurementConsumerReader(transactionContext)
-        .getByCmmsId(metricCalculationSpec.cmmsMeasurementConsumerId)
-        ?: throw MeasurementConsumerNotFoundException())
+          .getByCmmsId(metricCalculationSpec.cmmsMeasurementConsumerId)
+          ?: throw MeasurementConsumerNotFoundException())
         .measurementConsumerId
 
     if (
       MetricCalculationSpecReader(transactionContext)
-        .readMetricCalculationSpecByExternalId(metricCalculationSpec.cmmsMeasurementConsumerId, externalMetricCalculationSpecId) != null
+        .readMetricCalculationSpecByExternalId(
+          metricCalculationSpec.cmmsMeasurementConsumerId,
+          externalMetricCalculationSpecId
+        ) != null
     ) {
-      throw MetricCalculationSpecAlreadyExistsException(metricCalculationSpec.cmmsMeasurementConsumerId, externalMetricCalculationSpecId)
+      throw MetricCalculationSpecAlreadyExistsException(
+        metricCalculationSpec.cmmsMeasurementConsumerId,
+        externalMetricCalculationSpecId
+      )
     }
 
     val metricCalculationSpecId = idGenerator.generateInternalId()
@@ -76,9 +82,7 @@ class CreateMetricCalculationSpec(private val request: CreateMetricCalculationSp
         bind("$5", metricCalculationSpec.details.toJson())
       }
 
-    transactionContext.run {
-      executeStatement(statement)
-    }
+    transactionContext.run { executeStatement(statement) }
 
     return metricCalculationSpec.copy {
       this.externalMetricCalculationSpecId = externalMetricCalculationSpecId
