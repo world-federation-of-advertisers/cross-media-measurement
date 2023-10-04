@@ -101,23 +101,27 @@ message CompleteInitializationPhaseResponse {
 
 // The request to complete work in the setup phase.
 message CompleteSetupPhaseRequest {
-  // The input combined register vector (CRV)
+  // The input register vector (RV) received from the EDPs.
   // Each register contains a 3-tuple of (index, key, count), each of which is
   // a 66 bytes ElGamal ciphertext. In other words, the CRV size should be
   // divisible by 66*3.
   // The CRV is only needed so the noise can be interleaved and hidden in the
   // CRV. The registers in the CRV are unchanged, except for their orders.
-  bytes combined_register_vector = 1;
+  bytes requisition_register_vector = 1;
+  // The input combined register vector (CRV) received from other duchies.
+  // Do not set this field for non-aggregator. In the setup phase, only the
+  // aggregator receives data from non-aggregators.
+  bytes combined_register_vector = 2;
   // The parameters required for generating noise registers.
   // if unset, the worker only shuffles the register without adding any noise.
-  RegisterNoiseGenerationParameters noise_parameters = 2;
+  RegisterNoiseGenerationParameters noise_parameters = 3;
   // The maximum frequency that should be computed.
   // If set to 1, then no frequency histogram is returned.
-  int32 maximum_frequency = 3;
+  int32 maximum_frequency = 4;
   // The mechanism used to generate noise.
-  LiquidLegionsV2NoiseConfig.NoiseMechanism noise_mechanism = 4;
+  LiquidLegionsV2NoiseConfig.NoiseMechanism noise_mechanism = 5;
   // The maximum number of threads used by crypto actions.
-  int32 parallelism = 5;
+  int32 parallelism = 6;
 }
 
 // Response of the CompleteSetupPhase method.
@@ -251,7 +255,7 @@ message CompleteExecutionPhaseTwoAtAggregatorRequest {
   // (maximum_frequency-1) will be the row dimension of the 2-D SKA matrix.
   int32 maximum_frequency = 5;
   // LiquidLegions parameters used for reach estimation.
-  LiquidLegionsSketchParameters liquid_legions_parameters = 6;
+  LiquidLegionsSketchParameters sketch_parameters = 6;
   // Parameters for computing the noise baseline of the global reach DP noise
   // registers added in the setup phase.
   // The baseline is subtracted before reach is estimated.
