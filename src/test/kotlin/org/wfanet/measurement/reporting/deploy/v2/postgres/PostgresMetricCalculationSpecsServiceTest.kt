@@ -28,12 +28,13 @@ import org.wfanet.measurement.reporting.service.internal.testing.v2.MetricCalcul
 
 /**
  * TODO(@tristanvuong2021): Unit tests will only be turned for the final PR for making
- * MetricCalculationSpec its own resource to make it possible to break up the change into several
- * PRs.
+ *   MetricCalculationSpec its own resource to make it possible to break up the change into several
+ *   PRs.
  */
 @Ignore
 @RunWith(JUnit4::class)
-class PostgresMetricCalculationSpecsServiceTest : MetricCalculationSpecsServiceTest<PostgresMetricCalculationSpecsService>() {
+class PostgresMetricCalculationSpecsServiceTest :
+  MetricCalculationSpecsServiceTest<PostgresMetricCalculationSpecsService>() {
   override fun newServices(
     idGenerator: IdGenerator,
   ): Services<PostgresMetricCalculationSpecsService> {

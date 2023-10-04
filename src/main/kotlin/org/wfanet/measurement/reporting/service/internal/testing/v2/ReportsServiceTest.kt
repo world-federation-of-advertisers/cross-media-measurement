@@ -51,7 +51,6 @@ import org.wfanet.measurement.internal.reporting.v2.createReportRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest
 import org.wfanet.measurement.internal.reporting.v2.measurement
-import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.metric
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.internal.reporting.v2.periodicTimeInterval

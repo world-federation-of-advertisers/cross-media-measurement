@@ -1,3 +1,19 @@
+/*
+ * Copyright 2023 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.wfanet.measurement.reporting.service.internal.testing.v2
 
 import com.google.common.truth.Truth.assertThat
@@ -62,29 +78,31 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
     }
     val createdMetricCalculationSpec = service.createMetricCalculationSpec(request)
 
-    assertThat(createdMetricCalculationSpec.externalMetricCalculationSpecId).isEqualTo(request.externalMetricCalculationSpecId)
+    assertThat(createdMetricCalculationSpec.externalMetricCalculationSpecId)
+      .isEqualTo(request.externalMetricCalculationSpecId)
   }
 
   @Test
-  fun `createMetricCalculationSpec throws ALREADY_EXISTS when same external ID used 2x`() = runBlocking {
-    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-    val metricCalculationSpec = createMetricCalculationSpecForRequest(CMMS_MEASUREMENT_CONSUMER_ID)
+  fun `createMetricCalculationSpec throws ALREADY_EXISTS when same external ID used 2x`() =
+    runBlocking {
+      createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+      val metricCalculationSpec =
+        createMetricCalculationSpecForRequest(CMMS_MEASUREMENT_CONSUMER_ID)
 
-    val request = createMetricCalculationSpecRequest {
-      this.metricCalculationSpec = metricCalculationSpec
-      externalMetricCalculationSpecId = "external-metric-calculation-spec-id"
-    }
-    val createdMetricCalculationSpec = service.createMetricCalculationSpec(request)
-
-    assertThat(createdMetricCalculationSpec.externalMetricCalculationSpecId).isEqualTo(request.externalMetricCalculationSpecId)
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.createMetricCalculationSpec(request)
+      val request = createMetricCalculationSpecRequest {
+        this.metricCalculationSpec = metricCalculationSpec
+        externalMetricCalculationSpecId = "external-metric-calculation-spec-id"
       }
+      val createdMetricCalculationSpec = service.createMetricCalculationSpec(request)
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
-  }
+      assertThat(createdMetricCalculationSpec.externalMetricCalculationSpecId)
+        .isEqualTo(request.externalMetricCalculationSpecId)
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.createMetricCalculationSpec(request) }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    }
 
   @Test
   fun `createReportSchedule throws INVALID_ARGUMENT when missing external ID`() = runBlocking {
@@ -97,36 +115,32 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.createMetricCalculationSpec(request)
-      }
+      assertFailsWith<StatusRuntimeException> { service.createMetricCalculationSpec(request) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
     assertThat(exception.message).contains("external_metric_calculation_spec_id")
   }
 
   @Test
-  fun `createReportSchedule throws INVALID_ARGUMENT when no reporting metric entries`() = runBlocking {
-    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-    val metricCalculationSpec = createMetricCalculationSpecForRequest(CMMS_MEASUREMENT_CONSUMER_ID).copy {
-      details = MetricCalculationSpecKt.details {
-        metricSpecs.clear()
-      }
-    }
+  fun `createReportSchedule throws INVALID_ARGUMENT when no reporting metric entries`() =
+    runBlocking {
+      createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+      val metricCalculationSpec =
+        createMetricCalculationSpecForRequest(CMMS_MEASUREMENT_CONSUMER_ID).copy {
+          details = MetricCalculationSpecKt.details { metricSpecs.clear() }
+        }
 
-    val request = createMetricCalculationSpecRequest {
-      this.metricCalculationSpec = metricCalculationSpec
-      externalMetricCalculationSpecId = "external-metric-calculation-spec-id"
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.createMetricCalculationSpec(request)
+      val request = createMetricCalculationSpecRequest {
+        this.metricCalculationSpec = metricCalculationSpec
+        externalMetricCalculationSpecId = "external-metric-calculation-spec-id"
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("metric_specs")
-  }
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.createMetricCalculationSpec(request) }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.message).contains("metric_specs")
+    }
 
   @Test
   fun `createMetricCalculationSpec throws FAILED_PRECONDITION when MC not found`() = runBlocking {
@@ -138,9 +152,7 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.createMetricCalculationSpec(request)
-      }
+      assertFailsWith<StatusRuntimeException> { service.createMetricCalculationSpec(request) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception.message).contains("Measurement Consumer")
@@ -157,13 +169,17 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
     }
     val createdMetricCalculationSpec = service.createMetricCalculationSpec(createRequest)
 
-    val retrievedMetricCalculationSpec = service.getMetricCalculationSpec(
-      getMetricCalculationSpecRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalMetricCalculationSpecId = createdMetricCalculationSpec.externalMetricCalculationSpecId
-    })
+    val retrievedMetricCalculationSpec =
+      service.getMetricCalculationSpec(
+        getMetricCalculationSpecRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricCalculationSpecId =
+            createdMetricCalculationSpec.externalMetricCalculationSpecId
+        }
+      )
 
-    assertThat(retrievedMetricCalculationSpec.externalMetricCalculationSpecId).isEqualTo(createRequest.externalMetricCalculationSpecId)
+    assertThat(retrievedMetricCalculationSpec.externalMetricCalculationSpecId)
+      .isEqualTo(createRequest.externalMetricCalculationSpecId)
     assertThat(retrievedMetricCalculationSpec)
       .ignoringFields(MetricCalculationSpec.EXTERNAL_METRIC_CALCULATION_SPEC_ID_FIELD_NUMBER)
       .ignoringRepeatedFieldOrder()
@@ -187,7 +203,6 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.message).contains("not found")
   }
-
 
   @Test
   fun `getMetricCalculationSpec throws INVALID_ARGUMENT when cmms mc id missing`() = runBlocking {
@@ -229,16 +244,21 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
       externalMetricCalculationSpecId = "external-metric-calculation-spec-id"
     }
     val createdMetricCalculationSpec = service.createMetricCalculationSpec(request)
-    service.createMetricCalculationSpec(request.copy {
-      externalMetricCalculationSpecId = "external-metric-calculation-spec-id-2"
-    })
+    service.createMetricCalculationSpec(
+      request.copy { externalMetricCalculationSpecId = "external-metric-calculation-spec-id-2" }
+    )
 
-    val retrievedMetricCalculationSpecs = service.listMetricCalculationSpecs(
-      listMetricCalculationSpecsRequest {
-        filter = ListMetricCalculationSpecsRequestKt.filter {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        }
-      }).metricCalculationSpecsList
+    val retrievedMetricCalculationSpecs =
+      service
+        .listMetricCalculationSpecs(
+          listMetricCalculationSpecsRequest {
+            filter =
+              ListMetricCalculationSpecsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              }
+          }
+        )
+        .metricCalculationSpecsList
 
     assertThat(retrievedMetricCalculationSpecs).hasSize(1)
     assertThat(retrievedMetricCalculationSpecs[0].externalMetricCalculationSpecId)
@@ -257,17 +277,22 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
       externalMetricCalculationSpecId = "external-metric-calculation-spec-id"
     }
     val createdMetricCalculationSpec = service.createMetricCalculationSpec(request)
-    service.createMetricCalculationSpec(request.copy {
-      externalMetricCalculationSpecId = "external-metric-calculation-spec-id-2"
-    })
+    service.createMetricCalculationSpec(
+      request.copy { externalMetricCalculationSpecId = "external-metric-calculation-spec-id-2" }
+    )
 
-    val retrievedMetricCalculationSpecs = service.listMetricCalculationSpecs(
-      listMetricCalculationSpecsRequest {
-        filter = ListMetricCalculationSpecsRequestKt.filter {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        }
-        limit = 1
-      }).metricCalculationSpecsList
+    val retrievedMetricCalculationSpecs =
+      service
+        .listMetricCalculationSpecs(
+          listMetricCalculationSpecsRequest {
+            filter =
+              ListMetricCalculationSpecsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              }
+            limit = 1
+          }
+        )
+        .metricCalculationSpecsList
 
     assertThat(retrievedMetricCalculationSpecs).hasSize(1)
     assertThat(retrievedMetricCalculationSpecs[0].externalMetricCalculationSpecId)
@@ -284,17 +309,24 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
       externalMetricCalculationSpecId = "external-metric-calculation-spec-id"
     }
     val createdMetricCalculationSpec = service.createMetricCalculationSpec(request)
-    val createdMetricCalculationSpec2 = service.createMetricCalculationSpec(request.copy {
-      externalMetricCalculationSpecId = "external-metric-calculation-spec-id-2"
-    })
+    val createdMetricCalculationSpec2 =
+      service.createMetricCalculationSpec(
+        request.copy { externalMetricCalculationSpecId = "external-metric-calculation-spec-id-2" }
+      )
 
-    val retrievedMetricCalculationSpecs = service.listMetricCalculationSpecs(
-      listMetricCalculationSpecsRequest {
-      filter = ListMetricCalculationSpecsRequestKt.filter {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        externalMetricCalculationSpecIdAfter = createdMetricCalculationSpec.externalMetricCalculationSpecId
-      }
-    }).metricCalculationSpecsList
+    val retrievedMetricCalculationSpecs =
+      service
+        .listMetricCalculationSpecs(
+          listMetricCalculationSpecsRequest {
+            filter =
+              ListMetricCalculationSpecsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                externalMetricCalculationSpecIdAfter =
+                  createdMetricCalculationSpec.externalMetricCalculationSpecId
+              }
+          }
+        )
+        .metricCalculationSpecsList
 
     assertThat(retrievedMetricCalculationSpecs).hasSize(1)
     assertThat(retrievedMetricCalculationSpecs[0].externalMetricCalculationSpecId)
@@ -305,9 +337,7 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
   fun `listMetricCalculationSpecs throws INVALID_ARGUMENT when cmms mc id missing`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.listMetricCalculationSpecs(
-          listMetricCalculationSpecsRequest {}
-        )
+        service.listMetricCalculationSpecs(listMetricCalculationSpecsRequest {})
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -322,26 +352,27 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
     ): MetricCalculationSpec {
       return metricCalculationSpec {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-        details = MetricCalculationSpecKt.details {
-          displayName = "display"
-          metricSpecs += metricSpec {
-            reach =
-              MetricSpecKt.reachParams {
-                privacyParams =
-                  MetricSpecKt.differentialPrivacyParams {
-                    epsilon = 1.0
-                    delta = 2.0
-                  }
-              }
-            vidSamplingInterval =
-              MetricSpecKt.vidSamplingInterval {
-                start = 0.1f
-                width = 0.5f
-              }
+        details =
+          MetricCalculationSpecKt.details {
+            displayName = "display"
+            metricSpecs += metricSpec {
+              reach =
+                MetricSpecKt.reachParams {
+                  privacyParams =
+                    MetricSpecKt.differentialPrivacyParams {
+                      epsilon = 1.0
+                      delta = 2.0
+                    }
+                }
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start = 0.1f
+                  width = 0.5f
+                }
+            }
+            groupings += MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+            cumulative = false
           }
-          groupings += MetricCalculationSpecKt.grouping { predicates += "age > 10" }
-          cumulative = false
-        }
       }
     }
   }
