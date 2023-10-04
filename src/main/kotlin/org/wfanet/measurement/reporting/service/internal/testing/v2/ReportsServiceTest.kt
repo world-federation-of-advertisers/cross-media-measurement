@@ -1490,14 +1490,5 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         }
       )
     }
-
-    private suspend fun createMeasurementConsumer(
-      cmmsMeasurementConsumerId: String,
-      measurementConsumersService: MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase,
-    ) {
-      measurementConsumersService.createMeasurementConsumer(
-        measurementConsumer { this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId }
-      )
-    }
   }
 }
