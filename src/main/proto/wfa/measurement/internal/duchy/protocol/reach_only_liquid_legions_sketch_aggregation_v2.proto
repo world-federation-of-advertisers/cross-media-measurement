@@ -18,6 +18,7 @@ package wfa.measurement.internal.duchy.protocol;
 
 import "wfa/measurement/internal/duchy/config/protocols_setup_config.proto";
 import "wfa/measurement/internal/duchy/crypto.proto";
+import "wfa/measurement/internal/duchy/protocol/liquid_legions_sketch_aggregation_v2.proto";
 import "wfa/measurement/internal/duchy/protocol/liquid_legions_sketch_parameter.proto";
 import "wfa/measurement/internal/duchy/protocol/liquid_legions_v2_noise_config.proto";
 
@@ -95,7 +96,7 @@ message ReachOnlyLiquidLegionsSketchAggregationV2 {
   message ComputationDetails {
     // The duchy's role in the computation.
     org.wfa.measurement.config.LiquidLegionsV2SetupConfig.RoleInComputation
-        role = 1;
+      role = 1;
 
     // Parameters used in this computation.
     message Parameters {
@@ -110,31 +111,12 @@ message ReachOnlyLiquidLegionsSketchAggregationV2 {
     }
     Parameters parameters = 2;
 
-    message ComputationParticipant {
-      // Name of the duchy who owns the key.
-      string duchy_id = 1;
-      // The ElGamal public key.
-      ElGamalPublicKey public_key = 2;
-      // Serialized `ElGamalPublicKey` message from public API.
-      // For consent signaling verification only.
-      bytes el_gamal_public_key = 3;
-      // Cryptographic digital signature of `el_gamal_public_key`.
-      // For consent signaling verification only.
-      bytes el_gamal_public_key_signature = 4;
-      // Object identifier (OID) of the signature algorithm in dot notation.
-      //
-      // If not specified, this is assumed to be the signature algorithm of the
-      // accompanying certificate.
-      string el_gamal_public_key_signature_algorithm_oid = 6;
-      // The duchy's X.509 certificate in DER format which can used to verify
-      // the above el_gamal_public_key_signature
-      bytes duchy_certificate_der = 5;
-    }
     // The list of duchies participating in this computation.
     // The list is sorted by the duchy order in the MPC ring, with the first
     // element being the first non-aggregator and the last element being the
     // aggregator.
-    repeated ComputationParticipant participant = 3;
+    repeated LiquidLegionsSketchAggregationV2.ComputationDetails
+      .ComputationParticipant participant = 3;
 
     message ReachEstimate {
       int64 reach = 1;

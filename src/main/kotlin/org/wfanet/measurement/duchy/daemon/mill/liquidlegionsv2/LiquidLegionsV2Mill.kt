@@ -20,9 +20,6 @@ import io.grpc.StatusException
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.metrics.LongHistogram
 import io.opentelemetry.api.metrics.Meter
-import java.nio.file.Paths
-import java.security.SignatureException
-import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
@@ -30,40 +27,27 @@ import java.util.logging.Logger
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.common.crypto.SignatureAlgorithm
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
-import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.common.identity.DuchyInfo
-import org.wfanet.measurement.common.loadLibrary
-import org.wfanet.measurement.consent.client.duchy.encryptResult
 import org.wfanet.measurement.consent.client.duchy.signElgamalPublicKey
-import org.wfanet.measurement.consent.client.duchy.signResult
-import org.wfanet.measurement.consent.client.duchy.verifyDataProviderParticipation
-import org.wfanet.measurement.consent.client.duchy.verifyElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_LIB_CPU_DURATION
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
-import org.wfanet.measurement.duchy.daemon.mill.MillBase
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.LiquidLegionsV2Encryption
-import org.wfanet.measurement.duchy.daemon.utils.ComputationResult
 import org.wfanet.measurement.duchy.daemon.utils.ReachAndFrequencyResult
 import org.wfanet.measurement.duchy.daemon.utils.ReachResult
 import org.wfanet.measurement.duchy.daemon.utils.toAnySketchElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toCmmsElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaElGamalPublicKey
-import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaEncryptionPublicKey
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.service.internal.computations.outputPathList
 import org.wfanet.measurement.duchy.service.system.v1alpha.advanceComputationHeader
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
-import org.wfanet.measurement.internal.duchy.ComputationDetails.KingdomComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
-import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.NON_AGGREGATOR
@@ -82,7 +66,6 @@ import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.FlagCountTupleNoiseGenerationParameters
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.Parameters
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseOneAtAggregatorRequest
@@ -149,22 +132,24 @@ class LiquidLegionsV2Mill(
   clock: Clock = Clock.systemUTC(),
   private val parallelism: Int = 1,
 ) :
-  MillBase(
+  LiquidLegionsV2MillBase(
     millId,
     duchyId,
     signingKey,
     consentSignalCert,
+    trustedCertificates,
     dataClients,
     systemComputationParticipantsClient,
     systemComputationsClient,
     systemComputationLogEntriesClient,
     computationStatsClient,
     ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
+    workerStubs,
     workLockDuration,
+    openTelemetry,
     requestChunkSizeBytes,
     maximumAttempts,
-    clock,
-    openTelemetry
+    clock
   ) {
   private val meter: Meter = openTelemetry.getMeter(LiquidLegionsV2Mill::class.java.name)
 
@@ -307,87 +292,6 @@ class LiquidLegionsV2Mill(
       nextToken,
       stage = Stage.WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage()
     )
-  }
-
-  /**
-   * Verifies that all EDPs have participated.
-   *
-   * @return a list of error messages if anything is wrong, otherwise an empty list.
-   */
-  private fun verifyEdpParticipation(
-    details: KingdomComputationDetails,
-    requisitions: Iterable<RequisitionMetadata>,
-  ): List<String> {
-    when (Version.fromString(details.publicApiVersion)) {
-      Version.V2_ALPHA -> {}
-      Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
-    }
-
-    val errorList = mutableListOf<String>()
-    val measurementSpec = MeasurementSpec.parseFrom(details.measurementSpec)
-    if (!verifyDataProviderParticipation(measurementSpec, requisitions.map { it.details.nonce })) {
-      errorList.add("Cannot verify participation of all DataProviders.")
-    }
-    for (requisition in requisitions) {
-      if (requisition.details.externalFulfillingDuchyId == duchyId && requisition.path.isBlank()) {
-        errorList.add(
-          "Missing expected data for requisition ${requisition.externalKey.externalRequisitionId}."
-        )
-      }
-    }
-    return errorList
-  }
-
-  /**
-   * Verifies the ElGamal public key of [duchy].
-   *
-   * @return the error message if verification fails, or else `null`
-   */
-  private fun verifyDuchySignature(
-    duchy: ComputationParticipant,
-    publicApiVersion: Version
-  ): String? {
-    val duchyInfo: DuchyInfo.Entry =
-      requireNotNull(DuchyInfo.getByDuchyId(duchy.duchyId)) {
-        "DuchyInfo not found for ${duchy.duchyId}"
-      }
-    val duchyCertificate: X509Certificate = readCertificate(duchy.duchyCertificateDer)
-    val signatureAlgorithmOid =
-      duchy.elGamalPublicKeySignatureAlgorithmOid.ifEmpty { duchyCertificate.sigAlgOID }
-    val signatureAlgorithm =
-      requireNotNull(SignatureAlgorithm.fromOid(signatureAlgorithmOid)) {
-        "Unsupported signature algorithm OID $signatureAlgorithmOid"
-      }
-    when (publicApiVersion) {
-      Version.V2_ALPHA -> {
-        try {
-          verifyElGamalPublicKey(
-            duchy.elGamalPublicKey,
-            duchy.elGamalPublicKeySignature,
-            signatureAlgorithm,
-            duchyCertificate,
-            trustedCertificates.getValue(duchyInfo.rootCertificateSkid)
-          )
-        } catch (e: CertPathValidatorException) {
-          return "Certificate path invalid for Duchy ${duchy.duchyId}"
-        } catch (e: SignatureException) {
-          return "Invalid ElGamal public key signature for Duchy ${duchy.duchyId}"
-        }
-      }
-      Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
-    }
-    return null
-  }
-
-  /** Fails a computation both locally and at the kingdom when the confirmation fails. */
-  private fun failComputationAtConfirmationPhase(
-    token: ComputationToken,
-    errorList: List<String>
-  ): ComputationToken {
-    val errorMessage =
-      "@Mill $millId, Computation ${token.globalComputationId} failed due to:\n" +
-        errorList.joinToString(separator = "\n")
-    throw ComputationDataClients.PermanentErrorException(errorMessage)
   }
 
   private fun List<ElGamalPublicKey>.toCombinedPublicKey(curveId: Int): ElGamalPublicKey {
@@ -921,49 +825,6 @@ class LiquidLegionsV2Mill(
     return completeComputation(nextToken, CompletedReason.SUCCEEDED)
   }
 
-  private suspend fun sendResultToKingdom(
-    token: ComputationToken,
-    computationResult: ComputationResult
-  ) {
-    val kingdomComputation = token.computationDetails.kingdomComputation
-    val serializedPublicApiEncryptionPublicKey: ByteString
-    val encryptedResult =
-      when (Version.fromString(kingdomComputation.publicApiVersion)) {
-        Version.V2_ALPHA -> {
-          val signedResult = signResult(computationResult.toV2AlphaMeasurementResult(), signingKey)
-          val publicApiEncryptionPublicKey =
-            kingdomComputation.measurementPublicKey.toV2AlphaEncryptionPublicKey()
-          serializedPublicApiEncryptionPublicKey = publicApiEncryptionPublicKey.toByteString()
-          encryptResult(signedResult, publicApiEncryptionPublicKey)
-        }
-        Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
-      }
-    sendResultToKingdom(
-      globalId = token.globalComputationId,
-      certificate = consentSignalCert,
-      resultPublicKey = serializedPublicApiEncryptionPublicKey,
-      encryptedResult = encryptedResult
-    )
-  }
-
-  private fun nextDuchyStub(
-    duchyList: List<ComputationParticipant>
-  ): ComputationControlCoroutineStub {
-    val index = duchyList.indexOfFirst { it.duchyId == duchyId }
-    val nextDuchy = duchyList[(index + 1) % duchyList.size].duchyId
-    return workerStubs[nextDuchy]
-      ?: throw ComputationDataClients.PermanentErrorException(
-        "No ComputationControlService stub for next duchy '$nextDuchy'"
-      )
-  }
-
-  private fun aggregatorDuchyStub(aggregatorId: String): ComputationControlCoroutineStub {
-    return workerStubs[aggregatorId]
-      ?: throw ComputationDataClients.PermanentErrorException(
-        "No ComputationControlService stub for the Aggregator duchy '$aggregatorId'"
-      )
-  }
-
   private fun ByteString.toCompleteSetupPhaseRequest(
     llv2Details: LiquidLegionsSketchAggregationV2.ComputationDetails,
     totalRequisitionsCount: Int,
@@ -1002,27 +863,7 @@ class LiquidLegionsV2Mill(
     }
   }
 
-  private val ComputationToken.participantCount: Int
-    get() =
-      if (computationDetails.kingdomComputation.participantCount != 0) {
-        computationDetails.kingdomComputation.participantCount
-      } else {
-        // For legacy Computations. See world-federation-of-advertisers/cross-media-measurement#1194
-        workerStubs.size + 1
-      }
-
   companion object {
-    init {
-      loadLibrary(
-        name = "estimators",
-        directoryPath = Paths.get("any_sketch_java/src/main/java/org/wfanet/estimation")
-      )
-      loadLibrary(
-        name = "sketch_encrypter_adapter",
-        directoryPath = Paths.get("any_sketch_java/src/main/java/org/wfanet/anysketch/crypto")
-      )
-    }
-
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
