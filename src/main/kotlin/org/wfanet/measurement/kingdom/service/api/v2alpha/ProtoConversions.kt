@@ -58,6 +58,8 @@ import org.wfanet.measurement.api.v2alpha.ModelShardKey
 import org.wfanet.measurement.api.v2alpha.ModelShardKt.modelBlob
 import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
+import org.wfanet.measurement.api.v2alpha.Population
+import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
@@ -77,9 +79,11 @@ import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.api.v2alpha.modelSuite
+import org.wfanet.measurement.api.v2alpha.population
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.reachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.api.v2alpha.eventTemplate
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toInstant
@@ -104,6 +108,7 @@ import org.wfanet.measurement.internal.kingdom.ModelRelease as InternalModelRele
 import org.wfanet.measurement.internal.kingdom.ModelRollout as InternalModelRollout
 import org.wfanet.measurement.internal.kingdom.ModelShard as InternalModelShard
 import org.wfanet.measurement.internal.kingdom.ModelSuite as InternalModelSuite
+import org.wfanet.measurement.internal.kingdom.Population as InternalPopulation
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt as InternalProtocolConfigKt
@@ -116,7 +121,11 @@ import org.wfanet.measurement.internal.kingdom.modelRelease as internalModelRele
 import org.wfanet.measurement.internal.kingdom.modelRollout as internalModelRollout
 import org.wfanet.measurement.internal.kingdom.modelShard as internalModelShard
 import org.wfanet.measurement.internal.kingdom.modelSuite as internalModelSuite
+import org.wfanet.measurement.internal.kingdom.population as internalPopulation
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
+import org.wfanet.measurement.internal.kingdom.PopulationKt.populationBlob as internalPopulationBlob
+import org.wfanet.measurement.internal.kingdom.eventTemplate as internalEventTemplate
+import org.wfanet.measurement.api.v2alpha.PopulationKt.populationBlob
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 
@@ -802,6 +811,44 @@ fun ModelShard.toInternal(
     externalModelSuiteId = apiIdToExternalId(modelReleaseKey.modelSuiteId)
     externalModelReleaseId = apiIdToExternalId(modelReleaseKey.modelReleaseId)
     modelBlobPath = publicModelShard.modelBlob.modelBlobPath
+  }
+}
+
+/** Converts an internal [InternaPopulation] to a public [Population]. */
+fun InternalPopulation.toPopulation(): Population {
+  val source = this
+
+  return population {
+    name =
+      PopulationKey(
+        externalIdToApiId(source.externalDataProviderId),
+        externalIdToApiId(source.externalPopulationId)
+      )
+        .toName()
+    description = source.description
+    createTime = source.createTime
+    populationBlob = populationBlob {
+      modelBlobUri = source.populationBlob.modelBlobUri
+    }
+    eventTemplate = eventTemplate {
+      type = source.eventTemplate.fullyQualifiedType
+    }
+  }
+}
+
+/** Converts a public [Population] to an internal [InternalPopulation] */
+fun Population.toInternal(dataProviderKey: DataProviderKey): InternalPopulation {
+  val publicPopulation = this
+
+  return internalPopulation {
+    externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
+    description = publicPopulation.description
+    populationBlob = internalPopulationBlob {
+      modelBlobUri = publicPopulation.populationBlob.modelBlobUri
+    }
+    eventTemplate = internalEventTemplate {
+      fullyQualifiedType = publicPopulation.eventTemplate.type
+    }
   }
 }
 

@@ -38,11 +38,16 @@ def wfa_measurement_system_repositories():
         version = "0.10.0",
     )
 
-    wfa_repo_archive(
+#    wfa_repo_archive(
+#        name = "wfa_measurement_proto",
+#        repo = "cross-media-measurement-api",
+#        sha256 = "f027ed6e6dfce0f1ce41be8d065e3f3227eb09e9d41fbc041650334301d72c42",
+#        version = "0.45.0",
+#    )
+
+    native.local_repository(
         name = "wfa_measurement_proto",
-        repo = "cross-media-measurement-api",
-        sha256 = "2106c2fd73775f5b0ad8d02c0ac01761b497920b363e1c90f12663d5321f5873",
-        version = "0.43.0",
+        path = "/home/jojijacob/XMM/cross-media-measurement-api",
     )
 
     wfa_repo_archive(
