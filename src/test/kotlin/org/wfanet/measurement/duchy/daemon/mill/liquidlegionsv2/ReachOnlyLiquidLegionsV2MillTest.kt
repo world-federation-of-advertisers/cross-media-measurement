@@ -1928,7 +1928,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
           localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
           curveId = CURVE_ID
           serializedExcessiveNoiseCiphertext = SERIALIZED_NOISE_CIPHERTEXT
-          liquidLegionsParameters = liquidLegionsSketchParameters {
+          sketchParameters = liquidLegionsSketchParameters {
             decayRate = DECAY_RATE
             size = SKETCH_SIZE
           }

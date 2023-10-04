@@ -133,7 +133,7 @@ message CompleteReachOnlyExecutionPhaseAtAggregatorRequest {
   // The baseline is subtracted before reach is estimated.
   GlobalReachDpNoiseBaseline reach_dp_noise_baseline = 5;
   // LiquidLegions parameters used for reach estimation.
-  LiquidLegionsSketchParameters liquid_legions_parameters = 6;
+  LiquidLegionsSketchParameters sketch_parameters = 6;
   // The sampling rate to be used by the LiquidLegionsV2 protocol.
   // This is taken from the VidSamplingInterval.width parameter in the
   // MeasurementSpec.

@@ -140,7 +140,7 @@ class ReachOnlyLiquidLegionsV2EncryptionUtilityTest {
         serializedExcessiveNoiseCiphertext =
           completeReachOnlyExecutionPhaseResponse2.serializedExcessiveNoiseCiphertext
         parallelism = PARALLELISM
-        liquidLegionsParameters = liquidLegionsSketchParameters {
+        sketchParameters = liquidLegionsSketchParameters {
           decayRate = DECAY_RATE
           size = LIQUID_LEGIONS_SIZE
         }

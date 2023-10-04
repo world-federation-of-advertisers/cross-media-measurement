@@ -499,17 +499,18 @@ class LiquidLegionsV2Mill(
     val llv2Details = token.computationDetails.liquidLegionsV2
     require(AGGREGATOR == llv2Details.role) { "invalid role for this function." }
     val inputBlobCount = token.participantCount - 1
+    val requisition = dataClients.readAllRequisitionBlobs(token, duchyId)
+    val combinedRegisterVector = readAndCombineAllInputBlobs(token, inputBlobCount)
     val (bytes, nextToken) =
       existingOutputOr(token) {
         val request =
-          dataClients
-            .readAllRequisitionBlobs(token, duchyId)
-            .concat(readAndCombineAllInputBlobs(token, inputBlobCount))
-            .toCompleteSetupPhaseRequest(
-              llv2Details,
-              token.requisitionsCount,
-              token.participantCount
-            )
+          toCompleteSetupPhaseRequest(
+            requisition,
+            combinedRegisterVector,
+            llv2Details,
+            token.requisitionsCount,
+            token.participantCount
+          )
         val cryptoResult: CompleteSetupPhaseResponse = cryptoWorker.completeSetupPhase(request)
         logStageDurationMetric(
           token,
@@ -540,16 +541,17 @@ class LiquidLegionsV2Mill(
   private suspend fun completeSetupPhaseAtNonAggregator(token: ComputationToken): ComputationToken {
     val llv2Details = token.computationDetails.liquidLegionsV2
     require(NON_AGGREGATOR == llv2Details.role) { "invalid role for this function." }
+    val requisition = dataClients.readAllRequisitionBlobs(token, duchyId)
     val (bytes, nextToken) =
       existingOutputOr(token) {
         val request =
-          dataClients
-            .readAllRequisitionBlobs(token, duchyId)
-            .toCompleteSetupPhaseRequest(
-              llv2Details,
-              token.requisitionsCount,
-              token.participantCount
-            )
+          toCompleteSetupPhaseRequest(
+            requisition,
+            ByteString.EMPTY,
+            llv2Details,
+            token.requisitionsCount,
+            token.participantCount
+          )
         val cryptoResult: CompleteSetupPhaseResponse = cryptoWorker.completeSetupPhase(request)
         logStageDurationMetric(
           token,
@@ -698,7 +700,7 @@ class LiquidLegionsV2Mill(
           curveId = llv2Parameters.ellipticCurveId.toLong()
           flagCountTuples = readAndCombineAllInputBlobs(token, 1)
           maximumFrequency = maximumRequestedFrequency
-          liquidLegionsParameters = liquidLegionsSketchParameters {
+          sketchParameters = liquidLegionsSketchParameters {
             decayRate = llv2Parameters.sketchParameters.decayRate
             size = llv2Parameters.sketchParameters.size
           }
@@ -964,14 +966,17 @@ class LiquidLegionsV2Mill(
       )
   }
 
-  private fun ByteString.toCompleteSetupPhaseRequest(
+  private fun toCompleteSetupPhaseRequest(
+    requisition: ByteString,
+    combinedRegisterVector: ByteString,
     llv2Details: LiquidLegionsSketchAggregationV2.ComputationDetails,
     totalRequisitionsCount: Int,
     participantCount: Int,
   ): CompleteSetupPhaseRequest {
     val noiseConfig = llv2Details.parameters.noise
     return completeSetupPhaseRequest {
-      combinedRegisterVector = this@toCompleteSetupPhaseRequest
+      this.requisitionRegisterVector = requisition
+      this.combinedRegisterVector = combinedRegisterVector
       maximumFrequency = llv2Details.parameters.maximumFrequency.coerceAtLeast(1)
       if (noiseConfig.hasReachNoiseConfig()) {
         noiseParameters = registerNoiseGenerationParameters {
