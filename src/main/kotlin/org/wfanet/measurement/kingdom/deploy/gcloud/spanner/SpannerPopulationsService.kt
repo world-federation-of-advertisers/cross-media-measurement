@@ -37,7 +37,12 @@ class SpannerPopulationsService(
 
   override fun streamPopulations(request: StreamPopulationsRequest): Flow<Population> {
     grpcRequire(request.limit >= 0) { "Limit cannot be less than 0" }
-    if (request.filter.hasAfter() && !request.filter.after.hasCreateTime()) {
+    if (
+      request.filter.hasAfter() &&
+        (!request.filter.after.hasCreateTime() ||
+          request.filter.after.externalDataProviderId == 0L ||
+          request.filter.after.externalPopulationId == 0L)
+    ) {
       failGrpc(
         Status.INVALID_ARGUMENT,
       ) {

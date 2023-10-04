@@ -1,6 +1,6 @@
 package org.wfanet.measurement.kingdom.service.internal.testing
 
-import com.google.common.truth.Truth
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
@@ -63,9 +63,7 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
     val request = population {
       externalDataProviderId = dataProvider.externalDataProviderId
       description = DESC
-      populationBlob = populationBlob {
-        modelBlobUri = BLOB_URI
-      }
+      populationBlob = populationBlob { modelBlobUri = BLOB_URI }
       eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
     }
 
@@ -80,31 +78,27 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
         population {
           externalDataProviderId = dataProvider.externalDataProviderId
           description = DESC
-          populationBlob = populationBlob {
-            modelBlobUri = BLOB_URI
-          }
+          populationBlob = populationBlob { modelBlobUri = BLOB_URI }
           eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
         }
       )
-    Truth.assertThat(response.createTime.seconds).isGreaterThan(0L)
-    Truth.assertThat(response.externalPopulationId).isNotEqualTo(request.externalPopulationId)
+    assertThat(response.createTime.seconds).isGreaterThan(0L)
+    assertThat(response.externalPopulationId).isNotEqualTo(request.externalPopulationId)
   }
 
   fun `createPopulation fails with invalid DataProvider Id`() = runBlocking {
-    val request= population {
+    val request = population {
       externalDataProviderId = 0
       description = DESC
-      populationBlob = populationBlob {
-        modelBlobUri = BLOB_URI
-      }
+      populationBlob = populationBlob { modelBlobUri = BLOB_URI }
       eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
     }
 
     val exception =
       assertFailsWith<StatusRuntimeException> { populationsService.createPopulation(request) }
 
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    Truth.assertThat(exception).hasMessageThat().contains("DataProvider not found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("DataProvider not found")
   }
 
   fun `getPopulation succeeds`() = runBlocking {
@@ -113,9 +107,7 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
     val population = population {
       externalDataProviderId = dataProvider.externalDataProviderId
       description = DESC
-      populationBlob = populationBlob {
-        modelBlobUri = BLOB_URI
-      }
+      populationBlob = populationBlob { modelBlobUri = BLOB_URI }
       eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
     }
     val createdPopulation = populationsService.createPopulation(population)
@@ -125,8 +117,7 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
       externalPopulationId = createdPopulation.externalPopulationId
     }
 
-    val response =
-      populationsService.getPopulation(request)
+    val response = populationsService.getPopulation(request)
 
     assertThat(createdPopulation).isEqualTo(response)
   }
@@ -140,12 +131,10 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        populationsService.getPopulation(request)
-      }
+      assertFailsWith<StatusRuntimeException> { populationsService.getPopulation(request) }
 
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    Truth.assertThat(exception).hasMessageThat().contains("Population not found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("Population not found")
   }
 
   fun `getPopulation fails with invalid DataProviderId`() = runBlocking {
@@ -154,9 +143,7 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
     val population = population {
       externalDataProviderId = dataProvider.externalDataProviderId
       description = DESC
-      populationBlob = populationBlob {
-        modelBlobUri = BLOB_URI
-      }
+      populationBlob = populationBlob { modelBlobUri = BLOB_URI }
       eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
     }
     val createdPopulation = populationsService.createPopulation(population)
@@ -167,12 +154,10 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        populationsService.getPopulation(request)
-      }
+      assertFailsWith<StatusRuntimeException> { populationsService.getPopulation(request) }
 
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    Truth.assertThat(exception).hasMessageThat().contains("Population not found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("Population not found")
   }
 
   fun `streamPopulations succeeds`() = runBlocking {
@@ -183,9 +168,7 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
         population {
           externalDataProviderId = dataProvider.externalDataProviderId
           description = DESC + "1"
-          populationBlob = populationBlob {
-            modelBlobUri = BLOB_URI
-          }
+          populationBlob = populationBlob { modelBlobUri = BLOB_URI }
           eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
         }
       )
@@ -195,9 +178,7 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
         population {
           externalDataProviderId = dataProvider.externalDataProviderId
           description = DESC + "2"
-          populationBlob =  populationBlob {
-            modelBlobUri = BLOB_URI
-          }
+          populationBlob = populationBlob { modelBlobUri = BLOB_URI }
           eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
         }
       )
@@ -207,23 +188,16 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
         population {
           externalDataProviderId = dataProvider.externalDataProviderId
           description = DESC + "3"
-          populationBlob = populationBlob {
-            modelBlobUri = BLOB_URI
-          }
+          populationBlob = populationBlob { modelBlobUri = BLOB_URI }
           eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
         }
       )
 
     val request = streamPopulationsRequest {
-      filter {
-        externalDataProviderId = dataProvider.externalDataProviderId
-      }
+      filter { externalDataProviderId = dataProvider.externalDataProviderId }
     }
 
-    val response: List<Population> =
-      populationsService
-        .streamPopulations(request)
-        .toList()
+    val response: List<Population> = populationsService.streamPopulations(request).toList()
 
     assertThat(response)
       .comparingExpectedFieldsOnly()
@@ -239,9 +213,7 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
         population {
           externalDataProviderId = dataProvider.externalDataProviderId
           description = DESC + "1"
-          populationBlob = populationBlob {
-            modelBlobUri = BLOB_URI
-          }
+          populationBlob = populationBlob { modelBlobUri = BLOB_URI }
           eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
         }
       )
@@ -251,9 +223,7 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
         population {
           externalDataProviderId = dataProvider.externalDataProviderId
           description = DESC + "2"
-          populationBlob =  populationBlob {
-            modelBlobUri = BLOB_URI
-          }
+          populationBlob = populationBlob { modelBlobUri = BLOB_URI }
           eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
         }
       )
@@ -263,9 +233,7 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
         population {
           externalDataProviderId = dataProvider.externalDataProviderId
           description = DESC + "3"
-          populationBlob = populationBlob {
-            modelBlobUri = BLOB_URI
-          }
+          populationBlob = populationBlob { modelBlobUri = BLOB_URI }
           eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
         }
       )
@@ -281,10 +249,7 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
       }
     }
 
-    val response: List<Population> =
-      populationsService
-        .streamPopulations(request)
-        .toList()
+    val response: List<Population> = populationsService.streamPopulations(request).toList()
 
     assertThat(response)
       .comparingExpectedFieldsOnly()
