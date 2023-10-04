@@ -114,6 +114,12 @@ jobs:
           name: measurement-cluster-logs
           path: ${{ env.$MEASUREMENT_CLUSTER_LOGS_PATH }}
 
+      - name: Delete Kubernetes Resources
+        continue-on-error: true 
+        run: |
+          kubectl delete all --namespace=default --all
+          kubectl delete networkpolicies --all-namespaces --all
+
       - name: Run panelmatch correctness test
         id: run-panelmatch-correctness-test
         run: >
