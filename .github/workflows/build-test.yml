@@ -116,7 +116,7 @@ jobs:
         continue-on-error: true
         with:
           name: measurement-cluster-logs
-          path: ${{ env.$MEASUREMENT_CLUSTER_LOGS_PATH }}
+          path: ${{ env.MEASUREMENT_CLUSTER_LOGS_PATH }}
 
       - name: Delete Kubernetes Resources
         continue-on-error: true 
@@ -145,7 +145,7 @@ jobs:
         continue-on-error: true
         with:
           name: panelmatch-cluster-logs
-          path: ${{ env.$PANELMATCH_CLUSTER_LOGS_PATH }}
+          path: ${{ env.PANELMATCH_CLUSTER_LOGS_PATH }}
 
       # Delete large files that are cheap to re-create.
       - name: Trim Bazel cache
