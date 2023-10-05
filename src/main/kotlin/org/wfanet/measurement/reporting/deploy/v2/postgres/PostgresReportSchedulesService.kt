@@ -1,0 +1,80 @@
+/*
+ * Copyright 2023 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.wfanet.measurement.reporting.deploy.v2.postgres
+
+import io.grpc.Status
+import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
+import org.wfanet.measurement.common.grpc.grpcRequire
+import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.internal.reporting.v2.AddReportScheduleReportRequest
+import org.wfanet.measurement.internal.reporting.v2.CreateReportScheduleRequest
+import org.wfanet.measurement.internal.reporting.v2.GetReportScheduleRequest
+import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesRequest
+import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesResponse
+import org.wfanet.measurement.internal.reporting.v2.ReportSchedule
+import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.v2.StopReportScheduleRequest
+import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateReportSchedule
+import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.reporting.service.internal.ReportScheduleAlreadyExistsException
+import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
+
+class PostgresReportSchedulesService(
+  private val idGenerator: IdGenerator,
+  private val client: DatabaseClient,
+) : ReportSchedulesCoroutineImplBase() {
+  override suspend fun createReportSchedule(request: CreateReportScheduleRequest): ReportSchedule {
+    grpcRequire(request.externalReportScheduleId.isNotEmpty()) { "external_report_schedule_id is not set." }
+
+    grpcRequire(request.reportSchedule.details.reportTemplate.reportingMetricEntriesCount > 0) {
+      "report_template is missing reporting metric entries."
+    }
+
+    return try {
+      CreateReportSchedule(request).execute(client, idGenerator)
+    } catch (e: ReportingSetNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Reporting Set not found.")
+    } catch (e: MeasurementConsumerNotFoundException) {
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
+        "Measurement Consumer not found."
+      )
+    } catch (e: ReportScheduleAlreadyExistsException) {
+      throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS, "Report Schedule already exists")
+    }
+  }
+
+  override suspend fun getReportSchedule(request: GetReportScheduleRequest): ReportSchedule {
+    // TODO(@tristanvuong2021): Not yet implemented
+    return super.getReportSchedule(request)
+  }
+
+  override suspend fun listReportSchedules(request: ListReportSchedulesRequest): ListReportSchedulesResponse {
+    // TODO(@tristanvuong2021): Not yet implemented
+    return super.listReportSchedules(request)
+  }
+
+  override suspend fun stopReportSchedule(request: StopReportScheduleRequest): ReportSchedule {
+    // TODO(@tristanvuong2021): Not yet implemented
+    return super.stopReportSchedule(request)
+  }
+
+  override suspend fun addReportScheduleReport(request: AddReportScheduleReportRequest): ReportSchedule {
+    // TODO(@tristanvuong2021): Not yet implemented
+    return super.addReportScheduleReport(request)
+  }
+}

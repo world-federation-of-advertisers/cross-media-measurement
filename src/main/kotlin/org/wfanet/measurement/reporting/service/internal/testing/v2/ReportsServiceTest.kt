@@ -1505,38 +1505,5 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         }
       )
     }
-
-    private suspend fun createReportingSet(
-      cmmsMeasurementConsumerId: String,
-      reportingSetsService: ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase,
-      externalReportingSetId: String = "external-reporting-set-id"
-    ): ReportingSet {
-      val reportingSet = reportingSet {
-        this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-        primitive =
-          ReportingSetKt.primitive {
-            eventGroupKeys +=
-              ReportingSetKt.PrimitiveKt.eventGroupKey {
-                cmmsDataProviderId = "1235"
-                cmmsEventGroupId = cmmsMeasurementConsumerId + "123"
-              }
-          }
-      }
-      return reportingSetsService.createReportingSet(
-        createReportingSetRequest {
-          this.reportingSet = reportingSet
-          this.externalReportingSetId = externalReportingSetId
-        }
-      )
-    }
-
-    private suspend fun createMeasurementConsumer(
-      cmmsMeasurementConsumerId: String,
-      measurementConsumersService: MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase,
-    ) {
-      measurementConsumersService.createMeasurementConsumer(
-        measurementConsumer { this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId }
-      )
-    }
   }
 }
