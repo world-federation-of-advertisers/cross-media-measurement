@@ -289,6 +289,9 @@ abstract class AbstractPanelMatchCorrectnessTest {
 
   protected suspend fun runTest() {
 
+    logger.info { "Wait 10s before polling for results" }
+    delay(10000)
+
     PortForwarder(getPod(KINGDOM_PUBLIC_DEPLOYMENT_NAME), SERVER_PORT).use { publicForward ->
       val publicAddress: InetSocketAddress = withContext(Dispatchers.IO) { publicForward.start() }
 
