@@ -60,12 +60,6 @@ kt_jvm_library(
     srcs = ["DoubleBlindWorkflowTest.kt"],
     deps = [
         ":abstract_panel_match_correctness_test",
-        #"//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
-        #"//src/main/kotlin/org/wfanet/measurement/integration/common:synthetic_generation_specs",
-        #"//src/main/kotlin/org/wfanet/measurement/loadtest/config:vid_sampling",
-        #"//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:simulator",
-        #"//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:synthetic_generator_event_query",
-        #"//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup",
         "@wfa_common_jvm//imports/java/org/jetbrains/annotations",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
