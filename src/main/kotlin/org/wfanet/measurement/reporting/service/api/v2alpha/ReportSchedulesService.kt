@@ -20,26 +20,26 @@ import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.math.min
 import org.projectnessie.cel.Env
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesRequest as InternalListReportSchedulesRequest
 import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedule as InternalReportSchedule
+import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.getReportScheduleRequest
+import org.wfanet.measurement.internal.reporting.v2.listReportSchedulesRequest
+import org.wfanet.measurement.internal.reporting.v2.stopReportScheduleRequest
+import org.wfanet.measurement.reporting.v2alpha.CreateReportScheduleRequest
 import org.wfanet.measurement.reporting.v2alpha.GetReportScheduleRequest
+import org.wfanet.measurement.reporting.v2alpha.ListReportSchedulesPageToken
+import org.wfanet.measurement.reporting.v2alpha.ListReportSchedulesPageTokenKt
 import org.wfanet.measurement.reporting.v2alpha.ListReportSchedulesRequest
 import org.wfanet.measurement.reporting.v2alpha.ListReportSchedulesResponse
 import org.wfanet.measurement.reporting.v2alpha.ReportSchedule
-import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.listReportSchedulesRequest
-import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesRequest as InternalListReportSchedulesRequest
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
-import org.wfanet.measurement.common.base64UrlEncode
-import org.wfanet.measurement.internal.reporting.v2.getReportScheduleRequest
-import org.wfanet.measurement.internal.reporting.v2.stopReportScheduleRequest
-import org.wfanet.measurement.reporting.v2alpha.CreateReportScheduleRequest
-import org.wfanet.measurement.reporting.v2alpha.ListReportSchedulesPageToken
-import org.wfanet.measurement.reporting.v2alpha.ListReportSchedulesPageTokenKt
 import org.wfanet.measurement.reporting.v2alpha.ReportScheduleKt
 import org.wfanet.measurement.reporting.v2alpha.ReportSchedulesGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.StopReportScheduleRequest
@@ -55,7 +55,7 @@ private const val MAX_PAGE_SIZE = 100
 
 class ReportSchedulesService(
   private val internalReportSchedulesStub: ReportSchedulesCoroutineStub
-): ReportSchedulesGrpcKt.ReportSchedulesCoroutineImplBase() {
+) : ReportSchedulesGrpcKt.ReportSchedulesCoroutineImplBase() {
   override suspend fun createReportSchedule(request: CreateReportScheduleRequest): ReportSchedule {
     return super.createReportSchedule(request)
   }
@@ -68,7 +68,9 @@ class ReportSchedulesService(
 
     when (val principal: ReportingPrincipal = principalFromCurrentContext) {
       is MeasurementConsumerPrincipal -> {
-        if (reportScheduleKey.cmmsMeasurementConsumerId != principal.resourceKey.measurementConsumerId) {
+        if (
+          reportScheduleKey.cmmsMeasurementConsumerId != principal.resourceKey.measurementConsumerId
+        ) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot stop ReportSchedule belonging to other MeasurementConsumers."
           }
@@ -86,11 +88,11 @@ class ReportSchedulesService(
         )
       } catch (e: StatusException) {
         throw when (e.status.code) {
-          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-          Status.Code.CANCELLED -> Status.CANCELLED
-          Status.Code.NOT_FOUND -> Status.NOT_FOUND
-          else -> Status.UNKNOWN
-        }
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            Status.Code.CANCELLED -> Status.CANCELLED
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND
+            else -> Status.UNKNOWN
+          }
           .withCause(e)
           .withDescription("Unable to stop ReportSchedule.")
           .asRuntimeException()
@@ -99,9 +101,7 @@ class ReportSchedulesService(
     return internalReportSchedule.toPublic()
   }
 
-  override suspend fun getReportSchedule(
-    request: GetReportScheduleRequest
-  ): ReportSchedule {
+  override suspend fun getReportSchedule(request: GetReportScheduleRequest): ReportSchedule {
     val reportScheduleKey =
       grpcRequireNotNull(ReportScheduleKey.fromName(request.name)) {
         "ReportSchedule name is either unspecified or invalid"
@@ -109,7 +109,9 @@ class ReportSchedulesService(
 
     when (val principal: ReportingPrincipal = principalFromCurrentContext) {
       is MeasurementConsumerPrincipal -> {
-        if (reportScheduleKey.cmmsMeasurementConsumerId != principal.resourceKey.measurementConsumerId) {
+        if (
+          reportScheduleKey.cmmsMeasurementConsumerId != principal.resourceKey.measurementConsumerId
+        ) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot get ReportSchedule belonging to other MeasurementConsumers."
           }
@@ -127,11 +129,11 @@ class ReportSchedulesService(
         )
       } catch (e: StatusException) {
         throw when (e.status.code) {
-          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-          Status.Code.CANCELLED -> Status.CANCELLED
-          Status.Code.NOT_FOUND -> Status.NOT_FOUND
-          else -> Status.UNKNOWN
-        }
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            Status.Code.CANCELLED -> Status.CANCELLED
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND
+            else -> Status.UNKNOWN
+          }
           .withCause(e)
           .withDescription("Unable to get ReportSchedule.")
           .asRuntimeException()
@@ -164,13 +166,15 @@ class ReportSchedulesService(
 
     val results: List<InternalReportSchedule> =
       try {
-        internalReportSchedulesStub.listReportSchedules(internalListReportSchedulesRequest).reportSchedulesList
+        internalReportSchedulesStub
+          .listReportSchedules(internalListReportSchedulesRequest)
+          .reportSchedulesList
       } catch (e: StatusException) {
         throw when (e.status.code) {
-          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-          Status.Code.CANCELLED -> Status.CANCELLED
-          else -> Status.UNKNOWN
-        }
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            Status.Code.CANCELLED -> Status.CANCELLED
+            else -> Status.UNKNOWN
+          }
           .withCause(e)
           .withDescription("Unable to list ReportSchedules.")
           .asRuntimeException()
@@ -200,9 +204,7 @@ class ReportSchedulesService(
     return listReportSchedulesResponse {
       reportSchedules +=
         filterReportSchedules(
-          subResults.map { internalReportSchedule ->
-            internalReportSchedule.toPublic()
-          },
+          subResults.map { internalReportSchedule -> internalReportSchedule.toPublic() },
           request.filter
         )
 
@@ -212,7 +214,10 @@ class ReportSchedulesService(
     }
   }
 
-  private fun filterReportSchedules(reportSchedules: List<ReportSchedule>, filter: String): List<ReportSchedule> {
+  private fun filterReportSchedules(
+    reportSchedules: List<ReportSchedule>,
+    filter: String
+  ): List<ReportSchedule> {
     return try {
       filterList(ENV, reportSchedules, filter)
     } catch (e: IllegalArgumentException) {
@@ -226,7 +231,8 @@ class ReportSchedulesService(
 }
 
 /** Converts a public [ListReportSchedulesRequest] to a [ListReportSchedulesPageToken]. */
-private fun ListReportSchedulesRequest.toListReportSchedulesPageToken(): ListReportSchedulesPageToken {
+private fun ListReportSchedulesRequest.toListReportSchedulesPageToken():
+  ListReportSchedulesPageToken {
   grpcRequire(pageSize >= 0) { "Page size cannot be less than 0" }
 
   val source = this
@@ -260,7 +266,8 @@ private fun ListReportSchedulesRequest.toListReportSchedulesPageToken(): ListRep
 }
 
 /** Converts a [ListReportSchedulesPageToken] to an internal [ListReportSchedulesRequest]. */
-private fun ListReportSchedulesPageToken.toListReportSchedulesRequest(): InternalListReportSchedulesRequest {
+private fun ListReportSchedulesPageToken.toListReportSchedulesRequest():
+  InternalListReportSchedulesRequest {
   val source = this
   return listReportSchedulesRequest {
     // get one more than the actual page size for deciding whether to set page token
@@ -277,7 +284,7 @@ private fun ListReportSchedulesPageToken.toListReportSchedulesRequest(): Interna
 
 /** Converts an internal [InternalReportSchedule.State] to a public [ReportSchedule.State]. */
 private fun InternalReportSchedule.State.toPublic(): ReportSchedule.State {
-  return when(this) {
+  return when (this) {
     InternalReportSchedule.State.ACTIVE -> ReportSchedule.State.ACTIVE
     InternalReportSchedule.State.STOPPED -> ReportSchedule.State.STOPPED
     InternalReportSchedule.State.STATE_UNSPECIFIED,
@@ -285,43 +292,53 @@ private fun InternalReportSchedule.State.toPublic(): ReportSchedule.State {
   }
 }
 
-/** Converts an internal [InternalReportSchedule.Frequency] to a public [ReportSchedule.Frequency]. */
+/**
+ * Converts an internal [InternalReportSchedule.Frequency] to a public [ReportSchedule.Frequency].
+ */
 private fun InternalReportSchedule.Frequency.toPublic(): ReportSchedule.Frequency {
   val source = this
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-  return when(source.frequencyCase) {
-    InternalReportSchedule.Frequency.FrequencyCase.DAILY -> ReportScheduleKt.frequency {
-      daily = ReportScheduleKt.FrequencyKt.daily {  }
-    }
-    InternalReportSchedule.Frequency.FrequencyCase.WEEKLY -> ReportScheduleKt.frequency {
-      weekly = ReportScheduleKt.FrequencyKt.weekly {
-        dayOfWeek = source.weekly.dayOfWeek
+  return when (source.frequencyCase) {
+    InternalReportSchedule.Frequency.FrequencyCase.DAILY ->
+      ReportScheduleKt.frequency { daily = ReportScheduleKt.FrequencyKt.daily {} }
+    InternalReportSchedule.Frequency.FrequencyCase.WEEKLY ->
+      ReportScheduleKt.frequency {
+        weekly = ReportScheduleKt.FrequencyKt.weekly { dayOfWeek = source.weekly.dayOfWeek }
       }
-    }
-    InternalReportSchedule.Frequency.FrequencyCase.MONTHLY -> ReportScheduleKt.frequency {
-      monthly = ReportScheduleKt.FrequencyKt.monthly {
-        dayOfMonth = source.monthly.dayOfMonth
+    InternalReportSchedule.Frequency.FrequencyCase.MONTHLY ->
+      ReportScheduleKt.frequency {
+        monthly = ReportScheduleKt.FrequencyKt.monthly { dayOfMonth = source.monthly.dayOfMonth }
       }
-    }
-    InternalReportSchedule.Frequency.FrequencyCase.FREQUENCY_NOT_SET -> throw Status.FAILED_PRECONDITION.withDescription("ReportSchedule missing frequency").asRuntimeException()
+    InternalReportSchedule.Frequency.FrequencyCase.FREQUENCY_NOT_SET ->
+      throw Status.FAILED_PRECONDITION.withDescription("ReportSchedule missing frequency")
+        .asRuntimeException()
   }
 }
 
-/** Converts an internal [InternalReportSchedule.ReportWindow] to a public [ReportSchedule.ReportWindow]. */
+/**
+ * Converts an internal [InternalReportSchedule.ReportWindow] to a public
+ * [ReportSchedule.ReportWindow].
+ */
 private fun InternalReportSchedule.ReportWindow.toPublic(): ReportSchedule.ReportWindow {
   val source = this
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-  return when(source.windowCase) {
-    InternalReportSchedule.ReportWindow.WindowCase.TRAILING_WINDOW -> ReportScheduleKt.reportWindow {
-      trailingWindow = ReportScheduleKt.ReportWindowKt.trailingWindow {
-        count = source.trailingWindow.count
-        increment = ReportSchedule.ReportWindow.TrailingWindow.Increment.valueOf(source.trailingWindow.increment.name)
+  return when (source.windowCase) {
+    InternalReportSchedule.ReportWindow.WindowCase.TRAILING_WINDOW ->
+      ReportScheduleKt.reportWindow {
+        trailingWindow =
+          ReportScheduleKt.ReportWindowKt.trailingWindow {
+            count = source.trailingWindow.count
+            increment =
+              ReportSchedule.ReportWindow.TrailingWindow.Increment.valueOf(
+                source.trailingWindow.increment.name
+              )
+          }
       }
-    }
-    InternalReportSchedule.ReportWindow.WindowCase.FIXED_WINDOW -> ReportScheduleKt.reportWindow {
-      fixedWindow = source.fixedWindow
-    }
-    InternalReportSchedule.ReportWindow.WindowCase.WINDOW_NOT_SET -> throw Status.FAILED_PRECONDITION.withDescription("ReportSchedule missing report_window").asRuntimeException()
+    InternalReportSchedule.ReportWindow.WindowCase.FIXED_WINDOW ->
+      ReportScheduleKt.reportWindow { fixedWindow = source.fixedWindow }
+    InternalReportSchedule.ReportWindow.WindowCase.WINDOW_NOT_SET ->
+      throw Status.FAILED_PRECONDITION.withDescription("ReportSchedule missing report_window")
+        .asRuntimeException()
   }
 }
 
@@ -329,13 +346,12 @@ private fun InternalReportSchedule.ReportWindow.toPublic(): ReportSchedule.Repor
 private fun InternalReportSchedule.toPublic(): ReportSchedule {
   val source = this
 
-  val reportScheduleName = ReportScheduleKey(source.cmmsMeasurementConsumerId, source.externalReportScheduleId).toName()
+  val reportScheduleName =
+    ReportScheduleKey(source.cmmsMeasurementConsumerId, source.externalReportScheduleId).toName()
   val reportTemplate = report {
     reportingMetricEntries +=
       source.details.reportTemplate.reportingMetricEntriesMap.map { internalReportingMetricEntry ->
-        internalReportingMetricEntry.toReportingMetricEntry(
-          source.cmmsMeasurementConsumerId
-        )
+        internalReportingMetricEntry.toReportingMetricEntry(source.cmmsMeasurementConsumerId)
       }
   }
 
