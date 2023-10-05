@@ -16,7 +16,9 @@ name: API lint
 
 on:
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - 'releases/**'
     types: [opened, synchronize, edited]
 
 concurrency:

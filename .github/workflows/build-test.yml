@@ -16,9 +16,13 @@ name: Build and test
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - 'releases/**'
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - 'releases/**'
     types: [opened, synchronize, edited]
   workflow_dispatch:
 
