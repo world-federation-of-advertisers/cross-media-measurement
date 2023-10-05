@@ -1317,7 +1317,7 @@ class EdpSimulator(
             // TODO: Calculate impression from data.
             value = apiIdToExternalId(DataProviderKey.fromName(edpData.name)!!.dataProviderId)
             noiseMechanism = protocolConfigNoiseMechanism
-            customDirectMethodology = customDirectMethodology { variance = 0.0 }
+            customDirectMethodology = customDirectMethodology { scalar = 0.0 }
           }
         }
       }
@@ -1332,7 +1332,7 @@ class EdpSimulator(
               seconds = log2(externalDataProviderId.toDouble()).toLong()
             }
             noiseMechanism = protocolConfigNoiseMechanism
-            customDirectMethodology = customDirectMethodology { variance = 0.0 }
+            customDirectMethodology = customDirectMethodology { scalar = 0.0 }
           }
         }
       }

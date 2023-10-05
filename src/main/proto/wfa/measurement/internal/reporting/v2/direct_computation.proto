@@ -21,8 +21,23 @@ option java_multiple_files = true;
 
 // Information about the custom direct methodology.
 message CustomDirectMethodology {
-  // The variance of the result computed with the custom direct methodology.
-  double variance = 1;
+  // Different types of variances of a frequency distribution result.
+  message FrequencyVariances {
+    // The variances of a frequency distribution from frequency 1 to maximum
+    // frequency specified in the measurement spec.
+    map<int64, double> variances = 1;
+    // The variances of a k+ frequency distribution from frequency 1 to
+    // maximum frequency specified in the measurement spec.
+    map<int64, double> k_plus_variances = 2;
+  }
+
+  // The variance of the result computed from the custom direct methodology.
+  oneof variance {
+    // The variance when the result is a scalar type.
+    double scalar = 1;
+    // The variance when the result is a frequency type.
+    FrequencyVariances frequency = 2;
+  }
 }
 
 // Parameters used when applying the deterministic count distinct methodology.
