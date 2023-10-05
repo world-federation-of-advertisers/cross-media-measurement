@@ -33,6 +33,7 @@ service ReportScheduleIterations {
   rpc GetReportScheduleIteration(GetReportScheduleIterationRequest)
       returns (ReportScheduleIteration);
 
+  // TODO(@tristanvuong2021): benchmark whether list or stream is better here
   rpc ListReportScheduleIterations(ListReportScheduleIterationsRequest)
       returns (ListReportScheduleIterationsResponse);
 }

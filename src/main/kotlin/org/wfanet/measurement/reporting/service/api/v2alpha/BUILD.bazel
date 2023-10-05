@@ -227,6 +227,7 @@ kt_jvm_library(
     name = "reports_service",
     srcs = ["ReportsService.kt"],
     deps = [
+        ":cel_filtering_methods",
         ":metadata_principal_server_interceptor",
         "//imports/java/org/projectnessie/cel",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
@@ -254,5 +255,35 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
+    ],
+)
+
+kt_jvm_library(
+    name = "report_schedule_iterations_service",
+    srcs = ["ReportScheduleIterationsService.kt"],
+    deps = [
+        ":cel_filtering_methods",
+        ":metadata_principal_server_interceptor",
+        ":principal_server_interceptor",
+        ":reporting_principal",
+        ":resource_key",
+        "//imports/java/org/projectnessie/cel",
+        "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
+        "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_schedule_iterations_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:page_token_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:report_schedule_iterations_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+    ],
+)
+
+kt_jvm_library(
+    name = "cel_filtering_methods",
+    srcs = ["CelFilteringMethods.kt"],
+    deps = [
+        "//imports/java/org/projectnessie/cel",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
 )
