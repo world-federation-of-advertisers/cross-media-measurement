@@ -26,6 +26,8 @@ internal enum class IdVariable {
   REPORTING_SET,
   METRIC,
   REPORT,
+  REPORT_SCHEDULE,
+  REPORT_SCHEDULE_ITERATION,
 }
 
 internal fun ResourceNameParser.assembleName(idMap: Map<IdVariable, String>): String {

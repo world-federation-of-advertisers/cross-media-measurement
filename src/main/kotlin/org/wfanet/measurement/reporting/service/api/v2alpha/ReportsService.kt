@@ -25,11 +25,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.toList
 import org.projectnessie.cel.Env
-import org.projectnessie.cel.EnvOption
-import org.projectnessie.cel.checker.Decls
-import org.projectnessie.cel.common.types.Err
-import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
-import org.projectnessie.cel.common.types.ref.Val
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
@@ -686,74 +681,16 @@ class ReportsService(
   }
 
   private fun filterReports(reports: List<Report>, filter: String): List<Report> {
-    if (filter.isEmpty()) {
-      return reports
-    }
-
-    val astAndIssues =
-      try {
-        ENV.compile(filter)
-      } catch (_: NullPointerException) {
-        // NullPointerException is thrown when an operator in the filter is not a CEL operator.
-        throw Status.INVALID_ARGUMENT.withDescription("filter is not a valid CEL expression")
-          .asRuntimeException()
-      }
-    if (astAndIssues.hasIssues()) {
-      throw Status.INVALID_ARGUMENT.withDescription(
-          "filter is not a valid CEL expression: ${astAndIssues.issues}"
-        )
-        .asRuntimeException()
-    }
-    val program = ENV.program(astAndIssues.ast)
-
-    return reports.filter { report ->
-      val variables: Map<String, Any> =
-        mutableMapOf<String, Any>().apply {
-          for (fieldDescriptor in report.descriptorForType.fields) {
-            put(fieldDescriptor.name, report.getField(fieldDescriptor))
-          }
-        }
-      val result: Val = program.eval(variables).`val`
-      if (result is Err) {
-        throw result.toRuntimeException()
-      }
-
-      if (result.value() !is Boolean) {
-        throw Status.INVALID_ARGUMENT.withDescription("filter does not evaluate to boolean")
-          .asRuntimeException()
-      }
-
-      result.booleanValue()
+    return try {
+      filterList(ENV, reports, filter)
+    } catch (e: IllegalArgumentException) {
+      throw Status.INVALID_ARGUMENT.withDescription(e.message).asRuntimeException()
     }
   }
 
   companion object {
     private val RESOURCE_ID_REGEX = Regex("^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$")
-    private val ENV: Env = buildCelEnvironment()
-
-    private fun buildCelEnvironment(): Env {
-      // Build CEL ProtoTypeRegistry.
-      val celTypeRegistry = ProtoTypeRegistry.newRegistry()
-      celTypeRegistry.registerMessage(Report.getDefaultInstance())
-
-      // Build CEL Env.
-      val reportDescriptor = Report.getDescriptor()
-      val env =
-        Env.newEnv(
-          EnvOption.container(reportDescriptor.fullName),
-          EnvOption.customTypeProvider(celTypeRegistry),
-          EnvOption.customTypeAdapter(celTypeRegistry),
-          EnvOption.declarations(
-            reportDescriptor.fields.map {
-              Decls.newVar(
-                it.name,
-                celTypeRegistry.findFieldType(reportDescriptor.fullName, it.name).type
-              )
-            }
-          )
-        )
-      return env
-    }
+    private val ENV: Env = buildCelEnvironment(Report.getDefaultInstance())
   }
 }
 
