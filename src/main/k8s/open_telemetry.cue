@@ -14,6 +14,8 @@
 
 package k8s
 
+import "encoding/yaml"
+
 // K8s custom resource defined by OpenTelemetry Operator used for creating
 // an OpenTelemetry Collector.
 #OpenTelemetryCollector: {
@@ -47,36 +49,47 @@ package k8s
 	collectors: {
 		"default": {
 			spec: {
-				config: """
-receivers:
-  otlp:
-    protocols:
-      grpc:
-        endpoint: 0.0.0.0:\(#OpenTelemetryReceiverPort)
+				_config: {
+					receivers: {
+						otlp:
+							protocols:
+								grpc:
+									endpoint: "0.0.0.0:\(#OpenTelemetryReceiverPort)"
+					}
 
-processors:
-  batch:
-    send_batch_size: 200
-    timeout: 10s
+					processors: {
+						batch: {
+							send_batch_size: 200
+							timeout:         "10s"
+						}
+					}
 
-exporters:
-  prometheus:
-    send_timestamps: true
-    endpoint: 0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)
-    resource_to_telemetry_conversion:
-      enabled: true
+					exporters: {...} | *{
+						prometheus: {
+							send_timestamps: true
+							endpoint:        "0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)"
+							resource_to_telemetry_conversion:
+								enabled: true
+						}
+					}
 
-extensions:
-  health_check:
+					extensions: {...} | *{
+						health_check: {}
+					}
 
-service:
-  extensions: [health_check]
-  pipelines:
-    metrics:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [prometheus]
-"""
+					service: {
+						extensions: [...] | *["health_check"]
+						pipelines: {
+							metrics: {
+								receivers: ["otlp"]
+								processors: ["batch"]
+								exporters: [...] | *["prometheus"]
+							}
+						}
+					}
+				}
+
+				config: yaml.Marshal(_config)
 			}
 		}
 	}
