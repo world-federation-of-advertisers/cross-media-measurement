@@ -129,8 +129,9 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     accountsService = services.accountsService
   }
 
-  private fun createDuchyCertificates() {
-    val externalDuchyIds = DUCHIES.map { it.externalDuchyId }
+  private fun createDuchyCertificates(
+    externalDuchyIds: List<String> = DUCHIES.map { it.externalDuchyId }
+  ) {
     duchyCertificates =
       externalDuchyIds.associateWith { externalDuchyId ->
         runBlocking { population.createDuchyCertificate(certificatesService, externalDuchyId) }
@@ -686,6 +687,87 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         confirmComputationParticipantRequest {
           externalComputationId = measurement.externalComputationId
           this.externalDuchyId = duchies.externalDuchyId
+        }
+      )
+    }
+
+    val updatedMeasurement =
+      measurementsService.getMeasurementByComputationId(
+        getMeasurementByComputationIdRequest {
+          this.externalComputationId = measurement.externalComputationId
+        }
+      )
+    assertThat(updatedMeasurement.state).isEqualTo(Measurement.State.PENDING_COMPUTATION)
+  }
+
+  @Test
+  fun `confirmComputationParticipant succeeds with two duchies`() = runBlocking {
+    val duchies = DUCHIES.take(2)
+    createDuchyCertificates(duchies.map { it.externalDuchyId })
+    val measurement =
+      population.createComputedMeasurement(
+        measurementsService,
+        population.createMeasurementConsumer(measurementConsumersService, accountsService),
+        "measurement",
+        population.createDataProvider(
+          dataProvidersService,
+          listOf(Population.AGGREGATOR_DUCHY.externalDuchyId)
+        ),
+      )
+
+    val setParticipantRequisitionParamsDetails = liquidLegionsV2Details {
+      elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
+      elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
+    }
+
+    // Step 1 - SetParticipantRequisitionParams for all ComputationParticipants. This transitions
+    // the measurement state to PENDING_REQUISITION_FULFILLMENT.
+    for (duchyCertificate in duchyCertificates.values) {
+      computationParticipantsService.setParticipantRequisitionParams(
+        setParticipantRequisitionParamsRequest {
+          externalComputationId = measurement.externalComputationId
+          externalDuchyId = duchyCertificate.externalDuchyId
+          externalDuchyCertificateId = duchyCertificate.externalCertificateId
+          liquidLegionsV2 = setParticipantRequisitionParamsDetails
+        }
+      )
+    }
+
+    val requisitions =
+      requisitionsService
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+              externalMeasurementId = measurement.externalMeasurementId
+            }
+          }
+        )
+        .toList()
+
+    // Step 2 - FulfillRequisitions for all Requisitions. This transitions the measurement state to
+    // PENDING_PARTICIPANT_CONFIRMATION.
+    val nonce = 3127743798281582205L
+    for ((requisition, duchy) in requisitions zip duchies) {
+      requisitionsService.fulfillRequisition(
+        fulfillRequisitionRequest {
+          externalRequisitionId = requisition.externalRequisitionId
+          this.nonce = nonce
+          computedParams = computedRequisitionParams {
+            externalComputationId = measurement.externalComputationId
+            externalFulfillingDuchyId = duchy.externalDuchyId
+          }
+        }
+      )
+    }
+
+    // Step 3 - ConfirmComputationParticipant for all ComputationParticipants. This transitions
+    // the measurement state to PENDING_COMPUTATION.
+    for (duchy in duchies) {
+      computationParticipantsService.confirmComputationParticipant(
+        confirmComputationParticipantRequest {
+          externalComputationId = measurement.externalComputationId
+          this.externalDuchyId = duchy.externalDuchyId
         }
       )
     }

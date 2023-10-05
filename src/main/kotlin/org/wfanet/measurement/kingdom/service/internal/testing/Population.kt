@@ -145,6 +145,8 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
 
   suspend fun createDataProvider(
     dataProvidersService: DataProvidersCoroutineImplBase,
+    requiredDuchiesList: List<String> =
+      listOf(WORKER1_DUCHY.externalDuchyId, WORKER2_DUCHY.externalDuchyId),
     notValidBefore: Instant = clock.instant(),
     notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS),
     customize: (DataProviderKt.Dsl.() -> Unit)? = null
@@ -165,8 +167,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
             publicKeySignature = "EDP public key signature".toByteStringUtf8()
             publicKeySignatureAlgorithmOid = "2.9999"
           }
-        requiredExternalDuchyIds += WORKER1_DUCHY.externalDuchyId
-        requiredExternalDuchyIds += WORKER2_DUCHY.externalDuchyId
+        requiredExternalDuchyIds += requiredDuchiesList
         customize?.invoke(this)
       }
     )
