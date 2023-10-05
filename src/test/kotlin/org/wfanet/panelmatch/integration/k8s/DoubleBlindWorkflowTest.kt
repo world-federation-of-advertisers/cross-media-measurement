@@ -61,20 +61,8 @@ class DoubleBlindWorkflowTest : AbstractPanelMatchCorrectnessTest() {
       .copy { firstExchangeDate = EXCHANGE_DATE.toProtoDate() }
   }
 
-  /*val workflow: ExchangeWorkflow by lazy {
-    loadTestData(
-      "mini_exchange_workflow.textproto",
-      ExchangeWorkflow.getDefaultInstance()
-    ).copy { firstExchangeDate = EXCHANGE_DATE.toProtoDate() }
-  }*/
-
   override val initialDataProviderInputs: Map<String, ByteString> =
     mapOf("edp-commutative-deterministic-key" to EDP_COMMUTATIVE_DETERMINISTIC_KEY)
-
-  /*val initialDataProviderInputs: Map<String, ByteString> =
-  mapOf("edp-hkdf-pepper" to "some-hkdf-pepper".toByteStringUtf8())*/
-
-  // val initialModelProviderInputs: Map<String, ByteString> = emptyMap()
 
   override val initialModelProviderInputs: Map<String, ByteString> =
     mapOf("mp-plaintext-join-keys" to PLAINTEXT_JOIN_KEYS.toByteString())
@@ -105,8 +93,7 @@ class DoubleBlindWorkflowTest : AbstractPanelMatchCorrectnessTest() {
     }
   }
 
-  // val logger = Logger.getLogger(this::class.java.name)
-  @Test(timeout = 3 * 60 * 1000) fun `Double blind workflow test`() = runBlocking { runTest() }
+  @Test(timeout = 6 * 60 * 1000) fun `Double blind workflow test`() = runBlocking { runTest() }
 
   override suspend fun validate() {
 

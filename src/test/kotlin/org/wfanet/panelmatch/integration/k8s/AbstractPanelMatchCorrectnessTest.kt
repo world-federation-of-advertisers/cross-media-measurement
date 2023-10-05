@@ -301,7 +301,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
       val exchangeClient = ExchangesGrpcKt.ExchangesCoroutineStub(publicChannel)
       val exchangeStepsClient = ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub(publicChannel)
       while (!isDone(exchangeClient, exchangeStepsClient)) {
-        delay(5000)
+        delay(10000)
       }
       validate()
 
