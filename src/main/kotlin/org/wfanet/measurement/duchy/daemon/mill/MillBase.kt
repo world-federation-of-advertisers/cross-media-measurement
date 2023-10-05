@@ -66,7 +66,7 @@ import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
-import org.wfanet.measurement.system.v1alpha.ComputationLogEntry.ErrorDetails.Type
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
@@ -217,9 +217,7 @@ abstract class MillBase(
           )
         } else {
           logger.log(Level.WARNING, e) { "$globalId@$millId: TRANSIENT error" }
-          sendStatusUpdateToKingdom(
-            newErrorUpdateRequest(token, e.localizedMessage, Type.TRANSIENT)
-          )
+          sendStatusUpdateToKingdom(newErrorUpdateRequest(token, e.localizedMessage))
           // Enqueue the computation again for future retry
           enqueueComputation(token)
         }
@@ -254,13 +252,22 @@ abstract class MillBase(
           }
         }
         .build()
-    systemComputationParticipantsClient.failComputationParticipant(request)
+    try {
+      systemComputationParticipantsClient.failComputationParticipant(request)
+    } catch (e: StatusException) {
+      when (e.status.code) {
+        Status.Code.FAILED_PRECONDITION -> {
+          // Assume that the Computation is already failed, so just log an continue.
+          // TODO(@SanjayVas): Use error details once they are plumbed instead.
+          logger.log(Level.WARNING, e) { "Error failing computation at Kingdom" }
+        }
+        else -> throw Exception("Error failing computation at Kingdom", e)
+      }
+    }
   }
 
   private suspend fun failComputation(token: ComputationToken, cause: Exception) {
-    logger.log(Level.SEVERE, cause) { "${token.globalComputationId}@$millId: ${cause.message}" }
-    failComputationAtKingdom(token, cause.message.orEmpty())
-    completeComputation(token, CompletedReason.FAILED)
+    failComputation(token, message = cause.message.orEmpty(), cause = cause)
   }
 
   private suspend fun failComputation(
@@ -286,8 +293,8 @@ abstract class MillBase(
   private suspend fun sendStatusUpdateToKingdom(request: CreateComputationLogEntryRequest) {
     try {
       systemComputationLogEntriesClient.createComputationLogEntry(request)
-    } catch (ignored: Exception) {
-      logger.warning("Failed to update status change to the kingdom. $ignored")
+    } catch (e: StatusException) {
+      logger.log(Level.WARNING, e) { "Failed to update status change to the kingdom." }
     }
   }
 
@@ -304,7 +311,17 @@ abstract class MillBase(
       this.resultPublicKey = resultPublicKey
       this.encryptedResult = encryptedResult
     }
-    systemComputationsClient.setComputationResult(request)
+    try {
+      systemComputationsClient.setComputationResult(request)
+    } catch (e: StatusException) {
+      val message = "Error sending result to Kingdom"
+      throw when (e.status.code) {
+        Status.Code.UNAVAILABLE,
+        Status.Code.DEADLINE_EXCEEDED,
+        Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
+        else -> ComputationDataClients.PermanentErrorException(message, e)
+      }
+    }
   }
 
   /** Writes stage metric to the [Logger] and also sends to the ComputationStatsService. */
@@ -360,8 +377,7 @@ abstract class MillBase(
   /** Builds a [CreateComputationLogEntryRequest] to update the new error. */
   private fun newErrorUpdateRequest(
     token: ComputationToken,
-    message: String,
-    type: Type
+    message: String
   ): CreateComputationLogEntryRequest {
     val timestamp = clock.protoTimestamp()
     return CreateComputationLogEntryRequest.newBuilder()
@@ -380,7 +396,7 @@ abstract class MillBase(
           }
           errorDetailsBuilder.also {
             it.errorTime = timestamp
-            it.type = type
+            it.type = ComputationLogEntry.ErrorDetails.Type.TRANSIENT
           }
         }
       }
@@ -554,6 +570,7 @@ abstract class MillBase(
 
   private inner class CpuDurationLogger(private val getTimeMillis: () -> Long) {
     private val start = getTimeMillis()
+
     suspend fun logStageDurationMetric(
       token: ComputationToken,
       metricName: String,
@@ -563,11 +580,13 @@ abstract class MillBase(
       logStageDurationMetric(token, metricName, time, histogram)
     }
   }
+
   private fun cpuDurationLogger(): CpuDurationLogger = CpuDurationLogger(this::getCpuTimeMillis)
 
   @OptIn(ExperimentalTime::class)
-  private inner class WallDurationLogger() {
+  private inner class WallDurationLogger {
     private val timeMark = TimeSource.Monotonic.markNow()
+
     suspend fun logStageDurationMetric(
       token: ComputationToken,
       metricName: String,
@@ -577,6 +596,7 @@ abstract class MillBase(
       logStageDurationMetric(token, metricName, time, histogram)
     }
   }
+
   private fun wallDurationLogger(): WallDurationLogger = WallDurationLogger()
 
   companion object {

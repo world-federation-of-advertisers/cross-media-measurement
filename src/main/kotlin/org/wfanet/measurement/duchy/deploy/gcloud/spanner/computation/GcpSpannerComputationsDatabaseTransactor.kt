@@ -41,7 +41,6 @@ import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.TransactionWork
-import org.wfanet.measurement.gcloud.spanner.getBytesAsByteArray
 import org.wfanet.measurement.gcloud.spanner.getNullableString
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
@@ -53,7 +52,11 @@ import org.wfanet.measurement.internal.duchy.copy
 
 /** Implementation of [ComputationsDatabaseTransactor] using GCP Spanner Database. */
 class GcpSpannerComputationsDatabaseTransactor<
-  ProtocolT, StageT, StageDT : Message, ComputationDT : Message>(
+  ProtocolT,
+  StageT,
+  StageDT : Message,
+  ComputationDT : Message
+>(
   private val databaseClient: AsyncDatabaseClient,
   private val computationMutations: ComputationMutations<ProtocolT, StageT, StageDT, ComputationDT>,
   private val clock: Clock = Clock.systemUTC()
@@ -316,12 +319,16 @@ class GcpSpannerComputationsDatabaseTransactor<
     }
     runIfTokenFromLastUpdate(token) { txn ->
       val writeTime = clock.gcloudTimestamp()
-      val detailsBytes =
-        txn
-          .readRow("Computations", Key.of(token.localId), listOf("ComputationDetails"))
-          ?.getBytesAsByteArray("ComputationDetails")
-          ?: error("Computation missing $token")
-      val details = computationMutations.parseComputationDetails(detailsBytes)
+      val row: Struct =
+        checkNotNull(
+          txn.readRow("Computations", Key.of(token.localId), listOf("ComputationDetails"))
+        ) {
+          "Computations row not found for ID ${token.localId}"
+        }
+      val details =
+        computationMutations.parseComputationDetails(
+          row.getBytes("ComputationDetails").toByteArray()
+        )
       txn.buffer(
         computationMutations.updateComputation(
           localId = token.localId,
@@ -333,24 +340,41 @@ class GcpSpannerComputationsDatabaseTransactor<
           details = computationMutations.setEndingState(details, endComputationReason)
         )
       )
-      txn.buffer(
-        computationMutations.updateComputationStage(
-          localId = token.localId,
-          stage = token.stage,
-          endTime = writeTime,
-          followingStage = endingStage
+
+      if (token.stage == endingStage) {
+        // TODO(world-federation-of-advertisers/cross-media-measurement#774): Determine whether this
+        // actually works around this bug and come up with a better fix.
+        logger.warning { "Computation ${token.localId} is already in ending stage" }
+        txn.buffer(
+          computationMutations.updateComputationStage(
+            localId = token.localId,
+            stage = token.stage,
+            endTime = writeTime,
+            nextAttempt = 1,
+            details = computationMutations.detailsFor(endingStage, computationDetails)
+          )
         )
-      )
-      txn.buffer(
-        computationMutations.insertComputationStage(
-          localId = token.localId,
-          stage = endingStage,
-          creationTime = writeTime,
-          previousStage = token.stage,
-          nextAttempt = 1,
-          details = computationMutations.detailsFor(endingStage, computationDetails)
+      } else {
+        txn.buffer(
+          computationMutations.updateComputationStage(
+            localId = token.localId,
+            stage = token.stage,
+            endTime = writeTime,
+            followingStage = endingStage
+          )
         )
-      )
+        txn.buffer(
+          computationMutations.insertComputationStage(
+            localId = token.localId,
+            stage = endingStage,
+            creationTime = writeTime,
+            previousStage = token.stage,
+            nextAttempt = 1,
+            details = computationMutations.detailsFor(endingStage, computationDetails)
+          )
+        )
+      }
+
       UnfinishedAttemptQuery(computationMutations::longValuesToComputationStageEnum, token.localId)
         .execute(txn)
         .collect { unfinished ->
@@ -399,8 +423,7 @@ class GcpSpannerComputationsDatabaseTransactor<
             "RequisitionsByExternalId",
             Key.of(it.key.externalRequisitionId, it.key.requisitionFingerprint.toGcloudByteArray()),
             listOf("ComputationId", "RequisitionId")
-          )
-            ?: error("No Computation found row for this requisition: ${it.key}")
+          ) ?: error("No Computation found row for this requisition: ${it.key}")
         txn.buffer(
           computationMutations.updateRequisition(
             localComputationId = row.getLong("ComputationId"),
@@ -645,8 +668,7 @@ class GcpSpannerComputationsDatabaseTransactor<
             externalRequisitionKey.requisitionFingerprint.toGcloudByteArray()
           ),
           listOf("ComputationId", "RequisitionId")
-        )
-          ?: error("No Computation found row for this requisition: $externalRequisitionKey")
+        ) ?: error("No Computation found row for this requisition: $externalRequisitionKey")
       val localComputationId = row.getLong("ComputationId")
       val requisitionId = row.getLong("RequisitionId")
       require(localComputationId == token.localId) {
