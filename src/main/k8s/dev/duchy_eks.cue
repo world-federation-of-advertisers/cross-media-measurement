@@ -37,7 +37,7 @@ _duchyCertName: "duchies/\(_duchyName)/certificates/\(_certificateId)"
 }
 #MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu:    "800m"
+		cpu:    "3"
 		memory: "2Gi"
 	}
 	limits: {
@@ -113,7 +113,7 @@ duchy: #PostgresDuchy & {
 			}
 			spec: {
 				replicas: #MillReplicas
-				template: spec: #ServiceAccountPodSpec & #PodSpec & {
+				template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
 					serviceAccountName: #StorageServiceAccount
 				}
 			}

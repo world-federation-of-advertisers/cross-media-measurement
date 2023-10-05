@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2023 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,29 +16,30 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/kingdom/event_template.proto";
+
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
-// Internal service for persistence of PublicKey entities.
-service PublicKeys {
-  rpc UpdatePublicKey(UpdatePublicKeyRequest) returns (UpdatePublicKeyResponse);
-}
+message Population {
+  fixed64 external_data_provider_id = 1;
+  fixed64 external_population_id = 2;
 
-message UpdatePublicKeyRequest {
-  oneof parent {
-    fixed64 external_data_provider_id = 1;
-    fixed64 external_measurement_consumer_id = 2;
+  string description = 3;
+
+  // When the 'Population' was created.
+  google.protobuf.Timestamp create_time = 4;
+
+  // A reference to a population blob.
+  message PopulationBlob {
+    //  A uri for the model blob.
+    string model_blob_uri = 1;
   }
 
-  fixed64 external_certificate_id = 3;
+  // The blob for the population.
+  PopulationBlob population_blob = 5;
 
-  // Version the public API for serialized message definitions.
-  string api_version = 4;
-
-  // Serialized `EncryptionPublicKey` from public API.
-  bytes public_key = 5;
-  bytes public_key_signature = 6;
-  string public_key_signature_algorithm_oid = 7;
+  // The EventTemplate that this population conforms to.
+  EventTemplate event_template = 6;
 }
-
-message UpdatePublicKeyResponse {}

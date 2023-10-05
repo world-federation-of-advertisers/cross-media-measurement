@@ -1190,7 +1190,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
 
     assertThat(retrievedReports.toList())
       .ignoringRepeatedFieldOrder()
-      .containsExactly(createdReport, createdReport2)
+      .containsExactly(createdReport2, createdReport)
       .inOrder()
   }
 
@@ -1223,8 +1223,8 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                 cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
                 after =
                   StreamReportsRequestKt.afterFilter {
-                    createTime = createdReport.createTime
-                    externalReportId = createdReport.externalReportId
+                    createTime = createdReport2.createTime
+                    externalReportId = createdReport2.externalReportId
                   }
               }
           }
@@ -1232,28 +1232,67 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
 
       assertThat(retrievedReports.toList())
         .ignoringRepeatedFieldOrder()
-        .containsExactly(createdReport2)
+        .containsExactly(createdReport)
+        .inOrder()
+    }
+
+  @Test
+  fun `streamReports returns report with same create_time as filter when only create_time set`() =
+    runBlocking {
+      createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+      val createdReport =
+        createReport(
+          CMMS_MEASUREMENT_CONSUMER_ID,
+          service,
+          reportingSetsService,
+          usePeriodicTimeInterval = false,
+          "external-report-id"
+        )
+      val createdReport2 =
+        createReport(
+          CMMS_MEASUREMENT_CONSUMER_ID,
+          service,
+          reportingSetsService,
+          usePeriodicTimeInterval = false,
+          "external-report-id2"
+        )
+
+      val retrievedReports =
+        service.streamReports(
+          streamReportsRequest {
+            filter =
+              StreamReportsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                after =
+                  StreamReportsRequestKt.afterFilter { createTime = createdReport2.createTime }
+              }
+          }
+        )
+
+      assertThat(retrievedReports.toList())
+        .ignoringRepeatedFieldOrder()
+        .containsExactly(createdReport2, createdReport)
         .inOrder()
     }
 
   @Test
   fun `streamReports returns number of reports based on limit`(): Unit = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-    val createdReport =
-      createReport(
-        CMMS_MEASUREMENT_CONSUMER_ID,
-        service,
-        reportingSetsService,
-        usePeriodicTimeInterval = false,
-        "external-report-id"
-      )
     createReport(
       CMMS_MEASUREMENT_CONSUMER_ID,
       service,
       reportingSetsService,
       usePeriodicTimeInterval = false,
-      "external-report-id2"
+      "external-report-id"
     )
+    val createdReport2 =
+      createReport(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        service,
+        reportingSetsService,
+        usePeriodicTimeInterval = false,
+        "external-report-id2"
+      )
 
     val retrievedReports =
       service.streamReports(
@@ -1268,7 +1307,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
 
     assertThat(retrievedReports.toList())
       .ignoringRepeatedFieldOrder()
-      .containsExactly(createdReport)
+      .containsExactly(createdReport2)
   }
 
   @Test

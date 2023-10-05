@@ -19,7 +19,7 @@ for usage information.
     ```shell
     EncryptionPublicKeys serialize \
       --data=src/main/k8s/testing/secretfiles/mp1_enc_public.tink \
-      --out=/tmp/mp1_enc_public.pb
+      --out=/tmp/mp1_enc_public.binpb
     ```
 
 *   Signing above serialized `EncryptionPublicKey`
@@ -28,7 +28,7 @@ for usage information.
     EncryptionPublicKeys sign \
       --certificate src/main/k8s/testing/secretfiles/mp1_cs_cert.der \
       --signing-key src/main/k8s/testing/secretfiles/mp1_cs_private.der \
-      --in /tmp/mp1_enc_public.pb --out /tmp/mp1_enc_public_sig.sha256
+      --in /tmp/mp1_enc_public.binpb --out /tmp/mp1_enc_public.sig
     ```
 
 ## `MeasurementSystem`
@@ -143,8 +143,9 @@ using the `--api-key` option.
     `dataProviders/1/eventGroups/2` while `dataProviders/2` contains
     `dataProviders/2/eventGroups/1`. The order of options within a group does
     not matter.
-    
+
     `Measurement` type of `ReachAndFrequency`:
+
     ```shell
     MeasurementSystem \
     --tls-cert-file=secretfiles/mc_tls.pem --tls-key-file=secretfiles/mc_tls.key \
@@ -178,8 +179,9 @@ using the `--api-key` option.
     --event-start-time=2022-04-22T01:19:42.336Z \
     --event-end-time=2022-05-22T01:56:12.257Z
     ```
-    
+
     `Measurement` type of `Reach`:
+
     ```shell
     MeasurementSystem \
     --tls-cert-file=secretfiles/mc_tls.pem --tls-key-file=secretfiles/mc_tls.key \

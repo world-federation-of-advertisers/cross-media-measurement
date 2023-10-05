@@ -12,22 +12,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+variable "eks_oidc_provider_arn" {
+  description = "ARN of the EKS cluster's OIDC provider"
+  type        = string
+  nullable    = false
+}
+
+variable "load_balancer_controller_sa_name" {
+  description = "Service account name of the load balancer controller"
+  type        = string
+  default     = "aws-load-balancer-controller"
+}
+
+variable "load_balancer_controller_irsa_role_arn" {
+  description = "ARN of the load balancer controller role"
+  type        = string
+  nullable    = false
+}
+
 variable "aws_region" {
   description = "AWS region"
   type        = string
   nullable    = false
 }
 
-variable "postgres_instance_name" {
-  description = "Name of the RDS PostgreSQL instance."
+variable "cluster_name" {
+  description = "Name of the eks cluster"
   type        = string
-  default     = "halo"
   nullable    = false
 }
 
-variable "postgres_instance_tier" {
-  description = "Tier (machine type) of the RDS PostgreSQL instance."
+variable "vpc_id" {
+  description = "Vpc id"
   type        = string
-  default     = "db.t3.micro"
   nullable    = false
 }

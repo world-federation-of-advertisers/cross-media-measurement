@@ -1128,7 +1128,12 @@ class LiquidLegionsV2MillTest {
       cryptoRequest = it.getArgument(0)
       val postFix = ByteString.copyFromUtf8("-completeSetupPhase-done")
       CompleteSetupPhaseResponse.newBuilder()
-        .apply { combinedRegisterVector = cryptoRequest.combinedRegisterVector.concat(postFix) }
+        .apply {
+          combinedRegisterVector =
+            cryptoRequest.requisitionRegisterVector
+              .concat(cryptoRequest.combinedRegisterVector)
+              .concat(postFix)
+        }
         .build()
     }
 
@@ -1179,7 +1184,8 @@ class LiquidLegionsV2MillTest {
     assertThat(cryptoRequest)
       .isEqualTo(
         completeSetupPhaseRequest {
-          combinedRegisterVector = ByteString.copyFromUtf8("local_requisition")
+          requisitionRegisterVector = ByteString.copyFromUtf8("local_requisition")
+          combinedRegisterVector = ByteString.EMPTY
           noiseParameters = registerNoiseGenerationParameters {
             compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
             curveId = CURVE_ID
@@ -1231,7 +1237,12 @@ class LiquidLegionsV2MillTest {
       cryptoRequest = it.getArgument(0)
       val postFix = ByteString.copyFromUtf8("-completeSetupPhase-done")
       CompleteSetupPhaseResponse.newBuilder()
-        .apply { combinedRegisterVector = cryptoRequest.combinedRegisterVector.concat(postFix) }
+        .apply {
+          combinedRegisterVector =
+            cryptoRequest.requisitionRegisterVector
+              .concat(cryptoRequest.combinedRegisterVector)
+              .concat(postFix)
+        }
         .build()
     }
 
@@ -1283,8 +1294,8 @@ class LiquidLegionsV2MillTest {
     assertThat(cryptoRequest)
       .isEqualTo(
         completeSetupPhaseRequest {
-          combinedRegisterVector =
-            ByteString.copyFromUtf8("local_requisition_duchy_two_sketch_duchy_three_sketch_")
+          requisitionRegisterVector = ByteString.copyFromUtf8("local_requisition_")
+          combinedRegisterVector = ByteString.copyFromUtf8("duchy_two_sketch_duchy_three_sketch_")
           noiseParameters = registerNoiseGenerationParameters {
             compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
             curveId = CURVE_ID
@@ -1338,7 +1349,12 @@ class LiquidLegionsV2MillTest {
       cryptoRequest = it.getArgument(0)
       val postFix = ByteString.copyFromUtf8("-completeSetupPhase_done")
       CompleteSetupPhaseResponse.newBuilder()
-        .apply { combinedRegisterVector = cryptoRequest.combinedRegisterVector.concat(postFix) }
+        .apply {
+          combinedRegisterVector =
+            cryptoRequest.requisitionRegisterVector
+              .concat(cryptoRequest.combinedRegisterVector)
+              .concat(postFix)
+        }
         .build()
     }
 
@@ -1389,7 +1405,8 @@ class LiquidLegionsV2MillTest {
     assertThat(cryptoRequest)
       .isEqualTo(
         completeSetupPhaseRequest {
-          combinedRegisterVector = ByteString.copyFromUtf8("local_requisition-duchy_two_sketch")
+          requisitionRegisterVector = ByteString.copyFromUtf8("local_requisition")
+          combinedRegisterVector = ByteString.copyFromUtf8("-duchy_two_sketch")
           noiseParameters = registerNoiseGenerationParameters {
             compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
             curveId = CURVE_ID
@@ -2059,7 +2076,7 @@ class LiquidLegionsV2MillTest {
             curveId = CURVE_ID
             maximumFrequency = MAX_FREQUENCY
             vidSamplingIntervalWidth = 0.5f
-            liquidLegionsParametersBuilder.apply {
+            sketchParametersBuilder.apply {
               decayRate = DECAY_RATE
               size = SKETCH_SIZE
             }
@@ -2176,7 +2193,7 @@ class LiquidLegionsV2MillTest {
           curveId = CURVE_ID
           maximumFrequency = 1
           vidSamplingIntervalWidth = 0.0f
-          liquidLegionsParameters = liquidLegionsSketchParameters {
+          sketchParameters = liquidLegionsSketchParameters {
             decayRate = DECAY_RATE
             size = SKETCH_SIZE
           }
@@ -2294,7 +2311,7 @@ class LiquidLegionsV2MillTest {
             curveId = CURVE_ID
             maximumFrequency = 1
             vidSamplingIntervalWidth = 0.0f
-            liquidLegionsParametersBuilder.apply {
+            sketchParametersBuilder.apply {
               decayRate = DECAY_RATE
               size = SKETCH_SIZE
             }

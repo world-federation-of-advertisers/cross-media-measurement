@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2023 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,26 +19,7 @@ package wfa.measurement.internal.kingdom;
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
-// Internal service for persistence of PublicKey entities.
-service PublicKeys {
-  rpc UpdatePublicKey(UpdatePublicKeyRequest) returns (UpdatePublicKeyResponse);
+message EventTemplate {
+  // The type of the Event Template. A fully-qualified protobuf message type.
+  string fully_qualified_type = 1;
 }
-
-message UpdatePublicKeyRequest {
-  oneof parent {
-    fixed64 external_data_provider_id = 1;
-    fixed64 external_measurement_consumer_id = 2;
-  }
-
-  fixed64 external_certificate_id = 3;
-
-  // Version the public API for serialized message definitions.
-  string api_version = 4;
-
-  // Serialized `EncryptionPublicKey` from public API.
-  bytes public_key = 5;
-  bytes public_key_signature = 6;
-  string public_key_signature_algorithm_oid = 7;
-}
-
-message UpdatePublicKeyResponse {}
