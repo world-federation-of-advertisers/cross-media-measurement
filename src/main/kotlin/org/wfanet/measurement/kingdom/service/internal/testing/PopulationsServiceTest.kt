@@ -7,14 +7,12 @@ import com.google.protobuf.timestamp
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
-import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
@@ -40,7 +38,7 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
   )
 
   protected val clock: Clock = Clock.systemUTC()
-  protected val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
+  protected val idGenerator = SequentialIdGenerator()
 
   protected lateinit var dataProvidersService: DataProvidersCoroutineImplBase
     private set
@@ -213,48 +211,51 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
   fun `streamPopulations with After filter succeeds`() = runBlocking {
     val dataProvider = dataProvidersService.createDataProvider(DATA_PROVIDER)
 
-    populationsService.createPopulation(
-      population {
-        externalDataProviderId = dataProvider.externalDataProviderId
-        description = DESCRIPTION + "1"
-        populationBlob = populationBlob { modelBlobUri = BLOB_URI }
-        eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
-      }
-    )
+    val population1 =
+      populationsService.createPopulation(
+        population {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          description = DESCRIPTION + "1"
+          populationBlob = populationBlob { modelBlobUri = BLOB_URI }
+          eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
+        }
+      )
 
-    populationsService.createPopulation(
-      population {
-        externalDataProviderId = dataProvider.externalDataProviderId
-        externalDataProviderId = dataProvider.externalDataProviderId
-        description = DESCRIPTION + "2"
-        populationBlob = populationBlob { modelBlobUri = BLOB_URI }
-        eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
-      }
-    )
+    val population2 =
+      populationsService.createPopulation(
+        population {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalDataProviderId = dataProvider.externalDataProviderId
+          description = DESCRIPTION + "2"
+          populationBlob = populationBlob { modelBlobUri = BLOB_URI }
+          eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
+        }
+      )
 
-    populationsService.createPopulation(
-      population {
-        externalDataProviderId = dataProvider.externalDataProviderId
-        description = DESCRIPTION + "3"
-        populationBlob = populationBlob { modelBlobUri = BLOB_URI }
-        eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
-      }
-    )
+    val population3 =
+      populationsService.createPopulation(
+        population {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          description = DESCRIPTION + "3"
+          populationBlob = populationBlob { modelBlobUri = BLOB_URI }
+          eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
+        }
+      )
 
     val request = streamPopulationsRequest {
       filter {
         externalDataProviderId = dataProvider.externalDataProviderId
         after = afterFilter {
-          externalDataProviderId = 1
-          externalPopulationId = dataProvider.externalDataProviderId
-          createTime = timestamp { seconds = 0 }
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalPopulationId = population1.externalPopulationId
+          createTime = timestamp { seconds = population1.createTime.seconds }
         }
       }
     }
 
     val response: List<Population> = populationsService.streamPopulations(request).toList()
 
-    assertThat(response).hasSize(3)
+    assertThat(response).containsExactly(population3, population2, population1).inOrder()
   }
 
   companion object {

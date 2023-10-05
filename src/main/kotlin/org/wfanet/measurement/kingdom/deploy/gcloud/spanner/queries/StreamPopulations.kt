@@ -39,8 +39,8 @@ class StreamPopulations(
     if (filter.hasAfter()) {
       conjuncts.add(
         """
-          Populations.CreateTime < @${CREATED_AFTER} OR (
-            Populations.CreateTime = @${CREATED_AFTER} AND (
+          Populations.CreateTime < @${CREATE_TIME} OR (
+            Populations.CreateTime = @${CREATE_TIME} AND (
               DataProviders.ExternalDataProviderId = @${AFTER_EXTERNAL_DATA_PROVIDER_ID} AND
                 Populations.ExternalPopulationId > @${EXTERNAL_POPULATION_ID}
             ) OR (
@@ -50,7 +50,7 @@ class StreamPopulations(
         """
           .trimIndent()
       )
-      bind(CREATED_AFTER to filter.after.createTime.toGcloudTimestamp())
+      bind(CREATE_TIME to filter.after.createTime.toGcloudTimestamp())
       bind(EXTERNAL_POPULATION_ID to filter.after.externalPopulationId)
       bind(AFTER_EXTERNAL_DATA_PROVIDER_ID to filter.after.externalDataProviderId)
     }
@@ -68,6 +68,6 @@ class StreamPopulations(
     private const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
     private const val AFTER_EXTERNAL_DATA_PROVIDER_ID = "afterExternalDataProviderId"
     private const val EXTERNAL_POPULATION_ID = "externalPopulationId"
-    private const val CREATED_AFTER = "createdAfter"
+    private const val CREATE_TIME = "createTime"
   }
 }
