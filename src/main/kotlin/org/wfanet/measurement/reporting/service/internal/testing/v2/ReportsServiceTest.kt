@@ -40,7 +40,6 @@ import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.Report
 import org.wfanet.measurement.internal.reporting.v2.ReportKt
-import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt
@@ -48,15 +47,12 @@ import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest
-import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest
 import org.wfanet.measurement.internal.reporting.v2.measurement
-import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.metric
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.internal.reporting.v2.periodicTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.report
-import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals
 

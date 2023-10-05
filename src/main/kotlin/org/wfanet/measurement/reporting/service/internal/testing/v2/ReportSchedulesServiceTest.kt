@@ -88,10 +88,14 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
     }
     val createdReportSchedule = service.createReportSchedule(request)
 
-    assertThat(createdReportSchedule.externalReportScheduleId).isEqualTo(request.externalReportScheduleId)
+    assertThat(createdReportSchedule.externalReportScheduleId)
+      .isEqualTo(request.externalReportScheduleId)
     assertThat(createdReportSchedule.hasCreateTime()).isTrue()
     assertThat(createdReportSchedule.hasUpdateTime()).isTrue()
-    assertThat(Timestamps.compare(createdReportSchedule.createTime, createdReportSchedule.updateTime)).isEqualTo(0)
+    assertThat(
+        Timestamps.compare(createdReportSchedule.createTime, createdReportSchedule.updateTime)
+      )
+      .isEqualTo(0)
   }
 
   @Test
@@ -107,10 +111,14 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
     }
 
     val createdReportSchedule = service.createReportSchedule(request)
-    assertThat(createdReportSchedule.externalReportScheduleId).isEqualTo(request.externalReportScheduleId)
+    assertThat(createdReportSchedule.externalReportScheduleId)
+      .isEqualTo(request.externalReportScheduleId)
     assertThat(createdReportSchedule.hasCreateTime()).isTrue()
     assertThat(createdReportSchedule.hasUpdateTime()).isTrue()
-    assertThat(Timestamps.compare(createdReportSchedule.createTime, createdReportSchedule.updateTime)).isEqualTo(0)
+    assertThat(
+        Timestamps.compare(createdReportSchedule.createTime, createdReportSchedule.updateTime)
+      )
+      .isEqualTo(0)
 
     val sameCreatedReportSchedule = service.createReportSchedule(request)
     assertThat(createdReportSchedule).isEqualTo(sameCreatedReportSchedule)
@@ -128,15 +136,17 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
     }
 
     val createdReportSchedule = service.createReportSchedule(request)
-    assertThat(createdReportSchedule.externalReportScheduleId).isEqualTo(request.externalReportScheduleId)
+    assertThat(createdReportSchedule.externalReportScheduleId)
+      .isEqualTo(request.externalReportScheduleId)
     assertThat(createdReportSchedule.hasCreateTime()).isTrue()
     assertThat(createdReportSchedule.hasUpdateTime()).isTrue()
-    assertThat(Timestamps.compare(createdReportSchedule.createTime, createdReportSchedule.updateTime)).isEqualTo(0)
+    assertThat(
+        Timestamps.compare(createdReportSchedule.createTime, createdReportSchedule.updateTime)
+      )
+      .isEqualTo(0)
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.createReportSchedule(request)
-      }
+      assertFailsWith<StatusRuntimeException> { service.createReportSchedule(request) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
   }
@@ -150,9 +160,7 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
     val exception =
       assertFailsWith<StatusRuntimeException> {
         service.createReportSchedule(
-          createReportScheduleRequest {
-            this.reportSchedule = reportSchedule
-          }
+          createReportScheduleRequest { this.reportSchedule = reportSchedule }
         )
       }
 
@@ -166,67 +174,65 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
     val reportSchedule = reportSchedule {
       this.cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       state = ReportSchedule.State.ACTIVE
-      details = ReportScheduleKt.details {
-        displayName = "display"
-        description = "description"
-        reportTemplate = report {
-          reportingMetricEntries["1234"] =
-            ReportKt.reportingMetricCalculationSpec {
-              metricCalculationSpecs +=
-                ReportKt.metricCalculationSpec {
-                  details =
-                    ReportKt.MetricCalculationSpecKt.details {
-                      this.displayName = "displayName"
-                      metricSpecs += metricSpec {
-                        reach =
-                          MetricSpecKt.reachParams {
-                            privacyParams =
-                              MetricSpecKt.differentialPrivacyParams {
-                                epsilon = 1.0
-                                delta = 2.0
-                              }
+      details =
+        ReportScheduleKt.details {
+          displayName = "display"
+          description = "description"
+          reportTemplate = report {
+            reportingMetricEntries["1234"] =
+              ReportKt.reportingMetricCalculationSpec {
+                metricCalculationSpecs +=
+                  ReportKt.metricCalculationSpec {
+                    details =
+                      ReportKt.MetricCalculationSpecKt.details {
+                        this.displayName = "displayName"
+                        metricSpecs += metricSpec {
+                          reach =
+                            MetricSpecKt.reachParams {
+                              privacyParams =
+                                MetricSpecKt.differentialPrivacyParams {
+                                  epsilon = 1.0
+                                  delta = 2.0
+                                }
+                            }
+                          vidSamplingInterval =
+                            MetricSpecKt.vidSamplingInterval {
+                              start = 0.1f
+                              width = 0.5f
+                            }
+                        }
+                        groupings +=
+                          ReportKt.MetricCalculationSpecKt.grouping {
+                            predicates += "gender.value == MALE"
                           }
-                        vidSamplingInterval =
-                          MetricSpecKt.vidSamplingInterval {
-                            start = 0.1f
-                            width = 0.5f
-                          }
+                        cumulative = false
                       }
-                      groupings += ReportKt.MetricCalculationSpecKt.grouping {
-                        predicates += "gender.value == MALE"
-                      }
-                      cumulative = false
-                    }
+                  }
+              }
+          }
+          eventStart = dateTime {
+            year = 2023
+            month = 10
+            day = 1
+            hours = 6
+            timeZone = timeZone { id = "America/New_York" }
+          }
+          eventEnd = date {
+            year = 2024
+            month = 12
+            day = 1
+          }
+          frequency = ReportScheduleKt.frequency { daily = ReportScheduleKt.FrequencyKt.daily {} }
+          reportWindow =
+            ReportScheduleKt.reportWindow {
+              trailingWindow =
+                ReportScheduleKt.ReportWindowKt.trailingWindow {
+                  count = 1
+                  increment = ReportSchedule.ReportWindow.TrailingWindow.Increment.DAY
                 }
             }
         }
-        eventStart = dateTime {
-          year = 2023
-          month = 10
-          day = 1
-          hours = 6
-          timeZone = timeZone {
-            id = "America/New_York"
-          }
-        }
-        eventEnd = date {
-          year = 2024
-          month = 12
-          day = 1
-        }
-        frequency = ReportScheduleKt.frequency {
-          daily = ReportScheduleKt.FrequencyKt.daily { }
-        }
-        reportWindow = ReportScheduleKt.reportWindow {
-          trailingWindow = ReportScheduleKt.ReportWindowKt.trailingWindow {
-            count = 1
-            increment = ReportSchedule.ReportWindow.TrailingWindow.Increment.DAY
-          }
-        }
-      }
-      nextReportCreationTime = timestamp {
-        seconds = 200
-      }
+      nextReportCreationTime = timestamp { seconds = 200 }
     }
 
     val exception =
@@ -248,41 +254,45 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
 
-    val reportSchedule = createReportScheduleForRequest(reportingSet).copy {
-      details = details.copy {
-        reportTemplate = reportTemplate.copy {
-          reportingMetricEntries[reportingMetricEntries.keys.first() + "1234"] =
-            ReportKt.reportingMetricCalculationSpec {
-              metricCalculationSpecs +=
-                ReportKt.metricCalculationSpec {
-                  details =
-                    ReportKt.MetricCalculationSpecKt.details {
-                      this.displayName = "displayName"
-                      metricSpecs += metricSpec {
-                        reach =
-                          MetricSpecKt.reachParams {
-                            privacyParams =
-                              MetricSpecKt.differentialPrivacyParams {
-                                epsilon = 1.0
-                                delta = 2.0
+    val reportSchedule =
+      createReportScheduleForRequest(reportingSet).copy {
+        details =
+          details.copy {
+            reportTemplate =
+              reportTemplate.copy {
+                reportingMetricEntries[reportingMetricEntries.keys.first() + "1234"] =
+                  ReportKt.reportingMetricCalculationSpec {
+                    metricCalculationSpecs +=
+                      ReportKt.metricCalculationSpec {
+                        details =
+                          ReportKt.MetricCalculationSpecKt.details {
+                            this.displayName = "displayName"
+                            metricSpecs += metricSpec {
+                              reach =
+                                MetricSpecKt.reachParams {
+                                  privacyParams =
+                                    MetricSpecKt.differentialPrivacyParams {
+                                      epsilon = 1.0
+                                      delta = 2.0
+                                    }
+                                }
+                              vidSamplingInterval =
+                                MetricSpecKt.vidSamplingInterval {
+                                  start = 0.1f
+                                  width = 0.5f
+                                }
+                            }
+                            groupings +=
+                              ReportKt.MetricCalculationSpecKt.grouping {
+                                predicates += "gender.value == MALE"
                               }
-                          }
-                        vidSamplingInterval =
-                          MetricSpecKt.vidSamplingInterval {
-                            start = 0.1f
-                            width = 0.5f
+                            cumulative = false
                           }
                       }
-                      groupings += ReportKt.MetricCalculationSpecKt.grouping {
-                        predicates += "gender.value == MALE"
-                      }
-                      cumulative = false
-                    }
-                }
-            }
-        }
+                  }
+              }
+          }
       }
-    }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -299,66 +309,63 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
   }
 
   @Test
-  fun `createReportSchedule throws INVALID_ARGUMENT when no reporting metric entries`() = runBlocking {
-    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+  fun `createReportSchedule throws INVALID_ARGUMENT when no reporting metric entries`() =
+    runBlocking {
+      createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
 
-    val reportSchedule = reportSchedule {
-      this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-      state = ReportSchedule.State.ACTIVE
-      details = ReportScheduleKt.details {
-        displayName = "display"
-        description = "description"
-        reportTemplate = report {}
-        eventStart = dateTime {
-          year = 2023
-          month = 10
-          day = 1
-          hours = 6
-          timeZone = timeZone {
-            id = "America/New_York"
+      val reportSchedule = reportSchedule {
+        this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+        state = ReportSchedule.State.ACTIVE
+        details =
+          ReportScheduleKt.details {
+            displayName = "display"
+            description = "description"
+            reportTemplate = report {}
+            eventStart = dateTime {
+              year = 2023
+              month = 10
+              day = 1
+              hours = 6
+              timeZone = timeZone { id = "America/New_York" }
+            }
+            eventEnd = date {
+              year = 2024
+              month = 12
+              day = 1
+            }
+            frequency = ReportScheduleKt.frequency { daily = ReportScheduleKt.FrequencyKt.daily {} }
+            reportWindow =
+              ReportScheduleKt.reportWindow {
+                trailingWindow =
+                  ReportScheduleKt.ReportWindowKt.trailingWindow {
+                    count = 1
+                    increment = ReportSchedule.ReportWindow.TrailingWindow.Increment.DAY
+                  }
+              }
           }
-        }
-        eventEnd = date {
-          year = 2024
-          month = 12
-          day = 1
-        }
-        frequency = ReportScheduleKt.frequency {
-          daily = ReportScheduleKt.FrequencyKt.daily { }
-        }
-        reportWindow = ReportScheduleKt.reportWindow {
-          trailingWindow = ReportScheduleKt.ReportWindowKt.trailingWindow {
-            count = 1
-            increment = ReportSchedule.ReportWindow.TrailingWindow.Increment.DAY
-          }
-        }
+        nextReportCreationTime = timestamp { seconds = 200 }
       }
-      nextReportCreationTime = timestamp {
-        seconds = 200
-      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createReportSchedule(
+            createReportScheduleRequest {
+              this.reportSchedule = reportSchedule
+              externalReportScheduleId = "external-report-schedule-id"
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.message).contains("missing reporting metric entries")
     }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.createReportSchedule(
-          createReportScheduleRequest {
-            this.reportSchedule = reportSchedule
-            externalReportScheduleId = "external-report-schedule-id"
-          }
-        )
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("missing reporting metric entries")
-  }
 
   @Test
   fun `createReportSchedule throws FAILED_PRECONDITION when MC not found`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-    val reportSchedule = createReportScheduleForRequest(reportingSet).copy {
-      cmmsMeasurementConsumerId += "123"
-    }
+    val reportSchedule =
+      createReportScheduleForRequest(reportingSet).copy { cmmsMeasurementConsumerId += "123" }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -383,67 +390,65 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
       return reportSchedule {
         this.cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         state = ReportSchedule.State.ACTIVE
-        details = ReportScheduleKt.details {
-          displayName = "display"
-          description = "description"
-          reportTemplate = report {
-            reportingMetricEntries[reportingSet.externalReportingSetId] =
-              ReportKt.reportingMetricCalculationSpec {
-                metricCalculationSpecs +=
-                  ReportKt.metricCalculationSpec {
-                    details =
-                      ReportKt.MetricCalculationSpecKt.details {
-                        this.displayName = "displayName"
-                        metricSpecs += metricSpec {
-                          reach =
-                            MetricSpecKt.reachParams {
-                              privacyParams =
-                                MetricSpecKt.differentialPrivacyParams {
-                                  epsilon = 1.0
-                                  delta = 2.0
-                                }
+        details =
+          ReportScheduleKt.details {
+            displayName = "display"
+            description = "description"
+            reportTemplate = report {
+              reportingMetricEntries[reportingSet.externalReportingSetId] =
+                ReportKt.reportingMetricCalculationSpec {
+                  metricCalculationSpecs +=
+                    ReportKt.metricCalculationSpec {
+                      details =
+                        ReportKt.MetricCalculationSpecKt.details {
+                          this.displayName = "displayName"
+                          metricSpecs += metricSpec {
+                            reach =
+                              MetricSpecKt.reachParams {
+                                privacyParams =
+                                  MetricSpecKt.differentialPrivacyParams {
+                                    epsilon = 1.0
+                                    delta = 2.0
+                                  }
+                              }
+                            vidSamplingInterval =
+                              MetricSpecKt.vidSamplingInterval {
+                                start = 0.1f
+                                width = 0.5f
+                              }
+                          }
+                          groupings +=
+                            ReportKt.MetricCalculationSpecKt.grouping {
+                              predicates += "gender.value == MALE"
                             }
-                          vidSamplingInterval =
-                            MetricSpecKt.vidSamplingInterval {
-                              start = 0.1f
-                              width = 0.5f
-                            }
+                          cumulative = false
                         }
-                        groupings += ReportKt.MetricCalculationSpecKt.grouping {
-                          predicates += "gender.value == MALE"
-                        }
-                        cumulative = false
-                      }
+                    }
+                }
+            }
+            eventStart = dateTime {
+              year = 2023
+              month = 10
+              day = 1
+              hours = 6
+              timeZone = timeZone { id = "America/New_York" }
+            }
+            eventEnd = date {
+              year = 2024
+              month = 12
+              day = 1
+            }
+            frequency = ReportScheduleKt.frequency { daily = ReportScheduleKt.FrequencyKt.daily {} }
+            reportWindow =
+              ReportScheduleKt.reportWindow {
+                trailingWindow =
+                  ReportScheduleKt.ReportWindowKt.trailingWindow {
+                    count = 1
+                    increment = ReportSchedule.ReportWindow.TrailingWindow.Increment.DAY
                   }
               }
           }
-          eventStart = dateTime {
-            year = 2023
-            month = 10
-            day = 1
-            hours = 6
-            timeZone = timeZone {
-              id = "America/New_York"
-            }
-          }
-          eventEnd = date {
-            year = 2024
-            month = 12
-            day = 1
-          }
-          frequency = ReportScheduleKt.frequency {
-            daily = ReportScheduleKt.FrequencyKt.daily { }
-          }
-          reportWindow = ReportScheduleKt.reportWindow {
-            trailingWindow = ReportScheduleKt.ReportWindowKt.trailingWindow {
-              count = 1
-              increment = ReportSchedule.ReportWindow.TrailingWindow.Increment.DAY
-            }
-          }
-        }
-        nextReportCreationTime = timestamp {
-          seconds = 200
-        }
+        nextReportCreationTime = timestamp { seconds = 200 }
       }
     }
   }

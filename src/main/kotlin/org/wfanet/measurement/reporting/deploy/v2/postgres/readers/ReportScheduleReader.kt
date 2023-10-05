@@ -69,7 +69,12 @@ class ReportScheduleReader(private val readContext: ReadContext) {
       .trimIndent()
 
   fun translate(row: ResultRow): Result =
-    Result(row["MeasurementConsumerId"], row["ReportScheduleId"], row["CreateReportScheduleRequestId"], buildReportSchedule(row))
+    Result(
+      row["MeasurementConsumerId"],
+      row["ReportScheduleId"],
+      row["CreateReportScheduleRequestId"],
+      buildReportSchedule(row)
+    )
 
   suspend fun readReportScheduleByRequestId(
     measurementConsumerId: InternalId,

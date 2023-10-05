@@ -38,7 +38,9 @@ class PostgresReportSchedulesService(
   private val client: DatabaseClient,
 ) : ReportSchedulesCoroutineImplBase() {
   override suspend fun createReportSchedule(request: CreateReportScheduleRequest): ReportSchedule {
-    grpcRequire(request.externalReportScheduleId.isNotEmpty()) { "external_report_schedule_id is not set." }
+    grpcRequire(request.externalReportScheduleId.isNotEmpty()) {
+      "external_report_schedule_id is not set."
+    }
 
     grpcRequire(request.reportSchedule.details.reportTemplate.reportingMetricEntriesCount > 0) {
       "report_template is missing reporting metric entries."
@@ -63,7 +65,9 @@ class PostgresReportSchedulesService(
     return super.getReportSchedule(request)
   }
 
-  override suspend fun listReportSchedules(request: ListReportSchedulesRequest): ListReportSchedulesResponse {
+  override suspend fun listReportSchedules(
+    request: ListReportSchedulesRequest
+  ): ListReportSchedulesResponse {
     // TODO(@tristanvuong2021): Not yet implemented
     return super.listReportSchedules(request)
   }
@@ -73,7 +77,9 @@ class PostgresReportSchedulesService(
     return super.stopReportSchedule(request)
   }
 
-  override suspend fun addReportScheduleReport(request: AddReportScheduleReportRequest): ReportSchedule {
+  override suspend fun addReportScheduleReport(
+    request: AddReportScheduleReportRequest
+  ): ReportSchedule {
     // TODO(@tristanvuong2021): Not yet implemented
     return super.addReportScheduleReport(request)
   }

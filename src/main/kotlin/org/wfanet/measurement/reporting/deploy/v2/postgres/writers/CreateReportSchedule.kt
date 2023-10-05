@@ -43,7 +43,8 @@ import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundExc
  * * [MeasurementConsumerNotFoundException] MeasurementConsumer not found
  * * [ReportScheduleAlreadyExistsException] ReportSchedule already exists
  */
-class CreateReportSchedule(private val request: CreateReportScheduleRequest) : PostgresWriter<ReportSchedule>() {
+class CreateReportSchedule(private val request: CreateReportScheduleRequest) :
+  PostgresWriter<ReportSchedule>() {
   override suspend fun TransactionScope.runTransaction(): ReportSchedule {
     val measurementConsumerId =
       (MeasurementConsumerReader(transactionContext)
@@ -67,13 +68,21 @@ class CreateReportSchedule(private val request: CreateReportScheduleRequest) : P
     // external ID, return Already Exists exception.
     if (
       ReportScheduleReader(transactionContext)
-        .readReportScheduleByExternalId(request.reportSchedule.cmmsMeasurementConsumerId, request.externalReportScheduleId) != null
+        .readReportScheduleByExternalId(
+          request.reportSchedule.cmmsMeasurementConsumerId,
+          request.externalReportScheduleId
+        ) != null
     ) {
-      throw ReportScheduleAlreadyExistsException(reportSchedule.cmmsMeasurementConsumerId, reportSchedule.externalReportScheduleId)
+      throw ReportScheduleAlreadyExistsException(
+        reportSchedule.cmmsMeasurementConsumerId,
+        reportSchedule.externalReportScheduleId
+      )
     }
 
     val externalReportingSetIds = mutableListOf<String>()
-    reportSchedule.details.reportTemplate.reportingMetricEntriesMap.entries.forEach { externalReportingSetIds += it.key }
+    reportSchedule.details.reportTemplate.reportingMetricEntriesMap.entries.forEach {
+      externalReportingSetIds += it.key
+    }
 
     val reportingSetMap: Map<String, InternalId> =
       ReportingSetReader(transactionContext)
@@ -124,9 +133,7 @@ class CreateReportSchedule(private val request: CreateReportScheduleRequest) : P
         bind("$10", reportSchedule.details.toJson())
       }
 
-    transactionContext.run {
-      executeStatement(statement)
-    }
+    transactionContext.run { executeStatement(statement) }
 
     return request.reportSchedule.copy {
       this.externalReportScheduleId = externalReportScheduleId

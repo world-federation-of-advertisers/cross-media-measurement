@@ -142,11 +142,11 @@ class ReportScheduleAlreadyExistsException(
   private val cmmsMeasurementConsumerId: String,
   private val externalReportScheduleId: String,
   provideDescription: () -> String = { "Report Schedule already exists" }
-) :
-  ReportingInternalException(ErrorCode.REPORT_SCHEDULE_ALREADY_EXISTS, provideDescription) {
+) : ReportingInternalException(ErrorCode.REPORT_SCHEDULE_ALREADY_EXISTS, provideDescription) {
   override val context: Map<String, String>
-    get() = mapOf(
-      "cmms_measurement_consumer_id" to cmmsMeasurementConsumerId,
-      "external_report_schedule_id" to externalReportScheduleId
-    )
+    get() =
+      mapOf(
+        "cmms_measurement_consumer_id" to cmmsMeasurementConsumerId,
+        "external_report_schedule_id" to externalReportScheduleId
+      )
 }
