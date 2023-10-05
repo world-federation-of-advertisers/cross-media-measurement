@@ -34,6 +34,8 @@ import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.common.crypto.HashAlgorithm
+import org.wfanet.measurement.common.crypto.SignatureAlgorithm
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.sign
@@ -76,7 +78,7 @@ class CertificateAuthorityTest {
 
   @Test
   fun generateX509CertificateAndPrivateKey() = runBlocking {
-    val mockCreateCertificateClient: CreateCertificateClient = mock<CreateCertificateClient>()
+    val mockCreateCertificateClient: CreateCertificateClient = mock()
 
     val certificate: Certificate =
       Certificate.newBuilder()
@@ -116,18 +118,19 @@ class CertificateAuthorityTest {
       )
 
     val (x509, privateKey) = certificateAuthority.generateX509CertificateAndPrivateKey()
+    val signatureAlgorithm =
+      SignatureAlgorithm.fromKeyAndHashAlgorithm(privateKey, HashAlgorithm.SHA256)!!
 
-    argumentCaptor<CreateCertificateRequest> {
-      verify(mockCreateCertificateClient).createCertificate(capture())
-      assertThat(firstValue).isEqualTo(expectedCertificateRequest)
-    }
+    val createCertificateRequest =
+      argumentCaptor { verify(mockCreateCertificateClient).createCertificate(capture()) }.firstValue
+    assertThat(createCertificateRequest).isEqualTo(expectedCertificateRequest)
 
     assertThat(x509.publicKey).isEqualTo(ROOT_PUBLIC_KEY)
     assertThat(readPrivateKey(ROOT_PRIVATE_KEY_FILE, "ec")).isEqualTo(privateKey)
 
     val data = "some-data-to-be-signed".toByteStringUtf8()
-    val signature = privateKey.sign(x509, data)
+    val signature = privateKey.sign(signatureAlgorithm, data)
 
-    assertThat(x509.verifySignature(data, signature)).isTrue()
+    assertThat(x509.verifySignature(signatureAlgorithm, data, signature)).isTrue()
   }
 }
