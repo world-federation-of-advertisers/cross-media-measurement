@@ -83,6 +83,13 @@ jobs:
     - name: Export BAZEL_BIN
       run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
 
+    - name: Configure metrics
+      uses: ./.github/actions/configure-metrics-aws
+      if: ${{ inputs.apply }}
+      with:
+        amp-ingest-endpoint: ${{ vars.AMP_INGEST_ENDPOINT }}
+        amp-region: ${{ vars.AWS_REGION }}
+
     - name: Export DUCHY_CERT_ID
       env:
         AGGREGATOR_DUCHY_CERT_ID: ${{ vars.AGGREGATOR_DUCHY_CERT_ID }}
