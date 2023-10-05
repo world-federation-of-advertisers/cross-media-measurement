@@ -174,7 +174,7 @@ class LiquidLegionsV2EncryptionUtilityTest {
         curveId = CURVE_ID
         flagCountTuples = completeExecutionPhaseTwoResponse2.flagCountTuples
         maximumFrequency = MAXIMUM_FREQUENCY
-        liquidLegionsParameters = liquidLegionsSketchParameters {
+        sketchParameters = liquidLegionsSketchParameters {
           decayRate = DECAY_RATE
           size = LIQUID_LEGIONS_SIZE
         }
