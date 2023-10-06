@@ -14,27 +14,14 @@
 
 syntax = "proto3";
 
-package wfa.measurement.loadtest.panelmatch.resourcesetup;
+package wfa.panelmatch.client.loadtest;
 
-option java_package = "org.wfanet.measurement.loadtest.panelmatch.resourcesetup";
+option java_package = "org.wfanet.panelmatch.client.loadtest";
 option java_multiple_files = true;
+option java_outer_classname = "ForwardedStorageProto";
 
-message Resources {
-  message Resource {
-    string name = 1;
-
-    message ModelProvider {
-      bytes authority_key_identifier = 1;
-      string display_name = 2;
-    }
-    message DataProvider {
-      bytes authority_key_identifier = 1;
-      string display_name = 2;
-    }
-    oneof resource {
-      ModelProvider model_provider = 2;
-      DataProvider data_provider = 3;
-    }
-  }
-  repeated Resource resources = 1;
+message ForwardedStorage {
+  string target = 1;
+  string cert_collection_path = 2;
+  string forwarded_storage_cert_host = 3;
 }

@@ -1,0 +1,25 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@rules_java//java:defs.bzl", "java_proto_library")
+load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
+
+package(
+    default_testonly = True,
+    default_visibility = ["//visibility:public"],
+)
+
+proto_library(
+    name = "forwarded_storage_proto",
+    srcs = ["forwarded_storage.proto"],
+    strip_import_prefix = "/src/main/proto",
+)
+
+java_proto_library(
+    name = "forwarded_storage_java_proto",
+    deps = [":forwarded_storage_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "forwarded_storage_kt_jvm_proto",
+    srcs = [":forwarded_storage_proto"],
+    deps = [":forwarded_storage_java_proto"],
+)

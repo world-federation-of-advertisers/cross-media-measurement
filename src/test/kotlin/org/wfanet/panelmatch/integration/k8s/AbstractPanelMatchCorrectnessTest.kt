@@ -78,9 +78,10 @@ import org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourc
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.storage.forwarded.ForwardedStorageClient
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
+import org.wfanet.panelmatch.client.loadtest.ForwardedStorage
+import org.wfanet.panelmatch.client.loadtest.forwardedStorage
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetailsKt.customStorage
-import org.wfanet.panelmatch.client.storage.StorageDetailsKt.forwardedStorage
 import org.wfanet.panelmatch.client.storage.storageDetails
 import org.wfanet.panelmatch.common.certificates.testing.TestCertificateManager
 import org.wfanet.panelmatch.common.storage.testing.FakeTinkKeyStorageProvider

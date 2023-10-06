@@ -93,12 +93,4 @@ message StorageDetails {
   }
 
   Visibility visibility = 5;
-
-  message ForwardedStorage {
-    string target = 1;
-    string cert_collection_path = 2;
-    string forwarded_storage_cert_host = 3;
-  }
-
-  ForwardedStorage forwarded_storage = 6;
 }
