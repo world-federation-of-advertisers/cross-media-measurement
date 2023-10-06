@@ -37,7 +37,7 @@ AWS_IMAGES = [
     ),
 ]
 
-FORWARDED_STORAGE_IMAGES = [
+LOCAL_IMAGES = [
     struct(
         name = "forwarded_storage_exchange_workflow_daemon_image",
         image = "//src/main/kotlin/org/wfanet/panelmatch/client/deploy/example/forwarded:forwarded_storage_exchange_workflow_daemon_image",
