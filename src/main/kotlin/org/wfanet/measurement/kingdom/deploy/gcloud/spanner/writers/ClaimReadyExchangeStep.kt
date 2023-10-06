@@ -22,9 +22,12 @@ import java.time.Clock
 import java.time.Duration
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
+import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
@@ -32,10 +35,11 @@ import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.common.Provider
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
-import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.exchangeStepAttemptDetails
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamExchangeSteps
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.providerFilter
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.stepIsOwnedByProviderTypeFilter
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep.Result
 
 private val DEFAULT_EXPIRATION_DURATION: Duration = Duration.ofDays(1)
@@ -47,18 +51,53 @@ class ClaimReadyExchangeStep(
   data class Result(val step: ExchangeStep, val attemptIndex: Int)
 
   override suspend fun TransactionScope.runTransaction(): Optional<Result> {
-    // Get the first ExchangeStep with status: READY | READY_FOR_RETRY  by given Provider id.
+    // Get the first ExchangeStep eligible for execution by `provider`:
     val exchangeStepResult =
-      StreamExchangeSteps(
-          requestFilter =
-            filter {
-              principal = provider
-              stepProvider = provider
-              states += ExchangeStep.State.READY_FOR_RETRY
-              states += ExchangeStep.State.READY
-            },
-          limit = 1
-        )
+      ExchangeStepReader()
+        .fillStatementBuilder {
+          val conjuncts = mutableListOf<String>()
+
+          // Exponential backoff for retries: require that 2^{# attempts} minutes have elapsed since
+          // the last attempt.
+          conjuncts.add(
+            """
+            CURRENT_TIMESTAMP() > TIMESTAMP_ADD(
+              UpdateTime,
+              INTERVAL (
+                POW(
+                  2,
+                  (
+                    SELECT COUNT(*)
+                    FROM ExchangeStepAttempts AS ESA
+                    WHERE ESA.RecurringExchangeId = ExchangeSteps.RecurringExchangeId
+                      AND ESA.Date = ExchangeSteps.Date
+                      AND ESA.StepIndex = ExchangeSteps.StepIndex
+                  )
+                ) MINUTE
+              )
+            """.trimIndent()
+          )
+
+          // Only look for READY or READY_FOR_RETRY steps.
+          conjuncts.add("ExchangeSteps.State IN UNNEST(@states)")
+          bind("states")
+            .toInt64Array(
+              listOf(ExchangeStep.State.READY, ExchangeStep.State.READY_FOR_RETRY).map {
+                it.numberAsLong
+              }
+            )
+
+          // Ensure that the given provider is involved in the RecurringExchange.
+          conjuncts.add(providerFilter(provider, "providerId"))
+          bind("providerId" to provider.externalId)
+
+          // Ensure that the step is owned by the appropriate provider type.
+          conjuncts.add(stepIsOwnedByProviderTypeFilter(provider.type))
+
+          appendClause("WHERE ${conjuncts.joinToString("\n  AND ")}")
+          appendClause("ORDER BY UpdateTime ASC, Date ASC, StepIndex ASC")
+          appendClause("LIMIT 1")
+        }
         .execute(transactionContext)
         .singleOrNull() ?: return Optional.absent()
 
