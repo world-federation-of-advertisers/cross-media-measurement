@@ -25,8 +25,15 @@ import org.wfanet.panelmatch.client.loadtest.ForwardedStorage
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.storage.StorageFactory
 
+/**
+ * Build a ForwardedStorageClient object using storageDetails information.
+ *
+ * @param [storageDetails] the proto message that contains the information to build a ForwardedStorageClient.
+ * @param [exchangeDateKey] exchange workflow identifier used to disambiguate storage path for each exchange workflow.
+ */
 class ForwardedStorageFactory(
   private val storageDetails: StorageDetails,
+  // TODO(@MarcoPremier): add withPrefix(exchangeDateKey) to disambiguate storage path for different exchange workflows
   private val exchangeDateKey: ExchangeDateKey
 ) : StorageFactory {
 
