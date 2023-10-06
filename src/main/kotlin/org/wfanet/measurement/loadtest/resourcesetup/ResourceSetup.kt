@@ -67,6 +67,8 @@ import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvi
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
 import org.wfanet.measurement.loadtest.resourcesetup.ResourcesKt.resource
+import org.wfanet.measurement.loadtest.common.FileOutput
+import org.wfanet.measurement.loadtest.common.ConsoleOutput
 
 private val API_VERSION = Version.V2_ALPHA
 
