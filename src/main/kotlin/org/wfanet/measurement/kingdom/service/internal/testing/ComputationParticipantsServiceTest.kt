@@ -701,8 +701,8 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   }
 
   @Test
-  fun `confirmComputationParticipant succeeds with two duchies`() = runBlocking {
-    val duchies = DUCHIES.take(2)
+  fun `confirmComputationParticipant succeeds with a subset of registered duchies`() = runBlocking {
+    val duchies = DUCHIES.dropLast(1)
     createDuchyCertificates(duchies.map { it.externalDuchyId })
     val measurement =
       population.createComputedMeasurement(
