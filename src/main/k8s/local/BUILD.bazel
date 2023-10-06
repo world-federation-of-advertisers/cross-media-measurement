@@ -54,8 +54,8 @@ cue_dump(
 )
 
 cue_library(
-    name = "panelmatch_storage_emulators_cue",
-    srcs = ["panelmatch_storage_emulators.cue"],
+    name = "panelmatch_emulators_cue",
+    srcs = ["panelmatch_emulators.cue"],
     deps = [
         ":config_cue",
         "//src/main/k8s:base",
@@ -63,7 +63,7 @@ cue_library(
 )
 
 cue_dump(
-    name = "panelmatch_storage_emulators",
+    name = "panelmatch_emulators",
     cue_tags = {
         "secret_name": SECRET_NAME,
         "spanner_emulator_version": SPANNER_EMULATOR.version,
@@ -72,7 +72,7 @@ cue_dump(
         "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
     },
     tags = ["manual"],
-    deps = [":panelmatch_storage_emulators_cue"],
+    deps = [":panelmatch_emulators_cue"],
 )
 
 cue_library(
@@ -341,7 +341,7 @@ kustomization_dir(
     name = "kingdom_for_panelmatch_setup",
     srcs = [
         ":kingdom",
-        ":panelmatch_storage_emulators",
+        ":panelmatch_emulators",
     ],
     generate_kustomization = True,
     tags = ["manual"],
