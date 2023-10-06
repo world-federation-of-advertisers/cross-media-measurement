@@ -48,6 +48,8 @@ import org.wfanet.measurement.loadtest.panelmatch.resourcesetup.Resources
 import org.wfanet.measurement.loadtest.panelmatch.resourcesetup.ResourcesKt
 import org.wfanet.measurement.loadtest.panelmatch.resourcesetup.ResourcesKt.resource
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
+import org.wfanet.measurement.loadtest.common.FileOutput
+import org.wfanet.measurement.loadtest.common.ConsoleOutput
 
 private val API_VERSION = Version.V2_ALPHA
 
@@ -59,10 +61,6 @@ class PanelMatchResourceSetup(
   private val bazelConfigName: String = DEFAULT_BAZEL_CONFIG_NAME,
 ) {
 
-  /*data class DataProviderAndKey(
-    val dataProvider: DataProvider,
-    val apiAuthenticationKey: String
-  )*/
   suspend fun process(
     dataProviderContent: EntityContent,
     modelProviderContent: EntityContent,
