@@ -41,6 +41,10 @@ between two known release versions.
     Assuming you have `kubectl` configured to point to your cluster, you can use
     `kubectl diff`. Verify that diff is what you expect.
 
+    Note: You may want to pass `--prune --prune-allowlist=apps/v1/Deployment
+    --selector='app.kubernetes.io/part-of=halo-cmms'` to `kubectl` commands to
+    ensure that old/renamed Deployment resources are pruned.
+
 4.  Apply the new Kubernetes object configuration
 
     Run `kubectl apply`.
