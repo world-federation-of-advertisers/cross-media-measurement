@@ -21,6 +21,7 @@ class SpannerPopulationsService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient
 ) : PopulationsCoroutineImplBase() {
+
   override suspend fun createPopulation(request: Population): Population {
     try {
       return CreatePopulation(request).execute(client, idGenerator)
@@ -36,8 +37,7 @@ class SpannerPopulationsService(
         ExternalId(request.externalDataProviderId),
         ExternalId(request.externalPopulationId)
       )
-      ?.population
-      ?: failGrpc(Status.NOT_FOUND) { "Population not found" }
+      ?.population ?: failGrpc(Status.NOT_FOUND) { "Population not found" }
   }
 
   override fun streamPopulations(request: StreamPopulationsRequest): Flow<Population> {

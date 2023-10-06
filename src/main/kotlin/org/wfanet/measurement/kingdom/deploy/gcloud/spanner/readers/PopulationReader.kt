@@ -11,6 +11,7 @@ import org.wfanet.measurement.internal.kingdom.eventTemplate
 import org.wfanet.measurement.internal.kingdom.population
 
 class PopulationReader : SpannerReader<PopulationReader.Result>() {
+
   data class Result(val population: Population, val populationId: Long)
 
   override val baseSql: String =
@@ -54,11 +55,7 @@ class PopulationReader : SpannerReader<PopulationReader.Result>() {
     externalPopulationId = struct.getLong("ExternalPopulationId")
     description = struct.getString("Description")
     createTime = struct.getTimestamp("CreateTime").toProto()
-    populationBlob = populationBlob {
-      modelBlobUri = struct.getString("ModelBlobUri")
-    }
-    eventTemplate = eventTemplate {
-      fullyQualifiedType = struct.getString("EventTemplateType")
-    }
+    populationBlob = populationBlob { modelBlobUri = struct.getString("ModelBlobUri") }
+    eventTemplate = eventTemplate { fullyQualifiedType = struct.getString("EventTemplateType") }
   }
 }
