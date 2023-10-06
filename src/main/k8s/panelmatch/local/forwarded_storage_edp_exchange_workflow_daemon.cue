@@ -36,7 +36,7 @@ deployments: [Name=_]: #Deployment & {
 }
 deployments: {
 	"data-provider-panel-exchange-daemon": {
-		_jvmFlags:   "-Xmx3584m" // 4GiB - 512MiB overhead.
+		_jvmFlags:   "-Xms512m"
 		_secretName: _exchangeDaemonConfig.secretName
 		_podSpec: _container: {
 			image:          _localStorageImageConfig.image
