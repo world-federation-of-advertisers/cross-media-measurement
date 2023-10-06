@@ -1016,6 +1016,34 @@ class MeasurementsServiceTest {
   }
 
   @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when RF spec max frequency is 1`() {
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement =
+        MEASUREMENT.copy {
+          measurementSpec =
+            measurementSpec.copy {
+              data =
+                MEASUREMENT_SPEC.copy {
+                    reachAndFrequency = reachAndFrequency.copy { maximumFrequency = 1 }
+                  }
+                  .toByteString()
+            }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.createMeasurement(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("maximum_frequency")
+  }
+
+  @Test
   fun `createMeasurement throws INVALID_ARGUMENT when Reach-only privacy params are missing`() {
     val request = createMeasurementRequest {
       parent = MEASUREMENT_CONSUMER_NAME

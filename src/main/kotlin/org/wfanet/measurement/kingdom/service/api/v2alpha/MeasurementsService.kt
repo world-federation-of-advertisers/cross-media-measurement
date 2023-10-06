@@ -298,8 +298,8 @@ private fun MeasurementSpec.validate() {
       grpcRequire(reachAndFrequency.frequencyPrivacyParams.hasValidEpsilonAndDelta()) {
         "Frequency privacy params are invalid"
       }
-      grpcRequire(reachAndFrequency.maximumFrequency > 0) {
-        "maximum_frequency must be greater than 0"
+      grpcRequire(reachAndFrequency.maximumFrequency > 1) {
+        "maximum_frequency must be greater than 1"
       }
 
       grpcRequire(vidSamplingInterval.width > 0) { "Vid sampling interval is unspecified" }

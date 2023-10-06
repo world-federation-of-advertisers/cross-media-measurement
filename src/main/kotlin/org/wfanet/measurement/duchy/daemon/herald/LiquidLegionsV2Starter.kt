@@ -331,7 +331,7 @@ object LiquidLegionsV2Starter {
         @Suppress("DEPRECATION") // For legacy Computations.
         maximumFrequency = protocolConfig.maximumFrequency
       }
-      require(maximumFrequency > 0) { "Maximum frequency must be greater than 0" }
+      require(maximumFrequency > 1) { "Maximum frequency must be greater than 1" }
     }
 
     noise = liquidLegionsV2NoiseConfig {
