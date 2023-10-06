@@ -44,7 +44,7 @@ class StreamPopulations(
               DataProviders.ExternalDataProviderId = @${AFTER_EXTERNAL_DATA_PROVIDER_ID} AND
                 Populations.ExternalPopulationId > @${EXTERNAL_POPULATION_ID}
             ) OR (
-              DataProviders.ExternalDataProviderId > @${AFTER_EXTERNAL_DATA_PROVIDER_ID}
+              Populations.ExternalPopulationId > @${EXTERNAL_POPULATION_ID}
             )
           )
         """

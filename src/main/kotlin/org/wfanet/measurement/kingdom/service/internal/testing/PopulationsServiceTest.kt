@@ -196,7 +196,7 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
       )
 
     val request = streamPopulationsRequest {
-      filter { externalDataProviderId = dataProvider.externalDataProviderId }
+      filter = filter { externalDataProviderId = dataProvider.externalDataProviderId }
     }
 
     val response: List<Population> = populationsService.streamPopulations(request).toList()
@@ -243,7 +243,7 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
       )
 
     val request = streamPopulationsRequest {
-      filter {
+      filter = filter {
         externalDataProviderId = dataProvider.externalDataProviderId
         after = afterFilter {
           externalDataProviderId = dataProvider.externalDataProviderId
@@ -255,7 +255,7 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
 
     val response: List<Population> = populationsService.streamPopulations(request).toList()
 
-    assertThat(response).containsExactly(population3, population2, population1).inOrder()
+    assertThat(response).containsExactly(population3, population2).inOrder()
   }
 
   companion object {
