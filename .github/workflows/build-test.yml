@@ -44,8 +44,7 @@ jobs:
     runs-on: ubuntu-20.04
     needs: wait-for-main
     env:
-      MEASUREMENT_CLUSTER_LOGS_PATH: measurement-cluster-logs
-      PANELMATCH_CLUSTER_LOGS_PATH: cluster-logs
+      CLUSTER_LOGS_PATH: cluster-logs
     steps:
       - name: Check out revision
         uses: actions/checkout@v3
@@ -98,22 +97,6 @@ jobs:
           //src/test/kotlin/org/wfanet/measurement/integration/k8s:EmptyClusterCorrectnessTest
           --test_output=streamed
 
-      - name: Export cluster logs
-        id: export-measurement-cluster-logs
-        if: failure() && steps.run-correctness-test.outcome == 'failure'
-        continue-on-error: true
-        run: |
-          mkdir -p "$MEASUREMENT_CLUSTER_LOGS_PATH"
-          kind export logs "$MEASUREMENT_CLUSTER_LOGS_PATH"
-
-      - name: Upload cluster logs artifact
-        if: failure() && steps.export-measurement-cluster-logs.outcome == 'success'
-        uses: actions/upload-artifact@v3
-        continue-on-error: true
-        with:
-          name: measurement-cluster-logs
-          path: ${{ env.MEASUREMENT_CLUSTER_LOGS_PATH }}
-
       - name: Delete Kubernetes Resources
         continue-on-error: true 
         run: |
@@ -128,20 +111,20 @@ jobs:
           --test_output=streamed
 
       - name: Export cluster logs
-        id: export-panelmatch-cluster-logs
-        if: failure() && steps.run-panelmatch-correctness-test.outcome == 'failure'
+        id: export-cluster-logs
+        if: failure() && (steps.run-correctness-test.outcome == 'failure' || steps.run-panelmatch-correctness-test.outcome == 'failure')
         continue-on-error: true
         run: |
-          mkdir -p "$PANELMATCH_CLUSTER_LOGS_PATH"
-          kind export logs "$PANELMATCH_CLUSTER_LOGS_PATH"
+          mkdir -p "$CLUSTER_LOGS_PATH"
+          kind export logs "$CLUSTER_LOGS_PATH"
 
       - name: Upload cluster logs artifact
-        if: failure() && steps.export-panelmatch-cluster-logs.outcome == 'success'
+        if: failure() && steps.export-cluster-logs.outcome == 'success'
         uses: actions/upload-artifact@v3
         continue-on-error: true
         with:
-          name: panelmatch-cluster-logs
-          path: ${{ env.PANELMATCH_CLUSTER_LOGS_PATH }}
+          name: cluster-logs
+          path: ${{ env.CLUSTER_LOGS_PATH }}
 
       # Delete large files that are cheap to re-create.
       - name: Trim Bazel cache
