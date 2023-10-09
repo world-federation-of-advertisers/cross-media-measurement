@@ -66,7 +66,7 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
-import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
+import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.ReachFrequencyLiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.daemon.testing.TestRequisition
 import org.wfanet.measurement.duchy.daemon.utils.toDuchyEncryptionPublicKey
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
@@ -408,7 +408,7 @@ private val NON_AGGREGATOR_COMPUTATION_DETAILS_REACH =
   }
 
 @RunWith(JUnit4::class)
-class LiquidLegionsV2MillTest {
+class ReachFrequencyLiquidLegionsV2MillTest {
   private val mockLiquidLegionsComputationControl: ComputationControlCoroutineImplBase =
     mockService {
       onBlocking { advanceComputation(any()) }
@@ -512,8 +512,8 @@ class LiquidLegionsV2MillTest {
   // Just use the same workerStub for all other duchies, since it is not relevant to this test.
   private val workerStubs = mapOf(DUCHY_TWO_NAME to workerStub, DUCHY_THREE_NAME to workerStub)
 
-  private lateinit var aggregatorMill: LiquidLegionsV2Mill
-  private lateinit var nonAggregatorMill: LiquidLegionsV2Mill
+  private lateinit var aggregatorMill: ReachFrequencyLiquidLegionsV2Mill
+  private lateinit var nonAggregatorMill: ReachFrequencyLiquidLegionsV2Mill
 
   private fun buildAdvanceComputationRequests(
     globalComputationId: String,
@@ -555,7 +555,7 @@ class LiquidLegionsV2MillTest {
       )
 
     aggregatorMill =
-      LiquidLegionsV2Mill(
+      ReachFrequencyLiquidLegionsV2Mill(
         millId = MILL_ID,
         duchyId = DUCHY_ONE_NAME,
         signingKey = csSigningKey,
@@ -575,7 +575,7 @@ class LiquidLegionsV2MillTest {
         parallelism = PARALLELISM
       )
     nonAggregatorMill =
-      LiquidLegionsV2Mill(
+      ReachFrequencyLiquidLegionsV2Mill(
         millId = MILL_ID,
         duchyId = DUCHY_ONE_NAME,
         signingKey = csSigningKey,

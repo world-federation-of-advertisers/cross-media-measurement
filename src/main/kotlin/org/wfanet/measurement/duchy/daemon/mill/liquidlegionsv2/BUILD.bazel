@@ -13,10 +13,10 @@ package(
 )
 
 kt_jvm_library(
-    name = "liquid_legions_v2_mill_base",
+    name = "liquid_legions_v2_mill",
     testonly = True,  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
     srcs = [
-        "LiquidLegionsV2MillBase.kt",
+        "LiquidLegionsV2Mill.kt",
     ],
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
@@ -52,14 +52,14 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "liquid_legions_v2_mill",
+    name = "reach_frequency_liquid_legions_v2_mill",
     testonly = True,  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
     srcs = [
-        "LiquidLegionsV2Mill.kt",
+        "ReachFrequencyLiquidLegionsV2Mill.kt",
     ],
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
-        ":liquid_legions_v2_mill_base",
+        ":liquid_legions_v2_mill",
         "//imports/java/io/opentelemetry/api",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
@@ -98,7 +98,7 @@ kt_jvm_library(
     ],
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
-        ":liquid_legions_v2_mill_base",
+        ":liquid_legions_v2_mill",
         "//imports/java/io/opentelemetry/api",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",

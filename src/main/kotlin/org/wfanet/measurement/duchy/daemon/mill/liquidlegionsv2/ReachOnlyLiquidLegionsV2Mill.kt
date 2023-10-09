@@ -121,7 +121,7 @@ class ReachOnlyLiquidLegionsV2Mill(
   clock: Clock = Clock.systemUTC(),
   private val parallelism: Int = 1,
 ) :
-  LiquidLegionsV2MillBase(
+  LiquidLegionsV2Mill(
     millId,
     duchyId,
     signingKey,
