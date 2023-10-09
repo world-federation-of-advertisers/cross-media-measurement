@@ -112,7 +112,7 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
     }
 
     val duchyIds: List<InternalId> =
-      getComputationParticipants(InternalId(measurementConsumerId), InternalId(measurementId))
+      getComputationParticipantsDuchyIds(InternalId(measurementConsumerId), InternalId(measurementId))
         .filter { it.value != duchyId }
 
     if (
@@ -142,7 +142,7 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
     return computationParticipant.copy { state = NEXT_COMPUTATION_PARTICIPANT_STATE }
   }
 
-  private suspend fun TransactionScope.getComputationParticipants(
+  private suspend fun TransactionScope.getComputationParticipantsDuchyIds(
     measurementConsumerId: InternalId,
     measurementId: InternalId
   ): List<InternalId> {
