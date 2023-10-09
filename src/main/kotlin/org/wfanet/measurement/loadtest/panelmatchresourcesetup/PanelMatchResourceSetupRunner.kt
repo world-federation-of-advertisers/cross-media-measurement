@@ -70,11 +70,11 @@ private fun run(@CommandLine.Mixin flags: PanelMatchResourceSetupFlags) {
 
   runBlocking {
     // Runs the resource setup job.
-    InProcessPanelMatchResourceSetup(kingdomInternalApiChannel)
+    PanelMatchResourceSetup(kingdomInternalApiChannel)
       .process(
         dataProviderContent = dataProviderContent,
         exchangeSchedule = SCHEDULE,
-        apiVersion = API_VERSION,
+        publicApiVersion = API_VERSION,
         exchangeWorkflow = exchangeWorkflow,
         exchangeDate = EXCHANGE_DATE.toProtoDate(),
         runId = flags.runId

@@ -203,8 +203,8 @@ class InProcessPanelMatchResourceSetup(
   }
 }
 
-data class WorkflowResourceKeys(
+/*data class WorkflowResourceKeys(
   val dataProviderKey: DataProviderKey,
   val modelProviderKey: ModelProviderKey,
   val recurringExchangeKey: RecurringExchangeKey
-)
+)*/
