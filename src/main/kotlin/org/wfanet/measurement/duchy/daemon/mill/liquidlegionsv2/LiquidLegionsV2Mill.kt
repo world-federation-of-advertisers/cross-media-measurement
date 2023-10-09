@@ -51,7 +51,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.Compu
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
 
 /**
- * Parent mill on ReachOnlyLiquidLegionsV2 and ReachFrequencyLiquidLegionsV2.
+ * Parent mill of ReachOnlyLiquidLegionsV2 and ReachFrequencyLiquidLegionsV2.
  *
  * @param millId The identifier of this mill, used to claim a work.
  * @param duchyId The identifier of this duchy who owns this mill.
@@ -66,6 +66,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
  * @param systemComputationLogEntriesClient client of the kingdom's system
  *   computationLogEntriesService.
  * @param computationStatsClient client of the duchy's internal ComputationStatsService.
+ * @param computationType The [ComputationType] this mill is working on.
  * @param requestChunkSizeBytes The size of data chunk when sending result to other duchies.
  * @param clock A clock
  * @param maximumAttempts The maximum number of attempts on a computation at the same stage.
