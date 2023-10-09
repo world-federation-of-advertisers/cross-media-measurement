@@ -151,7 +151,8 @@ class ReachFrequencyLiquidLegionsV2Mill(
     maximumAttempts,
     clock
   ) {
-  private val meter: Meter = openTelemetry.getMeter(ReachFrequencyLiquidLegionsV2Mill::class.java.name)
+  private val meter: Meter =
+    openTelemetry.getMeter(ReachFrequencyLiquidLegionsV2Mill::class.java.name)
 
   private val initializationPhaseCryptoCpuTimeDurationHistogram: LongHistogram =
     meter.histogramBuilder("initialization_phase_crypto_cpu_time_duration_millis").ofLongs().build()
