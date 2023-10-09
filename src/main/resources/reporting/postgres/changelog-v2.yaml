@@ -23,5 +23,8 @@ databaseChangeLog:
     file: create-v2-reporting-schema.sql
     relativeToChangeLogFile: true
 - include:
-      file: add-binary-representation-column-to-weighted-subset-unions-and-metric-measurements.sql
-      relativeToChangeLogFile: true
+    file: add-binary-representation-column-to-weighted-subset-unions-and-metric-measurements.sql
+    relativeToChangeLogFile: true
+- include:
+    file: add-report-scheduling-tables.sql
+    relativeToChangeLogFile: true
