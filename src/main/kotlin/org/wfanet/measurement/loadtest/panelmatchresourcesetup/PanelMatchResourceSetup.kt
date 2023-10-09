@@ -16,8 +16,11 @@ package org.wfanet.measurement.loadtest.panelmatchresourcesetup
 import com.google.protobuf.TextFormat
 import com.google.protobuf.kotlin.toByteString
 import com.google.type.Date
+import io.grpc.Channel
+import io.grpc.ManagedChannel
 import io.grpc.StatusException
 import java.io.File
+import java.time.LocalDate
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -61,18 +64,37 @@ class PanelMatchResourceSetup(
   private val bazelConfigName: String = DEFAULT_BAZEL_CONFIG_NAME,
 ) {
 
+  /** The Channel can be used in the in-process integration test. */
+  constructor(
+    kingdomInternalApiChannel: Channel
+  ) : this(
+    DataProvidersGrpcKt.DataProvidersCoroutineStub(kingdomInternalApiChannel),
+    ModelProvidersGrpcKt.ModelProvidersCoroutineStub(kingdomInternalApiChannel),
+    RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub(kingdomInternalApiChannel)
+  )
+
+  /** The ManagedChannel can be used in the deployed integration test. */
+  constructor(
+    kingdomInternalApiChannel: ManagedChannel
+  ) : this(
+    DataProvidersGrpcKt.DataProvidersCoroutineStub(kingdomInternalApiChannel),
+    ModelProvidersGrpcKt.ModelProvidersCoroutineStub(kingdomInternalApiChannel),
+    RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub(kingdomInternalApiChannel)
+  )
+
   suspend fun process(
-    dataProviderContent: EntityContent,
-    modelProviderContent: EntityContent,
     exchangeDate: Date,
     exchangeWorkflow: ExchangeWorkflow,
     exchangeSchedule: String,
     publicApiVersion: String,
+    dataProviderContent: EntityContent,
+    modelProviderContent: EntityContent? = null,
+    runId: String = LocalDate.now().toString(),
   ): PanelMatchResourceKeys {
     logger.info("Starting resource setup ...")
     val resources = mutableListOf<Resources.Resource>()
 
-    val externalDataProviderId = createDataProvider(dataProviderContent /*, internalAccount*/)
+    val externalDataProviderId = createDataProvider(dataProviderContent)
 
     logger.info("Successfully created data provider: ${externalDataProviderId}")
 
@@ -93,19 +115,21 @@ class PanelMatchResourceSetup(
     val externalModelProviderId = createModelProvider()
     val modelProviderKey = ModelProviderKey(externalIdToApiId(externalModelProviderId))
 
-    resources.add(
-      resource {
-        name = modelProviderKey.toName()
-        modelProvider =
-          ResourcesKt.ResourceKt.modelProvider {
-            displayName = modelProviderContent.displayName
+    if (modelProviderContent != null) {
+      resources.add(
+        resource {
+          name = modelProviderKey.toName()
+          modelProvider =
+            ResourcesKt.ResourceKt.modelProvider {
+              displayName = modelProviderContent.displayName
 
-            // Assume signing cert uses same issuer as TLS client cert.
-            authorityKeyIdentifier =
-              checkNotNull(modelProviderContent.signingKey.certificate.authorityKeyIdentifier)
-          }
-      }
-    )
+              // Assume signing cert uses same issuer as TLS client cert.
+              authorityKeyIdentifier =
+                checkNotNull(modelProviderContent.signingKey.certificate.authorityKeyIdentifier)
+            }
+        }
+      )
+    }
 
     val externalRecurringExchangeId =
       createRecurringExchange(
@@ -128,8 +152,42 @@ class PanelMatchResourceSetup(
     )
   }
 
+  /** Process to create resources. */
+  suspend fun createResourcesForWorkflow(
+    exchangeSchedule: String,
+    apiVersion: String,
+    exchangeWorkflow: ExchangeWorkflow,
+    exchangeDate: Date,
+    dataProviderContent: EntityContent,
+    runId: String = LocalDate.now().toString(),
+  ): WorkflowResourceKeys {
+    logger.info("Starting with RunID: $runId ...")
+
+    val externalModelProviderId = createModelProvider()
+    val modelProviderKey = ModelProviderKey(externalIdToApiId(externalModelProviderId))
+    logger.info("Successfully created model provider: ${modelProviderKey.toName()}.")
+
+    val externalDataProviderId = createDataProvider(dataProviderContent)
+    val dataProviderKey = DataProviderKey(externalIdToApiId(externalDataProviderId))
+    logger.info("Successfully created data provider: ${dataProviderKey.toName()}.")
+
+    val externalRecurringExchangeId =
+      createRecurringExchange(
+        externalDataProvider = externalDataProviderId,
+        externalModelProvider = externalModelProviderId,
+        exchangeDate = exchangeDate,
+        exchangeSchedule = exchangeSchedule,
+        publicApiVersion = apiVersion,
+        exchangeWorkflow = exchangeWorkflow
+      )
+    val recurringExchangeKey = RecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))
+    logger.info("Successfully created Recurring Exchange: ${recurringExchangeKey.toName()}.")
+
+    return WorkflowResourceKeys(dataProviderKey, modelProviderKey, recurringExchangeKey)
+  }
+
   suspend fun createDataProvider(
-    dataProviderContent: EntityContent /*, internalAccount: Account*/
+    dataProviderContent: EntityContent
   ): Long {
     val encryptionPublicKey = dataProviderContent.encryptionPublicKey
     val signedPublicKey =
@@ -264,4 +322,10 @@ data class PanelMatchResourceKeys(
   val modelProviderKey: ModelProviderKey,
   val recurringExchangeKey: RecurringExchangeKey,
   val resources: List<Resources.Resource>,
+)
+
+data class WorkflowResourceKeys(
+  val dataProviderKey: DataProviderKey,
+  val modelProviderKey: ModelProviderKey,
+  val recurringExchangeKey: RecurringExchangeKey
 )

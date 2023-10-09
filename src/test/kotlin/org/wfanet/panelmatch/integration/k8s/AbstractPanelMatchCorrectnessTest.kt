@@ -150,12 +150,12 @@ abstract class AbstractPanelMatchCorrectnessTest {
       val panelMatchResourceKey =
         withContext(Dispatchers.IO) {
           panelMatchResourceSetup.process(
-            dataProviderContent,
-            modelProviderContent,
-            EXCHANGE_DATE.toProtoDate(),
-            workflow,
-            SCHEDULE,
-            API_VERSION
+            dataProviderContent = dataProviderContent,
+            modelProviderContent = modelProviderContent,
+            exchangeDate = EXCHANGE_DATE.toProtoDate(),
+            exchangeWorkflow = workflow,
+            exchangeSchedule = SCHEDULE,
+            publicApiVersion = API_VERSION
           )
         }
 
