@@ -403,7 +403,8 @@ class ReportsService(
                 externalIdToMetricMap[reportingMetric.externalMetricId]
                   ?: error("Got a metric not associated with the report.")
               ReportKt.MetricCalculationResultKt.resultAttribute {
-                groupingPredicates += metric.filtersList
+                groupingPredicates += reportingMetric.details.groupingPredicatesList
+                filter = reportingMetric.details.filter
                 metricSpec = metric.metricSpec
                 timeInterval = metric.timeInterval
                 metricResult = metric.result
@@ -634,7 +635,8 @@ class ReportsService(
                         failGrpc(Status.UNKNOWN) { "Failed to read the metric spec." }
                       }
                     this.timeInterval = timeInterval
-                    filters += predicateGroup
+                    groupingPredicates += predicateGroup
+                    filter = metricCalculationSpec.filter
 
                     internalMetricSpecs += this.metricSpec
                   }

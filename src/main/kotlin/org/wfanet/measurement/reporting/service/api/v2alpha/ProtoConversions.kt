@@ -748,7 +748,8 @@ fun InternalReport.ReportingMetric.toCreateMetricRequest(
           .toName()
       timeInterval = source.details.timeInterval
       metricSpec = source.details.metricSpec.toMetricSpec()
-      filters += source.details.filtersList
+      filters +=
+        (source.details.groupingPredicatesList + source.details.filter).filter { it.isNotBlank() }
     }
     requestId = source.createMetricRequestId
     metricId = "a" + source.createMetricRequestId

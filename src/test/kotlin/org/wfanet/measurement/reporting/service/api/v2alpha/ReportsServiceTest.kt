@@ -320,7 +320,8 @@ class ReportsServiceTest {
             targetReportingSet.resourceId,
             timeInterval,
             INTERNAL_REACH_METRIC_SPEC,
-            listOf()
+            listOf(),
+            ""
           )
         }
 
@@ -439,7 +440,7 @@ class ReportsServiceTest {
     }
 
   @Test
-  fun `createReport returns report with two metrics when there are two groupings`() = runBlocking {
+  fun `createReport returns report with two metrics when multiple filters`() = runBlocking {
     val displayName = DISPLAY_NAME
     val targetReportingSet = PRIMITIVE_REPORTING_SETS.first()
 
@@ -453,6 +454,7 @@ class ReportsServiceTest {
     val groupingsCartesianProduct: List<List<String>> =
       predicates1.flatMap { filter1 -> predicates2.map { filter2 -> listOf(filter1, filter2) } }
 
+    val filter = "device == MOBILE"
     val timeInterval = interval {
       startTime = START_TIME
       endTime = END_TIME
@@ -464,12 +466,13 @@ class ReportsServiceTest {
     }
 
     val initialReportingMetrics: List<InternalReport.ReportingMetric> =
-      groupingsCartesianProduct.map { filters ->
+      groupingsCartesianProduct.map { groupingPredicates ->
         buildInitialReportingMetric(
           targetReportingSet.resourceId,
           interval,
           INTERNAL_REACH_METRIC_SPEC,
-          filters
+          groupingPredicates,
+          filter
         )
       }
 
@@ -507,12 +510,13 @@ class ReportsServiceTest {
       .thenReturn(internalPendingReport)
 
     val requestingMetrics: List<Metric> =
-      groupingsCartesianProduct.map { filters ->
+      groupingsCartesianProduct.map { groupingPredicates ->
         metric {
           reportingSet = targetReportingSet.name
           this.timeInterval = timeInterval
           metricSpec = REACH_METRIC_SPEC
-          this.filters += filters
+          this.filters += groupingPredicates
+          this.filters += filter
         }
       }
 
@@ -612,7 +616,13 @@ class ReportsServiceTest {
 
       val initialReportingMetrics: List<InternalReport.ReportingMetric> =
         internalMetricSpecs.map { metricSpec ->
-          buildInitialReportingMetric(targetReportingSet.resourceId, interval, metricSpec, listOf())
+          buildInitialReportingMetric(
+            targetReportingSet.resourceId,
+            interval,
+            metricSpec,
+            listOf(),
+            ""
+          )
         }
 
       val (internalRequestingReport, internalInitialReport, internalPendingReport) =
@@ -822,7 +832,8 @@ class ReportsServiceTest {
             reportingMetricConfig.reportingSetId,
             reportingMetricConfig.timeInterval,
             reportingMetricConfig.metricSpec,
-            reportingMetricConfig.filters
+            reportingMetricConfig.filters,
+            ""
           )
         }
 
@@ -962,7 +973,8 @@ class ReportsServiceTest {
             reportingSet.resourceId,
             interval,
             INTERNAL_REACH_METRIC_SPEC,
-            listOf()
+            listOf(),
+            ""
           )
         }
 
@@ -1374,7 +1386,8 @@ class ReportsServiceTest {
             PRIMITIVE_REPORTING_SETS.first().resourceId,
             timeInterval,
             INTERNAL_REACH_METRIC_SPEC,
-            listOf()
+            listOf(),
+            ""
           )
         }
 
@@ -2381,7 +2394,8 @@ class ReportsServiceTest {
           PRIMITIVE_REPORTING_SETS.first().resourceId,
           timeInterval,
           INTERNAL_REACH_METRIC_SPEC,
-          listOf()
+          listOf(),
+          ""
         )
       }
 
@@ -3018,7 +3032,8 @@ class ReportsServiceTest {
       reportingSetId: String,
       timeInterval: Interval,
       metricSpec: InternalMetricSpec,
-      filters: List<String>,
+      groupingPredicates: List<String>,
+      filter: String
     ): InternalReport.ReportingMetric {
       return InternalReportKt.reportingMetric {
         details =
@@ -3026,7 +3041,8 @@ class ReportsServiceTest {
             this.externalReportingSetId = reportingSetId
             this.metricSpec = metricSpec
             this.timeInterval = timeInterval
-            this.filters += filters
+            this.groupingPredicates += groupingPredicates
+            this.filter = filter
           }
       }
     }
@@ -3391,7 +3407,8 @@ class ReportsServiceTest {
           endTime = END_TIME
         },
         INTERNAL_REACH_METRIC_SPEC,
-        listOf()
+        listOf(),
+        ""
       )
 
     private val INTERNAL_REACH_REPORTS =
@@ -3417,7 +3434,8 @@ class ReportsServiceTest {
           endTime = END_TIME
         },
         INTERNAL_WATCH_DURATION_METRIC_SPEC,
-        listOf()
+        listOf(),
+        ""
       )
     private val INTERNAL_WATCH_DURATION_REPORTS =
       buildInternalReports(
