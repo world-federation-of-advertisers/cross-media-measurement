@@ -207,6 +207,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                       startTime = timestamp { seconds = 100 }
                       endTime = timestamp { seconds = 200 }
                     }
+                    groupingPredicates += listOf("predicate1", "predicate2")
                   }
               }
             details =
@@ -228,6 +229,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                     }
                 }
                 groupings += ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                filter = "filter"
                 cumulative = false
               }
           }
@@ -261,6 +263,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                       startTime = timestamp { seconds = 100 }
                       endTime = timestamp { seconds = 200 }
                     }
+                    groupingPredicates += listOf("predicate3", "predicate4")
                   }
               }
             details =
@@ -282,6 +285,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                     }
                 }
                 groupings += ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                filter = "filter"
                 cumulative = false
               }
           }
@@ -362,6 +366,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                       startTime = timestamp { seconds = 100 }
                       endTime = timestamp { seconds = 200 }
                     }
+                    groupingPredicates += listOf("predicate1", "predicate2")
                   }
               }
             reportingMetrics +=
@@ -388,6 +393,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                       startTime = timestamp { seconds = 100 }
                       endTime = timestamp { seconds = 200 }
                     }
+                    groupingPredicates += listOf("predicate3", "predicate4")
                   }
               }
             details =
@@ -409,6 +415,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                     }
                 }
                 groupings += ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                filter = "filter"
                 cumulative = false
               }
           }
@@ -950,6 +957,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                         startTime = timestamp { seconds = 100 }
                         endTime = timestamp { seconds = 200 }
                       }
+                      groupingPredicates += listOf("predicate1", "predicate2")
                     }
                 }
               details =
@@ -972,6 +980,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                   }
                   groupings +=
                     ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                  filter = "filter1"
                   cumulative = false
                 }
             }
@@ -1005,6 +1014,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                         startTime = timestamp { seconds = 100 }
                         endTime = timestamp { seconds = 200 }
                       }
+                      groupingPredicates += listOf("predicate3", "predicate4")
                     }
                 }
               details =
@@ -1027,6 +1037,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                   }
                   groupings +=
                     ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                  filter = "filter2"
                   cumulative = false
                 }
             }
@@ -1108,7 +1119,11 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                       }
                   }
                 }
-              details = MetricKt.details { filters += it.details.filtersList }
+              details =
+                MetricKt.details {
+                  filters +=
+                    it.details.groupingPredicatesList + metricCalculationSpec.details.filter
+                }
             }
           }
           metricsService.createMetric(request)
@@ -1366,6 +1381,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                           startTime = timestamp { seconds = 100 }
                           endTime = timestamp { seconds = 200 }
                         }
+                        groupingPredicates += listOf("predicate1", "predicate2")
                       }
                   }
                 details =
@@ -1388,6 +1404,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                     }
                     groupings +=
                       ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                    filter = "filter"
                     cumulative = false
                   }
               }
@@ -1447,6 +1464,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                         startTime = timestamp { seconds = 100 }
                         endTime = timestamp { seconds = 200 }
                       }
+                      groupingPredicates += listOf("predicate1", "predicate2")
                     }
                 }
               details =
@@ -1469,6 +1487,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                   }
                   groupings +=
                     ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                  filter = "filter"
                   cumulative = false
                 }
             }
