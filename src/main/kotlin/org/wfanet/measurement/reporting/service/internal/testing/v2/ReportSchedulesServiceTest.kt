@@ -215,7 +215,9 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
             month = 12
             day = 1
           }
-          frequency = ReportScheduleKt.frequency { daily = ReportScheduleKt.FrequencyKt.daily {} }
+          frequency = ReportScheduleKt.frequency {
+            daily = ReportSchedule.Frequency.Daily.getDefaultInstance()
+          }
           reportWindow =
             ReportScheduleKt.reportWindow {
               trailingWindow =
@@ -329,7 +331,9 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
             month = 12
             day = 1
           }
-          frequency = ReportScheduleKt.frequency { daily = ReportScheduleKt.FrequencyKt.daily {} }
+          frequency = ReportScheduleKt.frequency {
+            daily = ReportSchedule.Frequency.Daily.getDefaultInstance()
+          }
           reportWindow =
             ReportScheduleKt.reportWindow {
               trailingWindow =
@@ -381,7 +385,9 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
               month = 12
               day = 1
             }
-            frequency = ReportScheduleKt.frequency { daily = ReportScheduleKt.FrequencyKt.daily {} }
+            frequency = ReportScheduleKt.frequency {
+              daily = ReportSchedule.Frequency.Daily.getDefaultInstance()
+            }
             reportWindow =
               ReportScheduleKt.reportWindow {
                 trailingWindow =
