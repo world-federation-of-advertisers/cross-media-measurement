@@ -1108,7 +1108,11 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                       }
                   }
                 }
-              details = MetricKt.details { filters += it.details.filtersList }
+              details =
+                MetricKt.details {
+                  filters +=
+                    it.details.groupingPredicatesList + metricCalculationSpec.details.filter
+                }
             }
           }
           metricsService.createMetric(request)
