@@ -87,7 +87,9 @@ class ReportSchedulesServiceTest {
         }
       )
 
-    onBlocking { stopReportSchedule(any()) }.thenReturn(INTERNAL_REPORT_SCHEDULE)
+    onBlocking { stopReportSchedule(any()) }.thenReturn(INTERNAL_REPORT_SCHEDULE.copy {
+      state = InternalReportSchedule.State.STOPPED
+    })
   }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalReportSchedulesMock) }
