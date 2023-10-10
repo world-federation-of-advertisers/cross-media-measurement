@@ -18,7 +18,7 @@ package org.wfanet.measurement.measurementconsumer.stats
 
 import com.google.common.truth.Truth.assertThat
 import kotlin.math.abs
-import org.junit.Assert.assertThrows
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -41,9 +41,9 @@ class VariancesTest {
       ReachMeasurementVarianceParams(reach, reachMeasurementParams)
 
     val variance = Variances.computeDeterministicVariance(reachMeasurementVarianceParams)
-    val expect = 2.5e-7
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 2.5e-7
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
@@ -61,9 +61,9 @@ class VariancesTest {
       ReachMeasurementVarianceParams(reach, reachMeasurementParams)
 
     val variance = Variances.computeDeterministicVariance(reachMeasurementVarianceParams)
-    val expect = 1701291910758399.5
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 1701291910758399.5
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
@@ -81,9 +81,9 @@ class VariancesTest {
       ReachMeasurementVarianceParams(reach, reachMeasurementParams)
 
     val variance = Variances.computeDeterministicVariance(reachMeasurementVarianceParams)
-    val expect = 33906671.712079
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 33906671.712079
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
@@ -101,9 +101,9 @@ class VariancesTest {
       ReachMeasurementVarianceParams(reach, reachMeasurementParams)
 
     val variance = Variances.computeDeterministicVariance(reachMeasurementVarianceParams)
-    val expect = 49440108678400.01
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 49440108678400.01
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
@@ -120,7 +120,7 @@ class VariancesTest {
     val reachMeasurementVarianceParams =
       ReachMeasurementVarianceParams(reach, reachMeasurementParams)
 
-    assertThrows(IllegalArgumentException::class.java) {
+    assertFailsWith<IllegalArgumentException> {
       Variances.computeDeterministicVariance(reachMeasurementVarianceParams)
     }
   }
@@ -142,9 +142,9 @@ class VariancesTest {
       ImpressionMeasurementVarianceParams(impressions, impressionMeasurementParams)
 
     val variance = Variances.computeDeterministicVariance(impressionMeasurementVariancesParams)
-    val expect = 2.5e-7
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 2.5e-7
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
@@ -164,9 +164,9 @@ class VariancesTest {
       ImpressionMeasurementVarianceParams(impressions, impressionMeasurementParams)
 
     val variance = Variances.computeDeterministicVariance(impressionMeasurementVariancesParams)
-    val expect = 2102185919.1600006
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 2102185919.1600006
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
@@ -186,9 +186,9 @@ class VariancesTest {
       ImpressionMeasurementVarianceParams(impressions, impressionMeasurementParams)
 
     val variance = Variances.computeDeterministicVariance(impressionMeasurementVariancesParams)
-    val expect = 210218.58201600003
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 210218.58201600003
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
@@ -208,9 +208,9 @@ class VariancesTest {
       ImpressionMeasurementVarianceParams(impressions, impressionMeasurementParams)
 
     val variance = Variances.computeDeterministicVariance(impressionMeasurementVariancesParams)
-    val expect = 90027432806400.0
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 90027432806400.0
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
@@ -230,9 +230,9 @@ class VariancesTest {
       ImpressionMeasurementVarianceParams(impressions, impressionMeasurementParams)
 
     val variance = Variances.computeDeterministicVariance(impressionMeasurementVariancesParams)
-    val expect = 8408743280.640002
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 8408743280.640002
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
@@ -250,7 +250,7 @@ class VariancesTest {
     val impressionMeasurementVariancesParams =
       ImpressionMeasurementVarianceParams(impressions, impressionMeasurementParams)
 
-    assertThrows(IllegalArgumentException::class.java) {
+    assertFailsWith<IllegalArgumentException> {
       Variances.computeDeterministicVariance(impressionMeasurementVariancesParams)
     }
   }
@@ -272,9 +272,9 @@ class VariancesTest {
       WatchDurationMeasurementVarianceParams(watchDuration, watchDurationMeasurementParams)
 
     val variance = Variances.computeDeterministicVariance(watchDurationMeasurementVarianceParams)
-    val expect = 2.5e-7
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 2.5e-7
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
@@ -294,9 +294,9 @@ class VariancesTest {
       WatchDurationMeasurementVarianceParams(watchDuration, watchDurationMeasurementParams)
 
     val variance = Variances.computeDeterministicVariance(watchDurationMeasurementVarianceParams)
-    val expect = 2102185919.1600006
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 2102185919.1600006
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
@@ -316,9 +316,9 @@ class VariancesTest {
       WatchDurationMeasurementVarianceParams(watchDuration, watchDurationMeasurementParams)
 
     val variance = Variances.computeDeterministicVariance(watchDurationMeasurementVarianceParams)
-    val expect = 210218.58201600003
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 210218.58201600003
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
@@ -338,9 +338,9 @@ class VariancesTest {
       WatchDurationMeasurementVarianceParams(watchDuration, watchDurationMeasurementParams)
 
     val variance = Variances.computeDeterministicVariance(watchDurationMeasurementVarianceParams)
-    val expect = 90027432806400.0
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 90027432806400.0
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
@@ -360,9 +360,9 @@ class VariancesTest {
       WatchDurationMeasurementVarianceParams(watchDuration, watchDurationMeasurementParams)
 
     val variance = Variances.computeDeterministicVariance(watchDurationMeasurementVarianceParams)
-    val expect = 8408743280.640002
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 8408743280.640002
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
@@ -380,7 +380,7 @@ class VariancesTest {
     val watchDurationMeasurementVarianceParams =
       WatchDurationMeasurementVarianceParams(watchDuration, watchDurationMeasurementParams)
 
-    assertThrows(IllegalArgumentException::class.java) {
+    assertFailsWith<IllegalArgumentException> {
       Variances.computeDeterministicVariance(watchDurationMeasurementVarianceParams)
     }
   }
@@ -445,20 +445,27 @@ class VariancesTest {
       )
 
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKVars.getValue(frequency), expectedRK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+        )
+        .of(expectedRKPlus[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKVars.getValue(frequency), expectedNK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
+        .of(expectedNK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+        )
+        .of(expectedNKPlus[frequency - 1])
     }
   }
 
@@ -528,20 +535,28 @@ class VariancesTest {
       )
 
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKVars.getValue(frequency), expectedRK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
+        .of(expectedRK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+        )
+        .of(expectedRKPlus[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKVars.getValue(frequency), expectedNK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
+        .of(expectedNK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+        )
+        .of(expectedNKPlus[frequency - 1])
     }
   }
 
@@ -617,20 +632,28 @@ class VariancesTest {
       )
 
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKVars.getValue(frequency), expectedRK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
+        .of(expectedRK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+        )
+        .of(expectedRKPlus[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKVars.getValue(frequency), expectedNK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
+        .of(expectedNK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+        )
+        .of(expectedNKPlus[frequency - 1])
     }
   }
 
@@ -706,20 +729,28 @@ class VariancesTest {
       )
 
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKVars.getValue(frequency), expectedRK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
+        .of(expectedRK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+        )
+        .of(expectedRKPlus[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKVars.getValue(frequency), expectedNK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
+        .of(expectedNK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+        )
+        .of(expectedNKPlus[frequency - 1])
     }
   }
 
@@ -765,10 +796,18 @@ class VariancesTest {
     val expectedNK = 19788711484.000004
     val expectedNKPlus = 19788711484.000004
 
-    assertThat(percentageError(rKVars.getValue(1), expectedRK)).isLessThan(ERROR_TOLERANCE)
-    assertThat(percentageError(rKPlusVars.getValue(1), expectedRKPlus)).isLessThan(ERROR_TOLERANCE)
-    assertThat(percentageError(nKVars.getValue(1), expectedNK)).isLessThan(ERROR_TOLERANCE)
-    assertThat(percentageError(nKPlusVars.getValue(1), expectedNKPlus)).isLessThan(ERROR_TOLERANCE)
+    assertThat(rKVars.getValue(1))
+      .isWithin(computeErrorTolerance(rKVars.getValue(1), expectedRK))
+      .of(expectedRK)
+    assertThat(rKPlusVars.getValue(1))
+      .isWithin(computeErrorTolerance(rKPlusVars.getValue(1), expectedRKPlus))
+      .of(expectedRKPlus)
+    assertThat(nKVars.getValue(1))
+      .isWithin(computeErrorTolerance(nKVars.getValue(1), expectedNK))
+      .of(expectedNK)
+    assertThat(nKPlusVars.getValue(1))
+      .isWithin(computeErrorTolerance(nKPlusVars.getValue(1), expectedNKPlus))
+      .of(expectedNKPlus)
   }
 
   @Test
@@ -796,7 +835,7 @@ class VariancesTest {
         frequencyMeasurementParams
       )
 
-    assertThrows(IllegalArgumentException::class.java) {
+    assertFailsWith<IllegalArgumentException> {
       Variances.computeDeterministicVariance(frequencyMeasurementVarianceParams)
     }
   }
@@ -826,7 +865,7 @@ class VariancesTest {
         frequencyMeasurementParams
       )
 
-    assertThrows(IllegalArgumentException::class.java) {
+    assertFailsWith<IllegalArgumentException> {
       Variances.computeDeterministicVariance(frequencyMeasurementVarianceParams)
     }
   }
@@ -834,7 +873,7 @@ class VariancesTest {
   @Test
   fun `computeLiquidLegionsSketchVariance returns a value for reach when reach is small, sampling width is small, and small decay rate`() {
     val decayRate = 1e-3
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
     val reach = 2L
     val vidSamplingIntervalWidth = 0.1
@@ -853,15 +892,15 @@ class VariancesTest {
         liquidLegionsSketchParams,
         reachMeasurementVarianceParams
       )
-    val expect = 252107.369636947
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 252107.369636947
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
   fun `computeLiquidLegionsSketchVariance returns a value for reach when reach is small, sampling width is small, and large decay rate`() {
     val decayRate = 1e2
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
     val reach = 2L
     val vidSamplingIntervalWidth = 0.1
@@ -880,15 +919,15 @@ class VariancesTest {
         liquidLegionsSketchParams,
         reachMeasurementVarianceParams
       )
-    val expect = 252354.6749380062
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 252354.6749380062
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
   fun `computeLiquidLegionsSketchVariance returns a value for reach when reach is small, sampling width is large, and small decay rate`() {
     val decayRate = 1e-3
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
     val reach = 2L
     val vidSamplingIntervalWidth = 1.0
@@ -908,15 +947,15 @@ class VariancesTest {
         reachMeasurementVarianceParams
       )
 
-    val expect = 2520.9441397473865
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 2520.9441397473865
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
   fun `computeLiquidLegionsSketchVariance returns a value for reach when reach is small, sampling width is large, and large decay rate`() {
     val decayRate = 1e2
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
     val reach = 2L
     val vidSamplingIntervalWidth = 1.0
@@ -936,15 +975,15 @@ class VariancesTest {
         reachMeasurementVarianceParams
       )
 
-    val expect = 2525.8928386525
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 2525.8928386525
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
   fun `computeLiquidLegionsSketchVariance returns a value for reach when reach is large, sampling width is small, and small decay rate`() {
     val decayRate = 1e-3
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
     val reach = 3e6.toLong()
     val vidSamplingIntervalWidth = 0.1
@@ -964,15 +1003,15 @@ class VariancesTest {
         reachMeasurementVarianceParams
       )
 
-    val expect = 289553744.8898575
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 289553744.8898575
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
   fun `computeLiquidLegionsSketchVariance returns a value for reach when reach is large, sampling width is small, and large decay rate`() {
     val decayRate = 1e2
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
     val reach = 3e6.toLong()
     val vidSamplingIntervalWidth = 0.1
@@ -992,15 +1031,15 @@ class VariancesTest {
         reachMeasurementVarianceParams
       )
 
-    val expect = 28923114340.800056
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 28923114340.800056
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
   fun `computeLiquidLegionsSketchVariance returns a value for reach when reach is large, sampling width is large, and small decay rate`() {
     val decayRate = 1e-3
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
     val reach = 3e6.toLong()
     val vidSamplingIntervalWidth = 1.0
@@ -1020,15 +1059,15 @@ class VariancesTest {
         reachMeasurementVarianceParams
       )
 
-    val expect = 2.8788216360657764e+29
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 2.8788216360657764e+29
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
   fun `computeLiquidLegionsSketchVariance returns a value for reach when reach is large, sampling width is large, and large decay rate`() {
     val decayRate = 1e2
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
     val reach = 3e6.toLong()
     val vidSamplingIntervalWidth = 1.0
@@ -1048,15 +1087,15 @@ class VariancesTest {
         reachMeasurementVarianceParams
       )
 
-    val expect = 28922934034.98562
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 28922934034.98562
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
   fun `computeLiquidLegionsV2Variance returns a value for reach when reach is small, sampling width is small, and small decay rate`() {
     val decayRate = 1e-3
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
     val reach = 2L
     val vidSamplingIntervalWidth = 0.1
@@ -1075,15 +1114,15 @@ class VariancesTest {
         liquidLegionsSketchParams,
         reachMeasurementVarianceParams
       )
-    val expect = 432817.78878559935
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 432817.78878559935
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
   fun `computeLiquidLegionsV2Variance returns a value for reach when reach is small, sampling width is small, and large decay rate`() {
     val decayRate = 1e2
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
     val reach = 2L
     val vidSamplingIntervalWidth = 0.1
@@ -1102,15 +1141,15 @@ class VariancesTest {
         liquidLegionsSketchParams,
         reachMeasurementVarianceParams
       )
-    val expect = 433242.3223399124
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 433242.3223399124
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
   fun `computeLiquidLegionsV2Variance returns a value for reach when reach is small, sampling width is large, and small decay rate`() {
     val decayRate = 1e-3
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
     val reach = 2L
     val vidSamplingIntervalWidth = 1.0
@@ -1130,15 +1169,15 @@ class VariancesTest {
         reachMeasurementVarianceParams
       )
 
-    val expect = 4328.084473679164
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 4328.084473679164
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
   fun `computeLiquidLegionsV2Variance returns a value for reach when reach is small, sampling width is large, and large decay rate`() {
     val decayRate = 1e2
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
     val reach = 2L
     val vidSamplingIntervalWidth = 1.0
@@ -1158,15 +1197,15 @@ class VariancesTest {
         reachMeasurementVarianceParams
       )
 
-    val expect = 4336.579244624804
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 4336.579244624804
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
   fun `computeLiquidLegionsV2Variance returns a value for reach when reach is large, sampling width is small, and small decay rate`() {
     val decayRate = 1e-3
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
     val reach = 3e6.toLong()
     val vidSamplingIntervalWidth = 0.1
@@ -1186,15 +1225,15 @@ class VariancesTest {
         reachMeasurementVarianceParams
       )
 
-    val expect = 362456073.197418
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 362456073.197418
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
   fun `computeLiquidLegionsV2Variance returns a value for reach when reach is large, sampling width is small, and large decay rate`() {
     val decayRate = 1e2
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
     val reach = 3e6.toLong()
     val vidSamplingIntervalWidth = 0.1
@@ -1214,15 +1253,15 @@ class VariancesTest {
         reachMeasurementVarianceParams
       )
 
-    val expect = 45186835212.94076
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 45186835212.94076
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
   fun `computeLiquidLegionsV2Variance returns a value for reach when reach is large, sampling width is large, and small decay rate`() {
     val decayRate = 1e-3
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
     val reach = 3e6.toLong()
     val vidSamplingIntervalWidth = 1.0
@@ -1242,15 +1281,15 @@ class VariancesTest {
         reachMeasurementVarianceParams
       )
 
-    val expect = 4.94250670279621e+29
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 4.94250670279621e+29
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
   fun `computeLiquidLegionsV2Variance returns a value for reach when reach is large, sampling width is large, and large decay rate`() {
     val decayRate = 1e2
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
     val reach = 3e6.toLong()
     val vidSamplingIntervalWidth = 1.0
@@ -1270,15 +1309,15 @@ class VariancesTest {
         reachMeasurementVarianceParams
       )
 
-    val expect = 45186557325.27274
-    val percentageError = percentageError(variance, expect)
-    assertThat(percentageError).isLessThan(ERROR_TOLERANCE)
+    val expected = 45186557325.27274
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
   }
 
   @Test
   fun `computeLiquidLegionsSketchVariance returns for reach-frequency when small total reach, small sampling width, and small decay rate`() {
     val decayRate = 1e-3
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
 
     val vidSamplingIntervalWidth = 1e-2
@@ -1331,27 +1370,35 @@ class VariancesTest {
       listOf(25209926.963694707, 9075573.706930095, 2268893.426732524, 252099.26963694714, 0.0)
 
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKVars.getValue(frequency), expectedRK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
+        .of(expectedRK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+        )
+        .of(expectedRKPlus[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKVars.getValue(frequency), expectedNK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
+        .of(expectedNK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+        )
+        .of(expectedNKPlus[frequency - 1])
     }
   }
 
   @Test
   fun `computeLiquidLegionsSketchVariance returns for reach-frequency when small total reach, small sampling width, and large decay rate`() {
     val decayRate = 100.0
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
 
     val vidSamplingIntervalWidth = 1e-2
@@ -1404,27 +1451,35 @@ class VariancesTest {
       listOf(25234657.493800625, 9084476.697768226, 2271119.1744420566, 252346.5749380063, 0.0)
 
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKVars.getValue(frequency), expectedRK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
+        .of(expectedRK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+        )
+        .of(expectedRKPlus[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKVars.getValue(frequency), expectedNK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
+        .of(expectedNK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+        )
+        .of(expectedNKPlus[frequency - 1])
     }
   }
 
   @Test
   fun `computeLiquidLegionsSketchVariance returns for reach-frequency when small total reach, large sampling width, and small decay rate`() {
     val decayRate = 1e-3
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
 
     val vidSamplingIntervalWidth = 1.0
@@ -1497,27 +1552,35 @@ class VariancesTest {
       )
 
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKVars.getValue(frequency), expectedRK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
+        .of(expectedRK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+        )
+        .of(expectedRKPlus[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKVars.getValue(frequency), expectedNK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
+        .of(expectedNK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+        )
+        .of(expectedNKPlus[frequency - 1])
     }
   }
 
   @Test
   fun `computeLiquidLegionsSketchVariance returns for reach-frequency when small total reach, large sampling width, and large decay rate`() {
     val decayRate = 100.0
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
 
     val vidSamplingIntervalWidth = 1.0
@@ -1590,27 +1653,35 @@ class VariancesTest {
       )
 
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKVars.getValue(frequency), expectedRK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
+        .of(expectedRK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+        )
+        .of(expectedRKPlus[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKVars.getValue(frequency), expectedNK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
+        .of(expectedNK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+        )
+        .of(expectedNKPlus[frequency - 1])
     }
   }
 
   @Test
   fun `computeLiquidLegionsSketchVariance returns for reach-frequency when large total reach, small sampling width, and small decay rate`() {
     val decayRate = 1e-3
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
 
     val vidSamplingIntervalWidth = 0.01
@@ -1689,27 +1760,35 @@ class VariancesTest {
       )
 
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKVars.getValue(frequency), expectedRK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
+        .of(expectedRK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+        )
+        .of(expectedRKPlus[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKVars.getValue(frequency), expectedNK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
+        .of(expectedNK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+        )
+        .of(expectedNKPlus[frequency - 1])
     }
   }
 
   @Test
   fun `computeLiquidLegionsSketchVariance returns for reach-frequency when large total reach, small sampling width, and large decay rate`() {
     val decayRate = 100.0
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
 
     val vidSamplingIntervalWidth = 0.01
@@ -1788,27 +1867,35 @@ class VariancesTest {
       )
 
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKVars.getValue(frequency), expectedRK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
+        .of(expectedRK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+        )
+        .of(expectedRKPlus[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKVars.getValue(frequency), expectedNK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
+        .of(expectedNK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+        )
+        .of(expectedNKPlus[frequency - 1])
     }
   }
 
   @Test
   fun `computeLiquidLegionsSketchVariance returns for reach-frequency when large total reach, large sampling width, and large decay rate`() {
     val decayRate = 100.0
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
 
     val vidSamplingIntervalWidth = 0.99
@@ -1887,27 +1974,35 @@ class VariancesTest {
       )
 
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKVars.getValue(frequency), expectedRK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
+        .of(expectedRK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+        )
+        .of(expectedRKPlus[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKVars.getValue(frequency), expectedNK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
+        .of(expectedNK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+        )
+        .of(expectedNKPlus[frequency - 1])
     }
   }
 
   @Test
   fun `computeLiquidLegionsSketchVariance returns for reach-frequency when maximum frequency is 1`() {
     val decayRate = 1e-3
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
 
     val vidSamplingIntervalWidth = 0.1
@@ -1956,16 +2051,24 @@ class VariancesTest {
     val expectedNK = 253034.8083089697
     val expectedNKPlus = 253034.8083089697
 
-    assertThat(percentageError(rKVars.getValue(1), expectedRK)).isLessThan(ERROR_TOLERANCE)
-    assertThat(percentageError(rKPlusVars.getValue(1), expectedRKPlus)).isLessThan(ERROR_TOLERANCE)
-    assertThat(percentageError(nKVars.getValue(1), expectedNK)).isLessThan(ERROR_TOLERANCE)
-    assertThat(percentageError(nKPlusVars.getValue(1), expectedNKPlus)).isLessThan(ERROR_TOLERANCE)
+    assertThat(rKVars.getValue(1))
+      .isWithin(computeErrorTolerance(rKVars.getValue(1), expectedRK))
+      .of(expectedRK)
+    assertThat(rKPlusVars.getValue(1))
+      .isWithin(computeErrorTolerance(rKPlusVars.getValue(1), expectedRKPlus))
+      .of(expectedRKPlus)
+    assertThat(nKVars.getValue(1))
+      .isWithin(computeErrorTolerance(nKVars.getValue(1), expectedNK))
+      .of(expectedNK)
+    assertThat(nKPlusVars.getValue(1))
+      .isWithin(computeErrorTolerance(nKPlusVars.getValue(1), expectedNKPlus))
+      .of(expectedNKPlus)
   }
 
   @Test
   fun `computeLiquidLegionsSketchVariance returns for reach-frequency when reach is less than 3`() {
     val decayRate = 100.0
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
 
     val vidSamplingIntervalWidth = 1e-3
@@ -2018,27 +2121,35 @@ class VariancesTest {
       listOf(2523367748.380063, 908412389.416823, 227103097.35420576, 25233677.483800635, 0.0)
 
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKVars.getValue(frequency), expectedRK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
+        .of(expectedRK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+        )
+        .of(expectedRKPlus[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKVars.getValue(frequency), expectedNK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
+        .of(expectedNK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+        )
+        .of(expectedNKPlus[frequency - 1])
     }
   }
 
   @Test
   fun `computeLiquidLegionsV2Variance returns for reach-frequency when small total reach, small sampling width, and small decay rate`() {
     val decayRate = 1e-3
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
 
     val vidSamplingIntervalWidth = 1e-2
@@ -2091,27 +2202,35 @@ class VariancesTest {
       listOf(43280968.87855994, 15581148.79628158, 3895287.199070395, 432809.6887855995, 0.0)
 
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKVars.getValue(frequency), expectedRK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
+        .of(expectedRK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+        )
+        .of(expectedRKPlus[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKVars.getValue(frequency), expectedNK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
+        .of(expectedNK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+        )
+        .of(expectedNKPlus[frequency - 1])
     }
   }
 
   @Test
   fun `computeLiquidLegionsV2Variance returns for reach-frequency when small total reach, small sampling width, and large decay rate`() {
     val decayRate = 100.0
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
 
     val vidSamplingIntervalWidth = 1e-2
@@ -2164,27 +2283,35 @@ class VariancesTest {
       listOf(43323422.233991235, 15596432.004236847, 3899108.001059212, 433234.2223399125, 0.0)
 
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKVars.getValue(frequency), expectedRK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
+        .of(expectedRK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+        )
+        .of(expectedRKPlus[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKVars.getValue(frequency), expectedNK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
+        .of(expectedNK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+        )
+        .of(expectedNKPlus[frequency - 1])
     }
   }
 
   @Test
   fun `computeLiquidLegionsV2Variance returns for reach-frequency when small total reach, large sampling width, and small decay rate`() {
     val decayRate = 1e-3
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
 
     val vidSamplingIntervalWidth = 1.0
@@ -2257,27 +2384,35 @@ class VariancesTest {
       )
 
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKVars.getValue(frequency), expectedRK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
+        .of(expectedRK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+        )
+        .of(expectedRKPlus[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKVars.getValue(frequency), expectedNK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
+        .of(expectedNK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+        )
+        .of(expectedNKPlus[frequency - 1])
     }
   }
 
   @Test
   fun `computeLiquidLegionsV2Variance returns for reach-frequency when small total reach, large sampling width, and large decay rate`() {
     val decayRate = 100.0
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
 
     val vidSamplingIntervalWidth = 1.0
@@ -2350,27 +2485,35 @@ class VariancesTest {
       )
 
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKVars.getValue(frequency), expectedRK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
+        .of(expectedRK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+        )
+        .of(expectedRKPlus[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKVars.getValue(frequency), expectedNK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
+        .of(expectedNK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+        )
+        .of(expectedNKPlus[frequency - 1])
     }
   }
 
   @Test
   fun `computeLiquidLegionsV2Variance returns for reach-frequency when large total reach, small sampling width, and small decay rate`() {
     val decayRate = 1e-3
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
 
     val vidSamplingIntervalWidth = 0.01
@@ -2435,27 +2578,35 @@ class VariancesTest {
       )
 
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKVars.getValue(frequency), expectedRK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
+        .of(expectedRK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+        )
+        .of(expectedRKPlus[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKVars.getValue(frequency), expectedNK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
+        .of(expectedNK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+        )
+        .of(expectedNKPlus[frequency - 1])
     }
   }
 
   @Test
   fun `computeLiquidLegionsV2Variance returns for reach-frequency when large total reach, small sampling width, and large decay rate`() {
     val decayRate = 100.0
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
 
     val vidSamplingIntervalWidth = 0.01
@@ -2534,27 +2685,35 @@ class VariancesTest {
       )
 
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKVars.getValue(frequency), expectedRK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
+        .of(expectedRK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+        )
+        .of(expectedRKPlus[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKVars.getValue(frequency), expectedNK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
+        .of(expectedNK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+        )
+        .of(expectedNKPlus[frequency - 1])
     }
   }
 
   @Test
   fun `computeLiquidLegionsV2Variance returns for reach-frequency when large total reach, large sampling width, and large decay rate`() {
     val decayRate = 100.0
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
 
     val vidSamplingIntervalWidth = 0.99
@@ -2633,27 +2792,35 @@ class VariancesTest {
       )
 
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKVars.getValue(frequency), expectedRK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
+        .of(expectedRK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+        )
+        .of(expectedRKPlus[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKVars.getValue(frequency), expectedNK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
+        .of(expectedNK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+        )
+        .of(expectedNKPlus[frequency - 1])
     }
   }
 
   @Test
   fun `computeLiquidLegionsV2Variance returns for reach-frequency when maximum frequency is 1`() {
     val decayRate = 1e-3
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
 
     val vidSamplingIntervalWidth = 0.1
@@ -2702,16 +2869,24 @@ class VariancesTest {
     val expectedNK = 433777.75826075335
     val expectedNKPlus = 433777.75826075335
 
-    assertThat(percentageError(rKVars.getValue(1), expectedRK)).isLessThan(ERROR_TOLERANCE)
-    assertThat(percentageError(rKPlusVars.getValue(1), expectedRKPlus)).isLessThan(ERROR_TOLERANCE)
-    assertThat(percentageError(nKVars.getValue(1), expectedNK)).isLessThan(ERROR_TOLERANCE)
-    assertThat(percentageError(nKPlusVars.getValue(1), expectedNKPlus)).isLessThan(ERROR_TOLERANCE)
+    assertThat(rKVars.getValue(1))
+      .isWithin(computeErrorTolerance(rKVars.getValue(1), expectedRK))
+      .of(expectedRK)
+    assertThat(rKPlusVars.getValue(1))
+      .isWithin(computeErrorTolerance(rKPlusVars.getValue(1), expectedRKPlus))
+      .of(expectedRKPlus)
+    assertThat(nKVars.getValue(1))
+      .isWithin(computeErrorTolerance(nKVars.getValue(1), expectedNK))
+      .of(expectedNK)
+    assertThat(nKPlusVars.getValue(1))
+      .isWithin(computeErrorTolerance(nKPlusVars.getValue(1), expectedNKPlus))
+      .of(expectedNKPlus)
   }
 
   @Test
   fun `computeLiquidLegionsV2Variance returns for reach-frequency when reach is less than 3`() {
     val decayRate = 100.0
-    val sketchSize = 1e5
+    val sketchSize = 100000L
     val liquidLegionsSketchParams = LiquidLegionsSketchParams(decayRate, sketchSize)
 
     val vidSamplingIntervalWidth = 1e-3
@@ -2764,34 +2939,651 @@ class VariancesTest {
       listOf(4327998886.855994, 1558079599.2681584, 389519899.8170396, 43279988.86855995, 0.0)
 
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKVars.getValue(frequency), expectedRK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
+        .of(expectedRK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(rKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+        )
+        .of(expectedRKPlus[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKVars.getValue(frequency), expectedNK[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
+        .of(expectedNK[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(percentageError(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1]))
-        .isLessThan(ERROR_TOLERANCE)
+      assertThat(nKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+        )
+        .of(expectedNKPlus[frequency - 1])
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance returns a value for reach when sampling intervals are fully overlapped`() {
+    val weightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 3,
+        weight = 1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 2L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.5),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN
+              )
+          ),
+        methodology = LiquidLegionsV2Methodology(0.0, 1e6.toLong(), 1e8.toLong())
+      )
+
+    val otherWeightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 2,
+        weight = -1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 1L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.5),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN
+              )
+          ),
+        methodology = DeterministicMethodology
+      )
+
+    val params =
+      ReachMetricVarianceParams(
+        listOf(weightedReachMeasurementVarianceParams, otherWeightedReachMeasurementVarianceParams)
+      )
+
+    val variance = Variances.computeMetricVariance(params)
+
+    val expected = 27396.052940381534
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
+  }
+
+  @Test
+  fun `computeMetricVariance returns a value for reach when sampling intervals are partially overlapped`() {
+    val weightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 3,
+        weight = 1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 2L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.5),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN
+              )
+          ),
+        methodology = LiquidLegionsV2Methodology(0.0, 1e6.toLong(), 1e8.toLong())
+      )
+
+    val otherWeightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = -1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 1L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.3, 0.8),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN
+              )
+          ),
+        methodology = DeterministicMethodology
+      )
+
+    val params =
+      ReachMetricVarianceParams(
+        listOf(weightedReachMeasurementVarianceParams, otherWeightedReachMeasurementVarianceParams)
+      )
+
+    val variance = Variances.computeMetricVariance(params)
+
+    val expected = 21253.74748438153
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
+  }
+
+  @Test
+  fun `computeMetricVariance returns a value for reach when sampling intervals are not overlapped`() {
+    val weightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 3,
+        weight = 1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 2L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.5),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN
+              )
+          ),
+        methodology = LiquidLegionsV2Methodology(0.0, 1e6.toLong(), 1e8.toLong())
+      )
+
+    val otherWeightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = -1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 1L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.5, 1.0),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN
+              )
+          ),
+        methodology = DeterministicMethodology
+      )
+
+    val params =
+      ReachMetricVarianceParams(
+        listOf(weightedReachMeasurementVarianceParams, otherWeightedReachMeasurementVarianceParams)
+      )
+
+    val variance = Variances.computeMetricVariance(params)
+
+    val expected = 19836.523148381533
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
+  }
+
+  @Test
+  fun `computeMetricVariance returns a value for reach when one is from custom direct methodology`() {
+    val weightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 3,
+        weight = 1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 2L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.5),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN
+              )
+          ),
+        methodology = LiquidLegionsV2Methodology(0.0, 1e6.toLong(), 1e8.toLong())
+      )
+
+    val varianceSingleMeasurement =
+      Variances.computeMetricVariance(
+        ReachMetricVarianceParams(listOf(weightedReachMeasurementVarianceParams))
+      )
+
+    val varianceOtherSingleMeasurement = 1e4
+
+    val otherWeightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = -1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 1L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.5, 1.0),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN
+              )
+          ),
+        methodology = CustomDirectScalarMethodology(varianceOtherSingleMeasurement)
+      )
+
+    val params =
+      ReachMetricVarianceParams(
+        listOf(weightedReachMeasurementVarianceParams, otherWeightedReachMeasurementVarianceParams)
+      )
+
+    val variance = Variances.computeMetricVariance(params)
+
+    val expected = varianceSingleMeasurement + varianceOtherSingleMeasurement
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
+  }
+
+  @Test
+  fun `computeMetricVariance returns a value for reach intersection`() {
+    val unionWeightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 3,
+        weight = -1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 4L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.1, 1.0),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN
+              )
+          ),
+        methodology = LiquidLegionsV2Methodology(0.0, 1e6.toLong(), 1e8.toLong())
+      )
+
+    val weightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 2L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN
+              )
+          ),
+        methodology = DeterministicMethodology
+      )
+
+    val otherWeightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 2,
+        weight = 1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 1L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN
+              )
+          ),
+        methodology = DeterministicMethodology
+      )
+
+    val params =
+      ReachMetricVarianceParams(
+        listOf(
+          unionWeightedReachMeasurementVarianceParams,
+          weightedReachMeasurementVarianceParams,
+          otherWeightedReachMeasurementVarianceParams
+        )
+      )
+
+    val variance = Variances.computeMetricVariance(params)
+
+    val expected = 10554.13919363766
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
+  }
+
+  @Test
+  fun `computeMetricVariance for reach throws IllegalArgumentException when no measurement params`() {
+    assertFailsWith<IllegalArgumentException> {
+      Variances.computeMetricVariance(ReachMetricVarianceParams(listOf()))
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for reach throws UnsupportedMethodologyException when using CustomDirectFrequencyMethodology`() {
+    val weightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 3,
+        weight = 1,
+        measurementVarianceParams =
+          ReachMeasurementVarianceParams(
+            reach = 2L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.5),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN
+              )
+          ),
+        methodology = CustomDirectFrequencyMethodology(mapOf(), mapOf())
+      )
+
+    assertFailsWith<UnsupportedMethodologyUsageException> {
+      Variances.computeMetricVariance(
+        ReachMetricVarianceParams(listOf(weightedReachMeasurementVarianceParams))
+      )
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for reach-frequency throws IllegalArgumentException when no measurement params`() {
+    assertFailsWith<IllegalArgumentException> {
+      Variances.computeMetricVariance(FrequencyMetricVarianceParams(listOf()))
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for reach-frequency throws IllegalArgumentException when there are two measurements`() {
+    val weightedFrequencyMeasurementVarianceParams =
+      WeightedFrequencyMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          FrequencyMeasurementVarianceParams(
+            totalReach = 2L,
+            reachMeasurementVariance = 100.0,
+            relativeFrequencyDistribution = mapOf(1 to 1.0),
+            measurementParams =
+              FrequencyMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+                maximumFrequency = 10
+              )
+          ),
+        methodology = DeterministicMethodology
+      )
+
+    assertFailsWith<IllegalArgumentException> {
+      Variances.computeMetricVariance(
+        FrequencyMetricVarianceParams(
+          listOf(
+            weightedFrequencyMeasurementVarianceParams,
+            weightedFrequencyMeasurementVarianceParams
+          )
+        )
+      )
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for reach-frequency throws UnsupportedMethodologyException when CustomDirectScalarMethodology is used`() {
+    val weightedFrequencyMeasurementVarianceParams =
+      WeightedFrequencyMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          FrequencyMeasurementVarianceParams(
+            totalReach = 2L,
+            reachMeasurementVariance = 100.0,
+            relativeFrequencyDistribution = mapOf(1 to 1.0),
+            measurementParams =
+              FrequencyMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+                maximumFrequency = 10
+              )
+          ),
+        methodology = CustomDirectScalarMethodology(0.0)
+      )
+
+    assertFailsWith<UnsupportedMethodologyUsageException> {
+      Variances.computeMetricVariance(
+        FrequencyMetricVarianceParams(listOf(weightedFrequencyMeasurementVarianceParams))
+      )
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for impression throws IllegalArgumentException when no measurement params`() {
+    assertFailsWith<IllegalArgumentException> {
+      Variances.computeMetricVariance(ImpressionMetricVarianceParams(listOf()))
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for impression throws IllegalArgumentException when there are two measurements`() {
+    val weightedImpressionMeasurementVarianceParams =
+      WeightedImpressionMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          ImpressionMeasurementVarianceParams(
+            impression = 2L,
+            measurementParams =
+              ImpressionMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+                maximumFrequencyPerUser = 10
+              )
+          ),
+        methodology = DeterministicMethodology
+      )
+
+    assertFailsWith<IllegalArgumentException> {
+      Variances.computeMetricVariance(
+        ImpressionMetricVarianceParams(
+          listOf(
+            weightedImpressionMeasurementVarianceParams,
+            weightedImpressionMeasurementVarianceParams
+          )
+        )
+      )
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for impression throws UnsupportedMethodologyException when using CustomDirectFrequencyMethodology`() {
+    val weightedImpressionMeasurementVarianceParams =
+      WeightedImpressionMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          ImpressionMeasurementVarianceParams(
+            impression = 2L,
+            measurementParams =
+              ImpressionMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+                maximumFrequencyPerUser = 10
+              )
+          ),
+        methodology = CustomDirectFrequencyMethodology(mapOf(), mapOf())
+      )
+
+    assertFailsWith<UnsupportedMethodologyUsageException> {
+      Variances.computeMetricVariance(
+        ImpressionMetricVarianceParams(listOf(weightedImpressionMeasurementVarianceParams))
+      )
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for impression throws UnsupportedMethodologyException when using Liquid Legions Sketch methodology`() {
+    val weightedImpressionMeasurementVarianceParams =
+      WeightedImpressionMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          ImpressionMeasurementVarianceParams(
+            impression = 2L,
+            measurementParams =
+              ImpressionMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+                maximumFrequencyPerUser = 10
+              )
+          ),
+        methodology = LiquidLegionsSketchMethodology(1.0, 1L)
+      )
+
+    assertFailsWith<UnsupportedMethodologyUsageException> {
+      Variances.computeMetricVariance(
+        ImpressionMetricVarianceParams(listOf(weightedImpressionMeasurementVarianceParams))
+      )
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for impression throws UnsupportedMethodologyException when using Liquid Legions V2 methodology`() {
+    val weightedImpressionMeasurementVarianceParams =
+      WeightedImpressionMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          ImpressionMeasurementVarianceParams(
+            impression = 2L,
+            measurementParams =
+              ImpressionMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+                maximumFrequencyPerUser = 10
+              )
+          ),
+        methodology = LiquidLegionsV2Methodology(1.0, 1L, 1L)
+      )
+
+    assertFailsWith<UnsupportedMethodologyUsageException> {
+      Variances.computeMetricVariance(
+        ImpressionMetricVarianceParams(listOf(weightedImpressionMeasurementVarianceParams))
+      )
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for watch duration throws IllegalArgumentException when no measurement params`() {
+    assertFailsWith<IllegalArgumentException> {
+      Variances.computeMetricVariance(WatchDurationMetricVarianceParams(listOf()))
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for watch duration throws IllegalArgumentException when there are two measurements`() {
+    val weightedWatchDurationMeasurementVarianceParams =
+      WeightedWatchDurationMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          WatchDurationMeasurementVarianceParams(
+            duration = 1.0,
+            measurementParams =
+              WatchDurationMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+                maximumDurationPerUser = 10.0
+              )
+          ),
+        methodology = DeterministicMethodology
+      )
+
+    assertFailsWith<IllegalArgumentException> {
+      Variances.computeMetricVariance(
+        WatchDurationMetricVarianceParams(
+          listOf(
+            weightedWatchDurationMeasurementVarianceParams,
+            weightedWatchDurationMeasurementVarianceParams
+          )
+        )
+      )
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for watch duration throws UnsupportedMethodologyException when using CustomDirectFrequencyMethodology`() {
+    val weightedWatchDurationMeasurementVarianceParams =
+      WeightedWatchDurationMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          WatchDurationMeasurementVarianceParams(
+            duration = 1.0,
+            measurementParams =
+              WatchDurationMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+                maximumDurationPerUser = 10.0
+              )
+          ),
+        methodology = CustomDirectFrequencyMethodology(mapOf(), mapOf())
+      )
+
+    assertFailsWith<UnsupportedMethodologyUsageException> {
+      Variances.computeMetricVariance(
+        WatchDurationMetricVarianceParams(listOf(weightedWatchDurationMeasurementVarianceParams))
+      )
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for watch duration throws UnsupportedMethodologyException when using Liquid Legions sketch methodology`() {
+    val weightedWatchDurationMeasurementVarianceParams =
+      WeightedWatchDurationMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          WatchDurationMeasurementVarianceParams(
+            duration = 1.0,
+            measurementParams =
+              WatchDurationMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+                maximumDurationPerUser = 10.0
+              )
+          ),
+        methodology = LiquidLegionsSketchMethodology(1.0, 1L)
+      )
+
+    assertFailsWith<UnsupportedMethodologyUsageException> {
+      Variances.computeMetricVariance(
+        WatchDurationMetricVarianceParams(listOf(weightedWatchDurationMeasurementVarianceParams))
+      )
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for watch duration throws UnsupportedMethodologyException when using Liquid Legions V2 methodology`() {
+    val weightedWatchDurationMeasurementVarianceParams =
+      WeightedWatchDurationMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          WatchDurationMeasurementVarianceParams(
+            duration = 1.0,
+            measurementParams =
+              WatchDurationMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+                maximumDurationPerUser = 10.0
+              )
+          ),
+        methodology = LiquidLegionsV2Methodology(1.0, 1L, 1L)
+      )
+
+    assertFailsWith<UnsupportedMethodologyUsageException> {
+      Variances.computeMetricVariance(
+        WatchDurationMetricVarianceParams(listOf(weightedWatchDurationMeasurementVarianceParams))
+      )
     }
   }
 
   companion object {
-    fun percentageError(estimate: Double, truth: Double): Double {
-      return if (truth == 0.0) {
-        estimate
-      } else if (estimate == 0.0) {
-        truth
+    fun computeErrorTolerance(actual: Double, expected: Double): Double {
+      return if (expected == 0.0 || actual == 0.0) {
+        ERROR_TOLERANCE_PERCENTAGE
       } else {
-        abs(1.0 - (estimate / truth))
+        abs(expected * ERROR_TOLERANCE_PERCENTAGE)
       }
     }
 
-    const val ERROR_TOLERANCE = 5e-3
+    private const val ERROR_TOLERANCE_PERCENTAGE = 5e-3
   }
 }
