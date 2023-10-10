@@ -908,9 +908,7 @@ class ReportSchedulesServiceTest {
       eventStart = INTERNAL_REPORT_SCHEDULE.details.eventStart
       eventEnd = INTERNAL_REPORT_SCHEDULE.details.eventEnd
       frequency =
-        ReportScheduleKt.frequency {
-          daily = ReportSchedule.Frequency.Daily.getDefaultInstance()
-        }
+        ReportScheduleKt.frequency { daily = ReportSchedule.Frequency.Daily.getDefaultInstance() }
       reportWindow =
         ReportScheduleKt.reportWindow {
           trailingWindow =
