@@ -25,13 +25,67 @@ import org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiser
 import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpParamsConverter
 
-/** Functions to compute different variances. */
-object Variances {
+/** The interface of Variance calculations. */
+interface Variances {
+  /** Computes variance of a reach metric. */
+  fun computeMetricVariance(params: ReachMetricVarianceParams): Double
+
+  /** Computes variance of a reach measurement based on the methodology. */
+  fun computeMeasurementVariance(
+    methodology: Methodology,
+    measurementVarianceParams: ReachMeasurementVarianceParams
+  ): Double
+
+  /**
+   * Computes variance of a frequency metric.
+   *
+   * Currently, only support variance of frequency metrics that are computed on union-only set
+   * expression. That is, metrics that are composed of single source measurement.
+   */
+  fun computeMetricVariance(params: FrequencyMetricVarianceParams): FrequencyVariances
+
+  /** Computes variance of a frequency measurement based on the methodology. */
+  fun computeMeasurementVariance(
+    methodology: Methodology,
+    measurementVarianceParams: FrequencyMeasurementVarianceParams
+  ): FrequencyVariances
+
+  /**
+   * Computes variance of an impression metric.
+   *
+   * Currently, only support variance of impression metrics that are computed on union-only set
+   * expression. That is, metrics that are composed of single source measurement.
+   */
+  fun computeMetricVariance(params: ImpressionMetricVarianceParams): Double
+
+  /** Computes variance of an impression measurement based on the methodology. */
+  fun computeMeasurementVariance(
+    methodology: Methodology,
+    measurementVarianceParams: ImpressionMeasurementVarianceParams
+  ): Double
+
+  /**
+   * Computes variance of a watch duration metric.
+   *
+   * Currently, only support variance of watch duration metrics that are computed on union-only set
+   * expression. That is, metrics that are composed of single source measurement.
+   */
+  fun computeMetricVariance(params: WatchDurationMetricVarianceParams): Double
+
+  /** Computes variance of a watch duration measurement based on the methodology. */
+  fun computeMeasurementVariance(
+    methodology: Methodology,
+    measurementVarianceParams: WatchDurationMeasurementVarianceParams
+  ): Double
+}
+
+/** Default implementation of [Variances]. */
+object VariancesImpl : Variances {
   /**
    * Computes the variance of a reach measurement that is computed using the deterministic count
    * distinct methodology.
    */
-  fun computeDeterministicVariance(params: ReachMeasurementVarianceParams): Double {
+  private fun computeDeterministicVariance(params: ReachMeasurementVarianceParams): Double {
     return computeDeterministicScalarMeasurementVariance(
       params.reach.toDouble(),
       params.measurementParams.vidSamplingInterval.width,
@@ -45,7 +99,7 @@ object Variances {
    * Computes the variance of an impression measurement that is computed using the deterministic
    * count methodology.
    */
-  fun computeDeterministicVariance(params: ImpressionMeasurementVarianceParams): Double {
+  private fun computeDeterministicVariance(params: ImpressionMeasurementVarianceParams): Double {
     return computeDeterministicScalarMeasurementVariance(
       params.impression.toDouble(),
       params.measurementParams.vidSamplingInterval.width,
@@ -59,7 +113,7 @@ object Variances {
    * Computes the variance of a watch duration measurement that is computed using the deterministic
    * sum methodology.
    */
-  fun computeDeterministicVariance(params: WatchDurationMeasurementVarianceParams): Double {
+  private fun computeDeterministicVariance(params: WatchDurationMeasurementVarianceParams): Double {
     return computeDeterministicScalarMeasurementVariance(
       params.duration,
       params.measurementParams.vidSamplingInterval.width,
@@ -75,7 +129,9 @@ object Variances {
    *
    * Note that the reach measurement can be computed using any methodology.
    */
-  fun computeDeterministicVariance(params: FrequencyMeasurementVarianceParams): FrequencyVariances {
+  private fun computeDeterministicVariance(
+    params: FrequencyMeasurementVarianceParams
+  ): FrequencyVariances {
     return frequencyVariance(
       params,
       ::deterministicFrequencyRelativeVariance,
@@ -151,7 +207,7 @@ object Variances {
    * Computes the variance of a reach measurement which is computed using the Liquid Legions Count
    * Distinct methodology.
    */
-  fun computeLiquidLegionsSketchVariance(
+  private fun computeLiquidLegionsSketchVariance(
     sketchParams: LiquidLegionsSketchParams,
     varianceParams: ReachMeasurementVarianceParams,
   ): Double {
@@ -182,7 +238,7 @@ object Variances {
    *
    * Note that the reach can be computed using any methodology.
    */
-  fun computeLiquidLegionsSketchVariance(
+  private fun computeLiquidLegionsSketchVariance(
     sketchParams: LiquidLegionsSketchParams,
     params: FrequencyMeasurementVarianceParams
   ): FrequencyVariances {
@@ -222,7 +278,7 @@ object Variances {
   }
 
   /** Computes the variance of a reach measurement which is computed using Liquid Legions V2. */
-  fun computeLiquidLegionsV2Variance(
+  private fun computeLiquidLegionsV2Variance(
     sketchParams: LiquidLegionsSketchParams,
     varianceParams: ReachMeasurementVarianceParams,
   ): Double {
@@ -251,7 +307,7 @@ object Variances {
    * Computes [FrequencyVariances] of a reach-and-frequency measurement that is computed using the
    * Liquid Legions V2.
    */
-  fun computeLiquidLegionsV2Variance(
+  private fun computeLiquidLegionsV2Variance(
     sketchParams: LiquidLegionsSketchParams,
     params: FrequencyMeasurementVarianceParams
   ): FrequencyVariances {
@@ -469,7 +525,7 @@ object Variances {
   }
 
   /** Computes variance of a reach metric. */
-  fun computeMetricVariance(params: ReachMetricVarianceParams): Double {
+  override fun computeMetricVariance(params: ReachMetricVarianceParams): Double {
     require(params.weightedMeasurementVarianceParamsList.isNotEmpty()) {
       "Invalid params: number of measurements must be greater than 0."
     }
@@ -520,7 +576,7 @@ object Variances {
   }
 
   /** Computes variance of a reach measurement based on the methodology. */
-  fun computeMeasurementVariance(
+  override fun computeMeasurementVariance(
     methodology: Methodology,
     measurementVarianceParams: ReachMeasurementVarianceParams
   ): Double {
@@ -557,7 +613,7 @@ object Variances {
    * Currently, only support variance of frequency metrics that are computed on union-only set
    * expression. That is, metrics that are composed of single source measurement.
    */
-  fun computeMetricVariance(params: FrequencyMetricVarianceParams): FrequencyVariances {
+  override fun computeMetricVariance(params: FrequencyMetricVarianceParams): FrequencyVariances {
     require(params.weightedMeasurementVarianceParamsList.isNotEmpty()) {
       "Invalid params: number of measurements must be greater than 0."
     }
@@ -588,7 +644,7 @@ object Variances {
   }
 
   /** Computes variance of a frequency measurement based on the methodology. */
-  fun computeMeasurementVariance(
+  override fun computeMeasurementVariance(
     methodology: Methodology,
     measurementVarianceParams: FrequencyMeasurementVarianceParams
   ): FrequencyVariances {
@@ -643,7 +699,7 @@ object Variances {
    * Currently, only support variance of impression metrics that are computed on union-only set
    * expression. That is, metrics that are composed of single source measurement.
    */
-  fun computeMetricVariance(params: ImpressionMetricVarianceParams): Double {
+  override fun computeMetricVariance(params: ImpressionMetricVarianceParams): Double {
     require(params.weightedMeasurementVarianceParamsList.isNotEmpty()) {
       "Invalid params: number of measurements must be greater than 0."
     }
@@ -663,7 +719,7 @@ object Variances {
   }
 
   /** Computes variance of an impression measurement based on the methodology. */
-  private fun computeMeasurementVariance(
+  override fun computeMeasurementVariance(
     methodology: Methodology,
     measurementVarianceParams: ImpressionMeasurementVarianceParams,
   ): Double {
@@ -700,7 +756,7 @@ object Variances {
    * Currently, only support variance of watch duration metrics that are computed on union-only set
    * expression. That is, metrics that are composed of single source measurement.
    */
-  fun computeMetricVariance(params: WatchDurationMetricVarianceParams): Double {
+  override fun computeMetricVariance(params: WatchDurationMetricVarianceParams): Double {
     require(params.weightedMeasurementVarianceParamsList.isNotEmpty()) {
       "Invalid params: number of measurements must be greater than 0."
     }
@@ -720,7 +776,7 @@ object Variances {
   }
 
   /** Computes variance of a watch duration measurement based on the methodology. */
-  private fun computeMeasurementVariance(
+  override fun computeMeasurementVariance(
     methodology: Methodology,
     measurementVarianceParams: WatchDurationMeasurementVarianceParams,
   ): Double {
