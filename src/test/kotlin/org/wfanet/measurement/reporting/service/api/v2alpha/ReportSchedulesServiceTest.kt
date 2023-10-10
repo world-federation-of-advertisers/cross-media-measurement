@@ -868,7 +868,7 @@ class ReportSchedulesServiceTest {
           }
           frequency =
             InternalReportScheduleKt.frequency {
-              daily = InternalReportScheduleKt.FrequencyKt.daily {}
+              daily = InternalReportSchedule.Frequency.Daily.getDefaultInstance()
             }
           reportWindow =
             InternalReportScheduleKt.reportWindow {
@@ -907,7 +907,10 @@ class ReportSchedulesServiceTest {
       state = ReportSchedule.State.forNumber(INTERNAL_REPORT_SCHEDULE.state.number)
       eventStart = INTERNAL_REPORT_SCHEDULE.details.eventStart
       eventEnd = INTERNAL_REPORT_SCHEDULE.details.eventEnd
-      frequency = ReportScheduleKt.frequency { daily = ReportScheduleKt.FrequencyKt.daily {} }
+      frequency =
+        ReportScheduleKt.frequency {
+          daily = ReportSchedule.Frequency.Daily.getDefaultInstance()
+        }
       reportWindow =
         ReportScheduleKt.reportWindow {
           trailingWindow =
