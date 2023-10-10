@@ -497,6 +497,20 @@ cue_dump(
 )
 
 cue_dump(
+    name = "open_telemetry_eks",
+    srcs = ["open_telemetry_eks.cue"],
+    cue_tags = {
+        "amp_ingest_endpoint": AWS_SETTINGS.amp_ingest_endpoint,
+        "amp_region": AWS_SETTINGS.amp_region,
+    },
+    tags = ["manual"],
+    deps = [
+        ":config_eks",
+        "//src/main/k8s:open_telemetry",
+    ],
+)
+
+cue_dump(
     name = "prometheus_gke",
     srcs = ["prometheus_gke.cue"],
     tags = ["manual"],

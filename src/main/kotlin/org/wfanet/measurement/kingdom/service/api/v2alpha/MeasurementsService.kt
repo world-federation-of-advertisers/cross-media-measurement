@@ -298,8 +298,8 @@ private fun MeasurementSpec.validate() {
       grpcRequire(reachAndFrequency.frequencyPrivacyParams.hasValidEpsilonAndDelta()) {
         "Frequency privacy params are invalid"
       }
-      grpcRequire(reachAndFrequency.maximumFrequency > 0) {
-        "maximum_frequency must be greater than 0"
+      grpcRequire(reachAndFrequency.maximumFrequency > 1) {
+        "maximum_frequency must be greater than 1"
       }
 
       grpcRequire(vidSamplingInterval.width > 0) { "Vid sampling interval is unspecified" }
@@ -356,6 +356,7 @@ private fun DataProviderEntry.validateAndMap(): Map.Entry<Long, DataProviderValu
     externalDataProviderCertificateId = apiIdToExternalId(dataProviderCertificateKey.certificateId)
     dataProviderPublicKey = publicKey.data
     dataProviderPublicKeySignature = publicKey.signature
+    dataProviderPublicKeySignatureAlgorithmOid = publicKey.signatureAlgorithmOid
     encryptedRequisitionSpec = value.encryptedRequisitionSpec
     nonceHash = value.nonceHash
   }

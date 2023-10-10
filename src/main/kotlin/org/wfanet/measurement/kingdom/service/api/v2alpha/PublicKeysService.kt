@@ -125,6 +125,7 @@ class PublicKeysService(private val internalPublicKeysStub: PublicKeysCoroutineS
       apiVersion = Version.V2_ALPHA.toString()
       publicKey = request.publicKey.publicKey.data
       publicKeySignature = request.publicKey.publicKey.signature
+      publicKeySignatureAlgorithmOid = request.publicKey.publicKey.signatureAlgorithmOid
     }
     try {
       internalPublicKeysStub.updatePublicKey(updateRequest)

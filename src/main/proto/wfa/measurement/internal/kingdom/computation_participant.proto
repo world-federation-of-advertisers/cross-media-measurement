@@ -58,6 +58,7 @@ message ComputationParticipant {
     // Serialized `ElGamalPublicKey` message from public API.
     bytes el_gamal_public_key = 1;
     bytes el_gamal_public_key_signature = 2;
+    string el_gamal_public_key_signature_algorithm_oid = 3;
   }
 
   message Details {

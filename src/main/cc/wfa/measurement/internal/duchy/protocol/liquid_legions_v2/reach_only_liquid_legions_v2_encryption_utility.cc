@@ -655,12 +655,11 @@ CompleteReachOnlyExecutionPhaseAtAggregator(
   }
 
   // Estimate the reach
-  ASSIGN_OR_RETURN(
-      int64_t reach,
-      EstimateReach(request.liquid_legions_parameters().decay_rate(),
-                    request.liquid_legions_parameters().size(),
-                    non_empty_register_count,
-                    request.vid_sampling_interval_width()));
+  ASSIGN_OR_RETURN(int64_t reach,
+                   EstimateReach(request.sketch_parameters().decay_rate(),
+                                 request.sketch_parameters().size(),
+                                 non_empty_register_count,
+                                 request.vid_sampling_interval_width()));
 
   response.set_reach(reach);
   response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());

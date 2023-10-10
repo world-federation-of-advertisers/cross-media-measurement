@@ -181,7 +181,7 @@ class ReportReader(private val readContext: ReadContext) {
         if (request.filter.hasAfter()) {
           """
               WHERE CmmsMeasurementConsumerId = $1
-                AND ((CreateTime > $3) OR
+                AND ((CreateTime < $3) OR
                 (CreateTime = $3
                 AND ExternalReportId > $4))
           """
@@ -191,7 +191,7 @@ class ReportReader(private val readContext: ReadContext) {
           """
         } +
         """
-            ORDER BY CreateTime ASC, CmmsMeasurementConsumerId ASC, ExternalReportId ASC
+            ORDER BY CreateTime DESC, CmmsMeasurementConsumerId ASC, ExternalReportId ASC
             LIMIT $2
           ) AS Reports
         """
@@ -205,7 +205,7 @@ class ReportReader(private val readContext: ReadContext) {
           baseSqlJoins +
           "\n" +
           """
-          ORDER BY CreateTime ASC, CmmsMeasurementConsumerId ASC, ExternalReportId ASC
+          ORDER BY CreateTime DESC, CmmsMeasurementConsumerId ASC, ExternalReportId ASC
           """
             .trimIndent()
       )

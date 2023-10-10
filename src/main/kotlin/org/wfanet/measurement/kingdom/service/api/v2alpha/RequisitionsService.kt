@@ -287,6 +287,7 @@ private fun InternalRequisition.toRequisition(): Requisition {
     measurementSpec = signedData {
       data = parentMeasurement.measurementSpec
       signature = parentMeasurement.measurementSpecSignature
+      signatureAlgorithmOid = parentMeasurement.measurementSpecSignatureAlgorithmOid
     }
 
     val measurementTypeCase =
@@ -312,6 +313,7 @@ private fun InternalRequisition.toRequisition(): Requisition {
     dataProviderPublicKey = signedData {
       data = details.dataProviderPublicKey
       signature = details.dataProviderPublicKeySignature
+      signatureAlgorithmOid = details.dataProviderPublicKeySignatureAlgorithmOid
     }
     nonce = details.nonce
 
@@ -389,6 +391,7 @@ private fun DuchyValue.toDuchyEntryValue(externalDuchyId: String): DuchyEntry.Va
           elGamalPublicKey = signedData {
             data = value.liquidLegionsV2.elGamalPublicKey
             signature = value.liquidLegionsV2.elGamalPublicKeySignature
+            signatureAlgorithmOid = value.liquidLegionsV2.elGamalPublicKeySignatureAlgorithmOid
           }
         }
       DuchyValue.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> reachOnlyLiquidLegionsV2 =
@@ -396,6 +399,8 @@ private fun DuchyValue.toDuchyEntryValue(externalDuchyId: String): DuchyEntry.Va
             elGamalPublicKey = signedData {
               data = value.reachOnlyLiquidLegionsV2.elGamalPublicKey
               signature = value.reachOnlyLiquidLegionsV2.elGamalPublicKeySignature
+              signatureAlgorithmOid =
+                value.reachOnlyLiquidLegionsV2.elGamalPublicKeySignatureAlgorithmOid
             }
           }
       DuchyValue.ProtocolCase.PROTOCOL_NOT_SET -> {}

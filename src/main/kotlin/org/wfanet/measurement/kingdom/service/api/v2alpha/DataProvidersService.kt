@@ -140,6 +140,7 @@ private fun InternalDataProvider.toDataProvider(): DataProvider {
     publicKey = signedData {
       data = internalDataProvider.details.publicKey
       signature = internalDataProvider.details.publicKeySignature
+      signatureAlgorithmOid = internalDataProvider.details.publicKeySignatureAlgorithmOid
     }
     requiredDuchies +=
       internalDataProvider.requiredExternalDuchyIdsList.map { DuchyKey(it).toName() }

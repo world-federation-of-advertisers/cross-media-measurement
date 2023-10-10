@@ -76,6 +76,7 @@ class MeasurementConsumersService(
           apiVersion = API_VERSION.string
           publicKey = measurementConsumer.publicKey.data
           publicKeySignature = measurementConsumer.publicKey.signature
+          publicKeySignatureAlgorithmOid = measurementConsumer.publicKey.signatureAlgorithmOid
         }
       }
       externalAccountId = account.externalAccountId
@@ -246,6 +247,7 @@ private fun InternalMeasurementConsumer.toMeasurementConsumer(): MeasurementCons
     publicKey = signedData {
       data = internalMeasurementConsumer.details.publicKey
       signature = internalMeasurementConsumer.details.publicKeySignature
+      signatureAlgorithmOid = internalMeasurementConsumer.details.publicKeySignatureAlgorithmOid
     }
   }
 }

@@ -2996,6 +2996,23 @@ class ReportsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
+  @Test
+  fun `listReports throws INVALID_ARGUMENT when filter is invalid`() {
+    val request = listReportsRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      filter = "name <<< '${PENDING_WATCH_DURATION_REPORT.name}'"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.listReports(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("not a valid CEL expression")
+  }
+
   companion object {
     private fun buildInitialReportingMetric(
       reportingSetId: String,
