@@ -290,9 +290,7 @@ private fun InternalReportSchedule.State.toPublic(): ReportSchedule.State {
     InternalReportSchedule.State.STATE_UNSPECIFIED -> ReportSchedule.State.STATE_UNSPECIFIED
     InternalReportSchedule.State.UNRECOGNIZED ->
       // State is set by the system so if this is reached, something went wrong.
-      throw Status.UNKNOWN.withDescription(
-        "There is an unknown problem with the ReportSchedule"
-      )
+      throw Status.UNKNOWN.withDescription("There is an unknown problem with the ReportSchedule")
         .asRuntimeException()
   }
 }
@@ -336,10 +334,10 @@ private fun InternalReportSchedule.ReportWindow.toPublic(): ReportSchedule.Repor
             increment =
               ReportSchedule.ReportWindow.TrailingWindow.Increment.forNumber(
                 source.trailingWindow.increment.number
-              ) ?:
-                throw Status.UNKNOWN.withDescription(
-                  "There is an unknown problem with the ReportSchedule"
-                )
+              )
+                ?: throw Status.UNKNOWN.withDescription(
+                    "There is an unknown problem with the ReportSchedule"
+                  )
                   .asRuntimeException()
           }
       }
