@@ -19,7 +19,6 @@ package org.wfanet.measurement.reporting.service.internal.testing.v2
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.timestamp
-import com.google.protobuf.util.Timestamps
 import com.google.type.date
 import com.google.type.dateTime
 import com.google.type.timeZone
@@ -92,10 +91,7 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
       .isEqualTo(request.externalReportScheduleId)
     assertThat(createdReportSchedule.hasCreateTime()).isTrue()
     assertThat(createdReportSchedule.hasUpdateTime()).isTrue()
-    assertThat(
-        Timestamps.compare(createdReportSchedule.createTime, createdReportSchedule.updateTime)
-      )
-      .isEqualTo(0)
+    assertThat(createdReportSchedule.createTime).isEqualTo(createdReportSchedule.updateTime)
   }
 
   @Test
@@ -115,10 +111,7 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
       .isEqualTo(request.externalReportScheduleId)
     assertThat(createdReportSchedule.hasCreateTime()).isTrue()
     assertThat(createdReportSchedule.hasUpdateTime()).isTrue()
-    assertThat(
-        Timestamps.compare(createdReportSchedule.createTime, createdReportSchedule.updateTime)
-      )
-      .isEqualTo(0)
+    assertThat(createdReportSchedule.createTime).isEqualTo(createdReportSchedule.updateTime)
 
     val sameCreatedReportSchedule = service.createReportSchedule(request)
     assertThat(createdReportSchedule).isEqualTo(sameCreatedReportSchedule)
@@ -140,10 +133,7 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
       .isEqualTo(request.externalReportScheduleId)
     assertThat(createdReportSchedule.hasCreateTime()).isTrue()
     assertThat(createdReportSchedule.hasUpdateTime()).isTrue()
-    assertThat(
-        Timestamps.compare(createdReportSchedule.createTime, createdReportSchedule.updateTime)
-      )
-      .isEqualTo(0)
+    assertThat(createdReportSchedule.createTime).isEqualTo(createdReportSchedule.updateTime)
 
     val exception =
       assertFailsWith<StatusRuntimeException> { service.createReportSchedule(request) }
@@ -389,7 +379,6 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
     ): ReportSchedule {
       return reportSchedule {
         this.cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        state = ReportSchedule.State.ACTIVE
         details =
           ReportScheduleKt.details {
             displayName = "display"
@@ -438,7 +427,9 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
               month = 12
               day = 1
             }
-            frequency = ReportScheduleKt.frequency { daily = ReportScheduleKt.FrequencyKt.daily {} }
+            frequency = ReportScheduleKt.frequency {
+              daily = ReportSchedule.Frequency.Daily.getDefaultInstance()
+            }
             reportWindow =
               ReportScheduleKt.reportWindow {
                 trailingWindow =
