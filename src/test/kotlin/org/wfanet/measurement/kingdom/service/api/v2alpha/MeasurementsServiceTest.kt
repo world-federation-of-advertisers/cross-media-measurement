@@ -712,15 +712,16 @@ class MeasurementsServiceTest {
               createMeasurementRequest {
                 measurement =
                   MEASUREMENT.copy {
-                    measurementSpec = signedData {
-                      data =
-                        MEASUREMENT_SPEC.copy {
-                            clearReachAndFrequency()
-                            population = population {}
-                          }
-                          .toByteString()
-                      signature = UPDATE_TIME.toByteString()
-                    }
+                    measurementSpec =
+                      measurementSpec.copy {
+                        data =
+                          MEASUREMENT_SPEC.copy {
+                              clearReachAndFrequency()
+                              population = population {}
+                            }
+                            .toByteString()
+                        signature = UPDATE_TIME.toByteString()
+                      }
                   }
               }
             )
@@ -857,9 +858,10 @@ class MeasurementsServiceTest {
       parent = MEASUREMENT_CONSUMER_NAME
       measurement =
         MEASUREMENT.copy {
-          measurementSpec = signedData {
-            data = MEASUREMENT_SPEC.copy { clearMeasurementPublicKey() }.toByteString()
-          }
+          measurementSpec =
+            measurementSpec.copy {
+              data = MEASUREMENT_SPEC.copy { clearMeasurementPublicKey() }.toByteString()
+            }
         }
     }
 
@@ -880,13 +882,14 @@ class MeasurementsServiceTest {
       parent = MEASUREMENT_CONSUMER_NAME
       measurement =
         MEASUREMENT.copy {
-          measurementSpec = signedData {
-            data =
-              MEASUREMENT_SPEC.copy {
-                  reachAndFrequency = reachAndFrequency.copy { clearReachPrivacyParams() }
-                }
-                .toByteString()
-          }
+          measurementSpec =
+            measurementSpec.copy {
+              data =
+                MEASUREMENT_SPEC.copy {
+                    reachAndFrequency = reachAndFrequency.copy { clearReachPrivacyParams() }
+                  }
+                  .toByteString()
+            }
         }
     }
 
@@ -907,13 +910,14 @@ class MeasurementsServiceTest {
       parent = MEASUREMENT_CONSUMER_NAME
       measurement =
         MEASUREMENT.copy {
-          measurementSpec = signedData {
-            data =
-              MEASUREMENT_SPEC.copy {
-                  reachAndFrequency = reachAndFrequency.copy { clearFrequencyPrivacyParams() }
-                }
-                .toByteString()
-          }
+          measurementSpec =
+            measurementSpec.copy {
+              data =
+                MEASUREMENT_SPEC.copy {
+                    reachAndFrequency = reachAndFrequency.copy { clearFrequencyPrivacyParams() }
+                  }
+                  .toByteString()
+            }
         }
     }
 
@@ -934,9 +938,10 @@ class MeasurementsServiceTest {
       parent = MEASUREMENT_CONSUMER_NAME
       measurement =
         MEASUREMENT.copy {
-          measurementSpec = signedData {
-            data = MEASUREMENT_SPEC.copy { clearVidSamplingInterval() }.toByteString()
-          }
+          measurementSpec =
+            measurementSpec.copy {
+              data = MEASUREMENT_SPEC.copy { clearVidSamplingInterval() }.toByteString()
+            }
         }
     }
 
@@ -957,16 +962,17 @@ class MeasurementsServiceTest {
       parent = MEASUREMENT_CONSUMER_NAME
       measurement =
         MEASUREMENT.copy {
-          measurementSpec = signedData {
-            data =
-              MEASUREMENT_SPEC.copy {
-                  reachAndFrequency =
-                    reachAndFrequency.copy {
-                      reachPrivacyParams = reachPrivacyParams.copy { clearEpsilon() }
-                    }
-                }
-                .toByteString()
-          }
+          measurementSpec =
+            measurementSpec.copy {
+              data =
+                MEASUREMENT_SPEC.copy {
+                    reachAndFrequency =
+                      reachAndFrequency.copy {
+                        reachPrivacyParams = reachPrivacyParams.copy { clearEpsilon() }
+                      }
+                  }
+                  .toByteString()
+            }
         }
     }
 
@@ -987,13 +993,42 @@ class MeasurementsServiceTest {
       parent = MEASUREMENT_CONSUMER_NAME
       measurement =
         MEASUREMENT.copy {
-          measurementSpec = signedData {
-            data =
-              MEASUREMENT_SPEC.copy {
-                  reachAndFrequency = reachAndFrequency.copy { clearMaximumFrequency() }
-                }
-                .toByteString()
-          }
+          measurementSpec =
+            measurementSpec.copy {
+              data =
+                MEASUREMENT_SPEC.copy {
+                    reachAndFrequency = reachAndFrequency.copy { clearMaximumFrequency() }
+                  }
+                  .toByteString()
+            }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.createMeasurement(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("maximum_frequency")
+  }
+
+  @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when RF spec max frequency is 1`() {
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement =
+        MEASUREMENT.copy {
+          measurementSpec =
+            measurementSpec.copy {
+              data =
+                MEASUREMENT_SPEC.copy {
+                    reachAndFrequency = reachAndFrequency.copy { maximumFrequency = 1 }
+                  }
+                  .toByteString()
+            }
         }
     }
 
@@ -1014,11 +1049,12 @@ class MeasurementsServiceTest {
       parent = MEASUREMENT_CONSUMER_NAME
       measurement =
         REACH_ONLY_MEASUREMENT.copy {
-          measurementSpec = signedData {
-            data =
-              REACH_ONLY_MEASUREMENT_SPEC.copy { reach = reach.copy { clearPrivacyParams() } }
-                .toByteString()
-          }
+          measurementSpec =
+            measurementSpec.copy {
+              data =
+                REACH_ONLY_MEASUREMENT_SPEC.copy { reach = reach.copy { clearPrivacyParams() } }
+                  .toByteString()
+            }
         }
     }
 
@@ -1039,9 +1075,10 @@ class MeasurementsServiceTest {
       parent = MEASUREMENT_CONSUMER_NAME
       measurement =
         REACH_ONLY_MEASUREMENT.copy {
-          measurementSpec = signedData {
-            data = REACH_ONLY_MEASUREMENT_SPEC.copy { clearVidSamplingInterval() }.toByteString()
-          }
+          measurementSpec =
+            measurementSpec.copy {
+              data = REACH_ONLY_MEASUREMENT_SPEC.copy { clearVidSamplingInterval() }.toByteString()
+            }
         }
     }
 
@@ -1062,13 +1099,14 @@ class MeasurementsServiceTest {
       parent = MEASUREMENT_CONSUMER_NAME
       measurement =
         REACH_ONLY_MEASUREMENT.copy {
-          measurementSpec = signedData {
-            data =
-              REACH_ONLY_MEASUREMENT_SPEC.copy {
-                  reach = reach.copy { privacyParams = privacyParams.copy { clearEpsilon() } }
-                }
-                .toByteString()
-          }
+          measurementSpec =
+            measurementSpec.copy {
+              data =
+                REACH_ONLY_MEASUREMENT_SPEC.copy {
+                    reach = reach.copy { privacyParams = privacyParams.copy { clearEpsilon() } }
+                  }
+                  .toByteString()
+            }
         }
     }
 
@@ -1915,6 +1953,7 @@ class MeasurementsServiceTest {
       measurementSpec = signedData {
         data = MEASUREMENT_SPEC.toByteString()
         signature = UPDATE_TIME.toByteString()
+        signatureAlgorithmOid = "2.9999"
       }
       dataProviders +=
         EXTERNAL_DATA_PROVIDER_IDS.map {
@@ -1928,6 +1967,7 @@ class MeasurementsServiceTest {
               dataProviderPublicKey = signedData {
                 data = UPDATE_TIME.toByteString()
                 signature = UPDATE_TIME.toByteString()
+                signatureAlgorithmOid = "2.9999"
               }
               encryptedRequisitionSpec = UPDATE_TIME.toByteString()
               nonceHash = DATA_PROVIDER_NONCE_HASH
@@ -1972,6 +2012,8 @@ class MeasurementsServiceTest {
                 )
               dataProviderPublicKey = it.value.dataProviderPublicKey.data
               dataProviderPublicKeySignature = it.value.dataProviderPublicKey.signature
+              dataProviderPublicKeySignatureAlgorithmOid =
+                it.value.dataProviderPublicKey.signatureAlgorithmOid
               encryptedRequisitionSpec = it.value.encryptedRequisitionSpec
               nonceHash = it.value.nonceHash
             }
@@ -1983,6 +2025,7 @@ class MeasurementsServiceTest {
           apiVersion = Version.V2_ALPHA.string
           measurementSpec = MEASUREMENT.measurementSpec.data
           measurementSpecSignature = MEASUREMENT.measurementSpec.signature
+          measurementSpecSignatureAlgorithmOid = MEASUREMENT.measurementSpec.signatureAlgorithmOid
           protocolConfig = LLV2_INTERNAL_PROTOCOL_CONFIG
           duchyProtocolConfig = LLV2_DUCHY_PROTOCOL_CONFIG
           failure =
@@ -2021,6 +2064,7 @@ class MeasurementsServiceTest {
         measurementSpec = signedData {
           data = REACH_ONLY_MEASUREMENT_SPEC.toByteString()
           signature = UPDATE_TIME.toByteString()
+          signatureAlgorithmOid = "2.9999"
         }
         protocolConfig = RO_LLV2_PUBLIC_PROTOCOL_CONFIG
       }
@@ -2032,6 +2076,8 @@ class MeasurementsServiceTest {
             apiVersion = Version.V2_ALPHA.string
             measurementSpec = REACH_ONLY_MEASUREMENT.measurementSpec.data
             measurementSpecSignature = REACH_ONLY_MEASUREMENT.measurementSpec.signature
+            measurementSpecSignatureAlgorithmOid =
+              REACH_ONLY_MEASUREMENT.measurementSpec.signatureAlgorithmOid
             protocolConfig = RO_LLV2_INTERNAL_PROTOCOL_CONFIG
             duchyProtocolConfig = RO_LLV2_DUCHY_PROTOCOL_CONFIG
             failure =

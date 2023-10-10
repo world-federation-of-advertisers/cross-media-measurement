@@ -48,7 +48,6 @@ on:
         type: choice
         options:
         - worker1
-        - worker2
         - aggregator
         required: true
       apply:
