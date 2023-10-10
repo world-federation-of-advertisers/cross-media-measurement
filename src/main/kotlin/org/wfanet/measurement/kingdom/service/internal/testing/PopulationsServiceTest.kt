@@ -232,15 +232,14 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
         }
       )
 
-    val population3 =
-      populationsService.createPopulation(
-        population {
-          externalDataProviderId = dataProvider.externalDataProviderId
-          description = DESCRIPTION + "3"
-          populationBlob = populationBlob { modelBlobUri = BLOB_URI }
-          eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
-        }
-      )
+    populationsService.createPopulation(
+      population {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        description = DESCRIPTION + "3"
+        populationBlob = populationBlob { modelBlobUri = BLOB_URI }
+        eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
+      }
+    )
 
     val request = streamPopulationsRequest {
       filter = filter {
@@ -248,14 +247,14 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
         after = afterFilter {
           externalDataProviderId = dataProvider.externalDataProviderId
           externalPopulationId = population1.externalPopulationId
-          createTime = timestamp { seconds = population1.createTime.seconds }
+          createTime = population2.createTime
         }
       }
     }
 
     val response: List<Population> = populationsService.streamPopulations(request).toList()
 
-    assertThat(response).containsExactly(population3, population2).inOrder()
+    assertThat(response).containsExactly(population2, population1).inOrder()
   }
 
   companion object {

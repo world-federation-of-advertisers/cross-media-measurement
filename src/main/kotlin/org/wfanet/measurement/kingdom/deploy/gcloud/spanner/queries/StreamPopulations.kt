@@ -40,12 +40,9 @@ class StreamPopulations(
       conjuncts.add(
         """
           Populations.CreateTime < @${CREATE_TIME} OR (
-            Populations.CreateTime = @${CREATE_TIME} AND (
-              DataProviders.ExternalDataProviderId = @${AFTER_EXTERNAL_DATA_PROVIDER_ID} AND
-                Populations.ExternalPopulationId > @${EXTERNAL_POPULATION_ID}
-            ) OR (
-              Populations.ExternalPopulationId > @${EXTERNAL_POPULATION_ID}
-            )
+            Populations.CreateTime = @${CREATE_TIME} AND DataProviders.ExternalDataProviderId > @${AFTER_EXTERNAL_DATA_PROVIDER_ID}
+          ) OR (
+            Populations.CreateTime = @${CREATE_TIME} AND DataProviders.ExternalDataProviderId = @${AFTER_EXTERNAL_DATA_PROVIDER_ID} AND Populations.ExternalPopulationId > @${EXTERNAL_POPULATION_ID}
           )
         """
           .trimIndent()
