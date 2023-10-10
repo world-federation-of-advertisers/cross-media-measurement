@@ -232,7 +232,7 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
         }
       )
 
-    populationsService.createPopulation(
+    val population3 = populationsService.createPopulation(
       population {
         externalDataProviderId = dataProvider.externalDataProviderId
         description = DESCRIPTION + "3"
@@ -246,8 +246,8 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
         externalDataProviderId = dataProvider.externalDataProviderId
         after = afterFilter {
           externalDataProviderId = dataProvider.externalDataProviderId
-          externalPopulationId = population1.externalPopulationId
-          createTime = population2.createTime
+          externalPopulationId = population3.externalPopulationId
+          createTime = population3.createTime
         }
       }
     }
