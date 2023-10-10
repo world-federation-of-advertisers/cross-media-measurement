@@ -232,14 +232,15 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
         }
       )
 
-    val population3 = populationsService.createPopulation(
-      population {
-        externalDataProviderId = dataProvider.externalDataProviderId
-        description = DESCRIPTION + "3"
-        populationBlob = populationBlob { modelBlobUri = BLOB_URI }
-        eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
-      }
-    )
+    val population3 =
+      populationsService.createPopulation(
+        population {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          description = DESCRIPTION + "3"
+          populationBlob = populationBlob { modelBlobUri = BLOB_URI }
+          eventTemplate = eventTemplate { fullyQualifiedType = TYPE }
+        }
+      )
 
     val request = streamPopulationsRequest {
       filter = filter {
