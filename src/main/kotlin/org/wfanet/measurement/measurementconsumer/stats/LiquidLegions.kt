@@ -30,7 +30,7 @@ private const val DECAY_RATE_THRESHOLD = 0.01
 private const val MIN_SUM_OF_REGISTER_PROBABILITY_POWERS = 1e-16
 
 /** The parameters that are used to compute Liquid Legions sketch. */
-data class LiquidLegionsSketchParams(val decayRate: Double, val sketchSize: Double) {
+data class LiquidLegionsSketchParams(val decayRate: Double, val sketchSize: Long) {
   val constValue =
     if (decayRate < DECAY_RATE_THRESHOLD) {
       1.0 / sketchSize
@@ -103,7 +103,7 @@ object LiquidLegions {
 
     val prob =
       if (decayRate < DECAY_RATE_THRESHOLD) {
-        sketchSize.pow(1.0 - k) * exp(-y / sketchSize)
+        sketchSize.toDouble().pow(1.0 - k) * exp(-y / sketchSize)
       } else if (k == 0.0) {
         sketchSize / decayRate *
           (expIntForNegativeInput(-constValue * y) -
@@ -294,24 +294,6 @@ object LiquidLegions {
           (registerNumVariancePerFrequency + multiplier * frequencyNoiseVariance) -
         2.0 * reachRatio / expectedRegisterNum.pow(2.0) * covariance
 
-    return max(0.0, variance)
-  }
-
-  /**
-   * Outputs the variance of the given reach count at a certain frequency from the Liquid Legions
-   * based distribution methodology.
-   *
-   * Reach count = [totalReach] * [reachRatio]
-   */
-  fun liquidLegionsFrequencyCountVariance(
-    totalReach: Long,
-    totalReachVariance: Double,
-    reachRatio: Double,
-    reachRatioVariance: Double,
-  ): Double {
-    val variance =
-      (reachRatioVariance + reachRatio.pow(2.0)) *
-        (totalReachVariance + totalReach.toDouble().pow(2.0)) - (reachRatio * totalReach).pow(2.0)
     return max(0.0, variance)
   }
 }
