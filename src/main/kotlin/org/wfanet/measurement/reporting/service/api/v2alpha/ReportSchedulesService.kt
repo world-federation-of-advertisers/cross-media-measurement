@@ -287,8 +287,13 @@ private fun InternalReportSchedule.State.toPublic(): ReportSchedule.State {
   return when (this) {
     InternalReportSchedule.State.ACTIVE -> ReportSchedule.State.ACTIVE
     InternalReportSchedule.State.STOPPED -> ReportSchedule.State.STOPPED
-    InternalReportSchedule.State.STATE_UNSPECIFIED,
-    InternalReportSchedule.State.UNRECOGNIZED -> ReportSchedule.State.STATE_UNSPECIFIED
+    InternalReportSchedule.State.STATE_UNSPECIFIED -> ReportSchedule.State.STATE_UNSPECIFIED
+    InternalReportSchedule.State.UNRECOGNIZED ->
+      // State is set by the system so if this is reached, something went wrong.
+      throw Status.UNKNOWN.withDescription(
+        "There is an unknown problem with the ReportSchedule"
+      )
+        .asRuntimeException()
   }
 }
 
@@ -300,7 +305,7 @@ private fun InternalReportSchedule.Frequency.toPublic(): ReportSchedule.Frequenc
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   return when (source.frequencyCase) {
     InternalReportSchedule.Frequency.FrequencyCase.DAILY ->
-      ReportScheduleKt.frequency { daily = ReportScheduleKt.FrequencyKt.daily {} }
+      ReportScheduleKt.frequency { daily = ReportSchedule.Frequency.Daily.getDefaultInstance() }
     InternalReportSchedule.Frequency.FrequencyCase.WEEKLY ->
       ReportScheduleKt.frequency {
         weekly = ReportScheduleKt.FrequencyKt.weekly { dayOfWeek = source.weekly.dayOfWeek }
@@ -329,9 +334,13 @@ private fun InternalReportSchedule.ReportWindow.toPublic(): ReportSchedule.Repor
           ReportScheduleKt.ReportWindowKt.trailingWindow {
             count = source.trailingWindow.count
             increment =
-              ReportSchedule.ReportWindow.TrailingWindow.Increment.valueOf(
-                source.trailingWindow.increment.name
-              )
+              ReportSchedule.ReportWindow.TrailingWindow.Increment.forNumber(
+                source.trailingWindow.increment.number
+              ) ?:
+                throw Status.UNKNOWN.withDescription(
+                  "There is an unknown problem with the ReportSchedule"
+                )
+                  .asRuntimeException()
           }
       }
     InternalReportSchedule.ReportWindow.WindowCase.FIXED_WINDOW ->

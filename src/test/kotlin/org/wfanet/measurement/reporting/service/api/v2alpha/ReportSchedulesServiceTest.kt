@@ -903,7 +903,7 @@ class ReportSchedulesServiceTest {
               }
           }
       }
-      state = ReportSchedule.State.valueOf(INTERNAL_REPORT_SCHEDULE.state.name)
+      state = ReportSchedule.State.forNumber(INTERNAL_REPORT_SCHEDULE.state.number)
       eventStart = INTERNAL_REPORT_SCHEDULE.details.eventStart
       eventEnd = INTERNAL_REPORT_SCHEDULE.details.eventEnd
       frequency = ReportScheduleKt.frequency { daily = ReportScheduleKt.FrequencyKt.daily {} }
@@ -913,8 +913,8 @@ class ReportSchedulesServiceTest {
             ReportScheduleKt.ReportWindowKt.trailingWindow {
               count = INTERNAL_REPORT_SCHEDULE.details.reportWindow.trailingWindow.count
               increment =
-                ReportSchedule.ReportWindow.TrailingWindow.Increment.valueOf(
-                  INTERNAL_REPORT_SCHEDULE.details.reportWindow.trailingWindow.increment.name
+                ReportSchedule.ReportWindow.TrailingWindow.Increment.forNumber(
+                  INTERNAL_REPORT_SCHEDULE.details.reportWindow.trailingWindow.increment.number
                 )
             }
         }
