@@ -139,6 +139,7 @@ class CreateReportSchedule(private val request: CreateReportScheduleRequest) :
       this.externalReportScheduleId = externalReportScheduleId
       this.createTime = createTime.toInstant().toProtoTime()
       this.updateTime = createTime.toInstant().toProtoTime()
+      state = ReportSchedule.State.ACTIVE
     }
   }
 }
