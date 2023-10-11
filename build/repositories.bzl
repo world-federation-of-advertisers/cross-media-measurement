@@ -34,8 +34,8 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_common_cpp",
         repo = "common-cpp",
-        sha256 = "fd4475b587741fa8af65c580b783054d09bf3890197830290a22b3823c778eeb",
-        version = "0.10.0",
+        sha256 = "b500535306189d43a9ececd3889a0e2cb969619a46339007037360f2c1651323",
+        version = "0.10.1",
     )
 
     wfa_repo_archive(
