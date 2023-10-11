@@ -307,6 +307,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
           endTime = timestamp { seconds = 400 }
         }
       }
+      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val createdReport =
@@ -431,6 +432,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
           endTime = timestamp { seconds = 200 }
         }
       }
+      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val createdReport =
@@ -560,6 +562,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         increment = duration { seconds = 50 }
         intervalCount = 3
       }
+      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val exception =
@@ -699,6 +702,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         increment = duration { seconds = 50 }
         intervalCount = 3
       }
+      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val exception =
@@ -782,6 +786,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         increment = duration { seconds = 50 }
         intervalCount = 3
       }
+      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val exception =
@@ -830,6 +835,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         increment = duration { seconds = 50 }
         intervalCount = 3
       }
+      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val exception =
@@ -1059,6 +1065,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
             endTime = timestamp { seconds = 400 }
           }
         }
+        details = ReportKt.details { tags.putAll(REPORT_TAGS) }
       }
 
       val createdReport =
@@ -1344,6 +1351,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
 
   companion object {
     private const val CMMS_MEASUREMENT_CONSUMER_ID = "1234"
+    private val REPORT_TAGS = mapOf("tag1" to "tag_value1", "tag2" to "tag_value2")
 
     private suspend fun createReportForRequest(
       cmmsMeasurementConsumerId: String,
@@ -1419,6 +1427,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
             endTime = timestamp { seconds = 400 }
           }
         }
+        details = ReportKt.details { tags.putAll(REPORT_TAGS) }
       }
     }
 
@@ -1515,6 +1524,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
             }
           }
         }
+        details = ReportKt.details { tags.putAll(REPORT_TAGS) }
       }
 
       return reportsService.createReport(

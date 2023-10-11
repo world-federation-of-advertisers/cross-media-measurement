@@ -28,3 +28,6 @@ databaseChangeLog:
 - include:
     file: add-report-scheduling-tables.sql
     relativeToChangeLogFile: true
+- include:
+    file: add-details-column-to-reports.sql
+    relativeToChangeLogFile: true
