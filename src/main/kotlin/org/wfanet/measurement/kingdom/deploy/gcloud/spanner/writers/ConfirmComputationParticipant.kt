@@ -112,7 +112,10 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
     }
 
     val duchyIds: List<InternalId> =
-      getComputationParticipantsDuchyIds(InternalId(measurementConsumerId), InternalId(measurementId))
+      getComputationParticipantsDuchyIds(
+          InternalId(measurementConsumerId),
+          InternalId(measurementId)
+        )
         .filter { it.value != duchyId }
 
     if (
