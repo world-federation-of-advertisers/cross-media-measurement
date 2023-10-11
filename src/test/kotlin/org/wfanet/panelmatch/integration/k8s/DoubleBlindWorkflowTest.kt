@@ -107,6 +107,7 @@ class DoubleBlindWorkflowTest : AbstractPanelMatchCorrectnessTest() {
           ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(mpStorageChannel)
         )
 
+      // TODO(@marcopremier): Check the specific parsed output
       val result = mpForwardedStorage.getBlob("mp-decrypted-join-keys")
       JoinKeyAndIdCollection.parseFrom(result?.toByteString())
 
