@@ -15,11 +15,16 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
+import com.google.type.Date
 import java.time.Clock
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.singleOrNullIfEmpty
+import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.common.toProtoDate
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.gcloud.spanner.toProtoEnum
@@ -35,7 +40,15 @@ class ExchangeStepAttemptReader : SpannerReader<ExchangeStepAttemptReader.Result
 
   override val baseSql: String =
     """
-    SELECT $SELECT_COLUMNS_SQL
+    SELECT
+      ExchangeStepAttempts.RecurringExchangeId,
+      ExchangeStepAttempts.Date,
+      ExchangeStepAttempts.StepIndex,
+      ExchangeStepAttempts.AttemptIndex,
+      ExchangeStepAttempts.State,
+      ExchangeStepAttempts.ExchangeStepAttemptDetails,
+      ExchangeStepAttempts.ExchangeStepAttemptDetailsJson,
+      RecurringExchanges.ExternalRecurringExchangeId
     FROM ExchangeStepAttempts
     JOIN RecurringExchanges USING (RecurringExchangeId)
     JOIN ExchangeSteps USING (RecurringExchangeId, Date, StepIndex)
@@ -61,21 +74,34 @@ class ExchangeStepAttemptReader : SpannerReader<ExchangeStepAttemptReader.Result
     )
   }
 
-  companion object {
-    private val SELECT_COLUMNS =
-      listOf(
-        "ExchangeStepAttempts.RecurringExchangeId",
-        "ExchangeStepAttempts.Date",
-        "ExchangeStepAttempts.StepIndex",
-        "ExchangeStepAttempts.AttemptIndex",
-        "ExchangeStepAttempts.State",
-        "ExchangeStepAttempts.ExchangeStepAttemptDetails",
-        "ExchangeStepAttempts.ExchangeStepAttemptDetailsJson",
-        "RecurringExchanges.ExternalRecurringExchangeId"
+  suspend fun readByExternalIds(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalRecurringExchangeId: ExternalId,
+    exchangeDate: Date,
+    stepIndex: Int,
+    attemptNumber: Int
+  ): Result? {
+    fillStatementBuilder {
+      appendClause(
+        """
+        WHERE
+          RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id
+          AND ExchangeStepAttempts.Date = @date
+          AND ExchangeStepAttempts.StepIndex = @step_index
+          AND ExchangeStepAttempts.AttemptIndex = @attempt_index
+        """
+          .trimIndent()
       )
+      bind("external_recurring_exchange_id" to externalRecurringExchangeId)
+      bind("date" to exchangeDate.toCloudDate())
+      bind("step_index" to stepIndex.toLong())
+      bind("attempt_index" to attemptNumber.toLong())
+    }
 
-    val SELECT_COLUMNS_SQL = SELECT_COLUMNS.joinToString(", ")
+    return execute(readContext).singleOrNullIfEmpty()
+  }
 
+  companion object {
     fun forExpiredAttempts(
       externalModelProviderId: ExternalId?,
       externalDataProviderId: ExternalId?,

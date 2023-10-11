@@ -15,14 +15,16 @@
 package org.wfanet.panelmatch.client.launcher
 
 import java.time.Clock
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
+import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKt.debugLogEntry
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
+import org.wfanet.measurement.api.v2alpha.RecurringExchangeParentKey
 import org.wfanet.measurement.api.v2alpha.appendExchangeStepAttemptLogEntryRequest
 import org.wfanet.measurement.api.v2alpha.claimReadyExchangeStepRequest
 import org.wfanet.measurement.api.v2alpha.finishExchangeStepAttemptRequest
@@ -32,30 +34,36 @@ import org.wfanet.panelmatch.client.common.Identity
 import org.wfanet.panelmatch.client.launcher.ApiClient.ClaimedExchangeStep
 
 class GrpcApiClient(
-  private val identity: Identity,
+  identity: Identity,
   private val exchangeStepsClient: ExchangeStepsCoroutineStub,
   private val exchangeStepAttemptsClient: ExchangeStepAttemptsCoroutineStub,
   private val clock: Clock = Clock.systemUTC()
 ) : ApiClient {
-  private val claimReadyExchangeStepRequest = claimReadyExchangeStepRequest {
+  private val recurringExchangeParentKey: RecurringExchangeParentKey =
     when (identity.party) {
-      Party.DATA_PROVIDER -> dataProvider = DataProviderKey(identity.id).toName()
-      Party.MODEL_PROVIDER -> modelProvider = ModelProviderKey(identity.id).toName()
-      else -> error("Invalid Identity: $identity")
+      Party.DATA_PROVIDER -> DataProviderKey(identity.id)
+      Party.MODEL_PROVIDER -> ModelProviderKey(identity.id)
+      Party.PARTY_UNSPECIFIED,
+      Party.UNRECOGNIZED -> throw IllegalArgumentException("Unsupported party ${identity.party}")
     }
-  }
 
   override suspend fun claimExchangeStep(): ClaimedExchangeStep? {
-    val response = exchangeStepsClient.claimReadyExchangeStep(claimReadyExchangeStepRequest)
+    val response: ClaimReadyExchangeStepResponse =
+      exchangeStepsClient.claimReadyExchangeStep(
+        claimReadyExchangeStepRequest { parent = recurringExchangeParentKey.toName() }
+      )
     if (response.hasExchangeStep()) {
       val exchangeStepAttemptKey =
-        grpcRequireNotNull(ExchangeStepAttemptKey.fromName(response.exchangeStepAttempt))
+        grpcRequireNotNull(CanonicalExchangeStepAttemptKey.fromName(response.exchangeStepAttempt))
       return ClaimedExchangeStep(response.exchangeStep, exchangeStepAttemptKey)
     }
     return null
   }
 
-  override suspend fun appendLogEntry(key: ExchangeStepAttemptKey, messages: Iterable<String>) {
+  override suspend fun appendLogEntry(
+    key: CanonicalExchangeStepAttemptKey,
+    messages: Iterable<String>
+  ) {
     val request = appendExchangeStepAttemptLogEntryRequest {
       name = key.toName()
       for (message in messages) {
@@ -66,7 +74,7 @@ class GrpcApiClient(
   }
 
   override suspend fun finishExchangeStepAttempt(
-    key: ExchangeStepAttemptKey,
+    key: CanonicalExchangeStepAttemptKey,
     finalState: ExchangeStepAttempt.State,
     logEntryMessages: Iterable<String>
   ) {

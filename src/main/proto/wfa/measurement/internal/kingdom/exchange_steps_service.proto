@@ -16,7 +16,6 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
-import "google/protobuf/timestamp.proto";
 import "google/type/date.proto";
 import "wfa/measurement/internal/common/provider.proto";
 import "wfa/measurement/internal/kingdom/exchange_step.proto";
@@ -35,7 +34,8 @@ service ExchangeSteps {
   // Gets an existing `ExchangeStep`.
   rpc GetExchangeStep(GetExchangeStepRequest) returns (ExchangeStep);
 
-  // Streams `ExchangeStep`s.
+  // Streams `ExchangeStep`s ordered by (`external_recurring_exchange_id`,
+  // `date`, `step_index`).
   rpc StreamExchangeSteps(StreamExchangeStepsRequest)
       returns (stream ExchangeStep);
 }
@@ -56,21 +56,29 @@ message GetExchangeStepRequest {
   fixed64 external_recurring_exchange_id = 1;
   google.type.Date date = 2;
   int32 step_index = 3;
-  wfa.measurement.internal.common.Provider provider = 4;
 }
 
 // Request message for "/ExchangeSteps.StreamExchangeSteps".
 message StreamExchangeStepsRequest {
+  message OrderedKey {
+    fixed64 external_recurring_exchange_id = 1;
+    google.type.Date date = 2;
+    int32 step_index = 3;
+  }
+
   // Restricts results to those matching all of the given criteria. Repeated
   // fields are treated as disjunctions.
   message Filter {
-    wfa.measurement.internal.common.Provider principal = 1;
-    wfa.measurement.internal.common.Provider step_provider = 2;
-    repeated fixed64 external_recurring_exchange_ids = 3;
+    reserved 1, 2, 3, 6, 7;
+
+    fixed64 external_recurring_exchange_id = 8;
+
     repeated google.type.Date dates = 4;
     repeated ExchangeStep.State states = 5;
-    repeated int32 step_indices = 6;
-    google.protobuf.Timestamp updated_after = 7;
+    fixed64 external_data_provider_id = 9;
+    fixed64 external_model_provider_id = 10;
+
+    OrderedKey after = 11;
   }
   Filter filter = 1;
 

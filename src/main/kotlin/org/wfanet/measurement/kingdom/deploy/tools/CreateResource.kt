@@ -23,12 +23,12 @@ import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.AccountKey
+import org.wfanet.measurement.api.v2alpha.CanonicalRecurringExchangeKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
-import org.wfanet.measurement.api.v2alpha.RecurringExchangeKey
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SignatureAlgorithm
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -315,7 +315,7 @@ private class CreateRecurringExchangeCommand : Runnable {
       }
 
     val apiId = externalIdToApiId(outputRecurringExchange.externalRecurringExchangeId)
-    println(RecurringExchangeKey(apiId).toName())
+    println(CanonicalRecurringExchangeKey(apiId).toName())
   }
 }
 

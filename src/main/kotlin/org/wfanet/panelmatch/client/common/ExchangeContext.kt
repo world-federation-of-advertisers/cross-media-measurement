@@ -15,13 +15,13 @@
 package org.wfanet.panelmatch.client.common
 
 import java.time.LocalDate
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.panelmatch.common.ExchangeDateKey
 
 /** Contextual information about an ExchangeStepAttempt. */
 data class ExchangeContext(
-  val attemptKey: ExchangeStepAttemptKey,
+  val attemptKey: CanonicalExchangeStepAttemptKey,
   val date: LocalDate,
   val workflow: ExchangeWorkflow,
   val step: ExchangeWorkflow.Step

@@ -17,20 +17,35 @@ package org.wfanet.measurement.api.v2alpha
 import org.wfanet.measurement.common.ResourceNameParser
 import org.wfanet.measurement.common.api.ResourceKey
 
-private val parser = ResourceNameParser("recurringExchanges/{recurring_exchange}")
+/** [ResourceKey] of a RecurringExchange. */
+sealed interface RecurringExchangeKey : ResourceKey {
+  val recurringExchangeId: String
+}
 
-/** [RecurringExchangeKey] of a Recurring Exchange. */
-data class RecurringExchangeKey(val recurringExchangeId: String) : ResourceKey {
+/** [ResourceKey] of the parent of a [RecurringExchange] */
+sealed interface RecurringExchangeParentKey : ResourceKey {
+  companion object FACTORY : ResourceKey.Factory<RecurringExchangeParentKey> {
+    override fun fromName(resourceName: String): RecurringExchangeParentKey? {
+      return DataProviderKey.fromName(resourceName) ?: ModelProviderKey.fromName(resourceName)
+    }
+  }
+}
+
+/** Canonical [ResourceKey] of a RecurringExchange. */
+data class CanonicalRecurringExchangeKey(override val recurringExchangeId: String) :
+  RecurringExchangeKey {
   override fun toName(): String {
     return parser.assembleName(mapOf(IdVariable.RECURRING_EXCHANGE to recurringExchangeId))
   }
 
-  companion object FACTORY : ResourceKey.Factory<RecurringExchangeKey> {
-    val defaultValue = RecurringExchangeKey("")
+  companion object FACTORY : ResourceKey.Factory<CanonicalRecurringExchangeKey> {
+    const val PATTERN = "recurringExchanges/{recurring_exchange}"
+    private val parser = ResourceNameParser(PATTERN)
+    val defaultValue = CanonicalRecurringExchangeKey("")
 
-    override fun fromName(resourceName: String): RecurringExchangeKey? {
+    override fun fromName(resourceName: String): CanonicalRecurringExchangeKey? {
       return parser.parseIdVars(resourceName)?.let {
-        RecurringExchangeKey(it.getValue(IdVariable.RECURRING_EXCHANGE))
+        CanonicalRecurringExchangeKey(it.getValue(IdVariable.RECURRING_EXCHANGE))
       }
     }
   }

@@ -15,21 +15,48 @@
 package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
+import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
 
-private val parser =
-  ResourceNameParser(
-    "recurringExchanges/{recurring_exchange}/exchanges/{exchange}/steps/{exchange_step}/" +
-      "attempts/{exchange_step_attempt}"
+/** [ResourceKey] of an ExchangeStepAttempt. */
+sealed interface ExchangeStepAttemptKey : ChildResourceKey {
+  override val parentKey: ExchangeStepKey
+
+  val recurringExchangeId: String
+    get() = parentKey.recurringExchangeId
+
+  val exchangeId: String
+    get() = parentKey.exchangeId
+
+  val exchangeStepId: String
+    get() = parentKey.exchangeStepId
+
+  val exchangeStepAttemptId: String
+
+  companion object FACTORY : ResourceKey.Factory<ExchangeStepAttemptKey> {
+    override fun fromName(resourceName: String): ExchangeStepAttemptKey? {
+      return CanonicalExchangeStepAttemptKey.fromName(resourceName)
+        ?: DataProviderExchangeStepAttemptKey.fromName(resourceName)
+        ?: ModelProviderExchangeStepAttemptKey.fromName(resourceName)
+    }
+  }
+}
+
+/** Canonical [ResourceKey] of an ExchangeStepAttempt. */
+data class CanonicalExchangeStepAttemptKey(
+  override val parentKey: CanonicalExchangeStepKey,
+  override val exchangeStepAttemptId: String,
+) : ExchangeStepAttemptKey {
+  constructor(
+    recurringExchangeId: String,
+    exchangeId: String,
+    exchangeStepId: String,
+    exchangeStepAttemptId: String,
+  ) : this(
+    CanonicalExchangeStepKey(recurringExchangeId, exchangeId, exchangeStepId),
+    exchangeStepAttemptId
   )
 
-/** [ExchangeStepAttemptKey] of an Exchange Step Attempt. */
-data class ExchangeStepAttemptKey(
-  val recurringExchangeId: String,
-  val exchangeId: String,
-  val exchangeStepId: String,
-  val exchangeStepAttemptId: String
-) : ResourceKey {
   override fun toName(): String {
     return parser.assembleName(
       mapOf(
@@ -41,12 +68,18 @@ data class ExchangeStepAttemptKey(
     )
   }
 
-  companion object FACTORY : ResourceKey.Factory<ExchangeStepAttemptKey> {
-    val defaultValue = ExchangeStepAttemptKey("", "", "", "")
+  companion object FACTORY : ResourceKey.Factory<CanonicalExchangeStepAttemptKey> {
+    private val parser =
+      ResourceNameParser(
+        "recurringExchanges/{recurring_exchange}/exchanges/{exchange}/steps/{exchange_step}/" +
+          "attempts/{exchange_step_attempt}"
+      )
 
-    override fun fromName(resourceName: String): ExchangeStepAttemptKey? {
+    val defaultValue = CanonicalExchangeStepAttemptKey("", "", "", "")
+
+    override fun fromName(resourceName: String): CanonicalExchangeStepAttemptKey? {
       return parser.parseIdVars(resourceName)?.let {
-        ExchangeStepAttemptKey(
+        CanonicalExchangeStepAttemptKey(
           it.getValue(IdVariable.RECURRING_EXCHANGE),
           it.getValue(IdVariable.EXCHANGE),
           it.getValue(IdVariable.EXCHANGE_STEP),

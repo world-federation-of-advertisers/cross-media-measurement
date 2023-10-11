@@ -41,8 +41,8 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_measurement_proto",
         repo = "cross-media-measurement-api",
-        sha256 = "7fc35bd1b0504ae2168090d17da5480a86f0171c5e111549551e424dc1a89f6d",
-        version = "0.46.0",
+        sha256 = "e856f7c537b0b5100183ef0d653bce2c782557d7d5f437b1d1c7bc160e5eef46",
+        version = "0.47.0",
     )
 
     wfa_repo_archive(

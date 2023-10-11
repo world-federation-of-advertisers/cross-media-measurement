@@ -114,6 +114,7 @@ private fun run(
 
   val internalAccountsCoroutineStub = InternalAccountsCoroutineStub(channel)
   val internalApiKeysCoroutineStub = InternalApiKeysCoroutineStub(channel)
+  val internalRecurringExchangesCoroutineStub = InternalRecurringExchangesCoroutineStub(channel)
   val internalExchangeStepsCoroutineStub = InternalExchangeStepsCoroutineStub(channel)
 
   // TODO: do we need something similar to .withDuchyIdentities() for EDP and MC?
@@ -164,11 +165,14 @@ private fun run(
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
       ExchangesService(
-          InternalRecurringExchangesCoroutineStub(channel),
+          internalRecurringExchangesCoroutineStub,
           InternalExchangesCoroutineStub(channel)
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-      ExchangeStepsService(internalExchangeStepsCoroutineStub)
+      ExchangeStepsService(
+          internalRecurringExchangesCoroutineStub,
+          internalExchangeStepsCoroutineStub
+        )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ExchangeStepAttemptsService(
           InternalExchangeStepAttemptsCoroutineStub(channel),

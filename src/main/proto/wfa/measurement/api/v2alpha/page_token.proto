@@ -17,7 +17,9 @@ syntax = "proto3";
 package wfa.measurement.api.v2alpha;
 
 import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
 import "google/type/interval.proto";
+import "wfa/measurement/api/v2alpha/exchange_step.proto";
 import "wfa/measurement/api/v2alpha/measurement.proto";
 import "wfa/measurement/api/v2alpha/model_line.proto";
 import "wfa/measurement/api/v2alpha/requisition.proto";
@@ -97,6 +99,23 @@ message ListRequisitionsPageToken {
   }
   PreviousPageEnd last_requisition = 6;
   repeated Measurement.State measurement_states = 7;
+}
+
+message ListExchangeStepsPageToken {
+  /* Filter fields */
+
+  fixed64 external_recurring_exchange_id = 1;
+  repeated google.type.Date dates = 2;
+  repeated ExchangeStep.State states = 3;
+  fixed64 external_data_provider_id = 4;
+  fixed64 external_model_provider_id = 5;
+
+  message PreviousPageEnd {
+    fixed64 external_recurring_exchange_id = 1;
+    google.type.Date date = 2;
+    int32 step_index = 3;
+  }
+  PreviousPageEnd last_exchange_step = 6;
 }
 
 message ListModelSuitesPageToken {

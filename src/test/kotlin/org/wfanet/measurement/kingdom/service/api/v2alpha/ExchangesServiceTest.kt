@@ -27,13 +27,17 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeKey
+import org.wfanet.measurement.api.v2alpha.DataProviderExchangeKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.DataProviderRecurringExchangeKey
 import org.wfanet.measurement.api.v2alpha.Exchange
-import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.GetExchangeRequestKt
+import org.wfanet.measurement.api.v2alpha.ModelProviderExchangeKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.ModelProviderRecurringExchangeKey
 import org.wfanet.measurement.api.v2alpha.exchange
 import org.wfanet.measurement.api.v2alpha.getExchangeRequest
 import org.wfanet.measurement.api.v2alpha.withPrincipal
@@ -94,15 +98,7 @@ class ExchangesServiceTest {
 
     val response = withPrincipal(principal) { getExchange { name = EXCHANGE_KEY.toName() } }
 
-    assertThat(response)
-      .isEqualTo(
-        exchange {
-          name = EXCHANGE_KEY.toName()
-          date = EXCHANGE_DATE
-          state = Exchange.State.ACTIVE
-          auditTrailHash = AUDIT_TRAIL_HASH
-        }
-      )
+    assertThat(response).isEqualTo(EXCHANGE)
 
     verifyProtoArgument(
         internalExchangesServiceMock,
@@ -122,15 +118,49 @@ class ExchangesServiceTest {
 
     val response = withPrincipal(principal) { getExchange { name = EXCHANGE_KEY.toName() } }
 
-    assertThat(response)
+    assertThat(response).isEqualTo(EXCHANGE)
+
+    verifyProtoArgument(
+        internalExchangesServiceMock,
+        InternalExchangesCoroutineImplBase::getExchange
+      )
       .isEqualTo(
-        exchange {
-          name = EXCHANGE_KEY.toName()
+        internalGetExchangeRequest {
+          externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID.value
           date = EXCHANGE_DATE
-          state = Exchange.State.ACTIVE
-          auditTrailHash = AUDIT_TRAIL_HASH
         }
       )
+  }
+
+  @Test
+  fun `getExchange returns Exchange for DataProvider RecurringExchange parent`() = runBlocking {
+    val principal = DataProviderPrincipal(DATA_PROVIDER_KEY)
+
+    val response =
+      withPrincipal(principal) { getExchange { name = DATA_PROVIDER_EXCHANGE_KEY.toName() } }
+
+    assertThat(response).isEqualTo(EXCHANGE)
+
+    verifyProtoArgument(
+        internalExchangesServiceMock,
+        InternalExchangesCoroutineImplBase::getExchange
+      )
+      .isEqualTo(
+        internalGetExchangeRequest {
+          externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID.value
+          date = EXCHANGE_DATE
+        }
+      )
+  }
+
+  @Test
+  fun `getExchange returns Exchange for ModelProvider RecurringExchange parent`() = runBlocking {
+    val principal = ModelProviderPrincipal(MODEL_PROVIDER_KEY)
+
+    val response =
+      withPrincipal(principal) { getExchange { name = MODEL_PROVIDER_EXCHANGE_KEY.toName() } }
+
+    assertThat(response).isEqualTo(EXCHANGE)
 
     verifyProtoArgument(
         internalExchangesServiceMock,
@@ -169,12 +199,29 @@ class ExchangesServiceTest {
     private val DATA_PROVIDER_KEY = DataProviderKey(EXTERNAL_DATA_PROVIDER_ID.apiId.value)
     private val MODEL_PROVIDER_KEY = ModelProviderKey(EXTERNAL_MODEL_PROVIDER_ID.apiId.value)
     private val EXCHANGE_KEY =
-      ExchangeKey(
+      CanonicalExchangeKey(
         EXTERNAL_RECURRING_EXCHANGE_ID.apiId.value,
         EXCHANGE_DATE.toLocalDate().toString()
       )
+    private val DATA_PROVIDER_EXCHANGE_KEY =
+      DataProviderExchangeKey(
+        DataProviderRecurringExchangeKey(DATA_PROVIDER_KEY, EXCHANGE_KEY.recurringExchangeId),
+        EXCHANGE_KEY.exchangeId
+      )
+    private val MODEL_PROVIDER_EXCHANGE_KEY =
+      ModelProviderExchangeKey(
+        ModelProviderRecurringExchangeKey(MODEL_PROVIDER_KEY, EXCHANGE_KEY.recurringExchangeId),
+        EXCHANGE_KEY.exchangeId
+      )
 
     private val AUDIT_TRAIL_HASH = ByteString.copyFromUtf8("some arbitrary audit_trail_hash")
+
+    private val EXCHANGE = exchange {
+      name = EXCHANGE_KEY.toName()
+      date = EXCHANGE_DATE
+      state = Exchange.State.ACTIVE
+      auditTrailHash = AUDIT_TRAIL_HASH
+    }
 
     private val INTERNAL_RECURRING_EXCHANGE = internalRecurringExchange {
       externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID.value

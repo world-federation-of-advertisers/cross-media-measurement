@@ -14,20 +14,26 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.type.Date
 import io.grpc.Status
 import io.grpc.StatusException
+import java.io.IOException
+import java.lang.NumberFormatException
 import java.time.LocalDate
+import java.time.format.DateTimeParseException
 import org.wfanet.measurement.api.v2alpha.AppendExchangeStepAttemptLogEntryRequest
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.FinishExchangeStepAttemptRequest
-import org.wfanet.measurement.api.v2alpha.getProviderFromContext
-import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
+import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
+import org.wfanet.measurement.api.v2alpha.toProvider
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
-import org.wfanet.measurement.common.grpc.grpcStatusCode
-import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.identity.ApiId
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt as InternalExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetailsKt as InternalExchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub as InternalExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
@@ -40,18 +46,42 @@ class ExchangeStepAttemptsService(
   private val internalExchangeSteps: InternalExchangeStepsCoroutineStub
 ) : ExchangeStepAttemptsCoroutineImplBase() {
 
+  private enum class Permission {
+    FINISH,
+    APPEND_LOG_ENTRY;
+
+    fun deniedStatus(name: String): Status {
+      return Status.PERMISSION_DENIED.withDescription(
+        "Permission $this denied on resource $name (or it might not exist)"
+      )
+    }
+  }
+
+  private data class ExternalIds(
+    val externalRecurringExchangeId: ExternalId,
+    val date: Date,
+    val stepIndex: Int,
+    val attemptNumber: Int,
+  )
+
   override suspend fun appendExchangeStepAttemptLogEntry(
     request: AppendExchangeStepAttemptLogEntryRequest
   ): ExchangeStepAttempt {
-    val exchangeStepAttempt =
+    fun permissionDeniedStatus() = Permission.APPEND_LOG_ENTRY.deniedStatus(request.name)
+
+    val key =
       grpcRequireNotNull(ExchangeStepAttemptKey.fromName(request.name)) {
         "Resource name unspecified or invalid."
       }
+    val externalIds: ExternalIds = parseExternalIds(key)
+
+    checkAuth(externalIds, ::permissionDeniedStatus)
+
     val internalRequest = internalAppendLogEntryRequest {
-      externalRecurringExchangeId = apiIdToExternalId(exchangeStepAttempt.recurringExchangeId)
-      date = LocalDate.parse(exchangeStepAttempt.exchangeId).toProtoDate()
-      stepIndex = exchangeStepAttempt.exchangeStepId.toInt()
-      attemptNumber = exchangeStepAttempt.exchangeStepAttemptId.toInt()
+      externalRecurringExchangeId = externalIds.externalRecurringExchangeId.value
+      date = externalIds.date
+      stepIndex = externalIds.stepIndex
+      attemptNumber = externalIds.attemptNumber
       for (entry in request.logEntriesList) {
         debugLogEntries +=
           InternalExchangeStepAttemptDetails.debugLog {
@@ -60,91 +90,113 @@ class ExchangeStepAttemptsService(
           }
       }
     }
-    val response = internalExchangeStepAttempts.appendLogEntry(internalRequest)
-    return try {
-      response.toV2Alpha()
-    } catch (e: Throwable) {
-      failGrpc(Status.INVALID_ARGUMENT) {
-        e.message ?: "Failed to convert InternalExchangeStepAttempt"
+    val internalResponse: InternalExchangeStepAttempt =
+      try {
+        internalExchangeStepAttempts.appendLogEntry(internalRequest)
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            else -> Status.UNKNOWN
+          }
+          .withCause(e)
+          .asRuntimeException()
       }
-    }
+    return internalResponse.toExchangeStepAttempt()
   }
 
   override suspend fun finishExchangeStepAttempt(
     request: FinishExchangeStepAttemptRequest
   ): ExchangeStepAttempt {
-    val exchangeStepAttempt =
+    fun permissionDeniedStatus() = Permission.FINISH.deniedStatus(request.name)
+
+    val key =
       grpcRequireNotNull(ExchangeStepAttemptKey.fromName(request.name)) {
         "Resource name unspecified or invalid."
       }
+    val externalIds: ExternalIds = parseExternalIds(key)
 
-    val externalRecurringExchangeId = apiIdToExternalId(exchangeStepAttempt.recurringExchangeId)
-    val date = LocalDate.parse(exchangeStepAttempt.exchangeId).toProtoDate()
-    val stepIndex = exchangeStepAttempt.exchangeStepId.toInt()
-    val provider = getProviderFromContext()
+    checkAuth(externalIds, ::permissionDeniedStatus)
 
-    // Ensure that `provider` is authorized to read the ExchangeStep.
-    val exchangeStep =
+    val internalRequest = internalFinishExchangeStepAttemptRequest {
+      externalRecurringExchangeId = externalIds.externalRecurringExchangeId.value
+      date = externalIds.date
+      stepIndex = externalIds.stepIndex
+      attemptNumber = externalIds.attemptNumber
+      state = request.finalState.toInternal()
+      debugLogEntries += request.logEntriesList.toInternal()
+    }
+    val internalResponse =
+      try {
+        internalExchangeStepAttempts.finishExchangeStepAttempt(internalRequest)
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            else -> Status.UNKNOWN
+          }
+          .withCause(e)
+          .asRuntimeException()
+      }
+    return internalResponse.toExchangeStepAttempt()
+  }
+
+  /**
+   * Parses [ExternalIds] from [key].
+   *
+   * @throws io.grpc.StatusRuntimeException with [Status.Code.INVALID_ARGUMENT] when [key] cannot be
+   *   parsed
+   */
+  private fun parseExternalIds(key: ExchangeStepAttemptKey): ExternalIds {
+    fun parseError(cause: Throwable) =
+      Status.INVALID_ARGUMENT.withCause(cause)
+        .withDescription("Resource name is malformed")
+        .asRuntimeException()
+
+    return try {
+      ExternalIds(
+        ApiId(key.recurringExchangeId).externalId,
+        LocalDate.parse(key.exchangeId).toProtoDate(),
+        key.exchangeStepId.toInt(),
+        key.exchangeStepAttemptId.toInt(),
+      )
+    } catch (e: DateTimeParseException) {
+      throw parseError(e)
+    } catch (e: NumberFormatException) {
+      throw parseError(e)
+    } catch (e: IOException) {
+      throw parseError(e)
+    }
+  }
+
+  /**
+   * Checks that the authenticated principal is authorized to perform an operation on the
+   * [ExchangeStepAttempt] identified by [externalIds].
+   *
+   * @throws io.grpc.StatusRuntimeException
+   */
+  private suspend fun checkAuth(externalIds: ExternalIds, permissionDeniedStatus: () -> Status) {
+    val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext
+    val authenticatedProvider = authenticatedPrincipal.resourceKey.toProvider()
+    val internalExchangeStep =
       try {
         internalExchangeSteps.getExchangeStep(
           internalGetExchangeStepRequest {
-            this.externalRecurringExchangeId = externalRecurringExchangeId
-            this.date = date
-            this.stepIndex = stepIndex
-            this.provider = provider
+            externalRecurringExchangeId = externalIds.externalRecurringExchangeId.value
+            date = externalIds.date
+            stepIndex = externalIds.stepIndex
           }
         )
-      } catch (e: Exception) {
-        if (e.grpcStatusCode() == Status.Code.NOT_FOUND) {
-          failGrpc(Status.PERMISSION_DENIED) { "ExchangeStep access denied or does not exist" }
-        }
-        throw Status.INTERNAL.withCause(e).asRuntimeException()
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+            Status.Code.NOT_FOUND -> permissionDeniedStatus()
+            else -> Status.UNKNOWN
+          }
+          .withCause(e)
+          .asRuntimeException()
       }
-
-    // Ensure that `provider` is authorized to modify the ExchangeStep.
-    if (exchangeStep.provider != provider) {
-      failGrpc(Status.PERMISSION_DENIED) { "ExchangeStep write access denied" }
-    }
-
-    val internalRequest = internalFinishExchangeStepAttemptRequest {
-      this.provider = provider
-      this.externalRecurringExchangeId = externalRecurringExchangeId
-      this.date = date
-      this.stepIndex = stepIndex
-      attemptNumber = exchangeStepAttempt.attemptNumber
-      state =
-        try {
-          request.finalState.toInternal()
-        } catch (e: Throwable) {
-          failGrpc(Status.INVALID_ARGUMENT) { e.message ?: "Failed to convert FinalState" }
-        }
-      debugLogEntries += request.logEntriesList.toInternal()
-    }
-    val response =
-      try {
-        internalExchangeStepAttempts.finishExchangeStepAttempt(internalRequest)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.INVALID_ARGUMENT ->
-            failGrpc(Status.INVALID_ARGUMENT, ex) { "Date must be provided in the request." }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-        }
-      }
-    return try {
-      response.toV2Alpha()
-    } catch (e: Throwable) {
-      failGrpc(Status.INVALID_ARGUMENT) {
-        e.message ?: "Failed to convert FinishExchangeStepAttempt"
-      }
+    if (internalExchangeStep.provider != authenticatedProvider) {
+      throw permissionDeniedStatus().asRuntimeException()
     }
   }
 }
-
-private val ExchangeStepAttemptKey.attemptNumber: Int
-  get() {
-    return if (exchangeStepAttemptId.isNotBlank()) {
-      exchangeStepAttemptId.toInt()
-    } else {
-      0
-    }
-  }

@@ -16,16 +16,10 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
 import java.time.Clock
-import kotlinx.coroutines.flow.singleOrNull
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.gcloud.spanner.appendClause
-import org.wfanet.measurement.gcloud.spanner.bind
-import org.wfanet.measurement.internal.common.Provider
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.FinishExchangeStepAttemptRequest
@@ -46,58 +40,15 @@ class SpannerExchangeStepAttemptsService(
     request: GetExchangeStepAttemptRequest
   ): ExchangeStepAttempt {
     val externalRecurringExchangeId = ExternalId(request.externalRecurringExchangeId)
-    val result =
+    val result: ExchangeStepAttemptReader.Result =
       ExchangeStepAttemptReader()
-        .fillStatementBuilder {
-          appendClause(
-            """
-            WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id
-              AND ExchangeStepAttempts.Date = @date
-              AND ExchangeStepAttempts.StepIndex = @step_index
-              AND ExchangeStepAttempts.AttemptIndex = @attempt_index
-            """
-              .trimIndent()
-          )
-          @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-          when (request.provider.type) {
-            Provider.Type.DATA_PROVIDER ->
-              appendClause(
-                """
-                |  AND ExchangeSteps.DataProviderId = (
-                |    SELECT DataProviderId
-                |    FROM DataProviders
-                |    WHERE ExternalDataProviderId = @external_provider_id
-                |  )
-                """
-                  .trimMargin()
-              )
-            Provider.Type.MODEL_PROVIDER ->
-              appendClause(
-                """
-                |  AND ExchangeSteps.ModelProviderId = (
-                |    SELECT ModelProviderId
-                |    FROM ModelProviders
-                |    WHERE ExternalModelProviderId = @external_provider_id
-                |  )
-                """
-                  .trimMargin()
-              )
-            Provider.Type.TYPE_UNSPECIFIED,
-            Provider.Type.UNRECOGNIZED ->
-              failGrpc(Status.INVALID_ARGUMENT) {
-                "external_data_provider_id or external_model_provider_id must be provided."
-              }
-          }
-
-          bind("external_recurring_exchange_id" to externalRecurringExchangeId)
-          bind("date" to request.date.toCloudDate())
-          bind("step_index" to request.stepIndex.toLong())
-          bind("attempt_index" to request.attemptNumber.toLong())
-          bind("external_provider_id" to request.provider.externalId)
-          appendClause("LIMIT 1")
-        }
-        .execute(client.singleUse())
-        .singleOrNull()
+        .readByExternalIds(
+          client.singleUse(),
+          externalRecurringExchangeId,
+          request.date,
+          request.stepIndex,
+          request.attemptNumber
+        )
         ?: throw ExchangeStepAttemptNotFoundException(
             externalRecurringExchangeId,
             request.date,
@@ -114,7 +65,6 @@ class SpannerExchangeStepAttemptsService(
     grpcRequire(request.hasDate()) { "Date must be provided in the request." }
     val writer =
       FinishExchangeStepAttempt(
-        provider = request.provider,
         externalRecurringExchangeId = ExternalId(request.externalRecurringExchangeId),
         exchangeDate = request.date,
         stepIndex = request.stepIndex,

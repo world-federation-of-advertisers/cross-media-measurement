@@ -15,19 +15,41 @@
 package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
+import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
 
-private val parser =
-  ResourceNameParser(
-    "recurringExchanges/{recurring_exchange}/exchanges/{exchange}/steps/{exchange_step}"
-  )
+/** [ResourceKey] of an ExchangeStep. */
+sealed interface ExchangeStepKey : ChildResourceKey {
+  override val parentKey: ExchangeKey
 
-/** [ExchangeStepKey] of an Exchange Step. */
-data class ExchangeStepKey(
-  val recurringExchangeId: String,
-  val exchangeId: String,
+  val recurringExchangeId: String
+    get() = parentKey.recurringExchangeId
+
+  val exchangeId: String
+    get() = parentKey.exchangeId
+
   val exchangeStepId: String
-) : ResourceKey {
+
+  companion object FACTORY : ResourceKey.Factory<ExchangeStepKey> {
+    override fun fromName(resourceName: String): ExchangeStepKey? {
+      return CanonicalExchangeStepKey.fromName(resourceName)
+        ?: DataProviderExchangeStepKey.fromName(resourceName)
+        ?: ModelProviderExchangeStepKey.fromName(resourceName)
+    }
+  }
+}
+
+/** Canonical [ResourceKey] of an ExchangeStep */
+data class CanonicalExchangeStepKey(
+  override val parentKey: CanonicalExchangeKey,
+  override val exchangeStepId: String
+) : ExchangeStepKey {
+  constructor(
+    recurringExchangeId: String,
+    exchangeId: String,
+    exchangeStepId: String
+  ) : this(CanonicalExchangeKey(recurringExchangeId, exchangeId), exchangeStepId)
+
   override fun toName(): String {
     return parser.assembleName(
       mapOf(
@@ -38,12 +60,16 @@ data class ExchangeStepKey(
     )
   }
 
-  companion object FACTORY : ResourceKey.Factory<ExchangeStepKey> {
-    val defaultValue = ExchangeStepKey("", "", "")
+  companion object FACTORY : ResourceKey.Factory<CanonicalExchangeStepKey> {
+    private val parser =
+      ResourceNameParser(
+        "recurringExchanges/{recurring_exchange}/exchanges/{exchange}/steps/{exchange_step}"
+      )
+    val defaultValue = CanonicalExchangeStepKey("", "", "")
 
-    override fun fromName(resourceName: String): ExchangeStepKey? {
+    override fun fromName(resourceName: String): CanonicalExchangeStepKey? {
       return parser.parseIdVars(resourceName)?.let {
-        ExchangeStepKey(
+        CanonicalExchangeStepKey(
           it.getValue(IdVariable.RECURRING_EXCHANGE),
           it.getValue(IdVariable.EXCHANGE),
           it.getValue(IdVariable.EXCHANGE_STEP)
