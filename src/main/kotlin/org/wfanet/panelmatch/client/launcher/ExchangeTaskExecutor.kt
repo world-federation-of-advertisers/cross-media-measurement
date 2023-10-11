@@ -18,8 +18,8 @@ import com.google.protobuf.ByteString
 import java.util.logging.Level
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.StorageClient.Blob
@@ -52,7 +52,7 @@ class ExchangeTaskExecutor(
 
   override suspend fun execute(
     validatedStep: ValidatedExchangeStep,
-    attemptKey: ExchangeStepAttemptKey
+    attemptKey: CanonicalExchangeStepAttemptKey
   ) {
     val name = "${validatedStep.step.stepId}@${attemptKey.toName()}"
     withContext(TaskLog(name)) {
@@ -96,7 +96,7 @@ class ExchangeTaskExecutor(
   }
 
   private suspend fun markAsFinished(
-    attemptKey: ExchangeStepAttemptKey,
+    attemptKey: CanonicalExchangeStepAttemptKey,
     state: ExchangeStepAttempt.State
   ) {
     logger.addToTaskLog("Marking attempt state: $state")

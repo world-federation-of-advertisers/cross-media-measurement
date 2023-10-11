@@ -35,8 +35,6 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
-import org.wfanet.measurement.internal.common.Provider
-import org.wfanet.measurement.internal.common.provider
 import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.DataProviderKt.details
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
@@ -223,7 +221,6 @@ abstract class ExchangeStepAttemptsServiceTest {
         makeRequest(
           attemptState = ExchangeStepAttempt.State.SUCCEEDED,
           attemptNumber = 1,
-          stepProvider = PROVIDER,
           stepIndex = 2
         )
       )
@@ -239,7 +236,6 @@ abstract class ExchangeStepAttemptsServiceTest {
         makeRequest(
           attemptState = ExchangeStepAttempt.State.SUCCEEDED,
           attemptNumber = 1,
-          stepProvider = PROVIDER,
           stepIndex = 3
         )
       )
@@ -342,33 +338,6 @@ abstract class ExchangeStepAttemptsServiceTest {
   }
 
   @Test
-  fun `finishExchangeStepAttempt fails for wrong provider`() = runBlocking {
-    createRecurringExchange()
-
-    exchangeStepsService.claimReadyExchangeStep(
-      claimReadyExchangeStepRequest { provider = PROVIDER }
-    )
-
-    val request: FinishExchangeStepAttemptRequest =
-      makeRequest(
-        ExchangeStepAttempt.State.SUCCEEDED,
-        1,
-        provider {
-          externalId = EXTERNAL_DATA_PROVIDER_ID
-          type = Provider.Type.DATA_PROVIDER
-        }
-      )
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        exchangeStepAttemptsService.finishExchangeStepAttempt(request)
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    val errorInfo: ErrorInfo = checkNotNull(exception.errorInfo)
-    assertThat(errorInfo.reason).isEqualTo("EXCHANGE_STEP_NOT_FOUND")
-  }
-
-  @Test
   fun `getExchangeStepAttempt succeeds`() = runBlocking {
     createRecurringExchange()
 
@@ -383,7 +352,6 @@ abstract class ExchangeStepAttemptsServiceTest {
           date = EXCHANGE_DATE
           stepIndex = 1
           attemptNumber = 1
-          provider = PROVIDER
         }
       )
 
@@ -399,35 +367,6 @@ abstract class ExchangeStepAttemptsServiceTest {
     assertThat(response)
       .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS)
       .isEqualTo(expected)
-  }
-
-  @Test
-  fun `getExchangeStepAttempt fails with wrong provider`() = runBlocking {
-    createRecurringExchange()
-
-    exchangeStepsService.claimReadyExchangeStep(
-      claimReadyExchangeStepRequest { provider = PROVIDER }
-    )
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        exchangeStepAttemptsService.getExchangeStepAttempt(
-          getExchangeStepAttemptRequest {
-            externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-            date = EXCHANGE_DATE
-            stepIndex = 1
-            attemptNumber = 1
-            provider = provider {
-              externalId = EXTERNAL_DATA_PROVIDER_ID
-              type = Provider.Type.DATA_PROVIDER
-            }
-          }
-        )
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    val errorInfo: ErrorInfo = checkNotNull(exception.errorInfo)
-    assertThat(errorInfo.reason).isEqualTo("EXCHANGE_STEP_ATTEMPT_NOT_FOUND")
   }
 
   @Test
@@ -558,11 +497,9 @@ abstract class ExchangeStepAttemptsServiceTest {
   private fun makeRequest(
     attemptState: ExchangeStepAttempt.State,
     attemptNumber: Int = 1,
-    stepProvider: Provider = PROVIDER,
     stepIndex: Int = STEP_INDEX
   ): FinishExchangeStepAttemptRequest {
     return finishExchangeStepAttemptRequest {
-      provider = stepProvider
       externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
       date = EXCHANGE_DATE
       this.stepIndex = stepIndex

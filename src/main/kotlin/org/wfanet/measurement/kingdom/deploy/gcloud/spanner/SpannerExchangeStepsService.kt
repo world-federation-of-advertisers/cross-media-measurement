@@ -17,17 +17,12 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 import io.grpc.Status
 import java.time.Clock
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.gcloud.spanner.appendClause
-import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
@@ -37,8 +32,6 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeSteps
 import org.wfanet.measurement.internal.kingdom.GetExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequest
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.PROVIDER_PARAM
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.providerFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamExchangeSteps
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepAttemptReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
@@ -58,24 +51,12 @@ class SpannerExchangeStepsService(
   override suspend fun getExchangeStep(request: GetExchangeStepRequest): ExchangeStep {
     val exchangeStepResult =
       ExchangeStepReader()
-        .fillStatementBuilder {
-          appendClause(
-            """
-            WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id
-              AND ExchangeSteps.Date = @date
-              AND ExchangeSteps.StepIndex = @step_index
-              AND ${providerFilter(request.provider)}
-          """
-              .trimIndent()
-          )
-          bind("external_recurring_exchange_id" to request.externalRecurringExchangeId)
-          bind("date" to request.date.toCloudDate())
-          bind("step_index" to request.stepIndex.toLong())
-          bind(PROVIDER_PARAM to request.provider.externalId)
-          appendClause("LIMIT 1")
-        }
-        .execute(client.singleUse())
-        .singleOrNull() ?: failGrpc(Status.NOT_FOUND) { "ExchangeStep not found" }
+        .readByExternalIds(
+          client.singleUse(),
+          ExternalId(request.externalRecurringExchangeId),
+          request.date,
+          request.stepIndex
+        ) ?: failGrpc(Status.NOT_FOUND) { "ExchangeStep not found" }
 
     return exchangeStepResult.exchangeStep
   }
@@ -103,7 +84,6 @@ class SpannerExchangeStepsService(
       .map { it.exchangeStepAttempt }
       .collect { attempt: ExchangeStepAttempt ->
         FinishExchangeStepAttempt(
-            provider = request.provider,
             externalRecurringExchangeId = ExternalId(attempt.externalRecurringExchangeId),
             exchangeDate = attempt.date,
             stepIndex = attempt.stepIndex,
