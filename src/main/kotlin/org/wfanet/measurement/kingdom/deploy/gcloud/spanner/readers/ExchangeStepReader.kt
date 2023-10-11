@@ -15,7 +15,14 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
+import com.google.type.Date
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.singleOrNullIfEmpty
+import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.common.toProtoDate
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.getNullableLong
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
@@ -26,8 +33,7 @@ import org.wfanet.measurement.internal.kingdom.RecurringExchangeDetails
 import org.wfanet.measurement.internal.kingdom.exchangeStep
 
 /** Reads [ExchangeStep] protos from Spanner. */
-class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
-  SpannerReader<ExchangeStepReader.Result>() {
+class ExchangeStepReader() : SpannerReader<ExchangeStepReader.Result>() {
   data class Result(
     val exchangeStep: ExchangeStep,
     val recurringExchangeId: Long,
@@ -35,19 +41,48 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
     val dataProviderId: Long?,
   )
 
-  enum class Index(internal val sql: String) {
-    NONE(""),
-    DATA_PROVIDER_ID("@{FORCE_INDEX=ExchangeStepsByDataProviderId}"),
-    MODEL_PROVIDER_ID("@{FORCE_INDEX=ExchangeStepsByModelProviderId}"),
+  suspend fun readByExternalIds(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalRecurringExchangeId: ExternalId,
+    date: Date,
+    stepIndex: Int
+  ): Result? {
+    fillStatementBuilder {
+      val clause =
+        """
+        WHERE
+          ExternalRecurringExchangeId = @${Params.EXTERNAL_RECURRING_EXCHANGE_ID}
+          AND ExchangeSteps.Date = @${Params.DATE}
+          AND ExchangeSteps.StepIndex = @${Params.STEP_INDEX}
+        """
+          .trimIndent()
+      appendClause(clause)
+      bind(Params.EXTERNAL_RECURRING_EXCHANGE_ID to externalRecurringExchangeId)
+      bind(Params.DATE).to(date.toCloudDate())
+      bind(Params.STEP_INDEX).to(stepIndex.toLong())
+    }
+    return execute(readContext).singleOrNullIfEmpty()
   }
 
   override val baseSql: String =
     """
-    SELECT $SELECT_COLUMNS_SQL
-    FROM ExchangeSteps${exchangeStepsIndex.sql}
-    JOIN RecurringExchanges USING (RecurringExchangeId)
-    JOIN ModelProviders ON (RecurringExchanges.ModelProviderId = ModelProviders.ModelProviderId)
-    JOIN DataProviders ON (RecurringExchanges.DataProviderId = DataProviders.DataProviderId)
+    SELECT
+      ExchangeSteps.RecurringExchangeId,
+      ExchangeSteps.Date,
+      ExchangeSteps.StepIndex,
+      ExchangeSteps.State,
+      ExchangeSteps.UpdateTime,
+      ExchangeSteps.ModelProviderId AS StepModelProviderId,
+      ExchangeSteps.DataProviderId AS StepDataProviderId,
+      ModelProviders.ExternalModelProviderId,
+      DataProviders.ExternalDataProviderId,
+      RecurringExchanges.ExternalRecurringExchangeId,
+      RecurringExchanges.RecurringExchangeDetails
+    FROM
+      ExchangeSteps
+      JOIN RecurringExchanges USING (RecurringExchangeId)
+      JOIN ModelProviders ON (RecurringExchanges.ModelProviderId = ModelProviders.ModelProviderId)
+      JOIN DataProviders ON (RecurringExchanges.DataProviderId = DataProviders.DataProviderId)
     """
       .trimIndent()
 
@@ -91,22 +126,9 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
     }
   }
 
-  companion object {
-    private val SELECT_COLUMNS =
-      listOf(
-        "ExchangeSteps.RecurringExchangeId",
-        "ExchangeSteps.Date",
-        "ExchangeSteps.StepIndex",
-        "ExchangeSteps.State",
-        "ExchangeSteps.UpdateTime",
-        "ExchangeSteps.ModelProviderId AS StepModelProviderId",
-        "ExchangeSteps.DataProviderId AS StepDataProviderId",
-        "ModelProviders.ExternalModelProviderId",
-        "DataProviders.ExternalDataProviderId",
-        "RecurringExchanges.ExternalRecurringExchangeId",
-        "RecurringExchanges.RecurringExchangeDetails",
-      )
-
-    val SELECT_COLUMNS_SQL = SELECT_COLUMNS.joinToString(", ")
+  private object Params {
+    const val EXTERNAL_RECURRING_EXCHANGE_ID = "externalRecurringExchangeId"
+    const val DATE = "date"
+    const val STEP_INDEX = "stepIndex"
   }
 }

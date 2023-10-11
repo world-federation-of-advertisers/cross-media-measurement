@@ -15,7 +15,7 @@
 package org.wfanet.panelmatch.client.storage.testing
 
 import java.time.LocalDate
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.exchangeIdentifiers
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
@@ -79,7 +79,7 @@ private val WORKFLOW = exchangeWorkflow {
 
 private val TEST_CONTEXT =
   ExchangeContext(
-    ExchangeStepAttemptKey(
+    CanonicalExchangeStepAttemptKey(
       "some-recurring-exchange-id",
       "some-exchange-id",
       "some-step-id",
