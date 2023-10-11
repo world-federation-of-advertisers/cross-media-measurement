@@ -87,7 +87,6 @@ internal suspend fun ExchangeStepsCoroutineImplBase.assertTestExchangeStepHasSta
           externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
           date = EXCHANGE_DATE
           stepIndex = exchangeStepIndex
-          provider = PROVIDER
         }
       )
     )
@@ -114,7 +113,6 @@ internal suspend fun ExchangeStepAttemptsCoroutineImplBase.assertTestExchangeSte
           date = EXCHANGE_DATE
           stepIndex = STEP_INDEX
           attemptNumber = attemptIndex
-          provider = PROVIDER
         }
       )
     )
