@@ -343,10 +343,10 @@ class ReachOnlyTest {
            .mutable_noise_parameters() = *reach_noise_parameters;
     }
     complete_reach_only_execution_phase_at_aggregator_request
-        .mutable_liquid_legions_parameters()
+        .mutable_sketch_parameters()
         ->set_decay_rate(kDecayRate);
     complete_reach_only_execution_phase_at_aggregator_request
-        .mutable_liquid_legions_parameters()
+        .mutable_sketch_parameters()
         ->set_size(kLiquidLegionsSize);
     complete_reach_only_execution_phase_at_aggregator_request
         .set_vid_sampling_interval_width(kVidSamplingIntervalWidth);

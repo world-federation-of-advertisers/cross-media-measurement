@@ -564,6 +564,8 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         RequisitionKt.details {
           dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
           dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
+          dataProviderPublicKeySignatureAlgorithmOid =
+            dataProviderValue.dataProviderPublicKeySignatureAlgorithmOid
           encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
           nonceHash = dataProviderValue.nonceHash
         }
@@ -574,6 +576,8 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           measurement.externalMeasurementConsumerCertificateId
         measurementSpec = measurement.details.measurementSpec
         measurementSpecSignature = measurement.details.measurementSpecSignature
+        measurementSpecSignatureAlgorithmOid =
+          measurement.details.measurementSpecSignatureAlgorithmOid
         state = Measurement.State.PENDING_REQUISITION_PARAMS
         protocolConfig = protocolConfig {
           liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
@@ -641,6 +645,8 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         RequisitionKt.details {
           dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
           dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
+          dataProviderPublicKeySignatureAlgorithmOid =
+            dataProviderValue.dataProviderPublicKeySignatureAlgorithmOid
           encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
           nonceHash = dataProviderValue.nonceHash
         }
@@ -651,6 +657,8 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           measurement.externalMeasurementConsumerCertificateId
         measurementSpec = measurement.details.measurementSpec
         measurementSpecSignature = measurement.details.measurementSpecSignature
+        measurementSpecSignatureAlgorithmOid =
+          measurement.details.measurementSpecSignatureAlgorithmOid
         state = Measurement.State.PENDING_REQUISITION_FULFILLMENT
         protocolConfig = protocolConfig { direct = ProtocolConfig.Direct.getDefaultInstance() }
         dataProvidersCount = 1
