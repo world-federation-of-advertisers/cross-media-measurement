@@ -126,7 +126,7 @@ class PopulationsService(private val internalClient: PopulationsCoroutineStub):
   }
 
   override suspend fun listPopulations(request: ListPopulationsRequest): ListPopulationsResponse {
-    grpcRequireNotNull(ModelProviderKey.fromName(request.parent)) {
+    grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
       "Parent is either unspecified or invalid"
     }
 
@@ -134,7 +134,7 @@ class PopulationsService(private val internalClient: PopulationsCoroutineStub):
 
     when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
       is DataProviderPrincipal -> {
-        if (principal.resourceKey.dataProviderId != request.parent) {
+        if (principal.resourceKey.toName() != request.parent) {
           failGrpc(Status.PERMISSION_DENIED) { "Cannot list Populations from another DataProvider" }
         }
       }

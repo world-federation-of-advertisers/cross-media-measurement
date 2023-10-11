@@ -19,7 +19,7 @@ package org.wfanet.measurement.api.v2alpha
 import org.wfanet.measurement.common.ResourceNameParser
 import org.wfanet.measurement.common.api.ResourceKey
 
-private val parser = ResourceNameParser("modelProviders/{model_provider}/modelSuites/{model_suite}")
+private val parser = ResourceNameParser("dataProviders/{data_provider}/populations/{population}")
 
 /** [ResourceKey] of a Model Suite. */
 data class PopulationKey(val dataProviderId: String, val populationId: String) : ResourceKey {

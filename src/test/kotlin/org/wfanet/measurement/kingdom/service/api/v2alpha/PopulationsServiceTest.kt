@@ -45,15 +45,32 @@ import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.population
 import org.wfanet.measurement.internal.kingdom.PopulationKt.populationBlob as internalPopulationBlob
 import org.wfanet.measurement.internal.kingdom.eventTemplate as internalEventTemplate
+import com.google.common.truth.Truth
+import io.grpc.StatusRuntimeException
+import kotlin.test.assertFailsWith
 import org.wfanet.measurement.api.v2alpha.PopulationKt.populationBlob
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
 import org.wfanet.measurement.api.v2alpha.eventTemplate
+import org.wfanet.measurement.api.v2alpha.getPopulationRequest
+import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
 import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt
+import org.wfanet.measurement.internal.kingdom.getPopulationRequest as internalGetPopulationRequest
+import org.mockito.kotlin.verify
+import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.listPopulationsRequest
+import org.wfanet.measurement.api.v2alpha.listPopulationsResponse
+import org.wfanet.measurement.common.testing.captureFirst
+import org.wfanet.measurement.internal.kingdom.StreamPopulationsRequest
+import org.wfanet.measurement.internal.kingdom.StreamPopulationsRequestKt
+import org.wfanet.measurement.internal.kingdom.streamPopulationsRequest as internalStreamPopulationsRequest
 
 private const val DEFAULT_LIMIT = 50
 
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
+private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
 private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
+private const val DATA_PROVIDER_NAME_2 = "dataProviders/AAAAAAAAAJs"
 private const val POPULATION_NAME = "$DATA_PROVIDER_NAME/populations/AAAAAAAAAHs"
 private const val POPULATION_NAME_2 = "$DATA_PROVIDER_NAME/populations/AAAAAAAAAJs"
 private const val POPULATION_NAME_3 = "$DATA_PROVIDER_NAME/populations/AAAAAAAAAKs"
@@ -134,14 +151,13 @@ class PopulationsServiceTest {
   }
 
   @Test
-  fun `createPopulation returns model suite`() {
+  fun `createPopulation returns population`() {
     val request = createPopulationRequest {
       parent = DATA_PROVIDER_NAME
       population = POPULATION
     }
-
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
         runBlocking { service.createPopulation(request) }
       }
 
@@ -156,5 +172,201 @@ class PopulationsServiceTest {
       )
 
     assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `createPopulation throws PERMISSION_DENIED with measurement consumer principal`() {
+    val request = createPopulationRequest {
+      parent = DATA_PROVIDER_NAME
+      population = POPULATION
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.createPopulation(request) }
+        }
+      }
+    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `createPopulation throws PERMISSION_DENIED when principal is model provider`() {
+    val request = createPopulationRequest {
+      parent = DATA_PROVIDER_NAME
+      population = POPULATION
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking { service.createPopulation(request) }
+        }
+      }
+    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+  @Test
+  fun `createPopulation throws UNAUTHENTICATED when no principal is found`() {
+    val request = createPopulationRequest {
+      parent = DATA_PROVIDER_NAME
+      population = POPULATION
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.createPopulation(request) } }
+    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `getPopulation returns population when measurement consumer caller is found`() {
+    val request = getPopulationRequest { name = POPULATION_NAME }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.getPopulation(request) }
+      }
+
+    val expected = POPULATION
+
+    verifyProtoArgument(internalPopulationsMock, PopulationsCoroutineImplBase::getPopulation)
+      .isEqualTo(
+        internalGetPopulationRequest {
+          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          externalPopulationId = EXTERNAL_POPULATION_ID
+        }
+      )
+
+    assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `getPopulation returns population when data provider caller is found`() {
+    val request = getPopulationRequest { name = POPULATION_NAME }
+
+    val result =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.getPopulation(request) }
+      }
+
+    val expected = POPULATION
+
+    verifyProtoArgument(internalPopulationsMock, PopulationsCoroutineImplBase::getPopulation)
+      .isEqualTo(
+        internalGetPopulationRequest {
+          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          externalPopulationId = EXTERNAL_POPULATION_ID
+        }
+      )
+
+    assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `getPopulation returns population when model provider caller is found`() {
+    val request = getPopulationRequest { name = POPULATION_NAME }
+
+    val result =
+      withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+        runBlocking { service.getPopulation(request) }
+      }
+
+    val expected = POPULATION
+
+    verifyProtoArgument(internalPopulationsMock, PopulationsCoroutineImplBase::getPopulation)
+      .isEqualTo(
+        internalGetPopulationRequest {
+          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          externalPopulationId = EXTERNAL_POPULATION_ID
+        }
+      )
+
+    assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `getPopulation throws PERMISSION_DENIED when principal is data provider that did not create population`() {
+    val request = getPopulationRequest { name = POPULATION_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME_2) {
+          runBlocking { service.getPopulation(request) }
+        }
+      }
+    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `getPopulation throws UNAUTHENTICATED when no principal is found`() {
+    val request = getPopulationRequest { name = POPULATION_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.getPopulation(request) } }
+    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `listModelSuites with parent uses filter with parent succeeds for measurement consumer caller`() {
+    val request = listPopulationsRequest { parent = DATA_PROVIDER_NAME }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.listPopulations(request) }
+      }
+
+    val expected = listPopulationsResponse {
+      populations += POPULATION
+      populations += POPULATION.copy { name = POPULATION_NAME_2 }
+      populations += POPULATION.copy { name = POPULATION_NAME_3 }
+    }
+
+    val streamPopulationsRequest =
+      captureFirst<StreamPopulationsRequest> {
+        verify(internalPopulationsMock).streamPopulations(capture())
+      }
+
+    assertThat(streamPopulationsRequest)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        internalStreamPopulationsRequest {
+          limit = DEFAULT_LIMIT + 1
+          filter = StreamPopulationsRequestKt.filter { externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listModelSuites with parent uses filter with parent succeeds for data provider caller`() {
+    val request = listPopulationsRequest { parent = DATA_PROVIDER_NAME }
+
+    val result =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.listPopulations(request) }
+      }
+
+    val expected = listPopulationsResponse {
+      populations += POPULATION
+      populations += POPULATION.copy { name = POPULATION_NAME_2 }
+      populations += POPULATION.copy { name = POPULATION_NAME_3 }
+    }
+
+    val streamPopulationsRequest =
+      captureFirst<StreamPopulationsRequest> {
+        verify(internalPopulationsMock).streamPopulations(capture())
+      }
+
+    assertThat(streamPopulationsRequest)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        internalStreamPopulationsRequest {
+          limit = DEFAULT_LIMIT + 1
+          filter = StreamPopulationsRequestKt.filter { externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+    // FIX THE LISTPOPULATOINS METHOD THAT THIS USES. IT IS NOT CREATING THE LISTPOPULATIONSREQUEST CORRECTLY
   }
 }
