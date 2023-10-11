@@ -44,8 +44,6 @@ import org.wfanet.measurement.internal.kingdom.getPopulationRequest
 import org.wfanet.measurement.internal.kingdom.population
 import org.wfanet.measurement.internal.kingdom.streamPopulationsRequest
 
-private const val RANDOM_SEED = 1
-
 abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
 
   protected data class Services<T>(
@@ -240,7 +238,6 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
     val population2 =
       populationsService.createPopulation(
         population {
-          externalDataProviderId = dataProvider.externalDataProviderId
           externalDataProviderId = dataProvider.externalDataProviderId
           description = DESCRIPTION + "2"
           populationBlob = populationBlob { modelBlobUri = BLOB_URI }
