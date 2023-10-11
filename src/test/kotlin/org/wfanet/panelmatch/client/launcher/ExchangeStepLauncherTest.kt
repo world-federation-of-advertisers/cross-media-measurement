@@ -26,10 +26,10 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.verifyZeroInteractions
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
-import org.wfanet.measurement.api.v2alpha.ExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
 import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
@@ -45,8 +45,8 @@ private const val EXCHANGE_ID = "some-exchange-id"
 private const val EXCHANGE_STEP_ID = "some-step-id"
 private const val EXCHANGE_STEP_ATTEMPT_ID = "some-attempt-id"
 
-private val EXCHANGE_STEP_ATTEMPT_KEY: ExchangeStepAttemptKey =
-  ExchangeStepAttemptKey(
+private val EXCHANGE_STEP_ATTEMPT_KEY: CanonicalExchangeStepAttemptKey =
+  CanonicalExchangeStepAttemptKey(
     recurringExchangeId = RECURRING_EXCHANGE_ID,
     exchangeId = EXCHANGE_ID,
     exchangeStepId = EXCHANGE_STEP_ID,
@@ -54,7 +54,7 @@ private val EXCHANGE_STEP_ATTEMPT_KEY: ExchangeStepAttemptKey =
   )
 
 private val EXCHANGE_STEP_KEY =
-  ExchangeStepKey(
+  CanonicalExchangeStepKey(
     recurringExchangeId = RECURRING_EXCHANGE_ID,
     exchangeId = EXCHANGE_ID,
     exchangeStepId = EXCHANGE_STEP_ID
@@ -107,7 +107,7 @@ class ExchangeStepLauncherTest {
 
     verifyBlocking(jobLauncher) {
       val stepCaptor = argumentCaptor<ValidatedExchangeStep>()
-      val attemptCaptor = argumentCaptor<ExchangeStepAttemptKey>()
+      val attemptCaptor = argumentCaptor<CanonicalExchangeStepAttemptKey>()
 
       execute(stepCaptor.capture(), attemptCaptor.capture())
 
@@ -134,7 +134,7 @@ class ExchangeStepLauncherTest {
     launcher.findAndRunExchangeStep()
 
     verifyBlocking(apiClient) {
-      val keyCaptor = argumentCaptor<ExchangeStepAttemptKey>()
+      val keyCaptor = argumentCaptor<CanonicalExchangeStepAttemptKey>()
       val stateCaptor = argumentCaptor<ExchangeStepAttempt.State>()
       val messagesCaptor = argumentCaptor<Iterable<String>>()
 
@@ -162,7 +162,7 @@ class ExchangeStepLauncherTest {
     launcher.findAndRunExchangeStep()
 
     verifyBlocking(apiClient) {
-      val keyCaptor = argumentCaptor<ExchangeStepAttemptKey>()
+      val keyCaptor = argumentCaptor<CanonicalExchangeStepAttemptKey>()
       val stateCaptor = argumentCaptor<ExchangeStepAttempt.State>()
       val messagesCaptor = argumentCaptor<Iterable<String>>()
 
@@ -191,7 +191,7 @@ class ExchangeStepLauncherTest {
     launcher.findAndRunExchangeStep()
 
     verifyBlocking(apiClient) {
-      val keyCaptor = argumentCaptor<ExchangeStepAttemptKey>()
+      val keyCaptor = argumentCaptor<CanonicalExchangeStepAttemptKey>()
       val stateCaptor = argumentCaptor<ExchangeStepAttempt.State>()
       val messagesCaptor = argumentCaptor<Iterable<String>>()
 

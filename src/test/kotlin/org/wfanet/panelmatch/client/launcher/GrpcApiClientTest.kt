@@ -26,21 +26,20 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.KArgumentCaptor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
-import org.wfanet.measurement.api.v2alpha.AppendExchangeStepAttemptLogEntryRequest
-import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKt.debugLogEntry
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party
@@ -54,6 +53,7 @@ import org.wfanet.measurement.api.v2alpha.exchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.finishExchangeStepAttemptRequest
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.panelmatch.client.common.Identity
 
@@ -67,7 +67,7 @@ private val DATA_PROVIDER_IDENTITY = Identity(DATA_PROVIDER_ID, Party.DATA_PROVI
 private val MODEL_PROVIDER_IDENTITY = Identity(MODEL_PROVIDER_ID, Party.MODEL_PROVIDER)
 
 private val EXCHANGE_STEP_KEY =
-  ExchangeStepKey(
+  CanonicalExchangeStepKey(
     recurringExchangeId = RECURRING_EXCHANGE_ID,
     exchangeId = EXCHANGE_ID,
     exchangeStepId = EXCHANGE_STEP_ID
@@ -78,8 +78,8 @@ private val EXCHANGE_STEP: ExchangeStep = exchangeStep {
   state = ExchangeStep.State.READY_FOR_RETRY
 }
 
-private val EXCHANGE_STEP_ATTEMPT_KEY: ExchangeStepAttemptKey =
-  ExchangeStepAttemptKey(
+private val EXCHANGE_STEP_ATTEMPT_KEY: CanonicalExchangeStepAttemptKey =
+  CanonicalExchangeStepAttemptKey(
     recurringExchangeId = RECURRING_EXCHANGE_ID,
     exchangeId = EXCHANGE_ID,
     exchangeStepId = EXCHANGE_STEP_ID,
@@ -139,15 +139,13 @@ class GrpcApiClientTest {
     assertThat(exchangeStep).isEqualTo(EXCHANGE_STEP)
     assertThat(attemptKey).isEqualTo(EXCHANGE_STEP_ATTEMPT_KEY)
 
-    argumentCaptor<ClaimReadyExchangeStepRequest> {
-      verifyBlocking(exchangeStepsServiceMock) { claimReadyExchangeStep(capture()) }
-      assertThat(firstValue)
-        .isEqualTo(
-          claimReadyExchangeStepRequest {
-            dataProvider = DataProviderKey(DATA_PROVIDER_ID).toName()
-          }
-        )
-    }
+    verifyProtoArgument(
+        exchangeStepsServiceMock,
+        ExchangeStepsCoroutineImplBase::claimReadyExchangeStep
+      )
+      .isEqualTo(
+        claimReadyExchangeStepRequest { parent = DataProviderKey(DATA_PROVIDER_ID).toName() }
+      )
   }
 
   @Test
@@ -179,15 +177,13 @@ class GrpcApiClientTest {
     assertThat(exchangeStep).isEqualTo(EXCHANGE_STEP)
     assertThat(attemptKey).isEqualTo(EXCHANGE_STEP_ATTEMPT_KEY)
 
-    argumentCaptor<ClaimReadyExchangeStepRequest> {
-      verifyBlocking(exchangeStepsServiceMock) { claimReadyExchangeStep(capture()) }
-      assertThat(firstValue)
-        .isEqualTo(
-          claimReadyExchangeStepRequest {
-            modelProvider = ModelProviderKey(MODEL_PROVIDER_ID).toName()
-          }
-        )
-    }
+    verifyProtoArgument(
+        exchangeStepsServiceMock,
+        ExchangeStepsCoroutineImplBase::claimReadyExchangeStep
+      )
+      .isEqualTo(
+        claimReadyExchangeStepRequest { parent = ModelProviderKey(MODEL_PROVIDER_ID).toName() }
+      )
   }
 
   @Test
@@ -200,20 +196,17 @@ class GrpcApiClientTest {
       makeClient().appendLogEntry(EXCHANGE_STEP_ATTEMPT_KEY, listOf("message-1", "message-2"))
     }
 
-    argumentCaptor<AppendExchangeStepAttemptLogEntryRequest> {
-      verifyBlocking(exchangeStepsAttemptsServiceMock) {
-        appendExchangeStepAttemptLogEntry(capture())
-      }
-      assertThat(firstValue)
-        .ignoringRepeatedFieldOrder()
-        .isEqualTo(
-          appendExchangeStepAttemptLogEntryRequest {
-            name = EXCHANGE_STEP_ATTEMPT_KEY.toName()
-            logEntries += makeLogEntry("message-1")
-            logEntries += makeLogEntry("message-2")
-          }
-        )
-    }
+    verifyProtoArgument(
+        exchangeStepsAttemptsServiceMock,
+        ExchangeStepAttemptsCoroutineImplBase::appendExchangeStepAttemptLogEntry
+      )
+      .isEqualTo(
+        appendExchangeStepAttemptLogEntryRequest {
+          name = EXCHANGE_STEP_ATTEMPT_KEY.toName()
+          logEntries += makeLogEntry("message-1")
+          logEntries += makeLogEntry("message-2")
+        }
+      )
   }
 
   @Test
@@ -233,26 +226,26 @@ class GrpcApiClientTest {
         .finishExchangeStepAttempt(EXCHANGE_STEP_ATTEMPT_KEY, ExchangeStepAttempt.State.FAILED_STEP)
     }
 
-    argumentCaptor<FinishExchangeStepAttemptRequest> {
+    val requestCaptor: KArgumentCaptor<FinishExchangeStepAttemptRequest> = argumentCaptor {
       verifyBlocking(exchangeStepsAttemptsServiceMock, times(2)) {
         finishExchangeStepAttempt(capture())
       }
-      assertThat(firstValue)
-        .isEqualTo(
-          finishExchangeStepAttemptRequest {
-            name = EXCHANGE_STEP_ATTEMPT_KEY.toName()
-            finalState = ExchangeStepAttempt.State.SUCCEEDED
-            logEntries += makeLogEntry("message-1")
-            logEntries += makeLogEntry("message-2")
-          }
-        )
-      assertThat(secondValue)
-        .isEqualTo(
-          finishExchangeStepAttemptRequest {
-            name = EXCHANGE_STEP_ATTEMPT_KEY.toName()
-            finalState = ExchangeStepAttempt.State.FAILED_STEP
-          }
-        )
     }
+    assertThat(requestCaptor.firstValue)
+      .isEqualTo(
+        finishExchangeStepAttemptRequest {
+          name = EXCHANGE_STEP_ATTEMPT_KEY.toName()
+          finalState = ExchangeStepAttempt.State.SUCCEEDED
+          logEntries += makeLogEntry("message-1")
+          logEntries += makeLogEntry("message-2")
+        }
+      )
+    assertThat(requestCaptor.secondValue)
+      .isEqualTo(
+        finishExchangeStepAttemptRequest {
+          name = EXCHANGE_STEP_ATTEMPT_KEY.toName()
+          finalState = ExchangeStepAttempt.State.FAILED_STEP
+        }
+      )
   }
 }

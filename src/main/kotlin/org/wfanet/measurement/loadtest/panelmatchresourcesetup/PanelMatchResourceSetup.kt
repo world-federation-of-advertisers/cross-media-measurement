@@ -21,10 +21,10 @@ import io.grpc.ManagedChannel
 import java.time.LocalDate
 import java.util.logging.Logger
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.CanonicalRecurringExchangeKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
-import org.wfanet.measurement.api.v2alpha.RecurringExchangeKey
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
 import org.wfanet.measurement.internal.kingdom.DataProviderKt
@@ -104,7 +104,7 @@ class PanelMatchResourceSetup(
         exchangeWorkflow = exchangeWorkflow
       )
     val recurringExchangeName =
-      RecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId)).toName()
+      CanonicalRecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId)).toName()
     logger.info("Successfully created Recurring Exchange: $recurringExchangeName.")
   }
 
@@ -136,7 +136,8 @@ class PanelMatchResourceSetup(
         publicApiVersion = apiVersion,
         exchangeWorkflow = exchangeWorkflow
       )
-    val recurringExchangeKey = RecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))
+    val recurringExchangeKey =
+      CanonicalRecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))
     logger.info("Successfully created Recurring Exchange: ${recurringExchangeKey.toName()}.")
 
     return WorkflowResourceKeys(dataProviderKey, modelProviderKey, recurringExchangeKey)
@@ -206,5 +207,5 @@ class PanelMatchResourceSetup(
 data class WorkflowResourceKeys(
   val dataProviderKey: DataProviderKey,
   val modelProviderKey: ModelProviderKey,
-  val recurringExchangeKey: RecurringExchangeKey
+  val recurringExchangeKey: CanonicalRecurringExchangeKey
 )

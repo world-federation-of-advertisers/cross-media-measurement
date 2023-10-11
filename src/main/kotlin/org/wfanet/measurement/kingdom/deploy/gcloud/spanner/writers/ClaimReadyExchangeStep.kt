@@ -38,8 +38,6 @@ import org.wfanet.measurement.internal.kingdom.exchangeStepAttemptDetails
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamExchangeSteps
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep.Result
 
-private val DEFAULT_EXPIRATION_DURATION: Duration = Duration.ofDays(1)
-
 class ClaimReadyExchangeStep(
   private val provider: Provider,
   private val clock: Clock,
@@ -52,8 +50,17 @@ class ClaimReadyExchangeStep(
       StreamExchangeSteps(
           requestFilter =
             filter {
-              principal = provider
-              stepProvider = provider
+              @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+              when (provider.type) {
+                Provider.Type.MODEL_PROVIDER -> {
+                  externalModelProviderId = provider.externalId
+                }
+                Provider.Type.DATA_PROVIDER -> {
+                  externalDataProviderId = provider.externalId
+                }
+                Provider.Type.UNRECOGNIZED,
+                Provider.Type.TYPE_UNSPECIFIED -> error("Invalid provider type ${provider.type}")
+              }
               states += ExchangeStep.State.READY_FOR_RETRY
               states += ExchangeStep.State.READY
             },
@@ -153,5 +160,9 @@ class ClaimReadyExchangeStep(
     val row: Struct = transactionContext.executeQuery(statement).single()
 
     return row.getLong("MaxAttemptIndex") + 1L
+  }
+
+  companion object {
+    private val DEFAULT_EXPIRATION_DURATION: Duration = Duration.ofDays(1)
   }
 }
