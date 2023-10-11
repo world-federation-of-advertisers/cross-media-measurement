@@ -14,11 +14,16 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Value
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ConfirmComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
@@ -106,13 +111,17 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
       set("State" to NEXT_COMPUTATION_PARTICIPANT_STATE)
     }
 
-    val otherDuchyIds: List<InternalId> =
-      DuchyIds.entries.map { InternalId(it.internalDuchyId) }.filter { it.value != duchyId }
+    val duchyIds: List<InternalId> =
+      getComputationParticipantsDuchyIds(
+          InternalId(measurementConsumerId),
+          InternalId(measurementId)
+        )
+        .filter { it.value != duchyId }
 
     if (
       computationParticipantsInState(
         transactionContext,
-        otherDuchyIds,
+        duchyIds,
         InternalId(measurementConsumerId),
         InternalId(measurementId),
         NEXT_COMPUTATION_PARTICIPANT_STATE
@@ -134,6 +143,29 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
     }
 
     return computationParticipant.copy { state = NEXT_COMPUTATION_PARTICIPANT_STATE }
+  }
+
+  private suspend fun TransactionScope.getComputationParticipantsDuchyIds(
+    measurementConsumerId: InternalId,
+    measurementId: InternalId
+  ): List<InternalId> {
+    val sql =
+      """
+      SELECT DuchyId
+      FROM ComputationParticipants
+      WHERE MeasurementConsumerId = @measurement_consumer_id
+        AND MeasurementId = @measurement_id
+      """
+        .trimIndent()
+    val statement: Statement =
+      statement(sql) {
+        bind("measurement_consumer_id" to measurementConsumerId.value)
+        bind("measurement_id" to measurementId)
+      }
+    return transactionContext
+      .executeQuery(statement)
+      .map { InternalId(it.getLong("DuchyId")) }
+      .toList()
   }
 
   override fun ResultScope<ComputationParticipant>.buildResult(): ComputationParticipant {
