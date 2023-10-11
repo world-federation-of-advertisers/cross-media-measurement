@@ -367,6 +367,5 @@ class PopulationsServiceTest {
       )
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
-    // FIX THE LISTPOPULATOINS METHOD THAT THIS USES. IT IS NOT CREATING THE LISTPOPULATIONSREQUEST CORRECTLY
   }
 }
