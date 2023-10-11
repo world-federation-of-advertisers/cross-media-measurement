@@ -780,7 +780,8 @@ class ReportScheduleIterationsServiceTest {
 
     private val REPORT_SCHEDULE_ITERATION = reportScheduleIteration {
       name = REPORT_SCHEDULE_ITERATION_NAME
-      state = ReportScheduleIteration.State.valueOf(INTERNAL_REPORT_SCHEDULE_ITERATION.state.name)
+      state =
+        ReportScheduleIteration.State.forNumber(INTERNAL_REPORT_SCHEDULE_ITERATION.state.number)
       numAttempts = INTERNAL_REPORT_SCHEDULE_ITERATION.numAttempts
       reportEventTime = INTERNAL_REPORT_SCHEDULE_ITERATION.reportEventTime
       createTime = INTERNAL_REPORT_SCHEDULE_ITERATION.createTime
@@ -803,8 +804,8 @@ class ReportScheduleIterationsServiceTest {
     private val REPORT_SCHEDULE_ITERATION_LATER_EVENT_TIME = reportScheduleIteration {
       name = REPORT_SCHEDULE_ITERATION_NAME_2
       state =
-        ReportScheduleIteration.State.valueOf(
-          INTERNAL_REPORT_SCHEDULE_ITERATION_LATER_EVENT_TIME.state.name
+        ReportScheduleIteration.State.forNumber(
+          INTERNAL_REPORT_SCHEDULE_ITERATION_LATER_EVENT_TIME.state.number
         )
       numAttempts = INTERNAL_REPORT_SCHEDULE_ITERATION_LATER_EVENT_TIME.numAttempts
       reportEventTime = INTERNAL_REPORT_SCHEDULE_ITERATION_LATER_EVENT_TIME.reportEventTime
