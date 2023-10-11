@@ -94,6 +94,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
   private lateinit var exchangeKey: ExchangeKey
   protected abstract val initialDataProviderInputs: Map<String, ByteString>
   protected abstract val initialModelProviderInputs: Map<String, ByteString>
+  // TODO(@marcopremier): Add abstract expected output here to be checked during test validation
   protected abstract val workflow: ExchangeWorkflow
   val k8sClient = KubernetesClient(ClientBuilder.defaultClient())
   private val TERMINAL_STEP_STATES = setOf(ExchangeStep.State.SUCCEEDED, ExchangeStep.State.FAILED)
@@ -174,6 +175,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
         buildMutualTlsChannel(dpStorageAddress.toTarget(), EDP_SIGNING_CERTS)
           .also { channels.add(it) }
           .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
+      // TODO(@marcopremier): Make dpForwardedStorage and mpForwardedStorage as abstract val
       val dpForwardedStorage =
         ForwardedStorageClient(
           ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(dpStorageChannel)

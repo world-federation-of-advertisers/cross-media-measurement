@@ -67,6 +67,7 @@ class ForwardedStorageExchangeWorkflowDaemon(override val clock: Clock = Clock.s
   override val certificateAuthority: CertificateAuthority
     get() = TODO("Not yet implemented")
 
+  // TODO(@marcopremier): Change this to let each Daemon has its own certificate
   override val certificateManager: CertificateManager = TestCertificateManager
 
   override fun makePipelineOptions(): PipelineOptions = PipelineOptionsFactory.create()
