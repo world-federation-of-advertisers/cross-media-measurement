@@ -89,6 +89,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     val WORKER2_DUCHY = DuchyIds.Entry(3, "worker2", VALID_ACTIVE_START_TIME..VALID_ACTIVE_END_TIME)
     val DUCHIES = listOf(AGGREGATOR_DUCHY, WORKER1_DUCHY, WORKER2_DUCHY)
   }
+
   private fun buildRequestCertificate(
     derUtf8: String,
     skidUtf8: String,
@@ -143,6 +144,8 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
 
   suspend fun createDataProvider(
     dataProvidersService: DataProvidersCoroutineImplBase,
+    requiredDuchiesList: List<String> =
+      listOf(WORKER1_DUCHY.externalDuchyId, WORKER2_DUCHY.externalDuchyId),
     notValidBefore: Instant = clock.instant(),
     notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS),
     customize: (DataProviderKt.Dsl.() -> Unit)? = null
@@ -162,8 +165,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
             publicKey = "EDP public key".toByteStringUtf8()
             publicKeySignature = "EDP public key signature".toByteStringUtf8()
           }
-        requiredExternalDuchyIds += WORKER1_DUCHY.externalDuchyId
-        requiredExternalDuchyIds += WORKER2_DUCHY.externalDuchyId
+        requiredExternalDuchyIds += requiredDuchiesList
         customize?.invoke(this)
       }
     )
