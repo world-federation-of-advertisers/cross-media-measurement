@@ -226,7 +226,9 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
       withContext(CoroutineName("Mill $millId")) {
         val throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval)
         throttler.loopOnReady {
-          logAndSuppressExceptionSuspend { reachFrequencyliquidLegionsV2Mill.pollAndProcessNextComputation() }
+          logAndSuppressExceptionSuspend {
+            reachFrequencyliquidLegionsV2Mill.pollAndProcessNextComputation()
+          }
           logAndSuppressExceptionSuspend {
             reachOnlyLiquidLegionsV2Mill.pollAndProcessNextComputation()
           }
