@@ -200,3 +200,15 @@ message ListModelRolloutsPageToken {
   }
   PreviousPageEnd last_model_rollout = 6;
 }
+
+message ListPopulationsPageToken {
+  int32 page_size = 1;
+  fixed64 external_data_provider_id = 2;
+  message PreviousPageEnd {
+    fixed64 external_data_provider_id = 1;
+    fixed64 external_population_id = 2;
+    google.protobuf.Timestamp create_time = 3;
+  }
+  PreviousPageEnd last_population = 3;
+}
+
