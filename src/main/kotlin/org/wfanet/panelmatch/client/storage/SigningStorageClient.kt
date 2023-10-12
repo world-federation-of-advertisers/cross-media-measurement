@@ -44,10 +44,9 @@ class SigningStorageClient(
    */
   suspend fun writeBlob(
     blobKey: String,
-    content: Flow<ByteString>,
-    pipelineOptions: PipelineOptions? = null
+    content: Flow<ByteString>
   ) {
-    val sharedStorage: StorageClient = sharedStorageFactory.build(pipelineOptions)
+    val sharedStorage: StorageClient = sharedStorageFactory.build()
 
     // Since StorageClient has no concept of "overwriting" a blob, we first delete existing blobs.
     // This is to ensure that transient failures after some blobs are written do not cause problems
@@ -62,7 +61,6 @@ class SigningStorageClient(
 
   suspend fun writeBlob(
     blobKey: String,
-    content: ByteString,
-    pipelineOptions: PipelineOptions? = null
-  ) = writeBlob(blobKey, flowOf(content), pipelineOptions)
+    content: ByteString
+  ) = writeBlob(blobKey, flowOf(content))
 }

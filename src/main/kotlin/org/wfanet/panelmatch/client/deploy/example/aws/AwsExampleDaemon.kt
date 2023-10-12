@@ -81,27 +81,10 @@ private class AwsExampleDaemon : ExampleDaemon() {
   private var s3FromBeam by Delegates.notNull<Boolean>()
 
   override fun makePipelineOptions(): PipelineOptions {
-    // TODO(jmolle): replace usage of DirectRunner.
-    val baseOptions =
-      PipelineOptionsFactory.`as`(BeamOptions::class.java).apply {
+    return PipelineOptionsFactory.`as`(BeamOptions::class.java).apply {
         runner = DirectRunner::class.java
         defaultSdkHarnessLogLevel = SdkHarnessOptions.LogLevel.INFO
       }
-    return if (!s3FromBeam) {
-      baseOptions
-    } else {
-      // aws-sdk-java-v2 casts responses to AwsSessionCredentials if its assumed you need a
-      // sessionToken
-      val awsCredentials =
-        DefaultCredentialsProvider.create().resolveCredentials() as AwsSessionCredentials
-      // TODO: Encrypt using KMS or store in Secrets
-      // Think about moving this logic to a CredentialsProvider
-      baseOptions.apply {
-        awsAccessKey = awsCredentials.accessKeyId()
-        awsSecretAccessKey = awsCredentials.secretAccessKey()
-        awsSessionToken = awsCredentials.sessionToken()
-      }
-    }
   }
 
   override val rootStorageClient: StorageClient by lazy {
