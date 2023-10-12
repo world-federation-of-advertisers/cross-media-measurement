@@ -417,3 +417,37 @@ CREATE TABLE MetricCalculationSpecReportingMetrics (
     REFERENCES Metrics(MeasurementConsumerId, MetricId)
     ON DELETE CASCADE
 );
+
+-- changeset riemanli:create-planning-models-table dbms:postgresql
+CREATE TABLE PlanningModels (
+  MeasurementConsumerId bigint NOT NULL,
+  PlanningModelId bigint NOT NULL,
+
+  ExternalPlanningModelId varchar(63) NOT NULL,
+  CreatePlanningModelRequestId text,
+
+  TimeIntervalStart TIMESTAMP WITH TIME ZONE NOT NULL,
+  TimeIntervalEndExclusive TIMESTAMP WITH TIME ZONE NOT NULL,
+
+  filter TEXT,
+
+  CreateTime TIMESTAMP WITH TIME ZONE NOT NULL,
+
+  -- PlanningModelSpec TBD
+
+  -- Serialized byte string of a proto3 protobuf with details about the planning
+  -- models which do not need to be indexed by the database.
+  -- Contains: State
+  PlanningModelDetails bytea NOT NULL,
+
+  -- Human-readable copy of the PlanningModelDetails column solely for debugging
+  -- purposes.
+  PlanningModelDetailsJson text NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerId, ReportId, PlanningModelId),
+  UNIQUE (MeasurementConsumerId, CreatePlanningModelRequestId),
+  UNIQUE (MeasurementConsumerId, ExternalPlanningModelId),
+  FOREIGN KEY(MeasurementConsumerId)
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE
+);
