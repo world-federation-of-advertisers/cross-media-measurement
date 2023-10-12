@@ -354,6 +354,10 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
         filter = source.reportingSet.filter
       }
 
+      details = InternalReportingSetKt.details {
+        tags.putAll(source.reportingSet.tagsMap)
+      }
+
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       when (source.reportingSet.valueCase) {
         ReportingSet.ValueCase.PRIMITIVE -> {
