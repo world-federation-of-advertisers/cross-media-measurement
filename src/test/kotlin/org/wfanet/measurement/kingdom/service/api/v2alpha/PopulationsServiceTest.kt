@@ -378,4 +378,13 @@ class PopulationsServiceTest {
       }
     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
+
+  @Test
+  fun `listPopulations throws UNAUTHENTICATED when no principal is found`() {
+    val request = listPopulationsRequest { parent = DATA_PROVIDER_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.listPopulations(request) } }
+    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
 }
