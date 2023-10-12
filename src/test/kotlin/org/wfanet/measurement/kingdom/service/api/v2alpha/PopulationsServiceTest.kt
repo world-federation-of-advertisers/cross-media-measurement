@@ -298,7 +298,7 @@ class PopulationsServiceTest {
   }
 
   @Test
-  fun `listModelSuites with parent uses filter with parent succeeds for measurement consumer caller`() {
+  fun `listPopulations with parent uses filter with parent succeeds for measurement consumer caller`() {
     val request = listPopulationsRequest { parent = DATA_PROVIDER_NAME }
 
     val result =
@@ -331,7 +331,7 @@ class PopulationsServiceTest {
   }
 
   @Test
-  fun `listModelSuites with parent uses filter with parent succeeds for data provider caller`() {
+  fun `listPopulations with parent uses filter with parent succeeds for data provider caller`() {
     val request = listPopulationsRequest { parent = DATA_PROVIDER_NAME }
 
     val result =
