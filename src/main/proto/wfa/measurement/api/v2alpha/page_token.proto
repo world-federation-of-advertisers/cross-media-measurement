@@ -211,4 +211,3 @@ message ListPopulationsPageToken {
   }
   PreviousPageEnd last_population = 3;
 }
-

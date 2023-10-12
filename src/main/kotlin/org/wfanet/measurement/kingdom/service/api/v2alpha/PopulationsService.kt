@@ -20,15 +20,23 @@ import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.api.v2alpha.CreatePopulationRequest
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.GetPopulationRequest
 import org.wfanet.measurement.api.v2alpha.ListPopulationsPageToken
 import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt
+import org.wfanet.measurement.api.v2alpha.ListPopulationsRequest
+import org.wfanet.measurement.api.v2alpha.ListPopulationsResponse
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
-import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.Population
+import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpcKt.PopulationsCoroutineImplBase as PopulationsCoroutineService
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.listPopulationsPageToken
+import org.wfanet.measurement.api.v2alpha.listPopulationsResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
@@ -37,15 +45,6 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.internal.kingdom.Population as InternalPopulation
-import org.wfanet.measurement.api.v2alpha.CreatePopulationRequest
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.GetPopulationRequest
-import org.wfanet.measurement.api.v2alpha.ListPopulationsRequest
-import org.wfanet.measurement.api.v2alpha.ListPopulationsResponse
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
-import org.wfanet.measurement.api.v2alpha.Population
-import org.wfanet.measurement.api.v2alpha.PopulationKey
-import org.wfanet.measurement.api.v2alpha.listPopulationsResponse
 import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamPopulationsRequest
 import org.wfanet.measurement.internal.kingdom.StreamPopulationsRequestKt.afterFilter
@@ -56,7 +55,7 @@ import org.wfanet.measurement.internal.kingdom.streamPopulationsRequest
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
-class PopulationsService(private val internalClient: PopulationsCoroutineStub):
+class PopulationsService(private val internalClient: PopulationsCoroutineStub) :
   PopulationsCoroutineService() {
 
   override suspend fun createPopulation(request: CreatePopulationRequest): Population {
@@ -68,9 +67,7 @@ class PopulationsService(private val internalClient: PopulationsCoroutineStub):
     when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
       is DataProviderPrincipal -> {
         if (principal.resourceKey.toName() != request.parent) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot create Population for another DataProvider"
-          }
+          failGrpc(Status.PERMISSION_DENIED) { "Cannot create Population for another DataProvider" }
         }
       }
       else -> {

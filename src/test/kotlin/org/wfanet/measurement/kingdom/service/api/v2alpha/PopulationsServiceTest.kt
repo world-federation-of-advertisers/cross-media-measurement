@@ -16,10 +16,13 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.common.truth.Truth
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
 import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import java.time.Instant
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -28,41 +31,38 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.verify
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.Population
+import org.wfanet.measurement.api.v2alpha.PopulationKey
+import org.wfanet.measurement.api.v2alpha.PopulationKt.populationBlob
+import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.createPopulationRequest
+import org.wfanet.measurement.api.v2alpha.eventTemplate
+import org.wfanet.measurement.api.v2alpha.getPopulationRequest
+import org.wfanet.measurement.api.v2alpha.listPopulationsRequest
+import org.wfanet.measurement.api.v2alpha.listPopulationsResponse
+import org.wfanet.measurement.api.v2alpha.population
+import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
+import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.Population as InternalPopulation
-import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.population as internalPopulation
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.Population
-import org.wfanet.measurement.api.v2alpha.PopulationKey
-import org.wfanet.measurement.api.v2alpha.population
 import org.wfanet.measurement.internal.kingdom.PopulationKt.populationBlob as internalPopulationBlob
-import org.wfanet.measurement.internal.kingdom.eventTemplate as internalEventTemplate
-import com.google.common.truth.Truth
-import io.grpc.StatusRuntimeException
-import kotlin.test.assertFailsWith
-import org.wfanet.measurement.api.v2alpha.PopulationKt.populationBlob
-import org.wfanet.measurement.api.v2alpha.createPopulationRequest
-import org.wfanet.measurement.api.v2alpha.eventTemplate
-import org.wfanet.measurement.api.v2alpha.getPopulationRequest
-import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
-import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
 import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt
-import org.wfanet.measurement.internal.kingdom.getPopulationRequest as internalGetPopulationRequest
-import org.mockito.kotlin.verify
-import org.wfanet.measurement.api.v2alpha.copy
-import org.wfanet.measurement.api.v2alpha.listPopulationsRequest
-import org.wfanet.measurement.api.v2alpha.listPopulationsResponse
-import org.wfanet.measurement.common.testing.captureFirst
+import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamPopulationsRequest
 import org.wfanet.measurement.internal.kingdom.StreamPopulationsRequestKt
+import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.eventTemplate as internalEventTemplate
+import org.wfanet.measurement.internal.kingdom.getPopulationRequest as internalGetPopulationRequest
+import org.wfanet.measurement.internal.kingdom.population as internalPopulation
 import org.wfanet.measurement.internal.kingdom.streamPopulationsRequest as internalStreamPopulationsRequest
 
 private const val DEFAULT_LIMIT = 50
@@ -93,24 +93,16 @@ private val INTERNAL_POPULATION: InternalPopulation = internalPopulation {
   externalPopulationId = EXTERNAL_POPULATION_ID
   description = DESCRIPTION
   createTime = CREATE_TIME
-  populationBlob = internalPopulationBlob {
-    modelBlobUri = MODEL_BLOB_URI
-  }
-  eventTemplate = internalEventTemplate {
-    fullyQualifiedType = EVENT_TEMPLATE_TYPE
-  }
+  populationBlob = internalPopulationBlob { modelBlobUri = MODEL_BLOB_URI }
+  eventTemplate = internalEventTemplate { fullyQualifiedType = EVENT_TEMPLATE_TYPE }
 }
 
 private val POPULATION: Population = population {
   name = POPULATION_NAME
   description = DESCRIPTION
   createTime = CREATE_TIME
-  populationBlob = populationBlob {
-    modelBlobUri = MODEL_BLOB_URI
-  }
-  eventTemplate = eventTemplate {
-    type = EVENT_TEMPLATE_TYPE
-  }
+  populationBlob = populationBlob { modelBlobUri = MODEL_BLOB_URI }
+  eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
 }
 
 @RunWith(JUnit4::class)
@@ -330,7 +322,8 @@ class PopulationsServiceTest {
       .isEqualTo(
         internalStreamPopulationsRequest {
           limit = DEFAULT_LIMIT + 1
-          filter = StreamPopulationsRequestKt.filter { externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID }
+          filter =
+            StreamPopulationsRequestKt.filter { externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID }
         }
       )
 
@@ -362,7 +355,8 @@ class PopulationsServiceTest {
       .isEqualTo(
         internalStreamPopulationsRequest {
           limit = DEFAULT_LIMIT + 1
-          filter = StreamPopulationsRequestKt.filter { externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID }
+          filter =
+            StreamPopulationsRequestKt.filter { externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID }
         }
       )
 

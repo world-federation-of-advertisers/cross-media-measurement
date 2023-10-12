@@ -60,6 +60,7 @@ import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.Population
 import org.wfanet.measurement.api.v2alpha.PopulationKey
+import org.wfanet.measurement.api.v2alpha.PopulationKt.populationBlob
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
@@ -68,10 +69,10 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.protocol
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.dateInterval
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.eventTemplate
 import org.wfanet.measurement.api.v2alpha.exchange
 import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.api.v2alpha.exchangeStepAttempt
-import org.wfanet.measurement.api.v2alpha.eventTemplate
 import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.modelLine
@@ -81,7 +82,6 @@ import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.population
-import org.wfanet.measurement.api.v2alpha.PopulationKt.populationBlob
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.reachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.signedData
@@ -111,12 +111,13 @@ import org.wfanet.measurement.internal.kingdom.ModelRollout as InternalModelRoll
 import org.wfanet.measurement.internal.kingdom.ModelShard as InternalModelShard
 import org.wfanet.measurement.internal.kingdom.ModelSuite as InternalModelSuite
 import org.wfanet.measurement.internal.kingdom.Population as InternalPopulation
+import org.wfanet.measurement.internal.kingdom.PopulationKt.populationBlob as internalPopulationBlob
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt as InternalProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
-import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.eventTemplate as internalEventTemplate
+import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
 import org.wfanet.measurement.internal.kingdom.modelLine as internalModelLine
 import org.wfanet.measurement.internal.kingdom.modelOutage as internalModelOutage
@@ -125,7 +126,6 @@ import org.wfanet.measurement.internal.kingdom.modelRollout as internalModelRoll
 import org.wfanet.measurement.internal.kingdom.modelShard as internalModelShard
 import org.wfanet.measurement.internal.kingdom.modelSuite as internalModelSuite
 import org.wfanet.measurement.internal.kingdom.population as internalPopulation
-import org.wfanet.measurement.internal.kingdom.PopulationKt.populationBlob as internalPopulationBlob
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
@@ -822,18 +822,14 @@ fun InternalPopulation.toPopulation(): Population {
   return population {
     name =
       PopulationKey(
-        externalIdToApiId(source.externalDataProviderId),
-        externalIdToApiId(source.externalPopulationId)
-      )
+          externalIdToApiId(source.externalDataProviderId),
+          externalIdToApiId(source.externalPopulationId)
+        )
         .toName()
     description = source.description
     createTime = source.createTime
-    populationBlob = populationBlob {
-      modelBlobUri = source.populationBlob.modelBlobUri
-    }
-    eventTemplate = eventTemplate {
-      type = source.eventTemplate.fullyQualifiedType
-    }
+    populationBlob = populationBlob { modelBlobUri = source.populationBlob.modelBlobUri }
+    eventTemplate = eventTemplate { type = source.eventTemplate.fullyQualifiedType }
   }
 }
 
