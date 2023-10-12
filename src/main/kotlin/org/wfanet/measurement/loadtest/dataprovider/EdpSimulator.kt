@@ -103,6 +103,7 @@ import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.consent.client.common.NonceMismatchException
@@ -522,6 +523,10 @@ class EdpSimulator(
     for (requisition in requisitions) {
       try {
         logger.info("Processing requisition ${requisition.name}...")
+
+        // TODO(@SanjayVas): Verify that DataProvider public key in Requisition matches private key
+        // in edpData. A real EDP would look up the matching private key.
+
         val measurementConsumerCertificate: Certificate =
           getCertificate(requisition.measurementConsumerCertificate)
 
@@ -1493,6 +1498,16 @@ class EdpSimulator(
     nonce: Long,
     measurementResult: Measurement.Result
   ) {
+    // Verify that the signing key we have matches the one from the Requisition. A real EDP would
+    // look up the matching signing key, but the simulator is only configured with one.
+    val certificate = getCertificate(requisition.dataProviderCertificate)
+    if (certificate.subjectKeyIdentifier != edpData.signingKey.certificate.subjectKeyIdentifier) {
+      throw RequisitionRefusalException(
+        Requisition.Refusal.Justification.UNFULFILLABLE,
+        "Private key not found for ${certificate.name}"
+      )
+    }
+
     val measurementEncryptionPublicKey =
       EncryptionPublicKey.parseFrom(measurementSpec.measurementPublicKey)
     val signedResult: SignedData = signResult(measurementResult, edpData.signingKey)
