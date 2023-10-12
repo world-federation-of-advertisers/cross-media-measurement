@@ -1832,7 +1832,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
           localComputationId = LOCAL_ID
           attempt = 1
           computationStage = COMPLETE.toProtocolStage()
-          version = 3 // claimTask + writeOutputBlob + transitionStage
+          version = 3 // claimTask + computationDetails + transitionStage
           computationDetails = computationDetails {
             kingdomComputation = AGGREGATOR_COMPUTATION_DETAILS.kingdomComputation
             reachOnlyLiquidLegionsV2 =
