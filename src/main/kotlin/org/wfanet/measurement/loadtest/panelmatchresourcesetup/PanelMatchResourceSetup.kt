@@ -30,8 +30,10 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.RecurringExchangeKey
+import org.wfanet.measurement.common.api.AkidConfigPrincipalLookup
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.config.AuthorityKeyToPrincipalMap
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMapKt
 import org.wfanet.measurement.config.authorityKeyToPrincipalMap
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
@@ -64,7 +66,11 @@ class PanelMatchResourceSetup(
   private val bazelConfigName: String = DEFAULT_BAZEL_CONFIG_NAME,
 ) {
 
-  /** The Channel can be used in the in-process integration test. */
+  /**
+   * Constructs [PanelMatchResourceSetup] from a [Channel].
+   *
+   * @param kingdomInternalApiChannel a [Channel] used to connect to internal API
+   */
   constructor(
     kingdomInternalApiChannel: Channel
   ) : this(
@@ -73,7 +79,11 @@ class PanelMatchResourceSetup(
     RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub(kingdomInternalApiChannel)
   )
 
-  /** The ManagedChannel can be used in the deployed integration test. */
+  /**
+   * Constructs [PanelMatchResourceSetup] from a [ManagedChannel].
+   *
+   * @param kingdomInternalApiChannel a [ManagedChannel] used to connect to internal API
+   */
   constructor(
     kingdomInternalApiChannel: ManagedChannel
   ) : this(
