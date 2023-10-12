@@ -82,11 +82,10 @@ private class CopyManifestFromSharedDoFn(
 
   @DoFn.ProcessElement
   fun processElement(@Element blobKey: String, context: ProcessContext) {
-    val pipelineOptions = context.getPipelineOptions()
     runBlocking(Dispatchers.IO) {
-      val manifestBlob: VerifiedBlob = source.getBlob(blobKey, pipelineOptions)
+      val manifestBlob: VerifiedBlob = source.getBlob(blobKey)
       val manifestBytes: ByteString = manifestBlob.toByteString()
-      val destination: StorageClient = destinationFactory.build(pipelineOptions)
+      val destination: StorageClient = destinationFactory.build()
       destination.copyInternally(destinationManifestBlobKey, manifestBytes, manifestBlob.signature)
       val shardedFileName = ShardedFileName(manifestBytes.toStringUtf8())
       context.output(shardedFileName)
@@ -101,10 +100,9 @@ private class WriteFilesDoFn(
 
   @DoFn.ProcessElement
   fun processElement(@Element shardName: String, context: ProcessContext) {
-    val pipelineOptions = context.getPipelineOptions()
     runBlocking(Dispatchers.IO) {
-      val shard: VerifiedBlob = source.getBlob(shardName, pipelineOptions)
-      val destination: StorageClient = destinationFactory.build(pipelineOptions)
+      val shard: VerifiedBlob = source.getBlob(shardName)
+      val destination: StorageClient = destinationFactory.build()
       destination.copyInternally(shardName, shard)
     }
     context.output(shardName)

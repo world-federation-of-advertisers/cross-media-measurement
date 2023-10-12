@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.client.storage.aws.s3
 
+import java.net.HttpURLConnection
 import org.apache.beam.sdk.options.PipelineOptions
 import org.wfanet.measurement.aws.s3.S3StorageClient
 import org.wfanet.measurement.storage.StorageClient
@@ -36,38 +37,9 @@ class S3StorageFactory(
   private val exchangeDateKey: ExchangeDateKey
 ) : StorageFactory {
 
-  override fun build(options: PipelineOptions?): StorageClient {
-    if (options == null) {
-      return build()
-    }
-    val beamOptions = options.`as`(BeamOptions::class.java)
-    @Suppress(
-      "USELESS_ELVIS",
-    ) // Beam returns String?
-    val accessKey = beamOptions.awsAccessKey ?: ""
-    @Suppress(
-      "USELESS_ELVIS",
-    ) // Beam returns String?
-    val secretAccessKey = beamOptions.awsSecretAccessKey ?: ""
-    @Suppress(
-      "USELESS_ELVIS",
-    ) // Beam returns String?
-    val sessionToken = beamOptions.awsSessionToken ?: ""
-    if (accessKey.isEmpty() || secretAccessKey.isEmpty() || sessionToken.isEmpty()) {
-      return build()
-    }
-    val builtCredentials = AwsSessionCredentials.create(accessKey, secretAccessKey, sessionToken)
-    return S3StorageClient(
-        S3AsyncClient.builder()
-          .region(Region.of(storageDetails.aws.region))
-          .credentialsProvider(StaticCredentialsProvider.create(builtCredentials))
-          .build(),
-        storageDetails.aws.bucket
-      )
-      .withPrefix(exchangeDateKey.path)
-  }
-
   override fun build(): StorageClient {
+    // If no role is provided, we assume that this StorageClient will be created using default
+    // credentials in the environment.
     if (storageDetails.aws.role.roleArn.isEmpty()) {
       return S3StorageClient(
           S3AsyncClient.builder().region(Region.of(storageDetails.aws.region)).build(),
@@ -75,6 +47,7 @@ class S3StorageFactory(
         )
         .withPrefix(exchangeDateKey.path)
     } else {
+      // if (storageDetails.aws.role.)
       val client: StsClient = StsClient.builder().build()
       val assumeRoleRequestBuilder =
         AssumeRoleRequest.builder()
