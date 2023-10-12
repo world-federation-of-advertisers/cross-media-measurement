@@ -1266,7 +1266,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     )
 
     // Stage 1. Process the above computation
-    nonAggregatorMill.pollAndProcessNextComputation()
+    aggregatorMill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
     assertThat(fakeComputationDb[LOCAL_ID])
@@ -1806,7 +1806,9 @@ class ReachOnlyLiquidLegionsV2MillTest {
     val inputBlobContext = ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 0L)
     computationStore.writeString(inputBlobContext, "sketch" + NOISE_CIPHERTEXT)
     val cachedBlobContext = ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 1L)
-    computationStore.writeString(cachedBlobContext, "cached result")
+    val testReach = 123L
+    var cryptoResult = completeReachOnlyExecutionPhaseAtAggregatorResponse { reach = testReach }
+    computationStore.writeString(cachedBlobContext, cryptoResult.toByteString().toStringUtf8())
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
@@ -1820,7 +1822,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     )
 
     // Stage 1. Process the above computation
-    nonAggregatorMill.pollAndProcessNextComputation()
+    aggregatorMill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
     assertThat(fakeComputationDb[LOCAL_ID])
@@ -1830,10 +1832,16 @@ class ReachOnlyLiquidLegionsV2MillTest {
           localComputationId = LOCAL_ID
           attempt = 1
           computationStage = COMPLETE.toProtocolStage()
-          version = 2 // claimTask + transitionStage
+          version = 3 // claimTask + writeOutputBlob + transitionStage
           computationDetails = computationDetails {
             kingdomComputation = AGGREGATOR_COMPUTATION_DETAILS.kingdomComputation
-            reachOnlyLiquidLegionsV2 = AGGREGATOR_COMPUTATION_DETAILS.reachOnlyLiquidLegionsV2
+            reachOnlyLiquidLegionsV2 =
+              AGGREGATOR_COMPUTATION_DETAILS.reachOnlyLiquidLegionsV2.copy {
+                reachEstimate =
+                  ReachOnlyLiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.reachEstimate {
+                    reach = testReach
+                  }
+              }
             endingState = CompletedReason.SUCCEEDED
           }
           requisitions += REQUISITIONS
@@ -1896,13 +1904,18 @@ class ReachOnlyLiquidLegionsV2MillTest {
           localComputationId = LOCAL_ID
           attempt = 1
           computationStage = COMPLETE.toProtocolStage()
-          version = 3 // claimTask + writeOutputBlob + transitionStage
-          computationDetails = computationDetails {
-            kingdomComputation = computationDetailsWithVidSamplingWidth.kingdomComputation
-            reachOnlyLiquidLegionsV2 =
-              computationDetailsWithVidSamplingWidth.reachOnlyLiquidLegionsV2
-            endingState = CompletedReason.SUCCEEDED
-          }
+          version = 4 // claimTask + writeOutputBlob + ComputationDetails + transitionStage
+          computationDetails =
+            computationDetailsWithVidSamplingWidth.copy {
+              reachOnlyLiquidLegionsV2 =
+                computationDetailsWithVidSamplingWidth.reachOnlyLiquidLegionsV2.copy {
+                  reachEstimate =
+                    ReachOnlyLiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.reachEstimate {
+                      reach = testReach
+                    }
+                }
+              endingState = CompletedReason.SUCCEEDED
+            }
           requisitions.addAll(REQUISITIONS)
         }
       )
@@ -1979,7 +1992,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     )
 
     // Stage 1. Process the above computation
-    nonAggregatorMill.pollAndProcessNextComputation()
+    aggregatorMill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
     assertThat(fakeComputationDb[LOCAL_ID]!!)
