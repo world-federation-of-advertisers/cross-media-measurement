@@ -1,0 +1,108 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.v2alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "wfa/measurement/reporting/v2alpha/metric.proto";
+import "wfa/measurement/reporting/v2alpha/planning_model.proto";
+import "wfa/measurement/reporting/v2alpha/scenario.proto";
+
+option java_package = "org.wfanet.measurement.reporting.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "PlanningModelsServiceProto";
+
+// planning_models_service.proto
+service PlanningModels {
+  // Creates a `PlanningModel`.
+  rpc CreatePlanningModel(CreatePlanningModelRequest) returns (PlanningModel) {
+    option (google.api.http) = {
+      post: "/v2alpha/{parent=measurementConsumers/*}/planningModels"
+      body: "planning_model"
+    };
+    option (google.api.method_signature) = "parent,planning_model";
+  }
+  // Returns the `PlanningModel` with the specified resource key.
+  rpc GetPlanningModel(GetPlanningModelRequest) returns (PlanningModel) {
+    option (google.api.http) = {
+      get: "/v2alpha/{name=measurementConsumers/*/planningModels/*}"
+    };
+    option (google.api.method_signature) = "name";
+  }
+  // Lists `PlanningModel`s.
+  rpc ListPlanningModels(ListPlanningModelsRequest)
+      returns (ListPlanningModelsResponse) {
+    option (google.api.http) = {
+      get: "/v2alpha/{parent=measurementConsumers/*}/planningModels"
+    };
+    option (google.api.method_signature) = "parent";
+  }
+  // Applies the `PlanningModel` according to the input `Scenario` to a metric
+  // which is computed over the `ReportingSet`s of the `PlanningModel`.
+  rpc ApplyPlanningModel(ApplyPlanningModelRequest)
+      returns (ApplyPlanningModelResponse) {
+    option (google.api.http) = {
+      get: "/v1/{name=publishers/*/planningModels/*}:apply"
+    };
+  }
+}
+
+// Request message for `CreatePlanningModel` method.
+message CreatePlanningModelRequest {
+  // The parent resource where this `PlanningModel` will be created.
+  // Format: measurementConsumers/{measurement_consumer}
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "reporting.halo-cmm.org/PlanningModel"
+    }
+  ];
+  // The ID to use for the `PlanningModel`, which will become the final
+  // component of the `PlanningModel`'s resource name.
+  //
+  // This must conform to RFC 1034, with the additional restriction that all
+  // letters must be lower-case.
+  string planning_model_id = 2 [(google.api.field_behavior) = REQUIRED];
+  // The `PlanningModel` to create.
+  PlanningModel planning_model = 3 [(google.api.field_behavior) = REQUIRED];
+  // A unique identifier for this request. Restricted to 36 ASCII characters.
+  // A random UUID is recommended.
+  // This request is only idempotent if a `request_id` is provided.
+  string request_id = 4;
+}
+
+// Request message for `ApplyPlanningModel` method.
+message ApplyPlanningModelRequest {
+  // The name of the `PlanningModel` to retrieve.
+  // Format:
+  // measurementConsumers/{measurement_consumer}/planningModels/{planning_model}
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "reporting.halo-cmm.org/PlanningModel"
+    }
+  ];
+  // The scenario of hypothetical impression allocations over `ReportingSet`s.
+  Scenario scenario = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Response message for `ApplyPlanningModel` method.
+message ApplyPlanningModelResponse {
+  // The result of applying the `PlanningModel` according to the input
+  // `Scenario`.
+  MetricResult metric_result = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+}

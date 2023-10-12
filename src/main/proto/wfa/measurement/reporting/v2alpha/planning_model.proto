@@ -32,14 +32,27 @@ message PlanningModel {
     pattern: "measurementConsumers/{measurement_consumer}/planningModels/{planning_model}"
   };
 
+  // Resource name
   string name = 1;
 
-  // The planning model is trained to produce a reach curve of the target metric
-  // according to budget allocation.
-  Metric target_metric = 2 [(google.api.field_behavior) = REQUIRED];
+  // The reporting sets that form the bases of the model. The planning model is
+  // trained to produce reach curves over the reporting sets.
+  repeated string reporting_sets = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.resource_reference) = {
+      type: "reporting.halo-cmm.org/ReportingSet"
+    }
+  ];
 
-  PlanningModelSpec planning_model_spec = 3
-      [(google.api.field_behavior) = REQUIRED];
+  // Additional filter that is applied to all reporting sets.
+  string filter = 3 [(google.api.field_behavior) = IMMUTABLE];
+
+  // The specification that defines the planning model.
+  PlanningModelSpec planning_model_spec = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
 
   // Possible states of a `PlanningModel`.
   enum State {
@@ -53,9 +66,9 @@ message PlanningModel {
     FAILED = 3;
   }
   // Planning model state.
-  State state = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+  State state = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // The time when the planning model is successfully created.
-  google.protobuf.Timestamp create_time = 5
+  google.protobuf.Timestamp create_time = 6
       [(google.api.field_behavior) = OUTPUT_ONLY];
 }

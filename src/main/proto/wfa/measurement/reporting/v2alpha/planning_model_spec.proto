@@ -31,6 +31,18 @@ message PlanningModelSpec {
   oneof type {
     ReachPlanningModelSpec reach = 1;
   }
+
+  // The time over which to make predictions cumulatively.
+  google.type.Interval time_interval = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // Control the quality of the training points to the model.
+  MetricSpec metric_spec = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
 }
 
 message ReachPlanningModelSpec {

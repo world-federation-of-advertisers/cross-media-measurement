@@ -18,24 +18,27 @@ package wfa.measurement.reporting.v2alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
-import "wfa/measurement/reporting/v2alpha/planning_report.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
-option java_outer_classname = "PlanningReportsServiceProto";
+option java_outer_classname = "ScenarioProto";
 
-// planning_reports_service.proto
-service PlanningReports {
-  rpc CreatePlanningReport(CreatePlanningReportRequest)
-      returns (PlanningReport);
-  rpc GetPlanningReport(GetPlanningReportRequest) returns (PlanningReport);
-  rpc ListPlanningReports(ListPlanningReportsRequest)
-      returns (ListPlanningReportsResponse);
-}
+message Scenario {
+  message ImpressionAllocation {
+    // `ReportingSet`.
+    string key = 1 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.resource_reference) = {
+        type: "reporting.halo-cmm.org/ReportingSet"
+      }
+    ];
+    // The hypothetical impression ratio allocation in the range [0, 4).
+    double allocation = 2 [(google.api.field_behavior) = REQUIRED];
+  }
 
-message CreatePlanningReportRequest {
-  string parent = 1;
-  string planning_report_id = 2;
-  PlanningReport planning_report = 3;
-  string request_id = 4;
+  // Contains the hypothetical impression allocation ratio of `ReportingSet`s.
+  //
+  // Any unallocated `ReportingSet` will be assigned zero allocation.
+  repeated ImpressionAllocation impression_allocations = 1
+      [(google.api.field_behavior) = REQUIRED];
 }
