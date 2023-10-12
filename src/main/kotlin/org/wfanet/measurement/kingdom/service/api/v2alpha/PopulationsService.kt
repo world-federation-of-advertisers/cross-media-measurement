@@ -100,7 +100,6 @@ class PopulationsService(private val internalClient: PopulationsCoroutineStub) :
           failGrpc(Status.PERMISSION_DENIED) { "Cannot get Population from another DataProvider" }
         }
       }
-      is MeasurementConsumerPrincipal -> {}
       is ModelProviderPrincipal -> {}
       else -> {
         failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to get Population" }
@@ -135,7 +134,6 @@ class PopulationsService(private val internalClient: PopulationsCoroutineStub) :
           failGrpc(Status.PERMISSION_DENIED) { "Cannot list Populations from another DataProvider" }
         }
       }
-      is MeasurementConsumerPrincipal -> {}
       is ModelProviderPrincipal -> {}
       else -> {
         failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to get Populations" }
