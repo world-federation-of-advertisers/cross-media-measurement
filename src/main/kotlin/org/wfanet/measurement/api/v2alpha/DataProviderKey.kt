@@ -18,16 +18,19 @@ import org.wfanet.measurement.common.ResourceNameParser
 import org.wfanet.measurement.common.api.ResourceKey
 
 /** [DataProviderKey] of a Data Provider. */
-data class DataProviderKey(val dataProviderId: String) : ResourceKey, CertificateParentKey {
+data class DataProviderKey(
+  val dataProviderId: String,
+) : ResourceKey, CertificateParentKey, RecurringExchangeParentKey {
   override fun toName(): String {
     return parser.assembleName(mapOf(IdVariable.DATA_PROVIDER to dataProviderId))
   }
 
   companion object FACTORY : ResourceKey.Factory<DataProviderKey> {
     const val COLLECTION_NAME = "dataProviders"
+    const val PATTERN = "$COLLECTION_NAME/{data_provider}"
     val defaultValue = DataProviderKey("")
 
-    private val parser = ResourceNameParser("$COLLECTION_NAME/{data_provider}")
+    private val parser = ResourceNameParser(PATTERN)
 
     override fun fromName(resourceName: String): DataProviderKey? {
       return parser.parseIdVars(resourceName)?.let {

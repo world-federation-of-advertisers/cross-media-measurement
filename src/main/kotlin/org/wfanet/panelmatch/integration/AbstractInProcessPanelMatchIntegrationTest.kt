@@ -36,8 +36,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.rules.TestRule
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeKey
 import org.wfanet.measurement.api.v2alpha.Exchange
-import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
@@ -124,7 +124,7 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
   private lateinit var exchangeStepsClient: ExchangeStepsCoroutineStub
   private lateinit var modelProviderContext: ProviderContext
   private lateinit var dataProviderContext: ProviderContext
-  private lateinit var exchangeKey: ExchangeKey
+  private lateinit var exchangeKey: CanonicalExchangeKey
   private lateinit var recurringExchangeId: String
 
   @get:Rule
@@ -270,7 +270,10 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
     exchangeStepsClient = makeExchangeStepsServiceClient(keys.modelProviderKey.toName())
     recurringExchangeId = keys.recurringExchangeKey.recurringExchangeId
     exchangeKey =
-      ExchangeKey(recurringExchangeId = recurringExchangeId, exchangeId = EXCHANGE_DATE.toString())
+      CanonicalExchangeKey(
+        recurringExchangeId = recurringExchangeId,
+        exchangeId = EXCHANGE_DATE.toString()
+      )
     dataProviderContext =
       ProviderContext(
         keys.dataProviderKey,

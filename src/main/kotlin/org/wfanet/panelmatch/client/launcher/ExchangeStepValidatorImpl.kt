@@ -17,8 +17,8 @@ package org.wfanet.panelmatch.client.launcher
 import com.google.protobuf.InvalidProtocolBufferException
 import java.time.Clock
 import java.time.ZoneOffset
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
-import org.wfanet.measurement.api.v2alpha.ExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
@@ -35,7 +35,7 @@ class ExchangeStepValidatorImpl(
   override suspend fun validate(exchangeStep: ExchangeStep): ValidatedExchangeStep {
     val serializedExchangeWorkflow = exchangeStep.serializedExchangeWorkflow
     val recurringExchangeId =
-      requireNotNull(ExchangeStepKey.fromName(exchangeStep.name)).recurringExchangeId
+      requireNotNull(CanonicalExchangeStepKey.fromName(exchangeStep.name)).recurringExchangeId
     val existingExchangeWorkflow =
       validExchangeWorkflows.get(recurringExchangeId)
         ?: throw InvalidExchangeStepException(

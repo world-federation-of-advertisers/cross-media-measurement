@@ -172,7 +172,8 @@ class InProcessKingdom(
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
           ExchangesService(internalRecurringExchangesClient, internalExchangesClient)
             .withMetadataPrincipalIdentities(),
-          ExchangeStepsService(internalExchangeStepsClient).withMetadataPrincipalIdentities(),
+          ExchangeStepsService(internalRecurringExchangesClient, internalExchangeStepsClient)
+            .withMetadataPrincipalIdentities(),
           ExchangeStepAttemptsService(
               internalExchangeStepAttemptsClient,
               internalExchangeStepsClient

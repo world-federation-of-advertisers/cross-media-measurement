@@ -14,9 +14,9 @@
 
 package org.wfanet.panelmatch.client.launcher
 
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.panelmatch.client.launcher.InvalidExchangeStepException.FailureType.PERMANENT
 import org.wfanet.panelmatch.client.launcher.InvalidExchangeStepException.FailureType.TRANSIENT
 
@@ -42,7 +42,10 @@ class ExchangeStepLauncher(
     }
   }
 
-  private suspend fun invalidateAttempt(attemptKey: ExchangeStepAttemptKey, exception: Exception) {
+  private suspend fun invalidateAttempt(
+    attemptKey: CanonicalExchangeStepAttemptKey,
+    exception: Exception
+  ) {
     val state =
       when (exception) {
         is InvalidExchangeStepException ->
