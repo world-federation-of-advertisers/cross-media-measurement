@@ -58,4 +58,7 @@ enum ErrorCode {
 
   /** Report with the same IDs already exists. */
   REPORT_ALREADY_EXISTS = 12;
+
+  /** Report Schedule with the same IDs already exists. */
+  REPORT_SCHEDULE_ALREADY_EXISTS = 13;
 }
