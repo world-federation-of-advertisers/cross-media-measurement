@@ -29,6 +29,7 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetailsKt.debugLog
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.GetExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequest
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse
@@ -64,10 +65,18 @@ class SpannerExchangeStepsService(
   override suspend fun claimReadyExchangeStep(
     request: ClaimReadyExchangeStepRequest
   ): ClaimReadyExchangeStepResponse {
-    val externalModelProviderId = request.provider.externalModelProviderId
-    val externalDataProviderId = request.provider.externalDataProviderId
+    val (party, externalPartyId) =
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf oneof case cannot be null.
+      when (request.partyCase) {
+        ClaimReadyExchangeStepRequest.PartyCase.EXTERNAL_DATA_PROVIDER_ID ->
+          ExchangeWorkflow.Party.DATA_PROVIDER to ExternalId(request.externalDataProviderId)
+        ClaimReadyExchangeStepRequest.PartyCase.EXTERNAL_MODEL_PROVIDER_ID ->
+          ExchangeWorkflow.Party.MODEL_PROVIDER to ExternalId(request.externalModelProviderId)
+        ClaimReadyExchangeStepRequest.PartyCase.PARTY_NOT_SET ->
+          throw Status.INVALID_ARGUMENT.withDescription("party not set").asRuntimeException()
+      }
 
-    CreateExchangesAndSteps(provider = request.provider).execute(client, idGenerator)
+    CreateExchangesAndSteps(party, externalPartyId).execute(client, idGenerator)
 
     // TODO(@efoxepstein): consider whether a more structured signal for auto-fail is needed
     val debugLogEntry = debugLog {
@@ -75,11 +84,7 @@ class SpannerExchangeStepsService(
       time = clock.instant().toProtoTime()
     }
 
-    ExchangeStepAttemptReader.forExpiredAttempts(
-        externalModelProviderId = externalModelProviderId,
-        externalDataProviderId = externalDataProviderId,
-        clock
-      )
+    ExchangeStepAttemptReader.forExpiredAttempts(party, externalPartyId, clock)
       .execute(client.singleUse())
       .map { it.exchangeStepAttempt }
       .collect { attempt: ExchangeStepAttempt ->
@@ -96,8 +101,7 @@ class SpannerExchangeStepsService(
       }
 
     val result =
-      ClaimReadyExchangeStep(provider = request.provider, clock = clock)
-        .execute(client, idGenerator)
+      ClaimReadyExchangeStep(request = request, clock = clock).execute(client, idGenerator)
 
     if (result.isPresent) {
       return result.get().toClaimReadyExchangeStepResponse()

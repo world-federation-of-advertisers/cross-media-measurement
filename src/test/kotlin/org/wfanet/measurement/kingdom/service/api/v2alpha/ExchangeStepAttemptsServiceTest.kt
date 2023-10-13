@@ -36,15 +36,12 @@ import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.appendExchangeStepAttemptLogEntryRequest
 import org.wfanet.measurement.api.v2alpha.finishExchangeStepAttemptRequest
-import org.wfanet.measurement.api.v2alpha.toProvider
 import org.wfanet.measurement.api.v2alpha.withPrincipal
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.internal.common.Provider
-import org.wfanet.measurement.internal.common.provider
 import org.wfanet.measurement.internal.kingdom.AppendLogEntryRequest as InternalAppendLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt as InternalExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase as InternalExchangeStepAttempts
@@ -149,7 +146,9 @@ class ExchangeStepAttemptsServiceTest {
     val principal = DataProviderPrincipal(DataProviderKey(externalDataProviderId.apiId.value))
     internalExchangeSteps.stub {
       onBlocking { getExchangeStep(any()) }
-        .thenReturn(internalExchangeStep { provider = principal.resourceKey.toProvider() })
+        .thenReturn(
+          internalExchangeStep { this.externalDataProviderId = externalDataProviderId.value }
+        )
     }
     val request = appendExchangeStepAttemptLogEntryRequest {
       name = EXCHANGE_STEP_ATTEMPT.name
@@ -219,14 +218,7 @@ class ExchangeStepAttemptsServiceTest {
     val principal = DataProviderPrincipal(DataProviderKey(externalDataProviderId.apiId.value))
     internalExchangeSteps.stub {
       onBlocking { getExchangeStep(any()) }
-        .thenReturn(
-          internalExchangeStep {
-            provider = provider {
-              type = Provider.Type.MODEL_PROVIDER
-              externalId = externalDataProviderId.value
-            }
-          }
-        )
+        .thenReturn(internalExchangeStep { externalModelProviderId = externalDataProviderId.value })
     }
     val request = finishExchangeStepAttemptRequest {
       name = EXCHANGE_STEP_ATTEMPT.name
@@ -246,17 +238,15 @@ class ExchangeStepAttemptsServiceTest {
 
   @Test
   fun finishExchangeStepAttempt() {
-    val externalDataProviderId = 12345L
-    val dataProviderKey = DataProviderKey(externalIdToApiId(externalDataProviderId))
+    val externalDataProviderId = ExternalId(12345L)
+    val dataProviderKey = DataProviderKey(externalDataProviderId.apiId.value)
     val principal = DataProviderPrincipal(dataProviderKey)
-    val provider = provider {
-      type = Provider.Type.DATA_PROVIDER
-      externalId = externalDataProviderId
-    }
 
     internalExchangeSteps.stub {
       onBlocking { getExchangeStep(any()) }
-        .thenReturn(internalExchangeStep { this.provider = provider })
+        .thenReturn(
+          internalExchangeStep { this.externalDataProviderId = externalDataProviderId.value }
+        )
     }
 
     val request = finishExchangeStepAttemptRequest {
