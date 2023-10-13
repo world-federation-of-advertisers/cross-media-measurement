@@ -464,8 +464,8 @@ abstract class MillBase(
   }
 
   /**
-   * Fetches the cached result if available and the reach exists, otherwise compute the new result
-   * by executing [block].
+   * Execute the block, however, fetches the cached result if available after the execution,
+   * otherwise compute the new result by executing [block].
    */
   protected suspend fun executeBlock(
     token: ComputationToken,
