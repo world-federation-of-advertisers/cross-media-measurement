@@ -48,6 +48,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.Exchange
 import org.wfanet.measurement.api.v2alpha.ExchangeKey
@@ -78,8 +79,8 @@ import org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourc
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.storage.forwarded.ForwardedStorageClient
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
-import org.wfanet.panelmatch.client.loadtest.ForwardedStorage
-import org.wfanet.panelmatch.client.loadtest.forwardedStorage
+import org.wfanet.panelmatch.client.loadtest.ForwardedStorageConfig
+import org.wfanet.panelmatch.client.loadtest.forwardedStorageConfig
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetailsKt.customStorage
 import org.wfanet.panelmatch.client.storage.storageDetails
@@ -162,7 +163,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
         }
 
       exchangeKey =
-        ExchangeKey(
+        CanonicalExchangeKey(
           recurringExchangeId = panelMatchResourceKey.recurringExchangeKey.recurringExchangeId,
           exchangeId = EXCHANGE_DATE.toString()
         )
@@ -192,7 +193,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
         TestCertificateManager.CERTIFICATE.encoded.toByteString()
       )
 
-      val dpPrivateForwarderStorage = forwardedStorage {
+      val dpPrivateForwarderStorage = forwardedStorageConfig {
         target = dpPrivateStoragePod.status?.podIP + ":8443"
         certCollectionPath = "/var/run/secrets/files/edp_trusted_certs.pem"
         forwardedStorageCertHost = "localhost"
@@ -206,7 +207,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
         dataProviderPrivateStorageDetails
       )
 
-      val dpSharedForwarderStorage = forwardedStorage {
+      val dpSharedForwarderStorage = forwardedStorageConfig {
         target = sharedStoragePod.status?.podIP + ":8443"
         certCollectionPath = "/var/run/secrets/files/edp_trusted_certs.pem"
         forwardedStorageCertHost = "localhost"
@@ -248,7 +249,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
         panelMatchResourceKey.modelProviderKey.toName(),
         TestCertificateManager.CERTIFICATE.encoded.toByteString()
       )
-      val mpPrivateForwarderStorage = forwardedStorage {
+      val mpPrivateForwarderStorage = forwardedStorageConfig {
         target = mpPrivateStoragePod.status?.podIP + ":8443"
         certCollectionPath = "/var/run/secrets/files/mp_trusted_certs.pem"
         forwardedStorageCertHost = "localhost"
@@ -261,7 +262,7 @@ abstract class AbstractPanelMatchCorrectnessTest {
         panelMatchResourceKey.recurringExchangeKey.recurringExchangeId,
         modelProviderPrivateStorageDetails
       )
-      val mpSharedForwarderStorage = forwardedStorage {
+      val mpSharedForwarderStorage = forwardedStorageConfig {
         target = sharedStoragePod.status?.podIP + ":8443"
         certCollectionPath = "/var/run/secrets/files/mp_trusted_certs.pem"
         forwardedStorageCertHost = "localhost"

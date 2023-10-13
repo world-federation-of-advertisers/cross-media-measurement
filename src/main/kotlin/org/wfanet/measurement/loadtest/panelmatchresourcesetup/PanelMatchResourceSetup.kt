@@ -26,14 +26,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.Blocking
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.CanonicalRecurringExchangeKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.RecurringExchangeKey
-import org.wfanet.measurement.common.api.AkidConfigPrincipalLookup
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.config.AuthorityKeyToPrincipalMap
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMapKt
 import org.wfanet.measurement.config.authorityKeyToPrincipalMap
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
@@ -151,7 +150,7 @@ class PanelMatchResourceSetup(
         exchangeWorkflow
       )
 
-    val recurringExchangeKey = RecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))
+    val recurringExchangeKey = CanonicalRecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))
     withContext(Dispatchers.IO) { writeOutput(resources) }
     logger.info("Resource setup was successful.")
     return PanelMatchResourceKeys(
@@ -190,7 +189,7 @@ class PanelMatchResourceSetup(
         publicApiVersion = apiVersion,
         exchangeWorkflow = exchangeWorkflow
       )
-    val recurringExchangeKey = RecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))
+    val recurringExchangeKey = CanonicalRecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))
     logger.info("Successfully created Recurring Exchange: ${recurringExchangeKey.toName()}.")
 
     return WorkflowResourceKeys(dataProviderKey, modelProviderKey, recurringExchangeKey)

@@ -21,7 +21,7 @@ import org.wfanet.measurement.internal.testing.ForwardedStorageGrpcKt
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.forwarded.ForwardedStorageClient
 import org.wfanet.panelmatch.client.storage.StorageDetails
-import org.wfanet.panelmatch.client.loadtest.ForwardedStorage
+import org.wfanet.panelmatch.client.loadtest.ForwardedStorageConfig
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.storage.StorageFactory
 
@@ -39,7 +39,7 @@ class ForwardedStorageFactory(
 
   override fun build(): StorageClient {
 
-    val forwardedStorage = storageDetails.custom.details.unpack(ForwardedStorage::class.java)
+    val forwardedStorage = storageDetails.custom.details.unpack(ForwardedStorageConfig::class.java)
     return ForwardedStorageClient(
       ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(
         buildTlsChannel(
