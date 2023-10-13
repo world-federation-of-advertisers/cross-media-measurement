@@ -94,6 +94,8 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
               cmmsEventGroupId = "2236"
             }
         }
+
+      details = ReportingSetKt.details { tags.putAll(REPORTING_SET_TAGS) }
     }
 
     val createdReportingSet =
@@ -150,6 +152,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
               cmmsEventGroupId = "2236"
             }
         }
+      details = ReportingSetKt.details { tags.putAll(REPORTING_SET_TAGS) }
     }
 
     val createdReportingSet =
@@ -194,6 +197,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
               cmmsEventGroupId = "1236"
             }
         }
+      details = ReportingSetKt.details { tags.putAll(REPORTING_SET_TAGS) }
     }
 
     val reportingSet2 = reportingSet {
@@ -209,6 +213,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
               cmmsEventGroupId = "1236"
             }
         }
+      details = ReportingSetKt.details { tags.putAll(REPORTING_SET_TAGS) }
     }
 
     service.createReportingSet(
@@ -325,6 +330,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
           binaryRepresentation = 1
           weight = 6
         }
+      details = ReportingSetKt.details { tags.putAll(REPORTING_SET_TAGS) }
     }
 
     val createdReportingSet =
@@ -491,6 +497,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
               filters += "filter2"
             }
         }
+      details = ReportingSetKt.details { tags.putAll(REPORTING_SET_TAGS) }
     }
 
     val createdOuterCompositeReportingSet =
@@ -528,6 +535,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
               cmmsEventGroupId = "2236"
             }
         }
+      details = ReportingSetKt.details { tags.putAll(REPORTING_SET_TAGS) }
     }
 
     val createdReportingSet =
@@ -630,6 +638,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
             }
           weight = 6
         }
+      details = ReportingSetKt.details { tags.putAll(REPORTING_SET_TAGS) }
     }
 
     val createdReportingSet =
@@ -1026,6 +1035,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
               cmmsEventGroupId = "2236"
             }
         }
+      details = ReportingSetKt.details { tags.putAll(REPORTING_SET_TAGS) }
     }
 
     val createdReportingSet =
@@ -1160,6 +1170,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
             }
           weight = 6
         }
+      details = ReportingSetKt.details { tags.putAll(REPORTING_SET_TAGS) }
     }
 
     val createdReportingSet =
@@ -1285,6 +1296,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
               }
             weight = 6
           }
+        details = ReportingSetKt.details { tags.putAll(REPORTING_SET_TAGS) }
       }
 
       val createdReportingSet =
@@ -1349,6 +1361,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
               cmmsEventGroupId = "1236"
             }
         }
+      details = ReportingSetKt.details { tags.putAll(REPORTING_SET_TAGS) }
     }
 
     val createdPrimitiveReportingSet =
@@ -1436,6 +1449,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
                 cmmsEventGroupId = "1236"
               }
           }
+        details = ReportingSetKt.details { tags.putAll(REPORTING_SET_TAGS) }
       }
 
       val createdReportingSet =
@@ -1552,6 +1566,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
               cmmsEventGroupId = "1236"
             }
         }
+      details = ReportingSetKt.details { tags.putAll(REPORTING_SET_TAGS) }
     }
 
     val reportingSet2 = reportingSet {
@@ -1642,6 +1657,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
                     cmmsEventGroupId = "2236"
                   }
               }
+            details = ReportingSetKt.details { tags.putAll(REPORTING_SET_TAGS) }
           }
         }
       )
@@ -1668,6 +1684,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
                     cmmsEventGroupId = "2236"
                   }
               }
+            details = ReportingSetKt.details { tags.putAll(REPORTING_SET_TAGS) }
           }
         }
       )
@@ -1716,6 +1733,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
                     cmmsEventGroupId = "2236"
                   }
               }
+            details = ReportingSetKt.details { tags.putAll(REPORTING_SET_TAGS) }
           }
         }
       )
@@ -1741,6 +1759,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
                   cmmsEventGroupId = "2236"
                 }
             }
+          details = ReportingSetKt.details { tags.putAll(REPORTING_SET_TAGS) }
         }
       }
     )
@@ -1790,5 +1809,9 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  companion object {
+    private val REPORTING_SET_TAGS = mapOf("tag1" to "tag_value1", "tag2" to "tag_value2")
   }
 }

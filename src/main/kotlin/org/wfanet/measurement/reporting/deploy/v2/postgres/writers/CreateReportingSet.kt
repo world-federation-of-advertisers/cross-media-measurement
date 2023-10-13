@@ -22,6 +22,7 @@ import org.wfanet.measurement.common.db.r2dbc.BoundStatement
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.internal.reporting.v2.CreateReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet.PrimitiveReportingSetBasis
@@ -68,8 +69,17 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
     val statement =
       boundStatement(
         """
-      INSERT INTO ReportingSets (MeasurementConsumerId, ReportingSetId, ExternalReportingSetId, DisplayName, Filter)
-        VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO ReportingSets
+        (
+          MeasurementConsumerId,
+          ReportingSetId,
+          ExternalReportingSetId,
+          DisplayName,
+          Filter,
+          ReportingSetDetails,
+          ReportingSetDetailsJson
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
       """
       ) {
         bind("$1", measurementConsumerId)
@@ -77,6 +87,8 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
         bind("$3", externalReportingSetId)
         bind("$4", request.reportingSet.displayName)
         bind("$5", request.reportingSet.filter)
+        bind("$6", request.reportingSet.details)
+        bind("$7", request.reportingSet.details.toJson())
       }
 
     try {

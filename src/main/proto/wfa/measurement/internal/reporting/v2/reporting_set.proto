@@ -74,4 +74,11 @@ message ReportingSet {
     int32 binary_representation = 3;
   }
   repeated WeightedSubsetUnion weighted_subset_unions = 7;
+
+  message Details {
+    // A map of arbitrary key-value pairs to support tagging of ReportingSets
+    // for upstream use by UIs and other rich clients.
+    map<string, string> tags = 1;
+  }
+  Details details = 8;
 }
