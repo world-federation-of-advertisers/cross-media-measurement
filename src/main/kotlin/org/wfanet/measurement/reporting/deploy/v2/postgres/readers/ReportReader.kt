@@ -62,6 +62,7 @@ class ReportReader(private val readContext: ReadContext) {
     /** Map of external reporting set ID to [ReportingMetricCalculationSpecInfo]. */
     val reportingSetReportingMetricCalculationSpecInfoMap:
       MutableMap<String, ReportingMetricCalculationSpecInfo>,
+    val details: Report.Details
   )
 
   private data class ReportingMetricCalculationSpecInfo(
@@ -84,6 +85,7 @@ class ReportReader(private val readContext: ReadContext) {
       Reports.CreateReportRequestId,
       Reports.CreateTime,
       Reports.Periodic,
+      Reports.ReportDetails,
       ReportTimeIntervals.TimeIntervalStart,
       ReportTimeIntervals.TimeIntervalEndExclusive,
       MetricCalculationSpecs.MetricCalculationSpecDetails,
@@ -237,6 +239,8 @@ class ReportReader(private val readContext: ReadContext) {
       val externalReportId: String = row["ExternalReportId"]
       val createTime: Instant = row["CreateTime"]
       val periodic: Boolean = row["Periodic"]
+      val reportDetails: Report.Details =
+        row.getProtoMessage("ReportDetails", Report.Details.parser())
 
       var result: Result? = null
       if (accumulator == null) {
@@ -250,7 +254,8 @@ class ReportReader(private val readContext: ReadContext) {
             createTime = createTime.toProtoTime(),
             timeIntervals = mutableSetOf(),
             periodic = periodic,
-            reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf()
+            reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf(),
+            reportDetails
           )
       } else if (
         accumulator!!.externalReportId != externalReportId ||
@@ -267,7 +272,8 @@ class ReportReader(private val readContext: ReadContext) {
             createTime = createTime.toProtoTime(),
             timeIntervals = mutableSetOf(),
             periodic = periodic,
-            reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf()
+            reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf(),
+            reportDetails
           )
       }
 
@@ -343,6 +349,9 @@ class ReportReader(private val readContext: ReadContext) {
       cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId
       externalReportId = source.externalReportId
       createTime = source.createTime
+      if (source.details != Report.Details.getDefaultInstance()) {
+        details = source.details
+      }
 
       source.reportingSetReportingMetricCalculationSpecInfoMap.entries.forEach {
         reportingMetricEntry ->
