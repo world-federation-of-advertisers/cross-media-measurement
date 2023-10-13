@@ -36,3 +36,11 @@ AWS_IMAGES = [
         repository = _PREFIX + "/panel-exchange/aws-example-daemon",
     ),
 ]
+
+LOCAL_IMAGES = [
+    struct(
+        name = "forwarded_storage_exchange_workflow_daemon_image",
+        image = "//src/main/kotlin/org/wfanet/panelmatch/client/deploy/example/forwarded:forwarded_storage_exchange_workflow_daemon_image",
+        repository = _PREFIX + "/panel-exchange/forwarded-storage-daemon",
+    ),
+]
