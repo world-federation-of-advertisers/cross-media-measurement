@@ -463,6 +463,34 @@ abstract class MillBase(
     )
   }
 
+  /**
+   * Fetches the cached result if available and the reach exists, otherwise compute the new result
+   * by executing [block].
+   */
+  protected suspend fun executeBlock(
+    token: ComputationToken,
+    block: suspend () -> ByteString
+  ): EncryptedComputationResult {
+    val wallDurationLogger = wallDurationLogger()
+    val result = block()
+    // Reuse cached result if it exists even though the block has been rerun.
+    if (token.singleOutputBlobMetadata().path.isNotEmpty()) {
+      return EncryptedComputationResult(
+        checkNotNull(dataClients.readSingleOutputBlob(token)),
+        token
+      )
+    }
+    wallDurationLogger.logStageDurationMetric(
+      token,
+      JNI_WALL_CLOCK_DURATION,
+      jniWallClockDurationHistogram
+    )
+    return EncryptedComputationResult(
+      flowOf(result),
+      dataClients.writeSingleOutputBlob(token, result)
+    )
+  }
+
   /** Reads all input blobs and combines all the bytes together. */
   protected suspend fun readAndCombineAllInputBlobs(
     token: ComputationToken,

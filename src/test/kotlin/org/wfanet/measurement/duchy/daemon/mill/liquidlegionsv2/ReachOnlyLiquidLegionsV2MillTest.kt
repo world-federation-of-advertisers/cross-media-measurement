@@ -1832,16 +1832,10 @@ class ReachOnlyLiquidLegionsV2MillTest {
           localComputationId = LOCAL_ID
           attempt = 1
           computationStage = COMPLETE.toProtocolStage()
-          version = 3 // claimTask + computationDetails + transitionStage
+          version = 2 // claimTask + transitionStage
           computationDetails = computationDetails {
             kingdomComputation = AGGREGATOR_COMPUTATION_DETAILS.kingdomComputation
-            reachOnlyLiquidLegionsV2 =
-              AGGREGATOR_COMPUTATION_DETAILS.reachOnlyLiquidLegionsV2.copy {
-                reachEstimate =
-                  ReachOnlyLiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.reachEstimate {
-                    reach = testReach
-                  }
-              }
+            reachOnlyLiquidLegionsV2 = AGGREGATOR_COMPUTATION_DETAILS.reachOnlyLiquidLegionsV2
             endingState = CompletedReason.SUCCEEDED
           }
           requisitions += REQUISITIONS
@@ -1904,22 +1898,17 @@ class ReachOnlyLiquidLegionsV2MillTest {
           localComputationId = LOCAL_ID
           attempt = 1
           computationStage = COMPLETE.toProtocolStage()
-          version = 4 // claimTask + writeOutputBlob + ComputationDetails + transitionStage
+          version = 3 // claimTask + writeOutputBlob + transitionStage
           computationDetails =
             computationDetailsWithVidSamplingWidth.copy {
               reachOnlyLiquidLegionsV2 =
-                computationDetailsWithVidSamplingWidth.reachOnlyLiquidLegionsV2.copy {
-                  reachEstimate =
-                    ReachOnlyLiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.reachEstimate {
-                      reach = testReach
-                    }
-                }
+                computationDetailsWithVidSamplingWidth.reachOnlyLiquidLegionsV2
               endingState = CompletedReason.SUCCEEDED
             }
           requisitions.addAll(REQUISITIONS)
         }
       )
-    assertThat(computationStore.get(blobKey)?.readToString()).isNotEmpty()
+    assertThat(computationStore.get(blobKey)?.readToString()).isEmpty()
 
     assertThat(systemComputationResult.name).isEqualTo("computations/$GLOBAL_ID")
     // The signature is non-deterministic, so we only verity the encryption is not empty.

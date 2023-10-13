@@ -28,7 +28,6 @@ import org.wfanet.anysketch.crypto.combineElGamalPublicKeysRequest
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
-import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.consent.client.duchy.signElgamalPublicKey
 import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_LIB_CPU_DURATION
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
@@ -52,7 +51,6 @@ import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.R
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.NON_AGGREGATOR
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.UNKNOWN
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.UNRECOGNIZED
-import org.wfanet.measurement.internal.duchy.copy
 import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlyExecutionPhaseAtAggregatorResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlyExecutionPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlySetupPhaseRequest
@@ -64,7 +62,6 @@ import org.wfanet.measurement.internal.duchy.protocol.completeReachOnlyExecution
 import org.wfanet.measurement.internal.duchy.protocol.completeReachOnlyExecutionPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeReachOnlyInitializationPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeReachOnlySetupPhaseRequest
-import org.wfanet.measurement.internal.duchy.protocol.copy
 import org.wfanet.measurement.internal.duchy.protocol.globalReachDpNoiseBaseline
 import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsSketchParameters
 import org.wfanet.measurement.internal.duchy.protocol.reachNoiseDifferentialPrivacyParams
@@ -482,7 +479,7 @@ class ReachOnlyLiquidLegionsV2Mill(
       "Invalid input blob size. Input blob ${inputBlob.toStringUtf8()} has size " +
         "${inputBlob.size()} which is less than ($BYTES_PER_CIPHERTEXT)."
     }
-    val (bytes, tempToken) =
+    val (_, nextToken) =
       existingOutputOr(token) {
         val request = completeReachOnlyExecutionPhaseAtAggregatorRequest {
           combinedRegisterVector = inputBlob.substring(0, inputBlob.size() - BYTES_PER_CIPHERTEXT)
@@ -525,29 +522,10 @@ class ReachOnlyLiquidLegionsV2Mill(
           cryptoResult.elapsedCpuTimeMillis,
           executionPhaseCryptoCpuTimeDurationHistogram
         )
-        cryptoResult.toByteString()
+        sendResultToKingdom(token, ReachResult(cryptoResult.reach))
+        ByteString.EMPTY
       }
 
-    val reach = CompleteReachOnlyExecutionPhaseAtAggregatorResponse.parseFrom(bytes.flatten()).reach
-    val nextToken =
-      if (rollv2Details.hasReachEstimate()) {
-        // Do nothing if the token has already contained the ReachEstimate
-        tempToken
-      } else {
-        // Update the newly calculated reach to the ComputationDetails.
-        val updateComputationDetailsRequest = updateComputationDetailsRequest {
-          this.token = tempToken
-          details =
-            tempToken.computationDetails.copy {
-              reachOnlyLiquidLegionsV2 =
-                reachOnlyLiquidLegionsV2.copy {
-                  reachEstimate = reachEstimate.copy { this.reach = reach }
-                }
-            }
-        }
-        updateComputationDetails(updateComputationDetailsRequest)
-      }
-    sendResultToKingdom(token, ReachResult(reach))
     return completeComputation(nextToken, CompletedReason.SUCCEEDED)
   }
 
