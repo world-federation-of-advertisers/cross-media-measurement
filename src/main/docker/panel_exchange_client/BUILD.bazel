@@ -5,16 +5,17 @@ load(
 )
 load("@io_bazel_rules_docker//contrib:push-all.bzl", "docker_push")
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
-load("//src/main/docker/panel_exchange_client:images.bzl", "AWS_IMAGES", "GCLOUD_IMAGES")
+load("//src/main/docker/panel_exchange_client:images.bzl", "AWS_IMAGES", "GCLOUD_IMAGES", "LOCAL_IMAGES")
 
 package(
     default_testonly = True,  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
     default_visibility = [
         "//src/test/kotlin/org/wfanet/measurement/integration/k8s:__pkg__",
+        "//src/test/kotlin/org/wfanet/panelmatch/integration/k8s:__pkg__",
     ],
 )
 
-ALL_IMAGES = GCLOUD_IMAGES + AWS_IMAGES
+ALL_IMAGES = GCLOUD_IMAGES + AWS_IMAGES + LOCAL_IMAGES
 
 # These rules push Docker images to the container registry.
 # 'bazel build' builds the image, 'bazel run' will actually push it.

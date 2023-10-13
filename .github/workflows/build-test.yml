@@ -101,9 +101,22 @@ jobs:
           //src/test/kotlin/org/wfanet/measurement/integration/k8s:EmptyClusterCorrectnessTest
           --test_output=streamed
 
+      - name: Delete Kubernetes Resources
+        continue-on-error: true 
+        run: |
+          kubectl delete all --namespace=default --all
+          kubectl delete networkpolicies --all-namespaces --all
+
+      - name: Run panelmatch correctness test
+        id: run-panelmatch-correctness-test
+        run: >
+          bazelisk test
+          //src/test/kotlin/org/wfanet/panelmatch/integration/k8s:DoubleBlindWorkflowTest
+          --test_output=streamed
+
       - name: Export cluster logs
         id: export-cluster-logs
-        if: failure() && steps.run-correctness-test.outcome == 'failure'
+        if: failure() && (steps.run-correctness-test.outcome == 'failure' || steps.run-panelmatch-correctness-test.outcome == 'failure')
         continue-on-error: true
         run: |
           mkdir -p "$CLUSTER_LOGS_PATH"
@@ -135,4 +148,4 @@ jobs:
       - name: Upload Bazel testlogs
         continue-on-error: true
         uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@v2
-        if: failure() && (steps.run-tests.outcome == 'failure' || steps.run-correctness-test.outcome == 'failure')
+        if: failure() && (steps.run-tests.outcome == 'failure' || steps.run-correctness-test.outcome == 'failure' || steps.run-panelmatch-correctness-test.outcome == 'failure')

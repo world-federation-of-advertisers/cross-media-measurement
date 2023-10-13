@@ -191,7 +191,7 @@ class InProcessKingdom(
   val systemApiChannel: Channel
     get() = systemApiServer.channel
 
-  /** Provides a PanelMatchResourceSetup instance with the Kingdom's internal API. */
+  /** [PanelMatchResourceSetup] instance with the Kingdom's internal API. */
   val panelMatchResourceSetup: PanelMatchResourceSetup
     get() = PanelMatchResourceSetup(internalApiChannel)
 

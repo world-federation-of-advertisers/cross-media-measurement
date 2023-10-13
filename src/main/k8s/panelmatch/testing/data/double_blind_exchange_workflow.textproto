@@ -1,0 +1,97 @@
+# proto-file: wfa/measurement/api/v2alpha/exchange_workflow.proto
+# proto-message: ExchangeWorkflow
+
+# MP generates private commutative deterministic key.
+steps {
+  step_id: "generate-commutative-deterministic-key"
+  party: MODEL_PROVIDER
+  generate_commutative_deterministic_key_step {}
+  output_labels { key: "symmetric-key" value: "mp-commutative-deterministic-key" }
+}
+# MP provides unencrypted join keys
+steps {
+  step_id: "input-plaintext-join-keys"
+  party: MODEL_PROVIDER
+  input_step {}
+  output_labels { key: "input" value: "mp-plaintext-join-keys" }
+}
+# MP wraps their hashed join keys in a layer of deterministic commutative
+# encryption.
+steps {
+  step_id: "single-blind"
+  party: MODEL_PROVIDER
+  commutative_deterministic_encrypt_step {}
+  input_labels { key: "unencrypted-data" value: "mp-plaintext-join-keys" }
+  input_labels { key: "encryption-key" value: "mp-commutative-deterministic-key" }
+  output_labels { key: "encrypted-data" value: "mp-single-blinded-join-keys" }
+}
+steps {
+  step_id: "export-single-blinded-join-keys"
+  party: MODEL_PROVIDER
+  copy_to_shared_storage_step {
+    copy_options {
+      label_type: BLOB
+    }
+  }
+  input_labels { key: "single-blinded-join-keys" value: "mp-single-blinded-join-keys" }
+  output_labels { key: "single-blinded-join-keys" value: "single-blinded-join-keys" }
+}
+steps {
+  step_id: "import-single-blinded-join-keys"
+  party: DATA_PROVIDER
+  copy_from_shared_storage_step {
+    copy_options {
+      label_type: BLOB
+    }
+  }
+  input_labels { key: "single-blinded-join-keys" value: "single-blinded-join-keys" }
+  output_labels { key: "single-blinded-join-keys" value: "edp-single-blinded-join-keys" }
+}
+# EDP provides previously generated private key as input.
+steps {
+  step_id: "input-commutative-deterministic-key"
+  party: DATA_PROVIDER
+  input_step {}
+  output_labels { key: "input" value: "edp-commutative-deterministic-key" }
+}
+# EDP wraps the single-encrypted join keys in another layer of
+# commutative deterministic encryption.
+steps {
+  step_id: "double-blind"
+  party: DATA_PROVIDER
+  commutative_deterministic_reencrypt_step {}
+  input_labels { key: "encrypted-data" value: "edp-single-blinded-join-keys" }
+  input_labels { key: "encryption-key" value: "edp-commutative-deterministic-key" }
+  output_labels { key: "reencrypted-data" value: "edp-double-blinded-join-keys" }
+}
+steps {
+  step_id: "export-double-blinded-join-keys"
+  party: DATA_PROVIDER
+  copy_to_shared_storage_step {
+    copy_options {
+      label_type: BLOB
+    }
+  }
+  input_labels { key: "double-blinded-join-keys" value: "edp-double-blinded-join-keys" }
+  output_labels { key: "double-blinded-join-keys" value: "double-blinded-join-keys" }
+}
+steps {
+  step_id: "import-double-blinded-join-keys"
+  party: MODEL_PROVIDER
+  copy_from_shared_storage_step {
+    copy_options {
+      label_type: BLOB
+    }
+  }
+  input_labels { key: "double-blinded-join-keys" value: "double-blinded-join-keys" }
+  output_labels { key: "double-blinded-join-keys" value: "mp-double-blinded-join-keys" }
+}
+# MP removes their layer of commutative, deterministic encryption.
+steps {
+  step_id: "remove-blinding"
+  party: MODEL_PROVIDER
+  commutative_deterministic_decrypt_step {}
+  input_labels { key: "encryption-key" value: "mp-commutative-deterministic-key" }
+  input_labels { key: "encrypted-data" value: "mp-double-blinded-join-keys" }
+  output_labels { key: "decrypted-data" value: "mp-decrypted-join-keys" }
+}

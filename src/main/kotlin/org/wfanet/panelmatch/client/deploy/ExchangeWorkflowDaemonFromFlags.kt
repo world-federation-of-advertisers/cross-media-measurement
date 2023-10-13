@@ -35,6 +35,7 @@ import org.wfanet.panelmatch.client.launcher.GrpcApiClient
 import org.wfanet.panelmatch.common.Timeout
 import org.wfanet.panelmatch.common.asTimeout
 import org.wfanet.panelmatch.common.certificates.CertificateAuthority
+import org.wfanet.panelmatch.common.certificates.CertificateManager
 import org.wfanet.panelmatch.common.certificates.V2AlphaCertificateManager
 import org.wfanet.panelmatch.common.loggerFor
 import org.wfanet.panelmatch.common.secrets.MutableSecretMap
@@ -42,14 +43,10 @@ import picocli.CommandLine.Mixin
 
 /** Executes ExchangeWorkflows. */
 abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
-  @Mixin private lateinit var flags: ExchangeWorkflowFlags
+  @Mixin protected lateinit var flags: ExchangeWorkflowFlags
 
   override val clock: Clock = Clock.systemUTC()
 
-  /**
-   * Maps Exchange paths (i.e. recurring_exchanges/{recurring_exchange_id}/exchanges/{date}) to
-   * serialized SigningKeys protos.
-   */
   protected abstract val privateKeys: MutableSecretMap
 
   /** Apache Beam options. */
@@ -73,7 +70,7 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
       .withVerboseLogging(flags.debugVerboseGrpcClientLogging)
   }
 
-  override val certificateManager: V2AlphaCertificateManager by lazy {
+  override val certificateManager: CertificateManager by lazy {
     val certificateService = CertificatesCoroutineStub(channel)
 
     V2AlphaCertificateManager(
@@ -124,6 +121,6 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
   private fun createThrottler(): Throttler = MinimumIntervalThrottler(clock, flags.pollingInterval)
 
   companion object {
-    private val logger by loggerFor()
+    @JvmStatic protected val logger by loggerFor()
   }
 }
