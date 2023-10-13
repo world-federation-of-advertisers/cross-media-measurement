@@ -18,11 +18,13 @@ package org.wfanet.measurement.reporting.deploy.v2.postgres.readers
 
 import java.time.Instant
 import kotlinx.coroutines.flow.singleOrNull
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesRequest
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedule
 import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIteration
 import org.wfanet.measurement.internal.reporting.v2.reportSchedule
@@ -122,6 +124,36 @@ class ReportScheduleReader(private val readContext: ReadContext) {
     return readContext.executeQuery(statement).consume(::translate).singleOrNull()
   }
 
+  suspend fun readReportSchedules(
+    request: ListReportSchedulesRequest
+  ): List<Result> {
+    val sql =
+      StringBuilder(
+        baseSql +
+          """
+           WHERE CmmsMeasurementConsumerId = $1
+          AND ExternalReportScheduleId > $2
+          ORDER BY CmmsMeasurementConsumerId ASC, ExternalReportScheduleId ASC
+          LIMIT $3
+          """
+            .trimIndent()
+      )
+
+    val statement =
+      boundStatement(sql.toString()) {
+        bind("$1", request.filter.cmmsMeasurementConsumerId)
+        bind("$2", request.filter.externalReportScheduleIdAfter)
+
+        if (request.limit > 0) {
+          bind("$3", request.limit)
+        } else {
+          bind("$3", LIST_DEFAULT_LIMIT)
+        }
+      }
+
+    return readContext.executeQuery(statement).consume(::translate).toList()
+  }
+
   private fun buildReportSchedule(row: ResultRow): ReportSchedule {
     val cmmsMeasurementConsumerId: String = row["CmmsMeasurementConsumerId"]
     val externalReportScheduleId: String = row["ExternalReportScheduleId"]
@@ -153,5 +185,9 @@ class ReportScheduleReader(private val readContext: ReadContext) {
         }
       }
     }
+  }
+
+  companion object {
+    private const val LIST_DEFAULT_LIMIT = 50
   }
 }
