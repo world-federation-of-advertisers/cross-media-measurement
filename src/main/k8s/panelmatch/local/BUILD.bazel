@@ -1,5 +1,4 @@
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
-load("//build:variables.bzl", "EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG")
 load("@wfa_rules_cue//cue:defs.bzl", "cue_library")
 load("//src/main/k8s:macros.bzl", "cue_dump")
 load("//build/k8s:defs.bzl", "kustomization_dir")

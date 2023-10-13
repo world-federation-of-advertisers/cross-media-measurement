@@ -1,12 +1,5 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 load("@rules_java//java:defs.bzl", "java_test")
-load("@wfa_common_jvm//build:defs.bzl", "expand_template")
-load(
-    "//build:variables.bzl",
-    "GCLOUD_SETTINGS",
-    "SIMULATOR_K8S_SETTINGS",
-    "TEST_K8S_SETTINGS",
-)
 
 package(default_testonly = True)
 
