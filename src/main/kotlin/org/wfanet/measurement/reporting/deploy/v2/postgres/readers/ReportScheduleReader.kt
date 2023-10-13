@@ -124,9 +124,7 @@ class ReportScheduleReader(private val readContext: ReadContext) {
     return readContext.executeQuery(statement).consume(::translate).singleOrNull()
   }
 
-  suspend fun readReportSchedules(
-    request: ListReportSchedulesRequest
-  ): List<Result> {
+  suspend fun readReportSchedules(request: ListReportSchedulesRequest): List<Result> {
     val sql =
       StringBuilder(
         baseSql +

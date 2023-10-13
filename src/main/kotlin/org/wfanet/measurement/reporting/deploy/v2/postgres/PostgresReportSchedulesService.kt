@@ -63,21 +63,31 @@ class PostgresReportSchedulesService(
   }
 
   override suspend fun getReportSchedule(request: GetReportScheduleRequest): ReportSchedule {
-    grpcRequire(request.cmmsMeasurementConsumerId.isNotEmpty()) { "cmms_measurement_consumer_id is not set" }
+    grpcRequire(request.cmmsMeasurementConsumerId.isNotEmpty()) {
+      "cmms_measurement_consumer_id is not set"
+    }
 
-    grpcRequire(request.externalReportScheduleId.isNotEmpty()) { "external_report_schedule_id is not set." }
+    grpcRequire(request.externalReportScheduleId.isNotEmpty()) {
+      "external_report_schedule_id is not set."
+    }
 
     val readContext = client.readTransaction()
     return try {
-      ReportScheduleReader(readContext).readReportScheduleByExternalId(request.cmmsMeasurementConsumerId, request.externalReportScheduleId)
+      ReportScheduleReader(readContext)
+        .readReportScheduleByExternalId(
+          request.cmmsMeasurementConsumerId,
+          request.externalReportScheduleId
+        )
         ?.reportSchedule
         ?: throw Status.NOT_FOUND.withDescription("Report Schedule not found.").asRuntimeException()
     } finally {
-     readContext.close()
+      readContext.close()
     }
   }
 
-  override suspend fun listReportSchedules(request: ListReportSchedulesRequest): ListReportSchedulesResponse {
+  override suspend fun listReportSchedules(
+    request: ListReportSchedulesRequest
+  ): ListReportSchedulesResponse {
     grpcRequire(request.filter.cmmsMeasurementConsumerId.isNotEmpty()) {
       "Filter is missing cmms_measurement_consumer_id"
     }
@@ -85,7 +95,8 @@ class PostgresReportSchedulesService(
     val readContext = client.readTransaction()
     return try {
       listReportSchedulesResponse {
-        reportSchedules += ReportScheduleReader(readContext).readReportSchedules(request).map { it.reportSchedule }
+        reportSchedules +=
+          ReportScheduleReader(readContext).readReportSchedules(request).map { it.reportSchedule }
       }
     } finally {
       readContext.close()
