@@ -48,12 +48,12 @@ import org.wfanet.measurement.internal.kingdom.recurringExchange
 import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.toInternal
+import org.wfanet.measurement.loadtest.common.ConsoleOutput
+import org.wfanet.measurement.loadtest.common.FileOutput
 import org.wfanet.measurement.loadtest.panelmatch.resourcesetup.Resources
 import org.wfanet.measurement.loadtest.panelmatch.resourcesetup.ResourcesKt
 import org.wfanet.measurement.loadtest.panelmatch.resourcesetup.ResourcesKt.resource
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
-import org.wfanet.measurement.loadtest.common.FileOutput
-import org.wfanet.measurement.loadtest.common.ConsoleOutput
 
 private val API_VERSION = Version.V2_ALPHA
 
@@ -150,7 +150,8 @@ class PanelMatchResourceSetup(
         exchangeWorkflow
       )
 
-    val recurringExchangeKey = CanonicalRecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))
+    val recurringExchangeKey =
+      CanonicalRecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))
     withContext(Dispatchers.IO) { writeOutput(resources) }
     logger.info("Resource setup was successful.")
     return PanelMatchResourceKeys(
@@ -189,15 +190,14 @@ class PanelMatchResourceSetup(
         publicApiVersion = apiVersion,
         exchangeWorkflow = exchangeWorkflow
       )
-    val recurringExchangeKey = CanonicalRecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))
+    val recurringExchangeKey =
+      CanonicalRecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))
     logger.info("Successfully created Recurring Exchange: ${recurringExchangeKey.toName()}.")
 
     return WorkflowResourceKeys(dataProviderKey, modelProviderKey, recurringExchangeKey)
   }
 
-  suspend fun createDataProvider(
-    dataProviderContent: EntityContent
-  ): Long {
+  suspend fun createDataProvider(dataProviderContent: EntityContent): Long {
     val encryptionPublicKey = dataProviderContent.encryptionPublicKey
     val signedPublicKey =
       signEncryptionPublicKey(encryptionPublicKey, dataProviderContent.signingKey)

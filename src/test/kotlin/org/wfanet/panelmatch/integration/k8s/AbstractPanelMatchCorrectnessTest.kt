@@ -79,7 +79,6 @@ import org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourc
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.storage.forwarded.ForwardedStorageClient
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
-import org.wfanet.panelmatch.client.loadtest.ForwardedStorageConfig
 import org.wfanet.panelmatch.client.loadtest.forwardedStorageConfig
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetailsKt.customStorage
@@ -119,7 +118,8 @@ abstract class AbstractPanelMatchCorrectnessTest {
 
   private val DEFAULT_RPC_DEADLINE = Duration.ofSeconds(30)
 
-  // TODO(@marcopremier): Remove from Abstract base class and add it to en "EmptyCluster" version of the test
+  // TODO(@marcopremier): Remove from Abstract base class and add it to en "EmptyCluster" version of
+  // the test
   protected suspend fun runResourceSetup(
     dataProviderContent: EntityContent,
     modelProviderContent: EntityContent,

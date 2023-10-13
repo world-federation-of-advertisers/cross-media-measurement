@@ -73,6 +73,7 @@ class DoubleBlindWorkflowTest : AbstractPanelMatchCorrectnessTest() {
 
     val dataProviderContent = createEntityContent("edp1")
     val modelProviderContent = createEntityContent("mp1")
+
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
         override fun evaluate() {
