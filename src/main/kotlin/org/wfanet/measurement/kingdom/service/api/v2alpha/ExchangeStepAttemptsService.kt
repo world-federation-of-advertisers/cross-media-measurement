@@ -21,14 +21,18 @@ import java.io.IOException
 import java.lang.NumberFormatException
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
+import org.wfanet.measurement.api.v2alpha.AccountPrincipal
 import org.wfanet.measurement.api.v2alpha.AppendExchangeStepAttemptLogEntryRequest
+import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.DuchyPrincipal
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.FinishExchangeStepAttemptRequest
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
+import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
-import org.wfanet.measurement.api.v2alpha.toProvider
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.ExternalId
@@ -177,7 +181,6 @@ class ExchangeStepAttemptsService(
    */
   private suspend fun checkAuth(externalIds: ExternalIds, permissionDeniedStatus: () -> Status) {
     val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext
-    val authenticatedProvider = authenticatedPrincipal.resourceKey.toProvider()
     val internalExchangeStep =
       try {
         internalExchangeSteps.getExchangeStep(
@@ -195,8 +198,22 @@ class ExchangeStepAttemptsService(
           .withCause(e)
           .asRuntimeException()
       }
-    if (internalExchangeStep.provider != authenticatedProvider) {
-      throw permissionDeniedStatus().asRuntimeException()
+    when (authenticatedPrincipal) {
+      is DataProviderPrincipal -> {
+        val externalId = ApiId(authenticatedPrincipal.resourceKey.dataProviderId).externalId
+        if (ExternalId(internalExchangeStep.externalDataProviderId) != externalId) {
+          throw permissionDeniedStatus().asRuntimeException()
+        }
+      }
+      is ModelProviderPrincipal -> {
+        val externalId = ApiId(authenticatedPrincipal.resourceKey.modelProviderId).externalId
+        if (ExternalId(internalExchangeStep.externalModelProviderId) != externalId) {
+          throw permissionDeniedStatus().asRuntimeException()
+        }
+      }
+      is AccountPrincipal,
+      is DuchyPrincipal,
+      is MeasurementConsumerPrincipal -> throw permissionDeniedStatus().asRuntimeException()
     }
   }
 }

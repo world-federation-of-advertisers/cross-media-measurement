@@ -197,7 +197,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val claimReadyExchangeStepResponse =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = PROVIDER }
+        claimReadyExchangeStepRequest { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
       )
     assertThat(claimReadyExchangeStepResponse.exchangeStep.stepIndex).isEqualTo(1L)
     val response =
@@ -213,7 +213,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val claimReadyExchangeStepResponse2 =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = PROVIDER }
+        claimReadyExchangeStepRequest { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
       )
     assertThat(claimReadyExchangeStepResponse2.exchangeStep.stepIndex).isEqualTo(2L)
     val response2 =
@@ -228,7 +228,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val claimReadyExchangeStepResponse3 =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = PROVIDER }
+        claimReadyExchangeStepRequest { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
       )
     assertThat(claimReadyExchangeStepResponse3.exchangeStep.stepIndex).isEqualTo(3L)
     val response3 =
@@ -273,7 +273,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val claimReadyExchangeStepResponse =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = PROVIDER }
+        claimReadyExchangeStepRequest { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
       )
     assertThat(claimReadyExchangeStepResponse.exchangeStep.stepIndex).isEqualTo(1L)
     val response =
@@ -289,7 +289,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val claimReadyExchangeStepResponse2 =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = PROVIDER }
+        claimReadyExchangeStepRequest { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
       )
     assertThat(claimReadyExchangeStepResponse2)
       .isEqualTo(org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse {})
@@ -342,7 +342,7 @@ abstract class ExchangeStepAttemptsServiceTest {
     createRecurringExchange()
 
     exchangeStepsService.claimReadyExchangeStep(
-      claimReadyExchangeStepRequest { provider = PROVIDER }
+      claimReadyExchangeStepRequest { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
     )
 
     val response =
@@ -375,7 +375,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val claimReadyExchangeStepResponse =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = PROVIDER }
+        claimReadyExchangeStepRequest { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
       )
 
     val response =
@@ -400,7 +400,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val claimReadyExchangeStepResponse =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = PROVIDER }
+        claimReadyExchangeStepRequest { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
       )
 
     val response =
@@ -425,7 +425,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val claimReadyExchangeStepResponse =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = PROVIDER }
+        claimReadyExchangeStepRequest { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
       )
 
     val response =
@@ -450,7 +450,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val claimReadyExchangeStepResponse =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = PROVIDER }
+        claimReadyExchangeStepRequest { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
       )
     assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(1L)
 
@@ -464,7 +464,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val claimReadyExchangeStepResponse2 =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = PROVIDER }
+        claimReadyExchangeStepRequest { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
       )
     assertThat(claimReadyExchangeStepResponse.exchangeStep)
       .ignoringFieldScope(EXCHANGE_STEP_RESPONSE_IGNORED_FIELDS)
