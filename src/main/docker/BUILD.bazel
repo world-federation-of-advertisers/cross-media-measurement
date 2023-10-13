@@ -11,6 +11,7 @@ package(
     default_testonly = True,  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
     default_visibility = [
         "//src/test/kotlin/org/wfanet/measurement/integration/k8s:__pkg__",
+        "//src/test/kotlin/org/wfanet/panelmatch/integration/k8s:__pkg__",
     ],
 )
 

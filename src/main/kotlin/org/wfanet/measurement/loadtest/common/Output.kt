@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.loadtest.resourcesetup
+package org.wfanet.measurement.loadtest.common
 
 import java.io.Closeable
 import java.io.File
@@ -24,16 +24,16 @@ import java.io.File
  *
  * This presents the same interface for either outputting to a [File] or to the console (STDOUT).
  */
-internal sealed interface Output {
+sealed interface Output {
   fun resolve(relative: String): Output
 
   fun writer(): Writable
 }
 
-internal interface Writable : Appendable, Closeable
+interface Writable : Appendable, Closeable
 
 /** [Output] where the destination is a [file]. */
-internal class FileOutput(private val file: File) : Output {
+class FileOutput(private val file: File) : Output {
   override fun resolve(relative: String): Output {
     return FileOutput(file.resolve(relative))
   }
@@ -45,7 +45,7 @@ internal class FileOutput(private val file: File) : Output {
 }
 
 /** [Output] where the destination is the console (STDOUT). */
-internal object ConsoleOutput : Output {
+object ConsoleOutput : Output {
   override fun resolve(relative: String): Output {
     println("${relative}:")
     return this
