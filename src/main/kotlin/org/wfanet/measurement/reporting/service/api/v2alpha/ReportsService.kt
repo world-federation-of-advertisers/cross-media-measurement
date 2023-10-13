@@ -347,6 +347,8 @@ class ReportsService(
         ReportKey(internalReport.cmmsMeasurementConsumerId, internalReport.externalReportId)
           .toName()
 
+      tags.putAll(internalReport.details.tagsMap)
+
       reportingMetricEntries +=
         internalReport.reportingMetricEntriesMap.map { internalReportingMetricEntry ->
           internalReportingMetricEntry.toReportingMetricEntry(
@@ -525,6 +527,7 @@ class ReportsService(
           Report.TimeCase.TIME_NOT_SET ->
             failGrpc(Status.INVALID_ARGUMENT) { "The time in Report is not specified." }
         }
+        details = InternalReportKt.details { tags.putAll(request.report.tagsMap) }
       }
       requestId = request.requestId
       externalReportId = request.reportId
