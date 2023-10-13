@@ -288,10 +288,11 @@ class ReportsService(
         .flatMap { (_, reportingMetricCalculationSpec) ->
           reportingMetricCalculationSpec.metricCalculationSpecsList.flatMap { metricCalculationSpec
             ->
-            metricCalculationSpec.reportingMetricsList
+            metricCalculationSpec.reportingMetricsList.map {
+              it.toCreateMetricRequest(principal.resourceKey, metricCalculationSpec.details.filter)
+            }
           }
         }
-        .map { it.toCreateMetricRequest(principal.resourceKey) }
         .asFlow()
 
     val callRpc: suspend (List<CreateMetricRequest>) -> BatchCreateMetricsResponse = { items ->
@@ -403,7 +404,8 @@ class ReportsService(
                 externalIdToMetricMap[reportingMetric.externalMetricId]
                   ?: error("Got a metric not associated with the report.")
               ReportKt.MetricCalculationResultKt.resultAttribute {
-                groupingPredicates += metric.filtersList
+                groupingPredicates += reportingMetric.details.groupingPredicatesList
+                filter = metricCalculationSpec.details.filter
                 metricSpec = metric.metricSpec
                 timeInterval = metric.timeInterval
                 metricResult = metric.result
@@ -617,7 +619,7 @@ class ReportsService(
       reportingMetrics +=
         timeIntervals.flatMap { timeInterval ->
           metricCalculationSpec.metricSpecsList.flatMap { metricSpec ->
-            groupingsCartesianProduct.map { predicateGroup ->
+            groupingsCartesianProduct.map { groupingPredicates ->
               InternalReportKt.reportingMetric {
                 details =
                   InternalReportKt.ReportingMetricKt.details {
@@ -634,8 +636,7 @@ class ReportsService(
                         failGrpc(Status.UNKNOWN) { "Failed to read the metric spec." }
                       }
                     this.timeInterval = timeInterval
-                    filters += predicateGroup
-
+                    this.groupingPredicates += groupingPredicates
                     internalMetricSpecs += this.metricSpec
                   }
               }
@@ -653,6 +654,9 @@ class ReportsService(
                 this.predicates += grouping.predicatesList
               }
             }
+          if (metricCalculationSpec.filter.isNotBlank()) {
+            filter = metricCalculationSpec.filter
+          }
           cumulative = metricCalculationSpec.cumulative
         }
     }

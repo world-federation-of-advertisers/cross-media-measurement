@@ -696,6 +696,7 @@ fun InternalReport.MetricCalculationSpec.toMetricCalculationSpec(): Report.Metri
       source.details.groupingsList.map { grouping ->
         ReportKt.grouping { predicates += grouping.predicatesList }
       }
+    filter = source.details.filter
     cumulative = source.details.cumulative
   }
 }
@@ -734,7 +735,8 @@ fun PeriodicTimeInterval.toInternal(): InternalPeriodicTimeInterval {
 
 /** Converts an [InternalReport.ReportingMetric] to a public [CreateMetricRequest]. */
 fun InternalReport.ReportingMetric.toCreateMetricRequest(
-  measurementConsumerKey: MeasurementConsumerKey
+  measurementConsumerKey: MeasurementConsumerKey,
+  filter: String,
 ): CreateMetricRequest {
   val source = this
   return createMetricRequest {
@@ -748,7 +750,7 @@ fun InternalReport.ReportingMetric.toCreateMetricRequest(
           .toName()
       timeInterval = source.details.timeInterval
       metricSpec = source.details.metricSpec.toMetricSpec()
-      filters += source.details.filtersList
+      filters += (source.details.groupingPredicatesList + filter).filter { it.isNotBlank() }
     }
     requestId = source.createMetricRequestId
     metricId = "a" + source.createMetricRequestId
