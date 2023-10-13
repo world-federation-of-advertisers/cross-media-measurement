@@ -15,9 +15,9 @@
 package k8s
 
 _exchangeDaemonConfig: {
-	secretName:         string @tag("secret_name")
-	partyName:          string @tag("party_name")
-	partyType:          "MODEL_PROVIDER"
+	secretName: string @tag("secret_name")
+	partyName:  string @tag("party_name")
+	partyType:  "MODEL_PROVIDER"
 	clientTls: {
 		certFile: "/var/run/secrets/files/mp1_tls.pem"
 		keyFile:  "/var/run/secrets/files/mp1_tls.key"
@@ -39,9 +39,9 @@ deployments: {
 		_jvmFlags:   "-Xms512m"
 		_secretName: _exchangeDaemonConfig.secretName
 		_podSpec: _container: {
-			image:          _localStorageImageConfig.image
+			image:           _localStorageImageConfig.image
 			imagePullPolicy: "Always"
-			args:           _exchangeDaemonConfig.args + [
+			args:            _exchangeDaemonConfig.args + [
 						"--cert-collection-file=/var/run/secrets/files/mp_trusted_certs.pem",
 						"--storage-signing-algorithm=EC",
 						"--task-timeout=10m",
@@ -51,9 +51,9 @@ deployments: {
 						"--channel-shutdown-timeout=3s",
 						"--polling-interval=3s",
 						"--preprocessing-max-byte-size=1000000",
-                        "--preprocessing-file-count=1000",
-                        "--forwarded-storage-service-target=" + (#Target & {name: "mp-private-storage-server"}).target,
-                        "--forwarded-storage-cert-host=localhost",
+						"--preprocessing-file-count=1000",
+						"--forwarded-storage-service-target=" + (#Target & {name: "mp-private-storage-server"}).target,
+						"--forwarded-storage-cert-host=localhost",
 			]
 		}
 	}

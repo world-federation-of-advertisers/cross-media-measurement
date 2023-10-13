@@ -51,9 +51,9 @@ deployments: {
 						"--channel-shutdown-timeout=3s",
 						"--polling-interval=3s",
 						"--preprocessing-max-byte-size=1000000",
-                        "--preprocessing-file-count=1000",
-                        "--forwarded-storage-service-target=" + (#Target & {name: "dp-private-storage-server"}).target,
-                        "--forwarded-storage-cert-host=localhost",
+						"--preprocessing-file-count=1000",
+						"--forwarded-storage-service-target=" + (#Target & {name: "dp-private-storage-server"}).target,
+						"--forwarded-storage-cert-host=localhost",
 			]
 		}
 	}

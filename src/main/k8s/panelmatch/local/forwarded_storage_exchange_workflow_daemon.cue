@@ -18,7 +18,7 @@ package k8s
 
 #NetworkPolicy: {
 	_egresses: {
-	    // Need to send external traffic.
+		// Need to send external traffic.
 		any: {}
 	}
 }
@@ -38,9 +38,9 @@ package k8s
 }
 
 #ExchangeDaemonConfig: {
-	secretName:         string
-	partyType:          "DATA_PROVIDER" | "MODEL_PROVIDER"
-	partyName:          string
+	secretName: string
+	partyType:  "DATA_PROVIDER" | "MODEL_PROVIDER"
+	partyName:  string
 
 	clientTls: {
 		certFile: string

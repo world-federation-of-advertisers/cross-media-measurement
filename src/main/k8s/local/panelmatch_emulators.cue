@@ -52,8 +52,8 @@ services: {
 		}
 	}
 	"dp-private-storage-server": #GrpcService
-    "mp-private-storage-server": #GrpcService
-    "shared-storage-server": #GrpcService
+	"mp-private-storage-server": #GrpcService
+	"shared-storage-server":     #GrpcService
 }
 
 pods: [Name=string]: #Pod & {
@@ -90,29 +90,29 @@ deployments: {
 		}
 	}
 	"dp-private-storage-server": #ServerDeployment & {
-        _container: {
-            image: _localStorageImageConfig.image
-            args: [
-                "--debug-verbose-grpc-server-logging=false",
-                "--port=8443",
-                "--require-client-auth=false",
-                "--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem",
-                "--tls-key-file=/var/run/secrets/files/kingdom_tls.key",
-                "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
-            ]
-        }
-    }
-    "shared-storage-server": #ServerDeployment & {
-        _container: {
-            image: _localStorageImageConfig.image
-            args: [
-                "--debug-verbose-grpc-server-logging=false",
-                "--port=8443",
-                "--require-client-auth=false",
-                "--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem",
-                "--tls-key-file=/var/run/secrets/files/kingdom_tls.key",
-                "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
-            ]
-        }
-    }
+		_container: {
+			image: _localStorageImageConfig.image
+			args: [
+				"--debug-verbose-grpc-server-logging=false",
+				"--port=8443",
+				"--require-client-auth=false",
+				"--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem",
+				"--tls-key-file=/var/run/secrets/files/kingdom_tls.key",
+				"--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
+			]
+		}
+	}
+	"shared-storage-server": #ServerDeployment & {
+		_container: {
+			image: _localStorageImageConfig.image
+			args: [
+				"--debug-verbose-grpc-server-logging=false",
+				"--port=8443",
+				"--require-client-auth=false",
+				"--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem",
+				"--tls-key-file=/var/run/secrets/files/kingdom_tls.key",
+				"--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
+			]
+		}
+	}
 }
