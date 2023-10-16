@@ -26,7 +26,8 @@ import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata
 import org.wfanet.measurement.reporting.service.internal.testing.v2.ReportScheduleIterationsServiceTest
 
 @RunWith(JUnit4::class)
-class PostgresReportScheduleIterationsServiceTest : ReportScheduleIterationsServiceTest<PostgresReportScheduleIterationsService>() {
+class PostgresReportScheduleIterationsServiceTest :
+  ReportScheduleIterationsServiceTest<PostgresReportScheduleIterationsService>() {
   override fun newServices(
     idGenerator: IdGenerator,
   ): Services<PostgresReportScheduleIterationsService> {

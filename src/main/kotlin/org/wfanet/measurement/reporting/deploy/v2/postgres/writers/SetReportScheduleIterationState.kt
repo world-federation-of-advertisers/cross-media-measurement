@@ -39,11 +39,12 @@ class SetReportScheduleIterationState(private val request: SetReportScheduleIter
   PostgresWriter<ReportScheduleIteration>() {
   override suspend fun TransactionScope.runTransaction(): ReportScheduleIteration {
     val result =
-      (ReportScheduleIterationReader(this.transactionContext).readReportScheduleIterationByExternalId(
-        cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId,
-        externalReportScheduleId = request.externalReportScheduleId,
-        externalReportScheduleIterationId = request.externalReportScheduleIterationId
-      )
+      (ReportScheduleIterationReader(this.transactionContext)
+        .readReportScheduleIterationByExternalId(
+          cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId,
+          externalReportScheduleId = request.externalReportScheduleId,
+          externalReportScheduleIterationId = request.externalReportScheduleIterationId
+        )
         ?: throw ReportScheduleIterationNotFoundException(
           cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId,
           externalReportScheduleId = request.externalReportScheduleId,

@@ -36,9 +36,9 @@ import org.wfanet.measurement.internal.reporting.v2.ListReportScheduleIterations
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedule
 import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIteration
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpcKt.ReportScheduleIterationsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.getReportScheduleIterationRequest
 import org.wfanet.measurement.internal.reporting.v2.listReportScheduleIterationsRequest
@@ -79,42 +79,36 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
   fun `createReportScheduleIteration return report schedule iteration`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-    val reportSchedule = createReportSchedule(
-      CMMS_MEASUREMENT_CONSUMER_ID,
-      reportingSet,
-      reportSchedulesService
-    )
-    val reportScheduleIteration =
-      reportScheduleIteration {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        externalReportScheduleId = reportSchedule.externalReportScheduleId
-        createReportRequestId = "123"
-        reportEventTime = timestamp {
-          seconds = 100
-        }
-      }
-    val createdReportScheduleIteration = service.createReportScheduleIteration(reportScheduleIteration)
+    val reportSchedule =
+      createReportSchedule(CMMS_MEASUREMENT_CONSUMER_ID, reportingSet, reportSchedulesService)
+    val reportScheduleIteration = reportScheduleIteration {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalReportScheduleId = reportSchedule.externalReportScheduleId
+      createReportRequestId = "123"
+      reportEventTime = timestamp { seconds = 100 }
+    }
+    val createdReportScheduleIteration =
+      service.createReportScheduleIteration(reportScheduleIteration)
 
     assertThat(createdReportScheduleIteration.externalReportScheduleIterationId).isNotEmpty()
     assertThat(createdReportScheduleIteration.hasCreateTime()).isTrue()
     assertThat(createdReportScheduleIteration.hasUpdateTime()).isTrue()
-    assertThat(createdReportScheduleIteration.createTime).isEqualTo(createdReportScheduleIteration.updateTime)
-    assertThat(createdReportScheduleIteration.state).isEqualTo(ReportScheduleIteration.State.WAITING_FOR_DATA_AVAILABILITY)
+    assertThat(createdReportScheduleIteration.createTime)
+      .isEqualTo(createdReportScheduleIteration.updateTime)
+    assertThat(createdReportScheduleIteration.state)
+      .isEqualTo(ReportScheduleIteration.State.WAITING_FOR_DATA_AVAILABILITY)
     assertThat(createdReportScheduleIteration.numAttempts).isEqualTo(0)
   }
 
   @Test
   fun `createReportScheduleIteration throws FAILED_PRECONDITION when schedule not found`() =
     runBlocking {
-      val reportScheduleIteration =
-        reportScheduleIteration {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          externalReportScheduleId = "123"
-          createReportRequestId = "123"
-          reportEventTime = timestamp {
-            seconds = 100
-          }
-        }
+      val reportScheduleIteration = reportScheduleIteration {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        externalReportScheduleId = "123"
+        createReportRequestId = "123"
+        reportEventTime = timestamp { seconds = 100 }
+      }
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
@@ -129,21 +123,20 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
   fun `getReportScheduleIteration return report schedule iteration`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-    val reportSchedule = createReportSchedule(
-      CMMS_MEASUREMENT_CONSUMER_ID,
-      reportingSet,
-      reportSchedulesService
-    )
+    val reportSchedule =
+      createReportSchedule(CMMS_MEASUREMENT_CONSUMER_ID, reportingSet, reportSchedulesService)
     val reportScheduleIteration = createReportScheduleIterationForRequest(reportSchedule)
 
-    val createdReportScheduleIteration = service.createReportScheduleIteration(reportScheduleIteration)
+    val createdReportScheduleIteration =
+      service.createReportScheduleIteration(reportScheduleIteration)
 
     val retrievedReportScheduleIteration =
       service.getReportScheduleIteration(
         getReportScheduleIterationRequest {
-          cmmsMeasurementConsumerId =CMMS_MEASUREMENT_CONSUMER_ID
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
           externalReportScheduleId = createdReportScheduleIteration.externalReportScheduleId
-          externalReportScheduleIterationId = createdReportScheduleIteration.externalReportScheduleIterationId
+          externalReportScheduleIterationId =
+            createdReportScheduleIteration.externalReportScheduleIterationId
         }
       )
 
@@ -151,8 +144,10 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
       .isEqualTo(createdReportScheduleIteration.externalReportScheduleIterationId)
     assertThat(retrievedReportScheduleIteration.createTime.seconds).isGreaterThan(0)
     assertThat(retrievedReportScheduleIteration.updateTime.seconds).isGreaterThan(0)
-    assertThat(retrievedReportScheduleIteration.createTime).isEqualTo(retrievedReportScheduleIteration.updateTime)
-    assertThat(retrievedReportScheduleIteration.state).isEqualTo(ReportScheduleIteration.State.WAITING_FOR_DATA_AVAILABILITY)
+    assertThat(retrievedReportScheduleIteration.createTime)
+      .isEqualTo(retrievedReportScheduleIteration.updateTime)
+    assertThat(retrievedReportScheduleIteration.state)
+      .isEqualTo(ReportScheduleIteration.State.WAITING_FOR_DATA_AVAILABILITY)
     assertThat(retrievedReportScheduleIteration)
       .ignoringFields(
         ReportScheduleIteration.CREATE_TIME_FIELD_NUMBER,
@@ -167,17 +162,14 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
   fun `getReportScheduleIteration throws NOT_FOUND when iteration not found`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-    val reportSchedule = createReportSchedule(
-      CMMS_MEASUREMENT_CONSUMER_ID,
-      reportingSet,
-      reportSchedulesService
-    )
+    val reportSchedule =
+      createReportSchedule(CMMS_MEASUREMENT_CONSUMER_ID, reportingSet, reportSchedulesService)
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
         service.getReportScheduleIteration(
           getReportScheduleIterationRequest {
-            cmmsMeasurementConsumerId =CMMS_MEASUREMENT_CONSUMER_ID
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             externalReportScheduleId = reportSchedule.externalReportScheduleId
             externalReportScheduleIterationId = "1234"
           }
@@ -205,20 +197,21 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
   }
 
   @Test
-  fun `getReportScheduleIteration throws INVALID_ARGUMENT when schedule id missing`() = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.getReportScheduleIteration(
-          getReportScheduleIterationRequest {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            externalReportScheduleIterationId = "external-report-schedule-iteration-id"
-          }
-        )
-      }
+  fun `getReportScheduleIteration throws INVALID_ARGUMENT when schedule id missing`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.getReportScheduleIteration(
+            getReportScheduleIterationRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              externalReportScheduleIterationId = "external-report-schedule-iteration-id"
+            }
+          )
+        }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("external_report_schedule_id")
-  }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.message).contains("external_report_schedule_id")
+    }
 
   @Test
   fun `getReportScheduleIteration throws INVALID_ARGUMENT when iteration id missing`() =
@@ -242,24 +235,20 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
     runBlocking {
       createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
       val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-      val reportSchedule = createReportSchedule(
-        CMMS_MEASUREMENT_CONSUMER_ID,
-        reportingSet,
-        reportSchedulesService
-      )
+      val reportSchedule =
+        createReportSchedule(CMMS_MEASUREMENT_CONSUMER_ID, reportingSet, reportSchedulesService)
 
-      val reportScheduleIteration = createReportScheduleIterationForRequest(reportSchedule).copy {
-        reportEventTime = timestamp {
-          seconds = 200
+      val reportScheduleIteration =
+        createReportScheduleIterationForRequest(reportSchedule).copy {
+          reportEventTime = timestamp { seconds = 200 }
         }
-      }
-      val createdReportScheduleIteration = service.createReportScheduleIteration(reportScheduleIteration)
+      val createdReportScheduleIteration =
+        service.createReportScheduleIteration(reportScheduleIteration)
 
-      val reportScheduleIteration2 = createReportScheduleIterationForRequest(reportSchedule).copy {
-        reportEventTime = timestamp {
-          seconds = 100
+      val reportScheduleIteration2 =
+        createReportScheduleIterationForRequest(reportSchedule).copy {
+          reportEventTime = timestamp { seconds = 100 }
         }
-      }
       service.createReportScheduleIteration(reportScheduleIteration2)
 
       val retrievedReportScheduleIterations =
@@ -276,8 +265,13 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
           .reportScheduleIterationsList
 
       assertThat(retrievedReportScheduleIterations).hasSize(2)
-      assertThat(Timestamps.compare(retrievedReportScheduleIterations[0].reportEventTime,
-        retrievedReportScheduleIterations[1].reportEventTime)).isGreaterThan(0)
+      assertThat(
+          Timestamps.compare(
+            retrievedReportScheduleIterations[0].reportEventTime,
+            retrievedReportScheduleIterations[1].reportEventTime
+          )
+        )
+        .isGreaterThan(0)
       assertThat(retrievedReportScheduleIterations[0].reportEventTime)
         .isEqualTo(createdReportScheduleIteration.reportEventTime)
     }
@@ -286,24 +280,20 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
   fun `listReportScheduleIterations lists 1 iteration when limit is specified`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-    val reportSchedule = createReportSchedule(
-      CMMS_MEASUREMENT_CONSUMER_ID,
-      reportingSet,
-      reportSchedulesService
-    )
+    val reportSchedule =
+      createReportSchedule(CMMS_MEASUREMENT_CONSUMER_ID, reportingSet, reportSchedulesService)
 
-    val reportScheduleIteration = createReportScheduleIterationForRequest(reportSchedule).copy {
-      reportEventTime = timestamp {
-        seconds = 200
+    val reportScheduleIteration =
+      createReportScheduleIterationForRequest(reportSchedule).copy {
+        reportEventTime = timestamp { seconds = 200 }
       }
-    }
-    val createdReportScheduleIteration = service.createReportScheduleIteration(reportScheduleIteration)
+    val createdReportScheduleIteration =
+      service.createReportScheduleIteration(reportScheduleIteration)
 
-    val reportScheduleIteration2 = createReportScheduleIterationForRequest(reportSchedule).copy {
-      reportEventTime = timestamp {
-        seconds = 100
+    val reportScheduleIteration2 =
+      createReportScheduleIterationForRequest(reportSchedule).copy {
+        reportEventTime = timestamp { seconds = 100 }
       }
-    }
     service.createReportScheduleIteration(reportScheduleIteration2)
 
     val retrievedReportScheduleIterations =
@@ -329,25 +319,22 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
   fun `listReportScheduleIteration lists 1 iteration when after id is specified`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-    val reportSchedule = createReportSchedule(
-      CMMS_MEASUREMENT_CONSUMER_ID,
-      reportingSet,
-      reportSchedulesService
-    )
+    val reportSchedule =
+      createReportSchedule(CMMS_MEASUREMENT_CONSUMER_ID, reportingSet, reportSchedulesService)
 
-    val reportScheduleIteration = createReportScheduleIterationForRequest(reportSchedule).copy {
-      reportEventTime = timestamp {
-        seconds = 200
+    val reportScheduleIteration =
+      createReportScheduleIterationForRequest(reportSchedule).copy {
+        reportEventTime = timestamp { seconds = 200 }
       }
-    }
-    val createdReportScheduleIteration = service.createReportScheduleIteration(reportScheduleIteration)
+    val createdReportScheduleIteration =
+      service.createReportScheduleIteration(reportScheduleIteration)
 
-    val reportScheduleIteration2 = createReportScheduleIterationForRequest(reportSchedule).copy {
-      reportEventTime = timestamp {
-        seconds = 100
+    val reportScheduleIteration2 =
+      createReportScheduleIterationForRequest(reportSchedule).copy {
+        reportEventTime = timestamp { seconds = 100 }
       }
-    }
-    val createdReportScheduleIteration2 = service.createReportScheduleIteration(reportScheduleIteration2)
+    val createdReportScheduleIteration2 =
+      service.createReportScheduleIteration(reportScheduleIteration2)
 
     val retrievedReportScheduleIterations =
       service
@@ -369,65 +356,78 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
   }
 
   @Test
-  fun `listReportScheduleIterations throws INVALID_ARGUMENT when cmms mc id missing`() = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.listReportScheduleIterations(listReportScheduleIterationsRequest {})
-      }
+  fun `listReportScheduleIterations throws INVALID_ARGUMENT when cmms mc id missing`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.listReportScheduleIterations(listReportScheduleIterationsRequest {})
+        }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("cmms_measurement_consumer_id")
-  }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.message).contains("cmms_measurement_consumer_id")
+    }
 
   @Test
-  fun `setReportScheduleIterationState sets state to RETRYING_REPORT_CREATION`() =
-    runBlocking {
-      createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-      val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-      val reportSchedule = createReportSchedule(
-        CMMS_MEASUREMENT_CONSUMER_ID,
-        reportingSet,
-        reportSchedulesService
-      )
-      val reportScheduleIteration = createReportScheduleIterationForRequest(reportSchedule)
-      val createdReportScheduleIteration = service.createReportScheduleIteration(reportScheduleIteration)
+  fun `setReportScheduleIterationState sets state to RETRYING_REPORT_CREATION`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val reportSchedule =
+      createReportSchedule(CMMS_MEASUREMENT_CONSUMER_ID, reportingSet, reportSchedulesService)
+    val reportScheduleIteration = createReportScheduleIterationForRequest(reportSchedule)
+    val createdReportScheduleIteration =
+      service.createReportScheduleIteration(reportScheduleIteration)
 
-      val updatedReportScheduleIteration = service.setReportScheduleIterationState(
+    val updatedReportScheduleIteration =
+      service.setReportScheduleIterationState(
         setReportScheduleIterationStateRequest {
           cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
           externalReportScheduleId = reportSchedule.externalReportScheduleId
-          externalReportScheduleIterationId = createdReportScheduleIteration.externalReportScheduleIterationId
+          externalReportScheduleIterationId =
+            createdReportScheduleIteration.externalReportScheduleIterationId
           state = ReportScheduleIteration.State.RETRYING_REPORT_CREATION
         }
       )
 
-      assertThat(createdReportScheduleIteration.numAttempts).isEqualTo(0)
-      assertThat(updatedReportScheduleIteration.numAttempts).isEqualTo(1)
-      assertThat(updatedReportScheduleIteration.state).isEqualTo(ReportScheduleIteration.State.RETRYING_REPORT_CREATION)
-      assertThat(Timestamps.compare(updatedReportScheduleIteration.updateTime, updatedReportScheduleIteration.createTime)).isGreaterThan(0)
+    assertThat(createdReportScheduleIteration.numAttempts).isEqualTo(0)
+    assertThat(updatedReportScheduleIteration.numAttempts).isEqualTo(1)
+    assertThat(updatedReportScheduleIteration.state)
+      .isEqualTo(ReportScheduleIteration.State.RETRYING_REPORT_CREATION)
+    assertThat(
+        Timestamps.compare(
+          updatedReportScheduleIteration.updateTime,
+          updatedReportScheduleIteration.createTime
+        )
+      )
+      .isGreaterThan(0)
 
-      val retrievedReportScheduleIteration = service.getReportScheduleIteration(
+    val retrievedReportScheduleIteration =
+      service.getReportScheduleIteration(
         getReportScheduleIterationRequest {
           cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
           externalReportScheduleId = reportSchedule.externalReportScheduleId
-          externalReportScheduleIterationId = createdReportScheduleIteration.externalReportScheduleIterationId
+          externalReportScheduleIterationId =
+            createdReportScheduleIteration.externalReportScheduleIterationId
         }
       )
 
-      assertThat(retrievedReportScheduleIteration.numAttempts).isEqualTo(1)
-      assertThat(retrievedReportScheduleIteration.state).isEqualTo(ReportScheduleIteration.State.RETRYING_REPORT_CREATION)
-      assertThat(Timestamps.compare(retrievedReportScheduleIteration.updateTime, retrievedReportScheduleIteration.createTime)).isGreaterThan(0)
-    }
+    assertThat(retrievedReportScheduleIteration.numAttempts).isEqualTo(1)
+    assertThat(retrievedReportScheduleIteration.state)
+      .isEqualTo(ReportScheduleIteration.State.RETRYING_REPORT_CREATION)
+    assertThat(
+        Timestamps.compare(
+          retrievedReportScheduleIteration.updateTime,
+          retrievedReportScheduleIteration.createTime
+        )
+      )
+      .isGreaterThan(0)
+  }
 
   @Test
   fun `setReportScheduleIterationState throws NOT_FOUND when iteration not found`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-    val reportSchedule = createReportSchedule(
-      CMMS_MEASUREMENT_CONSUMER_ID,
-      reportingSet,
-      reportSchedulesService
-    )
+    val reportSchedule =
+      createReportSchedule(CMMS_MEASUREMENT_CONSUMER_ID, reportingSet, reportSchedulesService)
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -449,18 +449,17 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
     runBlocking {
       createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
       val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-      val reportSchedule = createReportSchedule(
-        CMMS_MEASUREMENT_CONSUMER_ID,
-        reportingSet,
-        reportSchedulesService
-      )
+      val reportSchedule =
+        createReportSchedule(CMMS_MEASUREMENT_CONSUMER_ID, reportingSet, reportSchedulesService)
       val reportScheduleIteration = createReportScheduleIterationForRequest(reportSchedule)
-      val createdReportScheduleIteration = service.createReportScheduleIteration(reportScheduleIteration)
+      val createdReportScheduleIteration =
+        service.createReportScheduleIteration(reportScheduleIteration)
 
       val setRequest = setReportScheduleIterationStateRequest {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         externalReportScheduleId = reportSchedule.externalReportScheduleId
-        externalReportScheduleIterationId = createdReportScheduleIteration.externalReportScheduleIterationId
+        externalReportScheduleIterationId =
+          createdReportScheduleIteration.externalReportScheduleIterationId
         state = ReportScheduleIteration.State.REPORT_CREATED
       }
       service.setReportScheduleIterationState(setRequest)
@@ -535,9 +534,7 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         externalReportScheduleId = reportSchedule.externalReportScheduleId
         createReportRequestId = "123"
-        reportEventTime = timestamp {
-          seconds = 100
-        }
+        reportEventTime = timestamp { seconds = 100 }
       }
     }
   }

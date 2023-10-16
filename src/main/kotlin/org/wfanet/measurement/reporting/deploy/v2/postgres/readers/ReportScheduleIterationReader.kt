@@ -19,10 +19,7 @@ package org.wfanet.measurement.reporting.deploy.v2.postgres.readers
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
-import java.time.Year
 import java.time.ZoneOffset
-import java.time.temporal.ChronoField
-import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.flow.singleOrNull
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
@@ -101,7 +98,9 @@ class ReportScheduleIterationReader(private val readContext: ReadContext) {
     return readContext.executeQuery(statement).consume(::translate).singleOrNull()
   }
 
-  suspend fun readReportScheduleIterations(request: ListReportScheduleIterationsRequest): List<Result> {
+  suspend fun readReportScheduleIterations(
+    request: ListReportScheduleIterationsRequest
+  ): List<Result> {
     val sql =
       StringBuilder(
         baseSql +
@@ -155,6 +154,7 @@ class ReportScheduleIterationReader(private val readContext: ReadContext) {
 
   companion object {
     private const val LIST_DEFAULT_LIMIT = 50
-    private val FAR_FUTURE_YEAR = OffsetDateTime.of(LocalDateTime.now().withYear(5000), ZoneOffset.UTC)
+    private val FAR_FUTURE_YEAR =
+      OffsetDateTime.of(LocalDateTime.now().withYear(5000), ZoneOffset.UTC)
   }
 }

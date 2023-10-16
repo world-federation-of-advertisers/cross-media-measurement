@@ -79,71 +79,71 @@ suspend fun createReportSchedule(
   val reportSchedule = reportSchedule {
     this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
     state = ReportSchedule.State.ACTIVE
-    details = ReportScheduleKt.details {
-      displayName = "display"
-      description = "description"
-      reportTemplate = report {
-        reportingMetricEntries[reportingSet.externalReportingSetId] =
-          ReportKt.reportingMetricCalculationSpec {
-            metricCalculationSpecs +=
-              ReportKt.metricCalculationSpec {
-                details =
-                  ReportKt.MetricCalculationSpecKt.details {
-                    this.displayName = "displayName"
-                    metricSpecs += metricSpec {
-                      reach =
-                        MetricSpecKt.reachParams {
-                          privacyParams =
-                            MetricSpecKt.differentialPrivacyParams {
-                              epsilon = 1.0
-                              delta = 2.0
-                            }
+    details =
+      ReportScheduleKt.details {
+        displayName = "display"
+        description = "description"
+        reportTemplate = report {
+          reportingMetricEntries[reportingSet.externalReportingSetId] =
+            ReportKt.reportingMetricCalculationSpec {
+              metricCalculationSpecs +=
+                ReportKt.metricCalculationSpec {
+                  details =
+                    ReportKt.MetricCalculationSpecKt.details {
+                      this.displayName = "displayName"
+                      metricSpecs += metricSpec {
+                        reach =
+                          MetricSpecKt.reachParams {
+                            privacyParams =
+                              MetricSpecKt.differentialPrivacyParams {
+                                epsilon = 1.0
+                                delta = 2.0
+                              }
+                          }
+                        vidSamplingInterval =
+                          MetricSpecKt.vidSamplingInterval {
+                            start = 0.1f
+                            width = 0.5f
+                          }
+                      }
+                      groupings +=
+                        ReportKt.MetricCalculationSpecKt.grouping {
+                          predicates += "gender.value == MALE"
                         }
-                      vidSamplingInterval =
-                        MetricSpecKt.vidSamplingInterval {
-                          start = 0.1f
-                          width = 0.5f
-                        }
+                      cumulative = false
                     }
-                    groupings += ReportKt.MetricCalculationSpecKt.grouping {
-                      predicates += "gender.value == MALE"
-                    }
-                    cumulative = false
-                  }
+                }
+            }
+        }
+        eventStart = dateTime {
+          year = 2023
+          month = 10
+          day = 1
+          hours = 6
+          timeZone = timeZone { id = "America/New_York" }
+        }
+        eventEnd = date {
+          year = 2024
+          month = 12
+          day = 1
+        }
+        frequency = ReportScheduleKt.frequency { daily = ReportScheduleKt.FrequencyKt.daily {} }
+        reportWindow =
+          ReportScheduleKt.reportWindow {
+            trailingWindow =
+              ReportScheduleKt.ReportWindowKt.trailingWindow {
+                count = 1
+                increment = ReportSchedule.ReportWindow.TrailingWindow.Increment.DAY
               }
           }
       }
-      eventStart = dateTime {
-        year = 2023
-        month = 10
-        day = 1
-        hours = 6
-        timeZone = timeZone {
-          id = "America/New_York"
-        }
-      }
-      eventEnd = date {
-        year = 2024
-        month = 12
-        day = 1
-      }
-      frequency = ReportScheduleKt.frequency {
-        daily = ReportScheduleKt.FrequencyKt.daily { }
-      }
-      reportWindow = ReportScheduleKt.reportWindow {
-        trailingWindow = ReportScheduleKt.ReportWindowKt.trailingWindow {
-          count = 1
-          increment = ReportSchedule.ReportWindow.TrailingWindow.Increment.DAY
-        }
-      }
-    }
-    nextReportCreationTime = timestamp {
-      seconds = 200
-    }
+    nextReportCreationTime = timestamp { seconds = 200 }
   }
 
-  return reportSchedulesService.createReportSchedule(createReportScheduleRequest {
-    this.reportSchedule = reportSchedule
-    this.externalReportScheduleId = externalReportScheduleId
-  })
+  return reportSchedulesService.createReportSchedule(
+    createReportScheduleRequest {
+      this.reportSchedule = reportSchedule
+      this.externalReportScheduleId = externalReportScheduleId
+    }
+  )
 }

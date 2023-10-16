@@ -38,15 +38,22 @@ class PostgresReportScheduleIterationsService(
   private val idGenerator: IdGenerator,
   private val client: DatabaseClient,
 ) : ReportScheduleIterationsCoroutineImplBase() {
-  override suspend fun createReportScheduleIteration(request: ReportScheduleIteration): ReportScheduleIteration {
+  override suspend fun createReportScheduleIteration(
+    request: ReportScheduleIteration
+  ): ReportScheduleIteration {
     return try {
       CreateReportScheduleIteration(request).execute(client, idGenerator)
     } catch (e: ReportScheduleNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Report Schedule not found.")
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
+        "Report Schedule not found."
+      )
     }
   }
 
-  override suspend fun getReportScheduleIteration(request: GetReportScheduleIterationRequest): ReportScheduleIteration {
+  override suspend fun getReportScheduleIteration(
+    request: GetReportScheduleIterationRequest
+  ): ReportScheduleIteration {
     grpcRequire(request.cmmsMeasurementConsumerId.isNotEmpty()) {
       "cmms_measurement_consumer_id is not set"
     }
@@ -68,13 +75,16 @@ class PostgresReportScheduleIterationsService(
           externalReportScheduleIterationId = request.externalReportScheduleIterationId
         )
         ?.reportScheduleIteration
-        ?: throw Status.NOT_FOUND.withDescription("Report Schedule Iteration not found.").asRuntimeException()
+        ?: throw Status.NOT_FOUND.withDescription("Report Schedule Iteration not found.")
+          .asRuntimeException()
     } finally {
       readContext.close()
     }
   }
 
-  override suspend fun listReportScheduleIterations(request: ListReportScheduleIterationsRequest): ListReportScheduleIterationsResponse {
+  override suspend fun listReportScheduleIterations(
+    request: ListReportScheduleIterationsRequest
+  ): ListReportScheduleIterationsResponse {
     grpcRequire(request.filter.cmmsMeasurementConsumerId.isNotEmpty()) {
       "Filter is missing cmms_measurement_consumer_id"
     }
@@ -83,14 +93,18 @@ class PostgresReportScheduleIterationsService(
     return try {
       listReportScheduleIterationsResponse {
         reportScheduleIterations +=
-          ReportScheduleIterationReader(readContext).readReportScheduleIterations(request).map { it.reportScheduleIteration }
+          ReportScheduleIterationReader(readContext).readReportScheduleIterations(request).map {
+            it.reportScheduleIteration
+          }
       }
     } finally {
       readContext.close()
     }
   }
 
-  override suspend fun setReportScheduleIterationState(request: SetReportScheduleIterationStateRequest): ReportScheduleIteration {
+  override suspend fun setReportScheduleIterationState(
+    request: SetReportScheduleIterationStateRequest
+  ): ReportScheduleIteration {
     grpcRequire(request.cmmsMeasurementConsumerId.isNotEmpty()) {
       "cmms_measurement_consumer_id is not set"
     }
@@ -106,9 +120,15 @@ class PostgresReportScheduleIterationsService(
     return try {
       SetReportScheduleIterationState(request).execute(client, idGenerator)
     } catch (e: ReportScheduleIterationNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Report Schedule Iteration not found.")
+      throw e.asStatusRuntimeException(
+        Status.Code.NOT_FOUND,
+        "Report Schedule Iteration not found."
+      )
     } catch (e: ReportScheduleIterationStateInvalidException) {
-      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Report Schedule Iteration is already in the REPORT_CREATED state")
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
+        "Report Schedule Iteration is already in the REPORT_CREATED state"
+      )
     }
   }
 }
