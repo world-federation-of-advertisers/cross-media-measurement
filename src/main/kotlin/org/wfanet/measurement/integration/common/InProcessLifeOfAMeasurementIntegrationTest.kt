@@ -136,7 +136,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
   fun `create a reach-only measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create a reach and frequency measurement and verify its result.
-      mcSimulator.executeReachOnly("1234")
+      mcSimulator.testReachOnly("1234")
     }
 
   @Test

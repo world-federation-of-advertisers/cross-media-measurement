@@ -61,3 +61,19 @@ spanner_emulator_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
     ],
 )
+
+spanner_emulator_test(
+    name = "GCloudSpannerInProcessMeasurementAccuracyTest",
+    size = "enormous",
+    srcs = ["GCloudSpannerInProcessMeasurementAccuracyTest.kt"],
+    tags = [
+        "cpu:2",
+        "manual",
+    ],
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudSpannerInProcessMeasurementAccuracyTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_measurement_accuracy_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
+    ],
+)

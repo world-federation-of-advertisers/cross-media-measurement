@@ -125,13 +125,13 @@ class MeasurementConsumerSimulator(
   /** Cache of resource name to [Certificate]. */
   private val certificateCache = mutableMapOf<String, Certificate>()
 
-  private data class RequisitionInfo(
+  data class RequisitionInfo(
     val dataProviderEntry: DataProviderEntry,
     val requisitionSpec: RequisitionSpec,
     val eventGroups: List<EventGroup>,
   )
 
-  private data class MeasurementInfo(
+  data class MeasurementInfo(
     val measurement: Measurement,
     val measurementSpec: MeasurementSpec,
     val requisitions: List<RequisitionInfo>,
@@ -159,6 +159,12 @@ class MeasurementConsumerSimulator(
         }
       }
     }
+
+  data class ExecutionResult(
+    val actualResult: Result,
+    val expectedResult: Result,
+    val measurementInfo: MeasurementInfo,
+  )
 
   /** A sequence of operations done in the simulator involving a reach and frequency measurement. */
   suspend fun executeReachAndFrequency(runId: String) {
@@ -273,8 +279,7 @@ class MeasurementConsumerSimulator(
     logger.info("Direct reach result is equal to the expected result")
   }
 
-  /** A sequence of operations done in the simulator involving a reach-only measurement. */
-  suspend fun executeReachOnly(runId: String) {
+  suspend fun executeReachOnly(runId: String): ExecutionResult {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val measurementInfo =
@@ -292,12 +297,19 @@ class MeasurementConsumerSimulator(
       reachOnlyResult = getReachResult(measurementName)
     }
     checkNotNull(reachOnlyResult) { "Timed out waiting for response to reach-only request" }
-    logger.info("Actual result: $reachOnlyResult")
 
     val expectedResult: Result = getExpectedResult(measurementInfo)
-    logger.info("Expected result: $expectedResult")
+    return ExecutionResult(reachOnlyResult, expectedResult, measurementInfo)
+  }
 
-    assertDpResultsEqual(expectedResult, reachOnlyResult)
+  /** A sequence of operations done in the simulator involving a reach-only measurement. */
+  suspend fun testReachOnly(runId: String) {
+    val result = executeReachOnly(runId)
+
+    logger.info("Actual result: ${result.actualResult}")
+    logger.info("Expected result: ${result.expectedResult}")
+
+    assertDpResultsEqual(result.actualResult, result.expectedResult)
     logger.info("Reach-only result is equal to the expected result. Correctness Test passes.")
   }
 
