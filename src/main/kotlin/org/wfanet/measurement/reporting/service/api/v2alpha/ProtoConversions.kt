@@ -568,6 +568,7 @@ fun InternalReportingSet.toReportingSet(): ReportingSet {
         .toName()
 
     displayName = source.displayName
+    tags.putAll(source.details.tagsMap)
     filter = source.filter
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
