@@ -85,8 +85,8 @@ date_specs {
     frequency: 1
     vid_range_specs {
       vid_range {
-        start: 3000001
-        end_exclusive: 5000001
+        start: 4000001
+        end_exclusive: 6000001
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
@@ -101,8 +101,8 @@ date_specs {
     frequency: 1
     vid_range_specs {
       vid_range {
-        start: 14000001
-        end_exclusive: 14100001
+        start: 7000101
+        end_exclusive: 7100101
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"

@@ -21,8 +21,8 @@ date_specs {
     frequency: 1
     vid_range_specs {
       vid_range {
-        start: 3000001
-        end_exclusive: 4000001
+        start: 3300001
+        end_exclusive: 4300001
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
@@ -37,8 +37,8 @@ date_specs {
     frequency: 2
     vid_range_specs {
       vid_range {
-        start: 4000001
-        end_exclusive: 4500001
+        start: 4301001
+        end_exclusive: 4801001
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
@@ -69,8 +69,8 @@ date_specs {
     frequency: 1
     vid_range_specs {
       vid_range {
-        start: 12501001
-        end_exclusive: 13501001
+        start: 14000001
+        end_exclusive: 15000001
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
@@ -80,13 +80,13 @@ date_specs {
       }
     }
   }
-  # 2M
+  # 1.5M
   frequency_specs {
     frequency: 1
     vid_range_specs {
       vid_range {
-        start: 13000001
-        end_exclusive: 15000001
+        start: 15500001
+        end_exclusive: 17000001
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
@@ -96,13 +96,13 @@ date_specs {
       }
     }
   }
-  # 100,000
+  # 500,000
   frequency_specs {
     frequency: 1
     vid_range_specs {
       vid_range {
-        start: 16000001
-        end_exclusive: 16100001
+        start: 18000000
+        end_exclusive: 18500000
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
@@ -117,8 +117,8 @@ date_specs {
     frequency: 1
     vid_range_specs {
       vid_range {
-        start: 18001001
-        end_exclusive: 18002001
+        start: 18500000
+        end_exclusive: 18501000
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
@@ -128,13 +128,13 @@ date_specs {
       }
     }
   }
-  # 1000
+  # 1M
   frequency_specs {
     frequency: 2
     vid_range_specs {
       vid_range {
-        start: 18002001
-        end_exclusive: 18003001
+        start: 31100000
+        end_exclusive: 32100000
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"

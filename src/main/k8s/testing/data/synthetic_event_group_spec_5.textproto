@@ -54,7 +54,7 @@ date_specs {
     vid_range_specs {
       vid_range {
         start: 5000001
-        end_exclusive: 10000001
+        end_exclusive: 5500001
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
@@ -69,8 +69,8 @@ date_specs {
     frequency: 1
     vid_range_specs {
       vid_range {
-        start: 10000001
-        end_exclusive: 110000001
+        start: 11000001
+        end_exclusive: 12000001
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
@@ -80,13 +80,13 @@ date_specs {
       }
     }
   }
-  # 2M
+  # 1M
   frequency_specs {
     frequency: 1
     vid_range_specs {
       vid_range {
-        start: 12000001
-        end_exclusive: 14000001
+        start: 14000001
+        end_exclusive: 15000001
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
@@ -112,13 +112,13 @@ date_specs {
       }
     }
   }
-  # 1000
+  # 500,000
   frequency_specs {
     frequency: 1
     vid_range_specs {
       vid_range {
         start: 18001001
-        end_exclusive: 18002001
+        end_exclusive: 18502001
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
@@ -128,13 +128,13 @@ date_specs {
       }
     }
   }
-  # 1000
+  # 1M
   frequency_specs {
     frequency: 2
     vid_range_specs {
       vid_range {
-        start: 18002001
-        end_exclusive: 18003001
+        start: 18502001
+        end_exclusive: 19503001
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
