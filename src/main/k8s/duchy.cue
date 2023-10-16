@@ -61,6 +61,7 @@ import ("strings")
 	}
 
 	_millPollingInterval?: string
+	_millLockDuration:     "30m"
 	_duchyInternalServerContainerArgs: [...string]
 
 	_akid_to_principal_map_file_flag:                   "--authority-key-identifier-to-principal-map-file=/etc/\(#AppName)/config-files/authority_key_identifier_to_principal_map.textproto"
@@ -143,6 +144,7 @@ import ("strings")
 						_kingdom_system_api_target_flag,
 						_kingdom_system_api_cert_host_flag,
 						if (_millPollingInterval != _|_) {"--polling-interval=\(_millPollingInterval)"},
+						if (_millLockDuration != _|_) {"--work-lock-duration=\(_millLockDuration)"},
 						_otlpEndpoint,
 						"--otel-service-name=\(Deployment.metadata.name)",
 			] + _blob_storage_flags + _computation_control_target_flags
