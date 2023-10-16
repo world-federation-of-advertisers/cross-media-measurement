@@ -17,7 +17,7 @@ package k8s
 _resourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "500m"
-		memory: "288Mi"
+		memory: "500Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
@@ -44,7 +44,7 @@ edp_simulators: {
 			]
 			deployment: {
 				_container: {
-					_javaOptions: maxHeapSize: "96M"
+					_javaOptions: maxHeapSize: "192M"
 					resources: _resourceRequirements
 				}
 				spec: template: spec: {
