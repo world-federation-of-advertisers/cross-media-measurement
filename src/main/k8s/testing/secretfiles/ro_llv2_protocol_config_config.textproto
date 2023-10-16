@@ -4,8 +4,8 @@
 # and maximum_frequency.
 protocol_config {
   sketch_params {
-    decay_rate: 7.75
-    max_size: 100000
+    decay_rate: 5.60
+    max_size: 1000000
   }
   data_provider_noise {
     epsilon: 1.0
