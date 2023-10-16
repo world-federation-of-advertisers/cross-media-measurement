@@ -40,8 +40,6 @@ import org.wfanet.measurement.internal.reporting.v2.periodicTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.report
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals
 
-const val STREAM_DEFAULT_LIMIT = 50
-
 class ReportReader(private val readContext: ReadContext) {
   data class Result(
     val measurementConsumerId: InternalId,
@@ -390,5 +388,9 @@ class ReportReader(private val readContext: ReadContext) {
       createReportRequestId = createReportRequestId,
       report = report,
     )
+  }
+
+  companion object {
+    private const val STREAM_DEFAULT_LIMIT = 50
   }
 }
