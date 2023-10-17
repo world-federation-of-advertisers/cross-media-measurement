@@ -26,14 +26,12 @@ import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.getNullableLong
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
-import org.wfanet.measurement.internal.common.Provider
-import org.wfanet.measurement.internal.common.provider
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.RecurringExchangeDetails
 import org.wfanet.measurement.internal.kingdom.exchangeStep
 
 /** Reads [ExchangeStep] protos from Spanner. */
-class ExchangeStepReader() : SpannerReader<ExchangeStepReader.Result>() {
+class ExchangeStepReader : SpannerReader<ExchangeStepReader.Result>() {
   data class Result(
     val exchangeStep: ExchangeStep,
     val recurringExchangeId: Long,
@@ -101,28 +99,18 @@ class ExchangeStepReader() : SpannerReader<ExchangeStepReader.Result>() {
       date = struct.getDate("Date").toProtoDate()
       stepIndex = struct.getLong("StepIndex").toInt()
       state = struct.getProtoEnum("State", ExchangeStep.State::forNumber)
-      provider = buildProvider(struct)
+
+      if (!struct.isNull("StepDataProviderId")) {
+        externalDataProviderId = struct.getLong("ExternalDataProviderId")
+      } else if (!struct.isNull("StepModelProviderId")) {
+        externalModelProviderId = struct.getLong("ExternalModelProviderId")
+      }
+
       updateTime = struct.getTimestamp("UpdateTime").toProto()
       serializedExchangeWorkflow =
         struct
           .getProtoMessage("RecurringExchangeDetails", RecurringExchangeDetails.parser())
           .externalExchangeWorkflow
-    }
-  }
-
-  private fun buildProvider(struct: Struct): Provider {
-    return when {
-      !struct.isNull("StepModelProviderId") ->
-        provider {
-          externalId = struct.getLong("ExternalModelProviderId")
-          type = Provider.Type.MODEL_PROVIDER
-        }
-      !struct.isNull("StepDataProviderId") ->
-        provider {
-          externalId = struct.getLong("ExternalDataProviderId")
-          type = Provider.Type.DATA_PROVIDER
-        }
-      else -> error("No Provider found")
     }
   }
 

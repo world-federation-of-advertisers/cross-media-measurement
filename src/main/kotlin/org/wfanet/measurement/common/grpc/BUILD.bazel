@@ -1,0 +1,9 @@
+load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//visibility:public"])
+
+kt_jvm_library(
+    name = "grpc",
+    srcs = glob(["*.kt"]),
+    deps = ["@wfa_common_jvm//imports/java/io/grpc:context"],
+)

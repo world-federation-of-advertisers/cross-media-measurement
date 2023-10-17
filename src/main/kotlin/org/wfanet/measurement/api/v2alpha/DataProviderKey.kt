@@ -20,7 +20,7 @@ import org.wfanet.measurement.common.api.ResourceKey
 /** [DataProviderKey] of a Data Provider. */
 data class DataProviderKey(
   val dataProviderId: String,
-) : ResourceKey, CertificateParentKey, RecurringExchangeParentKey {
+) : ResourceKey, CertificateParentKey, RecurringExchangeParentKey, RequisitionParentKey {
   override fun toName(): String {
     return parser.assembleName(mapOf(IdVariable.DATA_PROVIDER to dataProviderId))
   }

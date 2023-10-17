@@ -22,7 +22,6 @@ import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.onStart
@@ -35,15 +34,19 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.api.v2alpha.RequisitionKey
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.withPrincipal
 import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -51,8 +54,6 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.duchy.storage.RequisitionBlobContext
 import org.wfanet.measurement.duchy.storage.RequisitionStore
-import org.wfanet.measurement.internal.common.Provider
-import org.wfanet.measurement.internal.common.provider
 import org.wfanet.measurement.internal.duchy.ComputationDetailsKt.kingdomComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
@@ -81,7 +82,7 @@ private val NONCE_HASH =
 private val REQUISITION_FINGERPRINT = "A fingerprint".toByteStringUtf8()
 private val TEST_REQUISITION_DATA = ByteString.copyFromUtf8("some data")
 private val HEADER = header {
-  name = RequisitionKey(DATA_PROVIDER_API_ID, REQUISITION_API_ID).toName()
+  name = CanonicalRequisitionKey(DATA_PROVIDER_API_ID, REQUISITION_API_ID).toName()
   requisitionFingerprint = REQUISITION_FINGERPRINT
   nonce = NONCE
 }
@@ -110,13 +111,6 @@ class RequisitionFulfillmentServiceTest {
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService()
   private val computationsServiceMock: ComputationsCoroutineImplBase = mockService()
 
-  private val callerIdentityProvider = {
-    provider {
-      type = Provider.Type.DATA_PROVIDER
-      externalId = EXTERNAL_DATA_PROVIDER_ID
-    }
-  }
-
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(requisitionsServiceMock)
@@ -134,7 +128,6 @@ class RequisitionFulfillmentServiceTest {
         RequisitionsCoroutineStub(grpcTestServerRule.channel),
         ComputationsCoroutineStub(grpcTestServerRule.channel),
         requisitionStore,
-        callerIdentityProvider
       )
   }
 
@@ -151,7 +144,10 @@ class RequisitionFulfillmentServiceTest {
     }
     RequisitionBlobContext(COMPUTATION_ID, HEADER.name)
 
-    val response = service.fulfillRequisition(HEADER.withContent(TEST_REQUISITION_DATA))
+    val response =
+      withPrincipal(DATA_PROVIDER_PRINCIPAL) {
+        service.fulfillRequisition(HEADER.withContent(TEST_REQUISITION_DATA))
+      }
 
     assertThat(response).isEqualTo(FULFILLED_RESPONSE)
     val blob = assertNotNull(requisitionStore.get(REQUISITION_BLOB_CONTEXT))
@@ -177,7 +173,7 @@ class RequisitionFulfillmentServiceTest {
   }
 
   @Test
-  fun `fulfill requisition, already fulfilled locally should skip writing`() = runBlocking {
+  fun `fulfill requisition, already fulfilled locally should skip writing`() {
     val blobKey = REQUISITION_BLOB_CONTEXT.blobKey
     val fakeToken = computationToken {
       globalComputationId = COMPUTATION_ID
@@ -189,10 +185,14 @@ class RequisitionFulfillmentServiceTest {
         .thenReturn(getComputationTokenResponse { token = fakeToken })
     }
 
-    assertThat(service.fulfillRequisition(HEADER.withContent(TEST_REQUISITION_DATA)))
-      .isEqualTo(FULFILLED_RESPONSE)
+    val response: FulfillRequisitionResponse =
+      withPrincipal(DATA_PROVIDER_PRINCIPAL) {
+        runBlocking { service.fulfillRequisition(HEADER.withContent(TEST_REQUISITION_DATA)) }
+      }
+
+    assertThat(response).isEqualTo(FULFILLED_RESPONSE)
     // The blob is not created since it is marked already fulfilled.
-    assertNull(requisitionStore.get(blobKey))
+    assertThat(runBlocking { requisitionStore.get(blobKey) }).isNull()
 
     verifyProtoArgument(requisitionsServiceMock, RequisitionsCoroutineImplBase::fulfillRequisition)
       .isEqualTo(
@@ -207,9 +207,11 @@ class RequisitionFulfillmentServiceTest {
   fun `fulfill requisition fails due to missing nonce`() = runBlocking {
     val e =
       assertFailsWith(StatusRuntimeException::class) {
-        service.fulfillRequisition(
-          HEADER.toBuilder().clearNonce().build().withContent(TEST_REQUISITION_DATA)
-        )
+        withPrincipal(DATA_PROVIDER_PRINCIPAL) {
+          service.fulfillRequisition(
+            HEADER.toBuilder().clearNonce().build().withContent(TEST_REQUISITION_DATA)
+          )
+        }
       }
     assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(e).hasMessageThat().contains("nonce")
@@ -222,7 +224,9 @@ class RequisitionFulfillmentServiceTest {
     }
     val e =
       assertFailsWith(StatusRuntimeException::class) {
-        service.fulfillRequisition(HEADER.withContent(TEST_REQUISITION_DATA))
+        withPrincipal(DATA_PROVIDER_PRINCIPAL) {
+          service.fulfillRequisition(HEADER.withContent(TEST_REQUISITION_DATA))
+        }
       }
     assertThat(e.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(e.message).contains("No computation is expecting this requisition")
@@ -242,12 +246,14 @@ class RequisitionFulfillmentServiceTest {
 
     val e =
       assertFailsWith(StatusRuntimeException::class) {
-        service.fulfillRequisition(
-          HEADER.copy {
-              nonce = 404L // Mismatching nonce value.
-            }
-            .withContent(TEST_REQUISITION_DATA)
-        )
+        withPrincipal(DATA_PROVIDER_PRINCIPAL) {
+          service.fulfillRequisition(
+            HEADER.copy {
+                nonce = 404L // Mismatching nonce value.
+              }
+              .withContent(TEST_REQUISITION_DATA)
+          )
+        }
       }
 
     assertThat(e.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
@@ -257,16 +263,18 @@ class RequisitionFulfillmentServiceTest {
   @Test
   fun `request from unauthorized user should fail`() = runBlocking {
     val headerFromNonOwner = header {
-      name = RequisitionKey("Another EDP", REQUISITION_API_ID).toName()
+      name = CanonicalRequisitionKey("Another EDP", REQUISITION_API_ID).toName()
       requisitionFingerprint = REQUISITION_FINGERPRINT
       nonce = NONCE
     }
     val e =
       assertFailsWith(StatusRuntimeException::class) {
-        service.fulfillRequisition(headerFromNonOwner.withContent(TEST_REQUISITION_DATA))
+        withPrincipal(DATA_PROVIDER_PRINCIPAL) {
+          service.fulfillRequisition(headerFromNonOwner.withContent(TEST_REQUISITION_DATA))
+        }
       }
     assertThat(e.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(e).hasMessageThat().contains("identity")
+    assertThat(e).hasMessageThat().contains(headerFromNonOwner.name)
   }
 
   private fun FulfillRequisitionRequest.Header.withContent(
@@ -277,5 +285,10 @@ class RequisitionFulfillmentServiceTest {
       .map { fulfillRequisitionRequest { bodyChunk = bodyChunk { data = it } } }
       .asFlow()
       .onStart { emit(fulfillRequisitionRequest { header = this@withContent }) }
+  }
+
+  companion object {
+    private val DATA_PROVIDER_KEY = DataProviderKey(DATA_PROVIDER_API_ID)
+    private val DATA_PROVIDER_PRINCIPAL = DataProviderPrincipal(DATA_PROVIDER_KEY)
   }
 }

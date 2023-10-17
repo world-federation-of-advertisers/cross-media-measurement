@@ -62,8 +62,6 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.internal.common.Provider
-import org.wfanet.measurement.internal.common.provider
 import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase as InternalExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
@@ -159,10 +157,6 @@ class ExchangeStepsServiceTest {
   @Test
   fun `claimReadyExchangeStep for DataProvider`() {
     val principal = DataProviderPrincipal(DATA_PROVIDER_KEY)
-    val provider = provider {
-      type = Provider.Type.DATA_PROVIDER
-      externalId = EXTERNAL_DATA_PROVIDER_ID.value
-    }
     val response =
       withPrincipal(principal) { claimReadyExchangeStep { parent = DATA_PROVIDER_KEY.toName() } }
 
@@ -172,7 +166,11 @@ class ExchangeStepsServiceTest {
         internalServiceMock,
         InternalExchangeStepsCoroutineImplBase::claimReadyExchangeStep
       )
-      .isEqualTo(internalClaimReadyExchangeStepRequest { this.provider = provider })
+      .isEqualTo(
+        internalClaimReadyExchangeStepRequest {
+          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID.value
+        }
+      )
   }
 
   @Test
@@ -190,10 +188,6 @@ class ExchangeStepsServiceTest {
   @Test
   fun `claimReadyExchangeStep for ModelProvider`() {
     val principal = ModelProviderPrincipal(MODEL_PROVIDER_KEY)
-    val provider = provider {
-      type = Provider.Type.MODEL_PROVIDER
-      externalId = EXTERNAL_MODEL_PROVIDER_ID.value
-    }
 
     val response =
       withPrincipal(principal) { claimReadyExchangeStep { parent = MODEL_PROVIDER_KEY.toName() } }
@@ -204,7 +198,11 @@ class ExchangeStepsServiceTest {
         internalServiceMock,
         InternalExchangeStepsCoroutineImplBase::claimReadyExchangeStep
       )
-      .isEqualTo(internalClaimReadyExchangeStepRequest { this.provider = provider })
+      .isEqualTo(
+        internalClaimReadyExchangeStepRequest {
+          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID.value
+        }
+      )
   }
 
   @Test
@@ -409,10 +407,7 @@ class ExchangeStepsServiceTest {
       externalRecurringExchangeId = INTERNAL_RECURRING_EXCHANGE.externalRecurringExchangeId
       date = DATE
       stepIndex = STEP_INDEX
-      provider = provider {
-        type = Provider.Type.DATA_PROVIDER
-        externalId = EXTERNAL_DATA_PROVIDER_ID.value
-      }
+      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID.value
       state = InternalExchangeStep.State.READY_FOR_RETRY
       serializedExchangeWorkflow = SERIALIZED_WORKFLOW
       updateTime = UPDATE_TIME
@@ -420,10 +415,7 @@ class ExchangeStepsServiceTest {
     private val INTERNAL_EXCHANGE_STEP_2 =
       INTERNAL_EXCHANGE_STEP.copy {
         stepIndex += 1
-        provider = provider {
-          type = Provider.Type.MODEL_PROVIDER
-          externalId = EXTERNAL_MODEL_PROVIDER_ID.value
-        }
+        externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID.value
       }
   }
 }

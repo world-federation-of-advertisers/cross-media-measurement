@@ -17,16 +17,24 @@
 package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
-import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
 
 /** [ResourceKey] of a Requisition with a Measurement parent. */
 data class MeasurementRequisitionKey(
-  val measurementConsumerId: String,
-  val measurementId: String,
-  val requisitionId: String
-) : ChildResourceKey {
-  override val parentKey = MeasurementKey(measurementConsumerId, measurementId)
+  override val parentKey: MeasurementKey,
+  override val requisitionId: String
+) : RequisitionKey {
+  constructor(
+    measurementConsumerId: String,
+    measurementId: String,
+    requisitionId: String
+  ) : this(MeasurementKey(measurementConsumerId, measurementId), requisitionId)
+
+  val measurementConsumerId: String
+    get() = parentKey.measurementConsumerId
+
+  val measurementId: String
+    get() = parentKey.measurementId
 
   override fun toName(): String {
     return parser.assembleName(

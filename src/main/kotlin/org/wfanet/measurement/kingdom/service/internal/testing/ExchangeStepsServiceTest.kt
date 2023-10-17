@@ -40,8 +40,6 @@ import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.internal.common.Provider
-import org.wfanet.measurement.internal.common.provider
 import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.internal.kingdom.DataProviderKt.details
@@ -126,16 +124,13 @@ private val EXCHANGE_STEP = exchangeStep {
   date = EXCHANGE_DATE
   state = ExchangeStep.State.IN_PROGRESS
   stepIndex = STEP_INDEX
-  provider = PROVIDER
+  externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
 }
 private val EXCHANGE_STEP_2 =
   EXCHANGE_STEP.copy {
     state = ExchangeStep.State.BLOCKED
     stepIndex = 2
-    provider = provider {
-      type = Provider.Type.DATA_PROVIDER
-      externalId = EXTERNAL_DATA_PROVIDER_ID
-    }
+    externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
   }
 
 private val EXCHANGE_STEP_3 =
@@ -215,33 +210,28 @@ abstract class ExchangeStepsServiceTest {
 
   private suspend fun claimReadyExchangeStep(): ClaimReadyExchangeStepResponse {
     return exchangeStepsService.claimReadyExchangeStep(
-      claimReadyExchangeStepRequest { provider = PROVIDER }
+      claimReadyExchangeStepRequest { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
     )
   }
 
   @Test
-  fun `claimReadyExchangeStepRequest fails for missing Provider`() = runBlocking {
+  fun `claimReadyExchangeStepRequest fails for missing party`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         exchangeStepsService.claimReadyExchangeStep(claimReadyExchangeStepRequest {})
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception).hasMessageThat().contains("Invalid Provider")
+    assertThat(exception).hasMessageThat().contains("party")
   }
 
   @Test
-  fun `claimReadyExchangeStepRequest returns empty for wrong Provider`() = runBlocking {
+  fun `claimReadyExchangeStepRequest returns empty for wrong party`() = runBlocking {
     createRecurringExchange()
 
     val response =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest {
-          provider = provider {
-            externalId = EXTERNAL_DATA_PROVIDER_ID
-            type = Provider.Type.DATA_PROVIDER
-          }
-        }
+        claimReadyExchangeStepRequest { externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID }
       )
 
     assertThat(response).isEqualToDefaultInstance()

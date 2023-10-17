@@ -23,6 +23,7 @@ import io.grpc.Status
 import org.wfanet.measurement.common.api.PrincipalLookup
 import org.wfanet.measurement.common.api.grpc.AkidPrincipalServerInterceptor
 import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.withContext
 import org.wfanet.measurement.common.identity.AuthorityKeyServerInterceptor
 
 /**
@@ -38,41 +39,51 @@ val principalFromCurrentContext: MeasurementPrincipal
       ?: failGrpc(Status.UNAUTHENTICATED) { "No MeasurementPrincipal found" }
 
 /**
- * Executes [block] with [principal] installed in a new [Context].
+ * Immediately calls [action] with a [Context] that has [authenticatedPrincipal] installed as the
+ * [current][Context.current] [Context].
  *
- * The caller of [withPrincipal] is responsible for guaranteeing that [block] can act as [principal]
- * -- in other words, [principal] is treated as already authenticated.
+ * The caller is responsible for ensuring that [authenticatedPrincipal] has already been
+ * authenticated.
+ *
+ * @param authenticatedPrincipal the authenticated principal
+ * @return the result of [action]
  */
-fun <T> withPrincipal(principal: MeasurementPrincipal, block: () -> T): T {
-  return Context.current().withPrincipal(principal).call(block)
+inline fun <R> withPrincipal(authenticatedPrincipal: MeasurementPrincipal, action: () -> R): R {
+  return withContext(Context.current().withPrincipal(authenticatedPrincipal), action)
 }
 
 /** Executes [block] with a [DataProviderPrincipal] installed in a new [Context]. */
-fun <T> withDataProviderPrincipal(dataProviderName: String, block: () -> T): T {
-  return Context.current()
-    .withPrincipal(DataProviderPrincipal(DataProviderKey.fromName(dataProviderName)!!))
-    .call(block)
+inline fun <T> withDataProviderPrincipal(dataProviderName: String, block: () -> T): T {
+  return withPrincipal(
+    DataProviderPrincipal(requireNotNull(DataProviderKey.fromName(dataProviderName))),
+    block
+  )
 }
 
 /** Executes [block] with a [ModelProviderPrincipal] installed in a new [Context]. */
-fun <T> withModelProviderPrincipal(modelProviderName: String, block: () -> T): T {
-  return Context.current()
-    .withPrincipal(ModelProviderPrincipal(ModelProviderKey.fromName(modelProviderName)!!))
-    .call(block)
+inline fun <T> withModelProviderPrincipal(modelProviderName: String, block: () -> T): T {
+  return withPrincipal(
+    ModelProviderPrincipal(requireNotNull(ModelProviderKey.fromName(modelProviderName))),
+    block
+  )
 }
 
 /** Executes [block] with a [DuchyPrincipal] installed in a new [Context]. */
-fun <T> withDuchyPrincipal(duchyName: String, block: () -> T): T {
-  return Context.current().withPrincipal(DuchyPrincipal(DuchyKey.fromName(duchyName)!!)).call(block)
+inline fun <T> withDuchyPrincipal(duchyName: String, block: () -> T): T {
+  return withPrincipal(DuchyPrincipal(requireNotNull(DuchyKey.fromName(duchyName))), block)
 }
 
 /** Executes [block] with a [MeasurementConsumerPrincipal] installed in a new [Context]. */
-fun <T> withMeasurementConsumerPrincipal(measurementConsumerName: String, block: () -> T): T {
-  return Context.current()
-    .withPrincipal(
-      MeasurementConsumerPrincipal(MeasurementConsumerKey.fromName(measurementConsumerName)!!)
-    )
-    .call(block)
+inline fun <T> withMeasurementConsumerPrincipal(
+  measurementConsumerName: String,
+  block: () -> T
+): T {
+  return withPrincipal(
+    MeasurementConsumerPrincipal(
+      requireNotNull(MeasurementConsumerKey.fromName(measurementConsumerName))
+    ),
+    block
+  )
 }
 
 /** Adds [principal] to the receiver and returns the new [Context]. */
@@ -82,7 +93,7 @@ fun Context.withPrincipal(principal: MeasurementPrincipal): Context {
 
 /** Convenience helper for [AkidPrincipalServerInterceptor]. */
 fun BindableService.withPrincipalsFromX509AuthorityKeyIdentifiers(
-  akidPrincipalLookup: PrincipalLookup<MeasurementPrincipal, ByteString>
+  akidPrincipalLookup: PrincipalLookup<MeasurementPrincipal, ByteString>,
 ): ServerServiceDefinition {
   return ServerInterceptors.interceptForward(
     this,

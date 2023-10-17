@@ -31,6 +31,7 @@ import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
+import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.exchangeStepAttempt
 
 /** Reads [ExchangeStepAttempt] protos from Spanner. */
@@ -101,60 +102,65 @@ class ExchangeStepAttemptReader : SpannerReader<ExchangeStepAttemptReader.Result
     return execute(readContext).singleOrNullIfEmpty()
   }
 
+  private object Params {
+    const val EXCHANGE_STEP_STATE = "exchange_step_state"
+    const val EXCHANGE_STEP_ATTEMPT_STATE = "exchange_step_attempt_state"
+    const val NOW = "now"
+    const val EXTERNAL_PARTY_ID = "externalPartyId"
+  }
+
   companion object {
     fun forExpiredAttempts(
-      externalModelProviderId: ExternalId?,
-      externalDataProviderId: ExternalId?,
+      party: ExchangeWorkflow.Party,
+      externalPartyId: ExternalId,
       clock: Clock,
       limit: Long = 10
     ): SpannerReader<Result> {
-      require((externalModelProviderId == null) != (externalDataProviderId == null)) {
-        "Specify exactly one of `externalDataProviderId` and `externalModelProviderId`"
-      }
-
       return ExchangeStepAttemptReader().fillStatementBuilder {
-        appendClause(
-          """
-          WHERE ExchangeSteps.State = @exchange_step_state
-            AND ExchangeStepAttempts.State = @exchange_step_attempt_state
-            AND ExchangeStepAttempts.ExpirationTime <= @now
-          """
-            .trimIndent()
-        )
-        bind("exchange_step_state").toProtoEnum(ExchangeStep.State.IN_PROGRESS)
-        bind("exchange_step_attempt_state").toProtoEnum(ExchangeStepAttempt.State.ACTIVE)
+        val conjuncts =
+          mutableListOf(
+            "ExchangeSteps.State = @${Params.EXCHANGE_STEP_STATE}",
+            "ExchangeStepAttempts.State = @${Params.EXCHANGE_STEP_ATTEMPT_STATE}",
+            "ExchangeStepAttempts.ExpirationTime <= @${Params.NOW}",
+          )
+        bind(Params.EXCHANGE_STEP_STATE).toProtoEnum(ExchangeStep.State.IN_PROGRESS)
+        bind(Params.EXCHANGE_STEP_ATTEMPT_STATE).toProtoEnum(ExchangeStepAttempt.State.ACTIVE)
         // Due to the fact that we set ExpirationTime using the application clock, we should to be
         // consistent and use the application clock for comparisons rather than DB time.
-        bind("now").to(clock.instant().toGcloudTimestamp())
+        bind(Params.NOW).to(clock.instant().toGcloudTimestamp())
 
-        if (externalModelProviderId != null) {
-          appendClause(
-            """
-            |  AND ExchangeSteps.ModelProviderId = (
-            |    SELECT ModelProviderId
-            |    FROM ModelProviders
-            |    WHERE ExternalModelProviderId = @external_model_provider_id
-            |  )
-            """
-              .trimMargin()
-          )
-          bind("external_model_provider_id").to(externalModelProviderId.value)
+        when (party) {
+          ExchangeWorkflow.Party.MODEL_PROVIDER -> {
+            conjuncts.add(
+              """
+              ExchangeSteps.ModelProviderId = (
+                SELECT ModelProviderId
+                FROM ModelProviders
+                WHERE ExternalModelProviderId = @${Params.EXTERNAL_PARTY_ID}
+              )
+              """
+                .trimIndent()
+            )
+          }
+          ExchangeWorkflow.Party.DATA_PROVIDER -> {
+            conjuncts.add(
+              """
+              ExchangeSteps.DataProviderId = (
+                SELECT DataProviderId
+                FROM DataProviders
+                WHERE ExternalDataProviderId = @${Params.EXTERNAL_PARTY_ID}
+              )
+              """
+                .trimIndent()
+            )
+          }
+          ExchangeWorkflow.Party.PARTY_UNSPECIFIED,
+          ExchangeWorkflow.Party.UNRECOGNIZED ->
+            throw IllegalArgumentException("Invalid party $party")
         }
+        bind(Params.EXTERNAL_PARTY_ID to externalPartyId)
 
-        if (externalDataProviderId != null) {
-          appendClause(
-            """
-            |  AND ExchangeSteps.DataProviderId = (
-            |    SELECT DataProviderId
-            |    FROM DataProviders
-            |    WHERE ExternalDataProviderId = @external_data_provider_id
-            |  )
-            """
-              .trimMargin()
-          )
-          bind("external_data_provider_id").to(externalDataProviderId.value)
-        }
-
+        appendClause("WHERE " + conjuncts.joinToString(" AND "))
         appendClause("LIMIT @limit")
         bind("limit").to(limit)
       }
