@@ -203,6 +203,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                       startTime = timestamp { seconds = 100 }
                       endTime = timestamp { seconds = 200 }
                     }
+                    groupingPredicates += listOf("predicate1", "predicate2")
                   }
               }
             details =
@@ -224,6 +225,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                     }
                 }
                 groupings += ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                filter = "filter"
                 cumulative = false
               }
           }
@@ -257,6 +259,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                       startTime = timestamp { seconds = 100 }
                       endTime = timestamp { seconds = 200 }
                     }
+                    groupingPredicates += listOf("predicate3", "predicate4")
                   }
               }
             details =
@@ -278,6 +281,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                     }
                 }
                 groupings += ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                filter = "filter"
                 cumulative = false
               }
           }
@@ -299,6 +303,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
           endTime = timestamp { seconds = 400 }
         }
       }
+      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val createdReport =
@@ -358,6 +363,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                       startTime = timestamp { seconds = 100 }
                       endTime = timestamp { seconds = 200 }
                     }
+                    groupingPredicates += listOf("predicate1", "predicate2")
                   }
               }
             reportingMetrics +=
@@ -384,6 +390,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                       startTime = timestamp { seconds = 100 }
                       endTime = timestamp { seconds = 200 }
                     }
+                    groupingPredicates += listOf("predicate3", "predicate4")
                   }
               }
             details =
@@ -405,6 +412,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                     }
                 }
                 groupings += ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                filter = "filter"
                 cumulative = false
               }
           }
@@ -420,6 +428,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
           endTime = timestamp { seconds = 200 }
         }
       }
+      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val createdReport =
@@ -549,6 +558,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         increment = duration { seconds = 50 }
         intervalCount = 3
       }
+      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val exception =
@@ -688,6 +698,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         increment = duration { seconds = 50 }
         intervalCount = 3
       }
+      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val exception =
@@ -771,6 +782,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         increment = duration { seconds = 50 }
         intervalCount = 3
       }
+      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val exception =
@@ -819,6 +831,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         increment = duration { seconds = 50 }
         intervalCount = 3
       }
+      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val exception =
@@ -946,6 +959,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                         startTime = timestamp { seconds = 100 }
                         endTime = timestamp { seconds = 200 }
                       }
+                      groupingPredicates += listOf("predicate1", "predicate2")
                     }
                 }
               details =
@@ -968,6 +982,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                   }
                   groupings +=
                     ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                  filter = "filter1"
                   cumulative = false
                 }
             }
@@ -1001,6 +1016,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                         startTime = timestamp { seconds = 100 }
                         endTime = timestamp { seconds = 200 }
                       }
+                      groupingPredicates += listOf("predicate3", "predicate4")
                     }
                 }
               details =
@@ -1023,6 +1039,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                   }
                   groupings +=
                     ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                  filter = "filter2"
                   cumulative = false
                 }
             }
@@ -1044,6 +1061,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
             endTime = timestamp { seconds = 400 }
           }
         }
+        details = ReportKt.details { tags.putAll(REPORT_TAGS) }
       }
 
       val createdReport =
@@ -1104,7 +1122,11 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                       }
                   }
                 }
-              details = MetricKt.details { filters += it.details.filtersList }
+              details =
+                MetricKt.details {
+                  filters +=
+                    it.details.groupingPredicatesList + metricCalculationSpec.details.filter
+                }
             }
           }
           metricsService.createMetric(request)
@@ -1325,6 +1347,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
 
   companion object {
     private const val CMMS_MEASUREMENT_CONSUMER_ID = "1234"
+    private val REPORT_TAGS = mapOf("tag1" to "tag_value1", "tag2" to "tag_value2")
 
     private suspend fun createReportForRequest(
       cmmsMeasurementConsumerId: String,
@@ -1362,6 +1385,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                           startTime = timestamp { seconds = 100 }
                           endTime = timestamp { seconds = 200 }
                         }
+                        groupingPredicates += listOf("predicate1", "predicate2")
                       }
                   }
                 details =
@@ -1384,6 +1408,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                     }
                     groupings +=
                       ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                    filter = "filter"
                     cumulative = false
                   }
               }
@@ -1398,6 +1423,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
             endTime = timestamp { seconds = 400 }
           }
         }
+        details = ReportKt.details { tags.putAll(REPORT_TAGS) }
       }
     }
 
@@ -1443,6 +1469,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                         startTime = timestamp { seconds = 100 }
                         endTime = timestamp { seconds = 200 }
                       }
+                      groupingPredicates += listOf("predicate1", "predicate2")
                     }
                 }
               details =
@@ -1465,6 +1492,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                   }
                   groupings +=
                     ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                  filter = "filter"
                   cumulative = false
                 }
             }
@@ -1492,6 +1520,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
             }
           }
         }
+        details = ReportKt.details { tags.putAll(REPORT_TAGS) }
       }
 
       return reportsService.createReport(
