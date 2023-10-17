@@ -76,7 +76,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
-import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultOutput
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
@@ -894,7 +894,7 @@ private val SUCCEEDED_UNION_ALL_REACH_MEASUREMENT =
   PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
     state = Measurement.State.SUCCEEDED
 
-    results += resultPair {
+    results += resultOutput {
       val result =
         MeasurementKt.result {
           reach = MeasurementKt.ResultKt.reach { value = UNION_ALL_REACH_VALUE }
@@ -908,7 +908,7 @@ private val SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
   PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
     state = Measurement.State.SUCCEEDED
 
-    results += resultPair {
+    results += resultOutput {
       val result =
         MeasurementKt.result {
           reach = MeasurementKt.ResultKt.reach { value = UNION_ALL_BUT_LAST_PUBLISHER_REACH_VALUE }
@@ -990,7 +990,7 @@ private val SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT =
   PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.copy {
     state = Measurement.State.SUCCEEDED
 
-    results += resultPair {
+    results += resultOutput {
       val result =
         MeasurementKt.result {
           reach =
@@ -4996,7 +4996,7 @@ class MetricsServiceTest {
           results +=
             DATA_PROVIDERS.keys.zip(WATCH_DURATION_LIST).map { (dataProviderKey, watchDuration) ->
               val dataProvider = DATA_PROVIDERS.getValue(dataProviderKey)
-              resultPair {
+              resultOutput {
                 val result =
                   MeasurementKt.result {
                     this.watchDuration =
@@ -5374,7 +5374,7 @@ class MetricsServiceTest {
         .thenReturn(
           SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.copy {
             results.clear()
-            results += resultPair {
+            results += resultOutput {
               val result =
                 MeasurementKt.result {
                   reach =

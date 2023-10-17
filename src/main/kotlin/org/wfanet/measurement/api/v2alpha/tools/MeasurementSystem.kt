@@ -827,15 +827,15 @@ class GetMeasurement : Runnable {
   private val privateKeyHandle: PrivateKeyHandle by lazy { loadPrivateKey(privateKeyDerFile) }
 
   private fun getMeasurementResult(
-    resultPair: Measurement.ResultPair,
+    resultOutput: Measurement.ResultOutput,
   ): Measurement.Result {
     val certificate = runBlocking {
       parentCommand.certificateStub
         .withAuthenticationKey(parentCommand.apiAuthenticationKey)
-        .getCertificate(getCertificateRequest { name = resultPair.certificate })
+        .getCertificate(getCertificateRequest { name = resultOutput.certificate })
     }
 
-    val signedResult = decryptResult(resultPair.encryptedResult, privateKeyHandle)
+    val signedResult = decryptResult(resultOutput.encryptedResult, privateKeyHandle)
     val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
     val trustedIssuer =
       checkNotNull(

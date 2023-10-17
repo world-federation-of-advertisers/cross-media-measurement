@@ -85,7 +85,6 @@ import org.wfanet.panelmatch.client.storage.StorageDetailsKt.customStorage
 import org.wfanet.panelmatch.client.storage.storageDetails
 import org.wfanet.panelmatch.common.certificates.testing.TestCertificateManager
 import org.wfanet.panelmatch.common.storage.testing.FakeTinkKeyStorageProvider
-import org.wfanet.panelmatch.common.storage.toByteString
 
 abstract class AbstractPanelMatchCorrectnessTest {
 
@@ -111,7 +110,6 @@ abstract class AbstractPanelMatchCorrectnessTest {
   private val DP_PRIVATE_STORAGE_DEPLOYMENT_NAME = "dp-private-storage-server-deployment"
   private val SHARED_STORAGE_DEPLOYMENT_NAME = "shared-storage-server-deployment"
   protected val SERVER_PORT: Int = 8443
-  private val API_VERSION = "v2alpha"
   private val SCHEDULE = "@daily"
 
   val EXCHANGE_DATE: LocalDate = LocalDate.now()
@@ -153,12 +151,11 @@ abstract class AbstractPanelMatchCorrectnessTest {
       val panelMatchResourceKey =
         withContext(Dispatchers.IO) {
           panelMatchResourceSetup.process(
-            dataProviderContent = dataProviderContent,
-            modelProviderContent = modelProviderContent,
             exchangeDate = EXCHANGE_DATE.toProtoDate(),
             exchangeWorkflow = workflow,
             exchangeSchedule = SCHEDULE,
-            publicApiVersion = API_VERSION
+            dataProviderContent = dataProviderContent,
+            modelProviderContent = modelProviderContent
           )
         }
 

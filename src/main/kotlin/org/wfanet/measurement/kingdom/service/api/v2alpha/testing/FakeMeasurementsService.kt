@@ -120,7 +120,7 @@ class FakeMeasurementsService(
 
     return measurement.copy {
       results +=
-        MeasurementKt.resultPair {
+        MeasurementKt.resultOutput {
           certificate = dataProviderCertificateName
           this.encryptedResult = encryptedResult
         }

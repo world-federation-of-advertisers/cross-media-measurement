@@ -93,7 +93,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.watchDuration
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
-import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultOutput
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
@@ -2188,12 +2188,12 @@ class MeasurementSystemTest {
         name = MEASUREMENT_NAME
         state = Measurement.State.SUCCEEDED
 
-        results += resultPair {
+        results += resultOutput {
           val result = result { reach = reach { value = 4096 } }
           encryptedResult = getEncryptedResult(result, measurementPublicKey)
           certificate = DATA_PROVIDER_CERTIFICATE_NAME
         }
-        results += resultPair {
+        results += resultOutput {
           val result = result {
             frequency = frequency {
               relativeFrequencyDistribution.put(1, 1.0 / 6)
@@ -2204,12 +2204,12 @@ class MeasurementSystemTest {
           encryptedResult = getEncryptedResult(result, measurementPublicKey)
           certificate = DATA_PROVIDER_CERTIFICATE_NAME
         }
-        results += resultPair {
+        results += resultOutput {
           val result = result { impression = impression { value = 4096 } }
           encryptedResult = getEncryptedResult(result, measurementPublicKey)
           certificate = DATA_PROVIDER_CERTIFICATE_NAME
         }
-        results += resultPair {
+        results += resultOutput {
           val result = result {
             watchDuration = watchDuration {
               value = duration {
@@ -2221,7 +2221,7 @@ class MeasurementSystemTest {
           encryptedResult = getEncryptedResult(result, measurementPublicKey)
           certificate = DATA_PROVIDER_CERTIFICATE_NAME
         }
-        results += resultPair {
+        results += resultOutput {
           val result = result { population = population { value = 100 } }
           encryptedResult = getEncryptedResult(result, measurementPublicKey)
           certificate = DATA_PROVIDER_CERTIFICATE_NAME

@@ -775,7 +775,7 @@ class ReportsService(
   private suspend fun buildSetInternalMeasurementResultRequest(
     measurementConsumerReferenceId: String,
     measurementReferenceId: String,
-    resultsList: List<Measurement.ResultPair>,
+    resultsList: List<Measurement.ResultOutput>,
     privateKeyHandle: PrivateKeyHandle,
     apiAuthenticationKey: String,
   ): SetInternalMeasurementResultRequest {
@@ -786,15 +786,15 @@ class ReportsService(
       result =
         aggregateResults(
           resultsList
-            .map { decryptMeasurementResultPair(it, privateKeyHandle, apiAuthenticationKey) }
+            .map { decryptMeasurementResultOutput(it, privateKeyHandle, apiAuthenticationKey) }
             .map(Measurement.Result::toInternal)
         )
     }
   }
 
-  /** Decrypts a [Measurement.ResultPair] to [Measurement.Result] */
-  private suspend fun decryptMeasurementResultPair(
-    measurementResultPair: Measurement.ResultPair,
+  /** Decrypts a [Measurement.ResultOutput] to [Measurement.Result] */
+  private suspend fun decryptMeasurementResultOutput(
+    measurementResultOutput: Measurement.ResultOutput,
     encryptionPrivateKeyHandle: PrivateKeyHandle,
     apiAuthenticationKey: String
   ): Measurement.Result {
@@ -803,16 +803,16 @@ class ReportsService(
       try {
         certificateStub
           .withAuthenticationKey(apiAuthenticationKey)
-          .getCertificate(getCertificateRequest { name = measurementResultPair.certificate })
+          .getCertificate(getCertificateRequest { name = measurementResultOutput.certificate })
       } catch (e: StatusException) {
         throw Exception(
-          "Unable to retrieve the certificate [${measurementResultPair.certificate}].",
+          "Unable to retrieve the certificate [${measurementResultOutput.certificate}].",
           e
         )
       }
 
     val signedResult =
-      decryptResult(measurementResultPair.encryptedResult, encryptionPrivateKeyHandle)
+      decryptResult(measurementResultOutput.encryptedResult, encryptionPrivateKeyHandle)
 
     val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
     val trustedIssuer: X509Certificate =

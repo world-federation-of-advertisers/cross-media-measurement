@@ -95,10 +95,8 @@ class PanelMatchResourceSetup(
     exchangeDate: Date,
     exchangeWorkflow: ExchangeWorkflow,
     exchangeSchedule: String,
-    publicApiVersion: String,
     dataProviderContent: EntityContent,
     modelProviderContent: EntityContent? = null,
-    runId: String = LocalDate.now().toString(),
   ): PanelMatchResourceKeys {
     logger.info("Starting resource setup ...")
     val resources = mutableListOf<Resources.Resource>()
@@ -146,7 +144,6 @@ class PanelMatchResourceSetup(
         externalModelProviderId,
         exchangeDate,
         exchangeSchedule,
-        publicApiVersion,
         exchangeWorkflow
       )
 
@@ -165,7 +162,6 @@ class PanelMatchResourceSetup(
   /** Process to create resources. */
   suspend fun createResourcesForWorkflow(
     exchangeSchedule: String,
-    apiVersion: String,
     exchangeWorkflow: ExchangeWorkflow,
     exchangeDate: Date,
     dataProviderContent: EntityContent,
@@ -187,7 +183,6 @@ class PanelMatchResourceSetup(
         externalModelProvider = externalModelProviderId,
         exchangeDate = exchangeDate,
         exchangeSchedule = exchangeSchedule,
-        publicApiVersion = apiVersion,
         exchangeWorkflow = exchangeWorkflow
       )
     val recurringExchangeKey =
@@ -239,7 +234,6 @@ class PanelMatchResourceSetup(
     externalModelProvider: Long,
     exchangeDate: Date,
     exchangeSchedule: String,
-    publicApiVersion: String,
     exchangeWorkflow: ExchangeWorkflow
   ): Long {
     val recurringExchangeId =
@@ -254,7 +248,7 @@ class PanelMatchResourceSetup(
                 this.exchangeWorkflow = exchangeWorkflow.toInternal()
                 cronSchedule = exchangeSchedule
                 externalExchangeWorkflow = exchangeWorkflow.toByteString()
-                apiVersion = publicApiVersion
+                apiVersion = Version.V2_ALPHA.string
               }
               nextExchangeDate = exchangeDate
             }

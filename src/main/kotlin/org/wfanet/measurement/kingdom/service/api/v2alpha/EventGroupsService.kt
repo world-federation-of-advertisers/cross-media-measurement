@@ -458,6 +458,7 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
           externalIdToApiId(externalEventGroupId)
         )
         .toName()
+    apiVersion = details.apiVersion
     measurementConsumer =
       MeasurementConsumerKey(externalIdToApiId(externalMeasurementConsumerId)).toName()
     eventGroupReferenceId = providedEventGroupId
