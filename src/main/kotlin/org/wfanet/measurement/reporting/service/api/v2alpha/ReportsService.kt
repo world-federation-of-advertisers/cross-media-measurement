@@ -231,9 +231,11 @@ class ReportsService(
         )
     } catch (e: StatusException) {
       throw when (e.status.code) {
-          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT.withDescription(e.message)
-          Status.Code.PERMISSION_DENIED -> Status.PERMISSION_DENIED.withDescription(e.message)
-          else -> Status.UNKNOWN.withDescription("Unable to get Metrics.")
+          Status.Code.INVALID_ARGUMENT ->
+            Status.INVALID_ARGUMENT.withDescription("Unable to get Metrics.\n${e.message}")
+          Status.Code.PERMISSION_DENIED ->
+            Status.PERMISSION_DENIED.withDescription("Unable to get Metrics.\n${e.message}")
+          else -> Status.UNKNOWN.withDescription("Unable to get Metrics.\n${e.message}")
         }
         .withCause(e)
         .asRuntimeException()
