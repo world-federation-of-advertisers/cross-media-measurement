@@ -38,13 +38,13 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "3"
-		memory: "2Gi"
+		memory: "4Gi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#MillMaxHeapSize: "1G"
+#MillMaxHeapSize: "3G"
 #MillReplicas:    1
 
 objectSets: [
