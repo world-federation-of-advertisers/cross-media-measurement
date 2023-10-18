@@ -464,15 +464,20 @@ abstract class MillBase(
   }
 
   /**
-   * Execute the block, however, fetches the cached result if available after the execution,
-   * otherwise compute the new result by executing [block].
+   * Always execute the block [block]. However, if the token contains a cached result (from previous
+   * run), return the cached result instead of the result of the current run.
    */
-  protected suspend fun executeBlock(
+  protected suspend fun existingOutputAnd(
     token: ComputationToken,
     block: suspend () -> ByteString
   ): EncryptedComputationResult {
     val wallDurationLogger = wallDurationLogger()
     val result = block()
+    wallDurationLogger.logStageDurationMetric(
+      token,
+      JNI_WALL_CLOCK_DURATION,
+      jniWallClockDurationHistogram
+    )
     // Reuse cached result if it exists even though the block has been rerun.
     if (token.singleOutputBlobMetadata().path.isNotEmpty()) {
       return EncryptedComputationResult(
@@ -480,11 +485,6 @@ abstract class MillBase(
         token
       )
     }
-    wallDurationLogger.logStageDurationMetric(
-      token,
-      JNI_WALL_CLOCK_DURATION,
-      jniWallClockDurationHistogram
-    )
     return EncryptedComputationResult(
       flowOf(result),
       dataClients.writeSingleOutputBlob(token, result)
