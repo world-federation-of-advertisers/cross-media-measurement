@@ -17,7 +17,6 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "google/type/date.proto";
-import "wfa/measurement/internal/common/provider.proto";
 import "wfa/measurement/internal/kingdom/exchange_step.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
@@ -42,7 +41,12 @@ service ExchangeSteps {
 
 // Request message for "/ExchangeSteps.ClaimReadyExchangeStep".
 message ClaimReadyExchangeStepRequest {
-  wfa.measurement.internal.common.Provider provider = 1;
+  reserved 1;
+
+  oneof party {
+    fixed64 external_data_provider_id = 2;
+    fixed64 external_model_provider_id = 3;
+  }
 }
 
 // Response message for "/ExchangeSteps.ClaimReadyExchangeStep".
