@@ -28,6 +28,8 @@ import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesResponse
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedule
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.StopReportScheduleRequest
+import org.wfanet.measurement.internal.reporting.v2.listReportSchedulesResponse
+import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportScheduleReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateReportSchedule
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportScheduleAlreadyExistsException
@@ -61,15 +63,44 @@ class PostgresReportSchedulesService(
   }
 
   override suspend fun getReportSchedule(request: GetReportScheduleRequest): ReportSchedule {
-    // TODO(@tristanvuong2021): Not yet implemented
-    return super.getReportSchedule(request)
+    grpcRequire(request.cmmsMeasurementConsumerId.isNotEmpty()) {
+      "cmms_measurement_consumer_id is not set"
+    }
+
+    grpcRequire(request.externalReportScheduleId.isNotEmpty()) {
+      "external_report_schedule_id is not set."
+    }
+
+    val readContext = client.readTransaction()
+    return try {
+      ReportScheduleReader(readContext)
+        .readReportScheduleByExternalId(
+          request.cmmsMeasurementConsumerId,
+          request.externalReportScheduleId
+        )
+        ?.reportSchedule
+        ?: throw Status.NOT_FOUND.withDescription("Report Schedule not found.").asRuntimeException()
+    } finally {
+      readContext.close()
+    }
   }
 
   override suspend fun listReportSchedules(
     request: ListReportSchedulesRequest
   ): ListReportSchedulesResponse {
-    // TODO(@tristanvuong2021): Not yet implemented
-    return super.listReportSchedules(request)
+    grpcRequire(request.filter.cmmsMeasurementConsumerId.isNotEmpty()) {
+      "Filter is missing cmms_measurement_consumer_id"
+    }
+
+    val readContext = client.readTransaction()
+    return try {
+      listReportSchedulesResponse {
+        reportSchedules +=
+          ReportScheduleReader(readContext).readReportSchedules(request).map { it.reportSchedule }
+      }
+    } finally {
+      readContext.close()
+    }
   }
 
   override suspend fun stopReportSchedule(request: StopReportScheduleRequest): ReportSchedule {
