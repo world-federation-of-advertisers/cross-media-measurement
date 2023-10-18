@@ -107,9 +107,13 @@ class PostgresReportSchedulesService(
   }
 
   override suspend fun stopReportSchedule(request: StopReportScheduleRequest): ReportSchedule {
-    grpcRequire(request.cmmsMeasurementConsumerId.isNotEmpty()) { "cmms_measurement_consumer_id is not set." }
+    grpcRequire(request.cmmsMeasurementConsumerId.isNotEmpty()) {
+      "cmms_measurement_consumer_id is not set."
+    }
 
-    grpcRequire(request.externalReportScheduleId.isNotEmpty()) { "external_report_schedule_id is not set." }
+    grpcRequire(request.externalReportScheduleId.isNotEmpty()) {
+      "external_report_schedule_id is not set."
+    }
 
     return try {
       StopReportSchedule(request).execute(client, idGenerator)

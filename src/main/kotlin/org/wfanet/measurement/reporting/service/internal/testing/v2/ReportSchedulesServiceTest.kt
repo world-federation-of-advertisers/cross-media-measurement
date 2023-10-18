@@ -651,17 +651,27 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
     }
     val stoppedReportSchedule = service.stopReportSchedule(stopRequest)
 
-    assertThat(stoppedReportSchedule.externalReportScheduleId).isEqualTo(createdReportSchedule.externalReportScheduleId)
+    assertThat(stoppedReportSchedule.externalReportScheduleId)
+      .isEqualTo(createdReportSchedule.externalReportScheduleId)
     assertThat(stoppedReportSchedule.state).isEqualTo(ReportSchedule.State.STOPPED)
-    assertThat(Timestamps.compare(stoppedReportSchedule.updateTime, createdReportSchedule.createTime)).isGreaterThan(0)
+    assertThat(
+        Timestamps.compare(stoppedReportSchedule.updateTime, createdReportSchedule.createTime)
+      )
+      .isGreaterThan(0)
 
-    val retrievedReportSchedule = service.getReportSchedule(getReportScheduleRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalReportScheduleId = createdReportSchedule.externalReportScheduleId
-    })
+    val retrievedReportSchedule =
+      service.getReportSchedule(
+        getReportScheduleRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportScheduleId = createdReportSchedule.externalReportScheduleId
+        }
+      )
 
     assertThat(retrievedReportSchedule.state).isEqualTo(ReportSchedule.State.STOPPED)
-    assertThat(Timestamps.compare(retrievedReportSchedule.updateTime, createdReportSchedule.createTime)).isGreaterThan(0)
+    assertThat(
+        Timestamps.compare(retrievedReportSchedule.updateTime, createdReportSchedule.createTime)
+      )
+      .isGreaterThan(0)
   }
 
   @Test
@@ -700,9 +710,7 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
     service.stopReportSchedule(stopRequest)
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.stopReportSchedule(stopRequest)
-      }
+      assertFailsWith<StatusRuntimeException> { service.stopReportSchedule(stopRequest) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception.message).contains("not ACTIVE")
@@ -713,9 +721,7 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
     val exception =
       assertFailsWith<StatusRuntimeException> {
         service.stopReportSchedule(
-          stopReportScheduleRequest {
-            externalReportScheduleId = "external-report-schedule-id"
-          }
+          stopReportScheduleRequest { externalReportScheduleId = "external-report-schedule-id" }
         )
       }
 
@@ -728,9 +734,7 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
     val exception =
       assertFailsWith<StatusRuntimeException> {
         service.stopReportSchedule(
-          stopReportScheduleRequest {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          }
+          stopReportScheduleRequest { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
         )
       }
 

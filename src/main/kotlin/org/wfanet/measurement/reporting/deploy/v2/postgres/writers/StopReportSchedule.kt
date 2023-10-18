@@ -35,14 +35,25 @@ import org.wfanet.measurement.reporting.service.internal.ReportScheduleStateInva
  * * [ReportScheduleNotFoundException] Report Schedule not found
  * * [ReportScheduleNotFoundException] Report Schedule state invalid.
  */
-class StopReportSchedule(private val request: StopReportScheduleRequest) : PostgresWriter<ReportSchedule>() {
+class StopReportSchedule(private val request: StopReportScheduleRequest) :
+  PostgresWriter<ReportSchedule>() {
   override suspend fun TransactionScope.runTransaction(): ReportSchedule {
-    val result = ReportScheduleReader(transactionContext)
-        .readReportScheduleByExternalId(request.cmmsMeasurementConsumerId, request.externalReportScheduleId)
-      ?: throw ReportScheduleNotFoundException(request.cmmsMeasurementConsumerId, request.externalReportScheduleId)
+    val result =
+      ReportScheduleReader(transactionContext)
+        .readReportScheduleByExternalId(
+          request.cmmsMeasurementConsumerId,
+          request.externalReportScheduleId
+        )
+        ?: throw ReportScheduleNotFoundException(
+          request.cmmsMeasurementConsumerId,
+          request.externalReportScheduleId
+        )
 
     if (result.reportSchedule.state != ReportSchedule.State.ACTIVE) {
-      throw ReportScheduleStateInvalidException(request.cmmsMeasurementConsumerId, request.externalReportScheduleId)
+      throw ReportScheduleStateInvalidException(
+        request.cmmsMeasurementConsumerId,
+        request.externalReportScheduleId
+      )
     }
 
     val updateTime = Instant.now().atOffset(ZoneOffset.UTC)
@@ -61,9 +72,7 @@ class StopReportSchedule(private val request: StopReportScheduleRequest) : Postg
         bind("$4", result.reportScheduleId)
       }
 
-    transactionContext.run {
-      executeStatement(statement)
-    }
+    transactionContext.run { executeStatement(statement) }
 
     return result.reportSchedule.copy {
       state = ReportSchedule.State.STOPPED
