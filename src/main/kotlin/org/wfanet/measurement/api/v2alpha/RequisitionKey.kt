@@ -18,12 +18,35 @@ import org.wfanet.measurement.common.ResourceNameParser
 import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
 
+/** [ResourceKey] of the parent of a requisitions resource collection. */
+sealed interface RequisitionParentKey : ResourceKey
+
 /** [ResourceKey] of a Requisition. */
-data class RequisitionKey(
-  val dataProviderId: String,
-  val requisitionId: String,
-) : ChildResourceKey {
-  override val parentKey = DataProviderKey(dataProviderId)
+sealed interface RequisitionKey : ChildResourceKey {
+  override val parentKey: RequisitionParentKey
+
+  val requisitionId: String
+
+  companion object FACTORY : ResourceKey.Factory<RequisitionKey> {
+    override fun fromName(resourceName: String): RequisitionKey? {
+      return CanonicalRequisitionKey.fromName(resourceName)
+        ?: MeasurementRequisitionKey.fromName(resourceName)
+    }
+  }
+}
+
+/** Canonical [ResourceKey] of a Requisition. */
+data class CanonicalRequisitionKey(
+  override val parentKey: DataProviderKey,
+  override val requisitionId: String,
+) : RequisitionKey {
+  constructor(
+    dataProviderId: String,
+    requisitionId: String
+  ) : this(DataProviderKey(dataProviderId), requisitionId)
+
+  val dataProviderId: String
+    get() = parentKey.dataProviderId
 
   override fun toName(): String {
     return parser.assembleName(
@@ -31,15 +54,18 @@ data class RequisitionKey(
     )
   }
 
-  companion object FACTORY : ResourceKey.Factory<RequisitionKey> {
+  companion object FACTORY : ResourceKey.Factory<CanonicalRequisitionKey> {
     private val parser =
       ResourceNameParser("dataProviders/{data_provider}/requisitions/{requisition}")
 
-    val defaultValue = RequisitionKey("", "")
+    val defaultValue = CanonicalRequisitionKey("", "")
 
-    override fun fromName(resourceName: String): RequisitionKey? {
+    override fun fromName(resourceName: String): CanonicalRequisitionKey? {
       return parser.parseIdVars(resourceName)?.let {
-        RequisitionKey(it.getValue(IdVariable.DATA_PROVIDER), it.getValue(IdVariable.REQUISITION))
+        CanonicalRequisitionKey(
+          it.getValue(IdVariable.DATA_PROVIDER),
+          it.getValue(IdVariable.REQUISITION)
+        )
       }
     }
   }
