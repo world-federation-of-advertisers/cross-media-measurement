@@ -17,7 +17,7 @@ package k8s
 _resourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "500m"
-		memory: "288Mi"
+		memory: "2000Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
@@ -26,9 +26,9 @@ _resourceRequirements: ResourceRequirements=#ResourceRequirements & {
 
 _populationSpec: "/etc/\(#AppName)/config-files/synthetic_population_spec.textproto"
 _eventGroupSpecs: [
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_1.textproto",
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_2.textproto",
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_3.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_4.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_5.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_6.textproto",
 ]
 
 edp_simulators: {
@@ -44,7 +44,7 @@ edp_simulators: {
 			]
 			deployment: {
 				_container: {
-					_javaOptions: maxHeapSize: "96M"
+					_javaOptions: maxHeapSize: "1500M"
 					resources: _resourceRequirements
 				}
 				spec: template: spec: {
