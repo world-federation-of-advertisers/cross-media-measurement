@@ -62,9 +62,10 @@ abstract class InProcessMeasurementReachAccuracyTest(
   duchyDependenciesRule:
     ProviderRule<
       (
-        String, ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
+        String,
+        ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub,
       ) -> InProcessDuchy.DuchyDependencies
-    >
+    >,
 ) {
 
   @get:Rule
@@ -177,7 +178,7 @@ abstract class InProcessMeasurementReachAccuracyTest(
     val expectedReach: Long,
     val lowerBound: Double,
     val upperBound: Double,
-    val withinInterval: Boolean
+    val withinInterval: Boolean,
   )
 
   @Test
@@ -252,7 +253,10 @@ abstract class InProcessMeasurementReachAccuracyTest(
 
     assertTrue(withinIntervalPercentage >= COVERAGE_TEST_THRESHOLD)
     assertTrue(averageDispersionRatio < AVERAGE_TEST_THRESHOLD)
-    assertTrue(standardDeviationOffset < VARIANCE_TEST_THRESHOLD)
+    assertTrue(
+      (standardDeviation > expectedStandardDeviation * VARIANCE_TEST_LOWER_THRESHOLD) and
+        (standardDeviation < expectedStandardDeviation * VARIANCE_TEST_UPPER_THRESHOLD)
+    )
   }
 
   companion object {
@@ -267,7 +271,8 @@ abstract class InProcessMeasurementReachAccuracyTest(
 
     private const val COVERAGE_TEST_THRESHOLD = 90
     private const val AVERAGE_TEST_THRESHOLD = 4
-    private const val VARIANCE_TEST_THRESHOLD = 0.5
+    private const val VARIANCE_TEST_LOWER_THRESHOLD = 0.5
+    private const val VARIANCE_TEST_UPPER_THRESHOLD = 1.5
     private val OUTPUT_DP_PARAMS = differentialPrivacyParams {
       epsilon = 0.0033
       delta = 0.00001
