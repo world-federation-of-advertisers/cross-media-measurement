@@ -20,8 +20,6 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.time.LocalDate
 import java.time.ZoneOffset
 import org.wfanet.measurement.common.toProtoDate
-import org.wfanet.measurement.internal.common.Provider
-import org.wfanet.measurement.internal.common.provider
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
@@ -42,11 +40,6 @@ private const val EXTERNAL_MODEL_PROVIDER_ID = 666L
 private const val STEP_INDEX = 1
 
 internal val EXCHANGE_DATE = LocalDate.now(ZoneOffset.UTC).toProtoDate()
-
-internal val PROVIDER = provider {
-  externalId = EXTERNAL_MODEL_PROVIDER_ID
-  type = Provider.Type.MODEL_PROVIDER
-}
 
 internal val EXCHANGE_STEP_RESPONSE_IGNORED_FIELDS: FieldScope =
   FieldScopes.allowingFieldDescriptors(ExchangeStep.getDescriptor().findFieldByName("update_time"))
@@ -97,7 +90,7 @@ internal suspend fun ExchangeStepsCoroutineImplBase.assertTestExchangeStepHasSta
         date = EXCHANGE_DATE
         stepIndex = exchangeStepIndex
         state = exchangeStepState
-        provider = PROVIDER
+        externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
       }
     )
 }
