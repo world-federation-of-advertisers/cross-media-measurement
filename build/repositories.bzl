@@ -34,15 +34,15 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_common_cpp",
         repo = "common-cpp",
-        sha256 = "fd4475b587741fa8af65c580b783054d09bf3890197830290a22b3823c778eeb",
-        version = "0.10.0",
+        sha256 = "b500535306189d43a9ececd3889a0e2cb969619a46339007037360f2c1651323",
+        version = "0.10.1",
     )
 
     wfa_repo_archive(
         name = "wfa_measurement_proto",
         repo = "cross-media-measurement-api",
-        sha256 = "f027ed6e6dfce0f1ce41be8d065e3f3227eb09e9d41fbc041650334301d72c42",
-        version = "0.45.0",
+        sha256 = "e856f7c537b0b5100183ef0d653bce2c782557d7d5f437b1d1c7bc160e5eef46",
+        version = "0.47.0",
     )
 
     wfa_repo_archive(

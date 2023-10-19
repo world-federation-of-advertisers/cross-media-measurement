@@ -18,18 +18,18 @@ import com.google.protobuf.util.Timestamps
 import com.google.type.interval
 import java.time.ZoneOffset
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeKey
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.Exchange
-import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKt
-import org.wfanet.measurement.api.v2alpha.ExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
@@ -80,6 +80,7 @@ import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.reachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toInstant
@@ -1035,7 +1036,7 @@ fun Measurement.toInternal(
 fun InternalExchange.toExchange(): Exchange {
   val source = this
   val exchangeKey =
-    ExchangeKey(
+    CanonicalExchangeKey(
       recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
       exchangeId = date.toLocalDate().toString()
     )
@@ -1059,20 +1060,33 @@ fun InternalExchange.toExchange(): Exchange {
   }
 }
 
-/** @throws [IllegalStateException] if InternalExchangeStep.State not specified */
-fun InternalExchangeStep.toV2Alpha(): ExchangeStep {
+/** Converts this [InternalExchangeStep] to an [ExchangeStep]. */
+fun InternalExchangeStep.toExchangeStep(): ExchangeStep {
   val exchangeStepKey =
-    ExchangeStepKey(
+    CanonicalExchangeStepKey(
       recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
       exchangeId = date.toLocalDate().toString(),
       exchangeStepId = stepIndex.toString()
     )
+  val source = this
   return exchangeStep {
     name = exchangeStepKey.toName()
-    state = v2AlphaState
-    stepIndex = this@toV2Alpha.stepIndex
-    exchangeDate = date
-    serializedExchangeWorkflow = this@toV2Alpha.serializedExchangeWorkflow
+    exchangeDate = source.date
+    stepIndex = source.stepIndex
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+    when (source.partyCase) {
+      InternalExchangeStep.PartyCase.EXTERNAL_DATA_PROVIDER_ID ->
+        dataProvider =
+          DataProviderKey(ExternalId(source.externalDataProviderId).apiId.value).toName()
+      InternalExchangeStep.PartyCase.EXTERNAL_MODEL_PROVIDER_ID ->
+        modelProvider =
+          ModelProviderKey(ExternalId(source.externalModelProviderId).apiId.value).toName()
+      InternalExchangeStep.PartyCase.PARTY_NOT_SET -> error("party not set")
+    }
+
+    state = source.state.toState()
+    serializedExchangeWorkflow = source.serializedExchangeWorkflow
   }
 }
 
@@ -1098,26 +1112,25 @@ fun Iterable<ExchangeStepAttempt.DebugLogEntry>.toInternal():
   }
 }
 
-/** @throws [IllegalStateException] if InternalExchangeStepAttempt.State not specified */
-fun InternalExchangeStepAttempt.toV2Alpha(): ExchangeStepAttempt {
+fun InternalExchangeStepAttempt.toExchangeStepAttempt(): ExchangeStepAttempt {
   val key =
-    ExchangeStepAttemptKey(
+    CanonicalExchangeStepAttemptKey(
       recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
       exchangeId = date.toLocalDate().toString(),
       exchangeStepId = stepIndex.toString(),
-      exchangeStepAttemptId = this@toV2Alpha.attemptNumber.toString()
+      exchangeStepAttemptId = this@toExchangeStepAttempt.attemptNumber.toString()
     )
+  val source = this
   return exchangeStepAttempt {
     name = key.toName()
-    attemptNumber = this@toV2Alpha.attemptNumber
-    state = this@toV2Alpha.state.toV2Alpha()
-    debugLogEntries += details.debugLogEntriesList.map { it.toV2Alpha() }
-    startTime = details.startTime
-    updateTime = details.updateTime
+    attemptNumber = source.attemptNumber
+    state = source.state.toState()
+    debugLogEntries += source.details.debugLogEntriesList.map { it.toDebugLogEntry() }
+    startTime = source.details.startTime
+    updateTime = source.details.updateTime
   }
 }
 
-/** @throws [IllegalStateException] if State not specified */
 fun ExchangeStep.State.toInternal(): InternalExchangeStep.State {
   return when (this) {
     ExchangeStep.State.BLOCKED -> InternalExchangeStep.State.BLOCKED
@@ -1131,14 +1144,16 @@ fun ExchangeStep.State.toInternal(): InternalExchangeStep.State {
   }
 }
 
-private fun ExchangeStepAttemptDetails.DebugLog.toV2Alpha(): ExchangeStepAttempt.DebugLogEntry {
+private fun ExchangeStepAttemptDetails.DebugLog.toDebugLogEntry():
+  ExchangeStepAttempt.DebugLogEntry {
+  val source = this
   return ExchangeStepAttemptKt.debugLogEntry {
-    entryTime = this@toV2Alpha.time
-    message = this@toV2Alpha.message
+    entryTime = source.time
+    message = source.message
   }
 }
 
-private fun InternalExchangeStepAttempt.State.toV2Alpha(): ExchangeStepAttempt.State {
+private fun InternalExchangeStepAttempt.State.toState(): ExchangeStepAttempt.State {
   return when (this) {
     InternalExchangeStepAttempt.State.STATE_UNSPECIFIED,
     InternalExchangeStepAttempt.State.UNRECOGNIZED ->
@@ -1150,20 +1165,18 @@ private fun InternalExchangeStepAttempt.State.toV2Alpha(): ExchangeStepAttempt.S
   }
 }
 
-private val InternalExchangeStep.v2AlphaState: ExchangeStep.State
-  get() {
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-    return when (this.state) {
-      InternalExchangeStep.State.BLOCKED -> ExchangeStep.State.BLOCKED
-      InternalExchangeStep.State.READY -> ExchangeStep.State.READY
-      InternalExchangeStep.State.READY_FOR_RETRY -> ExchangeStep.State.READY_FOR_RETRY
-      InternalExchangeStep.State.IN_PROGRESS -> ExchangeStep.State.IN_PROGRESS
-      InternalExchangeStep.State.SUCCEEDED -> ExchangeStep.State.SUCCEEDED
-      InternalExchangeStep.State.FAILED -> ExchangeStep.State.FAILED
-      InternalExchangeStep.State.STATE_UNSPECIFIED,
-      InternalExchangeStep.State.UNRECOGNIZED -> error("Invalid InternalExchangeStep state: $this")
-    }
+private fun InternalExchangeStep.State.toState(): ExchangeStep.State {
+  return when (this) {
+    InternalExchangeStep.State.BLOCKED -> ExchangeStep.State.BLOCKED
+    InternalExchangeStep.State.READY -> ExchangeStep.State.READY
+    InternalExchangeStep.State.READY_FOR_RETRY -> ExchangeStep.State.READY_FOR_RETRY
+    InternalExchangeStep.State.IN_PROGRESS -> ExchangeStep.State.IN_PROGRESS
+    InternalExchangeStep.State.SUCCEEDED -> ExchangeStep.State.SUCCEEDED
+    InternalExchangeStep.State.FAILED -> ExchangeStep.State.FAILED
+    InternalExchangeStep.State.STATE_UNSPECIFIED,
+    InternalExchangeStep.State.UNRECOGNIZED -> error("Invalid InternalExchangeStep state: $this")
   }
+}
 
 /** @throws [IllegalArgumentException] if step dependencies invalid */
 fun ExchangeWorkflow.toInternal(): InternalExchangeWorkflow {

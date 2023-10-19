@@ -16,13 +16,10 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
 import com.google.cloud.spanner.Statement
 import org.wfanet.measurement.gcloud.common.toCloudDate
-import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
+import org.wfanet.measurement.gcloud.spanner.toProtoEnumArray
 import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequest
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.PROVIDER_PARAM
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.providerFilter
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.stepIsOwnedByProviderTypeFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
 
 /**
@@ -37,7 +34,9 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
   override val reader =
     ExchangeStepReader().fillStatementBuilder {
       appendWhereClause(requestFilter)
-      appendClause("ORDER BY ExchangeSteps.UpdateTime ASC, Date ASC, StepIndex ASC")
+      appendClause(
+        "ORDER BY ExchangeSteps.RecurringExchangeId, ExchangeSteps.Date, ExchangeSteps.StepIndex"
+      )
       if (limit > 0) {
         appendClause("LIMIT @${Params.LIMIT}")
         bind(Params.LIMIT to limit.toLong())
@@ -47,21 +46,9 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
   private fun Statement.Builder.appendWhereClause(filter: StreamExchangeStepsRequest.Filter) {
     val conjuncts = mutableListOf<String>()
 
-    conjuncts.add(providerFilter(filter.principal))
-    bind(PROVIDER_PARAM to filter.principal.externalId)
-
-    if (filter.hasStepProvider()) {
-      conjuncts.add(stepIsOwnedByProviderTypeFilter(filter.stepProvider.type))
-      bind(Params.EXTERNAL_STEP_PROVIDER_ID to filter.stepProvider.externalId)
-    }
-
-    if (filter.externalRecurringExchangeIdsList.isNotEmpty()) {
-      conjuncts.add(
-        "RecurringExchanges.ExternalRecurringExchangeId IN " +
-          "UNNEST(@${Params.EXTERNAL_RECURRING_EXCHANGE_ID})"
-      )
-      bind(Params.EXTERNAL_RECURRING_EXCHANGE_ID)
-        .toInt64Array(filter.externalRecurringExchangeIdsList.map { it.toLong() })
+    if (filter.externalRecurringExchangeId != 0L) {
+      conjuncts.add("ExternalRecurringExchangeId = @${Params.EXTERNAL_RECURRING_EXCHANGE_ID}")
+      bind(Params.EXTERNAL_RECURRING_EXCHANGE_ID).to(filter.externalRecurringExchangeId)
     }
 
     if (filter.datesList.isNotEmpty()) {
@@ -69,19 +56,44 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
       bind(Params.DATES).toDateArray(filter.datesList.map { it.toCloudDate() })
     }
 
-    if (filter.statesValueList.isNotEmpty()) {
+    if (filter.statesList.isNotEmpty()) {
       conjuncts.add("ExchangeSteps.State IN UNNEST(@${Params.STATES})")
-      bind(Params.STATES).toInt64Array(filter.statesValueList.map { it.toLong() })
+      bind(Params.STATES).toProtoEnumArray(filter.statesList)
     }
 
-    if (filter.stepIndicesList.isNotEmpty()) {
-      conjuncts.add("ExchangeSteps.StepIndex IN UNNEST(@${Params.STEP_INDICES})")
-      bind(Params.STEP_INDICES).toInt64Array(filter.stepIndicesList.map { it.toLong() })
+    if (filter.externalDataProviderId != 0L) {
+      conjuncts.add(
+        "(ExchangeSteps.DataProviderId = RecurringExchanges.DataProviderId AND " +
+          "ExternalDataProviderId = @${Params.EXTERNAL_DATA_PROVIDER_ID})"
+      )
+      bind(Params.EXTERNAL_DATA_PROVIDER_ID).to(filter.externalDataProviderId)
     }
 
-    if (filter.hasUpdatedAfter()) {
-      conjuncts.add("ExchangeSteps.UpdateTime > @${Params.UPDATED_AFTER}")
-      bind(Params.UPDATED_AFTER to filter.updatedAfter.toGcloudTimestamp())
+    if (filter.externalModelProviderId != 0L) {
+      conjuncts.add(
+        "ExchangeSteps.ModelProviderId = RecurringExchanges.ModelProviderId AND " +
+          "ExternalModelProviderId = @${Params.EXTERNAL_MODEL_PROVIDER_ID}"
+      )
+      bind(Params.EXTERNAL_MODEL_PROVIDER_ID).to(filter.externalModelProviderId)
+    }
+
+    if (filter.hasAfter()) {
+      val conjunct =
+        """
+        ExternalRecurringExchangeId > @${Params.AFTER_EXTERNAL_RECURRING_EXCHANGE_ID} OR (
+          ExternalRecurringExchangeId = @${Params.AFTER_EXTERNAL_RECURRING_EXCHANGE_ID} AND (
+            ExchangeSteps.Date > @${Params.AFTER_DATE} OR (
+              ExchangeSteps.Date = @${Params.AFTER_DATE} AND
+                ExchangeSteps.StepIndex > @${Params.AFTER_STEP_INDEX}
+            )
+          )
+        )
+        """
+          .trimIndent()
+      conjuncts.add(conjunct)
+      bind(Params.AFTER_EXTERNAL_RECURRING_EXCHANGE_ID).to(filter.after.externalRecurringExchangeId)
+      bind(Params.AFTER_DATE).to(filter.after.date.toCloudDate())
+      bind(Params.AFTER_STEP_INDEX).to(filter.after.stepIndex.toLong())
     }
 
     check(conjuncts.isNotEmpty())
@@ -91,11 +103,13 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
 
   private object Params {
     const val LIMIT = "limit"
-    const val EXTERNAL_STEP_PROVIDER_ID = "externalStepProviderId"
     const val EXTERNAL_RECURRING_EXCHANGE_ID = "externalRecurringExchangeId"
     const val DATES = "dates"
     const val STATES = "states"
-    const val STEP_INDICES = "stepIndices"
-    const val UPDATED_AFTER = "updatedAfter"
+    const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
+    const val EXTERNAL_MODEL_PROVIDER_ID = "externalModelProviderId"
+    const val AFTER_EXTERNAL_RECURRING_EXCHANGE_ID = "afterExternalRecurringExchangeId"
+    const val AFTER_DATE = "afterDate"
+    const val AFTER_STEP_INDEX = "afterStepIndex"
   }
 }

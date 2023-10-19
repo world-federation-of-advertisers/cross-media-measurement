@@ -36,6 +36,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsPageToken
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsPageTokenKt.previousPageEnd
@@ -51,7 +52,6 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
 import org.wfanet.measurement.api.v2alpha.Requisition.State
-import org.wfanet.measurement.api.v2alpha.RequisitionKey
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
@@ -125,9 +125,9 @@ private const val INVALID_REQUISITION_NAME = "requisitions/AAAAAAAAAHs"
 private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
 
 private val EXTERNAL_REQUISITION_ID =
-  apiIdToExternalId(RequisitionKey.fromName(REQUISITION_NAME)!!.requisitionId)
+  apiIdToExternalId(CanonicalRequisitionKey.fromName(REQUISITION_NAME)!!.requisitionId)
 private val EXTERNAL_DATA_PROVIDER_ID =
-  apiIdToExternalId(RequisitionKey.fromName(REQUISITION_NAME)!!.dataProviderId)
+  apiIdToExternalId(CanonicalRequisitionKey.fromName(REQUISITION_NAME)!!.dataProviderId)
 private val EXTERNAL_MEASUREMENT_ID =
   apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementId)
 private val EXTERNAL_MEASUREMENT_CONSUMER_ID =
@@ -530,7 +530,10 @@ class RequisitionsServiceTest {
 
   @Test
   fun `refuseRequisition throws UNAUTHENTICATED when no principal is not found`() {
-    val request = refuseRequisitionRequest { name = REQUISITION_NAME }
+    val request = refuseRequisitionRequest {
+      name = REQUISITION_NAME
+      refusal = refusal { justification = Refusal.Justification.UNFULFILLABLE }
+    }
 
     val exception =
       assertFailsWith<StatusRuntimeException> { runBlocking { service.refuseRequisition(request) } }
@@ -539,7 +542,10 @@ class RequisitionsServiceTest {
 
   @Test
   fun `refuseRequisition throws PERMISSION_DENIED when edp caller doesn't match`() {
-    val request = refuseRequisitionRequest { name = REQUISITION_NAME }
+    val request = refuseRequisitionRequest {
+      name = REQUISITION_NAME
+      refusal = refusal { justification = Refusal.Justification.UNFULFILLABLE }
+    }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -552,7 +558,10 @@ class RequisitionsServiceTest {
 
   @Test
   fun `refuseRequisition throws PERMISSION_DENIED when principal without authorization is found`() {
-    val request = refuseRequisitionRequest { name = REQUISITION_NAME }
+    val request = refuseRequisitionRequest {
+      name = REQUISITION_NAME
+      refusal = refusal { justification = Refusal.Justification.UNFULFILLABLE }
+    }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -935,7 +944,7 @@ class RequisitionsServiceTest {
 
     private val REQUISITION: Requisition = requisition {
       name =
-        RequisitionKey(
+        CanonicalRequisitionKey(
             externalIdToApiId(INTERNAL_REQUISITION.externalDataProviderId),
             externalIdToApiId(INTERNAL_REQUISITION.externalRequisitionId)
           )

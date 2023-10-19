@@ -333,7 +333,7 @@ class MeasurementConsumerSimulator(
           apiIdToExternalId(DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId)
         )
       assertThat(result.impression.customDirectMethodology)
-        .isEqualTo(customDirectMethodology { variance = 0.0 })
+        .isEqualTo(customDirectMethodology { scalar = 0.0 })
       assertThat(result.impression.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
     }
     logger.info("Impression result is equal to the expected result")
@@ -362,7 +362,7 @@ class MeasurementConsumerSimulator(
         )
       // EdpSimulator hasn't had an implementation for watch duration.
       assertThat(result.watchDuration.customDirectMethodology)
-        .isEqualTo(customDirectMethodology { variance = 0.0 })
+        .isEqualTo(customDirectMethodology { scalar = 0.0 })
       assertThat(result.watchDuration.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
     }
     logger.info("Duration result is equal to the expected result")

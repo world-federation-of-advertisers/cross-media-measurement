@@ -46,7 +46,7 @@ import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
-import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
+import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.ReachFrequencyLiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.ReachOnlyLiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniLiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniReachOnlyLiquidLegionsV2Encryption
@@ -182,8 +182,8 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
         OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build()
       }
 
-    val liquidLegionsV2Mill =
-      LiquidLegionsV2Mill(
+    val reachFrequencyliquidLegionsV2Mill =
+      ReachFrequencyLiquidLegionsV2Mill(
         millId = millId,
         duchyId = flags.duchy.duchyName,
         signingKey = csSigningKey,
@@ -226,7 +226,9 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
       withContext(CoroutineName("Mill $millId")) {
         val throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval)
         throttler.loopOnReady {
-          logAndSuppressExceptionSuspend { liquidLegionsV2Mill.pollAndProcessNextComputation() }
+          logAndSuppressExceptionSuspend {
+            reachFrequencyliquidLegionsV2Mill.pollAndProcessNextComputation()
+          }
           logAndSuppressExceptionSuspend {
             reachOnlyLiquidLegionsV2Mill.pollAndProcessNextComputation()
           }
