@@ -111,7 +111,7 @@ duchy: #SpannerDuchy & {
 		"requisition-fulfillment-server-deployment": {
 			_container: {
 				_javaOptions: maxHeapSize: "1500M"
-				resources: "2G"
+				resources: "2Gi"
 			}
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #StorageServiceAccount
