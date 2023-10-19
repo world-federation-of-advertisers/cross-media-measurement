@@ -43,11 +43,11 @@ import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerDa
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator.MeasurementInfo
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
-import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchParams as StatsSketchParams
+import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMethodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
-import org.wfanet.measurement.measurementconsumer.stats.Variances.computeLiquidLegionsV2Variance
+import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl.computeMeasurementVariance
 import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
 
@@ -143,12 +143,11 @@ abstract class InProcessMeasurementReachAccuracyTest(
   }
 
   private fun getReachVariance(measurementInfo: MeasurementInfo, reach: Long): Double {
-    val sketchParams =
-      StatsSketchParams(
+    val liquidLegionsSketchMethodology =
+      LiquidLegionsSketchMethodology(
         RoLlv2ProtocolConfig.protocolConfig.sketchParams.decayRate,
-        RoLlv2ProtocolConfig.protocolConfig.sketchParams.maxSize.toDouble(),
+        RoLlv2ProtocolConfig.protocolConfig.sketchParams.maxSize,
       )
-
     val reachMeasurementParams =
       ReachMeasurementParams(
         StatsVidSamplingInterval(
@@ -160,7 +159,10 @@ abstract class InProcessMeasurementReachAccuracyTest(
       )
     val reachMeasurementVarianceParams =
       ReachMeasurementVarianceParams(reach, reachMeasurementParams)
-    return computeLiquidLegionsV2Variance(sketchParams, reachMeasurementVarianceParams)
+    return computeMeasurementVariance(
+      liquidLegionsSketchMethodology,
+      reachMeasurementVarianceParams
+    )
   }
 
   private fun getStandardDeviation(nums: List<Double>): Double {
@@ -203,9 +205,9 @@ abstract class InProcessMeasurementReachAccuracyTest(
       // The general formula for confidence interval is result +/- multiplier * sqrt(variance).
       // The multiplier for 95% confidence interval is 1.96.
       val reach = executionResult.actualResult.reach.value
-      val reachVariance = getReachVariance(executionResult.measurementInfo, expectedReach)
-      val intervalLowerBound = expectedReach - sqrt(reachVariance) * MULTIPLIER
-      val intervalUpperBound = expectedReach + sqrt(reachVariance) * MULTIPLIER
+      val reachVariance = getReachVariance(executionResult.measurementInfo, reach)
+      val intervalLowerBound = reach - sqrt(reachVariance) * MULTIPLIER
+      val intervalUpperBound = reach + sqrt(reachVariance) * MULTIPLIER
       val withinInterval = reach >= intervalLowerBound && reach <= intervalUpperBound
 
       val reachResult =

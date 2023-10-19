@@ -21,7 +21,8 @@ import org.wfanet.measurement.integration.common.InProcessMeasurementReachAccura
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDataServicesProviderRule
 
 /**
- * Implementation of [InProcessMeasurementReachAccuracyTest] for GCloud backends with Spanner database.
+ * Implementation of [InProcessMeasurementReachAccuracyTest] for GCloud backends with Spanner
+ * database.
  */
 class GCloudSpannerInProcessMeasurementReachAccuracyTest :
   InProcessMeasurementReachAccuracyTest(
