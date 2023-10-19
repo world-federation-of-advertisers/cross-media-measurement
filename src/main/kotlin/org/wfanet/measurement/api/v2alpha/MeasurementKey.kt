@@ -25,7 +25,7 @@ private val parser =
 data class MeasurementKey(
   val measurementConsumerId: String,
   val measurementId: String,
-) : ChildResourceKey {
+) : ChildResourceKey, RequisitionParentKey {
   override val parentKey = MeasurementConsumerKey(measurementConsumerId)
 
   override fun toName(): String {

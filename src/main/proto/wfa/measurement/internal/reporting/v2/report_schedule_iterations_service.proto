@@ -56,7 +56,7 @@ message GetReportScheduleIterationRequest {
 
 message ListReportScheduleIterationsRequest {
   message Filter {
-    // `MeasurementConsumer` ID from the CMMS public API.
+    // `MeasurementConsumer` ID from the CMMS public API. Required.
     string cmms_measurement_consumer_id = 1;
     string external_report_schedule_id = 2;
     // Skips to results with a `report_event_time` less than this.

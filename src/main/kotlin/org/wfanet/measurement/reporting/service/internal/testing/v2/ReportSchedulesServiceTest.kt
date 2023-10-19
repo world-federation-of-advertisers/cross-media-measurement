@@ -34,6 +34,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.ReportKt
@@ -44,6 +45,8 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createReportScheduleRequest
+import org.wfanet.measurement.internal.reporting.v2.getReportScheduleRequest
+import org.wfanet.measurement.internal.reporting.v2.listReportSchedulesRequest
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.internal.reporting.v2.report
 import org.wfanet.measurement.internal.reporting.v2.reportSchedule
@@ -436,6 +439,197 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception.message).contains("Measurement Consumer")
+  }
+
+  @Test
+  fun `getReportSchedule succeeds`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val reportSchedule = createReportScheduleForRequest(reportingSet)
+    val createRequest = createReportScheduleRequest {
+      this.reportSchedule = reportSchedule
+      externalReportScheduleId = "external-report-schedule-id"
+    }
+    val createdReportSchedule = service.createReportSchedule(createRequest)
+
+    val retrievedReportSchedule =
+      service.getReportSchedule(
+        getReportScheduleRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportScheduleId = createdReportSchedule.externalReportScheduleId
+        }
+      )
+
+    assertThat(retrievedReportSchedule.externalReportScheduleId)
+      .isEqualTo(createRequest.externalReportScheduleId)
+    assertThat(retrievedReportSchedule.createTime.seconds).isGreaterThan(0)
+    assertThat(retrievedReportSchedule.updateTime.seconds).isGreaterThan(0)
+    assertThat(retrievedReportSchedule.createTime).isEqualTo(retrievedReportSchedule.updateTime)
+    assertThat(retrievedReportSchedule.state).isEqualTo(ReportSchedule.State.ACTIVE)
+    assertThat(retrievedReportSchedule)
+      .ignoringFields(
+        ReportSchedule.CREATE_TIME_FIELD_NUMBER,
+        ReportSchedule.UPDATE_TIME_FIELD_NUMBER,
+        ReportSchedule.EXTERNAL_REPORT_SCHEDULE_ID_FIELD_NUMBER,
+        ReportSchedule.STATE_FIELD_NUMBER
+      )
+      .isEqualTo(reportSchedule)
+  }
+
+  @Test
+  fun `getReportSchedule throws NOT_FOUND when report schedule not found`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.getReportSchedule(
+          getReportScheduleRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalReportScheduleId = "external-report-schedule-id"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.message).contains("not found")
+  }
+
+  @Test
+  fun `getReportSchedule throws INVALID_ARGUMENT when cmms mc id missing`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.getReportSchedule(
+          getReportScheduleRequest { externalReportScheduleId = "external-report-schedule-id" }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("cmms_measurement_consumer_i")
+  }
+
+  @Test
+  fun `getReportSchedule throws INVALID_ARGUMENT when schedule id missing`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.getReportSchedule(
+          getReportScheduleRequest { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("external_report_schedule_id")
+  }
+
+  @Test
+  fun `listReportSchedules lists 2 schedules in asc order by external id`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val reportSchedule = createReportScheduleForRequest(reportingSet)
+
+    val request = createReportScheduleRequest {
+      this.reportSchedule = reportSchedule
+      externalReportScheduleId = "external-report-schedule-id"
+    }
+    val createdReportSchedule = service.createReportSchedule(request)
+    service.createReportSchedule(
+      request.copy { externalReportScheduleId = "external-report-schedule-id-2" }
+    )
+
+    val retrievedReportSchedules =
+      service
+        .listReportSchedules(
+          listReportSchedulesRequest {
+            filter =
+              ListReportSchedulesRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              }
+          }
+        )
+        .reportSchedulesList
+
+    assertThat(retrievedReportSchedules).hasSize(2)
+    assertThat(retrievedReportSchedules[0].externalReportScheduleId)
+      .isLessThan(retrievedReportSchedules[1].externalReportScheduleId)
+    assertThat(retrievedReportSchedules[0].externalReportScheduleId)
+      .isEqualTo(createdReportSchedule.externalReportScheduleId)
+  }
+
+  @Test
+  fun `listReportSchedules lists 1 schedule when limit is specified`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val reportSchedule = createReportScheduleForRequest(reportingSet)
+
+    val request = createReportScheduleRequest {
+      this.reportSchedule = reportSchedule
+      externalReportScheduleId = "external-report-schedule-id"
+    }
+    val createdReportSchedule = service.createReportSchedule(request)
+    service.createReportSchedule(
+      request.copy { externalReportScheduleId = "external-report-schedule-id-2" }
+    )
+
+    val retrievedReportSchedules =
+      service
+        .listReportSchedules(
+          listReportSchedulesRequest {
+            filter =
+              ListReportSchedulesRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              }
+            limit = 1
+          }
+        )
+        .reportSchedulesList
+
+    assertThat(retrievedReportSchedules).hasSize(1)
+    assertThat(retrievedReportSchedules[0].externalReportScheduleId)
+      .isEqualTo(createdReportSchedule.externalReportScheduleId)
+  }
+
+  @Test
+  fun `listReportSchedules lists 1 schedule when after id is specified`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val reportSchedule = createReportScheduleForRequest(reportingSet)
+
+    val request = createReportScheduleRequest {
+      this.reportSchedule = reportSchedule
+      externalReportScheduleId = "external-report-schedule-id"
+    }
+    val createdReportSchedule = service.createReportSchedule(request)
+    val createdReportSchedule2 =
+      service.createReportSchedule(
+        request.copy { externalReportScheduleId = "external-report-schedule-id-2" }
+      )
+
+    val retrievedReportSchedules =
+      service
+        .listReportSchedules(
+          listReportSchedulesRequest {
+            filter =
+              ListReportSchedulesRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                externalReportScheduleIdAfter = createdReportSchedule.externalReportScheduleId
+              }
+          }
+        )
+        .reportSchedulesList
+
+    assertThat(retrievedReportSchedules).hasSize(1)
+    assertThat(retrievedReportSchedules[0].externalReportScheduleId)
+      .isEqualTo(createdReportSchedule2.externalReportScheduleId)
+  }
+
+  @Test
+  fun `listReportSchedules throws INVALID_ARGUMENT when cmms mc id missing`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listReportSchedules(listReportSchedulesRequest {})
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("cmms_measurement_consumer_id")
   }
 
   companion object {

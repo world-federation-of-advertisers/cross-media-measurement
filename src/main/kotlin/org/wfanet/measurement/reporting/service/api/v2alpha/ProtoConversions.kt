@@ -32,6 +32,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
+import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParams
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodology as InternalCustomDirectMethodology
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodologyKt
 import org.wfanet.measurement.internal.reporting.v2.DeterministicCount
@@ -45,6 +46,7 @@ import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasu
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.reporting.v2.NoiseMechanism
 import org.wfanet.measurement.internal.reporting.v2.PeriodicTimeInterval as InternalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.ReachOnlyLiquidLegionsV2
@@ -70,6 +72,8 @@ import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals as internalTimeIntervals
+import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
+import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageToken
@@ -568,6 +572,7 @@ fun InternalReportingSet.toReportingSet(): ReportingSet {
         .toName()
 
     displayName = source.displayName
+    tags.putAll(source.details.tagsMap)
     filter = source.filter
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
@@ -797,18 +802,18 @@ fun ListReportsPageToken.toStreamReportsRequest(): StreamReportsRequest {
   }
 }
 
-/** Converts a CMMS [ProtocolConfig.NoiseMechanism] to an internal [NoiseMechanism]. */
-fun ProtocolConfig.NoiseMechanism.toInternal(): NoiseMechanism {
+/** Converts a CMMS [ProtocolConfig.NoiseMechanism] to an internal [InternalNoiseMechanism]. */
+fun ProtocolConfig.NoiseMechanism.toInternal(): InternalNoiseMechanism {
   return when (this) {
-    ProtocolConfig.NoiseMechanism.NONE -> NoiseMechanism.NONE
-    ProtocolConfig.NoiseMechanism.GEOMETRIC -> NoiseMechanism.GEOMETRIC
-    ProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN -> NoiseMechanism.DISCRETE_GAUSSIAN
+    ProtocolConfig.NoiseMechanism.NONE -> InternalNoiseMechanism.NONE
+    ProtocolConfig.NoiseMechanism.GEOMETRIC -> InternalNoiseMechanism.GEOMETRIC
+    ProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN -> InternalNoiseMechanism.DISCRETE_GAUSSIAN
     ProtocolConfig.NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED ->
-      NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED
-    ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE -> NoiseMechanism.CONTINUOUS_LAPLACE
-    ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN -> NoiseMechanism.CONTINUOUS_GAUSSIAN
+      InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED
+    ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE -> InternalNoiseMechanism.CONTINUOUS_LAPLACE
+    ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN -> InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
     ProtocolConfig.NoiseMechanism.UNRECOGNIZED -> {
-      error { "Noise mechanism $this is not recognized." }
+      throw NoiseMechanismUnrecognizedException("Noise mechanism $this is not recognized.")
     }
   }
 }
@@ -882,4 +887,33 @@ fun LiquidLegionsDistribution.toInternal(): InternalLiquidLegionsDistribution {
     decayRate = source.decayRate
     maxSize = source.maxSize
   }
+}
+
+/** Converts an internal [InternalNoiseMechanism] to a [StatsNoiseMechanism]. */
+fun InternalNoiseMechanism.toStatsNoiseMechanism(): StatsNoiseMechanism {
+  return when (this) {
+    NoiseMechanism.NONE -> StatsNoiseMechanism.NONE
+    NoiseMechanism.GEOMETRIC,
+    NoiseMechanism.CONTINUOUS_LAPLACE -> StatsNoiseMechanism.LAPLACE
+    NoiseMechanism.DISCRETE_GAUSSIAN,
+    NoiseMechanism.CONTINUOUS_GAUSSIAN -> StatsNoiseMechanism.GAUSSIAN
+    NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED -> {
+      throw NoiseMechanismUnspecifiedException("Internal noise mechanism should've been specified.")
+    }
+    NoiseMechanism.UNRECOGNIZED -> {
+      throw NoiseMechanismUnrecognizedException("Internal noise mechanism $this is unrecognized.")
+    }
+  }
+}
+
+/** Converts an [InternalMetricSpec.VidSamplingInterval] to [StatsVidSamplingInterval]. */
+fun InternalMetricSpec.VidSamplingInterval.toStatsVidSamplingInterval(): StatsVidSamplingInterval {
+  val source = this
+  return StatsVidSamplingInterval(source.start.toDouble(), source.width.toDouble())
+}
+
+/** Converts an [InternalMetricSpec.DifferentialPrivacyParams] to [NoiserDpParams]. */
+fun InternalMetricSpec.DifferentialPrivacyParams.toNoiserDpParams(): NoiserDpParams {
+  val source = this
+  return NoiserDpParams(source.epsilon, source.delta)
 }
