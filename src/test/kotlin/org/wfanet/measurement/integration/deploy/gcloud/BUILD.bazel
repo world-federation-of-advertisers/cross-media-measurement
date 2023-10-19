@@ -63,16 +63,16 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "GCloudSpannerInProcessMeasurementAccuracyTest",
+    name = "GCloudSpannerInProcessMeasurementReachAccuracyTest",
     size = "enormous",
-    srcs = ["GCloudSpannerInProcessMeasurementAccuracyTest.kt"],
+    srcs = ["GCloudSpannerInProcessMeasurementReachAccuracyTest.kt"],
     tags = [
         "cpu:2",
         "manual",
     ],
-    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudSpannerInProcessMeasurementAccuracyTest",
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudSpannerInProcessMeasurementReachAccuracyTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_measurement_accuracy_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_measurement_reach_accuracy_test",
         "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
     ],

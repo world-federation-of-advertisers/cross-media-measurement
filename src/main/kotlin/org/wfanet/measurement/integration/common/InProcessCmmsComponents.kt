@@ -26,6 +26,7 @@ import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.identity.DuchyInfo
@@ -46,6 +47,8 @@ class InProcessCmmsComponents(
   private val kingdomDataServicesRule: ProviderRule<DataServices>,
   private val duchyDependenciesRule:
     ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>,
+  private val syntheticEventGroupSpec: List<SyntheticEventGroupSpec> =
+    SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS
 ) : TestRule {
   private val kingdomDataServices: DataServices
     get() = kingdomDataServicesRule.value
@@ -71,7 +74,7 @@ class InProcessCmmsComponents(
 
   private val edpSimulators: List<InProcessEdpSimulator> by lazy {
     edpDisplayNameToResourceNameMap.entries.mapIndexed { index, (displayName, resourceName) ->
-      val specIndex = index % SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS.size
+      val specIndex = index % syntheticEventGroupSpec.size
       InProcessEdpSimulator(
         displayName = displayName,
         resourceName = resourceName,
@@ -79,7 +82,7 @@ class InProcessCmmsComponents(
         kingdomPublicApiChannel = kingdom.publicApiChannel,
         duchyPublicApiChannel = duchies[1].publicApiChannel,
         trustedCertificates = TRUSTED_CERTIFICATES,
-        SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS[specIndex],
+        syntheticEventGroupSpec[specIndex],
       )
     }
   }

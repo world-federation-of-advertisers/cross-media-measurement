@@ -17,14 +17,14 @@ package org.wfanet.measurement.integration.deploy.gcloud
 import org.junit.Rule
 import org.junit.rules.Timeout
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
-import org.wfanet.measurement.integration.common.InProcessMeasurementAccuracyTest
+import org.wfanet.measurement.integration.common.InProcessMeasurementReachAccuracyTest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDataServicesProviderRule
 
 /**
- * Implementation of [InProcessMeasurementAccuracyTest] for GCloud backends with Spanner database.
+ * Implementation of [InProcessMeasurementReachAccuracyTest] for GCloud backends with Spanner database.
  */
-class GCloudSpannerInProcessMeasurementAccuracyTest :
-  InProcessMeasurementAccuracyTest(
+class GCloudSpannerInProcessMeasurementReachAccuracyTest :
+  InProcessMeasurementReachAccuracyTest(
     KingdomDataServicesProviderRule(),
     SpannerDuchyDependencyProviderRule(ALL_DUCHY_NAMES)
   ) {
@@ -34,5 +34,5 @@ class GCloudSpannerInProcessMeasurementAccuracyTest :
    *
    * TODO(Kotlin/kotlinx.coroutines#3865): Switch back to CoroutinesTimeout when fixed.
    */
-  @get:Rule val timeout: Timeout = Timeout.seconds(7200)
+  @get:Rule val timeout: Timeout = Timeout.seconds(3600)
 }

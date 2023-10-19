@@ -37,7 +37,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpParamsConverter
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
@@ -58,7 +57,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
  * This is abstract so that different implementations of dependencies can all run the same tests
  * easily.
  */
-abstract class InProcessMeasurementAccuracyTest(
+abstract class InProcessMeasurementReachAccuracyTest(
   kingdomDataServicesRule: ProviderRule<DataServices>,
   duchyDependenciesRule:
     ProviderRule<
@@ -70,7 +69,11 @@ abstract class InProcessMeasurementAccuracyTest(
 
   @get:Rule
   val inProcessCmmsComponents =
-    InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule)
+    InProcessCmmsComponents(
+      kingdomDataServicesRule,
+      duchyDependenciesRule,
+      SYNTHETIC_EVENT_GROUP_SPECS
+    )
 
   private lateinit var mcSimulator: MeasurementConsumerSimulator
 
@@ -125,7 +128,7 @@ abstract class InProcessMeasurementAccuracyTest(
         RESULT_POLLING_DELAY,
         InProcessCmmsComponents.TRUSTED_CERTIFICATES,
         eventQuery,
-        NoiseMechanism.DISCRETE_GAUSSIAN
+        NoiseMechanism.CONTINUOUS_GAUSSIAN
       )
   }
 
@@ -153,7 +156,6 @@ abstract class InProcessMeasurementAccuracyTest(
           measurementInfo.measurementSpec.vidSamplingInterval.width.toDouble()
         ),
         DpParams(OUTPUT_DP_PARAMS.epsilon, OUTPUT_DP_PARAMS.delta),
-        // TODO: Read noise mechanism from ProtocolConfig.
         StatsNoiseMechanism.GAUSSIAN
       )
     val reachMeasurementVarianceParams =
@@ -166,14 +168,6 @@ abstract class InProcessMeasurementAccuracyTest(
     val standardDeviation = nums.fold(0.0) { acc, num -> acc + (num - mean).pow(2.0) }
 
     return sqrt(standardDeviation / nums.size)
-  }
-
-  private fun getLlv2Sigma(dpEpsilon: Double, dpDelta: Double): Double {
-    val dpParams = DpParams(dpEpsilon, dpDelta)
-    return AcdpParamsConverter.computeLlv2SigmaDistributedDiscreteGaussian(
-      dpParams,
-      CONTRIBUTOR_COUNT
-    )
   }
 
   data class ReachResult(
@@ -201,7 +195,8 @@ abstract class InProcessMeasurementAccuracyTest(
       } else if (expectedReach != executionResult.expectedResult.reach.value) {
         logger.log(
           Level.WARNING,
-          "expected result not consistent. round=$round, prev_expected_result=$expectedReach, current_expected_result=${executionResult.expectedResult.reach.value}"
+          "expected result not consistent. round=$round, prev_expected_result=$expectedReach, " +
+            "current_expected_result=${executionResult.expectedResult.reach.value}"
         )
       }
 
@@ -218,7 +213,10 @@ abstract class InProcessMeasurementAccuracyTest(
       reachResults += reachResult
 
       val message =
-        "round=$round, actual_result=${reachResult.actualReach}, expected_result=${reachResult.expectedReach}, interval=(${"%.2f".format(reachResult.lowerBound)}, ${"%.2f".format(reachResult.upperBound)}), accurate=${reachResult.withinInterval}"
+        "round=$round, actual_result=${reachResult.actualReach}, " +
+          "expected_result=${reachResult.expectedReach}, " +
+          "interval=(${"%.2f".format(reachResult.lowerBound)}, " +
+          "${"%.2f".format(reachResult.upperBound)}), accurate=${reachResult.withinInterval}"
       summary += message + "\n"
       logger.log(Level.INFO, message)
     }
@@ -235,7 +233,9 @@ abstract class InProcessMeasurementAccuracyTest(
 
     logger.log(
       Level.INFO,
-      "average_reach=$averageReach, offset_percentage=${"%.2f".format(offsetPercentage)}%, number_of_rounds_within_interval=$withinIntervalNumber out of $DEFAULT_TEST_ROUND_NUMBER (${"%.2f".format(withinIntervalPercentage)}%) "
+      "average_reach=$averageReach, offset_percentage=${"%.2f".format(offsetPercentage)}%, " +
+        "number_of_rounds_within_interval=$withinIntervalNumber out of $DEFAULT_TEST_ROUND_NUMBER " +
+        "(${"%.2f".format(withinIntervalPercentage)}%) "
     )
 
     val standardDeviation = getStandardDeviation(reachResults.map { it.actualReach.toDouble() })
@@ -243,7 +243,9 @@ abstract class InProcessMeasurementAccuracyTest(
       abs(standardDeviation - expectedStandardDeviation) / expectedStandardDeviation
     logger.log(
       Level.INFO,
-      "standard_deviation=${"%.2f".format(standardDeviation)}, expected_standard_deviation=${"%.2f".format(expectedStandardDeviation)}, offset=${"%.2f".format(standardDeviationOffset * 100)}%"
+      "standard_deviation=${"%.2f".format(standardDeviation)}, " +
+        "expected_standard_deviation=${"%.2f".format(expectedStandardDeviation)}, " +
+        "offset=${"%.2f".format(standardDeviationOffset * 100)}%"
     )
 
     assertTrue(withinIntervalPercentage >= COVERAGE_TEST_THRESHOLD)
@@ -254,7 +256,8 @@ abstract class InProcessMeasurementAccuracyTest(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-    // Todo(@renjiez): Determine the number of rounds.
+    private val SYNTHETIC_EVENT_GROUP_SPECS = SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_2M
+
     private const val DEFAULT_TEST_ROUND_NUMBER = 30
     // Multiplier for 95% confidence interval
     private const val MULTIPLIER = 1.96
@@ -263,12 +266,9 @@ abstract class InProcessMeasurementAccuracyTest(
     private const val COVERAGE_TEST_THRESHOLD = 90
     private const val AVERAGE_TEST_THRESHOLD = 4
     private const val VARIANCE_TEST_THRESHOLD = 0.5
-    // Todo(@renjiez): Determine the dp params.
     private val OUTPUT_DP_PARAMS = differentialPrivacyParams {
-      // epsilon = 0.0033
-      // delta = 0.00001
-      epsilon = 1.0
-      delta = 1.0
+      epsilon = 0.0033
+      delta = 0.00001
     }
     private val RESULT_POLLING_DELAY = Duration.ofSeconds(10)
 

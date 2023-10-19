@@ -241,9 +241,9 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "in_process_measurement_accuracy_test",
+    name = "in_process_measurement_reach_accuracy_test",
     srcs = [
-        "InProcessMeasurementAccuracyTest.kt",
+        "InProcessMeasurementReachAccuracyTest.kt",
     ],
     deps = [
         ":all_kingdom_services",
