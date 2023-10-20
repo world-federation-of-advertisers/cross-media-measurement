@@ -1,0 +1,84 @@
+# proto-file: wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto
+# proto-message: SyntheticEventGroupSpec
+
+# Spec for use with synthetic_population_spec_large.textproto.
+# Reach ~550K.
+
+date_specs {
+  date_range {
+    start {
+      year: 2021
+      month: 3
+      day: 15
+    }
+    end_exclusive {
+      year: 2021
+      month: 3
+      day: 16
+    }
+  }
+  # 200K
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 3100001
+        end_exclusive: 3300001
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.25
+        }
+      }
+    }
+  }
+  # 100K
+  frequency_specs {
+    frequency: 2
+    vid_range_specs {
+      vid_range {
+        start: 4250000
+        end_exclusive: 4350001
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.5
+        }
+      }
+    }
+  }
+  # 150K
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 13001001
+        end_exclusive: 13151001
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.75
+        }
+      }
+    }
+  }
+  # 100K
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 14000001
+        end_exclusive: 14100001
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.25
+        }
+      }
+    }
+  }
+}
