@@ -594,7 +594,7 @@ class ReachFrequencyLiquidLegionsV2Mill(
       MeasurementSpec.parseFrom(token.computationDetails.kingdomComputation.measurementSpec)
 
     val (bytes, tempToken) =
-      existingOutputOr(token) {
+      existingOutputAnd(token) {
         when (Version.fromString(token.computationDetails.kingdomComputation.publicApiVersion)) {
           Version.V2_ALPHA -> {}
           Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
