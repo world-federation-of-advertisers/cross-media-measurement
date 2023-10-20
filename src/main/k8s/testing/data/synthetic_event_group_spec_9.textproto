@@ -38,8 +38,8 @@ date_specs {
     frequency: 2
     vid_range_specs {
       vid_range {
-        start: 4200000
-        end_exclusive: 4300001
+        start: 4250000
+        end_exclusive: 4350001
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
