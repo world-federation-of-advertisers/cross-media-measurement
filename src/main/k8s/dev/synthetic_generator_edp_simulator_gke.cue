@@ -24,7 +24,7 @@ _resourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	}
 }
 
-_populationSpec: "/etc/\(#AppName)/config-files/synthetic_population_spec.textproto"
+_populationSpec: "/etc/\(#AppName)/config-files/synthetic_population_spec_large.textproto"
 _eventGroupSpecs: [
 	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_7.textproto",
 	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_8.textproto",
