@@ -659,7 +659,6 @@ class CreateMeasurement : Runnable {
             }
           }
         events = RequisitionSpecKt.events { this.eventGroups += eventGroups }
-        this.eventGroups += eventGroups
         this.measurementPublicKey = measurementEncryptionPublicKey
         nonce = secureRandom.nextLong()
       }

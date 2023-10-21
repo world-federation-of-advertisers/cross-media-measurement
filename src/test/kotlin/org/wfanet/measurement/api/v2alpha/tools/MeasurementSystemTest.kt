@@ -917,32 +917,32 @@ class MeasurementSystemTest {
       .isEqualTo(
         requisitionSpec {
           measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
-          val eventGroups =
-            listOf(
-              RequisitionSpecKt.eventGroupEntry {
-                key = "dataProviders/1/eventGroups/1"
-                value =
-                  RequisitionSpecKt.EventGroupEntryKt.value {
-                    collectionInterval = interval {
-                      startTime = Instant.parse(TIME_STRING_1).toProtoTime()
-                      endTime = Instant.parse(TIME_STRING_2).toProtoTime()
+          events =
+            RequisitionSpecKt.events {
+              eventGroups +=
+                RequisitionSpecKt.eventGroupEntry {
+                  key = "dataProviders/1/eventGroups/1"
+                  value =
+                    RequisitionSpecKt.EventGroupEntryKt.value {
+                      collectionInterval = interval {
+                        startTime = Instant.parse(TIME_STRING_1).toProtoTime()
+                        endTime = Instant.parse(TIME_STRING_2).toProtoTime()
+                      }
+                      filter = RequisitionSpecKt.eventFilter { expression = "abcd" }
                     }
-                    filter = RequisitionSpecKt.eventFilter { expression = "abcd" }
-                  }
-              },
-              RequisitionSpecKt.eventGroupEntry {
-                key = "dataProviders/1/eventGroups/2"
-                value =
-                  RequisitionSpecKt.EventGroupEntryKt.value {
-                    collectionInterval = interval {
-                      startTime = Instant.parse(TIME_STRING_3).toProtoTime()
-                      endTime = Instant.parse(TIME_STRING_4).toProtoTime()
+                }
+              eventGroups +=
+                RequisitionSpecKt.eventGroupEntry {
+                  key = "dataProviders/1/eventGroups/2"
+                  value =
+                    RequisitionSpecKt.EventGroupEntryKt.value {
+                      collectionInterval = interval {
+                        startTime = Instant.parse(TIME_STRING_3).toProtoTime()
+                        endTime = Instant.parse(TIME_STRING_4).toProtoTime()
+                      }
                     }
-                  }
-              }
-            )
-          this.eventGroups += eventGroups
-          events = RequisitionSpecKt.events { this.eventGroups += eventGroups }
+                }
+            }
         }
       )
 
@@ -967,20 +967,21 @@ class MeasurementSystemTest {
       .isEqualTo(
         requisitionSpec {
           measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
-          val eventGroups =
-            RequisitionSpecKt.eventGroupEntry {
-              key = "dataProviders/2/eventGroups/1"
-              value =
-                RequisitionSpecKt.EventGroupEntryKt.value {
-                  collectionInterval = interval {
-                    startTime = Instant.parse(TIME_STRING_5).toProtoTime()
-                    endTime = Instant.parse(TIME_STRING_6).toProtoTime()
-                  }
-                  filter = RequisitionSpecKt.eventFilter { expression = "ijk" }
+          events =
+            RequisitionSpecKt.events {
+              eventGroups +=
+                RequisitionSpecKt.eventGroupEntry {
+                  key = "dataProviders/2/eventGroups/1"
+                  value =
+                    RequisitionSpecKt.EventGroupEntryKt.value {
+                      collectionInterval = interval {
+                        startTime = Instant.parse(TIME_STRING_5).toProtoTime()
+                        endTime = Instant.parse(TIME_STRING_6).toProtoTime()
+                      }
+                      filter = RequisitionSpecKt.eventFilter { expression = "ijk" }
+                    }
                 }
             }
-          this.eventGroups += eventGroups
-          events = RequisitionSpecKt.events { this.eventGroups += eventGroups }
         }
       )
   }
@@ -1117,32 +1118,32 @@ class MeasurementSystemTest {
       .isEqualTo(
         requisitionSpec {
           measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
-          val eventGroups =
-            listOf(
-              RequisitionSpecKt.eventGroupEntry {
-                key = "dataProviders/1/eventGroups/1"
-                value =
-                  RequisitionSpecKt.EventGroupEntryKt.value {
-                    collectionInterval = interval {
-                      startTime = Instant.parse(TIME_STRING_1).toProtoTime()
-                      endTime = Instant.parse(TIME_STRING_2).toProtoTime()
+          events =
+            RequisitionSpecKt.events {
+              eventGroups +=
+                RequisitionSpecKt.eventGroupEntry {
+                  key = "dataProviders/1/eventGroups/1"
+                  value =
+                    RequisitionSpecKt.EventGroupEntryKt.value {
+                      collectionInterval = interval {
+                        startTime = Instant.parse(TIME_STRING_1).toProtoTime()
+                        endTime = Instant.parse(TIME_STRING_2).toProtoTime()
+                      }
+                      filter = RequisitionSpecKt.eventFilter { expression = "abcd" }
                     }
-                    filter = RequisitionSpecKt.eventFilter { expression = "abcd" }
-                  }
-              },
-              RequisitionSpecKt.eventGroupEntry {
-                key = "dataProviders/1/eventGroups/2"
-                value =
-                  RequisitionSpecKt.EventGroupEntryKt.value {
-                    collectionInterval = interval {
-                      startTime = Instant.parse(TIME_STRING_3).toProtoTime()
-                      endTime = Instant.parse(TIME_STRING_4).toProtoTime()
+                }
+              eventGroups +=
+                RequisitionSpecKt.eventGroupEntry {
+                  key = "dataProviders/1/eventGroups/2"
+                  value =
+                    RequisitionSpecKt.EventGroupEntryKt.value {
+                      collectionInterval = interval {
+                        startTime = Instant.parse(TIME_STRING_3).toProtoTime()
+                        endTime = Instant.parse(TIME_STRING_4).toProtoTime()
+                      }
                     }
-                  }
-              }
-            )
-          this.eventGroups += eventGroups
-          events = RequisitionSpecKt.events { this.eventGroups += eventGroups }
+                }
+            }
         }
       )
 
@@ -1167,20 +1168,21 @@ class MeasurementSystemTest {
       .isEqualTo(
         requisitionSpec {
           measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
-          val eventGroups =
-            RequisitionSpecKt.eventGroupEntry {
-              key = "dataProviders/2/eventGroups/1"
-              value =
-                RequisitionSpecKt.EventGroupEntryKt.value {
-                  collectionInterval = interval {
-                    startTime = Instant.parse(TIME_STRING_5).toProtoTime()
-                    endTime = Instant.parse(TIME_STRING_6).toProtoTime()
-                  }
-                  filter = RequisitionSpecKt.eventFilter { expression = "ijk" }
+          events =
+            RequisitionSpecKt.events {
+              eventGroups +=
+                RequisitionSpecKt.eventGroupEntry {
+                  key = "dataProviders/2/eventGroups/1"
+                  value =
+                    RequisitionSpecKt.EventGroupEntryKt.value {
+                      collectionInterval = interval {
+                        startTime = Instant.parse(TIME_STRING_5).toProtoTime()
+                        endTime = Instant.parse(TIME_STRING_6).toProtoTime()
+                      }
+                      filter = RequisitionSpecKt.eventFilter { expression = "ijk" }
+                    }
                 }
             }
-          this.eventGroups += eventGroups
-          events = RequisitionSpecKt.events { this.eventGroups += eventGroups }
         }
       )
   }
