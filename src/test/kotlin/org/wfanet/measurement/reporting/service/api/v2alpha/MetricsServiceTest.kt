@@ -105,6 +105,7 @@ import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.reachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.base64UrlEncode
@@ -121,6 +122,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toInterval
@@ -406,8 +408,7 @@ private val ENCRYPTION_KEY_PAIR_STORE =
       { it.name },
       {
         listOf(
-          EncryptionPublicKey.parseFrom(it.publicKey.data).data to
-            MEASUREMENT_CONSUMER_PRIVATE_KEY_HANDLE
+          it.publicKey.unpack<EncryptionPublicKey>().data to MEASUREMENT_CONSUMER_PRIVATE_KEY_HANDLE
         )
       }
     )
@@ -597,7 +598,7 @@ private val REQUISITION_SPECS: Map<DataProviderKey, RequisitionSpec> =
     .mapValues {
       requisitionSpec {
         events = RequisitionSpecKt.events { eventGroups += it.value }
-        measurementPublicKey = MEASUREMENT_CONSUMERS.values.first().publicKey.data
+        measurementPublicKey = MEASUREMENT_CONSUMERS.values.first().publicKey.message
         nonce = SECURE_RANDOM_OUTPUT_LONG
       }
     }
@@ -615,7 +616,7 @@ private val DATA_PROVIDER_ENTRIES =
           encryptedRequisitionSpec =
             encryptRequisitionSpec(
               signRequisitionSpec(requisitionSpec, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE),
-              EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
+              dataProvider.publicKey.unpack()
             )
           nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
         }
@@ -852,7 +853,7 @@ private val INTERNAL_SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT =
 
 // CMMS incremental reach measurements
 private val UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC = measurementSpec {
-  measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.toByteString()
+  measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
 
   nonceHashes +=
     listOf(
@@ -967,7 +968,7 @@ private val SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
 
 // CMMS single publisher reach-frequency measurements
 private val SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT_SPEC = measurementSpec {
-  measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.toByteString()
+  measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
 
   nonceHashes.add(Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG))
 
@@ -1063,7 +1064,7 @@ private val SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT =
 
 // CMMS single publisher impression measurements
 private val SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC = measurementSpec {
-  measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.toByteString()
+  measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
 
   nonceHashes.add(Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG))
 
@@ -1125,7 +1126,7 @@ private val PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
 private val SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
   PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
     state = Measurement.State.SUCCEEDED
-    results += resultPair {
+    results += resultOutput {
       val result =
         MeasurementKt.result {
           impression =
@@ -1143,7 +1144,7 @@ private val SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
 
 // CMMS cross publisher watch duration measurements
 private val UNION_ALL_WATCH_DURATION_MEASUREMENT_SPEC = measurementSpec {
-  measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.toByteString()
+  measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
 
   nonceHashes +=
     listOf(
@@ -1220,7 +1221,7 @@ private val SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT =
     results +=
       DATA_PROVIDERS.keys.zip(WATCH_DURATION_LIST).map { (dataProviderKey, watchDuration) ->
         val dataProvider = DATA_PROVIDERS.getValue(dataProviderKey)
-        resultPair {
+        resultOutput {
           val result =
             MeasurementKt.result {
               this.watchDuration =
@@ -2098,8 +2099,8 @@ class MetricsServiceTest {
       val dataProvidersList =
         capturedMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
 
-      val measurementSpec =
-        MeasurementSpec.parseFrom(capturedMeasurementRequest.measurement.measurementSpec.data)
+      val measurementSpec: MeasurementSpec =
+        capturedMeasurementRequest.measurement.measurementSpec.unpack()
       assertThat(measurementSpec)
         .isEqualTo(
           UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
@@ -2115,7 +2116,7 @@ class MetricsServiceTest {
             dataProviderEntry.value.encryptedRequisitionSpec,
             DATA_PROVIDER_PRIVATE_KEY_HANDLE
           )
-        val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+        val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
         verifyRequisitionSpec(
           signedRequisitionSpec,
           requisitionSpec,
@@ -2214,8 +2215,8 @@ class MetricsServiceTest {
         val dataProvidersList =
           capturedMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
 
-        val measurementSpec =
-          MeasurementSpec.parseFrom(capturedMeasurementRequest.measurement.measurementSpec.data)
+        val measurementSpec: MeasurementSpec =
+          capturedMeasurementRequest.measurement.measurementSpec.unpack()
         assertThat(measurementSpec).isEqualTo(SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT_SPEC)
 
         dataProvidersList.map { dataProviderEntry ->
@@ -2224,7 +2225,7 @@ class MetricsServiceTest {
               dataProviderEntry.value.encryptedRequisitionSpec,
               DATA_PROVIDER_PRIVATE_KEY_HANDLE
             )
-          val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+          val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
           verifyRequisitionSpec(
             signedRequisitionSpec,
             requisitionSpec,
@@ -2316,8 +2317,8 @@ class MetricsServiceTest {
       val dataProvidersList =
         capturedMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
 
-      val measurementSpec =
-        MeasurementSpec.parseFrom(capturedMeasurementRequest.measurement.measurementSpec.data)
+      val measurementSpec: MeasurementSpec =
+        capturedMeasurementRequest.measurement.measurementSpec.unpack()
       assertThat(measurementSpec).isEqualTo(SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC)
 
       dataProvidersList.map { dataProviderEntry ->
@@ -2326,7 +2327,7 @@ class MetricsServiceTest {
             dataProviderEntry.value.encryptedRequisitionSpec,
             DATA_PROVIDER_PRIVATE_KEY_HANDLE
           )
-        val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+        val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
         verifyRequisitionSpec(
           signedRequisitionSpec,
           requisitionSpec,
@@ -2512,8 +2513,8 @@ class MetricsServiceTest {
       val dataProvidersList =
         capturedMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
 
-      val measurementSpec =
-        MeasurementSpec.parseFrom(capturedMeasurementRequest.measurement.measurementSpec.data)
+      val measurementSpec: MeasurementSpec =
+        capturedMeasurementRequest.measurement.measurementSpec.unpack()
       assertThat(measurementSpec).isEqualTo(cmmsMeasurementSpec)
 
       dataProvidersList.map { dataProviderEntry ->
@@ -2522,7 +2523,7 @@ class MetricsServiceTest {
             dataProviderEntry.value.encryptedRequisitionSpec,
             DATA_PROVIDER_PRIVATE_KEY_HANDLE
           )
-        val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+        val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
         verifyRequisitionSpec(
           signedRequisitionSpec,
           requisitionSpec,
@@ -2617,8 +2618,8 @@ class MetricsServiceTest {
       val dataProvidersList =
         capturedMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
 
-      val measurementSpec =
-        MeasurementSpec.parseFrom(capturedMeasurementRequest.measurement.measurementSpec.data)
+      val measurementSpec: MeasurementSpec =
+        capturedMeasurementRequest.measurement.measurementSpec.unpack()
       assertThat(measurementSpec)
         .isEqualTo(
           UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
@@ -2634,7 +2635,7 @@ class MetricsServiceTest {
             dataProviderEntry.value.encryptedRequisitionSpec,
             DATA_PROVIDER_PRIVATE_KEY_HANDLE
           )
-        val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+        val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
         verifyRequisitionSpec(
           signedRequisitionSpec,
           requisitionSpec,
@@ -2768,7 +2769,7 @@ class MetricsServiceTest {
               dataProviderEntry.value.encryptedRequisitionSpec,
               DATA_PROVIDER_PRIVATE_KEY_HANDLE
             )
-          val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+          val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
 
           requisitionSpec.events.eventGroupsList.map { eventGroupEntry ->
             eventGroupEntry.value.filter.expression
@@ -3784,8 +3785,8 @@ class MetricsServiceTest {
       val dataProvidersList =
         capturedMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
 
-      val measurementSpec =
-        MeasurementSpec.parseFrom(capturedMeasurementRequest.measurement.measurementSpec.data)
+      val measurementSpec: MeasurementSpec =
+        capturedMeasurementRequest.measurement.measurementSpec.unpack()
       assertThat(measurementSpec)
         .isEqualTo(
           if (dataProvidersList.size == 1) SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC
@@ -3803,7 +3804,7 @@ class MetricsServiceTest {
             dataProviderEntry.value.encryptedRequisitionSpec,
             DATA_PROVIDER_PRIVATE_KEY_HANDLE
           )
-        val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+        val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
         verifyRequisitionSpec(
           signedRequisitionSpec,
           requisitionSpec,
@@ -4758,8 +4759,7 @@ class MetricsServiceTest {
             measurementSpec =
               signMeasurementSpec(
                 UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
-                  measurementPublicKey =
-                    MEASUREMENT_CONSUMER_PUBLIC_KEY.copy { clearData() }.toByteString()
+                  measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.copy { clearData() }.pack()
                 },
                 MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
               )
@@ -6591,8 +6591,7 @@ class MetricsServiceTest {
             measurementSpec =
               signMeasurementSpec(
                 UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
-                  measurementPublicKey =
-                    MEASUREMENT_CONSUMER_PUBLIC_KEY.copy { clearData() }.toByteString()
+                  measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.copy { clearData() }.pack()
                 },
                 MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
               )
