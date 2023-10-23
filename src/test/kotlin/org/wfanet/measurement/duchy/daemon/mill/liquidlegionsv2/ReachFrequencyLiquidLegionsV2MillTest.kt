@@ -2095,6 +2095,130 @@ class ReachFrequencyLiquidLegionsV2MillTest {
   }
 
   @Test
+  fun `execution phase two at aggregator using cached result`() = runBlocking {
+    // Stage 0. preparing the storage and set up mock
+    val partialToken =
+      FakeComputationsDatabase.newPartialToken(
+          localId = LOCAL_ID,
+          stage = EXECUTION_PHASE_TWO.toProtocolStage()
+        )
+        .build()
+    val inputBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_TWO.toProtocolStage(), 0L)
+    computationStore.writeString(inputBlobContext, "data")
+    val cachedBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_TWO.toProtocolStage(), 1L)
+    computationStore.writeString(
+      cachedBlobContext,
+      "data-completeExecutionPhaseTwoAtAggregator-first-run-done"
+    )
+    val computationDetailsWithVidSamplingWidth =
+      AGGREGATOR_COMPUTATION_DETAILS.copy {
+        kingdomComputation =
+          kingdomComputation.copy {
+            measurementSpec = SERIALIZED_MEASUREMENT_SPEC_WITH_VID_SAMPLING_WIDTH
+          }
+      }
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
+      computationDetails = computationDetailsWithVidSamplingWidth,
+      blobs =
+        listOf(
+          inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
+          cachedBlobContext.toMetadata(ComputationBlobDependency.OUTPUT)
+        ),
+      requisitions = REQUISITIONS
+    )
+
+    val testReach = 123L
+    var cryptoRequest = CompleteExecutionPhaseTwoAtAggregatorRequest.getDefaultInstance()
+    whenever(mockCryptoWorker.completeExecutionPhaseTwoAtAggregator(any())).thenAnswer {
+      cryptoRequest = it.getArgument(0)
+      val postFix = ByteString.copyFromUtf8("-second-run-done")
+      CompleteExecutionPhaseTwoAtAggregatorResponse.newBuilder()
+        .apply {
+          sameKeyAggregatorMatrix = cryptoRequest.flagCountTuples.concat(postFix)
+          reach = testReach
+        }
+        .build()
+    }
+
+    // Stage 1. Process the above computation
+    aggregatorMill.pollAndProcessNextComputation()
+
+    // Stage 2. Check the status of the computation
+    assertThat(fakeComputationDb[LOCAL_ID])
+      .isEqualTo(
+        ComputationToken.newBuilder()
+          .apply {
+            globalComputationId = GLOBAL_ID
+            localComputationId = LOCAL_ID
+            attempt = 1
+            computationStage = WAIT_EXECUTION_PHASE_THREE_INPUTS.toProtocolStage()
+            version = 3 // claimTask + ComputationDetails + transitionStage
+            addBlobsBuilder().apply {
+              dependencyType = ComputationBlobDependency.INPUT
+              blobId = 0
+              path = cachedBlobContext.blobKey
+            }
+            addBlobsBuilder().apply {
+              dependencyType = ComputationBlobDependency.OUTPUT
+              blobId = 1
+            }
+            computationDetails =
+              computationDetailsWithVidSamplingWidth
+                .toBuilder()
+                .apply { liquidLegionsV2Builder.reachEstimateBuilder.reach = testReach }
+                .build()
+            addAllRequisitions(REQUISITIONS)
+          }
+          .build()
+      )
+    assertThat(computationStore.get(cachedBlobContext.blobKey)?.readToString())
+      .isEqualTo("data-completeExecutionPhaseTwoAtAggregator-first-run-done")
+
+    assertThat(computationControlRequests)
+      .containsExactlyElementsIn(
+        buildAdvanceComputationRequests(
+          GLOBAL_ID,
+          EXECUTION_PHASE_THREE_INPUT,
+          "data-completeExecuti", // Chunk 1, size 20
+          "onPhaseTwoAtAggregat", // Chunk 2, size 20
+          "or-first-run-done" // Chunk 3, the rest
+        )
+      )
+      .inOrder()
+
+    assertThat(cryptoRequest)
+      .isEqualTo(
+        CompleteExecutionPhaseTwoAtAggregatorRequest.newBuilder()
+          .apply {
+            flagCountTuples = ByteString.copyFromUtf8("data")
+            localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
+            compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
+            curveId = CURVE_ID
+            maximumFrequency = MAX_FREQUENCY
+            vidSamplingIntervalWidth = 0.5f
+            sketchParametersBuilder.apply {
+              decayRate = DECAY_RATE
+              size = SKETCH_SIZE
+            }
+            reachDpNoiseBaselineBuilder.apply {
+              contributorsCount = WORKER_COUNT
+              globalReachDpNoise = TEST_NOISE_CONFIG.reachNoiseConfig.globalReachDpNoise
+            }
+            frequencyNoiseParametersBuilder.apply {
+              contributorsCount = WORKER_COUNT
+              maximumFrequency = MAX_FREQUENCY
+              dpParams = TEST_NOISE_CONFIG.frequencyNoiseConfig
+            }
+          }
+          .build()
+      )
+  }
+
+  @Test
   fun `execution phase two at aggregator using frequency one`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     val partialToken =
