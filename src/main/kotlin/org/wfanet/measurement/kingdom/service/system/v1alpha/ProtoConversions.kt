@@ -105,7 +105,6 @@ fun InternalComputationParticipant.toSystemComputationParticipant(): Computation
                     externalIdToApiId(duchyCertificate.externalCertificateId)
                   )
                   .toName()
-              Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
             }
           duchyCertificateDer = duchyCertificate.details.x509Der
         }
@@ -195,7 +194,6 @@ fun InternalMeasurement.toSystemComputation(): Computation {
                 externalIdToApiId(resultsList[0].externalCertificateId)
               )
               .toName()
-          Version.VERSION_UNSPECIFIED -> error("Public API version is invalid or unspecified.")
         }
       encryptedResult = resultsList[0].encryptedResult
     }
