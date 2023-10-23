@@ -138,6 +138,33 @@ class MetricNotFoundException(provideDescription: () -> String = { "Metric not f
     get() = emptyMap<String, String>()
 }
 
+class MetricCalculationSpecAlreadyExistsException(
+  private val cmmsMeasurementConsumerId: String,
+  private val externalMetricCalculationSpecId: String,
+  provideDescription: () -> String = { "Metric Calculation Spec already exists" }
+) :
+  ReportingInternalException(ErrorCode.METRIC_CALCULATION_SPEC_ALREADY_EXISTS, provideDescription) {
+  override val context: Map<String, String>
+    get() =
+      mapOf(
+        "cmms_measurement_consumer_id" to cmmsMeasurementConsumerId,
+        "external_metric_calculation_spec_id" to externalMetricCalculationSpecId
+      )
+}
+
+class MetricCalculationSpecNotFoundException(
+  private val cmmsMeasurementConsumerId: String,
+  private val externalMetricCalculationSpecId: String,
+  provideDescription: () -> String = { "Metric Calculation Spec already exists" }
+) : ReportingInternalException(ErrorCode.METRIC_CALCULATION_SPEC_NOT_FOUND, provideDescription) {
+  override val context: Map<String, String>
+    get() =
+      mapOf(
+        "cmms_measurement_consumer_id" to cmmsMeasurementConsumerId,
+        "external_metric_calculation_spec_id" to externalMetricCalculationSpecId
+      )
+}
+
 class ReportScheduleAlreadyExistsException(
   private val cmmsMeasurementConsumerId: String,
   private val externalReportScheduleId: String,

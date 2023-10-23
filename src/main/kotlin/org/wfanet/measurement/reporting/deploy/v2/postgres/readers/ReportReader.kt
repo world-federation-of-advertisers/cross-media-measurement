@@ -66,8 +66,8 @@ class ReportReader(private val readContext: ReadContext) {
   )
 
   private data class ReportingMetricCalculationSpecInfo(
-    val metricCalculationSpecInfoMap:
-      MutableMap<Report.MetricCalculationSpec.Details, MetricCalculationSpecInfo>,
+    /** Map of external metric calculation spec ID to [MetricCalculationSpecInfo]. */
+    val metricCalculationSpecInfoMap: MutableMap<String, MetricCalculationSpecInfo>,
   )
 
   private data class MetricCalculationSpecInfo(
@@ -88,7 +88,7 @@ class ReportReader(private val readContext: ReadContext) {
       Reports.ReportDetails,
       ReportTimeIntervals.TimeIntervalStart,
       ReportTimeIntervals.TimeIntervalEndExclusive,
-      MetricCalculationSpecs.MetricCalculationSpecDetails,
+      MetricCalculationSpecs.ExternalMetricCalculationSpecId,
       ReportingSets.ExternalReportingSetId,
       MetricCalculationSpecReportingMetrics.CreateMetricRequestId,
       MetricCalculationSpecReportingMetrics.ReportingMetricDetails,
@@ -99,9 +99,9 @@ class ReportReader(private val readContext: ReadContext) {
   private val baseSqlJoins: String =
     """
     JOIN ReportTimeIntervals USING(MeasurementConsumerId, ReportId)
-    JOIN MetricCalculationSpecs USING(MeasurementConsumerId, ReportId)
+    JOIN MetricCalculationSpecReportingMetrics USING(MeasurementConsumerId, ReportId)
     JOIN ReportingSets USING(MeasurementConsumerId, ReportingSetId)
-    JOIN MetricCalculationSpecReportingMetrics USING(MeasurementConsumerId, ReportId, MetricCalculationSpecId)
+    JOIN MetricCalculationSpecs USING(MeasurementConsumerId, MetricCalculationSpecId)
     LEFT JOIN Metrics USING(MeasurementConsumerId, MetricId)
     """
       .trimIndent()
@@ -298,12 +298,8 @@ class ReportReader(private val readContext: ReadContext) {
   private fun ReportInfo.update(row: ResultRow) {
     val timeIntervalStart: Instant = row["TimeIntervalStart"]
     val timeIntervalEnd: Instant = row["TimeIntervalEndExclusive"]
-    val metricCalculationSpecDetails: Report.MetricCalculationSpec.Details =
-      row.getProtoMessage(
-        "MetricCalculationSpecDetails",
-        Report.MetricCalculationSpec.Details.parser()
-      )
     val externalReportingSetId: String = row["ExternalReportingSetId"]
+    val externalMetricCalculationSpecId: String = row["ExternalMetricCalculationSpecId"]
     val createMetricRequestId: String = row["CreateMetricRequestId"]
     val reportingMetricDetails: Report.ReportingMetric.Details =
       row.getProtoMessage("ReportingMetricDetails", Report.ReportingMetric.Details.parser())
@@ -325,7 +321,7 @@ class ReportReader(private val readContext: ReadContext) {
 
     val metricCalculationSpecInfo =
       reportingMetricCalculationSpecInfo.metricCalculationSpecInfoMap.computeIfAbsent(
-        metricCalculationSpecDetails
+        externalMetricCalculationSpecId
       ) {
         MetricCalculationSpecInfo(
           reportingMetricMap = mutableMapOf(),
@@ -359,10 +355,10 @@ class ReportReader(private val readContext: ReadContext) {
           ReportKt.reportingMetricCalculationSpec {
             reportingMetricEntry.value.metricCalculationSpecInfoMap.entries.forEach {
               metricCalculationSpecEntry ->
-              metricCalculationSpecs +=
-                ReportKt.metricCalculationSpec {
+              metricCalculationSpecReportingMetrics +=
+                ReportKt.metricCalculationSpecReportingMetrics {
+                  externalMetricCalculationSpecId = metricCalculationSpecEntry.key
                   reportingMetrics += metricCalculationSpecEntry.value.reportingMetricMap.values
-                  details = metricCalculationSpecEntry.key
                 }
             }
           }
