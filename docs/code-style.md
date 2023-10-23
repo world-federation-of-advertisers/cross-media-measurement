@@ -21,8 +21,28 @@ sections of this when reviewing others’ code.
         for some guidance.
     *   Bias towards more, smaller test cases.
 *   Code should be autoformatted and linted
-*   Eliminate compiler warnings when practical, using language-appropriate
-    suppression annotations as appropriate (with a comment explaining why).
+*   Code should generally be free of compiler warnings
+
+    Avoid introducing new compiler warnings. Steps for dealing with a warning:
+
+    1.  Fix or work around.
+
+        Make a strong attempt to actually address the warning or find another
+        approach that avoids it.
+
+    2.  If it's a false alarm, suppress the warning and document it.
+
+        If you're convinced the code is safe and correct and that there's no
+        other way to indicate this to the compiler, suppress the warning and
+        leave a comment indicating why the warning is incorrect.
+
+    3.  If all else fails, leave a TODO comment.
+
+        In cases where the warning cannot yet be addressed (e.g. a deprecated
+        symbol that we can't stop using yet), add a TODO. **Do not** suppress
+        the warning in this case, as it should remain visible until it can be
+        addressed properly.
+
 *   Limit usage of unnecessary third party dependencies. Due to the privacy
     requirements of this project, we prefer avoiding unaudited dependencies.
 
