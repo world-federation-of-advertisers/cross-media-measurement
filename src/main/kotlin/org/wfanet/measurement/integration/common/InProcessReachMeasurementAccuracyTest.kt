@@ -57,7 +57,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
  * This is abstract so that different implementations of dependencies can all run the same tests
  * easily.
  */
-abstract class InProcessMeasurementReachAccuracyTest(
+abstract class InProcessReachMeasurementAccuracyTest(
   kingdomDataServicesRule: ProviderRule<DataServices>,
   duchyDependenciesRule:
     ProviderRule<
@@ -242,6 +242,7 @@ abstract class InProcessMeasurementReachAccuracyTest(
     )
 
     val standardDeviation = getStandardDeviation(reachResults.map { it.actualReach.toDouble() })
+    val variance = standardDeviation.pow(2.0)
     val standardDeviationOffset =
       abs(standardDeviation - expectedStandardDeviation) / expectedStandardDeviation
     logger.log(
@@ -253,9 +254,10 @@ abstract class InProcessMeasurementReachAccuracyTest(
 
     assertTrue(withinIntervalPercentage >= COVERAGE_TEST_THRESHOLD)
     assertTrue(averageDispersionRatio < AVERAGE_TEST_THRESHOLD)
+    val expectedVariance = expectedStandardDeviation.pow(2.0)
     assertTrue(
-      (standardDeviation > expectedStandardDeviation * VARIANCE_TEST_LOWER_THRESHOLD) and
-        (standardDeviation < expectedStandardDeviation * VARIANCE_TEST_UPPER_THRESHOLD)
+      (variance > expectedVariance * VARIANCE_TEST_LOWER_THRESHOLD) and
+        (variance < expectedVariance * VARIANCE_TEST_UPPER_THRESHOLD)
     )
   }
 

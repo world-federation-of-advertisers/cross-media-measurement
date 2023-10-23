@@ -17,15 +17,15 @@ package org.wfanet.measurement.integration.deploy.gcloud
 import org.junit.Rule
 import org.junit.rules.Timeout
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
-import org.wfanet.measurement.integration.common.InProcessMeasurementReachAccuracyTest
+import org.wfanet.measurement.integration.common.InProcessReachMeasurementAccuracyTest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDataServicesProviderRule
 
 /**
- * Implementation of [InProcessMeasurementReachAccuracyTest] for GCloud backends with Spanner
+ * Implementation of [InProcessReachMeasurementAccuracyTest] for GCloud backends with Spanner
  * database.
  */
-class GCloudSpannerInProcessMeasurementReachAccuracyTest :
-  InProcessMeasurementReachAccuracyTest(
+class GCloudSpannerInProcessReachMeasurementAccuracyTest :
+  InProcessReachMeasurementAccuracyTest(
     KingdomDataServicesProviderRule(),
     SpannerDuchyDependencyProviderRule(ALL_DUCHY_NAMES)
   ) {

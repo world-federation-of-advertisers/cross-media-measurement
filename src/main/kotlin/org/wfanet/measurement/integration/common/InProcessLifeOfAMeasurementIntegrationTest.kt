@@ -121,7 +121,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
   fun `create a RF measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create a reach and frequency measurement and verify its result.
-      mcSimulator.executeReachAndFrequency("1234")
+      mcSimulator.testReachAndFrequency("1234")
     }
 
   @Test
@@ -129,7 +129,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
     runBlocking {
       // Use frontend simulator to create a direct reach and frequency measurement and verify its
       // result.
-      mcSimulator.executeDirectReachAndFrequency("1234")
+      mcSimulator.testDirectReachAndFrequency("1234")
     }
 
   @Test
@@ -143,14 +143,14 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
   fun `create an impression measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create an impression measurement and verify its result.
-      mcSimulator.executeImpression("1234")
+      mcSimulator.testImpression("1234")
     }
 
   @Test
   fun `create a duration measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create a duration measurement and verify its result.
-      mcSimulator.executeDuration("1234")
+      mcSimulator.testDuration("1234")
     }
 
   @Test
@@ -158,7 +158,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
     runBlocking {
       // Use frontend simulator to create an invalid reach and frequency measurement and verify
       // its error info.
-      mcSimulator.executeInvalidReachAndFrequency("1234")
+      mcSimulator.testInvalidReachAndFrequency("1234")
     }
 
   // TODO(@renjiez): Add Multi-round test given the same input to verify correctness.

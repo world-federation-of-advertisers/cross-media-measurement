@@ -47,7 +47,7 @@ class InProcessCmmsComponents(
   private val kingdomDataServicesRule: ProviderRule<DataServices>,
   private val duchyDependenciesRule:
     ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>,
-  private val syntheticEventGroupSpec: List<SyntheticEventGroupSpec> =
+  private val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
     SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS
 ) : TestRule {
   private val kingdomDataServices: DataServices
@@ -74,7 +74,7 @@ class InProcessCmmsComponents(
 
   private val edpSimulators: List<InProcessEdpSimulator> by lazy {
     edpDisplayNameToResourceNameMap.entries.mapIndexed { index, (displayName, resourceName) ->
-      val specIndex = index % syntheticEventGroupSpec.size
+      val specIndex = index % syntheticEventGroupSpecs.size
       InProcessEdpSimulator(
         displayName = displayName,
         resourceName = resourceName,
@@ -82,7 +82,7 @@ class InProcessCmmsComponents(
         kingdomPublicApiChannel = kingdom.publicApiChannel,
         duchyPublicApiChannel = duchies[1].publicApiChannel,
         trustedCertificates = TRUSTED_CERTIFICATES,
-        syntheticEventGroupSpec[specIndex],
+        syntheticEventGroupSpecs[specIndex],
       )
     }
   }

@@ -167,7 +167,7 @@ class MeasurementConsumerSimulator(
   )
 
   /** A sequence of operations done in the simulator involving a reach and frequency measurement. */
-  suspend fun executeReachAndFrequency(runId: String) {
+  suspend fun testReachAndFrequency(runId: String) {
     logger.info { "Creating reach and frequency Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -193,7 +193,7 @@ class MeasurementConsumerSimulator(
    * A sequence of operations done in the simulator involving a reach and frequency measurement with
    * invalid params.
    */
-  suspend fun executeInvalidReachAndFrequency(runId: String) {
+  suspend fun testInvalidReachAndFrequency(runId: String) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
 
@@ -221,7 +221,7 @@ class MeasurementConsumerSimulator(
    * A sequence of operations done in the simulator involving a direct reach and frequency
    * measurement.
    */
-  suspend fun executeDirectReachAndFrequency(runId: String) {
+  suspend fun testDirectReachAndFrequency(runId: String) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val measurementInfo =
@@ -256,7 +256,7 @@ class MeasurementConsumerSimulator(
   }
 
   /** A sequence of operations done in the simulator involving a direct reach measurement. */
-  suspend fun executeDirectReach(runId: String) {
+  suspend fun testDirectReach(runId: String) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val measurementInfo =
@@ -314,7 +314,7 @@ class MeasurementConsumerSimulator(
   }
 
   /** A sequence of operations done in the simulator involving an impression measurement. */
-  suspend fun executeImpression(runId: String) {
+  suspend fun testImpression(runId: String) {
     logger.info { "Creating impression Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -340,7 +340,7 @@ class MeasurementConsumerSimulator(
   }
 
   /** A sequence of operations done in the simulator involving a duration measurement. */
-  suspend fun executeDuration(runId: String) {
+  suspend fun testDuration(runId: String) {
     logger.info { "Creating duration Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
