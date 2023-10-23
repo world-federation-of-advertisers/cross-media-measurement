@@ -22,6 +22,7 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
+import org.wfanet.measurement.internal.kingdom.ComputationParticipant as InternalComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.liquidLegionsV2Details
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as InternalComputationParticipantsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ConfirmComputationParticipantRequest as InternalConfirmComputationParticipantRequest
@@ -79,25 +80,27 @@ class ComputationParticipantsService(
       externalComputationId = apiIdToExternalId(computationParticipantKey.computationId)
       externalDuchyId = computationParticipantKey.duchyId
       externalDuchyCertificateId = apiIdToExternalId(duchyCertificateKey.certificateId)
+
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (requisitionParams.protocolCase) {
         ProtocolCase.LIQUID_LEGIONS_V2 -> {
-          liquidLegionsV2 = liquidLegionsV2Details {
-            elGamalPublicKey = requisitionParams.liquidLegionsV2.elGamalPublicKey
-            elGamalPublicKeySignature = requisitionParams.liquidLegionsV2.elGamalPublicKeySignature
-            elGamalPublicKeySignatureAlgorithmOid =
-              requisitionParams.liquidLegionsV2.elGamalPublicKeySignatureAlgorithmOid
-          }
+          liquidLegionsV2 = requisitionParams.liquidLegionsV2.toLlV2Details()
         }
         ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
-          reachOnlyLiquidLegionsV2 = liquidLegionsV2Details {
-            elGamalPublicKey = requisitionParams.reachOnlyLiquidLegionsV2.elGamalPublicKey
-            elGamalPublicKeySignature =
-              requisitionParams.reachOnlyLiquidLegionsV2.elGamalPublicKeySignature
-          }
+          reachOnlyLiquidLegionsV2 = requisitionParams.reachOnlyLiquidLegionsV2.toLlV2Details()
         }
         ProtocolCase.PROTOCOL_NOT_SET -> failGrpc { "protocol not set in the requisition_params." }
       }
+    }
+  }
+
+  private fun ComputationParticipant.RequisitionParams.LiquidLegionsV2.toLlV2Details():
+    InternalComputationParticipant.LiquidLegionsV2Details {
+    val source = this
+    return liquidLegionsV2Details {
+      elGamalPublicKey = source.elGamalPublicKey
+      elGamalPublicKeySignature = source.elGamalPublicKeySignature
+      elGamalPublicKeySignatureAlgorithmOid = source.elGamalPublicKeySignatureAlgorithmOid
     }
   }
 
