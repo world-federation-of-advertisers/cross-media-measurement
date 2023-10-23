@@ -14,13 +14,13 @@
 
 package org.wfanet.measurement.integration.common
 
+import com.google.common.truth.Truth.assertThat
 import java.time.Duration
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.sqrt
-import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -243,22 +243,20 @@ abstract class InProcessReachMeasurementAccuracyTest(
 
     val standardDeviation = getStandardDeviation(reachResults.map { it.actualReach.toDouble() })
     val variance = standardDeviation.pow(2.0)
-    val standardDeviationOffset =
-      abs(standardDeviation - expectedStandardDeviation) / expectedStandardDeviation
+    val expectedVariance = expectedStandardDeviation.pow(2.0)
+    val varianceOffset = variance - expectedVariance / expectedVariance
+
     logger.log(
       Level.INFO,
-      "standard_deviation=${"%.2f".format(standardDeviation)}, " +
-        "expected_standard_deviation=${"%.2f".format(expectedStandardDeviation)}, " +
-        "offset=${"%.2f".format(standardDeviationOffset * 100)}%"
+      "variance=${"%.2f".format(variance)}, " +
+        "expected_variance=${"%.2f".format(expectedVariance)}, " +
+        "offset=${"%.2f".format(varianceOffset * 100)}%"
     )
 
-    assertTrue(withinIntervalPercentage >= COVERAGE_TEST_THRESHOLD)
-    assertTrue(averageDispersionRatio < AVERAGE_TEST_THRESHOLD)
-    val expectedVariance = expectedStandardDeviation.pow(2.0)
-    assertTrue(
-      (variance > expectedVariance * VARIANCE_TEST_LOWER_THRESHOLD) and
-        (variance < expectedVariance * VARIANCE_TEST_UPPER_THRESHOLD)
-    )
+    assertThat(withinIntervalPercentage).isAtLeast(COVERAGE_TEST_THRESHOLD)
+    assertThat(averageDispersionRatio).isLessThan(AVERAGE_TEST_THRESHOLD)
+    assertThat(variance).isGreaterThan(expectedVariance * VARIANCE_TEST_LOWER_THRESHOLD)
+    assertThat(variance).isLessThan(expectedVariance * VARIANCE_TEST_UPPER_THRESHOLD)
   }
 
   companion object {
@@ -266,15 +264,15 @@ abstract class InProcessReachMeasurementAccuracyTest(
 
     private val SYNTHETIC_EVENT_GROUP_SPECS = SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_2M
 
-    private const val DEFAULT_TEST_ROUND_NUMBER = 30
+    private const val DEFAULT_TEST_ROUND_NUMBER = 10
     // Multiplier for 95% confidence interval
     private const val MULTIPLIER = 1.96
     private const val CONTRIBUTOR_COUNT = 1
 
     private const val COVERAGE_TEST_THRESHOLD = 90
     private const val AVERAGE_TEST_THRESHOLD = 4
-    private const val VARIANCE_TEST_LOWER_THRESHOLD = 0.5
-    private const val VARIANCE_TEST_UPPER_THRESHOLD = 1.5
+    private const val VARIANCE_TEST_LOWER_THRESHOLD = 0.72
+    private const val VARIANCE_TEST_UPPER_THRESHOLD = 1.28
     private val OUTPUT_DP_PARAMS = differentialPrivacyParams {
       epsilon = 0.0033
       delta = 0.00001
