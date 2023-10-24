@@ -26,9 +26,9 @@ _resourceRequirements: ResourceRequirements=#ResourceRequirements & {
 
 _populationSpec: "/etc/\(#AppName)/config-files/synthetic_population_spec_large.textproto"
 _eventGroupSpecs: [
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_7.textproto",
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_8.textproto",
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_9.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_10.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_11.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_12.textproto",
 ]
 
 edp_simulators: {
