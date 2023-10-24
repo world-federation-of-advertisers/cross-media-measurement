@@ -41,6 +41,7 @@ import org.wfanet.measurement.internal.reporting.MetricKt
 import org.wfanet.measurement.internal.reporting.Report
 import org.wfanet.measurement.internal.reporting.ReportKt
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.batchCreateMeasurementsRequest
 import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.internal.reporting.createReportRequest
 import org.wfanet.measurement.internal.reporting.getMeasurementRequest
@@ -83,36 +84,87 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `createMeasurement succeeds`() {
+  fun `batchCreateMeasurements succeeds`() {
     val measurement = measurement {
       measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
       measurementReferenceId = MEASUREMENT_REFERENCE_ID
     }
 
-    val createdMeasurement = runBlocking { service.createMeasurement(measurement) }
+    val measurement2 = measurement {
+      measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+      measurementReferenceId = MEASUREMENT_REFERENCE_ID + 2
+    }
 
-    assertThat(createdMeasurement).isEqualTo(measurement.copy { state = Measurement.State.PENDING })
+    val createdMeasurements = runBlocking { service.batchCreateMeasurements(
+      batchCreateMeasurementsRequest {
+        measurements += measurement
+        measurements += measurement2
+      }
+    ) }.measurementsList
+
+    assertThat(createdMeasurements[0]).isEqualTo(measurement.copy {
+      state = Measurement.State.PENDING
+    })
+    assertThat(createdMeasurements[1]).isEqualTo(measurement2.copy {
+      state = Measurement.State.PENDING
+    })
 
     val getRequest = getMeasurementRequest {
-      measurementConsumerReferenceId = createdMeasurement.measurementConsumerReferenceId
-      measurementReferenceId = createdMeasurement.measurementReferenceId
+      measurementConsumerReferenceId = measurement.measurementConsumerReferenceId
+      measurementReferenceId = measurement.measurementReferenceId
     }
     val retrievedMeasurement = runBlocking { service.getMeasurement(getRequest) }
-    assertThat(retrievedMeasurement).isEqualTo(createdMeasurement)
+    assertThat(retrievedMeasurement).isEqualTo(createdMeasurements[0])
+
+    val getRequest2 = getMeasurementRequest {
+      measurementConsumerReferenceId = measurement2.measurementConsumerReferenceId
+      measurementReferenceId = measurement2.measurementReferenceId
+    }
+    val retrievedMeasurement2 = runBlocking { service.getMeasurement(getRequest2) }
+    assertThat(retrievedMeasurement2).isEqualTo(createdMeasurements[1])
   }
 
   @Test
-  fun `createMeasurement fails when trying to create the same one twice`() {
+  fun `batchCreateMeasurements succeeds when trying to create the same one twice`() {
     val measurement = measurement {
       measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
       measurementReferenceId = MEASUREMENT_REFERENCE_ID
     }
 
-    val exception = runBlocking {
-      service.createMeasurement(measurement)
-      assertFailsWith<StatusRuntimeException> { service.createMeasurement(measurement) }
+    val measurement2 = measurement {
+      measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+      measurementReferenceId = MEASUREMENT_REFERENCE_ID + 2
     }
-    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+
+    val request = batchCreateMeasurementsRequest {
+      measurements += measurement
+      measurements += measurement2
+    }
+    val createdMeasurements = runBlocking {
+      service.batchCreateMeasurements(request)
+      service.batchCreateMeasurements(request)
+    }.measurementsList
+
+    assertThat(createdMeasurements[0]).isEqualTo(measurement.copy {
+      state = Measurement.State.PENDING
+    })
+    assertThat(createdMeasurements[1]).isEqualTo(measurement2.copy {
+      state = Measurement.State.PENDING
+    })
+
+    val getRequest = getMeasurementRequest {
+      measurementConsumerReferenceId = measurement.measurementConsumerReferenceId
+      measurementReferenceId = measurement.measurementReferenceId
+    }
+    val retrievedMeasurement = runBlocking { service.getMeasurement(getRequest) }
+    assertThat(retrievedMeasurement).isEqualTo(createdMeasurements[0])
+
+    val getRequest2 = getMeasurementRequest {
+      measurementConsumerReferenceId = measurement2.measurementConsumerReferenceId
+      measurementReferenceId = measurement2.measurementReferenceId
+    }
+    val retrievedMeasurement2 = runBlocking { service.getMeasurement(getRequest2) }
+    assertThat(retrievedMeasurement2).isEqualTo(createdMeasurements[1])
   }
 
   @Test
@@ -131,13 +183,16 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   @Test
   fun `setMeasurementResult stores the result and the succeeded state for a measurement`() {
     val createdMeasurement = runBlocking {
-      service.createMeasurement(
-        measurement {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
-          measurementReferenceId = MEASUREMENT_REFERENCE_ID
+      service.batchCreateMeasurements(
+        batchCreateMeasurementsRequest {
+          measurements += measurement {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            measurementReferenceId = MEASUREMENT_REFERENCE_ID
+          }
         }
       )
-    }
+    }.measurementsList.first()
+
     val result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 100L } }
     val request = setMeasurementResultRequest {
       measurementConsumerReferenceId = createdMeasurement.measurementConsumerReferenceId
@@ -181,13 +236,16 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   @Test
   fun `setMeasurementResult fails when the meaurement state isn't PENDING`() {
     val createdMeasurement = runBlocking {
-      service.createMeasurement(
-        measurement {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
-          measurementReferenceId = MEASUREMENT_REFERENCE_ID
+      service.batchCreateMeasurements(
+        batchCreateMeasurementsRequest {
+          measurements += measurement {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            measurementReferenceId = MEASUREMENT_REFERENCE_ID
+          }
         }
       )
-    }
+    }.measurementsList.first()
+
     val request = setMeasurementResultRequest {
       measurementConsumerReferenceId = createdMeasurement.measurementConsumerReferenceId
       measurementReferenceId = createdMeasurement.measurementReferenceId
@@ -694,13 +752,15 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   @Test
   fun `setMeasurementFailure stores the failure data and the failed state for a measurement`() {
     val createdMeasurement = runBlocking {
-      service.createMeasurement(
-        measurement {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
-          measurementReferenceId = MEASUREMENT_REFERENCE_ID
+      service.batchCreateMeasurements(
+        batchCreateMeasurementsRequest {
+          measurements += measurement {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            measurementReferenceId = MEASUREMENT_REFERENCE_ID
+          }
         }
       )
-    }
+    }.measurementsList.first()
 
     val failure =
       MeasurementKt.failure {
@@ -753,13 +813,15 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   @Test
   fun `setMeasurementFailure fails when the measurement state is not PENDING`() {
     val createdMeasurement = runBlocking {
-      service.createMeasurement(
-        measurement {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
-          measurementReferenceId = MEASUREMENT_REFERENCE_ID
+      service.batchCreateMeasurements(
+        batchCreateMeasurementsRequest {
+          measurements += measurement {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            measurementReferenceId = MEASUREMENT_REFERENCE_ID
+          }
         }
       )
-    }
+    }.measurementsList.first()
 
     val request = setMeasurementFailureRequest {
       measurementConsumerReferenceId = createdMeasurement.measurementConsumerReferenceId

@@ -170,6 +170,7 @@ import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest
 import org.wfanet.measurement.internal.reporting.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
 import org.wfanet.measurement.internal.reporting.timeIntervals as internalTimeIntervals
+import org.wfanet.measurement.internal.reporting.batchCreateMeasurementsRequest
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v1alpha.ListReportsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
@@ -1655,12 +1656,14 @@ class ReportsServiceTest {
       )
     }
 
-    // Verify proto argument of InternalMeasurementsCoroutineImplBase::createMeasurement
+    // Verify proto argument of InternalMeasurementsCoroutineImplBase::batchCreateMeasurements
     verifyProtoArgument(
         internalMeasurementsMock,
-        InternalMeasurementsCoroutineImplBase::createMeasurement
+        InternalMeasurementsCoroutineImplBase::batchCreateMeasurements
       )
-      .isEqualTo(INTERNAL_PENDING_REACH_MEASUREMENT)
+      .isEqualTo(batchCreateMeasurementsRequest {
+        measurements += INTERNAL_PENDING_REACH_MEASUREMENT
+      })
 
     // Verify proto argument of InternalReportsCoroutineImplBase::createReport
     verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::createReport)
@@ -2180,12 +2183,15 @@ class ReportsServiceTest {
       )
     }
 
-    // Verify proto argument of InternalMeasurementsCoroutineImplBase::createMeasurement
+    // Verify proto argument of InternalMeasurementsCoroutineImplBase::batchCreateMeasurements
     verifyProtoArgument(
         internalMeasurementsMock,
-        InternalMeasurementsCoroutineImplBase::createMeasurement
+        InternalMeasurementsCoroutineImplBase::batchCreateMeasurements
       )
-      .isEqualTo(INTERNAL_PENDING_REACH_MEASUREMENT)
+      .isEqualTo(
+        batchCreateMeasurementsRequest {
+          measurements += INTERNAL_PENDING_REACH_MEASUREMENT
+        })
 
     // Verify proto argument of InternalReportsCoroutineImplBase::createReport
     verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::createReport)
@@ -2321,12 +2327,15 @@ class ReportsServiceTest {
       )
     }
 
-    // Verify proto argument of InternalMeasurementsCoroutineImplBase::createMeasurement
+    // Verify proto argument of InternalMeasurementsCoroutineImplBase::batchCreateMeasurements
     verifyProtoArgument(
         internalMeasurementsMock,
-        InternalMeasurementsCoroutineImplBase::createMeasurement
+        InternalMeasurementsCoroutineImplBase::batchCreateMeasurements
       )
-      .isEqualTo(INTERNAL_PENDING_REACH_MEASUREMENT)
+      .isEqualTo(
+        batchCreateMeasurementsRequest {
+          measurements += INTERNAL_PENDING_REACH_MEASUREMENT
+        })
 
     // Verify proto argument of InternalReportsCoroutineImplBase::createReport
     verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::createReport)
@@ -2451,11 +2460,10 @@ class ReportsServiceTest {
 
     // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
     val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
-    verifyBlocking(dataProvidersMock, times(3)) { getDataProvider(dataProvidersCaptor.capture()) }
+    verifyBlocking(dataProvidersMock, times(2)) { getDataProvider(dataProvidersCaptor.capture()) }
     val capturedDataProviderRequests = dataProvidersCaptor.allValues
     assertThat(capturedDataProviderRequests)
       .containsExactly(
-        getDataProviderRequest { name = DATA_PROVIDERS_LIST[1].name },
         getDataProviderRequest { name = DATA_PROVIDERS_LIST[0].name },
         getDataProviderRequest { name = DATA_PROVIDERS_LIST[1].name }
       )
@@ -2465,11 +2473,18 @@ class ReportsServiceTest {
     verifyBlocking(measurementsMock, times(2)) { createMeasurement(measurementCaptor.capture()) }
     assertThat(measurementCaptor.allValues.map { it.measurement }).containsNoDuplicates()
 
-    // Verify proto argument of InternalMeasurementsCoroutineImplBase::createMeasurement
-    val internalMeasurementCaptor: KArgumentCaptor<InternalMeasurement> = argumentCaptor()
-    verifyBlocking(internalMeasurementsMock, times(2)) {
-      createMeasurement(internalMeasurementCaptor.capture())
-    }
+    // Verify proto argument of InternalMeasurementsCoroutineImplBase::batchCreateMeasurements
+    verifyProtoArgument(
+      internalMeasurementsMock,
+      InternalMeasurementsCoroutineImplBase::batchCreateMeasurements
+    )
+      .isEqualTo(
+        batchCreateMeasurementsRequest {
+          measurements += INTERNAL_PENDING_REACH_MEASUREMENT
+          measurements += INTERNAL_PENDING_REACH_MEASUREMENT.copy {
+            measurementReferenceId = REACH_MEASUREMENT_KEY_2.measurementId
+          }
+        })
 
     // Verify proto argument of InternalReportsCoroutineImplBase::createReport
     verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::createReport)
@@ -2500,9 +2515,6 @@ class ReportsServiceTest {
   @Test
   fun `createReport succeeds when the internal createMeasurement throws ALREADY_EXISTS`() =
     runBlocking {
-      whenever(internalMeasurementsMock.createMeasurement(any()))
-        .thenThrow(StatusRuntimeException(Status.ALREADY_EXISTS))
-
       val request = createReportRequest {
         parent = MEASUREMENT_CONSUMERS.values.first().name
         report = PENDING_REACH_REPORT.copy { clearState() }
@@ -3297,7 +3309,7 @@ class ReportsServiceTest {
   @Test
   fun `createReport throws exception when the internal createMeasurement throws exception`() =
     runBlocking {
-      whenever(internalMeasurementsMock.createMeasurement(any()))
+      whenever(internalMeasurementsMock.batchCreateMeasurements(any()))
         .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
 
       val request = createReportRequest {
@@ -3306,14 +3318,13 @@ class ReportsServiceTest {
       }
 
       val exception =
-        assertFailsWith(Exception::class) {
+        assertFailsWith<StatusRuntimeException> {
           withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
             runBlocking { service.createReport(request) }
           }
         }
-      val expectedExceptionDescription =
-        "Unable to create the measurement [${REACH_MEASUREMENT_KEY.toName()}] in the reporting database."
-      assertThat(exception.message).isEqualTo(expectedExceptionDescription)
+      assertThat(exception.status.code).isEqualTo(Status.Code.UNKNOWN)
+      assertThat(exception.message).contains("Unable to create measurement")
     }
 
   @Test

@@ -18,13 +18,16 @@ import io.grpc.Status
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.db.r2dbc.postgres.SerializableErrors
 import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.internal.reporting.BatchCreateMeasurementsRequest
+import org.wfanet.measurement.internal.reporting.BatchCreateMeasurementsResponse
 import org.wfanet.measurement.internal.reporting.GetMeasurementRequest
 import org.wfanet.measurement.internal.reporting.Measurement
 import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.SetMeasurementFailureRequest
 import org.wfanet.measurement.internal.reporting.SetMeasurementResultRequest
+import org.wfanet.measurement.internal.reporting.batchCreateMeasurementsResponse
 import org.wfanet.measurement.reporting.deploy.postgres.readers.MeasurementReader
-import org.wfanet.measurement.reporting.deploy.postgres.writers.CreateMeasurement
+import org.wfanet.measurement.reporting.deploy.postgres.writers.CreateMeasurements
 import org.wfanet.measurement.reporting.deploy.postgres.writers.SetMeasurementFailure
 import org.wfanet.measurement.reporting.deploy.postgres.writers.SetMeasurementResult
 import org.wfanet.measurement.reporting.service.internal.MeasurementAlreadyExistsException
@@ -35,11 +38,9 @@ class PostgresMeasurementsService(
   private val idGenerator: IdGenerator,
   private val client: DatabaseClient,
 ) : MeasurementsCoroutineImplBase() {
-  override suspend fun createMeasurement(request: Measurement): Measurement {
-    return try {
-      CreateMeasurement(request).execute(client, idGenerator)
-    } catch (e: MeasurementAlreadyExistsException) {
-      throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS, "Measurement already exists.")
+  override suspend fun batchCreateMeasurements(request: BatchCreateMeasurementsRequest): BatchCreateMeasurementsResponse {
+    return batchCreateMeasurementsResponse {
+      measurements += CreateMeasurements(request.measurementsList).execute(client, idGenerator)
     }
   }
 

@@ -22,33 +22,34 @@ import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.reporting.service.internal.MeasurementAlreadyExistsException
 
 /**
- * Inserts a Measurement into the database.
+ * Inserts Measurements into the database.
  *
  * Throws the following on [execute]:
  * * [MeasurementAlreadyExistsException] Measurement already exists
  */
-class CreateMeasurement(private val request: Measurement) : PostgresWriter<Measurement>() {
-  override suspend fun TransactionScope.runTransaction(): Measurement {
-    val builder =
-      boundStatement(
-        """
-      INSERT INTO Measurements (MeasurementConsumerReferenceId, MeasurementReferenceId, State)
-        VALUES ($1, $2, $3)
-      """
-      ) {
-        bind("$1", request.measurementConsumerReferenceId)
-        bind("$2", request.measurementReferenceId)
-        bind("$3", Measurement.State.PENDING_VALUE)
-      }
-
+class CreateMeasurements(private val measurements: Collection<Measurement>) : PostgresWriter<Collection<Measurement>>() {
+  override suspend fun TransactionScope.runTransaction(): Collection<Measurement> {
     transactionContext.run {
-      try {
-        executeStatement(builder)
-      } catch (e: R2dbcDataIntegrityViolationException) {
-        throw MeasurementAlreadyExistsException()
+      for (measurement in measurements) {
+        val builder =
+          boundStatement(
+            """
+          INSERT INTO Measurements (MeasurementConsumerReferenceId, MeasurementReferenceId, State)
+            VALUES ($1, $2, $3)
+            ON CONFLICT DO NOTHING
+            """
+          ) {
+            bind("$1", measurement.measurementConsumerReferenceId)
+            bind("$2", measurement.measurementReferenceId)
+            bind("$3", Measurement.State.PENDING_VALUE)
+          }
+
+        try {
+          executeStatement(builder)
+        } catch (_: R2dbcDataIntegrityViolationException) { }
       }
     }
 
-    return request.copy { state = Measurement.State.PENDING }
+    return measurements.map { it.copy { state = Measurement.State.PENDING } }
   }
 }
