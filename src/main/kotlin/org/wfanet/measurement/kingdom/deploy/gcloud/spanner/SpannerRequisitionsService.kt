@@ -85,6 +85,7 @@ class SpannerRequisitionsService(
           grpcRequire(directParams.externalDataProviderId != 0L) {
             "data_provider_id not specified"
           }
+          grpcRequire(directParams.apiVersion.isNotEmpty()) { "api_version not specified" }
         }
         FulfillRequisitionRequest.ParamsCase.PARAMS_NOT_SET ->
           failGrpc(Status.INVALID_ARGUMENT) { "params field not specified" }

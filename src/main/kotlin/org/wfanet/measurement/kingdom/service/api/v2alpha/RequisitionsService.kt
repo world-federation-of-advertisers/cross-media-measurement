@@ -224,6 +224,7 @@ class RequisitionsService(
       directParams = directRequisitionParams {
         externalDataProviderId = apiIdToExternalId(key.dataProviderId)
         encryptedData = request.encryptedData
+        apiVersion = Version.V2_ALPHA.string
       }
     }
     try {
@@ -249,10 +250,6 @@ class RequisitionsService(
 
 /** Converts an internal [Requisition] to a public [Requisition]. */
 private fun InternalRequisition.toRequisition(): Requisition {
-  check(Version.fromString(parentMeasurement.apiVersion) == Version.V2_ALPHA) {
-    "Incompatible API version ${parentMeasurement.apiVersion}"
-  }
-
   return requisition {
     name =
       CanonicalRequisitionKey(
@@ -267,6 +264,7 @@ private fun InternalRequisition.toRequisition(): Requisition {
           externalIdToApiId(externalMeasurementId)
         )
         .toName()
+    apiVersion = parentMeasurement.apiVersion
     measurementConsumerCertificate =
       MeasurementConsumerCertificateKey(
           externalIdToApiId(externalMeasurementConsumerId),

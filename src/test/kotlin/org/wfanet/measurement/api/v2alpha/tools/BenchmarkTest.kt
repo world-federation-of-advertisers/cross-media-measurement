@@ -43,7 +43,7 @@ import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
-import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultOutput
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
@@ -145,7 +145,7 @@ private val SUCCEEDED_REACH_MEASUREMENT = measurement {
     format = EncryptionPublicKey.Format.TINK_KEYSET
     data = MEASUREMENT_PUBLIC_KEY
   }
-  results += resultPair {
+  results += resultOutput {
     val result = result { reach = ResultKt.reach { value = 4096 } }
     encryptedResult = getEncryptedResult(result, measurementPublicKey)
     certificate = DATA_PROVIDER_CERTIFICATE_NAME
@@ -159,7 +159,7 @@ private val SUCCEEDED_REACH_AND_FREQUENCY_MEASUREMENT = measurement {
     format = EncryptionPublicKey.Format.TINK_KEYSET
     data = MEASUREMENT_PUBLIC_KEY
   }
-  results += resultPair {
+  results += resultOutput {
     val result = result {
       reach = ResultKt.reach { value = 4096 }
       frequency =
@@ -181,7 +181,7 @@ private val SUCCEEDED_IMPRESSION_MEASUREMENT = measurement {
     format = EncryptionPublicKey.Format.TINK_KEYSET
     data = MEASUREMENT_PUBLIC_KEY
   }
-  results += resultPair {
+  results += resultOutput {
     val result = result { impression = ResultKt.impression { value = 4096 } }
     encryptedResult = getEncryptedResult(result, measurementPublicKey)
     certificate = DATA_PROVIDER_CERTIFICATE_NAME
@@ -195,7 +195,7 @@ private val SUCCEEDED_DURATION_MEASUREMENT = measurement {
     format = EncryptionPublicKey.Format.TINK_KEYSET
     data = MEASUREMENT_PUBLIC_KEY
   }
-  results += resultPair {
+  results += resultOutput {
     val result = result {
       watchDuration =
         ResultKt.watchDuration {
@@ -217,7 +217,7 @@ private val SUCCEEDED_POPULATION_MEASUREMENT = measurement {
     format = EncryptionPublicKey.Format.TINK_KEYSET
     data = MEASUREMENT_PUBLIC_KEY
   }
-  results += resultPair {
+  results += resultOutput {
     val result = result { population = ResultKt.population { value = 100 } }
     encryptedResult = getEncryptedResult(result, measurementPublicKey)
     certificate = DATA_PROVIDER_CERTIFICATE_NAME

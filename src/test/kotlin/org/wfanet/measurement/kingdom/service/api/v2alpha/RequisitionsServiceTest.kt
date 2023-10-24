@@ -723,6 +723,7 @@ class RequisitionsServiceTest {
             directParams = directRequisitionParams {
               externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
               encryptedData = REQUISITION_ENCRYPTED_DATA
+              apiVersion = Version.V2_ALPHA.string
             }
           }
         )
@@ -773,6 +774,7 @@ class RequisitionsServiceTest {
             directParams = directRequisitionParams {
               externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
               encryptedData = REQUISITION_ENCRYPTED_DATA
+              apiVersion = Version.V2_ALPHA.string
             }
           }
         )
@@ -956,6 +958,7 @@ class RequisitionsServiceTest {
             externalIdToApiId(INTERNAL_REQUISITION.externalMeasurementId)
           )
           .toName()
+      apiVersion = Version.V2_ALPHA.string
       measurementConsumerCertificate =
         MeasurementConsumerCertificateKey(
             externalIdToApiId(INTERNAL_REQUISITION.externalMeasurementConsumerId),

@@ -54,7 +54,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.value
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
-import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultOutput
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.population
@@ -1808,6 +1808,8 @@ class MeasurementsServiceTest {
       )
     }
 
+    private val API_VERSION = Version.V2_ALPHA
+
     private val NOISE_MECHANISMS =
       listOf(
         ProtocolConfig.NoiseMechanism.NONE,
@@ -1949,6 +1951,7 @@ class MeasurementsServiceTest {
 
     private val MEASUREMENT = measurement {
       name = MEASUREMENT_NAME
+      apiVersion = API_VERSION.string
       measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
       measurementSpec = signedData {
         data = MEASUREMENT_SPEC.toByteString()
@@ -1980,13 +1983,15 @@ class MeasurementsServiceTest {
         reason = Failure.Reason.CERTIFICATE_REVOKED
         message = "Measurement Consumer Certificate has been revoked"
       }
-      results += resultPair {
+      results += resultOutput {
         certificate = DATA_PROVIDERS_CERTIFICATE_NAME
         encryptedResult = ENCRYPTED_DATA
+        apiVersion = API_VERSION.string
       }
-      results += resultPair {
+      results += resultOutput {
         certificate = DUCHY_CERTIFICATE_NAME
         encryptedResult = ENCRYPTED_DATA
+        apiVersion = API_VERSION.string
       }
     }
 
@@ -2022,7 +2027,7 @@ class MeasurementsServiceTest {
       )
       details =
         InternalMeasurementKt.details {
-          apiVersion = Version.V2_ALPHA.string
+          apiVersion = API_VERSION.string
           measurementSpec = MEASUREMENT.measurementSpec.data
           measurementSpecSignature = MEASUREMENT.measurementSpec.signature
           measurementSpecSignatureAlgorithmOid = MEASUREMENT.measurementSpec.signatureAlgorithmOid
@@ -2039,6 +2044,7 @@ class MeasurementsServiceTest {
         externalCertificateId =
           apiIdToExternalId(DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)!!.certificateId)
         encryptedResult = ENCRYPTED_DATA
+        apiVersion = API_VERSION.string
       }
       results += resultInfo {
         externalDataProviderId =
@@ -2050,6 +2056,7 @@ class MeasurementsServiceTest {
             DataProviderCertificateKey.fromName(DATA_PROVIDERS_CERTIFICATE_NAME)!!.certificateId
           )
         encryptedResult = ENCRYPTED_DATA
+        apiVersion = API_VERSION.string
       }
     }
 
@@ -2073,7 +2080,7 @@ class MeasurementsServiceTest {
       INTERNAL_MEASUREMENT.copy {
         details =
           InternalMeasurementKt.details {
-            apiVersion = Version.V2_ALPHA.string
+            apiVersion = API_VERSION.string
             measurementSpec = REACH_ONLY_MEASUREMENT.measurementSpec.data
             measurementSpecSignature = REACH_ONLY_MEASUREMENT.measurementSpec.signature
             measurementSpecSignatureAlgorithmOid =

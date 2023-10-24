@@ -75,11 +75,10 @@ private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
 
 @RunWith(JUnit4::class)
 class DataProvidersServiceTest {
-  private val internalServiceMock: InternalDataProvidersService =
-    mockService() {
-      onBlocking { getDataProvider(any()) }.thenReturn(INTERNAL_DATA_PROVIDER)
-      onBlocking { replaceDataProviderRequiredDuchies(any()) }.thenReturn(INTERNAL_DATA_PROVIDER)
-    }
+  private val internalServiceMock: InternalDataProvidersService = mockService {
+    onBlocking { getDataProvider(any()) }.thenReturn(INTERNAL_DATA_PROVIDER)
+    onBlocking { replaceDataProviderRequiredDuchies(any()) }.thenReturn(INTERNAL_DATA_PROVIDER)
+  }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalServiceMock) }
 
@@ -99,14 +98,7 @@ class DataProvidersServiceTest {
         }
       }
 
-    val expectedDataProvider = dataProvider {
-      name = DATA_PROVIDER_NAME
-      certificate = CERTIFICATE_NAME
-      certificateDer = SERVER_CERTIFICATE_DER
-      publicKey = SIGNED_PUBLIC_KEY
-      requiredDuchies += DUCHY_NAMES
-    }
-    assertThat(dataProvider).isEqualTo(expectedDataProvider)
+    assertThat(dataProvider).isEqualTo(DATA_PROVIDER)
     verifyProtoArgument(internalServiceMock, InternalDataProvidersService::getDataProvider)
       .isEqualTo(internalGetDataProviderRequest { externalDataProviderId = DATA_PROVIDER_ID })
   }
@@ -120,14 +112,7 @@ class DataProvidersServiceTest {
         }
       }
 
-    val expectedDataProvider = dataProvider {
-      name = DATA_PROVIDER_NAME
-      certificate = CERTIFICATE_NAME
-      certificateDer = SERVER_CERTIFICATE_DER
-      publicKey = SIGNED_PUBLIC_KEY
-      requiredDuchies += DUCHY_NAMES
-    }
-    assertThat(dataProvider).isEqualTo(expectedDataProvider)
+    assertThat(dataProvider).isEqualTo(DATA_PROVIDER)
     verifyProtoArgument(internalServiceMock, InternalDataProvidersService::getDataProvider)
       .isEqualTo(internalGetDataProviderRequest { externalDataProviderId = DATA_PROVIDER_ID })
   }
@@ -141,14 +126,7 @@ class DataProvidersServiceTest {
         }
       }
 
-    val expectedDataProvider = dataProvider {
-      name = DATA_PROVIDER_NAME
-      certificate = CERTIFICATE_NAME
-      certificateDer = SERVER_CERTIFICATE_DER
-      publicKey = SIGNED_PUBLIC_KEY
-      requiredDuchies += DUCHY_NAMES
-    }
-    assertThat(dataProvider).isEqualTo(expectedDataProvider)
+    assertThat(dataProvider).isEqualTo(DATA_PROVIDER)
     verifyProtoArgument(internalServiceMock, InternalDataProvidersService::getDataProvider)
       .isEqualTo(internalGetDataProviderRequest { externalDataProviderId = DATA_PROVIDER_ID })
   }
@@ -226,14 +204,7 @@ class DataProvidersServiceTest {
         }
       }
 
-    val expectedDataProvider = dataProvider {
-      name = DATA_PROVIDER_NAME
-      certificate = CERTIFICATE_NAME
-      certificateDer = SERVER_CERTIFICATE_DER
-      publicKey = SIGNED_PUBLIC_KEY
-      requiredDuchies += DUCHY_NAMES
-    }
-    assertThat(dataProvider).isEqualTo(expectedDataProvider)
+    assertThat(dataProvider).isEqualTo(DATA_PROVIDER)
     verifyProtoArgument(
         internalServiceMock,
         InternalDataProvidersService::replaceDataProviderRequiredDuchies
@@ -353,6 +324,8 @@ class DataProvidersServiceTest {
   }
 
   companion object {
+    private val API_VERSION = Version.V2_ALPHA
+
     private val serverCertificate: X509Certificate =
       readCertificate(TestData.FIXED_SERVER_CERT_PEM_FILE)
     private val SERVER_CERTIFICATE_DER = serverCertificate.encoded.toByteString()
@@ -368,7 +341,7 @@ class DataProvidersServiceTest {
     private val INTERNAL_DATA_PROVIDER: InternalDataProvider = internalDataProvider {
       externalDataProviderId = DATA_PROVIDER_ID
       details = details {
-        apiVersion = Version.V2_ALPHA.string
+        apiVersion = API_VERSION.string
         publicKey = SIGNED_PUBLIC_KEY.data
         publicKeySignature = SIGNED_PUBLIC_KEY.signature
         publicKeySignatureAlgorithmOid = SIGNED_PUBLIC_KEY.signatureAlgorithmOid
@@ -382,6 +355,15 @@ class DataProvidersServiceTest {
         details = CertificateKt.details { x509Der = SERVER_CERTIFICATE_DER }
       }
       requiredExternalDuchyIds += EXTERNAL_DUCHY_ID
+    }
+
+    private val DATA_PROVIDER = dataProvider {
+      name = DATA_PROVIDER_NAME
+      certificate = CERTIFICATE_NAME
+      certificateDer = SERVER_CERTIFICATE_DER
+      publicKey = SIGNED_PUBLIC_KEY
+      publicKeyApiVersion = API_VERSION.string
+      requiredDuchies += DUCHY_NAMES
     }
   }
 }
