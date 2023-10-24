@@ -30,7 +30,6 @@ import org.wfanet.measurement.reporting.deploy.postgres.readers.MeasurementReade
 import org.wfanet.measurement.reporting.deploy.postgres.writers.CreateMeasurements
 import org.wfanet.measurement.reporting.deploy.postgres.writers.SetMeasurementFailure
 import org.wfanet.measurement.reporting.deploy.postgres.writers.SetMeasurementResult
-import org.wfanet.measurement.reporting.service.internal.MeasurementAlreadyExistsException
 import org.wfanet.measurement.reporting.service.internal.MeasurementNotFoundException
 import org.wfanet.measurement.reporting.service.internal.MeasurementStateInvalidException
 
@@ -38,7 +37,9 @@ class PostgresMeasurementsService(
   private val idGenerator: IdGenerator,
   private val client: DatabaseClient,
 ) : MeasurementsCoroutineImplBase() {
-  override suspend fun batchCreateMeasurements(request: BatchCreateMeasurementsRequest): BatchCreateMeasurementsResponse {
+  override suspend fun batchCreateMeasurements(
+    request: BatchCreateMeasurementsRequest
+  ): BatchCreateMeasurementsResponse {
     return batchCreateMeasurementsResponse {
       measurements += CreateMeasurements(request.measurementsList).execute(client, idGenerator)
     }

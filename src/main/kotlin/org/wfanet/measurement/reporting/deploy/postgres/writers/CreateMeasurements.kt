@@ -27,7 +27,8 @@ import org.wfanet.measurement.reporting.service.internal.MeasurementAlreadyExist
  * Throws the following on [execute]:
  * * [MeasurementAlreadyExistsException] Measurement already exists
  */
-class CreateMeasurements(private val measurements: Collection<Measurement>) : PostgresWriter<Collection<Measurement>>() {
+class CreateMeasurements(private val measurements: Collection<Measurement>) :
+  PostgresWriter<Collection<Measurement>>() {
   override suspend fun TransactionScope.runTransaction(): Collection<Measurement> {
     transactionContext.run {
       for (measurement in measurements) {
@@ -44,9 +45,7 @@ class CreateMeasurements(private val measurements: Collection<Measurement>) : Po
             bind("$3", Measurement.State.PENDING_VALUE)
           }
 
-        try {
-          executeStatement(builder)
-        } catch (_: R2dbcDataIntegrityViolationException) { }
+        executeStatement(builder)
       }
     }
 

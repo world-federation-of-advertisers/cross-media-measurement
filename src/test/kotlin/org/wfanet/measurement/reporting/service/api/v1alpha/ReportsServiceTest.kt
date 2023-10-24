@@ -155,6 +155,7 @@ import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSe
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.StreamReportsRequestKt.filter
+import org.wfanet.measurement.internal.reporting.batchCreateMeasurementsRequest
 import org.wfanet.measurement.internal.reporting.batchGetReportingSetRequest
 import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.internal.reporting.createReportRequest as internalCreateReportRequest
@@ -170,7 +171,6 @@ import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest
 import org.wfanet.measurement.internal.reporting.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
 import org.wfanet.measurement.internal.reporting.timeIntervals as internalTimeIntervals
-import org.wfanet.measurement.internal.reporting.batchCreateMeasurementsRequest
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v1alpha.ListReportsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
@@ -1661,9 +1661,9 @@ class ReportsServiceTest {
         internalMeasurementsMock,
         InternalMeasurementsCoroutineImplBase::batchCreateMeasurements
       )
-      .isEqualTo(batchCreateMeasurementsRequest {
-        measurements += INTERNAL_PENDING_REACH_MEASUREMENT
-      })
+      .isEqualTo(
+        batchCreateMeasurementsRequest { measurements += INTERNAL_PENDING_REACH_MEASUREMENT }
+      )
 
     // Verify proto argument of InternalReportsCoroutineImplBase::createReport
     verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::createReport)
@@ -2189,9 +2189,8 @@ class ReportsServiceTest {
         InternalMeasurementsCoroutineImplBase::batchCreateMeasurements
       )
       .isEqualTo(
-        batchCreateMeasurementsRequest {
-          measurements += INTERNAL_PENDING_REACH_MEASUREMENT
-        })
+        batchCreateMeasurementsRequest { measurements += INTERNAL_PENDING_REACH_MEASUREMENT }
+      )
 
     // Verify proto argument of InternalReportsCoroutineImplBase::createReport
     verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::createReport)
@@ -2333,9 +2332,8 @@ class ReportsServiceTest {
         InternalMeasurementsCoroutineImplBase::batchCreateMeasurements
       )
       .isEqualTo(
-        batchCreateMeasurementsRequest {
-          measurements += INTERNAL_PENDING_REACH_MEASUREMENT
-        })
+        batchCreateMeasurementsRequest { measurements += INTERNAL_PENDING_REACH_MEASUREMENT }
+      )
 
     // Verify proto argument of InternalReportsCoroutineImplBase::createReport
     verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::createReport)
@@ -2475,16 +2473,18 @@ class ReportsServiceTest {
 
     // Verify proto argument of InternalMeasurementsCoroutineImplBase::batchCreateMeasurements
     verifyProtoArgument(
-      internalMeasurementsMock,
-      InternalMeasurementsCoroutineImplBase::batchCreateMeasurements
-    )
+        internalMeasurementsMock,
+        InternalMeasurementsCoroutineImplBase::batchCreateMeasurements
+      )
       .isEqualTo(
         batchCreateMeasurementsRequest {
           measurements += INTERNAL_PENDING_REACH_MEASUREMENT
-          measurements += INTERNAL_PENDING_REACH_MEASUREMENT.copy {
-            measurementReferenceId = REACH_MEASUREMENT_KEY_2.measurementId
-          }
-        })
+          measurements +=
+            INTERNAL_PENDING_REACH_MEASUREMENT.copy {
+              measurementReferenceId = REACH_MEASUREMENT_KEY_2.measurementId
+            }
+        }
+      )
 
     // Verify proto argument of InternalReportsCoroutineImplBase::createReport
     verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::createReport)

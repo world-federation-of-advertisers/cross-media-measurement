@@ -64,6 +64,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
+import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
@@ -140,7 +141,6 @@ import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMetho
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
-import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
@@ -513,11 +513,10 @@ class MetricsService(
                     .getDataProvider(getDataProviderRequest { name = dataProviderName })
                 } catch (e: StatusException) {
                   throw when (e.status.code) {
-                    Status.Code.NOT_FOUND ->
-                      Status.FAILED_PRECONDITION.withDescription("$dataProviderName not found")
-
-                    else -> Status.UNKNOWN.withDescription("Unable to retrieve $dataProviderName")
-                  }
+                      Status.Code.NOT_FOUND ->
+                        Status.FAILED_PRECONDITION.withDescription("$dataProviderName not found")
+                      else -> Status.UNKNOWN.withDescription("Unable to retrieve $dataProviderName")
+                    }
                     .withCause(e)
                     .asRuntimeException()
                 }
@@ -529,20 +528,23 @@ class MetricsService(
                     .getCertificate(getCertificateRequest { name = dataProvider.certificate })
                 } catch (e: StatusException) {
                   throw when (e.status.code) {
-                    Status.Code.NOT_FOUND ->
-                      Status.NOT_FOUND.withDescription("${dataProvider.certificate} not found.")
-                    else ->
-                      Status.UNKNOWN.withDescription(
-                        "Unable to retrieve Certificate ${dataProvider.certificate}."
-                      )
-                  }
+                      Status.Code.NOT_FOUND ->
+                        Status.NOT_FOUND.withDescription("${dataProvider.certificate} not found.")
+                      else ->
+                        Status.UNKNOWN.withDescription(
+                          "Unable to retrieve Certificate ${dataProvider.certificate}."
+                        )
+                    }
                     .withCause(e)
                     .asRuntimeException()
                 }
-              if (certificate.revocationState != Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED) {
+              if (
+                certificate.revocationState !=
+                  Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED
+              ) {
                 throw Status.FAILED_PRECONDITION.withDescription(
-                  "${certificate.name} revocation state is ${certificate.revocationState}"
-                )
+                    "${certificate.name} revocation state is ${certificate.revocationState}"
+                  )
                   .asRuntimeException()
               }
 
@@ -550,8 +552,8 @@ class MetricsService(
               val trustedIssuer: X509Certificate =
                 trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]
                   ?: throw Status.FAILED_PRECONDITION.withDescription(
-                    "${certificate.name} not issued by trusted CA"
-                  )
+                      "${certificate.name} not issued by trusted CA"
+                    )
                     .asRuntimeException()
               try {
                 verifyEncryptionPublicKey(dataProvider.publicKey, x509Certificate, trustedIssuer)
@@ -565,11 +567,7 @@ class MetricsService(
                   .asRuntimeException()
               }
 
-              DataProviderInfo(
-                dataProvider.name,
-                dataProvider.publicKey,
-                certificate.name
-              )
+              DataProviderInfo(dataProvider.name, dataProvider.publicKey, certificate.name)
             }
           )
         }

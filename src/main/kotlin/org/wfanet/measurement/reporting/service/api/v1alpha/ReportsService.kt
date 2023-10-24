@@ -58,6 +58,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
+import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
@@ -121,6 +122,7 @@ import org.wfanet.measurement.internal.reporting.StreamReportsRequest as StreamI
 import org.wfanet.measurement.internal.reporting.StreamReportsRequestKt.filter
 import org.wfanet.measurement.internal.reporting.TimeInterval as InternalTimeInterval
 import org.wfanet.measurement.internal.reporting.TimeIntervals as InternalTimeIntervals
+import org.wfanet.measurement.internal.reporting.batchCreateMeasurementsRequest
 import org.wfanet.measurement.internal.reporting.batchGetReportingSetRequest
 import org.wfanet.measurement.internal.reporting.createReportRequest as internalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.getReportByIdempotencyKeyRequest
@@ -134,8 +136,6 @@ import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest as 
 import org.wfanet.measurement.internal.reporting.streamReportsRequest as streamInternalReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
 import org.wfanet.measurement.internal.reporting.timeIntervals as internalTimeIntervals
-import org.wfanet.measurement.api.v2alpha.SignedData
-import org.wfanet.measurement.internal.reporting.batchCreateMeasurementsRequest
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v1alpha.CreateReportRequest
 import org.wfanet.measurement.reporting.v1alpha.GetReportRequest
@@ -354,8 +354,6 @@ class ReportsService(
         )
       )
 
-    println("Initial processing: ${System.currentTimeMillis() - now}")
-
     createMeasurements(
       request,
       namedSetOperationResults,
@@ -367,8 +365,6 @@ class ReportsService(
       dataProviderInfoMap
     )
 
-    println("Create kingdom measurements: ${System.currentTimeMillis() - now}")
-
     val internalCreateReportRequest: InternalCreateReportRequest =
       buildInternalCreateReportRequest(
         request,
@@ -376,9 +372,7 @@ class ReportsService(
         namedSetOperationResults,
       )
     try {
-      val report = internalReportsStub.createReport(internalCreateReportRequest).toReport()
-      println("Insert report into database: ${System.currentTimeMillis() - now}")
-      return report
+      return internalReportsStub.createReport(internalCreateReportRequest).toReport()
     } catch (e: StatusException) {
       throw Exception("Unable to create a report in the reporting database.", e)
     }
@@ -492,12 +486,12 @@ class ReportsService(
 
     try {
       internalMeasurementsStub.batchCreateMeasurements(
-        batchCreateMeasurementsRequest {
-          measurements += internalMeasurements
-        }
+        batchCreateMeasurementsRequest { measurements += internalMeasurements }
       )
     } catch (e: StatusException) {
-      throw Status.UNKNOWN.withDescription("Unable to create measurement in the reporting database.")
+      throw Status.UNKNOWN.withDescription(
+          "Unable to create measurement in the reporting database."
+        )
         .withCause(e)
         .asRuntimeException()
     }
@@ -1140,11 +1134,10 @@ class ReportsService(
                   .getDataProvider(getDataProviderRequest { name = dataProviderName })
               } catch (e: StatusException) {
                 throw when (e.status.code) {
-                  Status.Code.NOT_FOUND ->
-                    Status.FAILED_PRECONDITION.withDescription("$dataProviderName not found")
-
-                  else -> Status.UNKNOWN.withDescription("Unable to retrieve $dataProviderName")
-                }
+                    Status.Code.NOT_FOUND ->
+                      Status.FAILED_PRECONDITION.withDescription("$dataProviderName not found")
+                    else -> Status.UNKNOWN.withDescription("Unable to retrieve $dataProviderName")
+                  }
                   .withCause(e)
                   .asRuntimeException()
               }
@@ -1157,10 +1150,13 @@ class ReportsService(
               } catch (e: StatusException) {
                 throw Exception("Unable to retrieve Certificate ${dataProvider.certificate}", e)
               }
-            if (certificate.revocationState != Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED) {
+            if (
+              certificate.revocationState !=
+                Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED
+            ) {
               throw Status.FAILED_PRECONDITION.withDescription(
-                "${certificate.name} revocation state is ${certificate.revocationState}"
-              )
+                  "${certificate.name} revocation state is ${certificate.revocationState}"
+                )
                 .asRuntimeException()
             }
 
@@ -1168,8 +1164,8 @@ class ReportsService(
             val trustedIssuer: X509Certificate =
               trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]
                 ?: throw Status.FAILED_PRECONDITION.withDescription(
-                  "${certificate.name} not issued by trusted CA"
-                )
+                    "${certificate.name} not issued by trusted CA"
+                  )
                   .asRuntimeException()
             try {
               verifyEncryptionPublicKey(dataProvider.publicKey, x509Certificate, trustedIssuer)
@@ -1183,11 +1179,7 @@ class ReportsService(
                 .asRuntimeException()
             }
 
-            DataProviderInfo(
-              dataProvider.name,
-              dataProvider.publicKey,
-              certificate.name
-            )
+            DataProviderInfo(dataProvider.name, dataProvider.publicKey, certificate.name)
           }
         )
       }
