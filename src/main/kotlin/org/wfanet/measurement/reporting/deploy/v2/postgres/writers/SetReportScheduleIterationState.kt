@@ -51,6 +51,7 @@ class SetReportScheduleIterationState(private val request: SetReportScheduleIter
           externalReportScheduleIterationId = request.externalReportScheduleIterationId
         ))
 
+    // REPORT_CREATED is a terminal state.
     if (result.reportScheduleIteration.state == ReportScheduleIteration.State.REPORT_CREATED) {
       throw ReportScheduleIterationStateInvalidException(
         cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId,
