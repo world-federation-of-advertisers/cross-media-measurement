@@ -21,7 +21,8 @@ import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
 
 /** [ResourceKey] of a Population. */
-data class PopulationKey(override val parentKey: DataProviderKey, val populationId: String) : ChildResourceKey {
+data class PopulationKey(override val parentKey: DataProviderKey, val populationId: String) :
+  ChildResourceKey {
   constructor(
     dataProviderId: String,
     populationId: String

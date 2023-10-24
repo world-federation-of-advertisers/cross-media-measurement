@@ -33,6 +33,7 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.Population
 import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.PopulationKt.populationBlob
@@ -40,12 +41,14 @@ import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
 import org.wfanet.measurement.api.v2alpha.eventTemplate
 import org.wfanet.measurement.api.v2alpha.getPopulationRequest
+import org.wfanet.measurement.api.v2alpha.listPopulationsPageToken
 import org.wfanet.measurement.api.v2alpha.listPopulationsRequest
 import org.wfanet.measurement.api.v2alpha.listPopulationsResponse
 import org.wfanet.measurement.api.v2alpha.population
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -59,15 +62,12 @@ import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt
 import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamPopulationsRequest
 import org.wfanet.measurement.internal.kingdom.StreamPopulationsRequestKt
+import org.wfanet.measurement.internal.kingdom.StreamPopulationsRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.eventTemplate as internalEventTemplate
 import org.wfanet.measurement.internal.kingdom.getPopulationRequest as internalGetPopulationRequest
 import org.wfanet.measurement.internal.kingdom.population as internalPopulation
 import org.wfanet.measurement.internal.kingdom.streamPopulationsRequest as internalStreamPopulationsRequest
-import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt.previousPageEnd
-import org.wfanet.measurement.api.v2alpha.listPopulationsPageToken
-import org.wfanet.measurement.common.base64UrlEncode
-import org.wfanet.measurement.internal.kingdom.StreamPopulationsRequestKt.afterFilter
 
 private const val DEFAULT_LIMIT = 50
 
@@ -111,27 +111,26 @@ private val POPULATION: Population = population {
 @RunWith(JUnit4::class)
 class PopulationsServiceTest {
 
-  private val internalPopulationsMock: PopulationsCoroutineImplBase =
-    mockService {
-      onBlocking { createPopulation(any()) }
-        .thenAnswer {
-          val request = it.getArgument<InternalPopulation>(0)
-          if (request.externalDataProviderId != 123L) {
-            failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
-          } else {
-            INTERNAL_POPULATION
-          }
+  private val internalPopulationsMock: PopulationsCoroutineImplBase = mockService {
+    onBlocking { createPopulation(any()) }
+      .thenAnswer {
+        val request = it.getArgument<InternalPopulation>(0)
+        if (request.externalDataProviderId != 123L) {
+          failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
+        } else {
+          INTERNAL_POPULATION
         }
-      onBlocking { getPopulation(any()) }.thenReturn(INTERNAL_POPULATION)
-      onBlocking { streamPopulations(any()) }
-        .thenReturn(
-          flowOf(
-            INTERNAL_POPULATION,
-            INTERNAL_POPULATION.copy { externalPopulationId = EXTERNAL_POPULATION_ID_2 },
-            INTERNAL_POPULATION.copy { externalPopulationId = EXTERNAL_POPULATION_ID_3 }
-          )
+      }
+    onBlocking { getPopulation(any()) }.thenReturn(INTERNAL_POPULATION)
+    onBlocking { streamPopulations(any()) }
+      .thenReturn(
+        flowOf(
+          INTERNAL_POPULATION,
+          INTERNAL_POPULATION.copy { externalPopulationId = EXTERNAL_POPULATION_ID_2 },
+          INTERNAL_POPULATION.copy { externalPopulationId = EXTERNAL_POPULATION_ID_3 }
         )
-    }
+      )
+  }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalPopulationsMock) }
 
@@ -306,10 +305,9 @@ class PopulationsServiceTest {
       populations += POPULATION.copy { name = POPULATION_NAME_3 }
     }
 
-    val streamPopulationsRequest: StreamPopulationsRequest =
-      captureFirst {
-        verify(internalPopulationsMock).streamPopulations(capture())
-      }
+    val streamPopulationsRequest: StreamPopulationsRequest = captureFirst {
+      verify(internalPopulationsMock).streamPopulations(capture())
+    }
 
     assertThat(streamPopulationsRequest)
       .ignoringRepeatedFieldOrder()
@@ -339,10 +337,9 @@ class PopulationsServiceTest {
       populations += POPULATION.copy { name = POPULATION_NAME_3 }
     }
 
-    val streamPopulationsRequest: StreamPopulationsRequest =
-      captureFirst {
-        verify(internalPopulationsMock).streamPopulations(capture())
-      }
+    val streamPopulationsRequest: StreamPopulationsRequest = captureFirst {
+      verify(internalPopulationsMock).streamPopulations(capture())
+    }
 
     assertThat(streamPopulationsRequest)
       .ignoringRepeatedFieldOrder()
@@ -384,10 +381,9 @@ class PopulationsServiceTest {
       nextPageToken = listPopulationsPageToken.toByteArray().base64UrlEncode()
     }
 
-    val streamPopulationsRequest: StreamPopulationsRequest =
-      captureFirst {
-        verify(internalPopulationsMock).streamPopulations(capture())
-      }
+    val streamPopulationsRequest: StreamPopulationsRequest = captureFirst {
+      verify(internalPopulationsMock).streamPopulations(capture())
+    }
 
     assertThat(streamPopulationsRequest)
       .ignoringRepeatedFieldOrder()
@@ -395,9 +391,7 @@ class PopulationsServiceTest {
         internalStreamPopulationsRequest {
           limit = request.pageSize + 1
           filter =
-            StreamPopulationsRequestKt.filter {
-              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-            }
+            StreamPopulationsRequestKt.filter { externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID }
         }
       )
 
@@ -441,10 +435,9 @@ class PopulationsServiceTest {
       nextPageToken = listPopulationsPageToken.toByteArray().base64UrlEncode()
     }
 
-    val streamPopulationsRequest: StreamPopulationsRequest =
-      captureFirst {
-        verify(internalPopulationsMock).streamPopulations(capture())
-      }
+    val streamPopulationsRequest: StreamPopulationsRequest = captureFirst {
+      verify(internalPopulationsMock).streamPopulations(capture())
+    }
 
     assertThat(streamPopulationsRequest)
       .ignoringRepeatedFieldOrder()

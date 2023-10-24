@@ -840,12 +840,8 @@ fun Population.toInternal(dataProviderKey: DataProviderKey): InternalPopulation 
   return internalPopulation {
     externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
     description = source.description
-    populationBlob = internalPopulationBlob {
-      modelBlobUri = source.populationBlob.modelBlobUri
-    }
-    eventTemplate = internalEventTemplate {
-      fullyQualifiedType = source.eventTemplate.type
-    }
+    populationBlob = internalPopulationBlob { modelBlobUri = source.populationBlob.modelBlobUri }
+    eventTemplate = internalEventTemplate { fullyQualifiedType = source.eventTemplate.type }
   }
 }
 

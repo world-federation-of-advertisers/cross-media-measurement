@@ -113,9 +113,10 @@ class PopulationsService(private val internalClient: PopulationsCoroutineStub) :
   }
 
   override suspend fun listPopulations(request: ListPopulationsRequest): ListPopulationsResponse {
-    val parentKey = grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
-      "Parent is either unspecified or invalid"
-    }
+    val parentKey =
+      grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
+        "Parent is either unspecified or invalid"
+      }
 
     val principal: MeasurementPrincipal = principalFromCurrentContext
     if (!principal.isAuthorizedToGet(parentKey)) {
@@ -218,7 +219,6 @@ class PopulationsService(private val internalClient: PopulationsCoroutineStub) :
     }
   }
 
-
   /**
    * Returns whether this [MeasurementPrincipal] is authorized to get [populationKey].
    *
@@ -232,14 +232,12 @@ class PopulationsService(private val internalClient: PopulationsCoroutineStub) :
       return true
     }
 
-    // TODO(jojijac0b) Once the population resource has a field to limit access to only certain MPs, update this permission as well.
+    // TODO(jojijac0b) Once the population resource has a field to limit access to only certain MPs,
+    // update this permission as well.
     return when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
-      is ModelProviderPrincipal ->
-        true
-      is DataProviderPrincipal ->
-        principal.resourceKey == dataProviderKey
-      else ->
-        false
+      is ModelProviderPrincipal -> true
+      is DataProviderPrincipal -> principal.resourceKey == dataProviderKey
+      else -> false
     }
   }
 
