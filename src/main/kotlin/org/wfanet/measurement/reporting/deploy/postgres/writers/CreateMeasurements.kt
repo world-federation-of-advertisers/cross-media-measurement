@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.reporting.deploy.postgres.writers
 
-import io.r2dbc.spi.R2dbcDataIntegrityViolationException
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.internal.reporting.Measurement
