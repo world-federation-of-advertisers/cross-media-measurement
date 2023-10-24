@@ -17,12 +17,19 @@
 package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
+import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
 
-private val parser = ResourceNameParser("dataProviders/{data_provider}/populations/{population}")
+/** [ResourceKey] of a Population. */
+data class PopulationKey(override val parentKey: DataProviderKey, val populationId: String) : ChildResourceKey {
+  constructor(
+    dataProviderId: String,
+    populationId: String
+  ) : this(DataProviderKey(dataProviderId), populationId)
 
-/** [ResourceKey] of a Model Suite. */
-data class PopulationKey(val dataProviderId: String, val populationId: String) : ResourceKey {
+  val dataProviderId: String
+    get() = parentKey.dataProviderId
+
   override fun toName(): String {
     return parser.assembleName(
       mapOf(IdVariable.DATA_PROVIDER to dataProviderId, IdVariable.POPULATION to populationId)
@@ -30,6 +37,7 @@ data class PopulationKey(val dataProviderId: String, val populationId: String) :
   }
 
   companion object FACTORY : ResourceKey.Factory<PopulationKey> {
+    val parser = ResourceNameParser("dataProviders/{data_provider}/populations/{population}")
     val defaultValue = PopulationKey("", "")
 
     override fun fromName(resourceName: String): PopulationKey? {

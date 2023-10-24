@@ -835,16 +835,16 @@ fun InternalPopulation.toPopulation(): Population {
 
 /** Converts a public [Population] to an internal [InternalPopulation] */
 fun Population.toInternal(dataProviderKey: DataProviderKey): InternalPopulation {
-  val publicPopulation = this
+  val source = this
 
   return internalPopulation {
     externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
-    description = publicPopulation.description
+    description = source.description
     populationBlob = internalPopulationBlob {
-      modelBlobUri = publicPopulation.populationBlob.modelBlobUri
+      modelBlobUri = source.populationBlob.modelBlobUri
     }
     eventTemplate = internalEventTemplate {
-      fullyQualifiedType = publicPopulation.eventTemplate.type
+      fullyQualifiedType = source.eventTemplate.type
     }
   }
 }

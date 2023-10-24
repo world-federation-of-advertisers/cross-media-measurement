@@ -64,6 +64,10 @@ import org.wfanet.measurement.internal.kingdom.eventTemplate as internalEventTem
 import org.wfanet.measurement.internal.kingdom.getPopulationRequest as internalGetPopulationRequest
 import org.wfanet.measurement.internal.kingdom.population as internalPopulation
 import org.wfanet.measurement.internal.kingdom.streamPopulationsRequest as internalStreamPopulationsRequest
+import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt.previousPageEnd
+import org.wfanet.measurement.api.v2alpha.listPopulationsPageToken
+import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.internal.kingdom.StreamPopulationsRequestKt.afterFilter
 
 private const val DEFAULT_LIMIT = 50
 
@@ -82,11 +86,10 @@ private val EXTERNAL_POPULATION_ID_2 =
   apiIdToExternalId(PopulationKey.fromName(POPULATION_NAME_2)!!.populationId)
 private val EXTERNAL_POPULATION_ID_3 =
   apiIdToExternalId(PopulationKey.fromName(POPULATION_NAME_3)!!.populationId)
-private const val DISPLAY_NAME = "Display name"
 private const val DESCRIPTION = "Description"
 private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
-private val MODEL_BLOB_URI = "Blob URI"
-private val EVENT_TEMPLATE_TYPE = "Type 1"
+private const val MODEL_BLOB_URI = "Blob URI"
+private const val EVENT_TEMPLATE_TYPE = "Type 1"
 
 private val INTERNAL_POPULATION: InternalPopulation = internalPopulation {
   externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
@@ -109,7 +112,7 @@ private val POPULATION: Population = population {
 class PopulationsServiceTest {
 
   private val internalPopulationsMock: PopulationsCoroutineImplBase =
-    mockService() {
+    mockService {
       onBlocking { createPopulation(any()) }
         .thenAnswer {
           val request = it.getArgument<InternalPopulation>(0)
@@ -289,7 +292,7 @@ class PopulationsServiceTest {
   }
 
   @Test
-  fun `listPopulations with parent uses filter with parent succeeds for data provider caller who created population`() {
+  fun `listPopulations with parent succeeds for data provider caller who created population`() {
     val request = listPopulationsRequest { parent = DATA_PROVIDER_NAME }
 
     val result =
@@ -303,8 +306,8 @@ class PopulationsServiceTest {
       populations += POPULATION.copy { name = POPULATION_NAME_3 }
     }
 
-    val streamPopulationsRequest =
-      captureFirst<StreamPopulationsRequest> {
+    val streamPopulationsRequest: StreamPopulationsRequest =
+      captureFirst {
         verify(internalPopulationsMock).streamPopulations(capture())
       }
 
@@ -322,7 +325,7 @@ class PopulationsServiceTest {
   }
 
   @Test
-  fun `listPopulations with parent uses filter with parent succeeds for model provider caller`() {
+  fun `listPopulations with parent succeeds for model provider caller`() {
     val request = listPopulationsRequest { parent = DATA_PROVIDER_NAME }
 
     val result =
@@ -336,8 +339,8 @@ class PopulationsServiceTest {
       populations += POPULATION.copy { name = POPULATION_NAME_3 }
     }
 
-    val streamPopulationsRequest =
-      captureFirst<StreamPopulationsRequest> {
+    val streamPopulationsRequest: StreamPopulationsRequest =
+      captureFirst {
         verify(internalPopulationsMock).streamPopulations(capture())
       }
 
@@ -352,6 +355,139 @@ class PopulationsServiceTest {
       )
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listPopulations with pagination succeeds`() {
+    val request = listPopulationsRequest {
+      parent = DATA_PROVIDER_NAME
+      pageSize = 2
+    }
+
+    val result =
+      withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+        runBlocking { service.listPopulations(request) }
+      }
+
+    val expected = listPopulationsResponse {
+      populations += POPULATION
+      populations += POPULATION.copy { name = POPULATION_NAME_2 }
+      val listPopulationsPageToken = listPopulationsPageToken {
+        pageSize = request.pageSize
+        externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+        lastPopulation = previousPageEnd {
+          createTime = CREATE_TIME
+          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          externalPopulationId = EXTERNAL_POPULATION_ID_2
+        }
+      }
+      nextPageToken = listPopulationsPageToken.toByteArray().base64UrlEncode()
+    }
+
+    val streamPopulationsRequest: StreamPopulationsRequest =
+      captureFirst {
+        verify(internalPopulationsMock).streamPopulations(capture())
+      }
+
+    assertThat(streamPopulationsRequest)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        internalStreamPopulationsRequest {
+          limit = request.pageSize + 1
+          filter =
+            StreamPopulationsRequestKt.filter {
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listPopulations with page token succeeds`() {
+    val pageSize = 2
+    val request = listPopulationsRequest {
+      parent = DATA_PROVIDER_NAME
+      val listPopulationsPageToken = listPopulationsPageToken {
+        this.pageSize = pageSize
+        externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+        lastPopulation = previousPageEnd {
+          createTime = CREATE_TIME
+          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          externalPopulationId = EXTERNAL_POPULATION_ID
+        }
+      }
+      pageToken = listPopulationsPageToken.toByteArray().base64UrlEncode()
+    }
+
+    val result =
+      withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+        runBlocking { service.listPopulations(request) }
+      }
+
+    val expected = listPopulationsResponse {
+      populations += POPULATION.copy { name = POPULATION_NAME }
+      populations += POPULATION.copy { name = POPULATION_NAME_2 }
+      val listPopulationsPageToken = listPopulationsPageToken {
+        this.pageSize = pageSize
+        externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+        lastPopulation = previousPageEnd {
+          createTime = CREATE_TIME
+          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          externalPopulationId = EXTERNAL_POPULATION_ID_2
+        }
+      }
+      nextPageToken = listPopulationsPageToken.toByteArray().base64UrlEncode()
+    }
+
+    val streamPopulationsRequest: StreamPopulationsRequest =
+      captureFirst {
+        verify(internalPopulationsMock).streamPopulations(capture())
+      }
+
+    assertThat(streamPopulationsRequest)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        internalStreamPopulationsRequest {
+          limit = pageSize + 1
+          filter =
+            StreamPopulationsRequestKt.filter {
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+              after = afterFilter {
+                createTime = CREATE_TIME
+                externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+                externalPopulationId = EXTERNAL_POPULATION_ID
+              }
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listPopulations throws INVALID_ARGUMENT when parent doesn't match parent in page token`() {
+    val request = listPopulationsRequest {
+      parent = DATA_PROVIDER_NAME
+      val listPopulationsPageToken = listPopulationsPageToken {
+        externalDataProviderId = 789
+        lastPopulation = previousPageEnd {
+          createTime = CREATE_TIME
+          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          externalPopulationId = EXTERNAL_POPULATION_ID
+        }
+      }
+      pageToken = listPopulationsPageToken.toByteArray().base64UrlEncode()
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking { service.listPopulations(request) }
+        }
+      }
+    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test

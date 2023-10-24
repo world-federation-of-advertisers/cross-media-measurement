@@ -28,7 +28,6 @@ import org.wfanet.measurement.api.v2alpha.ListPopulationsPageToken
 import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListPopulationsRequest
 import org.wfanet.measurement.api.v2alpha.ListPopulationsResponse
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.Population
@@ -58,23 +57,22 @@ private const val MAX_PAGE_SIZE = 1000
 class PopulationsService(private val internalClient: PopulationsCoroutineStub) :
   PopulationsCoroutineService() {
 
+  private enum class Permission {
+    CREATE,
+    GET,
+    LIST,
+  }
+
   override suspend fun createPopulation(request: CreatePopulationRequest): Population {
     val parentKey =
       grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
         "Parent is either unspecified or invalid"
       }
 
-    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
-      is DataProviderPrincipal -> {
-        if (principal.resourceKey.toName() != request.parent) {
-          failGrpc(Status.PERMISSION_DENIED) { "Cannot create Population for another DataProvider" }
-        }
-      }
-      else -> {
-        failGrpc(Status.PERMISSION_DENIED) {
-          "Caller does not have permission to create Population"
-        }
-      }
+    val principal: MeasurementPrincipal = principalFromCurrentContext
+    if (principal.resourceKey != parentKey) {
+      throw permissionDeniedStatus(Permission.CREATE, "${request.parent}/certificates")
+        .asRuntimeException()
     }
 
     val createPopulationRequest = request.population.toInternal(parentKey)
@@ -94,16 +92,9 @@ class PopulationsService(private val internalClient: PopulationsCoroutineStub) :
         "Resource name is either unspecified or invalid"
       }
 
-    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
-      is DataProviderPrincipal -> {
-        if (principal.resourceKey.dataProviderId != key.dataProviderId) {
-          failGrpc(Status.PERMISSION_DENIED) { "Cannot get Population from another DataProvider" }
-        }
-      }
-      is ModelProviderPrincipal -> {}
-      else -> {
-        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to get Population" }
-      }
+    val principal: MeasurementPrincipal = principalFromCurrentContext
+    if (!principal.isAuthorizedToGet(key.parentKey)) {
+      throw permissionDeniedStatus(Permission.GET, request.name).asRuntimeException()
     }
 
     val getPopulationRequest = getPopulationRequest {
@@ -122,23 +113,16 @@ class PopulationsService(private val internalClient: PopulationsCoroutineStub) :
   }
 
   override suspend fun listPopulations(request: ListPopulationsRequest): ListPopulationsResponse {
-    grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
+    val parentKey = grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
       "Parent is either unspecified or invalid"
     }
 
-    val listPopulationsPageToken = request.toListPopulationsPageToken()
-
-    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
-      is DataProviderPrincipal -> {
-        if (principal.resourceKey.toName() != request.parent) {
-          failGrpc(Status.PERMISSION_DENIED) { "Cannot list Populations from another DataProvider" }
-        }
-      }
-      is ModelProviderPrincipal -> {}
-      else -> {
-        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to get Populations" }
-      }
+    val principal: MeasurementPrincipal = principalFromCurrentContext
+    if (!principal.isAuthorizedToGet(parentKey)) {
+      throw permissionDeniedStatus(Permission.LIST, parentKey.dataProviderId).asRuntimeException()
     }
+
+    val listPopulationsPageToken = request.toListPopulationsPageToken()
 
     val results: List<InternalPopulation> =
       try {
@@ -171,8 +155,8 @@ class PopulationsService(private val internalClient: PopulationsCoroutineStub) :
             lastPopulation =
               ListPopulationsPageTokenKt.previousPageEnd {
                 createTime = results[results.lastIndex - 1].createTime
-                externalPopulationId = results[results.lastIndex - 1].externalPopulationId
                 externalDataProviderId = results[results.lastIndex - 1].externalDataProviderId
+                externalPopulationId = results[results.lastIndex - 1].externalPopulationId
               }
           }
         nextPageToken = pageToken.toByteArray().base64UrlEncode()
@@ -226,11 +210,42 @@ class PopulationsService(private val internalClient: PopulationsCoroutineStub) :
         if (source.hasLastPopulation()) {
           after = afterFilter {
             createTime = source.lastPopulation.createTime
-            externalPopulationId = source.lastPopulation.externalPopulationId
             externalDataProviderId = source.lastPopulation.externalDataProviderId
+            externalPopulationId = source.lastPopulation.externalPopulationId
           }
         }
       }
     }
+  }
+
+
+  /**
+   * Returns whether this [MeasurementPrincipal] is authorized to get [populationKey].
+   *
+   * The rules are as follows:
+   * * A Population can be read by any ModelProvider principal.
+   * * A Population can be read by a DataProvider principal that created the population.
+   * * A Population cannot be read by any other principal.
+   */
+  private fun MeasurementPrincipal.isAuthorizedToGet(dataProviderKey: DataProviderKey): Boolean {
+    if (resourceKey == dataProviderKey) {
+      return true
+    }
+
+    // TODO(jojijac0b) Once the population resource has a field to limit access to only certain MPs, update this permission as well.
+    return when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is ModelProviderPrincipal ->
+        true
+      is DataProviderPrincipal ->
+        principal.resourceKey == dataProviderKey
+      else ->
+        false
+    }
+  }
+
+  private fun permissionDeniedStatus(permission: Permission, name: String): Status {
+    return Status.PERMISSION_DENIED.withDescription(
+      "Permission $permission denied on resource $name (or it might not exist)"
+    )
   }
 }
