@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.protobuf.any
 import com.google.protobuf.util.Timestamps
 import com.google.type.interval
 import java.time.ZoneOffset
@@ -25,6 +26,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.Exchange
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
@@ -64,8 +66,10 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.protocol
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.reachOnlyLiquidLegionsV2
+import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.dateInterval
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.encryptedMessage
 import org.wfanet.measurement.api.v2alpha.exchange
 import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.api.v2alpha.exchangeStepAttempt
@@ -79,7 +83,10 @@ import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.reachOnlyLiquidLegionsSketchParams
-import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.api.v2alpha.setMessage
+import org.wfanet.measurement.api.v2alpha.signedMessage
+import org.wfanet.measurement.api.v2alpha.unpack
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
@@ -514,6 +521,7 @@ fun ModelSuite.toInternal(modelProviderKey: ModelProviderKey): InternalModelSuit
 }
 
 /** Converts a public [ModelRelease] to an internal [InternalModelRelease] */
+@Suppress("UnusedReceiverParameter") //
 fun ModelRelease.toInternal(modelSuiteKey: ModelSuiteKey): InternalModelRelease {
   return internalModelRelease {
     externalModelProviderId = apiIdToExternalId(modelSuiteKey.modelProviderId)
@@ -808,6 +816,8 @@ fun ModelShard.toInternal(
 
 /** Converts an internal [InternalMeasurement] to a public [Measurement]. */
 fun InternalMeasurement.toMeasurement(): Measurement {
+  val apiVersion = Version.fromString(details.apiVersion)
+
   val source = this
   return measurement {
     name =
@@ -816,23 +826,28 @@ fun InternalMeasurement.toMeasurement(): Measurement {
           externalIdToApiId(source.externalMeasurementId)
         )
         .toName()
-    apiVersion = source.details.apiVersion
     measurementConsumerCertificate =
       MeasurementConsumerCertificateKey(
           externalIdToApiId(source.externalMeasurementConsumerId),
           externalIdToApiId(source.externalMeasurementConsumerCertificateId)
         )
         .toName()
-    measurementSpec = signedData {
-      data = source.details.measurementSpec
+    measurementSpec = signedMessage {
+      setMessage(
+        any {
+          value = source.details.measurementSpec
+          typeUrl =
+            when (apiVersion) {
+              Version.V2_ALPHA -> ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
+            }
+        }
+      )
       signature = source.details.measurementSpecSignature
       signatureAlgorithmOid = source.details.measurementSpecSignatureAlgorithmOid
     }
-    dataProviders +=
-      source.dataProvidersMap.entries.map(Map.Entry<Long, DataProviderValue>::toDataProviderEntry)
+    dataProviders += source.dataProvidersMap.entries.map { it.toDataProviderEntry(apiVersion) }
 
-    val measurementTypeCase =
-      MeasurementSpec.parseFrom(this.measurementSpec.data).measurementTypeCase
+    val measurementTypeCase = measurementSpec.unpack<MeasurementSpec>().measurementTypeCase
 
     protocolConfig =
       source.details.protocolConfig.toProtocolConfig(
@@ -843,6 +858,7 @@ fun InternalMeasurement.toMeasurement(): Measurement {
     state = source.state.toState()
     results +=
       source.resultsList.map {
+        val resultApiVersion = Version.fromString(it.apiVersion)
         val certificateApiId = externalIdToApiId(it.externalCertificateId)
         resultOutput {
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf oneof case fields cannot be null.
@@ -859,8 +875,13 @@ fun InternalMeasurement.toMeasurement(): Measurement {
               InternalMeasurement.ResultInfo.CertificateParentCase.CERTIFICATEPARENT_NOT_SET ->
                 error("certificate_parent not set")
             }
-          encryptedResult = it.encryptedResult
-          this.apiVersion = it.apiVersion
+          encryptedResult = encryptedMessage {
+            ciphertext = it.encryptedResult
+            typeUrl =
+              when (resultApiVersion) {
+                Version.V2_ALPHA -> ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
+              }
+          }
         }
       }
     measurementReferenceId = source.providedMeasurementId
@@ -874,7 +895,10 @@ fun InternalMeasurement.toMeasurement(): Measurement {
 }
 
 /** Converts an internal [DataProviderValue] to a public [DataProviderEntry.Value]. */
-fun DataProviderValue.toDataProviderEntryValue(dataProviderId: String): DataProviderEntry.Value {
+fun DataProviderValue.toDataProviderEntryValue(
+  dataProviderId: String,
+  apiVersion: Version
+): DataProviderEntry.Value {
   val dataProviderValue = this
   return DataProviderEntryKt.value {
     dataProviderCertificate =
@@ -883,22 +907,37 @@ fun DataProviderValue.toDataProviderEntryValue(dataProviderId: String): DataProv
           externalIdToApiId(externalDataProviderCertificateId)
         )
         .toName()
-    dataProviderPublicKey = signedData {
-      data = dataProviderValue.dataProviderPublicKey
+    dataProviderPublicKey = signedMessage {
+      setMessage(
+        value =
+          any {
+            value = dataProviderValue.dataProviderPublicKey
+            typeUrl =
+              when (apiVersion) {
+                Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EncryptionPublicKey.getDescriptor())
+              }
+          }
+      )
       signature = dataProviderPublicKeySignature
       signatureAlgorithmOid = dataProviderPublicKeySignatureAlgorithmOid
     }
-    encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
+    encryptedRequisitionSpec = encryptedMessage {
+      ciphertext = dataProviderValue.encryptedRequisitionSpec
+      typeUrl =
+        when (apiVersion) {
+          Version.V2_ALPHA -> ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
+        }
+    }
     nonceHash = dataProviderValue.nonceHash
   }
 }
 
 /** Converts an internal data provider map entry to a public [DataProviderEntry]. */
-fun Map.Entry<Long, DataProviderValue>.toDataProviderEntry(): DataProviderEntry {
+fun Map.Entry<Long, DataProviderValue>.toDataProviderEntry(apiVersion: Version): DataProviderEntry {
   val mapEntry = this
   return dataProviderEntry {
     key = DataProviderKey(externalIdToApiId(mapEntry.key)).toName()
-    value = mapEntry.value.toDataProviderEntryValue(externalIdToApiId(mapEntry.key))
+    value = mapEntry.value.toDataProviderEntryValue(externalIdToApiId(mapEntry.key), apiVersion)
   }
 }
 
@@ -914,8 +953,7 @@ fun Measurement.toInternal(
   internalNoiseMechanisms: List<InternalProtocolConfig.NoiseMechanism>,
   reachOnlyLlV2Enabled: Boolean,
 ): InternalMeasurement {
-  val publicMeasurement = this
-
+  val source = this
   return internalMeasurement {
     providedMeasurementId = measurementReferenceId
     externalMeasurementConsumerId =
@@ -925,9 +963,9 @@ fun Measurement.toInternal(
     dataProviders.putAll(dataProvidersMap)
     details = details {
       apiVersion = Version.V2_ALPHA.string
-      measurementSpec = publicMeasurement.measurementSpec.data
-      measurementSpecSignature = publicMeasurement.measurementSpec.signature
-      measurementSpecSignatureAlgorithmOid = publicMeasurement.measurementSpec.signatureAlgorithmOid
+      measurementSpec = source.measurementSpec.message.value
+      measurementSpecSignature = source.measurementSpec.signature
+      measurementSpecSignatureAlgorithmOid = source.measurementSpec.signatureAlgorithmOid
 
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (measurementSpecProto.measurementTypeCase) {
@@ -1070,6 +1108,8 @@ fun InternalExchangeStep.toExchangeStep(): ExchangeStep {
       exchangeId = date.toLocalDate().toString(),
       exchangeStepId = stepIndex.toString()
     )
+  val apiVersion = Version.fromString(apiVersion)
+
   val source = this
   return exchangeStep {
     name = exchangeStepKey.toName()
@@ -1088,8 +1128,13 @@ fun InternalExchangeStep.toExchangeStep(): ExchangeStep {
     }
 
     state = source.state.toState()
-    apiVersion = source.apiVersion
-    serializedExchangeWorkflow = source.serializedExchangeWorkflow
+    exchangeWorkflow = any {
+      value = source.serializedExchangeWorkflow
+      typeUrl =
+        when (apiVersion) {
+          Version.V2_ALPHA -> ProtoReflection.getTypeUrl(ExchangeWorkflow.getDescriptor())
+        }
+    }
   }
 }
 

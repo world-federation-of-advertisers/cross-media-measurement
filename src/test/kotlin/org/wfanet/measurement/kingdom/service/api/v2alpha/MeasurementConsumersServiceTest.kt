@@ -38,7 +38,8 @@ import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.removeMeasurementConsumerOwnerRequest
-import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.api.v2alpha.setMessage
+import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
@@ -52,6 +53,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
@@ -83,13 +85,12 @@ private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
 
 @RunWith(JUnit4::class)
 class MeasurementConsumersServiceTest {
-  private val internalServiceMock: InternalMeasurementConsumersService =
-    mockService() {
-      onBlocking { createMeasurementConsumer(any()) }.thenReturn(INTERNAL_MEASUREMENT_CONSUMER)
-      onBlocking { getMeasurementConsumer(any()) }.thenReturn(INTERNAL_MEASUREMENT_CONSUMER)
-      onBlocking { addMeasurementConsumerOwner(any()) }.thenReturn(INTERNAL_MEASUREMENT_CONSUMER)
-      onBlocking { removeMeasurementConsumerOwner(any()) }.thenReturn(INTERNAL_MEASUREMENT_CONSUMER)
-    }
+  private val internalServiceMock: InternalMeasurementConsumersService = mockService {
+    onBlocking { createMeasurementConsumer(any()) }.thenReturn(INTERNAL_MEASUREMENT_CONSUMER)
+    onBlocking { getMeasurementConsumer(any()) }.thenReturn(INTERNAL_MEASUREMENT_CONSUMER)
+    onBlocking { addMeasurementConsumerOwner(any()) }.thenReturn(INTERNAL_MEASUREMENT_CONSUMER)
+    onBlocking { removeMeasurementConsumerOwner(any()) }.thenReturn(INTERNAL_MEASUREMENT_CONSUMER)
+  }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalServiceMock) }
 
@@ -514,8 +515,8 @@ class MeasurementConsumersServiceTest {
 
     private val ENCRYPTION_PUBLIC_KEY =
       loadPublicKey(TestData.FIXED_ENCRYPTION_PUBLIC_KEYSET).toEncryptionPublicKey()
-    private val SIGNED_PUBLIC_KEY = signedData {
-      data = ENCRYPTION_PUBLIC_KEY.toByteString()
+    private val SIGNED_PUBLIC_KEY = signedMessage {
+      setMessage(ENCRYPTION_PUBLIC_KEY.pack())
       signature = ByteString.copyFromUtf8("Fake signature of public key")
       signatureAlgorithmOid = "2.9999"
     }
@@ -525,7 +526,7 @@ class MeasurementConsumersServiceTest {
         externalMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
         details = details {
           apiVersion = API_VERSION.string
-          publicKey = SIGNED_PUBLIC_KEY.data
+          publicKey = SIGNED_PUBLIC_KEY.message.value
           publicKeySignature = SIGNED_PUBLIC_KEY.signature
           publicKeySignatureAlgorithmOid = SIGNED_PUBLIC_KEY.signatureAlgorithmOid
         }
@@ -547,7 +548,6 @@ class MeasurementConsumersServiceTest {
       certificate = MeasurementConsumerCertificateKey(measurementConsumerId, certificateId).toName()
       certificateDer = INTERNAL_MEASUREMENT_CONSUMER.certificate.details.x509Der
       publicKey = SIGNED_PUBLIC_KEY
-      publicKeyApiVersion = INTERNAL_MEASUREMENT_CONSUMER.details.apiVersion
     }
 
     private val ACTIVATED_INTERNAL_ACCOUNT: Account = account {
