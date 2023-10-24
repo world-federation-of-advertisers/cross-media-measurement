@@ -243,7 +243,6 @@ class ReportsService(
   )
 
   override suspend fun createReport(request: CreateReportRequest): Report {
-    val now = System.currentTimeMillis()
     grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
       "Parent is either unspecified or invalid."
     }
@@ -328,7 +327,7 @@ class ReportsService(
         )
       }
 
-    val dataProviderNames = hashSetOf<String>()
+    val dataProviderNames = mutableSetOf<String>()
     for (internalReportingSet in internalReportingSetMap.values) {
       for (eventGroupKey in internalReportingSet.eventGroupKeysList) {
         dataProviderNames.add(DataProviderKey(eventGroupKey.dataProviderReferenceId).toName())
@@ -1116,7 +1115,7 @@ class ReportsService(
     apiAuthenticationKey: String,
     dataProviderNames: Collection<String>
   ): Map<String, DataProviderInfo> {
-    val dataProviderInfoMap = hashMapOf<String, DataProviderInfo>()
+    val dataProviderInfoMap = mutableMapOf<String, DataProviderInfo>()
 
     if (dataProviderNames.isEmpty()) {
       return dataProviderInfoMap

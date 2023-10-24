@@ -26,9 +26,9 @@ import org.wfanet.measurement.reporting.service.internal.MeasurementAlreadyExist
  * Throws the following on [execute]:
  * * [MeasurementAlreadyExistsException] Measurement already exists
  */
-class CreateMeasurements(private val measurements: Collection<Measurement>) :
-  PostgresWriter<Collection<Measurement>>() {
-  override suspend fun TransactionScope.runTransaction(): Collection<Measurement> {
+class CreateMeasurements(private val measurements: Iterable<Measurement>) :
+  PostgresWriter<Iterable<Measurement>>() {
+  override suspend fun TransactionScope.runTransaction(): Iterable<Measurement> {
     transactionContext.run {
       for (measurement in measurements) {
         val builder =

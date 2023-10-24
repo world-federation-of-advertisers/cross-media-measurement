@@ -282,7 +282,7 @@ class MetricsService(
           .toList()
           .associateBy { it.externalReportingSetId }
 
-      val dataProviderNames = hashSetOf<String>()
+      val dataProviderNames = mutableSetOf<String>()
       for (internalPrimitiveReportingSet in internalPrimitiveReportingSetMap.values) {
         for (eventGroupKey in internalPrimitiveReportingSet.primitive.eventGroupKeysList) {
           dataProviderNames.add(DataProviderKey(eventGroupKey.cmmsDataProviderId).toName())
@@ -495,7 +495,7 @@ class MetricsService(
       apiAuthenticationKey: String,
       dataProviderNames: Collection<String>
     ): Map<String, DataProviderInfo> {
-      val dataProviderInfoMap = hashMapOf<String, DataProviderInfo>()
+      val dataProviderInfoMap = mutableMapOf<String, DataProviderInfo>()
 
       if (dataProviderNames.isEmpty()) {
         return dataProviderInfoMap
