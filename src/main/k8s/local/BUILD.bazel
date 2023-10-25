@@ -9,7 +9,9 @@ package(
     default_testonly = True,
     default_visibility = [
         ":__subpackages__",
+        "//src/main/k8s/panelmatch:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/integration/k8s:__pkg__",
+        "//src/test/kotlin/org/wfanet/panelmatch/integration/k8s:__pkg__",
     ],
 )
 
@@ -49,6 +51,28 @@ cue_dump(
     },
     tags = ["manual"],
     deps = [":emulators_cue"],
+)
+
+cue_library(
+    name = "panelmatch_emulators_cue",
+    srcs = ["panelmatch_emulators.cue"],
+    deps = [
+        ":config_cue",
+        "//src/main/k8s:base",
+    ],
+)
+
+cue_dump(
+    name = "panelmatch_emulators",
+    cue_tags = {
+        "secret_name": SECRET_NAME,
+        "spanner_emulator_version": SPANNER_EMULATOR.version,
+        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
+        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+    },
+    tags = ["manual"],
+    deps = [":panelmatch_emulators_cue"],
 )
 
 cue_library(
@@ -304,6 +328,20 @@ kustomization_dir(
     srcs = [
         ":emulators",
         ":kingdom",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+    deps = [
+        ":config_files_with_empty_mapping",
+        "//src/main/k8s/testing/secretfiles:kustomization",
+    ],
+)
+
+kustomization_dir(
+    name = "kingdom_for_panelmatch_setup",
+    srcs = [
+        ":kingdom",
+        ":panelmatch_emulators",
     ],
     generate_kustomization = True,
     tags = ["manual"],

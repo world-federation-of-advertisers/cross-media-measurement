@@ -68,8 +68,8 @@ message Report {
     // A collection of metrics.
     repeated MetricSpec metric_specs = 2
         [(google.api.field_behavior) = REQUIRED];
-    // An additional event filter that will be conjoined to any filters
-    // present on the ReportingSet provided as part of the
+    // An additional event filter that will be conjoined to grouping filters and
+    // any filters present on the ReportingSet provided as part of the
     // ReportingMetricEntry below.
     string filter = 5 [(google.api.field_behavior) = IMMUTABLE];
     // The final set of groups is the Cartesian product of `groupings` and will
@@ -164,6 +164,10 @@ message Report {
 
       // The metric spec that is associated with the metric calculation.
       MetricSpec metric_spec = 2;
+
+      // An additional event filter that was conjoined to the grouping
+      // predicates and any filters present on the ReportingSet.
+      string filter = 5;
 
       // The time interval associated with the metric calculation.
       //

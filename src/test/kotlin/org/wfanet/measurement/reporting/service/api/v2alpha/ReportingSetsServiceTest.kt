@@ -1042,6 +1042,8 @@ class ReportingSetsServiceTest {
               weight = 1
               binaryRepresentation = 1
             }
+          details =
+            InternalReportingSetKt.details { tags.put("name", "PRIMITIVE_REPORTING_SETS$it") }
         }
       }
 
@@ -1077,12 +1079,14 @@ class ReportingSetsServiceTest {
           weight = 1
           binaryRepresentation = 3
         }
+      details = InternalReportingSetKt.details { tags.put("name", "COMPOSITE_REPORTING_SET") }
     }
 
     private val INTERNAL_COMPOSITE_REPORTING_SET2: InternalReportingSet =
       INTERNAL_COMPOSITE_REPORTING_SET.copy {
         externalReportingSetId += "2"
         displayName = "composite_reporting_set_display_name2"
+        details = InternalReportingSetKt.details { tags.put("name", "COMPOSITE_REPORTING_SET2") }
       }
 
     private val INTERNAL_ROOT_COMPOSITE_REPORTING_SET: InternalReportingSet = internalReportingSet {
@@ -1153,6 +1157,7 @@ class ReportingSetsServiceTest {
           weight = -1
           binaryRepresentation = 6
         }
+      details = InternalReportingSetKt.details { tags.put("name", "ROOT_COMPOSITE_REPORTING_SET") }
     }
 
     // Reporting sets
@@ -1162,6 +1167,7 @@ class ReportingSetsServiceTest {
           name = internalReportingSet.resourceName
           filter = internalReportingSet.filter
           displayName = internalReportingSet.displayName
+          tags.putAll(internalReportingSet.details.tagsMap)
           primitive =
             ReportingSetKt.primitive {
               cmmsEventGroups +=
@@ -1176,6 +1182,7 @@ class ReportingSetsServiceTest {
       name = INTERNAL_ROOT_COMPOSITE_REPORTING_SET.resourceName
       filter = INTERNAL_ROOT_COMPOSITE_REPORTING_SET.filter
       displayName = INTERNAL_ROOT_COMPOSITE_REPORTING_SET.displayName
+      tags.putAll(INTERNAL_ROOT_COMPOSITE_REPORTING_SET.details.tagsMap)
       composite =
         ReportingSetKt.composite {
           expression =

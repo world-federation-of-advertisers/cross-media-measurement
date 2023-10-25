@@ -108,9 +108,11 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
           ExternalReportId,
           CreateReportRequestId,
           CreateTime,
-          Periodic
+          Periodic,
+          ReportDetails,
+          ReportDetailsJson
         )
-        VALUES ($1, $2, $3, $4, $5, $6)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       """
       ) {
         bind("$1", measurementConsumerId)
@@ -123,6 +125,8 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
         }
         bind("$5", createTime)
         bind("$6", report.timeCase == Report.TimeCase.PERIODIC_TIME_INTERVAL)
+        bind("$7", report.details)
+        bind("$8", report.details.toJson())
       }
 
     val reportTimeIntervalsStatement =

@@ -57,6 +57,7 @@ import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCorouti
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
+import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer
 import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer.Companion.toList
 import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
@@ -199,6 +200,7 @@ class InProcessReportingServer(
                 METRIC_SPEC_CONFIG,
                 internalReportingSetsClient,
                 internalMetricsClient,
+                VariancesImpl,
                 internalMeasurementsClient,
                 publicKingdomDataProvidersClient,
                 publicKingdomMeasurementsClient,
