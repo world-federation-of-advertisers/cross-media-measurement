@@ -85,13 +85,13 @@ import org.wfanet.measurement.api.v2alpha.population
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.reachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.internal.common.Provider
 import org.wfanet.measurement.internal.kingdom.DifferentialPrivacyParams as InternalDifferentialPrivacyParams
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
 import org.wfanet.measurement.internal.kingdom.Exchange as InternalExchange
@@ -1114,15 +1114,14 @@ fun InternalExchangeStep.toExchangeStep(): ExchangeStep {
     stepIndex = source.stepIndex
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
-    when (source.provider.type) {
-      Provider.Type.MODEL_PROVIDER -> {
-        modelProvider = ModelProviderKey(externalIdToApiId(source.provider.externalId)).toName()
-      }
-      Provider.Type.DATA_PROVIDER -> {
-        dataProvider = DataProviderKey(externalIdToApiId(source.provider.externalId)).toName()
-      }
-      Provider.Type.TYPE_UNSPECIFIED,
-      Provider.Type.UNRECOGNIZED -> error("Invalid provider type ${provider.type}")
+    when (source.partyCase) {
+      InternalExchangeStep.PartyCase.EXTERNAL_DATA_PROVIDER_ID ->
+        dataProvider =
+          DataProviderKey(ExternalId(source.externalDataProviderId).apiId.value).toName()
+      InternalExchangeStep.PartyCase.EXTERNAL_MODEL_PROVIDER_ID ->
+        modelProvider =
+          ModelProviderKey(ExternalId(source.externalModelProviderId).apiId.value).toName()
+      InternalExchangeStep.PartyCase.PARTY_NOT_SET -> error("party not set")
     }
 
     state = source.state.toState()

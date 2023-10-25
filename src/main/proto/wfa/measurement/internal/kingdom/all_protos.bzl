@@ -67,7 +67,6 @@ KINGDOM_INTERNAL_ENTITY_PROTOS = [
     "//src/main/proto/wfa/measurement/internal/kingdom:model_provider_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:model_shard_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_kt_jvm_proto",
-    "//src/main/proto/wfa/measurement/internal/common:provider_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:recurring_exchange_details_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:recurring_exchange_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:error_code_kt_jvm_proto",
