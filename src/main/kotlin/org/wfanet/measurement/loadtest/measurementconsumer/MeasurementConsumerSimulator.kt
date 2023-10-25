@@ -27,6 +27,8 @@ import java.time.Duration
 import java.time.LocalDate
 import java.util.logging.Logger
 import kotlin.math.log2
+import kotlin.math.max
+import kotlin.math.sqrt
 import kotlin.random.Random
 import kotlinx.coroutines.time.delay
 import org.wfanet.measurement.api.v2alpha.Certificate
@@ -53,12 +55,14 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
@@ -92,10 +96,21 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
+import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParams
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
 import org.wfanet.measurement.loadtest.config.VidSampling
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
 import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults
+import org.wfanet.measurement.measurementconsumer.stats.DeterministicMethodology
+import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementParams
+import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
+import org.wfanet.measurement.measurementconsumer.stats.Methodology
+import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
+import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
+import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
+import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
 
 data class MeasurementConsumerData(
   // The MC's public API resource name
@@ -135,6 +150,11 @@ class MeasurementConsumerSimulator(
     val measurement: Measurement,
     val measurementSpec: MeasurementSpec,
     val requisitions: List<RequisitionInfo>,
+  )
+
+  private data class MeasurementComputationInfo(
+    val methodology: Methodology,
+    val noiseMechanism: NoiseMechanism
   )
 
   private val MeasurementInfo.sampledVids: Sequence<Long>
@@ -179,7 +199,32 @@ class MeasurementConsumerSimulator(
     val expectedResult = getExpectedResult(measurementInfo)
     logger.info("Expected result: $expectedResult")
 
-    assertDpResultsEqual(expectedResult, reachAndFrequencyResult)
+    val protocol = measurementInfo.measurement.protocolConfig.protocolsList.first()
+
+    val reachVariance: Double =
+      computeReachVariance(
+        reachAndFrequencyResult,
+        measurementInfo.measurementSpec.vidSamplingInterval,
+        measurementInfo.measurementSpec.reachAndFrequency.reachPrivacyParams,
+        protocol
+      )
+    val reachTolerance = computeErrorMargin(reachVariance)
+    assertThat(reachAndFrequencyResult.reach.value.toDouble())
+      .isWithin(reachTolerance)
+      .of(expectedResult.reach.value.toDouble())
+
+    val frequencyTolerance: Map<Long, Double> =
+      computeRelativeFrequencyTolerance(
+        reachAndFrequencyResult,
+        reachVariance,
+        measurementInfo.measurementSpec,
+        protocol
+      )
+    assertThat(reachAndFrequencyResult)
+      .frequencyDistribution()
+      .isWithin(frequencyTolerance)
+      .of(expectedResult.frequency.relativeFrequencyDistributionMap)
+
     logger.info("Reach and frequency result is equal to the expected result")
   }
 
@@ -230,21 +275,38 @@ class MeasurementConsumerSimulator(
     val expectedResult = getExpectedResult(measurementInfo)
     logger.info("Expected result: $expectedResult")
 
-    // TODO(@riemanli): Use variance rather than fixed tolerance values.
-    assertThat(reachAndFrequencyResult)
-      .reachValue()
-      .isWithinPercent(0.5)
-      .of(expectedResult.reach.value)
     assertThat(reachAndFrequencyResult.reach.hasDeterministicCountDistinct()).isTrue()
     assertThat(reachAndFrequencyResult.reach.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
-
-    assertThat(reachAndFrequencyResult)
-      .frequencyDistribution()
-      .isWithin(0.01)
-      .of(expectedResult.frequency.relativeFrequencyDistributionMap)
     assertThat(reachAndFrequencyResult.frequency.hasDeterministicDistribution()).isTrue()
     assertThat(reachAndFrequencyResult.frequency.noiseMechanism)
       .isEqualTo(expectedDirectNoiseMechanism)
+
+    val protocol = measurementInfo.measurement.protocolConfig.protocolsList.first()
+
+    val reachVariance: Double =
+      computeReachVariance(
+        reachAndFrequencyResult,
+        measurementInfo.measurementSpec.vidSamplingInterval,
+        measurementInfo.measurementSpec.reachAndFrequency.reachPrivacyParams,
+        protocol
+      )
+    val reachTolerance = computeErrorMargin(reachVariance)
+    assertThat(reachAndFrequencyResult.reach.value.toDouble())
+      .isWithin(reachTolerance)
+      .of(expectedResult.reach.value.toDouble())
+
+    val frequencyTolerance: Map<Long, Double> =
+      computeRelativeFrequencyTolerance(
+        reachAndFrequencyResult,
+        reachVariance,
+        measurementInfo.measurementSpec,
+        protocol
+      )
+
+    assertThat(reachAndFrequencyResult)
+      .frequencyDistribution()
+      .isWithin(frequencyTolerance)
+      .of(expectedResult.frequency.relativeFrequencyDistributionMap)
 
     logger.info("Direct reach and frequency result is equal to the expected result")
   }
@@ -265,8 +327,21 @@ class MeasurementConsumerSimulator(
     val expectedResult = getExpectedResult(measurementInfo)
     logger.info("Expected result: $expectedResult")
 
-    // TODO(@riemanli): Use variance rather than fixed tolerance values.
-    assertThat(reachResult).reachValue().isWithinPercent(0.5).of(expectedResult.reach.value)
+    val protocol = measurementInfo.measurement.protocolConfig.protocolsList.first()
+
+    val reachVariance: Double =
+      computeReachVariance(
+        reachResult,
+        measurementInfo.measurementSpec.vidSamplingInterval,
+        measurementInfo.measurementSpec.reach.privacyParams,
+        protocol
+      )
+    val reachTolerance = computeErrorMargin(reachVariance)
+
+    assertThat(reachResult.reach.value.toDouble())
+      .isWithin(reachTolerance)
+      .of(expectedResult.reach.value.toDouble())
+
     assertThat(reachResult.reach.hasDeterministicCountDistinct()).isTrue()
     assertThat(reachResult.reach.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
 
@@ -297,7 +372,21 @@ class MeasurementConsumerSimulator(
     val expectedResult: Result = getExpectedResult(measurementInfo)
     logger.info("Expected result: $expectedResult")
 
-    assertDpResultsEqual(expectedResult, reachOnlyResult)
+    val protocol = measurementInfo.measurement.protocolConfig.protocolsList.first()
+
+    val reachVariance: Double =
+      computeReachVariance(
+        reachOnlyResult,
+        measurementInfo.measurementSpec.vidSamplingInterval,
+        measurementInfo.measurementSpec.reach.privacyParams,
+        protocol
+      )
+    val reachTolerance = computeErrorMargin(reachVariance)
+
+    assertThat(reachOnlyResult.reach.value.toDouble())
+      .isWithin(reachTolerance)
+      .of(expectedResult.reach.value.toDouble())
+
     logger.info("Reach-only result is equal to the expected result. Correctness Test passes.")
   }
 
@@ -356,14 +445,102 @@ class MeasurementConsumerSimulator(
     logger.info("Duration result is equal to the expected result")
   }
 
-  /** Compare two [Result]s within the differential privacy error range. */
-  private fun assertDpResultsEqual(expectedResult: Result, actualResult: Result) {
-    // TODO(@riemanli): Use variance rather than fixed tolerance values.
-    assertThat(actualResult).reachValue().isWithinPercent(10.0).of(expectedResult.reach.value)
-    assertThat(actualResult)
-      .frequencyDistribution()
-      .isWithin(0.05)
-      .of(expectedResult.frequency.relativeFrequencyDistributionMap)
+  /** Computes the tolerance values of a relative frequency distribution [Result] for testing. */
+  private fun computeRelativeFrequencyTolerance(
+    result: Result,
+    reachVariance: Double,
+    measurementSpec: MeasurementSpec,
+    protocol: ProtocolConfig.Protocol
+  ): Map<Long, Double> {
+    val measurementComputationInfo: MeasurementComputationInfo =
+      buildMeasurementComputationInfo(protocol, result.frequency.noiseMechanism)
+
+    return VariancesImpl.computeMeasurementVariance(
+        measurementComputationInfo.methodology,
+        FrequencyMeasurementVarianceParams(
+          totalReach = max(0L, result.reach.value),
+          reachMeasurementVariance = reachVariance,
+          relativeFrequencyDistribution =
+            result.frequency.relativeFrequencyDistributionMap.mapKeys { it.key.toInt() },
+          measurementParams =
+            FrequencyMeasurementParams(
+              vidSamplingInterval =
+                measurementSpec.vidSamplingInterval.toStatsVidSamplingInterval(),
+              dpParams =
+                measurementSpec.reachAndFrequency.frequencyPrivacyParams.toNoiserDpParams(),
+              noiseMechanism = measurementComputationInfo.noiseMechanism.toStatsNoiseMechanism(),
+              maximumFrequency = measurementSpec.reachAndFrequency.maximumFrequency
+            )
+        )
+      )
+      .relativeVariances
+      .mapKeys { it.key.toLong() }
+      .mapValues { computeErrorMargin(it.value) }
+  }
+
+  /** Computes the variance value of a reach [Result]. */
+  private fun computeReachVariance(
+    result: Result,
+    vidSamplingInterval: VidSamplingInterval,
+    privacyParams: DifferentialPrivacyParams,
+    protocol: ProtocolConfig.Protocol
+  ): Double {
+    val measurementComputationInfo: MeasurementComputationInfo =
+      buildMeasurementComputationInfo(protocol, result.reach.noiseMechanism)
+
+    return VariancesImpl.computeMeasurementVariance(
+      measurementComputationInfo.methodology,
+      ReachMeasurementVarianceParams(
+        reach = max(0L, result.reach.value),
+        measurementParams =
+          ReachMeasurementParams(
+            vidSamplingInterval = vidSamplingInterval.toStatsVidSamplingInterval(),
+            dpParams = privacyParams.toNoiserDpParams(),
+            noiseMechanism = measurementComputationInfo.noiseMechanism.toStatsNoiseMechanism()
+          )
+      )
+    )
+  }
+
+  /** Computes the margin of error, i.e. half width, of a 99.9% confidence interval. */
+  private fun computeErrorMargin(variance: Double): Double {
+    return CONFIDENCE_INTERVAL_MULTIPLIER * sqrt(variance)
+  }
+
+  /** Builds a [MeasurementComputationInfo] from a [ProtocolConfig.Protocol]. */
+  private fun buildMeasurementComputationInfo(
+    protocol: ProtocolConfig.Protocol,
+    directNoiseMechanism: NoiseMechanism,
+  ): MeasurementComputationInfo {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+    return when (protocol.protocolCase) {
+      ProtocolConfig.Protocol.ProtocolCase.DIRECT -> {
+        MeasurementComputationInfo(DeterministicMethodology, directNoiseMechanism)
+      }
+      ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2 -> {
+        MeasurementComputationInfo(
+          LiquidLegionsV2Methodology(
+            decayRate = protocol.liquidLegionsV2.sketchParams.decayRate,
+            sketchSize = protocol.liquidLegionsV2.sketchParams.maxSize,
+            samplingIndicatorSize = protocol.liquidLegionsV2.sketchParams.samplingIndicatorSize
+          ),
+          protocol.liquidLegionsV2.noiseMechanism
+        )
+      }
+      ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
+        MeasurementComputationInfo(
+          LiquidLegionsV2Methodology(
+            decayRate = protocol.reachOnlyLiquidLegionsV2.sketchParams.decayRate,
+            sketchSize = protocol.reachOnlyLiquidLegionsV2.sketchParams.maxSize,
+            samplingIndicatorSize = 0L
+          ),
+          protocol.reachOnlyLiquidLegionsV2.noiseMechanism
+        )
+      }
+      ProtocolConfig.Protocol.ProtocolCase.PROTOCOL_NOT_SET -> {
+        error("Protocol is not set")
+      }
+    }
   }
 
   /** Creates a Measurement on behalf of the [MeasurementConsumer]. */
@@ -798,8 +975,37 @@ class MeasurementConsumerSimulator(
     private val EVENT_RANGE =
       OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))
 
+    // For a 99.9% Confidence Interval.
+    private const val CONFIDENCE_INTERVAL_MULTIPLIER = 3.291
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
+}
+
+/** Converts a [NoiseMechanism] to a [StatsNoiseMechanism]. */
+private fun NoiseMechanism.toStatsNoiseMechanism(): StatsNoiseMechanism {
+  return when (this) {
+    NoiseMechanism.NONE -> StatsNoiseMechanism.NONE
+    NoiseMechanism.GEOMETRIC,
+    NoiseMechanism.CONTINUOUS_LAPLACE -> StatsNoiseMechanism.LAPLACE
+    NoiseMechanism.DISCRETE_GAUSSIAN,
+    NoiseMechanism.CONTINUOUS_GAUSSIAN -> StatsNoiseMechanism.GAUSSIAN
+    NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
+    NoiseMechanism.UNRECOGNIZED -> {
+      error("Invalid NoiseMechanism.")
+    }
+  }
+}
+
+/** Converts a [VidSamplingInterval] to a [StatsVidSamplingInterval]. */
+private fun VidSamplingInterval.toStatsVidSamplingInterval(): StatsVidSamplingInterval {
+  val source = this
+  return StatsVidSamplingInterval(source.start.toDouble(), source.width.toDouble())
+}
+
+/** Converts a [DifferentialPrivacyParams] to [NoiserDpParams]. */
+fun DifferentialPrivacyParams.toNoiserDpParams(): NoiserDpParams {
+  val source = this
+  return NoiserDpParams(source.epsilon, source.delta)
 }
 
 private val RequisitionSpec.eventGroupsMap: Map<String, RequisitionSpec.EventGroupEntry.Value>
