@@ -31,8 +31,11 @@ import org.wfanet.measurement.internal.reporting.v2.StopReportScheduleRequest
 import org.wfanet.measurement.internal.reporting.v2.listReportSchedulesResponse
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportScheduleReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateReportSchedule
+import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.StopReportSchedule
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportScheduleAlreadyExistsException
+import org.wfanet.measurement.reporting.service.internal.ReportScheduleNotFoundException
+import org.wfanet.measurement.reporting.service.internal.ReportScheduleStateInvalidException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
 class PostgresReportSchedulesService(
@@ -104,8 +107,24 @@ class PostgresReportSchedulesService(
   }
 
   override suspend fun stopReportSchedule(request: StopReportScheduleRequest): ReportSchedule {
-    // TODO(@tristanvuong2021): Not yet implemented
-    return super.stopReportSchedule(request)
+    grpcRequire(request.cmmsMeasurementConsumerId.isNotEmpty()) {
+      "cmms_measurement_consumer_id is not set."
+    }
+
+    grpcRequire(request.externalReportScheduleId.isNotEmpty()) {
+      "external_report_schedule_id is not set."
+    }
+
+    return try {
+      StopReportSchedule(request).execute(client, idGenerator)
+    } catch (e: ReportScheduleNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Report Schedule not found.")
+    } catch (e: ReportScheduleStateInvalidException) {
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
+        "Report Schedule State is not ACTIVE."
+      )
+    }
   }
 
   override suspend fun addReportScheduleReport(
