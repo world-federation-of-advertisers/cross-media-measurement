@@ -70,7 +70,7 @@ class PopulationsService(private val internalClient: PopulationsCoroutineStub) :
   }
 
   override suspend fun createPopulation(request: CreatePopulationRequest): Population {
-    fun permissionDeniedStatus() = Permission.CREATE.deniedStatus("${request.parent}")
+    fun permissionDeniedStatus() = Permission.CREATE.deniedStatus("${request.parent}/populations")
 
     val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext
 
@@ -79,15 +79,8 @@ class PopulationsService(private val internalClient: PopulationsCoroutineStub) :
         "Parent is either unspecified or invalid"
       }
 
-    when (authenticatedPrincipal) {
-      is DataProviderPrincipal -> {
-        if (authenticatedPrincipal.resourceKey != parentKey) {
-          throw permissionDeniedStatus().asRuntimeException()
-        }
-      }
-      else -> {
-        throw permissionDeniedStatus().asRuntimeException()
-      }
+    if(authenticatedPrincipal.resourceKey != parentKey) {
+      throw permissionDeniedStatus().asRuntimeException()
     }
 
     val createPopulationRequest = request.population.toInternal(parentKey)
@@ -109,6 +102,8 @@ class PopulationsService(private val internalClient: PopulationsCoroutineStub) :
         "Resource name is either unspecified or invalid"
       }
 
+    // TODO(jojijac0b) Once the population resource has a field to limit access to only certain MPs,
+    // update this permission as well.
     when (val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext) {
       is DataProviderPrincipal -> {
         if (authenticatedPrincipal.resourceKey != key.parentKey) {
@@ -139,13 +134,15 @@ class PopulationsService(private val internalClient: PopulationsCoroutineStub) :
   override suspend fun listPopulations(request: ListPopulationsRequest): ListPopulationsResponse {
     grpcRequire(request.pageSize >= 0) { "Page size cannot be less than 0" }
 
-    fun permissionDeniedStatus() = Permission.LIST.deniedStatus("${request.parent}")
+    fun permissionDeniedStatus() = Permission.LIST.deniedStatus("${request.parent}/populations")
 
     val parentKey =
       grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
         "Parent is either unspecified or invalid"
       }
 
+    // TODO(jojijac0b) Once the population resource has a field to limit access to only certain MPs,
+    // update this permission as well.
     when (val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext) {
       is DataProviderPrincipal -> {
         if (authenticatedPrincipal.resourceKey != parentKey) {
@@ -250,28 +247,6 @@ class PopulationsService(private val internalClient: PopulationsCoroutineStub) :
           }
         }
       }
-    }
-  }
-
-  /**
-   * Returns whether this [MeasurementPrincipal] is authorized to get [populationKey].
-   *
-   * The rules are as follows:
-   * * A Population can be read by any ModelProvider principal.
-   * * A Population can be read by a DataProvider principal that created the population.
-   * * A Population cannot be read by any other principal.
-   */
-  private fun MeasurementPrincipal.isAuthorizedToGet(dataProviderKey: DataProviderKey): Boolean {
-    if (resourceKey == dataProviderKey) {
-      return true
-    }
-
-    // TODO(jojijac0b) Once the population resource has a field to limit access to only certain MPs,
-    // update this permission as well.
-    return when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
-      is ModelProviderPrincipal -> true
-      is DataProviderPrincipal -> principal.resourceKey == dataProviderKey
-      else -> false
     }
   }
 }

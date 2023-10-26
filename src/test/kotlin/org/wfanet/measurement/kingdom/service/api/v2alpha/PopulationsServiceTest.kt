@@ -16,7 +16,7 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
-import com.google.common.truth.Truth
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
 import io.grpc.Status
@@ -181,7 +181,7 @@ class PopulationsServiceTest {
           runBlocking { service.createPopulation(request) }
         }
       }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
@@ -197,7 +197,7 @@ class PopulationsServiceTest {
           runBlocking { service.createPopulation(request) }
         }
       }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
   @Test
   fun `createPopulation throws UNAUTHENTICATED when no principal is found`() {
@@ -208,7 +208,7 @@ class PopulationsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> { runBlocking { service.createPopulation(request) } }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
   @Test
@@ -265,7 +265,7 @@ class PopulationsServiceTest {
           runBlocking { service.getPopulation(request) }
         }
       }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
@@ -278,7 +278,7 @@ class PopulationsServiceTest {
           runBlocking { service.getPopulation(request) }
         }
       }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
@@ -287,7 +287,7 @@ class PopulationsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> { runBlocking { service.getPopulation(request) } }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
   @Test
@@ -395,7 +395,7 @@ class PopulationsServiceTest {
         }
       )
 
-    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+    assertThat(result).isEqualTo(expected)
   }
 
   @Test
@@ -456,7 +456,7 @@ class PopulationsServiceTest {
         }
       )
 
-    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+    assertThat(result).isEqualTo(expected)
   }
 
   @Test
@@ -480,7 +480,7 @@ class PopulationsServiceTest {
           runBlocking { service.listPopulations(request) }
         }
       }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
@@ -493,7 +493,7 @@ class PopulationsServiceTest {
           runBlocking { service.listPopulations(request) }
         }
       }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
   @Test
   fun `listPopulations throws PERMISSION_DENIED when principal is data provider that did not create population`() {
@@ -505,7 +505,7 @@ class PopulationsServiceTest {
           runBlocking { service.listPopulations(request) }
         }
       }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
@@ -514,6 +514,6 @@ class PopulationsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> { runBlocking { service.listPopulations(request) } }
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 }
