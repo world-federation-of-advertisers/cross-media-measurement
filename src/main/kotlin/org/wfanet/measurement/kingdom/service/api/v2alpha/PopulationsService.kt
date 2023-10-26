@@ -79,7 +79,7 @@ class PopulationsService(private val internalClient: PopulationsCoroutineStub) :
         "Parent is either unspecified or invalid"
       }
 
-    if(authenticatedPrincipal.resourceKey != parentKey) {
+    if (authenticatedPrincipal.resourceKey != parentKey) {
       throw permissionDeniedStatus().asRuntimeException()
     }
 

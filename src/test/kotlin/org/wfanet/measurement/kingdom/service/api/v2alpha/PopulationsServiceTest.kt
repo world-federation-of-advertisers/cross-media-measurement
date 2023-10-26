@@ -199,6 +199,7 @@ class PopulationsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
+
   @Test
   fun `createPopulation throws UNAUTHENTICATED when no principal is found`() {
     val request = createPopulationRequest {
@@ -495,6 +496,7 @@ class PopulationsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
+
   @Test
   fun `listPopulations throws PERMISSION_DENIED when principal is data provider that did not create population`() {
     val request = listPopulationsRequest { parent = DATA_PROVIDER_NAME }
