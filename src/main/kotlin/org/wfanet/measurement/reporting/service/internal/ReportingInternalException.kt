@@ -177,7 +177,7 @@ class ReportScheduleStateInvalidException(
       )
 }
 
- class ReportScheduleIterationNotFoundException(
+class ReportScheduleIterationNotFoundException(
   private val cmmsMeasurementConsumerId: String,
   private val externalReportScheduleId: String,
   private val externalReportScheduleIterationId: String,
