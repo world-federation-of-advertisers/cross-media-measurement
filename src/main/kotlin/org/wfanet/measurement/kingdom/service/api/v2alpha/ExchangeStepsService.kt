@@ -40,7 +40,6 @@ import org.wfanet.measurement.api.v2alpha.claimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.listExchangeStepsPageToken
 import org.wfanet.measurement.api.v2alpha.listExchangeStepsResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
-import org.wfanet.measurement.api.v2alpha.toProvider
 import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
@@ -98,7 +97,14 @@ class ExchangeStepsService(
     }
 
     val internalRequest = claimReadyExchangeStepRequest {
-      provider = authenticatedPrincipal.resourceKey.toProvider()
+      when (parentKey) {
+        is DataProviderKey -> {
+          externalDataProviderId = ApiId(parentKey.dataProviderId).externalId.value
+        }
+        is ModelProviderKey -> {
+          externalModelProviderId = ApiId(parentKey.modelProviderId).externalId.value
+        }
+      }
     }
     val internalResponse: InternalClaimReadyExchangeStepResponse =
       internalExchangeSteps.claimReadyExchangeStep(internalRequest)

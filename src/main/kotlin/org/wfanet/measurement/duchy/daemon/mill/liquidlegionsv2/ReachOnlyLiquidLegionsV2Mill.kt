@@ -479,7 +479,6 @@ class ReachOnlyLiquidLegionsV2Mill(
       "Invalid input blob size. Input blob ${inputBlob.toStringUtf8()} has size " +
         "${inputBlob.size()} which is less than ($BYTES_PER_CIPHERTEXT)."
     }
-    var reach = 0L
     val (_, nextToken) =
       existingOutputOr(token) {
         val request = completeReachOnlyExecutionPhaseAtAggregatorRequest {
@@ -523,11 +522,10 @@ class ReachOnlyLiquidLegionsV2Mill(
           cryptoResult.elapsedCpuTimeMillis,
           executionPhaseCryptoCpuTimeDurationHistogram
         )
-        reach = cryptoResult.reach
-        cryptoResult.toByteString()
+        sendResultToKingdom(token, ReachResult(cryptoResult.reach))
+        ByteString.EMPTY
       }
 
-    sendResultToKingdom(token, ReachResult(reach))
     return completeComputation(nextToken, CompletedReason.SUCCEEDED)
   }
 

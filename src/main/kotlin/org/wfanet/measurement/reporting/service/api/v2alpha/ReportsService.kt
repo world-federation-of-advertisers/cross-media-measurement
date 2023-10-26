@@ -231,9 +231,11 @@ class ReportsService(
         )
     } catch (e: StatusException) {
       throw when (e.status.code) {
-          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT.withDescription(e.message)
-          Status.Code.PERMISSION_DENIED -> Status.PERMISSION_DENIED.withDescription(e.message)
-          else -> Status.UNKNOWN.withDescription("Unable to get Metrics.")
+          Status.Code.INVALID_ARGUMENT ->
+            Status.INVALID_ARGUMENT.withDescription("Unable to get Metrics.\n${e.message}")
+          Status.Code.PERMISSION_DENIED ->
+            Status.PERMISSION_DENIED.withDescription("Unable to get Metrics.\n${e.message}")
+          else -> Status.UNKNOWN.withDescription("Unable to get Metrics.\n${e.message}")
         }
         .withCause(e)
         .asRuntimeException()
@@ -288,10 +290,11 @@ class ReportsService(
         .flatMap { (_, reportingMetricCalculationSpec) ->
           reportingMetricCalculationSpec.metricCalculationSpecsList.flatMap { metricCalculationSpec
             ->
-            metricCalculationSpec.reportingMetricsList
+            metricCalculationSpec.reportingMetricsList.map {
+              it.toCreateMetricRequest(principal.resourceKey, metricCalculationSpec.details.filter)
+            }
           }
         }
-        .map { it.toCreateMetricRequest(principal.resourceKey) }
         .asFlow()
 
     val callRpc: suspend (List<CreateMetricRequest>) -> BatchCreateMetricsResponse = { items ->
@@ -345,6 +348,8 @@ class ReportsService(
       name =
         ReportKey(internalReport.cmmsMeasurementConsumerId, internalReport.externalReportId)
           .toName()
+
+      tags.putAll(internalReport.details.tagsMap)
 
       reportingMetricEntries +=
         internalReport.reportingMetricEntriesMap.map { internalReportingMetricEntry ->
@@ -403,7 +408,8 @@ class ReportsService(
                 externalIdToMetricMap[reportingMetric.externalMetricId]
                   ?: error("Got a metric not associated with the report.")
               ReportKt.MetricCalculationResultKt.resultAttribute {
-                groupingPredicates += metric.filtersList
+                groupingPredicates += reportingMetric.details.groupingPredicatesList
+                filter = metricCalculationSpec.details.filter
                 metricSpec = metric.metricSpec
                 timeInterval = metric.timeInterval
                 metricResult = metric.result
@@ -523,6 +529,7 @@ class ReportsService(
           Report.TimeCase.TIME_NOT_SET ->
             failGrpc(Status.INVALID_ARGUMENT) { "The time in Report is not specified." }
         }
+        details = InternalReportKt.details { tags.putAll(request.report.tagsMap) }
       }
       requestId = request.requestId
       externalReportId = request.reportId
@@ -617,7 +624,7 @@ class ReportsService(
       reportingMetrics +=
         timeIntervals.flatMap { timeInterval ->
           metricCalculationSpec.metricSpecsList.flatMap { metricSpec ->
-            groupingsCartesianProduct.map { predicateGroup ->
+            groupingsCartesianProduct.map { groupingPredicates ->
               InternalReportKt.reportingMetric {
                 details =
                   InternalReportKt.ReportingMetricKt.details {
@@ -634,8 +641,7 @@ class ReportsService(
                         failGrpc(Status.UNKNOWN) { "Failed to read the metric spec." }
                       }
                     this.timeInterval = timeInterval
-                    filters += predicateGroup
-
+                    this.groupingPredicates += groupingPredicates
                     internalMetricSpecs += this.metricSpec
                   }
               }
@@ -653,6 +659,9 @@ class ReportsService(
                 this.predicates += grouping.predicatesList
               }
             }
+          if (metricCalculationSpec.filter.isNotBlank()) {
+            filter = metricCalculationSpec.filter
+          }
           cumulative = metricCalculationSpec.cumulative
         }
     }
