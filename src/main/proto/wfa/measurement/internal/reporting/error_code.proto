@@ -64,7 +64,7 @@ enum ErrorCode {
 
   /** Report Schedule with the provided IDs does not exist. */
   REPORT_SCHEDULE_NOT_FOUND = 14;
-  
+
   /** Report Schedule state is not the right state for the operation. */
   REPORT_SCHEDULE_STATE_INVALID = 15;
 
