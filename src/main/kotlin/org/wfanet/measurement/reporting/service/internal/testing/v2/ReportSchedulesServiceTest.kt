@@ -19,6 +19,7 @@ package org.wfanet.measurement.reporting.service.internal.testing.v2
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.timestamp
+import com.google.protobuf.util.Timestamps
 import com.google.type.date
 import com.google.type.dateTime
 import com.google.type.timeZone
@@ -50,6 +51,7 @@ import org.wfanet.measurement.internal.reporting.v2.listReportSchedulesRequest
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.internal.reporting.v2.report
 import org.wfanet.measurement.internal.reporting.v2.reportSchedule
+import org.wfanet.measurement.internal.reporting.v2.stopReportScheduleRequest
 
 @RunWith(JUnit4::class)
 abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> {
@@ -630,6 +632,114 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.message).contains("cmms_measurement_consumer_id")
+  }
+
+  @Test
+  fun `stopReportSchedule sets state to STOPPED`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val reportSchedule = createReportScheduleForRequest(reportingSet)
+    val createRequest = createReportScheduleRequest {
+      this.reportSchedule = reportSchedule
+      externalReportScheduleId = "external-report-schedule-id"
+    }
+    val createdReportSchedule = service.createReportSchedule(createRequest)
+
+    val stopRequest = stopReportScheduleRequest {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalReportScheduleId = createdReportSchedule.externalReportScheduleId
+    }
+    val stoppedReportSchedule = service.stopReportSchedule(stopRequest)
+
+    assertThat(stoppedReportSchedule.externalReportScheduleId)
+      .isEqualTo(createdReportSchedule.externalReportScheduleId)
+    assertThat(stoppedReportSchedule.state).isEqualTo(ReportSchedule.State.STOPPED)
+    assertThat(
+        Timestamps.compare(stoppedReportSchedule.updateTime, createdReportSchedule.createTime)
+      )
+      .isGreaterThan(0)
+
+    val retrievedReportSchedule =
+      service.getReportSchedule(
+        getReportScheduleRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportScheduleId = createdReportSchedule.externalReportScheduleId
+        }
+      )
+
+    assertThat(retrievedReportSchedule.state).isEqualTo(ReportSchedule.State.STOPPED)
+    assertThat(
+        Timestamps.compare(retrievedReportSchedule.updateTime, createdReportSchedule.createTime)
+      )
+      .isGreaterThan(0)
+  }
+
+  @Test
+  fun `stopReportSchedule throws NOT_FOUND when report schedule not found`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.stopReportSchedule(
+          stopReportScheduleRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalReportScheduleId = "external-report-schedule-id"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.message).contains("not found")
+  }
+
+  @Test
+  fun `stopReportSchedule throws FAILED_PRECONDITION when state not active`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val reportSchedule = createReportScheduleForRequest(reportingSet)
+    val createRequest = createReportScheduleRequest {
+      this.reportSchedule = reportSchedule
+      externalReportScheduleId = "external-report-schedule-id"
+    }
+    val createdReportSchedule = service.createReportSchedule(createRequest)
+
+    val stopRequest = stopReportScheduleRequest {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalReportScheduleId = createdReportSchedule.externalReportScheduleId
+    }
+    service.stopReportSchedule(stopRequest)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.stopReportSchedule(stopRequest) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.message).contains("not ACTIVE")
+  }
+
+  @Test
+  fun `stopReportSchedule throws INVALID_ARGUMENT when cmms mc id missing`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.stopReportSchedule(
+          stopReportScheduleRequest { externalReportScheduleId = "external-report-schedule-id" }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("cmms_measurement_consumer_i")
+  }
+
+  @Test
+  fun `stopReportSchedule throws INVALID_ARGUMENT when schedule id missing`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.stopReportSchedule(
+          stopReportScheduleRequest { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("external_report_schedule_id")
   }
 
   companion object {
