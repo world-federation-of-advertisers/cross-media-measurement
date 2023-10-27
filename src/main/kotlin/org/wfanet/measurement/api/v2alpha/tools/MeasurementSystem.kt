@@ -659,7 +659,6 @@ class CreateMeasurement : Runnable {
             }
           }
         events = RequisitionSpecKt.events { this.eventGroups += eventGroups }
-        this.eventGroups += eventGroups
         this.measurementPublicKey = measurementEncryptionPublicKey
         nonce = secureRandom.nextLong()
       }
@@ -734,7 +733,9 @@ class CreateMeasurement : Runnable {
             start = measurementParams.eventMeasurementParams.vidSamplingStart
             width = measurementParams.eventMeasurementParams.vidSamplingWidth
           }
-          if (
+          if (measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reach.selected) {
+            reach = createMeasurementFlags.getReach()
+          } else if (
             measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency
               .selected
           ) {

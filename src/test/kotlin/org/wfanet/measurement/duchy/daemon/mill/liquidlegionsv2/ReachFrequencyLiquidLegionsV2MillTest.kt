@@ -66,7 +66,7 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
-import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
+import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.ReachFrequencyLiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.daemon.testing.TestRequisition
 import org.wfanet.measurement.duchy.daemon.utils.toDuchyEncryptionPublicKey
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
@@ -408,7 +408,7 @@ private val NON_AGGREGATOR_COMPUTATION_DETAILS_REACH =
   }
 
 @RunWith(JUnit4::class)
-class LiquidLegionsV2MillTest {
+class ReachFrequencyLiquidLegionsV2MillTest {
   private val mockLiquidLegionsComputationControl: ComputationControlCoroutineImplBase =
     mockService {
       onBlocking { advanceComputation(any()) }
@@ -512,8 +512,8 @@ class LiquidLegionsV2MillTest {
   // Just use the same workerStub for all other duchies, since it is not relevant to this test.
   private val workerStubs = mapOf(DUCHY_TWO_NAME to workerStub, DUCHY_THREE_NAME to workerStub)
 
-  private lateinit var aggregatorMill: LiquidLegionsV2Mill
-  private lateinit var nonAggregatorMill: LiquidLegionsV2Mill
+  private lateinit var aggregatorMill: ReachFrequencyLiquidLegionsV2Mill
+  private lateinit var nonAggregatorMill: ReachFrequencyLiquidLegionsV2Mill
 
   private fun buildAdvanceComputationRequests(
     globalComputationId: String,
@@ -555,7 +555,7 @@ class LiquidLegionsV2MillTest {
       )
 
     aggregatorMill =
-      LiquidLegionsV2Mill(
+      ReachFrequencyLiquidLegionsV2Mill(
         millId = MILL_ID,
         duchyId = DUCHY_ONE_NAME,
         signingKey = csSigningKey,
@@ -575,7 +575,7 @@ class LiquidLegionsV2MillTest {
         parallelism = PARALLELISM
       )
     nonAggregatorMill =
-      LiquidLegionsV2Mill(
+      ReachFrequencyLiquidLegionsV2Mill(
         millId = MILL_ID,
         duchyId = DUCHY_ONE_NAME,
         signingKey = csSigningKey,
@@ -1128,7 +1128,12 @@ class LiquidLegionsV2MillTest {
       cryptoRequest = it.getArgument(0)
       val postFix = ByteString.copyFromUtf8("-completeSetupPhase-done")
       CompleteSetupPhaseResponse.newBuilder()
-        .apply { combinedRegisterVector = cryptoRequest.combinedRegisterVector.concat(postFix) }
+        .apply {
+          combinedRegisterVector =
+            cryptoRequest.requisitionRegisterVector
+              .concat(cryptoRequest.combinedRegisterVector)
+              .concat(postFix)
+        }
         .build()
     }
 
@@ -1179,7 +1184,8 @@ class LiquidLegionsV2MillTest {
     assertThat(cryptoRequest)
       .isEqualTo(
         completeSetupPhaseRequest {
-          combinedRegisterVector = ByteString.copyFromUtf8("local_requisition")
+          requisitionRegisterVector = ByteString.copyFromUtf8("local_requisition")
+          combinedRegisterVector = ByteString.EMPTY
           noiseParameters = registerNoiseGenerationParameters {
             compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
             curveId = CURVE_ID
@@ -1231,7 +1237,12 @@ class LiquidLegionsV2MillTest {
       cryptoRequest = it.getArgument(0)
       val postFix = ByteString.copyFromUtf8("-completeSetupPhase-done")
       CompleteSetupPhaseResponse.newBuilder()
-        .apply { combinedRegisterVector = cryptoRequest.combinedRegisterVector.concat(postFix) }
+        .apply {
+          combinedRegisterVector =
+            cryptoRequest.requisitionRegisterVector
+              .concat(cryptoRequest.combinedRegisterVector)
+              .concat(postFix)
+        }
         .build()
     }
 
@@ -1283,8 +1294,8 @@ class LiquidLegionsV2MillTest {
     assertThat(cryptoRequest)
       .isEqualTo(
         completeSetupPhaseRequest {
-          combinedRegisterVector =
-            ByteString.copyFromUtf8("local_requisition_duchy_two_sketch_duchy_three_sketch_")
+          requisitionRegisterVector = ByteString.copyFromUtf8("local_requisition_")
+          combinedRegisterVector = ByteString.copyFromUtf8("duchy_two_sketch_duchy_three_sketch_")
           noiseParameters = registerNoiseGenerationParameters {
             compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
             curveId = CURVE_ID
@@ -1338,7 +1349,12 @@ class LiquidLegionsV2MillTest {
       cryptoRequest = it.getArgument(0)
       val postFix = ByteString.copyFromUtf8("-completeSetupPhase_done")
       CompleteSetupPhaseResponse.newBuilder()
-        .apply { combinedRegisterVector = cryptoRequest.combinedRegisterVector.concat(postFix) }
+        .apply {
+          combinedRegisterVector =
+            cryptoRequest.requisitionRegisterVector
+              .concat(cryptoRequest.combinedRegisterVector)
+              .concat(postFix)
+        }
         .build()
     }
 
@@ -1389,7 +1405,8 @@ class LiquidLegionsV2MillTest {
     assertThat(cryptoRequest)
       .isEqualTo(
         completeSetupPhaseRequest {
-          combinedRegisterVector = ByteString.copyFromUtf8("local_requisition-duchy_two_sketch")
+          requisitionRegisterVector = ByteString.copyFromUtf8("local_requisition")
+          combinedRegisterVector = ByteString.copyFromUtf8("-duchy_two_sketch")
           noiseParameters = registerNoiseGenerationParameters {
             compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
             curveId = CURVE_ID
@@ -2059,7 +2076,131 @@ class LiquidLegionsV2MillTest {
             curveId = CURVE_ID
             maximumFrequency = MAX_FREQUENCY
             vidSamplingIntervalWidth = 0.5f
-            liquidLegionsParametersBuilder.apply {
+            sketchParametersBuilder.apply {
+              decayRate = DECAY_RATE
+              size = SKETCH_SIZE
+            }
+            reachDpNoiseBaselineBuilder.apply {
+              contributorsCount = WORKER_COUNT
+              globalReachDpNoise = TEST_NOISE_CONFIG.reachNoiseConfig.globalReachDpNoise
+            }
+            frequencyNoiseParametersBuilder.apply {
+              contributorsCount = WORKER_COUNT
+              maximumFrequency = MAX_FREQUENCY
+              dpParams = TEST_NOISE_CONFIG.frequencyNoiseConfig
+            }
+          }
+          .build()
+      )
+  }
+
+  @Test
+  fun `execution phase two at aggregator using cached result`() = runBlocking {
+    // Stage 0. preparing the storage and set up mock
+    val partialToken =
+      FakeComputationsDatabase.newPartialToken(
+          localId = LOCAL_ID,
+          stage = EXECUTION_PHASE_TWO.toProtocolStage()
+        )
+        .build()
+    val inputBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_TWO.toProtocolStage(), 0L)
+    computationStore.writeString(inputBlobContext, "data")
+    val cachedBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_TWO.toProtocolStage(), 1L)
+    computationStore.writeString(
+      cachedBlobContext,
+      "data-completeExecutionPhaseTwoAtAggregator-first-run-done"
+    )
+    val computationDetailsWithVidSamplingWidth =
+      AGGREGATOR_COMPUTATION_DETAILS.copy {
+        kingdomComputation =
+          kingdomComputation.copy {
+            measurementSpec = SERIALIZED_MEASUREMENT_SPEC_WITH_VID_SAMPLING_WIDTH
+          }
+      }
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
+      computationDetails = computationDetailsWithVidSamplingWidth,
+      blobs =
+        listOf(
+          inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
+          cachedBlobContext.toMetadata(ComputationBlobDependency.OUTPUT)
+        ),
+      requisitions = REQUISITIONS
+    )
+
+    val testReach = 123L
+    var cryptoRequest = CompleteExecutionPhaseTwoAtAggregatorRequest.getDefaultInstance()
+    whenever(mockCryptoWorker.completeExecutionPhaseTwoAtAggregator(any())).thenAnswer {
+      cryptoRequest = it.getArgument(0)
+      val postFix = ByteString.copyFromUtf8("-second-run-done")
+      CompleteExecutionPhaseTwoAtAggregatorResponse.newBuilder()
+        .apply {
+          sameKeyAggregatorMatrix = cryptoRequest.flagCountTuples.concat(postFix)
+          reach = testReach
+        }
+        .build()
+    }
+
+    // Stage 1. Process the above computation
+    aggregatorMill.pollAndProcessNextComputation()
+
+    // Stage 2. Check the status of the computation
+    assertThat(fakeComputationDb[LOCAL_ID])
+      .isEqualTo(
+        ComputationToken.newBuilder()
+          .apply {
+            globalComputationId = GLOBAL_ID
+            localComputationId = LOCAL_ID
+            attempt = 1
+            computationStage = WAIT_EXECUTION_PHASE_THREE_INPUTS.toProtocolStage()
+            version = 3 // claimTask + ComputationDetails + transitionStage
+            addBlobsBuilder().apply {
+              dependencyType = ComputationBlobDependency.INPUT
+              blobId = 0
+              path = cachedBlobContext.blobKey
+            }
+            addBlobsBuilder().apply {
+              dependencyType = ComputationBlobDependency.OUTPUT
+              blobId = 1
+            }
+            computationDetails =
+              computationDetailsWithVidSamplingWidth
+                .toBuilder()
+                .apply { liquidLegionsV2Builder.reachEstimateBuilder.reach = testReach }
+                .build()
+            addAllRequisitions(REQUISITIONS)
+          }
+          .build()
+      )
+    assertThat(computationStore.get(cachedBlobContext.blobKey)?.readToString())
+      .isEqualTo("data-completeExecutionPhaseTwoAtAggregator-first-run-done")
+
+    assertThat(computationControlRequests)
+      .containsExactlyElementsIn(
+        buildAdvanceComputationRequests(
+          GLOBAL_ID,
+          EXECUTION_PHASE_THREE_INPUT,
+          "data-completeExecuti", // Chunk 1, size 20
+          "onPhaseTwoAtAggregat", // Chunk 2, size 20
+          "or-first-run-done" // Chunk 3, the rest
+        )
+      )
+      .inOrder()
+
+    assertThat(cryptoRequest)
+      .isEqualTo(
+        CompleteExecutionPhaseTwoAtAggregatorRequest.newBuilder()
+          .apply {
+            flagCountTuples = ByteString.copyFromUtf8("data")
+            localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
+            compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
+            curveId = CURVE_ID
+            maximumFrequency = MAX_FREQUENCY
+            vidSamplingIntervalWidth = 0.5f
+            sketchParametersBuilder.apply {
               decayRate = DECAY_RATE
               size = SKETCH_SIZE
             }
@@ -2176,7 +2317,7 @@ class LiquidLegionsV2MillTest {
           curveId = CURVE_ID
           maximumFrequency = 1
           vidSamplingIntervalWidth = 0.0f
-          liquidLegionsParameters = liquidLegionsSketchParameters {
+          sketchParameters = liquidLegionsSketchParameters {
             decayRate = DECAY_RATE
             size = SKETCH_SIZE
           }
@@ -2294,7 +2435,7 @@ class LiquidLegionsV2MillTest {
             curveId = CURVE_ID
             maximumFrequency = 1
             vidSamplingIntervalWidth = 0.0f
-            liquidLegionsParametersBuilder.apply {
+            sketchParametersBuilder.apply {
               decayRate = DECAY_RATE
               size = SKETCH_SIZE
             }

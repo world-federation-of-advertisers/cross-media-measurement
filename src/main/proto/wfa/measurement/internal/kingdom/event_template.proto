@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2023 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,20 +14,12 @@
 
 syntax = "proto3";
 
-package wfa.measurement.internal.common;
+package wfa.measurement.internal.kingdom;
 
-option java_package = "org.wfanet.measurement.internal.common";
+option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
-message Provider {
-  // External identifier of the Provider.
-  fixed64 external_id = 1;
-
-  // Type of the Provider.
-  enum Type {
-    TYPE_UNSPECIFIED = 0;
-    MODEL_PROVIDER = 1;
-    DATA_PROVIDER = 2;
-  }
-  Type type = 2;
+message EventTemplate {
+  // The type of the Event Template. A fully-qualified protobuf message type.
+  string fully_qualified_type = 1;
 }

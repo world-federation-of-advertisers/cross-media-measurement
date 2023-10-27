@@ -564,6 +564,8 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         RequisitionKt.details {
           dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
           dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
+          dataProviderPublicKeySignatureAlgorithmOid =
+            dataProviderValue.dataProviderPublicKeySignatureAlgorithmOid
           encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
           nonceHash = dataProviderValue.nonceHash
         }
@@ -574,6 +576,8 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           measurement.externalMeasurementConsumerCertificateId
         measurementSpec = measurement.details.measurementSpec
         measurementSpecSignature = measurement.details.measurementSpecSignature
+        measurementSpecSignatureAlgorithmOid =
+          measurement.details.measurementSpecSignatureAlgorithmOid
         state = Measurement.State.PENDING_REQUISITION_PARAMS
         protocolConfig = protocolConfig {
           liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
@@ -641,6 +645,8 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         RequisitionKt.details {
           dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
           dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
+          dataProviderPublicKeySignatureAlgorithmOid =
+            dataProviderValue.dataProviderPublicKeySignatureAlgorithmOid
           encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
           nonceHash = dataProviderValue.nonceHash
         }
@@ -651,6 +657,8 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           measurement.externalMeasurementConsumerCertificateId
         measurementSpec = measurement.details.measurementSpec
         measurementSpecSignature = measurement.details.measurementSpecSignature
+        measurementSpecSignatureAlgorithmOid =
+          measurement.details.measurementSpecSignatureAlgorithmOid
         state = Measurement.State.PENDING_REQUISITION_FULFILLMENT
         protocolConfig = protocolConfig { direct = ProtocolConfig.Direct.getDefaultInstance() }
         dataProvidersCount = 1
@@ -994,6 +1002,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           directParams = directRequisitionParams {
             externalDataProviderId = requisition.externalDataProviderId
             encryptedData = REQUISITION_ENCRYPTED_DATA
+            externalCertificateId = requisition.details.externalCertificateId
           }
         }
       )
@@ -1047,6 +1056,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           directParams = directRequisitionParams {
             externalDataProviderId = requisitions[0].externalDataProviderId
             encryptedData = REQUISITION_ENCRYPTED_DATA
+            externalCertificateId = requisitions[0].details.externalCertificateId
           }
         }
       )
@@ -1058,6 +1068,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             directParams = directRequisitionParams {
               externalDataProviderId = requisitions[1].externalDataProviderId
               encryptedData = REQUISITION_ENCRYPTED_DATA
+              externalCertificateId = requisitions[1].details.externalCertificateId
             }
           }
         )
@@ -1108,6 +1119,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           directParams = directRequisitionParams {
             externalDataProviderId = requisitions[0].externalDataProviderId
             encryptedData = REQUISITION_ENCRYPTED_DATA
+            externalCertificateId = requisitions[0].details.externalCertificateId
           }
         }
       )
@@ -1119,6 +1131,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           directParams = directRequisitionParams {
             externalDataProviderId = requisitions[1].externalDataProviderId
             encryptedData = REQUISITION_ENCRYPTED_DATA
+            externalCertificateId = requisitions[1].details.externalCertificateId
           }
         }
       )
@@ -1171,6 +1184,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             directParams = directRequisitionParams {
               externalDataProviderId = provider.externalDataProviderId
               encryptedData = REQUISITION_ENCRYPTED_DATA
+              externalCertificateId = idGenerator.generateExternalId().value
             }
           }
         )

@@ -2,6 +2,7 @@
 # proto-message: SyntheticEventGroupSpec
 
 # Spec for use with synthetic_population_spec.textproto.
+# Reach of this spec is ~2M.
 
 date_specs {
   date_range {

@@ -32,6 +32,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import org.jetbrains.annotations.Blocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -55,6 +56,7 @@ class InProcessEdpSimulator(
   val displayName: String,
   resourceName: String,
   mcResourceName: String,
+  csCertificateResourceName: String,
   kingdomPublicApiChannel: Channel,
   duchyPublicApiChannel: Channel,
   trustedCertificates: Map<ByteString, X509Certificate>,
@@ -73,7 +75,7 @@ class InProcessEdpSimulator(
 
   private val delegate =
     EdpSimulator(
-      edpData = createEdpData(displayName, resourceName),
+      edpData = createEdpData(displayName, resourceName, csCertificateResourceName),
       measurementConsumerName = mcResourceName,
       measurementConsumersStub =
         MeasurementConsumersCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
@@ -119,12 +121,13 @@ class InProcessEdpSimulator(
 
   /** Builds a [EdpData] object for the Edp with a certain [displayName] and [resourceName]. */
   @Blocking
-  private fun createEdpData(displayName: String, resourceName: String) =
+  private fun createEdpData(displayName: String, resourceName: String, certificateResourceName: String) =
     EdpData(
       name = resourceName,
       displayName = displayName,
       encryptionKey = loadEncryptionPrivateKey("${displayName}_enc_private.tink"),
-      signingKey = loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der")
+      signingKey = loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der"),
+      signingCertificate = DataProviderCertificateKey.fromName(certificateResourceName)!!
     )
 
   companion object {

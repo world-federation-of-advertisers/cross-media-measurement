@@ -126,6 +126,9 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.reporting.service.api.v2alpha.MetricsServiceTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:measurement_statistics",
+        "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:metric_statistics",
+        "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:variances",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:encryption_key_pair_store",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:principal_server_interceptor",
         "//src/main/proto/wfa/measurement/api/v2alpha:certificate_kt_jvm_proto",
@@ -196,6 +199,52 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:reports_service",
     ],
     test_class = "org.wfanet.measurement.reporting.service.api.v2alpha.ReportsServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:principal_server_interceptor",
+        "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
+
+kt_jvm_test(
+    name = "ReportSchedulesServiceTest",
+    srcs = ["ReportSchedulesServiceTest.kt"],
+    associates = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:report_schedules_service",
+    ],
+    test_class = "org.wfanet.measurement.reporting.service.api.v2alpha.ReportSchedulesServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:principal_server_interceptor",
+        "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:metric_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:report_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
+
+kt_jvm_test(
+    name = "ReportScheduleIterationsServiceTest",
+    srcs = ["ReportScheduleIterationsServiceTest.kt"],
+    associates = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:report_schedule_iterations_service",
+    ],
+    test_class = "org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleIterationsServiceTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:principal_server_interceptor",

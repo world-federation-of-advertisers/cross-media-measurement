@@ -33,6 +33,7 @@ service ReportScheduleIterations {
   rpc GetReportScheduleIteration(GetReportScheduleIterationRequest)
       returns (ReportScheduleIteration);
 
+  // TODO(@tristanvuong2021): benchmark whether list or stream is better here
   rpc ListReportScheduleIterations(ListReportScheduleIterationsRequest)
       returns (ListReportScheduleIterationsResponse);
 }
@@ -55,7 +56,7 @@ message GetReportScheduleIterationRequest {
 
 message ListReportScheduleIterationsRequest {
   message Filter {
-    // `MeasurementConsumer` ID from the CMMS public API.
+    // `MeasurementConsumer` ID from the CMMS public API. Required.
     string cmms_measurement_consumer_id = 1;
     string external_report_schedule_id = 2;
     // Skips to results with a `report_event_time` less than this.

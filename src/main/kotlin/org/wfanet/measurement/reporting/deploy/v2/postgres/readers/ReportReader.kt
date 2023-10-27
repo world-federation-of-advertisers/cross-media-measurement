@@ -62,6 +62,7 @@ class ReportReader(private val readContext: ReadContext) {
     /** Map of external reporting set ID to [ReportingMetricCalculationSpecInfo]. */
     val reportingSetReportingMetricCalculationSpecInfoMap:
       MutableMap<String, ReportingMetricCalculationSpecInfo>,
+    val details: Report.Details
   )
 
   private data class ReportingMetricCalculationSpecInfo(
@@ -84,6 +85,7 @@ class ReportReader(private val readContext: ReadContext) {
       Reports.CreateReportRequestId,
       Reports.CreateTime,
       Reports.Periodic,
+      Reports.ReportDetails,
       ReportTimeIntervals.TimeIntervalStart,
       ReportTimeIntervals.TimeIntervalEndExclusive,
       MetricCalculationSpecs.MetricCalculationSpecDetails,
@@ -181,7 +183,7 @@ class ReportReader(private val readContext: ReadContext) {
         if (request.filter.hasAfter()) {
           """
               WHERE CmmsMeasurementConsumerId = $1
-                AND ((CreateTime > $3) OR
+                AND ((CreateTime < $3) OR
                 (CreateTime = $3
                 AND ExternalReportId > $4))
           """
@@ -191,7 +193,7 @@ class ReportReader(private val readContext: ReadContext) {
           """
         } +
         """
-            ORDER BY CreateTime ASC, CmmsMeasurementConsumerId ASC, ExternalReportId ASC
+            ORDER BY CreateTime DESC, CmmsMeasurementConsumerId ASC, ExternalReportId ASC
             LIMIT $2
           ) AS Reports
         """
@@ -205,7 +207,7 @@ class ReportReader(private val readContext: ReadContext) {
           baseSqlJoins +
           "\n" +
           """
-          ORDER BY CreateTime ASC, CmmsMeasurementConsumerId ASC, ExternalReportId ASC
+          ORDER BY CreateTime DESC, CmmsMeasurementConsumerId ASC, ExternalReportId ASC
           """
             .trimIndent()
       )
@@ -237,6 +239,8 @@ class ReportReader(private val readContext: ReadContext) {
       val externalReportId: String = row["ExternalReportId"]
       val createTime: Instant = row["CreateTime"]
       val periodic: Boolean = row["Periodic"]
+      val reportDetails: Report.Details =
+        row.getProtoMessage("ReportDetails", Report.Details.parser())
 
       var result: Result? = null
       if (accumulator == null) {
@@ -250,7 +254,8 @@ class ReportReader(private val readContext: ReadContext) {
             createTime = createTime.toProtoTime(),
             timeIntervals = mutableSetOf(),
             periodic = periodic,
-            reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf()
+            reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf(),
+            reportDetails
           )
       } else if (
         accumulator!!.externalReportId != externalReportId ||
@@ -267,7 +272,8 @@ class ReportReader(private val readContext: ReadContext) {
             createTime = createTime.toProtoTime(),
             timeIntervals = mutableSetOf(),
             periodic = periodic,
-            reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf()
+            reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf(),
+            reportDetails
           )
       }
 
@@ -343,6 +349,9 @@ class ReportReader(private val readContext: ReadContext) {
       cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId
       externalReportId = source.externalReportId
       createTime = source.createTime
+      if (source.details != Report.Details.getDefaultInstance()) {
+        details = source.details
+      }
 
       source.reportingSetReportingMetricCalculationSpecInfoMap.entries.forEach {
         reportingMetricEntry ->

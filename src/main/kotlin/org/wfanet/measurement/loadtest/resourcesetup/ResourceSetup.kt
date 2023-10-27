@@ -64,8 +64,12 @@ import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
+import javax.xml.crypto.Data
+import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
+import org.wfanet.measurement.loadtest.common.ConsoleOutput
+import org.wfanet.measurement.loadtest.common.FileOutput
 import org.wfanet.measurement.loadtest.resourcesetup.ResourcesKt.resource
 
 private val API_VERSION = Version.V2_ALPHA
@@ -249,6 +253,7 @@ class ResourceSetup(
                 apiVersion = API_VERSION.string
                 publicKey = signedPublicKey.data
                 publicKeySignature = signedPublicKey.signature
+                publicKeySignatureAlgorithmOid = signedPublicKey.signatureAlgorithmOid
               }
             requiredExternalDuchyIds += requiredDuchies
           }
@@ -397,6 +402,30 @@ class ResourceSetup(
     }
   }
 
+  suspend fun createDataProviderCertificate(dataProviderCert: DataProviderCert): Certificate {
+    val internalCertificate =
+      try {
+        internalCertificatesClient.createCertificate(
+          internalCertificate {
+            fillCertificateFromDer(dataProviderCert.consentSignalCertificateDer)
+            externalDataProviderId = dataProviderCert.externalDataProviderId
+          }
+        )
+      } catch (e: StatusException) {
+        throw Exception("Error creating certificate for Data Provider ${dataProviderCert.externalDataProviderId}", e)
+      }
+
+    return certificate {
+      name =
+        DataProviderCertificateKey(
+          externalIdToApiId(internalCertificate.externalDataProviderId),
+          externalIdToApiId(internalCertificate.externalCertificateId)
+        )
+          .toName()
+      x509Der = internalCertificate.details.x509Der
+    }
+  }
+
   companion object {
     const val DEFAULT_BAZEL_CONFIG_NAME = "halo"
     const val RESOURCES_OUTPUT_FILE = "resources.textproto"
@@ -420,6 +449,13 @@ data class EntityContent(
 data class DuchyCert(
   /** The external duchy Id. */
   val duchyId: String,
+  /** The consent signaling certificate in DER format. */
+  val consentSignalCertificateDer: ByteString
+)
+
+data class DataProviderCert(
+  /** The external data provider Id. */
+  val externalDataProviderId: Long,
   /** The consent signaling certificate in DER format. */
   val consentSignalCertificateDer: ByteString
 )

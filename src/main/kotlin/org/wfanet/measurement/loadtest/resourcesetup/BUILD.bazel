@@ -1,4 +1,4 @@
-load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
 load("@rules_java//java:defs.bzl", "java_binary")
 load("//src/main/docker:macros.bzl", "java_image")
 
@@ -9,13 +9,13 @@ package(
         "//src/main/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
+        "//src/test/kotlin/org/wfanet/panelmatch/integration:__subpackages__",
     ],
 )
 
 kt_jvm_library(
     name = "resource_setup",
     srcs = [
-        "Output.kt",
         "ResourceSetup.kt",
     ],
     deps = [
@@ -25,6 +25,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/identity:principal_identity",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:account_authentication_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:certificates",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/common:output",
         "//src/main/proto/wfa/measurement/api/v2alpha:account_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:accounts_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:api_key_kt_jvm_proto",

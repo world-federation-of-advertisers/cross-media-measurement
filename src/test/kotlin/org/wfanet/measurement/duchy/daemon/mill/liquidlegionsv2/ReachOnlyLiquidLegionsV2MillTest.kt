@@ -100,6 +100,7 @@ import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlyExecution
 import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlyExecutionPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlyInitializationPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteReachOnlySetupPhaseRequest
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.computationParticipant
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfigKt
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2.Stage.COMPLETE
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE
@@ -111,7 +112,6 @@ import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSket
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2Kt
-import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.computationParticipant
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.parameters
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2Kt.stageDetails
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2Kt.waitSetupPhaseInputsDetails
@@ -1266,7 +1266,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     )
 
     // Stage 1. Process the above computation
-    nonAggregatorMill.pollAndProcessNextComputation()
+    aggregatorMill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
     assertThat(fakeComputationDb[LOCAL_ID])
@@ -1806,7 +1806,9 @@ class ReachOnlyLiquidLegionsV2MillTest {
     val inputBlobContext = ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 0L)
     computationStore.writeString(inputBlobContext, "sketch" + NOISE_CIPHERTEXT)
     val cachedBlobContext = ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE.toProtocolStage(), 1L)
-    computationStore.writeString(cachedBlobContext, "cached result")
+    val testReach = 123L
+    var cryptoResult = completeReachOnlyExecutionPhaseAtAggregatorResponse { reach = testReach }
+    computationStore.writeString(cachedBlobContext, cryptoResult.toByteString().toStringUtf8())
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
@@ -1820,7 +1822,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     )
 
     // Stage 1. Process the above computation
-    nonAggregatorMill.pollAndProcessNextComputation()
+    aggregatorMill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
     assertThat(fakeComputationDb[LOCAL_ID])
@@ -1897,16 +1899,16 @@ class ReachOnlyLiquidLegionsV2MillTest {
           attempt = 1
           computationStage = COMPLETE.toProtocolStage()
           version = 3 // claimTask + writeOutputBlob + transitionStage
-          computationDetails = computationDetails {
-            kingdomComputation = computationDetailsWithVidSamplingWidth.kingdomComputation
-            reachOnlyLiquidLegionsV2 =
-              computationDetailsWithVidSamplingWidth.reachOnlyLiquidLegionsV2
-            endingState = CompletedReason.SUCCEEDED
-          }
+          computationDetails =
+            computationDetailsWithVidSamplingWidth.copy {
+              reachOnlyLiquidLegionsV2 =
+                computationDetailsWithVidSamplingWidth.reachOnlyLiquidLegionsV2
+              endingState = CompletedReason.SUCCEEDED
+            }
           requisitions.addAll(REQUISITIONS)
         }
       )
-    assertThat(computationStore.get(blobKey)?.readToString()).isNotEmpty()
+    assertThat(computationStore.get(blobKey)?.readToString()).isEmpty()
 
     assertThat(systemComputationResult.name).isEqualTo("computations/$GLOBAL_ID")
     // The signature is non-deterministic, so we only verity the encryption is not empty.
@@ -1928,7 +1930,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
           localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
           curveId = CURVE_ID
           serializedExcessiveNoiseCiphertext = SERIALIZED_NOISE_CIPHERTEXT
-          liquidLegionsParameters = liquidLegionsSketchParameters {
+          sketchParameters = liquidLegionsSketchParameters {
             decayRate = DECAY_RATE
             size = SKETCH_SIZE
           }
@@ -1979,7 +1981,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     )
 
     // Stage 1. Process the above computation
-    nonAggregatorMill.pollAndProcessNextComputation()
+    aggregatorMill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
     assertThat(fakeComputationDb[LOCAL_ID]!!)

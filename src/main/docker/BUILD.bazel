@@ -11,6 +11,7 @@ package(
     default_testonly = True,  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
     default_visibility = [
         "//src/test/kotlin/org/wfanet/measurement/integration/k8s:__pkg__",
+        "//src/test/kotlin/org/wfanet/panelmatch/integration/k8s:__pkg__",
     ],
 )
 
@@ -47,6 +48,17 @@ container_bundle(
         registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
         tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
     ): image_spec.image for image_spec in ALL_GKE_IMAGES},
+    tags = ["manual"],
+    visibility = ["//visibility:private"],
+)
+
+container_bundle(
+    name = "all_eks_images",
+    images = {"{registry}/{name}:{tag}".format(
+        name = image_spec.repository,
+        registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
+        tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
+    ): image_spec.image for image_spec in ALL_EKS_IMAGES},
     tags = ["manual"],
     visibility = ["//visibility:private"],
 )
@@ -104,6 +116,13 @@ docker_push(
 docker_push(
     name = "push_all_gke_images",
     bundle = ":all_gke_images",
+    sequential = True,
+    tags = ["manual"],
+)
+
+docker_push(
+    name = "push_all_eks_images",
+    bundle = ":all_eks_images",
     sequential = True,
     tags = ["manual"],
 )

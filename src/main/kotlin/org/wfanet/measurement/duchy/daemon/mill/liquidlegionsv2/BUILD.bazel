@@ -1,5 +1,5 @@
 load("@wfa_common_jvm//build:defs.bzl", "test_target")
-load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
 
 package(
     default_visibility = [
@@ -52,6 +52,45 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "reach_frequency_liquid_legions_v2_mill",
+    testonly = True,  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
+    srcs = [
+        "ReachFrequencyLiquidLegionsV2Mill.kt",
+    ],
+    runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
+    deps = [
+        ":liquid_legions_v2_mill",
+        "//imports/java/io/opentelemetry/api",
+        "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2/crypto:liquidlegionsv2encryption",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/utils:computation_conversions",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/utils:duchy_order",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/system/v1alpha:advance_computation_request_headers",
+        "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
+        "//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:crypto_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_sketch_parameter_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_encryption_methods_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_noise_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computation_control_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computation_participants_service_kt_jvm_grpc_proto",
+        "//src/main/swig/protocol/liquidlegionsv2:liquid_legions_v2_encryption_utility",
+        "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
+        "@any_sketch_java//src/main/java/org/wfanet/estimation:estimators",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/duchy",
+    ],
+)
+
+kt_jvm_library(
     name = "reach_only_liquid_legions_v2_mill",
     testonly = True,  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
     srcs = [
@@ -59,10 +98,10 @@ kt_jvm_library(
     ],
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
+        ":liquid_legions_v2_mill",
         "//imports/java/io/opentelemetry/api",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill:mill_base",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2/crypto:reachonlyliquidlegionsv2encryption",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/utils:computation_conversions",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/utils:duchy_order",

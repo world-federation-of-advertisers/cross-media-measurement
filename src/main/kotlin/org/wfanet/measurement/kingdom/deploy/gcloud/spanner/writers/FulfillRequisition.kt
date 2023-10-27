@@ -25,7 +25,6 @@ import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.internal.kingdom.RequisitionKt.DetailsKt.resultCertificate
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
@@ -82,11 +81,7 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
         nonce = request.nonce
         if (request.hasDirectParams()) {
           encryptedData = request.directParams.encryptedData
-        }
-        if (request.hasCertificate()) {
-          certificate = resultCertificate {
-            dataProviderCertificateId = request.certificate.externalCertificateId
-          }
+          externalCertificateId = request.directParams.externalCertificateId
         }
       }
 

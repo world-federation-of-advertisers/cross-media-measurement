@@ -23,13 +23,14 @@ import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.AccountKey
+import org.wfanet.measurement.api.v2alpha.CanonicalRecurringExchangeKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
-import org.wfanet.measurement.api.v2alpha.RecurringExchangeKey
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.crypto.SignatureAlgorithm
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.grpc.TlsFlags
@@ -68,45 +69,6 @@ import picocli.CommandLine.ParentCommand
 private const val API_VERSION = "v2alpha"
 private const val RECURRING_EXCHANGE_CRON_SCHEDULE = "@daily"
 
-private abstract class CreatePrincipalCommand : Runnable {
-  @ParentCommand
-  protected lateinit var parent: CreateResource
-    private set
-
-  @Option(
-    names = ["--certificate-der-file"],
-    description = ["Certificate for the principal"],
-    required = true
-  )
-  private lateinit var certificateDerFile: File
-
-  protected val certificate: Certificate by lazy {
-    certificate { fillCertificateFromDer(certificateDerFile.readBytes().toByteString()) }
-  }
-
-  @Option(
-    names = ["--encryption-public-key-file"],
-    description = ["Principal's serialized EncryptionPublicKey"],
-    required = true
-  )
-  private lateinit var encryptionPublicKeyFile: File
-
-  protected val serializedEncryptionPublicKey: ByteString by lazy {
-    encryptionPublicKeyFile.readBytes().toByteString()
-  }
-
-  @Option(
-    names = ["--encryption-public-key-signature-file"],
-    description = ["Principal's signature of serialized EncryptionPublicKey"],
-    required = true
-  )
-  private lateinit var encryptionPublicKeySignatureFile: File
-
-  protected val encryptionPublicKeySignature: ByteString by lazy {
-    encryptionPublicKeySignatureFile.readBytes().toByteString()
-  }
-}
-
 @Command(name = "account", description = ["Creates an Account"])
 private class CreateAccountCommand : Runnable {
   @ParentCommand private lateinit var parent: CreateResource
@@ -139,7 +101,48 @@ private class CreateMcCreationTokenCommand : Runnable {
 }
 
 @Command(name = "data-provider", description = ["Creates a DataProvider"])
-private class CreateDataProviderCommand : CreatePrincipalCommand() {
+private class CreateDataProviderCommand : Runnable {
+  @ParentCommand private lateinit var parent: CreateResource
+
+  @Option(
+    names = ["--certificate-der-file"],
+    description = ["Certificate for the principal"],
+    required = true
+  )
+  private lateinit var certificateDerFile: File
+
+  private val certificate: Certificate by lazy {
+    certificate { fillCertificateFromDer(certificateDerFile.readBytes().toByteString()) }
+  }
+
+  @Option(
+    names = ["--encryption-public-key-file"],
+    description = ["Principal's serialized EncryptionPublicKey"],
+    required = true
+  )
+  private lateinit var encryptionPublicKeyFile: File
+
+  private val serializedEncryptionPublicKey: ByteString by lazy {
+    encryptionPublicKeyFile.readBytes().toByteString()
+  }
+
+  @Option(
+    names = ["--encryption-public-key-signature-file"],
+    description = ["Principal's signature of serialized EncryptionPublicKey"],
+    required = true
+  )
+  private lateinit var encryptionPublicKeySignatureFile: File
+
+  private val encryptionPublicKeySignature: ByteString by lazy {
+    encryptionPublicKeySignatureFile.readBytes().toByteString()
+  }
+
+  @Option(
+    names = ["--encryption-public-key-signature-algorithm"],
+    description = ["Algorithm for EncryptionPublicKey signature"],
+    required = true,
+  )
+  private lateinit var signatureAlgorithm: SignatureAlgorithm
 
   @Option(
     names = ["--required-duchies"],
@@ -159,7 +162,8 @@ private class CreateDataProviderCommand : CreatePrincipalCommand() {
         DataProviderKt.details {
           apiVersion = API_VERSION
           publicKey = serializedEncryptionPublicKey
-          publicKeySignature = this@CreateDataProviderCommand.encryptionPublicKeySignature
+          publicKeySignature = encryptionPublicKeySignature
+          publicKeySignatureAlgorithmOid = signatureAlgorithm.oid
         }
 
       requiredExternalDuchyIds += requiredDuchies
@@ -311,7 +315,7 @@ private class CreateRecurringExchangeCommand : Runnable {
       }
 
     val apiId = externalIdToApiId(outputRecurringExchange.externalRecurringExchangeId)
-    println(RecurringExchangeKey(apiId).toName())
+    println(CanonicalRecurringExchangeKey(apiId).toName())
   }
 }
 

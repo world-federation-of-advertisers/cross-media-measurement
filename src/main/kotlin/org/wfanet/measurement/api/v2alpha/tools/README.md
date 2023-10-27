@@ -14,21 +14,21 @@ for usage information.
 
 ### Examples
 
-*   Serializing testing ModelProvider encryption key
+*   Serialize the testing key for `DataProvider` "edp1".
 
     ```shell
     EncryptionPublicKeys serialize \
-      --data=src/main/k8s/testing/secretfiles/mp1_enc_public.tink \
-      --out=/tmp/mp1_enc_public.pb
+      --data=src/main/k8s/testing/secretfiles/edp1_enc_public.tink \
+      --out=/tmp/edp1_enc_public.binpb
     ```
 
 *   Signing above serialized `EncryptionPublicKey`
 
     ```shell
     EncryptionPublicKeys sign \
-      --certificate src/main/k8s/testing/secretfiles/mp1_cs_cert.der \
-      --signing-key src/main/k8s/testing/secretfiles/mp1_cs_private.der \
-      --in /tmp/mp1_enc_public.pb --out /tmp/mp1_enc_public_sig.sha256
+      --certificate src/main/k8s/testing/secretfiles/edp1_cs_cert.der \
+      --signing-key src/main/k8s/testing/secretfiles/edp1_cs_private.der \
+      --in /tmp/edp1_enc_public.binpb --out /tmp/edp1_enc_public_sig.bin
     ```
 
 ## `MeasurementSystem`
@@ -144,6 +144,8 @@ using the `--api-key` option.
     `dataProviders/2/eventGroups/1`. The order of options within a group does
     not matter.
 
+    `Measurement` type of `ReachAndFrequency`:
+
     ```shell
     MeasurementSystem \
     --tls-cert-file=secretfiles/mc_tls.pem --tls-key-file=secretfiles/mc_tls.key \
@@ -154,16 +156,16 @@ using the `--api-key` option.
     create \
     --measurement-consumer=measurementConsumers/777 \
     --reach-and-frequency \
-    --reach-privacy-epsilon=0.0033 \
-    --reach-privacy-delta=0.00001 \
-    --frequency-privacy-epsilon=0.115 \
-    --frequency-privacy-delta=0.00001 \
-    --reach-max-frequency=10 \
+    --rf-reach-privacy-epsilon=0.0033 \
+    --rf-reach-privacy-delta=0.00001 \
+    --rf-frequency-privacy-epsilon=0.115 \
+    --rf-frequency-privacy-delta=0.00001 \
+    --max-frequency=10 \
     --vid-sampling-start=0.16 \
     --vid-sampling-width=0.016667 \
     --private-key-der-file=secretfiles/mc_cs_private.der \
     --measurement-ref-id=9999 \
-    --data-provider=dataProviders/1 \
+    --event-data-provider=dataProviders/1 \
     --event-group=dataProviders/1/eventGroups/1 \
     --event-filter="video_ad.age == 1" \
     --event-start-time=2022-05-22T01:00:00.000Z \
@@ -172,7 +174,40 @@ using the `--api-key` option.
     --event-filter="video_ad.age == 2" \
     --event-start-time=2022-05-22T01:22:32.250Z \
     --event-end-time=2022-05-23T03:14:55.450Z \
-    --data-provider=dataProviders/2 \
+    --event-data-provider=dataProviders/2 \
+    --event-group=dataProviders/2/eventGroups/1 \
+    --event-start-time=2022-04-22T01:19:42.336Z \
+    --event-end-time=2022-05-22T01:56:12.257Z
+    ```
+
+    `Measurement` type of `Reach`:
+
+    ```shell
+    MeasurementSystem \
+    --tls-cert-file=secretfiles/mc_tls.pem --tls-key-file=secretfiles/mc_tls.key \
+    --cert-collection-file=secretfiles/kingdom_root.pem \
+    --kingdom-public-api-target=public.kingdom.dev.halo-cmm.org:8443 \
+    measurements \
+    --api-key=nR5QPN7ptx \
+    create \
+    --measurement-consumer=measurementConsumers/777 \
+    --reach \
+    --reach-privacy-epsilon=0.0033 \
+    --reach-privacy-delta=0.00001 \
+    --vid-sampling-start=0.0 \
+    --vid-sampling-width=0.5 \
+    --private-key-der-file=secretfiles/mc_cs_private.der \
+    --measurement-ref-id=7777 \
+    --event-data-provider=dataProviders/1 \
+    --event-group=dataProviders/1/eventGroups/1 \
+    --event-filter="video_ad.age == 1" \
+    --event-start-time=2022-05-22T01:00:00.000Z \
+    --event-end-time=2022-05-24T05:00:00.000Z \
+    --event-group=dataProviders/1/eventGroups/2 \
+    --event-filter="video_ad.age == 2" \
+    --event-start-time=2022-05-22T01:22:32.250Z \
+    --event-end-time=2022-05-23T03:14:55.450Z \
+    --event-data-provider=dataProviders/2 \
     --event-group=dataProviders/2/eventGroups/1 \
     --event-start-time=2022-04-22T01:19:42.336Z \
     --event-end-time=2022-05-22T01:56:12.257Z
@@ -206,6 +241,26 @@ using the `--api-key` option.
     get \
     --encryption-private-key-file=secretfiles/mc_enc_private.tink \
     measurementConsumers/777/measurements/100
+    ```
+
+#### `public-keys`
+
+*   `update`
+
+    Given an encryption public key `/tmp/edp1_enc_public.binpb` and a signature
+    `/tmp/edp1_enc_public_sig.bin` that can be verified with
+    `dataProviders/FeQ5FqAQ5_0/certificates/I0oaV1_vGAM`:
+
+    ```shell
+    MeasurementSystem \
+    --tls-cert-file=secretfiles/edp1_tls.pem \
+    --tls-key-file=secretfiles/edp1_tls.key \
+    --cert-collection-file=secretfiles/kingdom_root.pem \
+    --kingdom-public-api-target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
+    public-keys update dataProviders/FeQ5FqAQ5_0/publicKey
+    --certificate=dataProviders/FeQ5FqAQ5_0/certificates/I0oaV1_vGAM \
+    --public-key=/tmp/edp1_enc_public.binpb \
+    --public-key-signature=/tmp/edp1_enc_public_sig.bin
     ```
 
 ## `EventTemplateValidator`

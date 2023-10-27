@@ -40,7 +40,6 @@ import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.Report
 import org.wfanet.measurement.internal.reporting.v2.ReportKt
-import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt
@@ -48,15 +47,12 @@ import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest
-import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest
 import org.wfanet.measurement.internal.reporting.v2.measurement
-import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.metric
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.internal.reporting.v2.periodicTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.report
-import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals
 
@@ -207,6 +203,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                       startTime = timestamp { seconds = 100 }
                       endTime = timestamp { seconds = 200 }
                     }
+                    groupingPredicates += listOf("predicate1", "predicate2")
                   }
               }
             details =
@@ -228,6 +225,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                     }
                 }
                 groupings += ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                filter = "filter"
                 cumulative = false
               }
           }
@@ -261,6 +259,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                       startTime = timestamp { seconds = 100 }
                       endTime = timestamp { seconds = 200 }
                     }
+                    groupingPredicates += listOf("predicate3", "predicate4")
                   }
               }
             details =
@@ -282,6 +281,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                     }
                 }
                 groupings += ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                filter = "filter"
                 cumulative = false
               }
           }
@@ -303,6 +303,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
           endTime = timestamp { seconds = 400 }
         }
       }
+      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val createdReport =
@@ -362,6 +363,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                       startTime = timestamp { seconds = 100 }
                       endTime = timestamp { seconds = 200 }
                     }
+                    groupingPredicates += listOf("predicate1", "predicate2")
                   }
               }
             reportingMetrics +=
@@ -388,6 +390,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                       startTime = timestamp { seconds = 100 }
                       endTime = timestamp { seconds = 200 }
                     }
+                    groupingPredicates += listOf("predicate3", "predicate4")
                   }
               }
             details =
@@ -409,6 +412,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                     }
                 }
                 groupings += ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                filter = "filter"
                 cumulative = false
               }
           }
@@ -424,6 +428,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
           endTime = timestamp { seconds = 200 }
         }
       }
+      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val createdReport =
@@ -553,6 +558,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         increment = duration { seconds = 50 }
         intervalCount = 3
       }
+      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val exception =
@@ -692,6 +698,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         increment = duration { seconds = 50 }
         intervalCount = 3
       }
+      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val exception =
@@ -775,6 +782,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         increment = duration { seconds = 50 }
         intervalCount = 3
       }
+      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val exception =
@@ -823,6 +831,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         increment = duration { seconds = 50 }
         intervalCount = 3
       }
+      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val exception =
@@ -950,6 +959,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                         startTime = timestamp { seconds = 100 }
                         endTime = timestamp { seconds = 200 }
                       }
+                      groupingPredicates += listOf("predicate1", "predicate2")
                     }
                 }
               details =
@@ -972,6 +982,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                   }
                   groupings +=
                     ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                  filter = "filter1"
                   cumulative = false
                 }
             }
@@ -1005,6 +1016,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                         startTime = timestamp { seconds = 100 }
                         endTime = timestamp { seconds = 200 }
                       }
+                      groupingPredicates += listOf("predicate3", "predicate4")
                     }
                 }
               details =
@@ -1027,6 +1039,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                   }
                   groupings +=
                     ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                  filter = "filter2"
                   cumulative = false
                 }
             }
@@ -1048,6 +1061,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
             endTime = timestamp { seconds = 400 }
           }
         }
+        details = ReportKt.details { tags.putAll(REPORT_TAGS) }
       }
 
       val createdReport =
@@ -1108,7 +1122,11 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                       }
                   }
                 }
-              details = MetricKt.details { filters += it.details.filtersList }
+              details =
+                MetricKt.details {
+                  filters +=
+                    it.details.groupingPredicatesList + metricCalculationSpec.details.filter
+                }
             }
           }
           metricsService.createMetric(request)
@@ -1190,7 +1208,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
 
     assertThat(retrievedReports.toList())
       .ignoringRepeatedFieldOrder()
-      .containsExactly(createdReport, createdReport2)
+      .containsExactly(createdReport2, createdReport)
       .inOrder()
   }
 
@@ -1223,8 +1241,8 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                 cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
                 after =
                   StreamReportsRequestKt.afterFilter {
-                    createTime = createdReport.createTime
-                    externalReportId = createdReport.externalReportId
+                    createTime = createdReport2.createTime
+                    externalReportId = createdReport2.externalReportId
                   }
               }
           }
@@ -1232,28 +1250,67 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
 
       assertThat(retrievedReports.toList())
         .ignoringRepeatedFieldOrder()
-        .containsExactly(createdReport2)
+        .containsExactly(createdReport)
+        .inOrder()
+    }
+
+  @Test
+  fun `streamReports returns report with same create_time as filter when only create_time set`() =
+    runBlocking {
+      createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+      val createdReport =
+        createReport(
+          CMMS_MEASUREMENT_CONSUMER_ID,
+          service,
+          reportingSetsService,
+          usePeriodicTimeInterval = false,
+          "external-report-id"
+        )
+      val createdReport2 =
+        createReport(
+          CMMS_MEASUREMENT_CONSUMER_ID,
+          service,
+          reportingSetsService,
+          usePeriodicTimeInterval = false,
+          "external-report-id2"
+        )
+
+      val retrievedReports =
+        service.streamReports(
+          streamReportsRequest {
+            filter =
+              StreamReportsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                after =
+                  StreamReportsRequestKt.afterFilter { createTime = createdReport2.createTime }
+              }
+          }
+        )
+
+      assertThat(retrievedReports.toList())
+        .ignoringRepeatedFieldOrder()
+        .containsExactly(createdReport2, createdReport)
         .inOrder()
     }
 
   @Test
   fun `streamReports returns number of reports based on limit`(): Unit = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-    val createdReport =
-      createReport(
-        CMMS_MEASUREMENT_CONSUMER_ID,
-        service,
-        reportingSetsService,
-        usePeriodicTimeInterval = false,
-        "external-report-id"
-      )
     createReport(
       CMMS_MEASUREMENT_CONSUMER_ID,
       service,
       reportingSetsService,
       usePeriodicTimeInterval = false,
-      "external-report-id2"
+      "external-report-id"
     )
+    val createdReport2 =
+      createReport(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        service,
+        reportingSetsService,
+        usePeriodicTimeInterval = false,
+        "external-report-id2"
+      )
 
     val retrievedReports =
       service.streamReports(
@@ -1268,7 +1325,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
 
     assertThat(retrievedReports.toList())
       .ignoringRepeatedFieldOrder()
-      .containsExactly(createdReport)
+      .containsExactly(createdReport2)
   }
 
   @Test
@@ -1290,6 +1347,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
 
   companion object {
     private const val CMMS_MEASUREMENT_CONSUMER_ID = "1234"
+    private val REPORT_TAGS = mapOf("tag1" to "tag_value1", "tag2" to "tag_value2")
 
     private suspend fun createReportForRequest(
       cmmsMeasurementConsumerId: String,
@@ -1327,6 +1385,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                           startTime = timestamp { seconds = 100 }
                           endTime = timestamp { seconds = 200 }
                         }
+                        groupingPredicates += listOf("predicate1", "predicate2")
                       }
                   }
                 details =
@@ -1349,6 +1408,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                     }
                     groupings +=
                       ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                    filter = "filter"
                     cumulative = false
                   }
               }
@@ -1363,6 +1423,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
             endTime = timestamp { seconds = 400 }
           }
         }
+        details = ReportKt.details { tags.putAll(REPORT_TAGS) }
       }
     }
 
@@ -1408,6 +1469,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                         startTime = timestamp { seconds = 100 }
                         endTime = timestamp { seconds = 200 }
                       }
+                      groupingPredicates += listOf("predicate1", "predicate2")
                     }
                 }
               details =
@@ -1430,6 +1492,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                   }
                   groupings +=
                     ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                  filter = "filter"
                   cumulative = false
                 }
             }
@@ -1457,6 +1520,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
             }
           }
         }
+        details = ReportKt.details { tags.putAll(REPORT_TAGS) }
       }
 
       return reportsService.createReport(
@@ -1464,39 +1528,6 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
           this.report = report
           this.externalReportId = externalReportId
         }
-      )
-    }
-
-    private suspend fun createReportingSet(
-      cmmsMeasurementConsumerId: String,
-      reportingSetsService: ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase,
-      externalReportingSetId: String = "external-reporting-set-id"
-    ): ReportingSet {
-      val reportingSet = reportingSet {
-        this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-        primitive =
-          ReportingSetKt.primitive {
-            eventGroupKeys +=
-              ReportingSetKt.PrimitiveKt.eventGroupKey {
-                cmmsDataProviderId = "1235"
-                cmmsEventGroupId = cmmsMeasurementConsumerId + "123"
-              }
-          }
-      }
-      return reportingSetsService.createReportingSet(
-        createReportingSetRequest {
-          this.reportingSet = reportingSet
-          this.externalReportingSetId = externalReportingSetId
-        }
-      )
-    }
-
-    private suspend fun createMeasurementConsumer(
-      cmmsMeasurementConsumerId: String,
-      measurementConsumersService: MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase,
-    ) {
-      measurementConsumersService.createMeasurementConsumer(
-        measurementConsumer { this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId }
       )
     }
   }

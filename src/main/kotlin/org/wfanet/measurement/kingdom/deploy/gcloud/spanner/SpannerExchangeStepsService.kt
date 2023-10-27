@@ -17,28 +17,22 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 import io.grpc.Status
 import java.time.Clock
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.gcloud.spanner.appendClause
-import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetailsKt.debugLog
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.GetExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequest
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.PROVIDER_PARAM
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.providerFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamExchangeSteps
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepAttemptReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
@@ -46,8 +40,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyEx
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep.Result
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateExchangesAndSteps
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FinishExchangeStepAttempt
-import org.wfanet.measurement.kingdom.service.internal.externalDataProviderId
-import org.wfanet.measurement.kingdom.service.internal.externalModelProviderId
 
 class SpannerExchangeStepsService(
   private val clock: Clock,
@@ -58,24 +50,12 @@ class SpannerExchangeStepsService(
   override suspend fun getExchangeStep(request: GetExchangeStepRequest): ExchangeStep {
     val exchangeStepResult =
       ExchangeStepReader()
-        .fillStatementBuilder {
-          appendClause(
-            """
-            WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id
-              AND ExchangeSteps.Date = @date
-              AND ExchangeSteps.StepIndex = @step_index
-              AND ${providerFilter(request.provider)}
-          """
-              .trimIndent()
-          )
-          bind("external_recurring_exchange_id" to request.externalRecurringExchangeId)
-          bind("date" to request.date.toCloudDate())
-          bind("step_index" to request.stepIndex.toLong())
-          bind(PROVIDER_PARAM to request.provider.externalId)
-          appendClause("LIMIT 1")
-        }
-        .execute(client.singleUse())
-        .singleOrNull() ?: failGrpc(Status.NOT_FOUND) { "ExchangeStep not found" }
+        .readByExternalIds(
+          client.singleUse(),
+          ExternalId(request.externalRecurringExchangeId),
+          request.date,
+          request.stepIndex
+        ) ?: failGrpc(Status.NOT_FOUND) { "ExchangeStep not found" }
 
     return exchangeStepResult.exchangeStep
   }
@@ -83,10 +63,18 @@ class SpannerExchangeStepsService(
   override suspend fun claimReadyExchangeStep(
     request: ClaimReadyExchangeStepRequest
   ): ClaimReadyExchangeStepResponse {
-    val externalModelProviderId = request.provider.externalModelProviderId
-    val externalDataProviderId = request.provider.externalDataProviderId
+    val (party, externalPartyId) =
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf oneof case cannot be null.
+      when (request.partyCase) {
+        ClaimReadyExchangeStepRequest.PartyCase.EXTERNAL_DATA_PROVIDER_ID ->
+          ExchangeWorkflow.Party.DATA_PROVIDER to ExternalId(request.externalDataProviderId)
+        ClaimReadyExchangeStepRequest.PartyCase.EXTERNAL_MODEL_PROVIDER_ID ->
+          ExchangeWorkflow.Party.MODEL_PROVIDER to ExternalId(request.externalModelProviderId)
+        ClaimReadyExchangeStepRequest.PartyCase.PARTY_NOT_SET ->
+          throw Status.INVALID_ARGUMENT.withDescription("party not set").asRuntimeException()
+      }
 
-    CreateExchangesAndSteps(provider = request.provider).execute(client, idGenerator)
+    CreateExchangesAndSteps(party, externalPartyId).execute(client, idGenerator)
 
     // TODO(@efoxepstein): consider whether a more structured signal for auto-fail is needed
     val debugLogEntry = debugLog {
@@ -94,16 +82,11 @@ class SpannerExchangeStepsService(
       time = clock.instant().toProtoTime()
     }
 
-    ExchangeStepAttemptReader.forExpiredAttempts(
-        externalModelProviderId = externalModelProviderId,
-        externalDataProviderId = externalDataProviderId,
-        clock
-      )
+    ExchangeStepAttemptReader.forExpiredAttempts(party, externalPartyId, clock)
       .execute(client.singleUse())
       .map { it.exchangeStepAttempt }
       .collect { attempt: ExchangeStepAttempt ->
         FinishExchangeStepAttempt(
-            provider = request.provider,
             externalRecurringExchangeId = ExternalId(attempt.externalRecurringExchangeId),
             exchangeDate = attempt.date,
             stepIndex = attempt.stepIndex,
@@ -116,8 +99,7 @@ class SpannerExchangeStepsService(
       }
 
     val result =
-      ClaimReadyExchangeStep(provider = request.provider, clock = clock)
-        .execute(client, idGenerator)
+      ClaimReadyExchangeStep(request = request, clock = clock).execute(client, idGenerator)
 
     if (result.isPresent) {
       return result.get().toClaimReadyExchangeStepResponse()

@@ -1,4 +1,4 @@
-load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -74,9 +74,16 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "reporting_exceptions",
+    srcs = ["ReportingExceptions.kt"],
+)
+
+kt_jvm_library(
     name = "proto_conversions",
     srcs = ["ProtoConversions.kt"],
     deps = [
+        ":reporting_exceptions",
+        "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:measurement_statistics",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:metric_spec_defaults",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:reporting_principal",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:resource_key",
@@ -164,8 +171,12 @@ kt_jvm_library(
     name = "metrics_service",
     srcs = ["MetricsService.kt"],
     deps = [
+        ":reporting_exceptions",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:measurement_statistics",
+        "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:metric_statistics",
+        "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:variances",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:encryption_key_pair_store",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:submit_batch_requests",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:metric_spec_defaults",
@@ -227,6 +238,7 @@ kt_jvm_library(
     name = "reports_service",
     srcs = ["ReportsService.kt"],
     deps = [
+        ":cel_filtering_methods",
         ":metadata_principal_server_interceptor",
         "//imports/java/org/projectnessie/cel",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
@@ -254,5 +266,60 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
+    ],
+)
+
+kt_jvm_library(
+    name = "report_schedules_service",
+    srcs = ["ReportSchedulesService.kt"],
+    deps = [
+        ":cel_filtering_methods",
+        ":metadata_principal_server_interceptor",
+        ":principal_server_interceptor",
+        ":proto_conversions",
+        ":reporting_principal",
+        ":resource_key",
+        "//imports/java/org/projectnessie/cel",
+        "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
+        "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_schedules_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:page_token_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:report_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:report_schedules_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+    ],
+)
+
+kt_jvm_library(
+    name = "report_schedule_iterations_service",
+    srcs = ["ReportScheduleIterationsService.kt"],
+    deps = [
+        ":cel_filtering_methods",
+        ":metadata_principal_server_interceptor",
+        ":principal_server_interceptor",
+        ":reporting_principal",
+        ":resource_key",
+        "//imports/java/org/projectnessie/cel",
+        "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
+        "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_schedule_iterations_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:page_token_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:report_schedule_iterations_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+    ],
+)
+
+kt_jvm_library(
+    name = "cel_filtering_methods",
+    srcs = ["CelFilteringMethods.kt"],
+    deps = [
+        "//imports/java/org/projectnessie/cel",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
 )

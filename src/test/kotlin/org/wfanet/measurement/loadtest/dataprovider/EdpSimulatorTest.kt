@@ -50,6 +50,7 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
@@ -113,6 +114,7 @@ import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
+import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
 import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.OpenEndTimeRange
@@ -121,6 +123,7 @@ import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificateCollection
+import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
@@ -222,6 +225,10 @@ class EdpSimulatorTest {
       .thenReturn(MEASUREMENT_CONSUMER_CERTIFICATE)
     onBlocking { getCertificate(eq(getCertificateRequest { name = DUCHY_CERTIFICATE.name })) }
       .thenReturn(DUCHY_CERTIFICATE)
+    onBlocking {
+        getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_CERTIFICATE.name }))
+      }
+      .thenReturn(DATA_PROVIDER_CERTIFICATE)
   }
   private val measurementConsumersServiceMock:
     MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase =
@@ -548,7 +555,6 @@ class EdpSimulatorTest {
                       samplingIndicatorSize = 10_000_000
                     }
                     ellipticCurveId = 415
-                    maximumFrequency = 12
                   }
               }
           }
@@ -1595,6 +1601,62 @@ class EdpSimulatorTest {
   }
 
   @Test
+  fun `refuses Requisition with UNFULFILLABLE when certificate doesn't match private key`() {
+    val requisition =
+      REQUISITION.copy {
+        dataProviderCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
+        protocolConfig =
+          protocolConfig.copy {
+            protocols.clear()
+            protocols +=
+              ProtocolConfigKt.protocol {
+                direct =
+                  ProtocolConfigKt.direct {
+                    noiseMechanisms += ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+                    deterministicCountDistinct =
+                      ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
+                    deterministicDistribution =
+                      ProtocolConfig.Direct.DeterministicDistribution.getDefaultInstance()
+                  }
+              }
+          }
+      }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+    val simulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        syntheticGeneratorEventQuery,
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        random = Random(RANDOM_SEED),
+        compositionMechanism = COMPOSITION_MECHANISM
+      )
+
+    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+
+    val refuseRequest: RefuseRequisitionRequest =
+      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+    assertThat(refuseRequest)
+      .ignoringFields(RefuseRequisitionRequest.REFUSAL_FIELD_NUMBER)
+      .isEqualTo(refuseRequisitionRequest { name = REQUISITION.name })
+    assertThat(refuseRequest.refusal)
+      .ignoringFields(Refusal.MESSAGE_FIELD_NUMBER)
+      .isEqualTo(refusal { justification = Refusal.Justification.UNFULFILLABLE })
+    assertThat(refuseRequest.refusal.message).ignoringCase().contains("certificate")
+  }
+
+  @Test
   fun `fulfills direct reach and frequency Requisition`() {
     val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
     val requisition =
@@ -2124,6 +2186,21 @@ class EdpSimulatorTest {
       name = DuchyCertificateKey(DUCHY_ID, externalIdToApiId(6L)).toName()
       x509Der = DUCHY_SIGNING_KEY.certificate.encoded.toByteString()
     }
+    private val DATA_PROVIDER_CERTIFICATE_KEY =
+      DataProviderCertificateKey(EDP_ID, externalIdToApiId(7L))
+    private val EDP_DATA =
+      EdpData(
+        EDP_NAME,
+        EDP_DISPLAY_NAME,
+        loadEncryptionPrivateKey("${EDP_DISPLAY_NAME}_enc_private.tink"),
+        loadSigningKey("${EDP_DISPLAY_NAME}_cs_cert.der", "${EDP_DISPLAY_NAME}_cs_private.der"),
+        DATA_PROVIDER_CERTIFICATE_KEY,
+      )
+    private val DATA_PROVIDER_CERTIFICATE = certificate {
+      name = DATA_PROVIDER_CERTIFICATE_KEY.toName()
+      x509Der = EDP_DATA.signingKey.certificate.encoded.toByteString()
+      subjectKeyIdentifier = EDP_DATA.signingKey.certificate.subjectKeyIdentifier!!
+    }
 
     private val MC_PUBLIC_KEY =
       loadPublicKey(SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile())
@@ -2186,14 +2263,6 @@ class EdpSimulatorTest {
         reach = reach { privacyParams = OUTPUT_DP_PARAMS }
       }
 
-    private val EDP_DATA =
-      EdpData(
-        EDP_NAME,
-        EDP_DISPLAY_NAME,
-        loadEncryptionPrivateKey("${EDP_DISPLAY_NAME}_enc_private.tink"),
-        loadSigningKey("${EDP_DISPLAY_NAME}_cs_cert.der", "${EDP_DISPLAY_NAME}_cs_private.der")
-      )
-
     private val LIQUID_LEGIONS_SKETCH_PARAMS = liquidLegionsSketchParams {
       decayRate = LLV2_DECAY_RATE
       maxSize = LLV2_MAX_SIZE
@@ -2218,6 +2287,8 @@ class EdpSimulatorTest {
               }
           }
       }
+      dataProviderCertificate = DATA_PROVIDER_CERTIFICATE.name
+      dataProviderPublicKey = signedData { data = DATA_PROVIDER_PUBLIC_KEY.toByteString() }
       duchies += duchyEntry {
         key = DUCHY_NAME
         value = value {

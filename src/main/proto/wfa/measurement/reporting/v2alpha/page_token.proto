@@ -51,3 +51,25 @@ message ListMetricsPageToken {
   }
   PreviousPageEnd last_metric = 3;
 }
+
+message ListReportSchedulesPageToken {
+  int32 page_size = 1;
+  string cmms_measurement_consumer_id = 2;
+  message PreviousPageEnd {
+    string cmms_measurement_consumer_id = 1;
+    string external_report_schedule_id = 2;
+  }
+  PreviousPageEnd last_report_schedule = 3;
+}
+
+message ListReportScheduleIterationsPageToken {
+  int32 page_size = 1;
+  string cmms_measurement_consumer_id = 2;
+  string external_report_schedule_id = 3;
+  message PreviousPageEnd {
+    string cmms_measurement_consumer_id = 1;
+    string external_report_schedule_id = 2;
+    google.protobuf.Timestamp report_event_time = 3;
+  }
+  PreviousPageEnd last_report_schedule_iteration = 4;
+}

@@ -25,7 +25,7 @@ import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.commutativeDeterministicEncryptStep
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
 import org.wfanet.measurement.common.CountDownLatch
@@ -56,7 +56,7 @@ class CoroutineLauncherTest {
       }
     }
 
-    val attemptKey = ExchangeStepAttemptKey("w", "x", "y", "z")
+    val attemptKey = CanonicalExchangeStepAttemptKey("w", "x", "y", "z")
     val date = LocalDate.of(2021, 11, 29)
 
     val validatedExchangeStep = ValidatedExchangeStep(workflow, workflow.getSteps(0), date)
@@ -68,7 +68,7 @@ class CoroutineLauncherTest {
     endLatch.await()
 
     val stepCaptor = argumentCaptor<ValidatedExchangeStep>()
-    val attemptKeyCaptor = argumentCaptor<ExchangeStepAttemptKey>()
+    val attemptKeyCaptor = argumentCaptor<CanonicalExchangeStepAttemptKey>()
     verify(stepExecutor).execute(stepCaptor.capture(), attemptKeyCaptor.capture())
     assertThat(stepCaptor.firstValue).isEqualTo(validatedExchangeStep)
     assertThat(attemptKeyCaptor.firstValue).isEqualTo(attemptKey)

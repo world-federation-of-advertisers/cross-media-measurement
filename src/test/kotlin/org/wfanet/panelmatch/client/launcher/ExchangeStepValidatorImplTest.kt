@@ -23,8 +23,8 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
-import org.wfanet.measurement.api.v2alpha.ExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party.DATA_PROVIDER
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party.MODEL_PROVIDER
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
@@ -65,7 +65,7 @@ private val VALID_EXCHANGE_WORKFLOWS =
   )
 
 private val EXCHANGE_STEP = exchangeStep {
-  name = ExchangeStepKey(RECURRING_EXCHANGE_ID, EXCHANGE_ID, EXCHANGE_STEP_ID).toName()
+  name = CanonicalExchangeStepKey(RECURRING_EXCHANGE_ID, EXCHANGE_ID, EXCHANGE_STEP_ID).toName()
   stepIndex = 1
   serializedExchangeWorkflow = SERIALIZED_EXCHANGE_WORKFLOW
   exchangeDate = TODAY.toProtoDate()
@@ -120,7 +120,8 @@ class ExchangeStepValidatorImplTest {
     val wrongExchangeStep =
       EXCHANGE_STEP.copy {
         name =
-          ExchangeStepKey(MISSING_RECURRING_EXCHANGE_ID, EXCHANGE_ID, EXCHANGE_STEP_ID).toName()
+          CanonicalExchangeStepKey(MISSING_RECURRING_EXCHANGE_ID, EXCHANGE_ID, EXCHANGE_STEP_ID)
+            .toName()
       }
     assertValidationFailsTransiently(wrongExchangeStep)
   }
@@ -129,7 +130,9 @@ class ExchangeStepValidatorImplTest {
   fun invalidExchangeWorkflow() {
     val exchangeStep =
       EXCHANGE_STEP.copy {
-        name = ExchangeStepKey(OTHER_RECURRING_EXCHANGE_ID, EXCHANGE_ID, EXCHANGE_STEP_ID).toName()
+        name =
+          CanonicalExchangeStepKey(OTHER_RECURRING_EXCHANGE_ID, EXCHANGE_ID, EXCHANGE_STEP_ID)
+            .toName()
       }
     assertValidationFailsPermanently(exchangeStep)
   }

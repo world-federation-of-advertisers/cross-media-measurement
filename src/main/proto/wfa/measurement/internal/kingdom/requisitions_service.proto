@@ -82,6 +82,8 @@ message FulfillRequisitionRequest {
     // Encrypted `SignedData`containing the data for a direct and volumetric
     // measurement.
     bytes encrypted_data = 2;
+    // Certificate used to sign the encrypted `SignedData`.
+    fixed64 external_certificate_id = 3;
   }
 
   oneof params {
@@ -89,11 +91,6 @@ message FulfillRequisitionRequest {
     DirectRequisitionParams direct_params = 4;
   }
 
-  message ResultCertificate {
-    fixed64 external_certificate_id = 1;
-  }
-
-  ResultCertificate certificate = 5;
 }
 
 message RefuseRequisitionRequest {

@@ -43,6 +43,10 @@ message Report {
   // Resource name.
   string name = 1;
 
+  // A map of arbitrary key-value pairs to support tagging of Reports
+  // for upstream use by UIs and other rich clients.
+  map<string, string> tags = 9 [(google.api.field_behavior) = IMMUTABLE];
+
   // Contain the grouping predicates.
   message Grouping {
     // The CEL expressions that are applied to the corresponding event message
@@ -64,6 +68,10 @@ message Report {
     // A collection of metrics.
     repeated MetricSpec metric_specs = 2
         [(google.api.field_behavior) = REQUIRED];
+    // An additional event filter that will be conjoined to grouping filters and
+    // any filters present on the ReportingSet provided as part of the
+    // ReportingMetricEntry below.
+    string filter = 5 [(google.api.field_behavior) = IMMUTABLE];
     // The final set of groups is the Cartesian product of `groupings` and will
     // fan out multiple metrics per metric spec and per time interval, i.e.
     // one metric per element of the Cartesian product of the groupings with a
@@ -156,6 +164,10 @@ message Report {
 
       // The metric spec that is associated with the metric calculation.
       MetricSpec metric_spec = 2;
+
+      // An additional event filter that was conjoined to the grouping
+      // predicates and any filters present on the ReportingSet.
+      string filter = 5;
 
       // The time interval associated with the metric calculation.
       //

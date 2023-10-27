@@ -134,6 +134,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
               apiVersion = API_VERSION
               publicKey = "MC public key".toByteStringUtf8()
               publicKeySignature = "MC public key signature".toByteStringUtf8()
+              publicKeySignatureAlgorithmOid = "2.9999"
             }
         }
         externalAccountId = account.externalAccountId
@@ -144,6 +145,8 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
 
   suspend fun createDataProvider(
     dataProvidersService: DataProvidersCoroutineImplBase,
+    requiredDuchiesList: List<String> =
+      listOf(WORKER1_DUCHY.externalDuchyId, WORKER2_DUCHY.externalDuchyId),
     notValidBefore: Instant = clock.instant(),
     notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS),
     customize: (DataProviderKt.Dsl.() -> Unit)? = null
@@ -162,9 +165,9 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
             apiVersion = API_VERSION
             publicKey = "EDP public key".toByteStringUtf8()
             publicKeySignature = "EDP public key signature".toByteStringUtf8()
+            publicKeySignatureAlgorithmOid = "2.9999"
           }
-        requiredExternalDuchyIds += WORKER1_DUCHY.externalDuchyId
-        requiredExternalDuchyIds += WORKER2_DUCHY.externalDuchyId
+        requiredExternalDuchyIds += requiredDuchiesList
         customize?.invoke(this)
       }
     )
@@ -275,6 +278,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
         apiVersion = API_VERSION
         measurementSpec = "MeasurementSpec".toByteStringUtf8()
         measurementSpecSignature = "MeasurementSpec signature".toByteStringUtf8()
+        measurementSpecSignatureAlgorithmOid = "2.9999"
         duchyProtocolConfig = duchyProtocolConfig {
           liquidLegionsV2 = DuchyProtocolConfigKt.liquidLegionsV2 {}
         }
@@ -314,6 +318,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
         apiVersion = API_VERSION
         measurementSpec = "MeasurementSpec".toByteStringUtf8()
         measurementSpecSignature = "MeasurementSpec signature".toByteStringUtf8()
+        measurementSpecSignatureAlgorithmOid = "2.9999"
         protocolConfig = protocolConfig { direct = ProtocolConfig.Direct.getDefaultInstance() }
       }
     return createMeasurement(
@@ -481,6 +486,7 @@ fun DataProvider.toDataProviderValue(nonce: Long = Random.Default.nextLong()) = 
   externalDataProviderCertificateId = certificate.externalCertificateId
   dataProviderPublicKey = details.publicKey
   dataProviderPublicKeySignature = details.publicKeySignature
+  dataProviderPublicKeySignatureAlgorithmOid = details.publicKeySignatureAlgorithmOid
   encryptedRequisitionSpec = "Encrypted RequisitionSpec $nonce".toByteStringUtf8()
   nonceHash = Hashing.hashSha256(nonce)
 }

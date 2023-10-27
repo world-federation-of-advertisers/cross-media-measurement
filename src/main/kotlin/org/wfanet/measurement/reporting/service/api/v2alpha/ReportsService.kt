@@ -25,11 +25,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.toList
 import org.projectnessie.cel.Env
-import org.projectnessie.cel.EnvOption
-import org.projectnessie.cel.checker.Decls
-import org.projectnessie.cel.common.types.Err
-import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
-import org.projectnessie.cel.common.types.ref.Val
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
@@ -236,9 +231,11 @@ class ReportsService(
         )
     } catch (e: StatusException) {
       throw when (e.status.code) {
-          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT.withDescription(e.message)
-          Status.Code.PERMISSION_DENIED -> Status.PERMISSION_DENIED.withDescription(e.message)
-          else -> Status.UNKNOWN.withDescription("Unable to get Metrics.")
+          Status.Code.INVALID_ARGUMENT ->
+            Status.INVALID_ARGUMENT.withDescription("Unable to get Metrics.\n${e.message}")
+          Status.Code.PERMISSION_DENIED ->
+            Status.PERMISSION_DENIED.withDescription("Unable to get Metrics.\n${e.message}")
+          else -> Status.UNKNOWN.withDescription("Unable to get Metrics.\n${e.message}")
         }
         .withCause(e)
         .asRuntimeException()
@@ -293,10 +290,11 @@ class ReportsService(
         .flatMap { (_, reportingMetricCalculationSpec) ->
           reportingMetricCalculationSpec.metricCalculationSpecsList.flatMap { metricCalculationSpec
             ->
-            metricCalculationSpec.reportingMetricsList
+            metricCalculationSpec.reportingMetricsList.map {
+              it.toCreateMetricRequest(principal.resourceKey, metricCalculationSpec.details.filter)
+            }
           }
         }
-        .map { it.toCreateMetricRequest(principal.resourceKey) }
         .asFlow()
 
     val callRpc: suspend (List<CreateMetricRequest>) -> BatchCreateMetricsResponse = { items ->
@@ -350,6 +348,8 @@ class ReportsService(
       name =
         ReportKey(internalReport.cmmsMeasurementConsumerId, internalReport.externalReportId)
           .toName()
+
+      tags.putAll(internalReport.details.tagsMap)
 
       reportingMetricEntries +=
         internalReport.reportingMetricEntriesMap.map { internalReportingMetricEntry ->
@@ -408,7 +408,8 @@ class ReportsService(
                 externalIdToMetricMap[reportingMetric.externalMetricId]
                   ?: error("Got a metric not associated with the report.")
               ReportKt.MetricCalculationResultKt.resultAttribute {
-                groupingPredicates += metric.filtersList
+                groupingPredicates += reportingMetric.details.groupingPredicatesList
+                filter = metricCalculationSpec.details.filter
                 metricSpec = metric.metricSpec
                 timeInterval = metric.timeInterval
                 metricResult = metric.result
@@ -528,6 +529,7 @@ class ReportsService(
           Report.TimeCase.TIME_NOT_SET ->
             failGrpc(Status.INVALID_ARGUMENT) { "The time in Report is not specified." }
         }
+        details = InternalReportKt.details { tags.putAll(request.report.tagsMap) }
       }
       requestId = request.requestId
       externalReportId = request.reportId
@@ -622,7 +624,7 @@ class ReportsService(
       reportingMetrics +=
         timeIntervals.flatMap { timeInterval ->
           metricCalculationSpec.metricSpecsList.flatMap { metricSpec ->
-            groupingsCartesianProduct.map { predicateGroup ->
+            groupingsCartesianProduct.map { groupingPredicates ->
               InternalReportKt.reportingMetric {
                 details =
                   InternalReportKt.ReportingMetricKt.details {
@@ -639,8 +641,7 @@ class ReportsService(
                         failGrpc(Status.UNKNOWN) { "Failed to read the metric spec." }
                       }
                     this.timeInterval = timeInterval
-                    filters += predicateGroup
-
+                    this.groupingPredicates += groupingPredicates
                     internalMetricSpecs += this.metricSpec
                   }
               }
@@ -658,6 +659,9 @@ class ReportsService(
                 this.predicates += grouping.predicatesList
               }
             }
+          if (metricCalculationSpec.filter.isNotBlank()) {
+            filter = metricCalculationSpec.filter
+          }
           cumulative = metricCalculationSpec.cumulative
         }
     }
@@ -686,74 +690,16 @@ class ReportsService(
   }
 
   private fun filterReports(reports: List<Report>, filter: String): List<Report> {
-    if (filter.isEmpty()) {
-      return reports
-    }
-
-    val astAndIssues =
-      try {
-        ENV.compile(filter)
-      } catch (_: NullPointerException) {
-        // NullPointerException is thrown when an operator in the filter is not a CEL operator.
-        throw Status.INVALID_ARGUMENT.withDescription("filter is not a valid CEL expression")
-          .asRuntimeException()
-      }
-    if (astAndIssues.hasIssues()) {
-      throw Status.INVALID_ARGUMENT.withDescription(
-          "filter is not a valid CEL expression: ${astAndIssues.issues}"
-        )
-        .asRuntimeException()
-    }
-    val program = ENV.program(astAndIssues.ast)
-
-    return reports.filter { report ->
-      val variables: Map<String, Any> =
-        mutableMapOf<String, Any>().apply {
-          for (fieldDescriptor in report.descriptorForType.fields) {
-            put(fieldDescriptor.name, report.getField(fieldDescriptor))
-          }
-        }
-      val result: Val = program.eval(variables).`val`
-      if (result is Err) {
-        throw result.toRuntimeException()
-      }
-
-      if (result.value() !is Boolean) {
-        throw Status.INVALID_ARGUMENT.withDescription("filter does not evaluate to boolean")
-          .asRuntimeException()
-      }
-
-      result.booleanValue()
+    return try {
+      filterList(ENV, reports, filter)
+    } catch (e: IllegalArgumentException) {
+      throw Status.INVALID_ARGUMENT.withDescription(e.message).asRuntimeException()
     }
   }
 
   companion object {
     private val RESOURCE_ID_REGEX = Regex("^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$")
-    private val ENV: Env = buildCelEnvironment()
-
-    private fun buildCelEnvironment(): Env {
-      // Build CEL ProtoTypeRegistry.
-      val celTypeRegistry = ProtoTypeRegistry.newRegistry()
-      celTypeRegistry.registerMessage(Report.getDefaultInstance())
-
-      // Build CEL Env.
-      val reportDescriptor = Report.getDescriptor()
-      val env =
-        Env.newEnv(
-          EnvOption.container(reportDescriptor.fullName),
-          EnvOption.customTypeProvider(celTypeRegistry),
-          EnvOption.customTypeAdapter(celTypeRegistry),
-          EnvOption.declarations(
-            reportDescriptor.fields.map {
-              Decls.newVar(
-                it.name,
-                celTypeRegistry.findFieldType(reportDescriptor.fullName, it.name).type
-              )
-            }
-          )
-        )
-      return env
-    }
+    private val ENV: Env = buildCelEnvironment(Report.getDefaultInstance())
   }
 }
 

@@ -1,4 +1,4 @@
-load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres:__subpackages__",
@@ -11,6 +11,8 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:internal_exception",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:measurement_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:metrics_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_schedule_iterations_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_schedules_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:reports_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/io/r2dbc",

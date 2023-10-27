@@ -1,4 +1,4 @@
-load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@wfa_common_jvm//build/rules_kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -22,11 +22,19 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "stats_exceptions",
+    srcs = ["StatsExceptions.kt"],
+)
+
+kt_jvm_library(
     name = "variances",
     srcs = ["Variances.kt"],
     deps = [
+        ":covariances",
         ":liquid_legions",
         ":measurement_statistics",
+        ":metric_statistics",
+        ":stats_exceptions",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
         "@wfa_common_jvm//imports/java/org/apache/commons:math3",
     ],
@@ -38,7 +46,17 @@ kt_jvm_library(
     deps = [
         ":liquid_legions",
         ":measurement_statistics",
+        ":metric_statistics",
+        ":stats_exceptions",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
         "@wfa_common_jvm//imports/java/org/apache/commons:math3",
+    ],
+)
+
+kt_jvm_library(
+    name = "metric_statistics",
+    srcs = ["MetricStatistics.kt"],
+    deps = [
+        ":measurement_statistics",
     ],
 )

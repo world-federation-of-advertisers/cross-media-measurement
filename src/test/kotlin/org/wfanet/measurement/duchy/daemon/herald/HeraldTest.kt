@@ -958,7 +958,7 @@ class HeraldTest {
     assertThat(duchyComputationToken.computationDetails.reachOnlyLiquidLegionsV2.participantList)
       .isEqualTo(
         listOf(
-          ReachOnlyLiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.computationParticipant {
+          LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.computationParticipant {
             duchyId = DUCHY_THREE
             publicKey = internalElgamalPublicKey {
               generator = ByteString.copyFromUtf8("generator_3")
@@ -968,7 +968,7 @@ class HeraldTest {
             elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_3")
             duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_3")
           },
-          ReachOnlyLiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.computationParticipant {
+          LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.computationParticipant {
             duchyId = DUCHY_TWO
             publicKey = internalElgamalPublicKey {
               generator = ByteString.copyFromUtf8("generator_2")
@@ -978,7 +978,7 @@ class HeraldTest {
             elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_2")
             duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_2")
           },
-          ReachOnlyLiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.computationParticipant {
+          LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.computationParticipant {
             duchyId = DUCHY_ONE
             publicKey = internalElgamalPublicKey {
               generator = ByteString.copyFromUtf8("generator_1")

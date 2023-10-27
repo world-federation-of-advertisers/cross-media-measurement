@@ -36,6 +36,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsPageToken
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsPageTokenKt.previousPageEnd
@@ -51,7 +52,6 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
 import org.wfanet.measurement.api.v2alpha.Requisition.State
-import org.wfanet.measurement.api.v2alpha.RequisitionKey
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
@@ -117,6 +117,8 @@ private const val MEASUREMENT_CONSUMER_NAME_2 = "measurementConsumers/BBBBBBBBBH
 private const val MEASUREMENT_NAME = "$MEASUREMENT_CONSUMER_NAME/measurements/AAAAAAAAAHs"
 
 private val DATA_PROVIDER_NAME = makeDataProvider(123L)
+private val DATA_PROVIDER_CERTIFICATE_NAME = "$DATA_PROVIDER_NAME/certificates/AAAAAAAAAAY"
+private val DATA_PROVIDER_RESULT_CERTIFICATE_NAME = "$DATA_PROVIDER_NAME/certificates/BBBBBBBBBHs"
 private val DATA_PROVIDER_NAME_2 = makeDataProvider(124L)
 
 private val REQUISITION_NAME = "$DATA_PROVIDER_NAME/requisitions/AAAAAAAAAHs"
@@ -125,9 +127,11 @@ private const val INVALID_REQUISITION_NAME = "requisitions/AAAAAAAAAHs"
 private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
 
 private val EXTERNAL_REQUISITION_ID =
-  apiIdToExternalId(RequisitionKey.fromName(REQUISITION_NAME)!!.requisitionId)
+  apiIdToExternalId(CanonicalRequisitionKey.fromName(REQUISITION_NAME)!!.requisitionId)
 private val EXTERNAL_DATA_PROVIDER_ID =
-  apiIdToExternalId(RequisitionKey.fromName(REQUISITION_NAME)!!.dataProviderId)
+  apiIdToExternalId(CanonicalRequisitionKey.fromName(REQUISITION_NAME)!!.dataProviderId)
+private val EXTERNAL_DATA_PROVIDER_CERTIFCATE_ID =
+  apiIdToExternalId(DataProviderCertificateKey.fromName(DATA_PROVIDER_CERTIFICATE_NAME)!!.certificateId)
 private val EXTERNAL_MEASUREMENT_ID =
   apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementId)
 private val EXTERNAL_MEASUREMENT_CONSUMER_ID =
@@ -530,7 +534,10 @@ class RequisitionsServiceTest {
 
   @Test
   fun `refuseRequisition throws UNAUTHENTICATED when no principal is not found`() {
-    val request = refuseRequisitionRequest { name = REQUISITION_NAME }
+    val request = refuseRequisitionRequest {
+      name = REQUISITION_NAME
+      refusal = refusal { justification = Refusal.Justification.UNFULFILLABLE }
+    }
 
     val exception =
       assertFailsWith<StatusRuntimeException> { runBlocking { service.refuseRequisition(request) } }
@@ -539,7 +546,10 @@ class RequisitionsServiceTest {
 
   @Test
   fun `refuseRequisition throws PERMISSION_DENIED when edp caller doesn't match`() {
-    val request = refuseRequisitionRequest { name = REQUISITION_NAME }
+    val request = refuseRequisitionRequest {
+      name = REQUISITION_NAME
+      refusal = refusal { justification = Refusal.Justification.UNFULFILLABLE }
+    }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -552,7 +562,10 @@ class RequisitionsServiceTest {
 
   @Test
   fun `refuseRequisition throws PERMISSION_DENIED when principal without authorization is found`() {
-    val request = refuseRequisitionRequest { name = REQUISITION_NAME }
+    val request = refuseRequisitionRequest {
+      name = REQUISITION_NAME
+      refusal = refusal { justification = Refusal.Justification.UNFULFILLABLE }
+    }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -693,6 +706,7 @@ class RequisitionsServiceTest {
         name = REQUISITION_NAME
         encryptedData = REQUISITION_ENCRYPTED_DATA
         nonce = NONCE
+        certificate = DATA_PROVIDER_RESULT_CERTIFICATE_NAME
       }
 
       val result =
@@ -714,6 +728,7 @@ class RequisitionsServiceTest {
             directParams = directRequisitionParams {
               externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
               encryptedData = REQUISITION_ENCRYPTED_DATA
+              externalCertificateId = EXTERNAL_DATA_PROVIDER_CERTIFCATE_ID
             }
           }
         )
@@ -743,6 +758,7 @@ class RequisitionsServiceTest {
         name = REQUISITION_NAME
         encryptedData = REQUISITION_ENCRYPTED_DATA
         nonce = NONCE
+        certificate = DATA_PROVIDER_RESULT_CERTIFICATE_NAME
       }
 
       val result =
@@ -764,6 +780,7 @@ class RequisitionsServiceTest {
             directParams = directRequisitionParams {
               externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
               encryptedData = REQUISITION_ENCRYPTED_DATA
+              externalCertificateId = EXTERNAL_DATA_PROVIDER_CERTIFCATE_ID
             }
           }
         )
@@ -777,6 +794,7 @@ class RequisitionsServiceTest {
       // No name
       encryptedData = REQUISITION_ENCRYPTED_DATA
       nonce = NONCE
+      certificate = DATA_PROVIDER_RESULT_CERTIFICATE_NAME
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -794,6 +812,7 @@ class RequisitionsServiceTest {
         name = REQUISITION_NAME
         // No encrypted_data
         nonce = NONCE
+        certificate = DATA_PROVIDER_RESULT_CERTIFICATE_NAME
       }
       val exception =
         assertFailsWith<StatusRuntimeException> {
@@ -810,6 +829,7 @@ class RequisitionsServiceTest {
       name = INVALID_REQUISITION_NAME
       encryptedData = REQUISITION_ENCRYPTED_DATA
       nonce = NONCE
+      certificate = DATA_PROVIDER_RESULT_CERTIFICATE_NAME
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -825,6 +845,7 @@ class RequisitionsServiceTest {
     val request = fulfillDirectRequisitionRequest {
       name = REQUISITION_NAME
       encryptedData = REQUISITION_ENCRYPTED_DATA
+      certificate = DATA_PROVIDER_RESULT_CERTIFICATE_NAME
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -913,6 +934,7 @@ class RequisitionsServiceTest {
         liquidLegionsV2 = liquidLegionsV2Details {
           elGamalPublicKey = UPDATE_TIME.toByteString()
           elGamalPublicKeySignature = UPDATE_TIME.toByteString()
+          elGamalPublicKeySignatureAlgorithmOid = "2.9999"
         }
       }
       dataProviderCertificate = internalCertificate {
@@ -934,7 +956,7 @@ class RequisitionsServiceTest {
 
     private val REQUISITION: Requisition = requisition {
       name =
-        RequisitionKey(
+        CanonicalRequisitionKey(
             externalIdToApiId(INTERNAL_REQUISITION.externalDataProviderId),
             externalIdToApiId(INTERNAL_REQUISITION.externalRequisitionId)
           )
@@ -957,6 +979,8 @@ class RequisitionsServiceTest {
       measurementSpec = signedData {
         data = INTERNAL_REQUISITION.parentMeasurement.measurementSpec
         signature = INTERNAL_REQUISITION.parentMeasurement.measurementSpecSignature
+        signatureAlgorithmOid =
+          INTERNAL_REQUISITION.parentMeasurement.measurementSpecSignatureAlgorithmOid
       }
       protocolConfig = protocolConfig {
         measurementType = ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
@@ -972,6 +996,8 @@ class RequisitionsServiceTest {
       dataProviderPublicKey = signedData {
         data = INTERNAL_REQUISITION.details.dataProviderPublicKey
         signature = INTERNAL_REQUISITION.details.dataProviderPublicKeySignature
+        signatureAlgorithmOid =
+          INTERNAL_REQUISITION.details.dataProviderPublicKeySignatureAlgorithmOid
       }
 
       val internalDuchyValue: InternalRequisition.DuchyValue =
@@ -984,6 +1010,8 @@ class RequisitionsServiceTest {
             elGamalPublicKey = signedData {
               data = internalDuchyValue.liquidLegionsV2.elGamalPublicKey
               signature = internalDuchyValue.liquidLegionsV2.elGamalPublicKeySignature
+              signatureAlgorithmOid =
+                internalDuchyValue.liquidLegionsV2.elGamalPublicKeySignatureAlgorithmOid
             }
           }
         }

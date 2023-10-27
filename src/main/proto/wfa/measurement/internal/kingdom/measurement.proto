@@ -105,6 +105,7 @@ message Measurement {
     // Serialized `EncryptionPublicKey` message from the public API.
     bytes data_provider_public_key = 2;
     bytes data_provider_public_key_signature = 3;
+    string data_provider_public_key_signature_algorithm_oid = 6;
 
     bytes encrypted_requisition_spec = 4;
     bytes nonce_hash = 5;
@@ -121,6 +122,7 @@ message Measurement {
     // Serialized `MeasurementSpec` from public API.
     bytes measurement_spec = 2;
     bytes measurement_spec_signature = 3;
+    string measurement_spec_signature_algorithm_oid = 9;
 
     // The protocol config used in this measurement.
     ProtocolConfig protocol_config = 6;
@@ -249,6 +251,7 @@ message Requisition {
     // Serialized `EncryptionPublicKey` message from the public API.
     bytes data_provider_public_key = 1;
     bytes data_provider_public_key_signature = 2;
+    string data_provider_public_key_signature_algorithm_oid = 8;
 
     bytes encrypted_requisition_spec = 3;
     bytes nonce_hash = 4;
@@ -259,18 +262,15 @@ message Requisition {
     // Refusal information. Set when Requisition state is REFUSED.
     Refusal refusal = 6;
 
-    // Encrypted `SignedData`containing the data for a direct and volumetric
-    // measurement. Set when `Requisition` state is FULFILLED and the
-    // `measurement_spec` `measurement_type` of the Parent
-    // `Measurement` is Impression or Duration.
+    // Encrypted SignedData containing the Measurement.Result for this
+    // Requisition. Set when Requisition state is FULFILLED and the protocol is
+    // Direct.
     bytes encrypted_data = 7;
 
-    // Used to verify Measurement.Result. If not present,
-    // `data_provider_certificate` should be used.
-    message ResultCertificate {
-      fixed64 data_provider_certificate_id = 1;
-    }
-    ResultCertificate certificate = 8;
+    // Used to verify decrypt Measurement.Result. If not present,
+    // `data_provider_certificate` should be used. Set when Requisition
+    // state is FULFILLED and the protocol is Direct.
+    fixed64 external_certificate_id = 9;
   }
   Details details = 10;
 
@@ -287,6 +287,7 @@ message Requisition {
     // Serialized `MeasurementSpec` from public API.
     bytes measurement_spec = 3;
     bytes measurement_spec_signature = 4;
+    string measurement_spec_signature_algorithm_oid = 8;
 
     // The protocol config used in this measurement.
     ProtocolConfig protocol_config = 5;
