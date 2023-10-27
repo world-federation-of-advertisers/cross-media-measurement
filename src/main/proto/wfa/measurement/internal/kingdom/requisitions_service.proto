@@ -90,7 +90,6 @@ message FulfillRequisitionRequest {
     ComputedRequisitionParams computed_params = 3;
     DirectRequisitionParams direct_params = 4;
   }
-
 }
 
 message RefuseRequisitionRequest {
