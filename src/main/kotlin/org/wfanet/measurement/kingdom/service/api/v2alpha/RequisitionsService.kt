@@ -224,8 +224,10 @@ class RequisitionsService(
       directParams = directRequisitionParams {
         externalDataProviderId = apiIdToExternalId(key.dataProviderId)
         encryptedData = request.encryptedData
-        val dataProviderCertificateKey = DataProviderCertificateKey.fromName(request.certificate)!!
-        externalCertificateId = apiIdToExternalId(dataProviderCertificateKey.certificateId)
+        val dataProviderCertificateKey = DataProviderCertificateKey.fromName(request.certificate)
+        if (dataProviderCertificateKey !== null) {
+          externalCertificateId = apiIdToExternalId(dataProviderCertificateKey.certificateId)
+        }
       }
     }
     try {

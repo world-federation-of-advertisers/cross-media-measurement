@@ -35,6 +35,7 @@ import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Certificate
+import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
@@ -64,8 +65,6 @@ import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
-import javax.xml.crypto.Data
-import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
 import org.wfanet.measurement.loadtest.common.ConsoleOutput
@@ -412,15 +411,18 @@ class ResourceSetup(
           }
         )
       } catch (e: StatusException) {
-        throw Exception("Error creating certificate for Data Provider ${dataProviderCert.externalDataProviderId}", e)
+        throw Exception(
+          "Error creating certificate for Data Provider ${dataProviderCert.externalDataProviderId}",
+          e
+        )
       }
 
     return certificate {
       name =
         DataProviderCertificateKey(
-          externalIdToApiId(internalCertificate.externalDataProviderId),
-          externalIdToApiId(internalCertificate.externalCertificateId)
-        )
+            externalIdToApiId(internalCertificate.externalDataProviderId),
+            externalIdToApiId(internalCertificate.externalCertificateId)
+          )
           .toName()
       x509Der = internalCertificate.details.x509Der
     }

@@ -121,7 +121,11 @@ class InProcessEdpSimulator(
 
   /** Builds a [EdpData] object for the Edp with a certain [displayName] and [resourceName]. */
   @Blocking
-  private fun createEdpData(displayName: String, resourceName: String, certificateResourceName: String) =
+  private fun createEdpData(
+    displayName: String,
+    resourceName: String,
+    certificateResourceName: String
+  ) =
     EdpData(
       name = resourceName,
       displayName = displayName,

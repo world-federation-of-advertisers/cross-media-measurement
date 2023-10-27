@@ -2045,11 +2045,13 @@ class MeasurementsServiceTest {
       results += resultInfo {
         externalDataProviderId =
           apiIdToExternalId(
-            DataProviderCertificateKey.fromName(DATA_PROVIDERS_RESULT_CERTIFICATE_NAME)!!.dataProviderId
+            DataProviderCertificateKey.fromName(DATA_PROVIDERS_RESULT_CERTIFICATE_NAME)!!
+              .dataProviderId
           )
         externalCertificateId =
           apiIdToExternalId(
-            DataProviderCertificateKey.fromName(DATA_PROVIDERS_RESULT_CERTIFICATE_NAME)!!.certificateId
+            DataProviderCertificateKey.fromName(DATA_PROVIDERS_RESULT_CERTIFICATE_NAME)!!
+              .certificateId
           )
         encryptedResult = ENCRYPTED_DATA
       }

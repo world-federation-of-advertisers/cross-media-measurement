@@ -24,7 +24,7 @@ import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
-import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
@@ -137,11 +137,19 @@ class InProcessCmmsComponents(
     edpDisplayNameToResourceNameMap =
       ALL_EDP_DISPLAY_NAMES.associateWith {
         val edp = createEntityContent(it)
-        Pair(
-          resourceSetup.createInternalDataProvider(edp),
+        val dataProviderName = resourceSetup.createInternalDataProvider(edp)
+        val certificateName =
           resourceSetup
-            .createDataProviderCertificate(DataProviderCert(apiIdToExternalId(it), loadTestCertDerFile("${it}_cs_cert.der")))
+            .createDataProviderCertificate(
+              DataProviderCert(
+                apiIdToExternalId(DataProviderKey.fromName(dataProviderName)!!.dataProviderId),
+                loadTestCertDerFile("${it}_cs_cert.der")
+              )
+            )
             .name
+        Pair(
+          dataProviderName,
+          certificateName,
         )
       }
     // Create all duchy certificates.

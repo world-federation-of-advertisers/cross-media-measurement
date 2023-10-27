@@ -118,7 +118,6 @@ private const val MEASUREMENT_NAME = "$MEASUREMENT_CONSUMER_NAME/measurements/AA
 
 private val DATA_PROVIDER_NAME = makeDataProvider(123L)
 private val DATA_PROVIDER_CERTIFICATE_NAME = "$DATA_PROVIDER_NAME/certificates/AAAAAAAAAAY"
-private val DATA_PROVIDER_RESULT_CERTIFICATE_NAME = "$DATA_PROVIDER_NAME/certificates/BBBBBBBBBHs"
 private val DATA_PROVIDER_NAME_2 = makeDataProvider(124L)
 
 private val REQUISITION_NAME = "$DATA_PROVIDER_NAME/requisitions/AAAAAAAAAHs"
@@ -130,8 +129,10 @@ private val EXTERNAL_REQUISITION_ID =
   apiIdToExternalId(CanonicalRequisitionKey.fromName(REQUISITION_NAME)!!.requisitionId)
 private val EXTERNAL_DATA_PROVIDER_ID =
   apiIdToExternalId(CanonicalRequisitionKey.fromName(REQUISITION_NAME)!!.dataProviderId)
-private val EXTERNAL_DATA_PROVIDER_CERTIFCATE_ID =
-  apiIdToExternalId(DataProviderCertificateKey.fromName(DATA_PROVIDER_CERTIFICATE_NAME)!!.certificateId)
+private val EXTERNAL_DATA_PROVIDER_CERTIFICATE_ID =
+  apiIdToExternalId(
+    DataProviderCertificateKey.fromName(DATA_PROVIDER_CERTIFICATE_NAME)!!.certificateId
+  )
 private val EXTERNAL_MEASUREMENT_ID =
   apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementId)
 private val EXTERNAL_MEASUREMENT_CONSUMER_ID =
@@ -706,7 +707,7 @@ class RequisitionsServiceTest {
         name = REQUISITION_NAME
         encryptedData = REQUISITION_ENCRYPTED_DATA
         nonce = NONCE
-        certificate = DATA_PROVIDER_RESULT_CERTIFICATE_NAME
+        certificate = DATA_PROVIDER_CERTIFICATE_NAME
       }
 
       val result =
@@ -715,7 +716,9 @@ class RequisitionsServiceTest {
         }
 
       val expected = fulfillDirectRequisitionResponse { state = State.FULFILLED }
-
+      print("*******\n\n")
+      print("aa = $DATA_PROVIDER_CERTIFICATE_NAME\n")
+      print("a = $EXTERNAL_DATA_PROVIDER_CERTIFICATE_ID\n")
       verifyProtoArgument(
           internalRequisitionMock,
           RequisitionsCoroutineImplBase::fulfillRequisition
@@ -728,7 +731,7 @@ class RequisitionsServiceTest {
             directParams = directRequisitionParams {
               externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
               encryptedData = REQUISITION_ENCRYPTED_DATA
-              externalCertificateId = EXTERNAL_DATA_PROVIDER_CERTIFCATE_ID
+              externalCertificateId = EXTERNAL_DATA_PROVIDER_CERTIFICATE_ID
             }
           }
         )
@@ -758,7 +761,7 @@ class RequisitionsServiceTest {
         name = REQUISITION_NAME
         encryptedData = REQUISITION_ENCRYPTED_DATA
         nonce = NONCE
-        certificate = DATA_PROVIDER_RESULT_CERTIFICATE_NAME
+        certificate = DATA_PROVIDER_CERTIFICATE_NAME
       }
 
       val result =
@@ -780,7 +783,7 @@ class RequisitionsServiceTest {
             directParams = directRequisitionParams {
               externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
               encryptedData = REQUISITION_ENCRYPTED_DATA
-              externalCertificateId = EXTERNAL_DATA_PROVIDER_CERTIFCATE_ID
+              externalCertificateId = EXTERNAL_DATA_PROVIDER_CERTIFICATE_ID
             }
           }
         )
@@ -794,7 +797,7 @@ class RequisitionsServiceTest {
       // No name
       encryptedData = REQUISITION_ENCRYPTED_DATA
       nonce = NONCE
-      certificate = DATA_PROVIDER_RESULT_CERTIFICATE_NAME
+      certificate = DATA_PROVIDER_CERTIFICATE_NAME
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -812,7 +815,7 @@ class RequisitionsServiceTest {
         name = REQUISITION_NAME
         // No encrypted_data
         nonce = NONCE
-        certificate = DATA_PROVIDER_RESULT_CERTIFICATE_NAME
+        certificate = DATA_PROVIDER_CERTIFICATE_NAME
       }
       val exception =
         assertFailsWith<StatusRuntimeException> {
@@ -829,7 +832,7 @@ class RequisitionsServiceTest {
       name = INVALID_REQUISITION_NAME
       encryptedData = REQUISITION_ENCRYPTED_DATA
       nonce = NONCE
-      certificate = DATA_PROVIDER_RESULT_CERTIFICATE_NAME
+      certificate = DATA_PROVIDER_CERTIFICATE_NAME
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -845,7 +848,7 @@ class RequisitionsServiceTest {
     val request = fulfillDirectRequisitionRequest {
       name = REQUISITION_NAME
       encryptedData = REQUISITION_ENCRYPTED_DATA
-      certificate = DATA_PROVIDER_RESULT_CERTIFICATE_NAME
+      certificate = DATA_PROVIDER_CERTIFICATE_NAME
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
