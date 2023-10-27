@@ -29,27 +29,35 @@ free to use whichever you prefer.
 
 ## Before you start
 
-Deploy a Halo component. See the related guides (only Duchy supports AWS at the moment):
-[Create Duchy Cluster](duchy-deployment.md)
+Deploy a Halo component. See the related guides: [Create Duchy Cluster](duchy-deployment.md)
+
 
 ## Create a workspace in Amazon Managed Prometheus
 
-This can be done via the AWS Console under `Amazon Managed Service for Prometheus` portal,
-or using the [`aws` CLI](https://docs.aws.amazon.com/prometheus/latest/userguide/AMP-manage-ingest-query.html#AMP-create-workspace).
-For example:
-
-```shell
-aws amp create-workspace --alias halo-cmm-dev
-```
+Go to the [Amazon Managed Service for Prometheus](https://us-east-1.console.aws.amazon.com/prometheus/home?region=us-east-1#/)
+page, and using the `Create` button and follow the instructions to create a new workspace.
 
 Then retrieve the remote write URL endpoint of this workspace from the AWS web console which will be used in later
 steps. It will be a URL like `https://aps-workspaces.<region>.amazonaws.com/workspaces/<id>/api/v1/remote_write`
 
-## Service Accounts
+## Create a workspace in Amazon Managed Grafana
 
-Make sure that the least-privilege service account you created for the cluster
-has permissions to access the Cloud Monitoring API. See
-[Cluster Configuration](cluster-config.md#cluster-service-account).
+Go to the [Amazon Managed Service for Grafana](https://us-east-1.console.aws.amazon.com/grafana/home?region=us-east-1)
+page, and using the `Create` button and follow the instructions to create a new workspace.
+
+Once created, follow this [doc](https://docs.aws.amazon.com/prometheus/latest/userguide/AMP-onboard-amg.html) to
+set up Amazon Managed Grafana for use with Amazon Managed Service for Prometheus
+
+## Setup EKS cluster to send metric to AMP
+
+[AWS Distro for OpenTelemetry (ADOT)](https://aws-otel.github.io/) is a secure, production-ready, AWS-supported
+distribution of the OpenTelemetry project that can help publishing EKS cluster metrics to
+Amazon Managed Prometheus. Follow [Install ADOT](https://docs.aws.amazon.com/eks/latest/userguide/adot-manage.html#adot-install)
+doc to create:
+* the ADOT addon to the existing EKS cluster
+* a service account that allows ADOT addon to publish metrics to Amazon Managed Prometheus
+
+With ADOT addon, EKS cluster can publish metrics to AMP through the remote write url, see [open telemetry config](#opentelemetry-collectors-and-instrumentation)
 
 ## Create the K8s Object Configurations
 
@@ -63,16 +71,19 @@ You can customize the generated object configuration as-needed.
 ### OpenTelemetry Collectors and Instrumentation
 
 The default `dev` configuration for OpenTelemetry collection is in
-[`open_telemetry_gke.cue`](../../src/main/k8s/dev/open_telemetry_gke.cue), which
+[`open_telemetry_eks.cue`](../../src/main/k8s/dev/open_telemetry_eks.cue), which
 depends on [`open_telemetry.cue`](../../src/main/k8s/open_telemetry.cue).
 
-The default build target is `//src/main/k8s/dev:open_telemetry_gke`.
+The default build target is `//src/main/k8s/dev:open_telemetry_eks`.
 
-### Prometheus Monitoring
-
-The `dev` configuration is in
-[`prometheus_gke.cue`](../../src/main/k8s/dev/prometheus_gke.cue). The build
-target is `//src/main/k8s/dev:prometheus_gke`.
+The generated `OpenTelemetryCollector` should have `prometheusremotewrite` exporter similar to:
+```yaml
+        exporters:
+          prometheusremotewrite:
+            endpoint: https://aps-workspaces.us-west-2.amazonaws.com/workspaces/ws-65b9edc1-dda8-4037-8464-01eebe0e7651/api/v1/remote_write
+            auth:
+              authenticator: sigv4auth
+```
 
 ## Apply the K8s Object Configurations
 
@@ -109,16 +120,10 @@ instrumentation.
 for deployment in $(kubectl get deployments -o name); do kubectl rollout restart $deployment; done
 ```
 
-## Verify Managed Prometheus can Scrape Metrics
+## View metrics in Amazon Managed Grafana
 
-Visit the
-[Managed Prometheus](https://console.cloud.google.com/monitoring/prometheus)
-page in Cloud Console. Query `up` and `scrape_samples_scraped`.
-
-The first one tells you which targets it can find and whether they are up, and
-the latter is a good way to check that scraping is occurring. If it hasn't been
-long enough, the latter might show all 0's, but after a couple of minutes you
-should be seeing results for every target that is up.
+Once the setup is done, you should be able to view the metrics in Amazon Managed Grafana like:
+![grafana](grafana.png)
 
 ## Adding Additional Metrics
 

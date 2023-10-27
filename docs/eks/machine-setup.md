@@ -16,6 +16,7 @@ Ensure the following additional software is installed on your machine.
 
 *   [Kubectl](https://kubernetes.io/docs/tasks/tools/)
 *   [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
+*   [EKS CLI](https://eksctl.io/)
 *   [Terraform](https://developer.hashicorp.com/terraform/downloads)
 
 If you are doing a EKS deployment, it is assumed that you have some familiarity

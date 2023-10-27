@@ -132,13 +132,17 @@ To generate the `dev` Kustomization, run the following (substituting your own
 values):
 
 ```shell
-bazel build //src/main/k8s/dev:worker2_duchy.tar \
-  --define kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
-  --define google_cloud_project=halo-kingdom-demo \
-  --define spanner_instance=halo-cmms \
-  --define duchy_cert_id=SVVse4xWHL0 \
-  --define duchy_storage_bucket=worker2-duchy \
+bazel build //src/main/k8s/dev:worker2_duchy_aws.tar \
+  --define kingdom_system_api_target=v1alpha.system.kingdom.dev.halo-cmm.org:8443 \
+  --define s3_bucket=halo-cmm-dev-bucket \
+  --define s3_region=us-west-2 \
+  --define duchy_cert_id=Yq3IyKAQ5Qc \
   --define container_registry=ghcr.io \
+  --define postgres_host=dev-postgres.c7lbzsffeehq.us-west-2.rds.amazonaws.com \
+  --define postgres_port=5432 \
+  --define postgres_region=us-west-2 \
+  --define postgres_credential_secret_name="rds\!db-b4bebc1a-b72d-4d6f-96d4-d3cde3c6af91" \
+  --define computation_control_server_eips="eipalloc-09d7a0f47a1701600,eipalloc-05874583414024ddf" \
   --define image_repo_prefix=world-federation-of-advertisers \
   --define image_tag=0.3.0
 ```
@@ -244,10 +248,10 @@ this file format.
 Use `kubectl` to apply the Kustomization. From the Kustomization directory run:
 
 ```shell
-kubectl apply -k src/main/k8s/dev/worker2_duchy
+kubectl apply -k src/main/k8s/dev/worker2_duchy_aws
 ```
 
-Now all Duchy components should be successfully deployed to your GKE cluster.
+Now all Duchy components should be successfully deployed to your EKS cluster.
 You can verify by running
 
 ```shell
@@ -273,12 +277,12 @@ worker2-spanner-computations-server-deployment      1/1   1          1         1
 ```
 
 ```
-NAME                                     TYPE         CLUSTER-IP     EXTERNAL-IP    PORT(S)        AGE
-worker2-async-computation-control-server ClusterIP    10.123.249.255 <none>         8443/TCP       1m
-worker2-computation-control-server       LoadBalancer 10.123.250.81  34.134.198.198 8443:31962/TCP 1m
-worker2-requisition-fulfillment-server   LoadBalancer 10.123.247.78  35.202.201.111 8443:30684/TCP 1m
-worker2-spanner-computations-server      ClusterIP    10.123.244.10  <none>         8443/TCP       1m
-kubernetes                               ClusterIP    10.123.240.1   <none>         443/TCP        1m
+NAME                                       TYPE           CLUSTER-IP       EXTERNAL-IP                                                                    PORT(S)          AGE
+kubernetes                                 ClusterIP      172.20.0.1       <none>                                                                         443/TCP          27d
+worker2-async-computation-control-server   ClusterIP      172.20.140.121   <none>                                                                         8443/TCP         27d
+worker2-computation-control-server         LoadBalancer   172.20.149.9     k8s-default-worker2c-654c985a4d-a42255de14c5da74.elb.us-west-2.amazonaws.com   8443:31123/TCP   27d
+worker2-internal-api-server                ClusterIP      172.20.16.155    <none>                                                                         8443/TCP         27d
+worker2-requisition-fulfillment-server     LoadBalancer   172.20.131.74    k8s-default-worker2r-c107e4a034-81f68e7731e3ee0b.elb.us-west-2.amazonaws.com   8443:32751/TCP   27d
 ```
 
 ## Make the Duchy accessible outside the cluster
@@ -291,7 +295,7 @@ the EDPs to fulfill their requisitions. The `worker2-computation-control-server`
 (a.k.a. the system API) is called by the other duchies to send computation
 related data. As you can see from the result in the previous step. Only these
 two services have external IPs. However, these external IPs are ephemeral. We
-need to reserve them such that they are stable.
+need to create a reserved elastic IP and attach them to the service.
 
 For example, in the halo dev instance, we have subdomains:
 
@@ -301,7 +305,56 @@ For example, in the halo dev instance, we have subdomains:
 The domains/subdomains are what the EDPs and other duchies use to communicate
 with the duchy.
 
-See [Reserving External IPs](cluster-config.md#reserving-external-ips)
 
-## [Q/A](../gke/duchy-deployment.md#Q/A)
+Creating an [AWS elastic IP](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/elastic-ip-addresses-eip.html)
+could be done through either aws web console or using
+`aws` cli tool.
+
+For example
+```shell
+aws ec2 allocate-address
+```
+
+The result will be something like
+```json
+{
+  "PublicIp": "70.224.234.241",
+  "AllocationId": "eipalloc-01435ba59eEXAMPLE",
+  "PublicIpv4Pool": "amazon",
+  "NetworkBorderGroup": "us-west-2",
+  "Domain": "vpc"
+}
+```
+
+With [AWS Load Balancer Controller Addon](https://docs.aws.amazon.com/eks/latest/userguide/aws-load-balancer-controller.html)
+the created elastic IP could be attached to the load balancer service through annotations similar to:
+```yaml
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: worker2-computation-control-server
+      annotations:
+        service.beta.kubernetes.io/aws-load-balancer-type: nlb
+        service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+        service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+        service.beta.kubernetes.io/aws-load-balancer-eip-allocations: eipalloc-09d7a0f47a1701600,eipalloc-05874583414024ddf
+        kubernetes.io/ingress.allow-http: "false"
+```
+
+## Q/A
+
+### Q1. How to generate certificates/key pairs?
+
+Refer to the [GKE answer](../gke/duchy-deployment.md#q1-how-to-generate-certificateskey-pairs)
+
+### Q2. What if the secret or configuration files need to be updated?
+
+Modify the Kustomization directory and re-apply it.
+
+### Q3. How to test if the Duchy is working properly?
+
+Since only Duchy can be run in AWS, all other resources for correctness test still has to be
+created in GKE.
+The same ["How to complete multi-cluster correctnessTest on GKE"](../gke/correctness-test.md)
+doc could still be used to complete a correctness test using the duchy you have deployed to AWS.
 
