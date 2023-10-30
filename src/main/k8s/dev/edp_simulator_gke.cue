@@ -38,6 +38,7 @@ _edpConfigs: [
 
 		resourceName: name
 		displayName:  "edp\(Number)"
+		publisherId:  Number
 	},
 ]
 
