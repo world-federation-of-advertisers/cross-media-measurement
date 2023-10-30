@@ -77,7 +77,6 @@ fun SystemComputation.toMeasurementType(): MeasurementType {
         MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> error("Measurement type not set.")
       }
     }
-    Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
   }
 }
 
@@ -96,7 +95,6 @@ fun SystemComputation.toKingdomComputationDetails(): KingdomComputationDetails {
             Version.fromString(source.publicApiVersion)
           )
       }
-      Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
     }
   }
 }
@@ -118,7 +116,6 @@ val SystemComputation.key: ComputationKey
 fun ByteString.toDuchyEncryptionPublicKey(publicApiVersion: Version): EncryptionPublicKey {
   return when (publicApiVersion) {
     Version.V2_ALPHA -> V2AlphaEncryptionPublicKey.parseFrom(this).toDuchyEncryptionPublicKey()
-    Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
   }
 }
 
@@ -128,7 +125,6 @@ fun ByteString.toDuchyEncryptionPublicKey(publicApiVersion: Version): Encryption
 fun ByteString.toDuchyElGamalPublicKey(publicApiVersion: Version): ElGamalPublicKey {
   return when (publicApiVersion) {
     Version.V2_ALPHA -> V2AlphaElGamalPublicKey.parseFrom(this).toDuchyElGamalPublicKey()
-    Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
   }
 }
 

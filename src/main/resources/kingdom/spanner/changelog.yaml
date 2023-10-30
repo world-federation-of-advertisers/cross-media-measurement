@@ -57,3 +57,6 @@ databaseChangeLog:
 - include:
     file: create-population-schema.sql
     relativeToChangeLogFile: true
+- include:
+    file: add-result-api-version.sql
+    relativeToChangeLogFile: true

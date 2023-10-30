@@ -937,7 +937,7 @@ class MetricsService(
 
       val decryptedMeasurementResults: List<Measurement.Result> =
         measurement.resultsList.map {
-          decryptMeasurementResultPair(it, encryptionPrivateKeyHandle, apiAuthenticationKey)
+          decryptMeasurementResultOutput(it, encryptionPrivateKeyHandle, apiAuthenticationKey)
         }
 
       return measurementResult {
@@ -961,9 +961,9 @@ class MetricsService(
       }
     }
 
-    /** Decrypts a [Measurement.ResultPair] to [Measurement.Result] */
-    private suspend fun decryptMeasurementResultPair(
-      measurementResultPair: Measurement.ResultPair,
+    /** Decrypts a [Measurement.ResultOutput] to [Measurement.Result] */
+    private suspend fun decryptMeasurementResultOutput(
+      measurementResultOutput: Measurement.ResultOutput,
       encryptionPrivateKeyHandle: PrivateKeyHandle,
       apiAuthenticationKey: String,
     ): Measurement.Result {
@@ -972,15 +972,17 @@ class MetricsService(
         try {
           certificatesStub
             .withAuthenticationKey(apiAuthenticationKey)
-            .getCertificate(getCertificateRequest { name = measurementResultPair.certificate })
+            .getCertificate(getCertificateRequest { name = measurementResultOutput.certificate })
         } catch (e: StatusException) {
           throw when (e.status.code) {
               Status.Code.NOT_FOUND ->
-                Status.NOT_FOUND.withDescription("${measurementResultPair.certificate} not found.")
+                Status.NOT_FOUND.withDescription(
+                  "${measurementResultOutput.certificate} not found."
+                )
               else ->
                 Status.UNKNOWN.withDescription(
                   "Unable to retrieve the certificate " +
-                    "[${measurementResultPair.certificate}] for the measurement consumer."
+                    "[${measurementResultOutput.certificate}] for the measurement consumer."
                 )
             }
             .withCause(e)
@@ -988,7 +990,7 @@ class MetricsService(
         }
 
       val signedResult =
-        decryptResult(measurementResultPair.encryptedResult, encryptionPrivateKeyHandle)
+        decryptResult(measurementResultOutput.encryptedResult, encryptionPrivateKeyHandle)
 
       val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
       val trustedIssuer: X509Certificate =

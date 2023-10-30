@@ -190,7 +190,6 @@ class ReachOnlyLiquidLegionsV2Mill(
             rollv2ComputationDetails.localElgamalKey.publicKey.toV2AlphaElGamalPublicKey(),
             signingKey
           )
-        Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
       }
 
     val request = setParticipantRequisitionParamsRequest {
