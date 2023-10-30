@@ -40,7 +40,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
-import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultOutput
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLine.Type
@@ -809,9 +809,6 @@ fun ModelShard.toInternal(
 /** Converts an internal [InternalMeasurement] to a public [Measurement]. */
 fun InternalMeasurement.toMeasurement(): Measurement {
   val source = this
-  check(Version.fromString(source.details.apiVersion) == Version.V2_ALPHA) {
-    "Incompatible API version ${source.details.apiVersion}"
-  }
   return measurement {
     name =
       MeasurementKey(
@@ -819,6 +816,7 @@ fun InternalMeasurement.toMeasurement(): Measurement {
           externalIdToApiId(source.externalMeasurementId)
         )
         .toName()
+    apiVersion = source.details.apiVersion
     measurementConsumerCertificate =
       MeasurementConsumerCertificateKey(
           externalIdToApiId(source.externalMeasurementConsumerId),
@@ -846,19 +844,23 @@ fun InternalMeasurement.toMeasurement(): Measurement {
     results +=
       source.resultsList.map {
         val certificateApiId = externalIdToApiId(it.externalCertificateId)
-        resultPair {
-          if (it.externalAggregatorDuchyId.isNotBlank()) {
-            certificate =
-              DuchyCertificateKey(it.externalAggregatorDuchyId, certificateApiId).toName()
-          } else if (it.externalDataProviderId != 0L) {
-            certificate =
-              DataProviderCertificateKey(
-                  externalIdToApiId(it.externalDataProviderId),
-                  certificateApiId
-                )
-                .toName()
-          }
+        resultOutput {
+          @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf oneof case fields cannot be null.
+          certificate =
+            when (it.certificateParentCase) {
+              InternalMeasurement.ResultInfo.CertificateParentCase.EXTERNAL_AGGREGATOR_DUCHY_ID ->
+                DuchyCertificateKey(it.externalAggregatorDuchyId, certificateApiId).toName()
+              InternalMeasurement.ResultInfo.CertificateParentCase.EXTERNAL_DATA_PROVIDER_ID ->
+                DataProviderCertificateKey(
+                    externalIdToApiId(it.externalDataProviderId),
+                    certificateApiId
+                  )
+                  .toName()
+              InternalMeasurement.ResultInfo.CertificateParentCase.CERTIFICATEPARENT_NOT_SET ->
+                error("certificate_parent not set")
+            }
           encryptedResult = it.encryptedResult
+          this.apiVersion = it.apiVersion
         }
       }
     measurementReferenceId = source.providedMeasurementId
@@ -1086,6 +1088,7 @@ fun InternalExchangeStep.toExchangeStep(): ExchangeStep {
     }
 
     state = source.state.toState()
+    apiVersion = source.apiVersion
     serializedExchangeWorkflow = source.serializedExchangeWorkflow
   }
 }

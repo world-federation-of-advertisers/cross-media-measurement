@@ -233,21 +233,19 @@ class MeasurementConsumersService(
 }
 
 private fun InternalMeasurementConsumer.toMeasurementConsumer(): MeasurementConsumer {
-  check(Version.fromString(details.apiVersion) == API_VERSION) {
-    "Incompatible API version ${details.apiVersion}"
-  }
-  val internalMeasurementConsumer = this
   val measurementConsumerId: String = externalIdToApiId(externalMeasurementConsumerId)
   val certificateId: String = externalIdToApiId(certificate.externalCertificateId)
 
+  val source = this
   return measurementConsumer {
     name = MeasurementConsumerKey(measurementConsumerId).toName()
     certificate = MeasurementConsumerCertificateKey(measurementConsumerId, certificateId).toName()
-    certificateDer = internalMeasurementConsumer.certificate.details.x509Der
+    certificateDer = source.certificate.details.x509Der
     publicKey = signedData {
-      data = internalMeasurementConsumer.details.publicKey
-      signature = internalMeasurementConsumer.details.publicKeySignature
-      signatureAlgorithmOid = internalMeasurementConsumer.details.publicKeySignatureAlgorithmOid
+      data = source.details.publicKey
+      signature = source.details.publicKeySignature
+      signatureAlgorithmOid = source.details.publicKeySignatureAlgorithmOid
     }
+    publicKeyApiVersion = source.details.apiVersion
   }
 }

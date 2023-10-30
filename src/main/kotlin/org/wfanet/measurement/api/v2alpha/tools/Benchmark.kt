@@ -267,10 +267,10 @@ private fun getEventDataProviderEntry(
 }
 
 private fun getMeasurementResult(
-  resultPair: Measurement.ResultPair,
+  resultOutput: Measurement.ResultOutput,
   privateKeyHandle: PrivateKeyHandle
 ): Measurement.Result {
-  val signedResult = decryptResult(resultPair.encryptedResult, privateKeyHandle)
+  val signedResult = decryptResult(resultOutput.encryptedResult, privateKeyHandle)
   return Measurement.Result.parseFrom(signedResult.data)
 }
 
