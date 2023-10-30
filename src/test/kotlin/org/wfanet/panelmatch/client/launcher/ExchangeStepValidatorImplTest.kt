@@ -31,6 +31,7 @@ import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.panelmatch.client.launcher.InvalidExchangeStepException.FailureType.PERMANENT
 import org.wfanet.panelmatch.client.launcher.InvalidExchangeStepException.FailureType.TRANSIENT
@@ -56,18 +57,18 @@ private val EXCHANGE_WORKFLOW = exchangeWorkflow {
   steps += step { party = DATA_PROVIDER }
 }
 
-private val SERIALIZED_EXCHANGE_WORKFLOW = EXCHANGE_WORKFLOW.toByteString()
+private val PACKED_EXCHANGE_WORKFLOW = EXCHANGE_WORKFLOW.pack()
 
 private val VALID_EXCHANGE_WORKFLOWS =
   TestSecretMap(
-    RECURRING_EXCHANGE_ID to SERIALIZED_EXCHANGE_WORKFLOW,
+    RECURRING_EXCHANGE_ID to PACKED_EXCHANGE_WORKFLOW.value,
     OTHER_RECURRING_EXCHANGE_ID to ByteString.EMPTY
   )
 
 private val EXCHANGE_STEP = exchangeStep {
   name = CanonicalExchangeStepKey(RECURRING_EXCHANGE_ID, EXCHANGE_ID, EXCHANGE_STEP_ID).toName()
   stepIndex = 1
-  serializedExchangeWorkflow = SERIALIZED_EXCHANGE_WORKFLOW
+  exchangeWorkflow = PACKED_EXCHANGE_WORKFLOW
   exchangeDate = TODAY.toProtoDate()
 }
 
@@ -110,8 +111,7 @@ class ExchangeStepValidatorImplTest {
   fun differentExchangeWorkflow() {
     val wrongExchangeWorkflow =
       EXCHANGE_WORKFLOW.copy { firstExchangeDate = FIRST_EXCHANGE_DATE.minusDays(1).toProtoDate() }
-    val wrongExchangeStep =
-      EXCHANGE_STEP.copy { serializedExchangeWorkflow = wrongExchangeWorkflow.toByteString() }
+    val wrongExchangeStep = EXCHANGE_STEP.copy { exchangeWorkflow = wrongExchangeWorkflow.pack() }
     assertValidationFailsPermanently(wrongExchangeStep)
   }
 

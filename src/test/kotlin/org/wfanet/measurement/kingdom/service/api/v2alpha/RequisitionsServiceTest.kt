@@ -18,6 +18,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import com.google.protobuf.kotlin.toByteStringUtf8
@@ -56,8 +57,12 @@ import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.liquidLegio
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
+import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.elGamalPublicKey
+import org.wfanet.measurement.api.v2alpha.encryptedMessage
+import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.listRequisitionsPageToken
@@ -67,16 +72,19 @@ import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.requisition
-import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.api.v2alpha.setMessage
+import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
@@ -89,9 +97,6 @@ import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisitio
 import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
 import org.wfanet.measurement.internal.kingdom.Requisition.State as InternalState
 import org.wfanet.measurement.internal.kingdom.RequisitionKt as InternalRequisitionKt
-import org.wfanet.measurement.internal.kingdom.RequisitionKt.details
-import org.wfanet.measurement.internal.kingdom.RequisitionKt.duchyValue
-import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
@@ -135,7 +140,10 @@ private val EXTERNAL_MEASUREMENT_CONSUMER_ID =
     MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
   )
 
-private val REQUISITION_ENCRYPTED_DATA = "foo".toByteStringUtf8()
+private val ENCRYPTED_RESULT = encryptedMessage {
+  ciphertext = "foo".toByteStringUtf8()
+  typeUrl = ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
+}
 private const val NONCE = -7452112597811743614 // Hex: 9894C7134537B482
 
 private val VISIBLE_REQUISITION_STATES: Set<InternalRequisition.State> =
@@ -152,12 +160,13 @@ class RequisitionsServiceTest {
       .thenReturn(
         INTERNAL_REQUISITION.copy {
           state = InternalState.REFUSED
-          details = details {
-            refusal =
-              InternalRequisitionKt.refusal {
-                justification = InternalRefusal.Justification.UNFULFILLABLE
-              }
-          }
+          details =
+            InternalRequisitionKt.details {
+              refusal =
+                InternalRequisitionKt.refusal {
+                  justification = InternalRefusal.Justification.UNFULFILLABLE
+                }
+            }
         }
       )
   }
@@ -188,10 +197,9 @@ class RequisitionsServiceTest {
       requisitions += REQUISITION
     }
 
-    val streamRequisitionRequest =
-      captureFirst<StreamRequisitionsRequest> {
-        verify(internalRequisitionMock).streamRequisitions(capture())
-      }
+    val streamRequisitionRequest: StreamRequisitionsRequest = captureFirst {
+      verify(internalRequisitionMock).streamRequisitions(capture())
+    }
 
     assertThat(streamRequisitionRequest)
       .ignoringRepeatedFieldOrder()
@@ -247,10 +255,9 @@ class RequisitionsServiceTest {
       requisitions += requisition
     }
 
-    val streamRequisitionRequest =
-      captureFirst<StreamRequisitionsRequest> {
-        verify(internalRequisitionMock).streamRequisitions(capture())
-      }
+    val streamRequisitionRequest: StreamRequisitionsRequest = captureFirst {
+      verify(internalRequisitionMock).streamRequisitions(capture())
+    }
 
     assertThat(streamRequisitionRequest)
       .ignoringRepeatedFieldOrder()
@@ -309,10 +316,9 @@ class RequisitionsServiceTest {
           runBlocking { service.listRequisitions(request) }
         }
 
-      val streamRequisitionRequest =
-        captureFirst<StreamRequisitionsRequest> {
-          verify(internalRequisitionMock).streamRequisitions(capture())
-        }
+      val streamRequisitionRequest: StreamRequisitionsRequest = captureFirst {
+        verify(internalRequisitionMock).streamRequisitions(capture())
+      }
       assertThat(streamRequisitionRequest)
         .ignoringRepeatedFieldOrder()
         .isEqualTo(
@@ -602,12 +608,13 @@ class RequisitionsServiceTest {
       .thenReturn(
         INTERNAL_REQUISITION.copy {
           state = InternalState.REFUSED
-          details = details {
-            refusal =
-              InternalRequisitionKt.refusal {
-                justification = InternalRefusal.Justification.UNFULFILLABLE
-              }
-          }
+          details =
+            details.copy {
+              refusal =
+                InternalRequisitionKt.refusal {
+                  justification = InternalRefusal.Justification.UNFULFILLABLE
+                }
+            }
         }
       )
 
@@ -648,12 +655,13 @@ class RequisitionsServiceTest {
         .thenReturn(
           INTERNAL_REQUISITION.copy {
             state = InternalState.REFUSED
-            details = details {
-              refusal =
-                InternalRequisitionKt.refusal {
-                  justification = InternalRefusal.Justification.UNFULFILLABLE
-                }
-            }
+            details =
+              details.copy {
+                refusal =
+                  InternalRequisitionKt.refusal {
+                    justification = InternalRefusal.Justification.UNFULFILLABLE
+                  }
+              }
           }
         )
 
@@ -694,13 +702,13 @@ class RequisitionsServiceTest {
         .thenReturn(
           INTERNAL_REQUISITION.copy {
             state = InternalState.FULFILLED
-            details = details { encryptedData = REQUISITION_ENCRYPTED_DATA }
+            details = details.copy { encryptedData = ENCRYPTED_RESULT.ciphertext }
           }
         )
 
       val request = fulfillDirectRequisitionRequest {
         name = REQUISITION_NAME
-        encryptedData = REQUISITION_ENCRYPTED_DATA
+        encryptedResult = ENCRYPTED_RESULT
         nonce = NONCE
       }
 
@@ -722,7 +730,7 @@ class RequisitionsServiceTest {
             nonce = NONCE
             directParams = directRequisitionParams {
               externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-              encryptedData = REQUISITION_ENCRYPTED_DATA
+              encryptedData = ENCRYPTED_RESULT.ciphertext
               apiVersion = Version.V2_ALPHA.string
             }
           }
@@ -738,7 +746,7 @@ class RequisitionsServiceTest {
         .thenReturn(
           INTERNAL_REQUISITION.copy {
             state = InternalState.FULFILLED
-            details = details { encryptedData = REQUISITION_ENCRYPTED_DATA }
+            details = details.copy { encryptedData = ENCRYPTED_RESULT.ciphertext }
             parentMeasurement =
               parentMeasurement.copy {
                 protocolConfig = internalProtocolConfig {
@@ -751,7 +759,7 @@ class RequisitionsServiceTest {
 
       val request = fulfillDirectRequisitionRequest {
         name = REQUISITION_NAME
-        encryptedData = REQUISITION_ENCRYPTED_DATA
+        encryptedResult = ENCRYPTED_RESULT
         nonce = NONCE
       }
 
@@ -773,7 +781,7 @@ class RequisitionsServiceTest {
             nonce = NONCE
             directParams = directRequisitionParams {
               externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-              encryptedData = REQUISITION_ENCRYPTED_DATA
+              encryptedData = ENCRYPTED_RESULT.ciphertext
               apiVersion = Version.V2_ALPHA.string
             }
           }
@@ -786,7 +794,7 @@ class RequisitionsServiceTest {
   fun `fulfillDirectRequisition throw INVALID_ARGUMENT when name is unspecified`() = runBlocking {
     val request = fulfillDirectRequisitionRequest {
       // No name
-      encryptedData = REQUISITION_ENCRYPTED_DATA
+      encryptedResult = ENCRYPTED_RESULT
       nonce = NONCE
     }
     val exception =
@@ -819,7 +827,7 @@ class RequisitionsServiceTest {
   fun `fulfillDirectRequisition throw INVALID_ARGUMENT when name is invalid`() = runBlocking {
     val request = fulfillDirectRequisitionRequest {
       name = INVALID_REQUISITION_NAME
-      encryptedData = REQUISITION_ENCRYPTED_DATA
+      encryptedResult = ENCRYPTED_RESULT
       nonce = NONCE
     }
     val exception =
@@ -835,7 +843,7 @@ class RequisitionsServiceTest {
   fun `fulfillDirectRequisition throw INVALID_ARGUMENT when nonce is missing`() = runBlocking {
     val request = fulfillDirectRequisitionRequest {
       name = REQUISITION_NAME
-      encryptedData = REQUISITION_ENCRYPTED_DATA
+      encryptedResult = ENCRYPTED_RESULT
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -850,7 +858,7 @@ class RequisitionsServiceTest {
   fun `fulfillDirectRequisition throw PERMISSION_DENIED when EDP doesn't match`() = runBlocking {
     val request = fulfillDirectRequisitionRequest {
       name = REQUISITION_NAME
-      encryptedData = REQUISITION_ENCRYPTED_DATA
+      encryptedResult = ENCRYPTED_RESULT
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -863,7 +871,7 @@ class RequisitionsServiceTest {
 
   companion object {
     private val MEASUREMENT_SPEC = measurementSpec {
-      measurementPublicKey = UPDATE_TIME.toByteString()
+      measurementPublicKey = encryptionPublicKey { data = UPDATE_TIME.toByteString() }.pack()
       reachAndFrequency =
         MeasurementSpecKt.reachAndFrequency {
           reachPrivacyParams = differentialPrivacyParams {
@@ -877,6 +885,24 @@ class RequisitionsServiceTest {
         }
       vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval { width = 1.0f }
       nonceHashes += ByteString.copyFromUtf8("foo")
+    }
+    private val PACKED_MEASUREMENT_SPEC: ProtoAny = MEASUREMENT_SPEC.pack()
+
+    private val ENCRYPTED_REQUISITION_SPEC = encryptedMessage {
+      ciphertext = "RequisitionSpec ciphertext".toByteStringUtf8()
+      typeUrl = ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
+    }
+
+    private val DATA_PROVIDER_PUBLIC_KEY = encryptionPublicKey {
+      data = "key data".toByteStringUtf8()
+    }
+    private val PACKED_DATA_PROVIDER_PUBLIC_KEY: ProtoAny = DATA_PROVIDER_PUBLIC_KEY.pack()
+
+    private val EL_GAMAL_PUBLIC_KEY = elGamalPublicKey { ellipticCurveId = 123 }
+    private val SIGNED_EL_GAMAL_PUBLIC_KEY = signedMessage {
+      setMessage(EL_GAMAL_PUBLIC_KEY.pack())
+      signature = UPDATE_TIME.toByteString()
+      signatureAlgorithmOid = "2.9999"
     }
 
     private val DIRECT_RF_PROTOCOL_CONFIG =
@@ -919,29 +945,36 @@ class RequisitionsServiceTest {
       updateTime = UPDATE_TIME
       state = InternalState.FULFILLED
       externalFulfillingDuchyId = "9"
-      duchies[DUCHY_ID] = duchyValue {
-        externalDuchyCertificateId = 6L
-        liquidLegionsV2 = liquidLegionsV2Details {
-          elGamalPublicKey = UPDATE_TIME.toByteString()
-          elGamalPublicKeySignature = UPDATE_TIME.toByteString()
-          elGamalPublicKeySignatureAlgorithmOid = "2.9999"
+      duchies[DUCHY_ID] =
+        InternalRequisitionKt.duchyValue {
+          externalDuchyCertificateId = 6L
+          liquidLegionsV2 = liquidLegionsV2Details {
+            elGamalPublicKey = SIGNED_EL_GAMAL_PUBLIC_KEY.message.value
+            elGamalPublicKeySignature = SIGNED_EL_GAMAL_PUBLIC_KEY.signature
+            elGamalPublicKeySignatureAlgorithmOid = SIGNED_EL_GAMAL_PUBLIC_KEY.signatureAlgorithmOid
+          }
         }
-      }
       dataProviderCertificate = internalCertificate {
         externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
         externalCertificateId = 7L
       }
-      parentMeasurement = parentMeasurement {
-        apiVersion = Version.V2_ALPHA.string
-        externalMeasurementConsumerCertificateId = 8L
-        measurementSpec = MEASUREMENT_SPEC.toByteString()
-        protocolConfig = internalProtocolConfig {
-          externalProtocolConfigId = "llv2"
-          liquidLegionsV2 = InternalProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+      parentMeasurement =
+        InternalRequisitionKt.parentMeasurement {
+          apiVersion = Version.V2_ALPHA.string
+          externalMeasurementConsumerCertificateId = 8L
+          measurementSpec = PACKED_MEASUREMENT_SPEC.value
+          protocolConfig = internalProtocolConfig {
+            externalProtocolConfigId = "llv2"
+            liquidLegionsV2 = InternalProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+          }
+          state = InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT
+          dataProvidersCount = 1
         }
-        state = InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT
-        dataProvidersCount = 1
-      }
+      details =
+        InternalRequisitionKt.details {
+          dataProviderPublicKey = PACKED_DATA_PROVIDER_PUBLIC_KEY.value
+          encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC.ciphertext
+        }
     }
 
     private val REQUISITION: Requisition = requisition {
@@ -958,7 +991,6 @@ class RequisitionsServiceTest {
             externalIdToApiId(INTERNAL_REQUISITION.externalMeasurementId)
           )
           .toName()
-      apiVersion = Version.V2_ALPHA.string
       measurementConsumerCertificate =
         MeasurementConsumerCertificateKey(
             externalIdToApiId(INTERNAL_REQUISITION.externalMeasurementConsumerId),
@@ -967,8 +999,8 @@ class RequisitionsServiceTest {
             )
           )
           .toName()
-      measurementSpec = signedData {
-        data = INTERNAL_REQUISITION.parentMeasurement.measurementSpec
+      measurementSpec = signedMessage {
+        setMessage(PACKED_MEASUREMENT_SPEC)
         signature = INTERNAL_REQUISITION.parentMeasurement.measurementSpecSignature
         signatureAlgorithmOid =
           INTERNAL_REQUISITION.parentMeasurement.measurementSpecSignatureAlgorithmOid
@@ -984,27 +1016,19 @@ class RequisitionsServiceTest {
             externalIdToApiId(INTERNAL_REQUISITION.dataProviderCertificate.externalCertificateId)
           )
           .toName()
-      dataProviderPublicKey = signedData {
-        data = INTERNAL_REQUISITION.details.dataProviderPublicKey
+      dataProviderPublicKey = signedMessage {
+        setMessage(PACKED_DATA_PROVIDER_PUBLIC_KEY)
         signature = INTERNAL_REQUISITION.details.dataProviderPublicKeySignature
         signatureAlgorithmOid =
           INTERNAL_REQUISITION.details.dataProviderPublicKeySignatureAlgorithmOid
       }
+      encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
 
-      val internalDuchyValue: InternalRequisition.DuchyValue =
-        INTERNAL_REQUISITION.duchiesMap.getValue(DUCHY_ID)
       duchies += duchyEntry {
         key = DUCHY_ID
         value = value {
           duchyCertificate = DUCHY_CERTIFICATE_NAME
-          liquidLegionsV2 = liquidLegionsV2 {
-            elGamalPublicKey = signedData {
-              data = internalDuchyValue.liquidLegionsV2.elGamalPublicKey
-              signature = internalDuchyValue.liquidLegionsV2.elGamalPublicKeySignature
-              signatureAlgorithmOid =
-                internalDuchyValue.liquidLegionsV2.elGamalPublicKeySignatureAlgorithmOid
-            }
-          }
+          liquidLegionsV2 = liquidLegionsV2 { elGamalPublicKey = SIGNED_EL_GAMAL_PUBLIC_KEY }
         }
       }
 

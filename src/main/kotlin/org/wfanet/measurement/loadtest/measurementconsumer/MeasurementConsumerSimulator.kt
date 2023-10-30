@@ -15,6 +15,7 @@
 package org.wfanet.measurement.loadtest.measurementconsumer
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import com.google.protobuf.util.Durations
@@ -36,7 +37,6 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -64,7 +64,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
-import org.wfanet.measurement.api.v2alpha.SignedData
+import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.customDirectMethodology
@@ -78,6 +78,7 @@ import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.Hashing
@@ -371,9 +372,7 @@ class MeasurementConsumerSimulator(
     measurementConsumer: MeasurementConsumer,
     runId: String,
     newMeasurementSpec:
-      (
-        serializedMeasurementPublicKey: ByteString, nonceHashes: MutableList<ByteString>
-      ) -> MeasurementSpec,
+      (packedMeasurementPublicKey: ProtoAny, nonceHashes: List<ByteString>) -> MeasurementSpec,
     maxDataProviders: Int = 20
   ): MeasurementInfo {
     val eventGroups: List<EventGroup> =
@@ -396,7 +395,7 @@ class MeasurementConsumerSimulator(
           buildRequisitionInfo(dataProviderKey, eventGroups, measurementConsumer, nonce)
         }
 
-    val measurementSpec = newMeasurementSpec(measurementConsumer.publicKey.data, nonceHashes)
+    val measurementSpec = newMeasurementSpec(measurementConsumer.publicKey.message, nonceHashes)
     val request = createMeasurementRequest {
       parent = measurementConsumer.name
       measurement = measurement {
@@ -521,7 +520,7 @@ class MeasurementConsumerSimulator(
     } catch (e: SignatureException) {
       throw Exception("Measurement result signature is invalid", e)
     }
-    return Result.parseFrom(signedResult.data)
+    return signedResult.unpack()
   }
 
   /** Gets the expected result of a [Measurement] using raw sketches. */
@@ -584,11 +583,11 @@ class MeasurementConsumerSimulator(
   }
 
   private fun newReachMeasurementSpec(
-    serializedMeasurementPublicKey: ByteString,
+    packedMeasurementPublicKey: ProtoAny,
     nonceHashes: List<ByteString>
   ): MeasurementSpec {
     return measurementSpec {
-      measurementPublicKey = serializedMeasurementPublicKey
+      measurementPublicKey = packedMeasurementPublicKey
       reach = MeasurementSpecKt.reach { privacyParams = outputDpParams }
       vidSamplingInterval = vidSamplingInterval {
         start = 0.0f
@@ -599,11 +598,11 @@ class MeasurementConsumerSimulator(
   }
 
   private fun newReachAndFrequencyMeasurementSpec(
-    serializedMeasurementPublicKey: ByteString,
+    packedMeasurementPublicKey: ProtoAny,
     nonceHashes: List<ByteString>
   ): MeasurementSpec {
     return measurementSpec {
-      measurementPublicKey = serializedMeasurementPublicKey
+      measurementPublicKey = packedMeasurementPublicKey
       reachAndFrequency = reachAndFrequency {
         reachPrivacyParams = outputDpParams
         frequencyPrivacyParams = outputDpParams
@@ -618,11 +617,11 @@ class MeasurementConsumerSimulator(
   }
 
   private fun newReachOnlyMeasurementSpec(
-    serializedMeasurementPublicKey: ByteString,
+    packedMeasurementPublicKey: ProtoAny,
     nonceHashes: List<ByteString>
   ): MeasurementSpec {
     return measurementSpec {
-      measurementPublicKey = serializedMeasurementPublicKey
+      measurementPublicKey = packedMeasurementPublicKey
       reach = MeasurementSpecKt.reach { privacyParams = outputDpParams }
       vidSamplingInterval = vidSamplingInterval {
         start = 0.0f
@@ -633,14 +632,14 @@ class MeasurementConsumerSimulator(
   }
 
   private fun newInvalidReachAndFrequencyMeasurementSpec(
-    serializedMeasurementPublicKey: ByteString,
+    packedMeasurementPublicKey: ProtoAny,
     nonceHashes: List<ByteString>
   ): MeasurementSpec {
     val invalidPrivacyParams = differentialPrivacyParams {
       epsilon = 1.0
       delta = 0.0
     }
-    return newReachAndFrequencyMeasurementSpec(serializedMeasurementPublicKey, nonceHashes).copy {
+    return newReachAndFrequencyMeasurementSpec(packedMeasurementPublicKey, nonceHashes).copy {
       reachAndFrequency = reachAndFrequency {
         reachPrivacyParams = invalidPrivacyParams
         frequencyPrivacyParams = invalidPrivacyParams
@@ -650,11 +649,11 @@ class MeasurementConsumerSimulator(
   }
 
   private fun newImpressionMeasurementSpec(
-    serializedMeasurementPublicKey: ByteString,
+    packedMeasurementPublicKey: ProtoAny,
     nonceHashes: List<ByteString>
   ): MeasurementSpec {
     return measurementSpec {
-      measurementPublicKey = serializedMeasurementPublicKey
+      measurementPublicKey = packedMeasurementPublicKey
       impression = impression {
         privacyParams = outputDpParams
         maximumFrequencyPerUser = 1
@@ -664,11 +663,11 @@ class MeasurementConsumerSimulator(
   }
 
   private fun newDurationMeasurementSpec(
-    serializedMeasurementPublicKey: ByteString,
+    packedMeasurementPublicKey: ProtoAny,
     nonceHashes: List<ByteString>
   ): MeasurementSpec {
     return measurementSpec {
-      measurementPublicKey = serializedMeasurementPublicKey
+      measurementPublicKey = packedMeasurementPublicKey
       duration = duration {
         privacyParams = outputDpParams
         maximumWatchDurationPerUser = Durations.fromMinutes(1)
@@ -731,7 +730,7 @@ class MeasurementConsumerSimulator(
             }
           }
       }
-      measurementPublicKey = measurementConsumer.publicKey.data
+      measurementPublicKey = measurementConsumer.publicKey.message
       this.nonce = nonce
     }
     val signedRequisitionSpec =
@@ -743,7 +742,7 @@ class MeasurementConsumerSimulator(
   }
 
   private fun DataProvider.toDataProviderEntry(
-    signedRequisitionSpec: SignedData,
+    signedRequisitionSpec: SignedMessage,
     nonceHash: ByteString
   ): DataProviderEntry {
     val source = this
@@ -756,7 +755,7 @@ class MeasurementConsumerSimulator(
           encryptedRequisitionSpec =
             encryptRequisitionSpec(
               signedRequisitionSpec,
-              EncryptionPublicKey.parseFrom(source.publicKey.data),
+              source.publicKey.unpack(),
             )
           this.nonceHash = nonceHash
         }

@@ -228,7 +228,7 @@ class ReachFrequencyLiquidLegionsV2Mill(
           requisitionParamsBuilder.apply {
             duchyCertificate = consentSignalCert.name
             liquidLegionsV2Builder.apply {
-              elGamalPublicKey = signedElgamalPublicKey.data
+              elGamalPublicKey = signedElgamalPublicKey.message.value
               elGamalPublicKeySignature = signedElgamalPublicKey.signature
               elGamalPublicKeySignatureAlgorithmOid = signedElgamalPublicKey.signatureAlgorithmOid
             }
