@@ -41,6 +41,20 @@ private constructor(failureMetadata: FailureMetadata, subject: RelativeFrequency
     }
   }
 
+  fun isWithin(toleranceMap: Map<Long, Double>): DistributionComparison {
+    return object : DistributionComparison() {
+      override fun of(expected: RelativeFrequencyDistribution) {
+        val buckets: Set<Long> = expected.keys.union(actual.keys)
+        for (bucket in buckets) {
+          val actualValue = actual.getOrDefault(bucket, 0.0)
+          val expectedValue = expected.getOrDefault(bucket, 0.0)
+          val tolerance = toleranceMap.getValue(bucket)
+          check("getValue($bucket)").that(actualValue).isWithin(tolerance).of(expectedValue)
+        }
+      }
+    }
+  }
+
   abstract class DistributionComparison internal constructor() {
     abstract fun of(expected: RelativeFrequencyDistribution)
   }

@@ -43,6 +43,14 @@ class FuzzyLongSubject private constructor(failureMetadata: FailureMetadata, sub
     }
   }
 
+  fun isWithin(tolerance: Double): LongRatioComparison {
+    return object : LongRatioComparison() {
+      override fun of(expected: Long) {
+        check("getValue").that(actual.toDouble()).isWithin(tolerance).of(expected.toDouble())
+      }
+    }
+  }
+
   abstract class LongRatioComparison internal constructor() {
     abstract fun of(expected: Long)
   }
