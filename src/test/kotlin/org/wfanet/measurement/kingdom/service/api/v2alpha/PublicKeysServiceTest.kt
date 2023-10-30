@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -32,8 +33,9 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.PublicKey
 import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.publicKey
-import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.updatePublicKeyRequest
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
@@ -77,9 +79,7 @@ class PublicKeysServiceTest {
 
   @Test
   fun `updatePublicKey returns updated public key when caller is data provider`() {
-    val request = updatePublicKeyRequest {
-      publicKey = DATA_PROVIDER_PUBLIC_KEY.copy { clearApiVersion() }
-    }
+    val request = updatePublicKeyRequest { publicKey = DATA_PROVIDER_PUBLIC_KEY }
 
     val result =
       withDataProviderPrincipal(DATA_PROVIDERS_NAME) {
@@ -97,7 +97,7 @@ class PublicKeysServiceTest {
           externalDataProviderId = apiIdToExternalId(certificateKey.dataProviderId)
           externalCertificateId = apiIdToExternalId(certificateKey.certificateId)
           apiVersion = Version.V2_ALPHA.toString()
-          publicKey = DATA_PROVIDER_PUBLIC_KEY.publicKey.data
+          publicKey = DATA_PROVIDER_PUBLIC_KEY.publicKey.message.value
           publicKeySignature = DATA_PROVIDER_PUBLIC_KEY.publicKey.signature
           publicKeySignatureAlgorithmOid = DATA_PROVIDER_PUBLIC_KEY.publicKey.signatureAlgorithmOid
         }
@@ -107,9 +107,7 @@ class PublicKeysServiceTest {
 
   @Test
   fun `updatePublicKey returns updated public key when caller is measurement consumer`() {
-    val request = updatePublicKeyRequest {
-      publicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.copy { clearApiVersion() }
-    }
+    val request = updatePublicKeyRequest { publicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY }
 
     val response =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
@@ -127,7 +125,7 @@ class PublicKeysServiceTest {
           externalMeasurementConsumerId = apiIdToExternalId(certificateKey.measurementConsumerId)
           externalCertificateId = apiIdToExternalId(certificateKey.certificateId)
           apiVersion = Version.V2_ALPHA.toString()
-          publicKey = DATA_PROVIDER_PUBLIC_KEY.publicKey.data
+          publicKey = DATA_PROVIDER_PUBLIC_KEY.publicKey.message.value
           publicKeySignature = DATA_PROVIDER_PUBLIC_KEY.publicKey.signature
           publicKeySignatureAlgorithmOid = DATA_PROVIDER_PUBLIC_KEY.publicKey.signatureAlgorithmOid
         }
@@ -140,9 +138,7 @@ class PublicKeysServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
-          service.updatePublicKey(
-            updatePublicKeyRequest { publicKey = DATA_PROVIDER_PUBLIC_KEY.copy { clearName() } }
-          )
+          service.updatePublicKey(updatePublicKeyRequest { publicKey = DATA_PROVIDER_PUBLIC_KEY })
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
@@ -309,9 +305,8 @@ class PublicKeysServiceTest {
   companion object {
     private val DATA_PROVIDER_PUBLIC_KEY: PublicKey = publicKey {
       name = DATA_PROVIDERS_PUBLIC_KEY_NAME
-      apiVersion = Version.V2_ALPHA.string
-      publicKey = signedData {
-        data = ByteString.copyFromUtf8("1")
+      publicKey = signedMessage {
+        message = Any.pack(encryptionPublicKey { data = ByteString.copyFromUtf8("1") })
         signature = ByteString.copyFromUtf8("1")
         signatureAlgorithmOid = "2.9999"
       }

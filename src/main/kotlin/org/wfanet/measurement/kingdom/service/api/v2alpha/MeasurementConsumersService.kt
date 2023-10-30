@@ -14,6 +14,9 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.protobuf.InvalidProtocolBufferException
+import com.google.protobuf.any
+import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
 import org.wfanet.measurement.api.Version
@@ -22,6 +25,7 @@ import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.AddMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.GetMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
@@ -32,7 +36,9 @@ import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.RemoveMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
-import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.api.v2alpha.setMessage
+import org.wfanet.measurement.api.v2alpha.signedMessage
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -61,12 +67,20 @@ class MeasurementConsumersService(
 
     val measurementConsumer = request.measurementConsumer
 
-    grpcRequire(!measurementConsumer.publicKey.data.isEmpty) { "public_key.data is missing" }
-    grpcRequire(!measurementConsumer.publicKey.signature.isEmpty) {
-      "public_key.signature is missing"
+    try {
+      measurementConsumer.publicKey.message.unpack<EncryptionPublicKey>()
+    } catch (e: InvalidProtocolBufferException) {
+      throw Status.INVALID_ARGUMENT.withCause(e)
+        .withDescription(
+          "measurement_consumer.public_key.message must contain an EncryptionPublicKey"
+        )
+        .asRuntimeException()
     }
-    grpcRequire(measurementConsumer.measurementConsumerCreationToken.isNotBlank()) {
-      "Measurement Consumer creation token is unspecified"
+    grpcRequire(!measurementConsumer.publicKey.signature.isEmpty) {
+      "measurement_consumer.public_key.signature is unspecified"
+    }
+    grpcRequire(measurementConsumer.measurementConsumerCreationToken.isNotEmpty()) {
+      "measurement_consumer.measurement_consumer_creation_token is unspecified"
     }
 
     val createRequest = createMeasurementConsumerRequest {
@@ -74,7 +88,7 @@ class MeasurementConsumersService(
         certificate = parseCertificateDer(measurementConsumer.certificateDer)
         details = details {
           apiVersion = API_VERSION.string
-          publicKey = measurementConsumer.publicKey.data
+          publicKey = measurementConsumer.publicKey.message.value
           publicKeySignature = measurementConsumer.publicKey.signature
           publicKeySignatureAlgorithmOid = measurementConsumer.publicKey.signatureAlgorithmOid
         }
@@ -235,17 +249,25 @@ class MeasurementConsumersService(
 private fun InternalMeasurementConsumer.toMeasurementConsumer(): MeasurementConsumer {
   val measurementConsumerId: String = externalIdToApiId(externalMeasurementConsumerId)
   val certificateId: String = externalIdToApiId(certificate.externalCertificateId)
+  val apiVersion = Version.fromString(details.apiVersion)
 
   val source = this
   return measurementConsumer {
     name = MeasurementConsumerKey(measurementConsumerId).toName()
     certificate = MeasurementConsumerCertificateKey(measurementConsumerId, certificateId).toName()
     certificateDer = source.certificate.details.x509Der
-    publicKey = signedData {
-      data = source.details.publicKey
+    publicKey = signedMessage {
+      setMessage(
+        any {
+          value = source.details.publicKey
+          typeUrl =
+            when (apiVersion) {
+              Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EncryptionPublicKey.getDescriptor())
+            }
+        }
+      )
       signature = source.details.publicKeySignature
       signatureAlgorithmOid = source.details.publicKeySignatureAlgorithmOid
     }
-    publicKeyApiVersion = source.details.apiVersion
   }
 }

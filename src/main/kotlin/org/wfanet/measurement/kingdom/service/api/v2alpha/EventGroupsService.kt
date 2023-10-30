@@ -16,6 +16,9 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.protobuf.InvalidProtocolBufferException
+import com.google.protobuf.any
+import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.math.min
@@ -25,6 +28,7 @@ import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.DeleteEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKt.eventTemplate
@@ -40,11 +44,13 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.encryptedMessage
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
-import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.api.v2alpha.signedMessage
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.base64UrlDecode
@@ -75,11 +81,19 @@ import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest
 class EventGroupsService(private val internalEventGroupsStub: InternalEventGroupsCoroutineStub) :
   EventGroupsCoroutineImplBase() {
 
-  override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup {
-    fun permissionDeniedStatus() =
+  private enum class Permission {
+    GET,
+    CREATE,
+    UPDATE;
+
+    fun deniedStatus(name: String): Status =
       Status.PERMISSION_DENIED.withDescription(
-        "Permission denied on resource ${request.name} (or it might not exist)"
+        "Permission $this denied on resource $name (or it might not exist)"
       )
+  }
+
+  override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup {
+    fun permissionDeniedStatus() = Permission.GET.deniedStatus(request.name)
 
     val key: ChildResourceKey =
       grpcRequireNotNull(
@@ -163,34 +177,12 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
         "Parent is either unspecified or invalid"
       }
 
-    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
-      is DataProviderPrincipal -> {
-        if (principal.resourceKey.toName() != request.parent) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot create EventGroups for another DataProvider"
-          }
-        }
-      }
-      else -> {
-        failGrpc(Status.PERMISSION_DENIED) {
-          "Caller does not have permission to create EventGroups"
-        }
-      }
+    val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext
+    if (authenticatedPrincipal.resourceKey != parentKey) {
+      throw Permission.CREATE.deniedStatus("${request.parent}/eventGroups").asRuntimeException()
     }
 
-    grpcRequire(
-      request.eventGroup.encryptedMetadata.isEmpty ||
-        request.eventGroup.hasMeasurementConsumerPublicKey()
-    ) {
-      "measurement_consumer_public_key must be specified if encrypted_metadata is specified"
-    }
-    grpcRequire(
-      !request.eventGroup.hasMeasurementConsumerPublicKey() ||
-        request.eventGroup.measurementConsumerCertificate.isNotBlank()
-    ) {
-      "measurement_consumer_certificate must be specified if measurement_consumer_public_key is " +
-        "specified"
-    }
+    validateRequestEventGroup(request.eventGroup)
 
     val internalRequest: InternalCreateEventGroupRequest = internalCreateEventGroupRequest {
       eventGroup = request.eventGroup.toInternal(parentKey.dataProviderId)
@@ -215,34 +207,12 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
         "EventGroup name is either unspecified or invalid"
       }
 
-    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
-      is DataProviderPrincipal -> {
-        if (principal.resourceKey.dataProviderId != eventGroupKey.dataProviderId) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot update EventGroups for another DataProvider"
-          }
-        }
-      }
-      else -> {
-        failGrpc(Status.PERMISSION_DENIED) {
-          "Caller does not have permission to update EventGroups"
-        }
-      }
+    val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext
+    if (authenticatedPrincipal.resourceKey != eventGroupKey.parentKey) {
+      throw Permission.UPDATE.deniedStatus(request.eventGroup.name).asRuntimeException()
     }
 
-    grpcRequire(
-      request.eventGroup.encryptedMetadata.isEmpty ||
-        request.eventGroup.hasMeasurementConsumerPublicKey()
-    ) {
-      "measurement_consumer_public_key must be specified if encrypted_metadata is specified"
-    }
-    grpcRequire(
-      !request.eventGroup.hasMeasurementConsumerPublicKey() ||
-        request.eventGroup.measurementConsumerCertificate.isNotBlank()
-    ) {
-      "measurement_consumer_certificate must be specified if measurement_consumer_public_key is " +
-        "specified"
-    }
+    validateRequestEventGroup(request.eventGroup)
 
     val updateRequest = updateEventGroupRequest {
       eventGroup =
@@ -258,6 +228,35 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
           failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition." }
         Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "EventGroup not found." }
         else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+      }
+    }
+  }
+
+  /**
+   * Validates an `event_group` field from a request.
+   *
+   * @throws io.grpc.StatusRuntimeException
+   */
+  private fun validateRequestEventGroup(requestEventGroup: EventGroup) {
+    if (requestEventGroup.hasEncryptedMetadata()) {
+      grpcRequire(requestEventGroup.hasMeasurementConsumerPublicKey()) {
+        "event_group.measurement_consumer_public_key must be specified if " +
+          "event_group.encrypted_metadata is specified"
+      }
+    }
+    if (requestEventGroup.hasMeasurementConsumerPublicKey()) {
+      grpcRequire(requestEventGroup.measurementConsumerCertificate.isNotBlank()) {
+        "event_group.measurement_consumer_certificate must be specified if " +
+          "event_group.measurement_consumer_public_key is specified"
+      }
+      try {
+        requestEventGroup.measurementConsumerPublicKey.message.unpack<EncryptionPublicKey>()
+      } catch (e: InvalidProtocolBufferException) {
+        throw Status.INVALID_ARGUMENT.withCause(e)
+          .withDescription(
+            "event_group.measurement_consumer_public_key.message is not a valid EncryptionPublicKey"
+          )
+          .asRuntimeException()
       }
     }
   }
@@ -379,7 +378,7 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
   /**
    * Builds a [StreamEventGroupsRequest] for [listEventGroups].
    *
-   * @throws io.grpc.StatusRuntimeException if [request] is found to be invalid
+   * @throws io.grpc.StatusRuntimeException if the [ListEventGroupsRequest] is found to be invalid
    */
   private fun buildInternalStreamEventGroupsRequest(
     filter: ListEventGroupsRequest.Filter,
@@ -458,7 +457,6 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
           externalIdToApiId(externalEventGroupId)
         )
         .toName()
-    apiVersion = details.apiVersion
     measurementConsumer =
       MeasurementConsumerKey(externalIdToApiId(externalMeasurementConsumerId)).toName()
     eventGroupReferenceId = providedEventGroupId
@@ -470,18 +468,37 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
           )
           .toName()
     }
-    if (!details.measurementConsumerPublicKey.isEmpty) {
-      measurementConsumerPublicKey = signedData {
-        data = details.measurementConsumerPublicKey
-        signature = details.measurementConsumerPublicKeySignature
-        signatureAlgorithmOid = details.measurementConsumerPublicKeySignatureAlgorithmOid
+    if (hasDetails()) {
+      val apiVersion = Version.fromString(details.apiVersion)
+      if (!details.measurementConsumerPublicKey.isEmpty) {
+        measurementConsumerPublicKey = signedMessage {
+          message = any {
+            value = details.measurementConsumerPublicKey
+            typeUrl =
+              when (apiVersion) {
+                Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EncryptionPublicKey.getDescriptor())
+              }
+          }
+          signature = details.measurementConsumerPublicKeySignature
+          signatureAlgorithmOid = details.measurementConsumerPublicKeySignatureAlgorithmOid
+        }
+      }
+      vidModelLines += details.vidModelLinesList
+      eventTemplates.addAll(
+        details.eventTemplatesList.map { event ->
+          eventTemplate { type = event.fullyQualifiedType }
+        }
+      )
+      if (!details.encryptedMetadata.isEmpty) {
+        encryptedMetadata = encryptedMessage {
+          ciphertext = details.encryptedMetadata
+          typeUrl =
+            when (apiVersion) {
+              Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EventGroup.Metadata.getDescriptor())
+            }
+        }
       }
     }
-    vidModelLines += details.vidModelLinesList
-    eventTemplates.addAll(
-      details.eventTemplatesList.map { event -> eventTemplate { type = event.fullyQualifiedType } }
-    )
-    encryptedMetadata = details.encryptedMetadata
     state = this@toEventGroup.state.toV2Alpha()
   }
 }
@@ -513,7 +530,7 @@ private fun EventGroup.toInternal(
     providedEventGroupId = source.eventGroupReferenceId
     details = details {
       apiVersion = Version.V2_ALPHA.string
-      measurementConsumerPublicKey = source.measurementConsumerPublicKey.data
+      measurementConsumerPublicKey = source.measurementConsumerPublicKey.message.value
       measurementConsumerPublicKeySignature = source.measurementConsumerPublicKey.signature
       measurementConsumerPublicKeySignatureAlgorithmOid =
         source.measurementConsumerPublicKey.signatureAlgorithmOid
@@ -523,7 +540,7 @@ private fun EventGroup.toInternal(
           internalEventTemplate { fullyQualifiedType = event.type }
         }
       )
-      encryptedMetadata = source.encryptedMetadata
+      encryptedMetadata = source.encryptedMetadata.ciphertext
     }
   }
 }
