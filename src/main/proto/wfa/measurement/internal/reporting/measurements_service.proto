@@ -23,13 +23,22 @@ option java_multiple_files = true;
 
 // Internal service for persistence of Measurement entities.
 service Measurements {
-  rpc CreateMeasurement(Measurement) returns (Measurement);
+  rpc BatchCreateMeasurements(BatchCreateMeasurementsRequest)
+      returns (BatchCreateMeasurementsResponse);
 
   rpc GetMeasurement(GetMeasurementRequest) returns (Measurement);
 
   rpc SetMeasurementResult(SetMeasurementResultRequest) returns (Measurement);
 
   rpc SetMeasurementFailure(SetMeasurementFailureRequest) returns (Measurement);
+}
+
+message BatchCreateMeasurementsRequest {
+  repeated Measurement measurements = 1;
+}
+
+message BatchCreateMeasurementsResponse {
+  repeated Measurement measurements = 1;
 }
 
 message GetMeasurementRequest {

@@ -64,6 +64,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
+import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
@@ -208,6 +209,12 @@ class MetricsService(
   coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
 ) : MetricsCoroutineImplBase() {
 
+  private data class DataProviderInfo(
+    val dataProviderName: String,
+    val publicKey: SignedData,
+    val certificateName: String,
+  )
+
   private val measurementSupplier =
     MeasurementSupplier(
       internalReportingSetsStub,
@@ -275,6 +282,15 @@ class MetricsService(
           .toList()
           .associateBy { it.externalReportingSetId }
 
+      val dataProviderNames = mutableSetOf<String>()
+      for (internalPrimitiveReportingSet in internalPrimitiveReportingSetMap.values) {
+        for (eventGroupKey in internalPrimitiveReportingSet.primitive.eventGroupKeysList) {
+          dataProviderNames.add(DataProviderKey(eventGroupKey.cmmsDataProviderId).toName())
+        }
+      }
+      val dataProviderInfoMap: Map<String, DataProviderInfo> =
+        buildDataProviderInfoMap(principal.config.apiKey, dataProviderNames)
+
       val measurementIdsList: Flow<Deferred<MeasurementIds>> = flow {
         for (internalMetric in internalMetricsList) {
           for (weightedMeasurement in internalMetric.weightedMeasurementsList) {
@@ -296,6 +312,7 @@ class MetricsService(
                       internalPrimitiveReportingSetMap,
                       measurementConsumer,
                       principal,
+                      dataProviderInfoMap
                     )
                   cmmsMeasurementId =
                     checkNotNull(MeasurementKey.fromName(measurement.name)).measurementId
@@ -346,6 +363,7 @@ class MetricsService(
       internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
       measurementConsumer: MeasurementConsumer,
       principal: MeasurementConsumerPrincipal,
+      dataProviderInfoMap: Map<String, DataProviderInfo>
     ): Measurement {
       val eventGroupEntriesByDataProvider =
         groupEventGroupEntriesByDataProvider(internalMeasurement, internalPrimitiveReportingSetMap)
@@ -357,6 +375,7 @@ class MetricsService(
           measurementConsumer,
           eventGroupEntriesByDataProvider,
           principal,
+          dataProviderInfoMap
         )
 
       try {
@@ -389,6 +408,7 @@ class MetricsService(
       measurementConsumer: MeasurementConsumer,
       eventGroupEntriesByDataProvider: Map<DataProviderKey, List<EventGroupEntry>>,
       principal: MeasurementConsumerPrincipal,
+      dataProviderInfoMap: Map<String, DataProviderInfo>
     ): CreateMeasurementRequest {
       val measurementConsumerSigningKey = getMeasurementConsumerSigningKey(principal)
       val measurementEncryptionPublicKey = measurementConsumer.publicKey.data
@@ -403,7 +423,7 @@ class MetricsService(
               eventGroupEntriesByDataProvider,
               measurementEncryptionPublicKey,
               measurementConsumerSigningKey,
-              principal.config.apiKey,
+              dataProviderInfoMap
             )
 
           val unsignedMeasurementSpec: MeasurementSpec =
@@ -470,78 +490,109 @@ class MetricsService(
       }
     }
 
+    /** Builds a [Map] of [DataProvider] name to [DataProviderInfo]. */
+    private suspend fun buildDataProviderInfoMap(
+      apiAuthenticationKey: String,
+      dataProviderNames: Collection<String>
+    ): Map<String, DataProviderInfo> {
+      val dataProviderInfoMap = mutableMapOf<String, DataProviderInfo>()
+
+      if (dataProviderNames.isEmpty()) {
+        return dataProviderInfoMap
+      }
+
+      val deferredDataProviderInfoList = mutableListOf<Deferred<DataProviderInfo>>()
+      coroutineScope {
+        for (dataProviderName in dataProviderNames) {
+          deferredDataProviderInfoList.add(
+            async {
+              val dataProvider: DataProvider =
+                try {
+                  dataProvidersStub
+                    .withAuthenticationKey(apiAuthenticationKey)
+                    .getDataProvider(getDataProviderRequest { name = dataProviderName })
+                } catch (e: StatusException) {
+                  throw when (e.status.code) {
+                      Status.Code.NOT_FOUND ->
+                        Status.FAILED_PRECONDITION.withDescription("$dataProviderName not found")
+                      else -> Status.UNKNOWN.withDescription("Unable to retrieve $dataProviderName")
+                    }
+                    .withCause(e)
+                    .asRuntimeException()
+                }
+
+              val certificate: Certificate =
+                try {
+                  certificatesStub
+                    .withAuthenticationKey(apiAuthenticationKey)
+                    .getCertificate(getCertificateRequest { name = dataProvider.certificate })
+                } catch (e: StatusException) {
+                  throw when (e.status.code) {
+                      Status.Code.NOT_FOUND ->
+                        Status.NOT_FOUND.withDescription("${dataProvider.certificate} not found.")
+                      else ->
+                        Status.UNKNOWN.withDescription(
+                          "Unable to retrieve Certificate ${dataProvider.certificate}."
+                        )
+                    }
+                    .withCause(e)
+                    .asRuntimeException()
+                }
+              if (
+                certificate.revocationState !=
+                  Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED
+              ) {
+                throw Status.FAILED_PRECONDITION.withDescription(
+                    "${certificate.name} revocation state is ${certificate.revocationState}"
+                  )
+                  .asRuntimeException()
+              }
+
+              val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
+              val trustedIssuer: X509Certificate =
+                trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]
+                  ?: throw Status.FAILED_PRECONDITION.withDescription(
+                      "${certificate.name} not issued by trusted CA"
+                    )
+                    .asRuntimeException()
+              try {
+                verifyEncryptionPublicKey(dataProvider.publicKey, x509Certificate, trustedIssuer)
+              } catch (e: CertPathValidatorException) {
+                throw Status.FAILED_PRECONDITION.withCause(e)
+                  .withDescription("Certificate path for ${certificate.name} is invalid")
+                  .asRuntimeException()
+              } catch (e: SignatureException) {
+                throw Status.FAILED_PRECONDITION.withCause(e)
+                  .withDescription("DataProvider public key signature is invalid")
+                  .asRuntimeException()
+              }
+
+              DataProviderInfo(dataProvider.name, dataProvider.publicKey, certificate.name)
+            }
+          )
+        }
+
+        for (deferredDataProviderInfo in deferredDataProviderInfoList.awaitAll()) {
+          dataProviderInfoMap[deferredDataProviderInfo.dataProviderName] = deferredDataProviderInfo
+        }
+      }
+
+      return dataProviderInfoMap
+    }
+
     /**
      * Builds a [List] of [Measurement.DataProviderEntry] messages from
      * [eventGroupEntriesByDataProvider].
      */
-    private suspend fun buildDataProviderEntries(
+    private fun buildDataProviderEntries(
       eventGroupEntriesByDataProvider: Map<DataProviderKey, List<EventGroupEntry>>,
       measurementEncryptionPublicKey: ByteString,
       measurementConsumerSigningKey: SigningKeyHandle,
-      apiAuthenticationKey: String,
+      dataProviderInfoMap: Map<String, DataProviderInfo>,
     ): List<Measurement.DataProviderEntry> {
       return eventGroupEntriesByDataProvider.map { (dataProviderKey, eventGroupEntriesList) ->
-        // TODO(@SanjayVas): Consider caching the public key and certificate.
         val dataProviderName: String = dataProviderKey.toName()
-        val dataProvider: DataProvider =
-          try {
-            dataProvidersStub
-              .withAuthenticationKey(apiAuthenticationKey)
-              .getDataProvider(getDataProviderRequest { name = dataProviderName })
-          } catch (e: StatusException) {
-            throw when (e.status.code) {
-                Status.Code.NOT_FOUND ->
-                  Status.FAILED_PRECONDITION.withDescription("$dataProviderName not found.")
-                else -> Status.UNKNOWN.withDescription("Unable to retrieve $dataProviderName.")
-              }
-              .withCause(e)
-              .asRuntimeException()
-          }
-
-        val certificate: Certificate =
-          try {
-            certificatesStub
-              .withAuthenticationKey(apiAuthenticationKey)
-              .getCertificate(getCertificateRequest { name = dataProvider.certificate })
-          } catch (e: StatusException) {
-            throw when (e.status.code) {
-                Status.Code.NOT_FOUND ->
-                  Status.NOT_FOUND.withDescription("${dataProvider.certificate} not found.")
-                else ->
-                  Status.UNKNOWN.withDescription(
-                    "Unable to retrieve Certificate ${dataProvider.certificate}."
-                  )
-              }
-              .withCause(e)
-              .asRuntimeException()
-          }
-        if (
-          certificate.revocationState != Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED
-        ) {
-          throw Status.FAILED_PRECONDITION.withDescription(
-              "${certificate.name} revocation state is ${certificate.revocationState}"
-            )
-            .asRuntimeException()
-        }
-
-        val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
-        val trustedIssuer: X509Certificate =
-          trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]
-            ?: throw Status.FAILED_PRECONDITION.withDescription(
-                "${certificate.name} not issued by trusted CA"
-              )
-              .asRuntimeException()
-        try {
-          verifyEncryptionPublicKey(dataProvider.publicKey, x509Certificate, trustedIssuer)
-        } catch (e: CertPathValidatorException) {
-          throw Status.FAILED_PRECONDITION.withCause(e)
-            .withDescription("Certificate path for ${certificate.name} is invalid")
-            .asRuntimeException()
-        } catch (e: SignatureException) {
-          throw Status.FAILED_PRECONDITION.withCause(e)
-            .withDescription("DataProvider public key signature is invalid")
-            .asRuntimeException()
-        }
+        val dataProviderInfo = dataProviderInfoMap.getValue(dataProviderName)
 
         val requisitionSpec = requisitionSpec {
           events = RequisitionSpecKt.events { eventGroups += eventGroupEntriesList }
@@ -551,15 +602,15 @@ class MetricsService(
         val encryptRequisitionSpec =
           encryptRequisitionSpec(
             signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
-            EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
+            EncryptionPublicKey.parseFrom(dataProviderInfo.publicKey.data)
           )
 
         dataProviderEntry {
-          key = dataProvider.name
+          key = dataProviderName
           value =
             MeasurementKt.DataProviderEntryKt.value {
-              dataProviderCertificate = certificate.name
-              dataProviderPublicKey = dataProvider.publicKey
+              dataProviderCertificate = dataProviderInfo.certificateName
+              dataProviderPublicKey = dataProviderInfo.publicKey
               this.encryptedRequisitionSpec = encryptRequisitionSpec
               nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
             }
