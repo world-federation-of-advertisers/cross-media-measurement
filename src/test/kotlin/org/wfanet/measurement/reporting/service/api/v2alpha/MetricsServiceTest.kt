@@ -2257,7 +2257,7 @@ class MetricsServiceTest {
 
     // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
     val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
-    verifyBlocking(dataProvidersMock, never()) { getDataProvider(dataProvidersCaptor.capture()) }
+    verifyBlocking(dataProvidersMock, times(3)) { getDataProvider(dataProvidersCaptor.capture()) }
 
     // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
     val measurementsCaptor: KArgumentCaptor<CreateMeasurementRequest> = argumentCaptor()
@@ -2305,7 +2305,7 @@ class MetricsServiceTest {
 
     // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
     val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
-    verifyBlocking(dataProvidersMock, never()) { getDataProvider(dataProvidersCaptor.capture()) }
+    verifyBlocking(dataProvidersMock, times(3)) { getDataProvider(dataProvidersCaptor.capture()) }
 
     // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
     val measurementsCaptor: KArgumentCaptor<CreateMeasurementRequest> = argumentCaptor()
@@ -3453,6 +3453,7 @@ class MetricsServiceTest {
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
+
   @Test
   fun `listMetrics with invalid page size replaced with the one in previous page token`() =
     runBlocking {
