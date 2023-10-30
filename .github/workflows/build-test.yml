@@ -61,6 +61,18 @@ jobs:
           build --define container_registry=localhost:5001
           build --define image_repo_prefix=halo
           build --define image_tag=latest
+          build --define kingdom_public_api_target=kingdom.example.com:8443
+          build --define duchy_public_api_target=duchy.example.com:8443
+          build --define mc_name=measurementConsumers/foo
+          build --define edp1_name=dataProviders/foo1
+          build --define edp2_name=dataProviders/foo2
+          build --define edp3_name=dataProviders/foo3
+          build --define edp4_name=dataProviders/foo4
+          build --define edp5_name=dataProviders/foo5
+          build --define edp6_name=dataProviders/foo6
+          build --define google_cloud_project=example-project
+          build --define bigquery_dataset=example-dataset
+          build --define bigquery_table=events
           EOF
 
       - name: Get Bazel cache params
@@ -78,7 +90,10 @@ jobs:
             ${{ steps.get-cache-params.outputs.restore-key }}
 
       - name: Build
-        run: bazelisk build //... --worker_quit_after_build
+        run: >
+          bazelisk build --worker_quit_after_build
+          //...
+          //src/main/k8s/dev:synthetic_generator_edp_simulators
 
       - name: Run tests
         id: run-tests
