@@ -33,9 +33,11 @@ import org.wfanet.measurement.internal.reporting.v2.Report
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementConsumerReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportReader
+import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportScheduleReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportAlreadyExistsException
+import org.wfanet.measurement.reporting.service.internal.ReportScheduleNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
 /**
@@ -44,6 +46,7 @@ import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundExc
  * Throws the following on [execute]:
  * * [ReportingSetNotFoundException] ReportingSet not found
  * * [MeasurementConsumerNotFoundException] MeasurementConsumer not found
+ * * [ReportScheduleNotFoundException] ReportSchedule not found
  * * [ReportAlreadyExistsException] Report already exists
  */
 class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Report>() {
@@ -193,11 +196,42 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
       executeStatement(reportTimeIntervalsStatement)
       executeStatement(metricCalculationSpecsStatement)
       executeStatement(metricCalculationSpecReportingMetricsStatement)
+
+      if (request.externalReportScheduleId.isNotEmpty()) {
+        val reportScheduleId =
+          (ReportScheduleReader(transactionContext).readReportScheduleByExternalId(
+            request.report.cmmsMeasurementConsumerId,
+            request.externalReportScheduleId
+          )
+            ?: throw ReportScheduleNotFoundException(
+              cmmsMeasurementConsumerId = request.report.cmmsMeasurementConsumerId,
+              externalReportScheduleId = request.externalReportScheduleId
+            )).reportScheduleId
+
+        val reportsReportSchedulesStatement =
+          boundStatement(
+            """
+            INSERT INTO ReportsReportSchedules
+            (
+              MeasurementConsumerId,
+              ReportId,
+              ReportScheduleId
+            )
+            VALUES ($1, $2, $3)
+          """
+          ) {
+            bind("$1", measurementConsumerId)
+            bind("$2", reportId)
+            bind("$3", reportScheduleId)
+          }
+        executeStatement(reportsReportSchedulesStatement)
+      }
     }
 
     return request.report.copy {
       this.createTime = createTime.toInstant().toProtoTime()
       this.externalReportId = externalReportId
+      externalReportScheduleId = request.externalReportScheduleId
       reportingMetricEntries.clear()
       reportingMetricEntries.putAll(reportingMetricEntriesAndBinders.updatedReportingMetricEntries)
     }
