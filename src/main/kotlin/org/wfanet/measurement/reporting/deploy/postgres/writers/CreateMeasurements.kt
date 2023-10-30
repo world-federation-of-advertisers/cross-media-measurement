@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.reporting.deploy.postgres.writers
 
-import io.r2dbc.spi.R2dbcDataIntegrityViolationException
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.internal.reporting.Measurement
@@ -22,33 +21,33 @@ import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.reporting.service.internal.MeasurementAlreadyExistsException
 
 /**
- * Inserts a Measurement into the database.
+ * Inserts Measurements into the database.
  *
  * Throws the following on [execute]:
  * * [MeasurementAlreadyExistsException] Measurement already exists
  */
-class CreateMeasurement(private val request: Measurement) : PostgresWriter<Measurement>() {
-  override suspend fun TransactionScope.runTransaction(): Measurement {
-    val builder =
-      boundStatement(
-        """
-      INSERT INTO Measurements (MeasurementConsumerReferenceId, MeasurementReferenceId, State)
-        VALUES ($1, $2, $3)
-      """
-      ) {
-        bind("$1", request.measurementConsumerReferenceId)
-        bind("$2", request.measurementReferenceId)
-        bind("$3", Measurement.State.PENDING_VALUE)
-      }
-
+class CreateMeasurements(private val measurements: Iterable<Measurement>) :
+  PostgresWriter<Iterable<Measurement>>() {
+  override suspend fun TransactionScope.runTransaction(): Iterable<Measurement> {
     transactionContext.run {
-      try {
+      for (measurement in measurements) {
+        val builder =
+          boundStatement(
+            """
+          INSERT INTO Measurements (MeasurementConsumerReferenceId, MeasurementReferenceId, State)
+            VALUES ($1, $2, $3)
+            ON CONFLICT DO NOTHING
+            """
+          ) {
+            bind("$1", measurement.measurementConsumerReferenceId)
+            bind("$2", measurement.measurementReferenceId)
+            bind("$3", Measurement.State.PENDING_VALUE)
+          }
+
         executeStatement(builder)
-      } catch (e: R2dbcDataIntegrityViolationException) {
-        throw MeasurementAlreadyExistsException()
       }
     }
 
-    return request.copy { state = Measurement.State.PENDING }
+    return measurements.map { it.copy { state = Measurement.State.PENDING } }
   }
 }
