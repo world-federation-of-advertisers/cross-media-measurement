@@ -109,7 +109,7 @@ class InProcessCmmsComponents(
   private lateinit var edpDisplayNameToResourceNameMap: Map<String, String>
   private lateinit var duchyCertMap: Map<String, String>
   private lateinit var eventGroups: List<EventGroup>
-  private lateinit var certificates: List<Certificate>
+  private lateinit var certificates: List<Certificate?>
 
   private suspend fun createAllResources() {
     val resourceSetup =

@@ -20,7 +20,6 @@ import java.time.Clock
 import kotlin.random.Random
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
@@ -75,7 +74,8 @@ abstract class EdpSimulatorRunner : Runnable {
         flags.dataProviderResourceName,
         flags.dataProviderDisplayName,
         loadPrivateKey(flags.edpEncryptionPrivateKeyset),
-        loadSigningKey(flags.edpCsCertificateDerFile, flags.edpCsPrivateKeyDerFile)
+        loadSigningKey(flags.edpCsCertificateDerFile, flags.edpCsPrivateKeyDerFile),
+        null
       )
 
     val randomSeed = flags.randomSeed

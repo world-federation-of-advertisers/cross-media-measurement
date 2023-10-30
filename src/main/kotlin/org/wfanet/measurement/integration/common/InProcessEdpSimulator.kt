@@ -16,6 +16,9 @@ package org.wfanet.measurement.integration.common
 
 import com.google.protobuf.ByteString
 import io.grpc.Channel
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
@@ -39,6 +42,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.CompositionMechanism
@@ -119,6 +123,20 @@ class InProcessEdpSimulator(
 
   suspend fun ensureCertificate() = delegate.ensureCertificate()
 
+  private val SECRET_FILES_PATH: Path =
+    checkNotNull(
+      getRuntimePath(
+        Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+      )
+    )
+
+  private val edpResultCsSigningKey =
+    if (Files.exists(SECRET_FILES_PATH.resolve("${displayName}_result_cs_cert.der"))) {
+      loadSigningKey("${displayName}_result_cs_cert.der", "${displayName}_result_cs_private.der")
+    } else {
+      null
+    }
+
   /** Builds a [EdpData] object for the Edp with a certain [displayName] and [resourceName]. */
   @Blocking
   private fun createEdpData(displayName: String, resourceName: String) =
@@ -126,7 +144,8 @@ class InProcessEdpSimulator(
       name = resourceName,
       displayName = displayName,
       encryptionKey = loadEncryptionPrivateKey("${displayName}_enc_private.tink"),
-      signingKey = loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der")
+      signingKey = loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der"),
+      edpResultCsSigningKey
     )
 
   companion object {

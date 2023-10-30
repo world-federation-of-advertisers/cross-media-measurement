@@ -23,6 +23,7 @@ import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.type.interval
 import io.grpc.Status
 import java.lang.UnsupportedOperationException
+import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
@@ -48,6 +49,7 @@ import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.crypto.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.CreateCertificateRequest
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -153,7 +155,6 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.CompositionMechanism
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.DpCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender as PrivacyLandscapeGender
-import org.wfanet.measurement.api.v2alpha.CreateCertificateRequest
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetBalanceEntry
@@ -346,12 +347,8 @@ class EdpSimulatorTest {
 
     // Verify certificate request contains information from EDP_DATA.
     val createCertificateRequest: CreateCertificateRequest =
-      verifyAndCapture(
-        certificatesServiceMock,
-        CertificatesCoroutineImplBase::createCertificate
-      )
-    assertThat(createCertificateRequest.parent)
-      .isEqualTo(EDP_DATA.name)
+      verifyAndCapture(certificatesServiceMock, CertificatesCoroutineImplBase::createCertificate)
+    assertThat(createCertificateRequest.parent).isEqualTo(EDP_DATA.name)
     assertThat(createCertificateRequest.certificate.subjectKeyIdentifier)
       .isEqualTo(EDP_DATA.signingKey.certificate.subjectKeyIdentifier)
     assertThat(createCertificateRequest.certificate.x509Der)
@@ -2222,12 +2219,22 @@ class EdpSimulatorTest {
       name = DuchyCertificateKey(DUCHY_ID, externalIdToApiId(6L)).toName()
       x509Der = DUCHY_SIGNING_KEY.certificate.encoded.toByteString()
     }
+    val edpResultCsSigningKey =
+      if (Files.exists(SECRET_FILES_PATH.resolve("${EDP_DISPLAY_NAME}_result_cs_cert.der"))) {
+        loadSigningKey(
+          "${EDP_DISPLAY_NAME}_result_cs_cert.der",
+          "${EDP_DISPLAY_NAME}_result_cs_private.der"
+        )
+      } else {
+        null
+      }
     private val EDP_DATA =
       EdpData(
         EDP_NAME,
         EDP_DISPLAY_NAME,
         loadEncryptionPrivateKey("${EDP_DISPLAY_NAME}_enc_private.tink"),
-        loadSigningKey("${EDP_DISPLAY_NAME}_cs_cert.der", "${EDP_DISPLAY_NAME}_cs_private.der")
+        loadSigningKey("${EDP_DISPLAY_NAME}_cs_cert.der", "${EDP_DISPLAY_NAME}_cs_private.der"),
+        edpResultCsSigningKey,
       )
     private val DATA_PROVIDER_CERTIFICATE_KEY =
       DataProviderCertificateKey(EDP_ID, externalIdToApiId(7L))

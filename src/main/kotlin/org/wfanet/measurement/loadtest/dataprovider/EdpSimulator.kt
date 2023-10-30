@@ -40,7 +40,6 @@ import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
 import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
 import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
-import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -60,6 +59,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
+import org.wfanet.measurement.api.v2alpha.ListCertificatesRequestKt
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.Measurement
@@ -82,6 +82,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedData
+import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.createEventGroupMetadataDescriptorRequest
@@ -95,6 +96,7 @@ import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
+import org.wfanet.measurement.api.v2alpha.listCertificatesRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
@@ -145,7 +147,9 @@ data class EdpData(
   /** The EDP's consent signaling encryption key. */
   val encryptionKey: PrivateKeyHandle,
   /** The EDP's consent signaling signing key. */
-  val signingKey: SigningKeyHandle
+  val signingKey: SigningKeyHandle,
+  /** Optional EDP result consent signaling signing key. */
+  val resultSigningKey: SigningKeyHandle?
 )
 
 /** A simulator handling EDP businesses. */
@@ -171,16 +175,17 @@ class EdpSimulator(
     throttler.loopOnReady { executeRequisitionFulfillingWorkflow() }
   }
 
-  /**
-   * Ensures that an appropriate [Certificate] exists for the [DataProvider].
-   */
-  suspend fun ensureCertificate(): Certificate {
+  /** Ensures that an appropriate [Certificate] exists for the [DataProvider]. */
+  suspend fun ensureCertificate(): Certificate? {
+    if (edpData.resultSigningKey == null) {
+      return null
+    }
     return try {
-        val certificate = certificate {
-          x509Der = edpData.signingKey.certificate.encoded.toByteString()
-          subjectKeyIdentifier = edpData.signingKey.certificate.subjectKeyIdentifier!!
-        }
-        createCertificate(edpData.name, certificate)
+      val certificate = certificate {
+        x509Der = edpData.resultSigningKey.certificate.encoded.toByteString()
+        subjectKeyIdentifier = edpData.resultSigningKey.certificate.subjectKeyIdentifier!!
+      }
+      createCertificate(edpData.name, certificate)
     } catch (e: StatusException) {
       throw Exception("Error creating certificate", e)
     }
@@ -523,12 +528,39 @@ class EdpSimulator(
     }
   }
 
-  private suspend fun createCertificate(dataProviderResourceName: String, certificate: Certificate): Certificate {
+  private suspend fun createCertificate(
+    dataProviderResourceName: String,
+    certificate: Certificate
+  ): Certificate {
     return try {
-      certificatesStub.createCertificate(createCertificateRequest { parent = dataProviderResourceName
-        this.certificate = certificate })
+      certificatesStub.createCertificate(
+        createCertificateRequest {
+          parent = dataProviderResourceName
+          this.certificate = certificate
+        }
+      )
     } catch (e: StatusException) {
       throw Exception("Error creating certificate for $dataProviderResourceName", e)
+    }
+  }
+
+  private suspend fun getCertificate(
+    dataProviderResourceName: String,
+    subjectKeyIdentifier: ByteString
+  ): Certificate {
+    return try {
+      certificatesStub
+        .listCertificates(
+          listCertificatesRequest {
+            parent = dataProviderResourceName
+            filter =
+              ListCertificatesRequestKt.filter { subjectKeyIdentifiers += subjectKeyIdentifier }
+          }
+        )
+        .certificatesList
+        .single()
+    } catch (e: StatusException) {
+      throw Exception("Error getting certificate for $dataProviderResourceName", e)
     }
   }
 
@@ -1537,9 +1569,17 @@ class EdpSimulator(
 
     val measurementEncryptionPublicKey =
       EncryptionPublicKey.parseFrom(measurementSpec.measurementPublicKey)
-    val signedResult: SignedData = signResult(measurementResult, edpData.signingKey)
+    val resultSigningKey = edpData.resultSigningKey ?: edpData.signingKey
+    val signedResult: SignedData = signResult(measurementResult, resultSigningKey)
     val encryptedResult: ByteString =
       measurementEncryptionPublicKey.toPublicKeyHandle().hybridEncrypt(signedResult.toByteString())
+
+    val resultCertificate =
+      if (edpData.resultSigningKey != null) {
+        getCertificate(edpData.name, edpData.resultSigningKey.certificate.subjectKeyIdentifier!!)
+      } else {
+        null
+      }
 
     try {
       requisitionsStub.fulfillDirectRequisition(
@@ -1547,7 +1587,9 @@ class EdpSimulator(
           name = requisition.name
           encryptedData = encryptedResult
           this.nonce = nonce
-          this.certificate = requisition.dataProviderCertificate
+          if (resultCertificate != null) {
+            this.certificate = resultCertificate.name
+          }
         }
       )
     } catch (e: StatusException) {
