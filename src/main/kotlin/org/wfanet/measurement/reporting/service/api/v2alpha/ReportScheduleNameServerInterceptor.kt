@@ -31,8 +31,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
 
 /**
- * Extracts a name from the gRPC [Metadata] and adds it to the gRPC
- * [Context].
+ * Extracts a name from the gRPC [Metadata] and adds it to the gRPC [Context].
  *
  * To install, wrap a service with:
  * ```
@@ -41,8 +40,8 @@ import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
  *
  * The principal can be accessed within gRPC services via [principalFromCurrentContext].
  *
- * This expects the Metadata to have a key "report_schedule" associated with a value equal to
- * the resource name of the ReportSchedule. The recommended way to set this is to use
+ * This expects the Metadata to have a key "report_schedule" associated with a value equal to the
+ * resource name of the ReportSchedule. The recommended way to set this is to use
  * [withReportScheduleName] on a stub.
  */
 class ReportScheduleNameServerInterceptor() : ServerInterceptor {
@@ -51,8 +50,9 @@ class ReportScheduleNameServerInterceptor() : ServerInterceptor {
     headers: Metadata,
     next: ServerCallHandler<ReqT, RespT>
   ): ServerCall.Listener<ReqT> {
-    val reportScheduleName = headers[REPORT_SCHEDULE_NAME_METADATA_KEY]
-      ?: return Contexts.interceptCall(Context.current(), call, headers, next)
+    val reportScheduleName =
+      headers[REPORT_SCHEDULE_NAME_METADATA_KEY]
+        ?: return Contexts.interceptCall(Context.current(), call, headers, next)
 
     val context = Context.current().withReportSchedule(reportScheduleName)
     return Contexts.interceptCall(context, call, headers, next)
@@ -75,39 +75,40 @@ class ReportScheduleNameServerInterceptor() : ServerInterceptor {
 
     /** Installs [ReportScheduleNameServerInterceptor] on the service. */
     fun BindableService.withReportScheduleNameInterceptor(): ServerServiceDefinition =
-      ServerInterceptors.interceptForward(
-        this,
-        ReportScheduleNameServerInterceptor()
-      )
+      ServerInterceptors.interceptForward(this, ReportScheduleNameServerInterceptor())
 
     /**
      * Returns a resource name in the current gRPC context. Requires
      * [ReportScheduleNameServerInterceptor] to be installed.
      */
     val reportScheduleNameFromCurrentContext: String?
-      get() =
-        ContextKeys.REPORT_SCHEDULE_NAME_CONTEXT_KEY.get()
+      get() = ContextKeys.REPORT_SCHEDULE_NAME_CONTEXT_KEY.get()
 
-    /**
-     * Executes [block] with the resource name installed in a new [Context].
-     */
+    /** Executes [block] with the resource name installed in a new [Context]. */
     fun <T> withReportSchedule(name: String, block: () -> T): T {
       return Context.current().withReportSchedule(name).call(block)
     }
 
     /**
-     * Executes [block] with the resource name and [MeasurementConsumerPrincipal] installed in a
-     * new [Context].
+     * Executes [block] with the resource name and [MeasurementConsumerPrincipal] installed in a new
+     * [Context].
      */
-    fun <T> withReportScheduleAndMeasurementConsumerPrincipal(name: String, measurementConsumerName: String,
-                                                              config: MeasurementConsumerConfig, block: () -> T): T {
+    fun <T> withReportScheduleAndMeasurementConsumerPrincipal(
+      name: String,
+      measurementConsumerName: String,
+      config: MeasurementConsumerConfig,
+      block: () -> T
+    ): T {
       val measurementConsumerPrincipal =
         MeasurementConsumerPrincipal(
           MeasurementConsumerKey.fromName(measurementConsumerName)!!,
           config
         )
 
-      return Context.current().withPrincipal(measurementConsumerPrincipal).withReportSchedule(name).call(block)
+      return Context.current()
+        .withPrincipal(measurementConsumerPrincipal)
+        .withReportSchedule(name)
+        .call(block)
     }
 
     /** Adds the resource name to the receiver and returns the new [Context]. */

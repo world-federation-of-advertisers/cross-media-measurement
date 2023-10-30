@@ -253,31 +253,39 @@ class ReportsServiceTest {
   fun `createReport returns report with one metric created when report schedule name set`() {
     val externalReportScheduleId = "external-report-schedule-id"
     runBlocking {
-      whenever(internalReportsMock.createReport(
-        eq(
-          internalCreateReportRequest {
-            report = INTERNAL_REACH_REPORTS.requestingReport
-            externalReportId = "report-id"
+      whenever(
+          internalReportsMock.createReport(
+            eq(
+              internalCreateReportRequest {
+                report = INTERNAL_REACH_REPORTS.requestingReport
+                externalReportId = "report-id"
+                this.externalReportScheduleId = externalReportScheduleId
+              }
+            )
+          )
+        )
+        .thenReturn(
+          INTERNAL_REACH_REPORTS.initialReport.copy {
             this.externalReportScheduleId = externalReportScheduleId
           }
         )
-      ))
-        .thenReturn(INTERNAL_REACH_REPORTS.initialReport.copy {
-          this.externalReportScheduleId = externalReportScheduleId
-        })
 
-      whenever(internalReportsMock.getReport(
-        eq(
-          internalGetReportRequest {
-            cmmsMeasurementConsumerId =
-              INTERNAL_REACH_REPORTS.initialReport.cmmsMeasurementConsumerId
-            externalReportId = INTERNAL_REACH_REPORTS.initialReport.externalReportId
+      whenever(
+          internalReportsMock.getReport(
+            eq(
+              internalGetReportRequest {
+                cmmsMeasurementConsumerId =
+                  INTERNAL_REACH_REPORTS.initialReport.cmmsMeasurementConsumerId
+                externalReportId = INTERNAL_REACH_REPORTS.initialReport.externalReportId
+              }
+            )
+          )
+        )
+        .thenReturn(
+          INTERNAL_REACH_REPORTS.pendingReport.copy {
+            this.externalReportScheduleId = externalReportScheduleId
           }
         )
-      ))
-        .thenReturn(INTERNAL_REACH_REPORTS.pendingReport.copy {
-          this.externalReportScheduleId = externalReportScheduleId
-        })
     }
 
     val request = createReportRequest {
@@ -293,12 +301,17 @@ class ReportsServiceTest {
 
     val reportScheduleName =
       ReportScheduleKey(
-        INTERNAL_REACH_REPORTS.initialReport.cmmsMeasurementConsumerId,
-        externalReportScheduleId
-      ).toName()
+          INTERNAL_REACH_REPORTS.initialReport.cmmsMeasurementConsumerId,
+          externalReportScheduleId
+        )
+        .toName()
 
     val result =
-      withReportScheduleAndMeasurementConsumerPrincipal(reportScheduleName, MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+      withReportScheduleAndMeasurementConsumerPrincipal(
+        reportScheduleName,
+        MEASUREMENT_CONSUMER_KEYS.first().toName(),
+        CONFIG
+      ) {
         runBlocking { service.createReport(request) }
       }
 
@@ -315,9 +328,7 @@ class ReportsServiceTest {
         }
       )
 
-    assertThat(result).isEqualTo(PENDING_REACH_REPORT.copy {
-      reportSchedule = reportScheduleName
-    })
+    assertThat(result).isEqualTo(PENDING_REACH_REPORT.copy { reportSchedule = reportScheduleName })
   }
 
   @Test
@@ -2398,16 +2409,20 @@ class ReportsServiceTest {
   fun `createReport throws NOT_FOUND when report schedule not found`() = runBlocking {
     val externalReportScheduleId = "external-report-schedule-id"
 
-    whenever(internalReportsMock.createReport(
-      eq(
-        internalCreateReportRequest {
-          report = INTERNAL_REACH_REPORTS.requestingReport
-          externalReportId = "report-id"
-          this.externalReportScheduleId = externalReportScheduleId
-        }
+    whenever(
+        internalReportsMock.createReport(
+          eq(
+            internalCreateReportRequest {
+              report = INTERNAL_REACH_REPORTS.requestingReport
+              externalReportId = "report-id"
+              this.externalReportScheduleId = externalReportScheduleId
+            }
+          )
+        )
       )
-    ))
-      .thenThrow(Status.NOT_FOUND.withDescription("external_report_schedule_id").asRuntimeException())
+      .thenThrow(
+        Status.NOT_FOUND.withDescription("external_report_schedule_id").asRuntimeException()
+      )
 
     val measurementConsumerKey = MEASUREMENT_CONSUMER_KEYS.first()
     val request = createReportRequest {
@@ -2421,11 +2436,17 @@ class ReportsServiceTest {
         }
     }
 
-    val reportScheduleName = ReportScheduleKey(measurementConsumerKey.measurementConsumerId, externalReportScheduleId).toName()
+    val reportScheduleName =
+      ReportScheduleKey(measurementConsumerKey.measurementConsumerId, externalReportScheduleId)
+        .toName()
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withReportScheduleAndMeasurementConsumerPrincipal(reportScheduleName, measurementConsumerKey.toName(), CONFIG) {
+        withReportScheduleAndMeasurementConsumerPrincipal(
+          reportScheduleName,
+          measurementConsumerKey.toName(),
+          CONFIG
+        ) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -2448,7 +2469,11 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withReportScheduleAndMeasurementConsumerPrincipal("name123", MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        withReportScheduleAndMeasurementConsumerPrincipal(
+          "name123",
+          MEASUREMENT_CONSUMER_KEYS.first().toName(),
+          CONFIG
+        ) {
           runBlocking { service.createReport(request) }
         }
       }

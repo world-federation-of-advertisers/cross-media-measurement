@@ -66,10 +66,7 @@ class PostgresReportsService(
     } catch (e: ReportingSetNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Reporting Set not found.")
     } catch (e: ReportScheduleNotFoundException) {
-      throw e.asStatusRuntimeException(
-        Status.Code.NOT_FOUND,
-        "Report Schedule not found."
-      )
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Report Schedule not found.")
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,

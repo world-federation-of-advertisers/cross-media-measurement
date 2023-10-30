@@ -199,14 +199,16 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
 
       if (request.externalReportScheduleId.isNotEmpty()) {
         val reportScheduleId =
-          (ReportScheduleReader(transactionContext).readReportScheduleByExternalId(
-            request.report.cmmsMeasurementConsumerId,
-            request.externalReportScheduleId
-          )
-            ?: throw ReportScheduleNotFoundException(
-              cmmsMeasurementConsumerId = request.report.cmmsMeasurementConsumerId,
-              externalReportScheduleId = request.externalReportScheduleId
-            )).reportScheduleId
+          (ReportScheduleReader(transactionContext)
+              .readReportScheduleByExternalId(
+                request.report.cmmsMeasurementConsumerId,
+                request.externalReportScheduleId
+              )
+              ?: throw ReportScheduleNotFoundException(
+                cmmsMeasurementConsumerId = request.report.cmmsMeasurementConsumerId,
+                externalReportScheduleId = request.externalReportScheduleId
+              ))
+            .reportScheduleId
 
         val reportsReportSchedulesStatement =
           boundStatement(
