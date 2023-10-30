@@ -716,9 +716,6 @@ class RequisitionsServiceTest {
         }
 
       val expected = fulfillDirectRequisitionResponse { state = State.FULFILLED }
-      print("*******\n\n")
-      print("aa = $DATA_PROVIDER_CERTIFICATE_NAME\n")
-      print("a = $EXTERNAL_DATA_PROVIDER_CERTIFICATE_ID\n")
       verifyProtoArgument(
           internalRequisitionMock,
           RequisitionsCoroutineImplBase::fulfillRequisition

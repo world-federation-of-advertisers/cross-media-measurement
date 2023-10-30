@@ -38,7 +38,7 @@ import org.wfanet.measurement.consent.client.duchy.signResult
 class FakeMeasurementsService(
   private val idGenerator: IdGenerator,
   private val edpSigningKeyHandle: SigningKeyHandle,
-  private val dataProviderCertificateName: String,
+  private val dataProviderResultCsCertificateName: String,
 ) : MeasurementsCoroutineImplBase() {
   private val measurementsApiIdMap = ConcurrentHashMap<String, Measurement>()
   private val measurementsReferenceIdMap = ConcurrentHashMap<String, Measurement>()
@@ -121,7 +121,7 @@ class FakeMeasurementsService(
     return measurement.copy {
       results +=
         MeasurementKt.resultPair {
-          certificate = dataProviderCertificateName
+          certificate = dataProviderResultCsCertificateName
           this.encryptedResult = encryptedResult
         }
       state = Measurement.State.SUCCEEDED

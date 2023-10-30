@@ -24,13 +24,12 @@ import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.identity.DuchyInfo
-import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.DuchyCertConfig
@@ -39,7 +38,6 @@ import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
-import org.wfanet.measurement.loadtest.resourcesetup.DataProviderCert
 import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.loadtest.resourcesetup.ResourceSetup
@@ -73,13 +71,12 @@ class InProcessCmmsComponents(
   }
 
   private val edpSimulators: List<InProcessEdpSimulator> by lazy {
-    edpDisplayNameToResourceNameMap.entries.mapIndexed { index, (displayName, resourceNames) ->
+    edpDisplayNameToResourceNameMap.entries.mapIndexed { index, (displayName, resourceName) ->
       val specIndex = index % SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS.size
       InProcessEdpSimulator(
         displayName = displayName,
-        resourceName = resourceNames.first,
+        resourceName = resourceName,
         mcResourceName = mcResourceName,
-        csCertificateResourceName = resourceNames.second,
         kingdomPublicApiChannel = kingdom.publicApiChannel,
         duchyPublicApiChannel = duchies[1].publicApiChannel,
         trustedCertificates = TRUSTED_CERTIFICATES,
@@ -109,9 +106,10 @@ class InProcessCmmsComponents(
 
   private lateinit var mcResourceName: String
   private lateinit var apiAuthenticationKey: String
-  private lateinit var edpDisplayNameToResourceNameMap: Map<String, Pair<String, String>>
+  private lateinit var edpDisplayNameToResourceNameMap: Map<String, String>
   private lateinit var duchyCertMap: Map<String, String>
   private lateinit var eventGroups: List<EventGroup>
+  private lateinit var certificates: List<Certificate>
 
   private suspend fun createAllResources() {
     val resourceSetup =
@@ -137,20 +135,7 @@ class InProcessCmmsComponents(
     edpDisplayNameToResourceNameMap =
       ALL_EDP_DISPLAY_NAMES.associateWith {
         val edp = createEntityContent(it)
-        val dataProviderName = resourceSetup.createInternalDataProvider(edp)
-        val certificateName =
-          resourceSetup
-            .createDataProviderCertificate(
-              DataProviderCert(
-                apiIdToExternalId(DataProviderKey.fromName(dataProviderName)!!.dataProviderId),
-                loadTestCertDerFile("${it}_cs_cert.der")
-              )
-            )
-            .name
-        Pair(
-          dataProviderName,
-          certificateName,
-        )
+        resourceSetup.createInternalDataProvider(edp)
       }
     // Create all duchy certificates.
     duchyCertMap =
@@ -174,6 +159,7 @@ class InProcessCmmsComponents(
     // Create all resources
     createAllResources()
     eventGroups = edpSimulators.map { it.ensureEventGroup() }
+    certificates = edpSimulators.map { it.ensureCertificate() }
 
     // Start daemons. Mills and EDP simulators can only be started after resources have been
     // created.

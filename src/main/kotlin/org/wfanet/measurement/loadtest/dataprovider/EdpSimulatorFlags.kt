@@ -70,14 +70,6 @@ class EdpSimulatorFlags {
     private set
 
   @CommandLine.Option(
-    names = ["----data-provider-consent-signaling-certificate-resource-name"],
-    description = ["The public API resource name of the Data Provider Certificate Key."],
-    required = true
-  )
-  lateinit var edpCsCertificateResourceName: String
-    private set
-
-  @CommandLine.Option(
     names = ["--mc-resource-name"],
     description = ["The public API resource name of the Measurement Consumer."],
     required = true

@@ -267,7 +267,7 @@ message Requisition {
     // Direct.
     bytes encrypted_data = 7;
 
-    // Used to verify decrypt Measurement.Result. If not present,
+    // Used to verify the decrypted Measurement.Result. If not present,
     // `data_provider_certificate` should be used. Set when Requisition
     // state is FULFILLED and the protocol is Direct.
     fixed64 external_certificate_id = 9;

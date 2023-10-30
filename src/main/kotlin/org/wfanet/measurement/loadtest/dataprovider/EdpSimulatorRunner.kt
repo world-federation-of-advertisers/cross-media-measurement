@@ -75,8 +75,7 @@ abstract class EdpSimulatorRunner : Runnable {
         flags.dataProviderResourceName,
         flags.dataProviderDisplayName,
         loadPrivateKey(flags.edpEncryptionPrivateKeyset),
-        loadSigningKey(flags.edpCsCertificateDerFile, flags.edpCsPrivateKeyDerFile),
-        DataProviderCertificateKey.fromName(flags.edpCsCertificateResourceName)!!,
+        loadSigningKey(flags.edpCsCertificateDerFile, flags.edpCsPrivateKeyDerFile)
       )
 
     val randomSeed = flags.randomSeed
@@ -106,6 +105,7 @@ abstract class EdpSimulatorRunner : Runnable {
       )
     runBlocking {
       edpSimulator.ensureEventGroup(eventGroupMetadata)
+      edpSimulator.ensureCertificate()
       edpSimulator.run()
     }
   }

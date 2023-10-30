@@ -35,7 +35,6 @@ import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Certificate
-import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
@@ -401,33 +400,6 @@ class ResourceSetup(
     }
   }
 
-  suspend fun createDataProviderCertificate(dataProviderCert: DataProviderCert): Certificate {
-    val internalCertificate =
-      try {
-        internalCertificatesClient.createCertificate(
-          internalCertificate {
-            fillCertificateFromDer(dataProviderCert.consentSignalCertificateDer)
-            externalDataProviderId = dataProviderCert.externalDataProviderId
-          }
-        )
-      } catch (e: StatusException) {
-        throw Exception(
-          "Error creating certificate for Data Provider ${dataProviderCert.externalDataProviderId}",
-          e
-        )
-      }
-
-    return certificate {
-      name =
-        DataProviderCertificateKey(
-            externalIdToApiId(internalCertificate.externalDataProviderId),
-            externalIdToApiId(internalCertificate.externalCertificateId)
-          )
-          .toName()
-      x509Der = internalCertificate.details.x509Der
-    }
-  }
-
   companion object {
     const val DEFAULT_BAZEL_CONFIG_NAME = "halo"
     const val RESOURCES_OUTPUT_FILE = "resources.textproto"
@@ -451,13 +423,6 @@ data class EntityContent(
 data class DuchyCert(
   /** The external duchy Id. */
   val duchyId: String,
-  /** The consent signaling certificate in DER format. */
-  val consentSignalCertificateDer: ByteString
-)
-
-data class DataProviderCert(
-  /** The external data provider Id. */
-  val externalDataProviderId: Long,
   /** The consent signaling certificate in DER format. */
   val consentSignalCertificateDer: ByteString
 )

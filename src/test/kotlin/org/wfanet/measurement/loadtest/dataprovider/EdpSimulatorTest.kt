@@ -153,6 +153,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.CompositionMechanism
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.DpCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender as PrivacyLandscapeGender
+import org.wfanet.measurement.api.v2alpha.CreateCertificateRequest
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetBalanceEntry
@@ -320,6 +321,41 @@ class EdpSimulatorTest {
       }
     }
     return vidRange.map { vid -> LabeledTestEvent(timestamp, vid, message) }
+  }
+
+  @Test
+  fun `ensureCertificate creates Certificate`() {
+    val edpSimulator =
+      EdpSimulator(
+        EDP_DATA,
+        MEASUREMENT_CONSUMER_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        InMemoryEventQuery(emptyList()),
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        compositionMechanism = COMPOSITION_MECHANISM
+      )
+
+    runBlocking { edpSimulator.ensureCertificate() }
+
+    // Verify certificate request contains information from EDP_DATA.
+    val createCertificateRequest: CreateCertificateRequest =
+      verifyAndCapture(
+        certificatesServiceMock,
+        CertificatesCoroutineImplBase::createCertificate
+      )
+    assertThat(createCertificateRequest.parent)
+      .isEqualTo(EDP_DATA.name)
+    assertThat(createCertificateRequest.certificate.subjectKeyIdentifier)
+      .isEqualTo(EDP_DATA.signingKey.certificate.subjectKeyIdentifier)
+    assertThat(createCertificateRequest.certificate.x509Der)
+      .isEqualTo(EDP_DATA.signingKey.certificate.encoded.toByteString())
   }
 
   @Test
@@ -2186,16 +2222,15 @@ class EdpSimulatorTest {
       name = DuchyCertificateKey(DUCHY_ID, externalIdToApiId(6L)).toName()
       x509Der = DUCHY_SIGNING_KEY.certificate.encoded.toByteString()
     }
-    private val DATA_PROVIDER_CERTIFICATE_KEY =
-      DataProviderCertificateKey(EDP_ID, externalIdToApiId(7L))
     private val EDP_DATA =
       EdpData(
         EDP_NAME,
         EDP_DISPLAY_NAME,
         loadEncryptionPrivateKey("${EDP_DISPLAY_NAME}_enc_private.tink"),
-        loadSigningKey("${EDP_DISPLAY_NAME}_cs_cert.der", "${EDP_DISPLAY_NAME}_cs_private.der"),
-        DATA_PROVIDER_CERTIFICATE_KEY,
+        loadSigningKey("${EDP_DISPLAY_NAME}_cs_cert.der", "${EDP_DISPLAY_NAME}_cs_private.der")
       )
+    private val DATA_PROVIDER_CERTIFICATE_KEY =
+      DataProviderCertificateKey(EDP_ID, externalIdToApiId(7L))
     private val DATA_PROVIDER_CERTIFICATE = certificate {
       name = DATA_PROVIDER_CERTIFICATE_KEY.toName()
       x509Der = EDP_DATA.signingKey.certificate.encoded.toByteString()

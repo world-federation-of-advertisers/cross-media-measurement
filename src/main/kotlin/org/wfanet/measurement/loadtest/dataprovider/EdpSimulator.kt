@@ -19,6 +19,7 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
 import com.google.protobuf.duration
+import com.google.protobuf.kotlin.toByteString
 import io.grpc.Status
 import io.grpc.StatusException
 import java.security.GeneralSecurityException
@@ -39,9 +40,9 @@ import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
 import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
 import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
+import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
 import org.wfanet.measurement.api.v2alpha.DeterministicDistribution
@@ -82,6 +83,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.createEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.customDirectMethodology
@@ -143,9 +145,7 @@ data class EdpData(
   /** The EDP's consent signaling encryption key. */
   val encryptionKey: PrivateKeyHandle,
   /** The EDP's consent signaling signing key. */
-  val signingKey: SigningKeyHandle,
-  /** The EDP's consent signaling certificate. */
-  val signingCertificate: DataProviderCertificateKey,
+  val signingKey: SigningKeyHandle
 )
 
 /** A simulator handling EDP businesses. */
@@ -169,6 +169,21 @@ class EdpSimulator(
   /** A sequence of operations done in the simulator. */
   suspend fun run() {
     throttler.loopOnReady { executeRequisitionFulfillingWorkflow() }
+  }
+
+  /**
+   * Ensures that an appropriate [Certificate] exists for the [DataProvider].
+   */
+  suspend fun ensureCertificate(): Certificate {
+    return try {
+        val certificate = certificate {
+          x509Der = edpData.signingKey.certificate.encoded.toByteString()
+          subjectKeyIdentifier = edpData.signingKey.certificate.subjectKeyIdentifier!!
+        }
+        createCertificate(edpData.name, certificate)
+    } catch (e: StatusException) {
+      throw Exception("Error creating certificate", e)
+    }
   }
 
   /**
@@ -505,6 +520,15 @@ class EdpSimulator(
       certificatesStub.getCertificate(getCertificateRequest { name = resourceName })
     } catch (e: StatusException) {
       throw Exception("Error fetching certificate $resourceName", e)
+    }
+  }
+
+  private suspend fun createCertificate(dataProviderResourceName: String, certificate: Certificate): Certificate {
+    return try {
+      certificatesStub.createCertificate(createCertificateRequest { parent = dataProviderResourceName
+        this.certificate = certificate })
+    } catch (e: StatusException) {
+      throw Exception("Error creating certificate for $dataProviderResourceName", e)
     }
   }
 
@@ -1523,7 +1547,7 @@ class EdpSimulator(
           name = requisition.name
           encryptedData = encryptedResult
           this.nonce = nonce
-          this.certificate = edpData.signingCertificate.toName()
+          this.certificate = requisition.dataProviderCertificate
         }
       )
     } catch (e: StatusException) {
