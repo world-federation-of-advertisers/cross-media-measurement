@@ -16,9 +16,11 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
 import com.google.protobuf.Duration
 import com.google.protobuf.duration
+import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Durations
 import io.grpc.Status
 import io.grpc.StatusException
@@ -64,7 +66,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
-import org.wfanet.measurement.api.v2alpha.SignedData
+import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
@@ -73,6 +75,7 @@ import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
@@ -211,7 +214,7 @@ class MetricsService(
 
   private data class DataProviderInfo(
     val dataProviderName: String,
-    val publicKey: SignedData,
+    val publicKey: SignedMessage,
     val certificateName: String,
   )
 
@@ -411,7 +414,7 @@ class MetricsService(
       dataProviderInfoMap: Map<String, DataProviderInfo>
     ): CreateMeasurementRequest {
       val measurementConsumerSigningKey = getMeasurementConsumerSigningKey(principal)
-      val measurementEncryptionPublicKey = measurementConsumer.publicKey.data
+      val packedMeasurementEncryptionPublicKey = measurementConsumer.publicKey.message
 
       return createMeasurementRequest {
         parent = measurementConsumer.name
@@ -421,14 +424,14 @@ class MetricsService(
           dataProviders +=
             buildDataProviderEntries(
               eventGroupEntriesByDataProvider,
-              measurementEncryptionPublicKey,
+              packedMeasurementEncryptionPublicKey,
               measurementConsumerSigningKey,
               dataProviderInfoMap
             )
 
           val unsignedMeasurementSpec: MeasurementSpec =
             buildUnsignedMeasurementSpec(
-              measurementEncryptionPublicKey,
+              packedMeasurementEncryptionPublicKey,
               dataProviders.map { it.value.nonceHash },
               metricSpec
             )
@@ -459,12 +462,12 @@ class MetricsService(
 
     /** Builds an unsigned [MeasurementSpec]. */
     private fun buildUnsignedMeasurementSpec(
-      measurementEncryptionPublicKey: ByteString,
+      packedMeasurementEncryptionPublicKey: ProtoAny,
       nonceHashes: List<ByteString>,
       metricSpec: InternalMetricSpec,
     ): MeasurementSpec {
       return measurementSpec {
-        measurementPublicKey = measurementEncryptionPublicKey
+        measurementPublicKey = packedMeasurementEncryptionPublicKey
         this.nonceHashes += nonceHashes
 
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -586,7 +589,7 @@ class MetricsService(
      */
     private fun buildDataProviderEntries(
       eventGroupEntriesByDataProvider: Map<DataProviderKey, List<EventGroupEntry>>,
-      measurementEncryptionPublicKey: ByteString,
+      packedMeasurementEncryptionPublicKey: ProtoAny,
       measurementConsumerSigningKey: SigningKeyHandle,
       dataProviderInfoMap: Map<String, DataProviderInfo>,
     ): List<Measurement.DataProviderEntry> {
@@ -596,13 +599,13 @@ class MetricsService(
 
         val requisitionSpec = requisitionSpec {
           events = RequisitionSpecKt.events { eventGroups += eventGroupEntriesList }
-          measurementPublicKey = measurementEncryptionPublicKey
+          measurementPublicKey = packedMeasurementEncryptionPublicKey
           nonce = secureRandom.nextLong()
         }
         val encryptRequisitionSpec =
           encryptRequisitionSpec(
             signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
-            EncryptionPublicKey.parseFrom(dataProviderInfo.publicKey.data)
+            dataProviderInfo.publicKey.unpack()
           )
 
         dataProviderEntry {
@@ -925,11 +928,11 @@ class MetricsService(
       apiAuthenticationKey: String,
       principalName: String,
     ): BatchSetMeasurementResultsRequest.MeasurementResult {
-      val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
+      val measurementSpec: MeasurementSpec = measurement.measurementSpec.unpack()
       val encryptionPrivateKeyHandle =
         encryptionKeyPairStore.getPrivateKeyHandle(
           principalName,
-          EncryptionPublicKey.parseFrom(measurementSpec.measurementPublicKey).data
+          measurementSpec.measurementPublicKey.unpack<EncryptionPublicKey>().data
         )
           ?: failGrpc(Status.FAILED_PRECONDITION) {
             "Encryption private key not found for the measurement ${measurement.name}."
@@ -1006,7 +1009,7 @@ class MetricsService(
       } catch (e: SignatureException) {
         throw Exception("Measurement result signature is invalid", e)
       }
-      return Measurement.Result.parseFrom(signedResult.data)
+      return signedResult.unpack()
     }
   }
 

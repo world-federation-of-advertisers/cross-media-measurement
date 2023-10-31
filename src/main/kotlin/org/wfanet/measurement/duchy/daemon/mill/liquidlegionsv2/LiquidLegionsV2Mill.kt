@@ -198,21 +198,21 @@ abstract class LiquidLegionsV2Mill(
     val kingdomComputation = token.computationDetails.kingdomComputation
     val serializedPublicApiEncryptionPublicKey: ByteString
     val publicApiVersion = Version.fromString(kingdomComputation.publicApiVersion)
-    val encryptedResult =
+    val encryptedResultCiphertext: ByteString =
       when (publicApiVersion) {
         Version.V2_ALPHA -> {
           val signedResult = signResult(computationResult.toV2AlphaMeasurementResult(), signingKey)
           val publicApiEncryptionPublicKey =
             kingdomComputation.measurementPublicKey.toV2AlphaEncryptionPublicKey()
           serializedPublicApiEncryptionPublicKey = publicApiEncryptionPublicKey.toByteString()
-          encryptResult(signedResult, publicApiEncryptionPublicKey)
+          encryptResult(signedResult, publicApiEncryptionPublicKey).ciphertext
         }
       }
     sendResultToKingdom(
       globalId = token.globalComputationId,
       certificate = consentSignalCert,
       resultPublicKey = serializedPublicApiEncryptionPublicKey,
-      encryptedResult = encryptedResult,
+      encryptedResult = encryptedResultCiphertext,
       publicApiVersion = publicApiVersion
     )
   }
