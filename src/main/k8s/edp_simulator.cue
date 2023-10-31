@@ -17,6 +17,7 @@ package k8s
 #EdpConfig: {
 	displayName:  string
 	resourceName: string
+	publisherId:  int
 }
 
 #EdpSimulator: {
