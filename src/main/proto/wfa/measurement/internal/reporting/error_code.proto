@@ -67,4 +67,10 @@ enum ErrorCode {
 
   /** Report Schedule state is not the right state for the operation. */
   REPORT_SCHEDULE_STATE_INVALID = 15;
+
+  /** Report Schedule Iteration with the provided IDs does not exist. */
+  REPORT_SCHEDULE_ITERATION_NOT_FOUND = 16;
+
+  /** Report Schedule Iteration state is not the right state for the op. */
+  REPORT_SCHEDULE_ITERATION_STATE_INVALID = 17;
 }
