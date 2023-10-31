@@ -16,15 +16,18 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import java.time.LocalDate
 import kotlin.test.assertFails
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
+import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.internal.kingdom.CreateRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
@@ -33,7 +36,11 @@ import org.wfanet.measurement.internal.kingdom.GetRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.createRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.modelProvider
+import org.wfanet.measurement.internal.kingdom.recurringExchange
+import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
 
@@ -55,24 +62,18 @@ private const val EXTERNAL_MODEL_PROVIDER_ID = 666L
 private val MODEL_ID_GENERATOR =
   FixedIdGenerator(InternalId(INTERNAL_MODEL_PROVIDER_ID), ExternalId(EXTERNAL_MODEL_PROVIDER_ID))
 
-private val RECURRING_EXCHANGE: RecurringExchange =
-  RecurringExchange.newBuilder()
-    .apply {
-      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-      externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-      state = RecurringExchange.State.ACTIVE
-      detailsBuilder.apply {
-        cronSchedule = "some arbitrary cron_schedule"
-        exchangeWorkflow = ExchangeWorkflow.getDefaultInstance()
-      }
-      nextExchangeDateBuilder.apply {
-        year = 2021
-        month = 8
-        day = 5
-      }
-    }
-    .build()
+private val RECURRING_EXCHANGE: RecurringExchange = recurringExchange {
+  externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+  externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+  externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+  state = RecurringExchange.State.ACTIVE
+  details = recurringExchangeDetails {
+    apiVersion = Version.V2_ALPHA.string
+    cronSchedule = "some arbitrary cron_schedule"
+    exchangeWorkflow = ExchangeWorkflow.getDefaultInstance()
+  }
+  nextExchangeDate = LocalDate.of(2021, 8, 5).toProtoDate()
+}
 
 private val DATA_PROVIDER: DataProvider =
   DataProvider.newBuilder()
@@ -83,7 +84,7 @@ private val DATA_PROVIDER: DataProvider =
         detailsBuilder.x509Der = ByteString.copyFromUtf8("This is a certificate der.")
       }
       detailsBuilder.apply {
-        apiVersion = "2"
+        apiVersion = Version.V2_ALPHA.string
         publicKey = ByteString.copyFromUtf8("This is a  public key.")
         publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
       }
@@ -147,16 +148,17 @@ abstract class RecurringExchangesServiceTest {
 
   @Test
   fun `createRecurringExchange ignores state and id`() {
-    val createRequest =
-      CreateRecurringExchangeRequest.newBuilder()
-        .apply {
-          recurringExchange = RECURRING_EXCHANGE
-          recurringExchangeBuilder.externalRecurringExchangeId += 12345
-          recurringExchangeBuilder.state = RecurringExchange.State.RETIRED
+    val request = createRecurringExchangeRequest {
+      recurringExchange =
+        RECURRING_EXCHANGE.copy {
+          externalRecurringExchangeId += 12345
+          state = RecurringExchange.State.RETIRED
         }
-        .build()
+    }
 
-    assertThat(createRecurringExchange(createRequest)).isEqualTo(RECURRING_EXCHANGE)
+    val response: RecurringExchange = createRecurringExchange(request)
+
+    assertThat(response).isEqualTo(RECURRING_EXCHANGE)
     assertThat(getRecurringExchange()).isEqualTo(RECURRING_EXCHANGE)
   }
 

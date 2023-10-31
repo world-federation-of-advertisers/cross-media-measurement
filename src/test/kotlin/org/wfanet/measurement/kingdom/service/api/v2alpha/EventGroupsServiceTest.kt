@@ -127,6 +127,7 @@ private val INTERNAL_EVENT_TEMPLATES =
 
 private val EVENT_GROUP: EventGroup = eventGroup {
   name = EVENT_GROUP_NAME
+  apiVersion = API_VERSION.string
   measurementConsumer = MEASUREMENT_CONSUMER_NAME
   measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
   eventGroupReferenceId = "aaa"

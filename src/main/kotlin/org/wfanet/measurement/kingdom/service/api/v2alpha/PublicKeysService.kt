@@ -27,6 +27,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.PublicKey
 import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt.PublicKeysCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.UpdatePublicKeyRequest
+import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -122,7 +123,7 @@ class PublicKeysService(private val internalPublicKeysStub: PublicKeysCoroutineS
           externalCertificateId = apiIdToExternalId(certificateKey.certificateId)
         }
       }
-      apiVersion = Version.V2_ALPHA.toString()
+      apiVersion = API_VERSION.string
       publicKey = request.publicKey.publicKey.data
       publicKeySignature = request.publicKey.publicKey.signature
       publicKeySignatureAlgorithmOid = request.publicKey.publicKey.signatureAlgorithmOid
@@ -140,7 +141,11 @@ class PublicKeysService(private val internalPublicKeysStub: PublicKeysCoroutineS
       }
     }
 
-    return request.publicKey
+    return request.publicKey.copy { apiVersion = API_VERSION.string }
+  }
+
+  companion object {
+    private val API_VERSION = Version.V2_ALPHA
   }
 }
 
