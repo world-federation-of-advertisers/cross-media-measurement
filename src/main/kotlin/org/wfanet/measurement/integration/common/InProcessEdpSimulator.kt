@@ -145,7 +145,7 @@ class InProcessEdpSimulator(
       displayName = displayName,
       encryptionKey = loadEncryptionPrivateKey("${displayName}_enc_private.tink"),
       signingKey = loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der"),
-      edpResultCsSigningKey
+      resultSigningKey = edpResultCsSigningKey
     )
 
   companion object {

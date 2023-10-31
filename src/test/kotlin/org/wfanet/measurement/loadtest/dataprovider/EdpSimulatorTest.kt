@@ -66,6 +66,7 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.ListCertificatesRequestKt
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
@@ -108,6 +109,8 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
+import org.wfanet.measurement.api.v2alpha.listCertificatesRequest
+import org.wfanet.measurement.api.v2alpha.listCertificatesResponse
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
@@ -231,6 +234,25 @@ class EdpSimulatorTest {
         getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_CERTIFICATE.name }))
       }
       .thenReturn(DATA_PROVIDER_CERTIFICATE)
+    if (EDP_RESULT_CS_SIGNING_KEY != null) {
+      onBlocking {
+          listCertificates(
+            eq(
+              listCertificatesRequest {
+                parent = EDP_DATA.name
+                filter =
+                  ListCertificatesRequestKt.filter {
+                    subjectKeyIdentifiers +=
+                      EDP_RESULT_CS_SIGNING_KEY.certificate.subjectKeyIdentifier!!
+                  }
+              }
+            )
+          )
+        }
+        .thenReturn(
+          listCertificatesResponse { certificates += DATA_PROVIDER_RESULT_CS_CERTIFICATE!! }
+        )
+    }
   }
   private val measurementConsumersServiceMock:
     MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase =
@@ -350,9 +372,9 @@ class EdpSimulatorTest {
       verifyAndCapture(certificatesServiceMock, CertificatesCoroutineImplBase::createCertificate)
     assertThat(createCertificateRequest.parent).isEqualTo(EDP_DATA.name)
     assertThat(createCertificateRequest.certificate.subjectKeyIdentifier)
-      .isEqualTo(EDP_DATA.signingKey.certificate.subjectKeyIdentifier)
+      .isEqualTo(EDP_DATA.resultSigningKey!!.certificate.subjectKeyIdentifier)
     assertThat(createCertificateRequest.certificate.x509Der)
-      .isEqualTo(EDP_DATA.signingKey.certificate.encoded.toByteString())
+      .isEqualTo(EDP_DATA.resultSigningKey!!.certificate.encoded.toByteString())
   }
 
   @Test
@@ -2219,7 +2241,7 @@ class EdpSimulatorTest {
       name = DuchyCertificateKey(DUCHY_ID, externalIdToApiId(6L)).toName()
       x509Der = DUCHY_SIGNING_KEY.certificate.encoded.toByteString()
     }
-    val edpResultCsSigningKey =
+    private val EDP_RESULT_CS_SIGNING_KEY =
       if (Files.exists(SECRET_FILES_PATH.resolve("${EDP_DISPLAY_NAME}_result_cs_cert.der"))) {
         loadSigningKey(
           "${EDP_DISPLAY_NAME}_result_cs_cert.der",
@@ -2234,7 +2256,7 @@ class EdpSimulatorTest {
         EDP_DISPLAY_NAME,
         loadEncryptionPrivateKey("${EDP_DISPLAY_NAME}_enc_private.tink"),
         loadSigningKey("${EDP_DISPLAY_NAME}_cs_cert.der", "${EDP_DISPLAY_NAME}_cs_private.der"),
-        edpResultCsSigningKey,
+        EDP_RESULT_CS_SIGNING_KEY,
       )
     private val DATA_PROVIDER_CERTIFICATE_KEY =
       DataProviderCertificateKey(EDP_ID, externalIdToApiId(7L))
@@ -2243,6 +2265,18 @@ class EdpSimulatorTest {
       x509Der = EDP_DATA.signingKey.certificate.encoded.toByteString()
       subjectKeyIdentifier = EDP_DATA.signingKey.certificate.subjectKeyIdentifier!!
     }
+    private val DATA_PROVIDER_RESULT_CS_CERTIFICATE_KEY =
+      DataProviderCertificateKey(EDP_ID, externalIdToApiId(8L))
+    private val DATA_PROVIDER_RESULT_CS_CERTIFICATE =
+      if (EDP_RESULT_CS_SIGNING_KEY == null) {
+        null
+      } else {
+        certificate {
+          name = DATA_PROVIDER_RESULT_CS_CERTIFICATE_KEY.toName()
+          x509Der = EDP_RESULT_CS_SIGNING_KEY.certificate.encoded.toByteString()
+          subjectKeyIdentifier = EDP_RESULT_CS_SIGNING_KEY.certificate.subjectKeyIdentifier!!
+        }
+      }
 
     private val MC_PUBLIC_KEY =
       loadPublicKey(SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile())
