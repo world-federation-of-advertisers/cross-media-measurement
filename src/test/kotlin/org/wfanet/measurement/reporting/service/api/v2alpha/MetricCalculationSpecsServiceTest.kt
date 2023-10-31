@@ -41,7 +41,6 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.MetricSpecConfigKt
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.metricSpecConfig
-import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsRequestKt as InternalListMetricCalculationSpecsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec as InternalMetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt as InternalMetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
@@ -426,12 +425,12 @@ class MetricCalculationSpecsServiceTest {
   fun `listMetricCalculationSpecs returns with next page token when there is another page`() {
     runBlocking {
       whenever(internalMetricCalculationSpecsMock.listMetricCalculationSpecs(any()))
-      .thenReturn(
-        internalListMetricCalculationSpecsResponse {
-          metricCalculationSpecs += INTERNAL_METRIC_CALCULATION_SPEC
-          hasMoreThanLimit = true
-        }
-      )
+        .thenReturn(
+          internalListMetricCalculationSpecsResponse {
+            metricCalculationSpecs += INTERNAL_METRIC_CALCULATION_SPEC
+            hasMoreThanLimit = true
+          }
+        )
     }
 
     val pageSize = 1

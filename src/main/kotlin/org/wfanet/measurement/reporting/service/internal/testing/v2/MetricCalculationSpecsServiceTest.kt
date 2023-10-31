@@ -30,7 +30,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
@@ -279,13 +278,12 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
     )
 
     val listResponse =
-      service
-        .listMetricCalculationSpecs(
-          listMetricCalculationSpecsRequest {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            limit = 1
-          }
-        )
+      service.listMetricCalculationSpecs(
+        listMetricCalculationSpecsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          limit = 1
+        }
+      )
     val retrievedMetricCalculationSpecs = listResponse.metricCalculationSpecsList
 
     assertThat(listResponse.hasMoreThanLimit).isTrue()

@@ -181,8 +181,9 @@ class MetricCalculationSpecsService(
 
     val response: InternalListMetricCalculationSpecsResponse =
       try {
-        internalMetricCalculationSpecsStub
-          .listMetricCalculationSpecs(internalListMetricCalculationSpecsRequest)
+        internalMetricCalculationSpecsStub.listMetricCalculationSpecs(
+          internalListMetricCalculationSpecsRequest
+        )
       } catch (e: StatusException) {
         throw when (e.status.code) {
             Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
@@ -216,9 +217,7 @@ class MetricCalculationSpecsService(
     return listMetricCalculationSpecsResponse {
       metricCalculationSpecs +=
         filterMetricCalculationSpecs(
-          results.map { internalMetricCalculationSpec ->
-            internalMetricCalculationSpec.toPublic()
-          },
+          results.map { internalMetricCalculationSpec -> internalMetricCalculationSpec.toPublic() },
           request.filter
         )
 

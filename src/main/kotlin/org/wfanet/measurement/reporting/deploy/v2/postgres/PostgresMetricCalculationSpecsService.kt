@@ -103,15 +103,14 @@ class PostgresMetricCalculationSpecsService(
     val plusOneLimit = request.limit + 1
     return try {
       val metricCalculationSpecs =
-        MetricCalculationSpecReader(readContext).readMetricCalculationSpecs(request.copy {
-          limit = plusOneLimit
-        }).map {
-          it.metricCalculationSpec
-        }
+        MetricCalculationSpecReader(readContext)
+          .readMetricCalculationSpecs(request.copy { limit = plusOneLimit })
+          .map { it.metricCalculationSpec }
 
       if (metricCalculationSpecs.size > request.limit) {
         listMetricCalculationSpecsResponse {
-          this.metricCalculationSpecs += metricCalculationSpecs.subList(0, metricCalculationSpecs.size - 1)
+          this.metricCalculationSpecs +=
+            metricCalculationSpecs.subList(0, metricCalculationSpecs.size - 1)
           hasMoreThanLimit = true
         }
       } else {
