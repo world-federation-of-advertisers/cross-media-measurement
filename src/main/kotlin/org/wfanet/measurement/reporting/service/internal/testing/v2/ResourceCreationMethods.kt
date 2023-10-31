@@ -113,11 +113,12 @@ suspend fun createMetricCalculationSpec(
       this.externalMetricCalculationSpecId = externalMetricCalculationSpecId
     }
   )
-}    
+}
 
 suspend fun createReportSchedule(
   cmmsMeasurementConsumerId: String,
   reportingSet: ReportingSet,
+  metricCalculationSpec: MetricCalculationSpec,
   reportSchedulesService: ReportSchedulesCoroutineImplBase,
   externalReportScheduleId: String = "report-schedule-123",
 ): ReportSchedule {
@@ -131,32 +132,10 @@ suspend fun createReportSchedule(
         reportTemplate = report {
           reportingMetricEntries[reportingSet.externalReportingSetId] =
             ReportKt.reportingMetricCalculationSpec {
-              metricCalculationSpecs +=
-                ReportKt.metricCalculationSpec {
-                  details =
-                    ReportKt.MetricCalculationSpecKt.details {
-                      this.displayName = "displayName"
-                      metricSpecs += metricSpec {
-                        reach =
-                          MetricSpecKt.reachParams {
-                            privacyParams =
-                              MetricSpecKt.differentialPrivacyParams {
-                                epsilon = 1.0
-                                delta = 2.0
-                              }
-                          }
-                        vidSamplingInterval =
-                          MetricSpecKt.vidSamplingInterval {
-                            start = 0.1f
-                            width = 0.5f
-                          }
-                      }
-                      groupings +=
-                        ReportKt.MetricCalculationSpecKt.grouping {
-                          predicates += "gender.value == MALE"
-                        }
-                      cumulative = false
-                    }
+              metricCalculationSpecReportingMetrics +=
+                ReportKt.metricCalculationSpecReportingMetrics {
+                  externalMetricCalculationSpecId =
+                    metricCalculationSpec.externalMetricCalculationSpecId
                 }
             }
         }

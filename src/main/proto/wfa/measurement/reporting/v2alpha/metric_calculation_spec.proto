@@ -44,7 +44,10 @@ message MetricCalculationSpec {
   ];
 
   // A collection of metrics.
-  repeated MetricSpec metric_specs = 3 [(google.api.field_behavior) = REQUIRED];
+  repeated MetricSpec metric_specs = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
 
   // An additional event filter that will be conjoined to any filters
   // present on the `ReportingSet` provided as part of the

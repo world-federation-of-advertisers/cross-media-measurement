@@ -424,6 +424,16 @@ class MetricCalculationSpecsServiceTest {
 
   @Test
   fun `listMetricCalculationSpecs returns with next page token when there is another page`() {
+    runBlocking {
+      whenever(internalMetricCalculationSpecsMock.listMetricCalculationSpecs(any()))
+      .thenReturn(
+        internalListMetricCalculationSpecsResponse {
+          metricCalculationSpecs += INTERNAL_METRIC_CALCULATION_SPEC
+          hasMoreThanLimit = true
+        }
+      )
+    }
+
     val pageSize = 1
     val request = listMetricCalculationSpecsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
@@ -459,11 +469,8 @@ class MetricCalculationSpecsServiceTest {
       )
       .isEqualTo(
         internalListMetricCalculationSpecsRequest {
-          limit = pageSize + 1
-          filter =
-            InternalListMetricCalculationSpecsRequestKt.filter {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            }
+          limit = pageSize
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         }
       )
   }
@@ -494,11 +501,8 @@ class MetricCalculationSpecsServiceTest {
       )
       .isEqualTo(
         internalListMetricCalculationSpecsRequest {
-          limit = pageSize + 1
-          filter =
-            InternalListMetricCalculationSpecsRequestKt.filter {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            }
+          limit = pageSize
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         }
       )
   }
@@ -541,12 +545,9 @@ class MetricCalculationSpecsServiceTest {
       )
       .isEqualTo(
         internalListMetricCalculationSpecsRequest {
-          limit = pageSize + 1
-          filter =
-            InternalListMetricCalculationSpecsRequestKt.filter {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              externalMetricCalculationSpecIdAfter = METRIC_CALCULATION_SPEC_ID
-            }
+          limit = pageSize
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricCalculationSpecIdAfter = METRIC_CALCULATION_SPEC_ID
         }
       )
   }
@@ -577,11 +578,8 @@ class MetricCalculationSpecsServiceTest {
       )
       .isEqualTo(
         internalListMetricCalculationSpecsRequest {
-          limit = MAX_PAGE_SIZE + 1
-          filter =
-            InternalListMetricCalculationSpecsRequestKt.filter {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            }
+          limit = MAX_PAGE_SIZE
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         }
       )
   }
@@ -625,12 +623,9 @@ class MetricCalculationSpecsServiceTest {
       )
       .isEqualTo(
         internalListMetricCalculationSpecsRequest {
-          limit = oldPageSize + 1
-          filter =
-            InternalListMetricCalculationSpecsRequestKt.filter {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              externalMetricCalculationSpecIdAfter = METRIC_CALCULATION_SPEC_ID
-            }
+          limit = oldPageSize
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricCalculationSpecIdAfter = METRIC_CALCULATION_SPEC_ID
         }
       )
   }
@@ -657,11 +652,8 @@ class MetricCalculationSpecsServiceTest {
       )
       .isEqualTo(
         internalListMetricCalculationSpecsRequest {
-          limit = DEFAULT_PAGE_SIZE + 1
-          filter =
-            InternalListMetricCalculationSpecsRequestKt.filter {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            }
+          limit = DEFAULT_PAGE_SIZE
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         }
       )
   }
@@ -705,12 +697,9 @@ class MetricCalculationSpecsServiceTest {
       )
       .isEqualTo(
         internalListMetricCalculationSpecsRequest {
-          limit = pageSize + 1
-          filter =
-            InternalListMetricCalculationSpecsRequestKt.filter {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              externalMetricCalculationSpecIdAfter = METRIC_CALCULATION_SPEC_ID
-            }
+          limit = pageSize
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricCalculationSpecIdAfter = METRIC_CALCULATION_SPEC_ID
         }
       )
   }
@@ -741,11 +730,8 @@ class MetricCalculationSpecsServiceTest {
       )
       .isEqualTo(
         internalListMetricCalculationSpecsRequest {
-          limit = pageSize + 1
-          filter =
-            InternalListMetricCalculationSpecsRequestKt.filter {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            }
+          limit = pageSize
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         }
       )
   }

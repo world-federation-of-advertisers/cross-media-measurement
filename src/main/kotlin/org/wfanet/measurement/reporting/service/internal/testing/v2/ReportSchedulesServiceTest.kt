@@ -662,7 +662,9 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
   fun `stopReportSchedule sets state to STOPPED`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-    val reportSchedule = createReportScheduleForRequest(reportingSet)
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
+    val reportSchedule = createReportScheduleForRequest(reportingSet, metricCalculationSpec)
     val createRequest = createReportScheduleRequest {
       this.reportSchedule = reportSchedule
       externalReportScheduleId = "external-report-schedule-id"
@@ -720,7 +722,9 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
   fun `stopReportSchedule throws FAILED_PRECONDITION when state not active`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
-    val reportSchedule = createReportScheduleForRequest(reportingSet)
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
+    val reportSchedule = createReportScheduleForRequest(reportingSet, metricCalculationSpec)
     val createRequest = createReportScheduleRequest {
       this.reportSchedule = reportSchedule
       externalReportScheduleId = "external-report-schedule-id"

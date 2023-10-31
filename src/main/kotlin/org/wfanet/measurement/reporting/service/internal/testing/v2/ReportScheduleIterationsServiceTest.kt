@@ -34,6 +34,7 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.reporting.v2.ListReportScheduleIterationsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedule
 import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIteration
 import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpcKt.ReportScheduleIterationsCoroutineImplBase
@@ -53,6 +54,7 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
     val reportScheduleIterationsService: T,
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
     val reportingSetsService: ReportingSetsCoroutineImplBase,
+    val metricCalculationSpecsService: MetricCalculationSpecsCoroutineImplBase,
     val reportSchedulesService: ReportSchedulesCoroutineImplBase,
   )
 
@@ -61,6 +63,7 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
 
   private lateinit var measurementConsumersService: MeasurementConsumersCoroutineImplBase
   private lateinit var reportingSetsService: ReportingSetsCoroutineImplBase
+  private lateinit var metricCalculationSpecsService: MetricCalculationSpecsCoroutineImplBase
   private lateinit var reportSchedulesService: ReportSchedulesCoroutineImplBase
 
   /** Constructs the services being tested. */
@@ -72,6 +75,7 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
     service = services.reportScheduleIterationsService
     measurementConsumersService = services.measurementConsumersService
     reportingSetsService = services.reportingSetsService
+    metricCalculationSpecsService = services.metricCalculationSpecsService
     reportSchedulesService = services.reportSchedulesService
   }
 
@@ -79,8 +83,15 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
   fun `createReportScheduleIteration return report schedule iteration`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
     val reportSchedule =
-      createReportSchedule(CMMS_MEASUREMENT_CONSUMER_ID, reportingSet, reportSchedulesService)
+      createReportSchedule(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        reportingSet,
+        metricCalculationSpec,
+        reportSchedulesService
+      )
     val reportScheduleIteration = reportScheduleIteration {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalReportScheduleId = reportSchedule.externalReportScheduleId
@@ -123,8 +134,15 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
   fun `getReportScheduleIteration return report schedule iteration`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
     val reportSchedule =
-      createReportSchedule(CMMS_MEASUREMENT_CONSUMER_ID, reportingSet, reportSchedulesService)
+      createReportSchedule(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        reportingSet,
+        metricCalculationSpec,
+        reportSchedulesService
+      )
     val reportScheduleIteration = createReportScheduleIterationForRequest(reportSchedule)
 
     val createdReportScheduleIteration =
@@ -162,8 +180,15 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
   fun `getReportScheduleIteration throws NOT_FOUND when iteration not found`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
     val reportSchedule =
-      createReportSchedule(CMMS_MEASUREMENT_CONSUMER_ID, reportingSet, reportSchedulesService)
+      createReportSchedule(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        reportingSet,
+        metricCalculationSpec,
+        reportSchedulesService
+      )
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -235,8 +260,15 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
     runBlocking {
       createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
       val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+      val metricCalculationSpec =
+        createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
       val reportSchedule =
-        createReportSchedule(CMMS_MEASUREMENT_CONSUMER_ID, reportingSet, reportSchedulesService)
+        createReportSchedule(
+          CMMS_MEASUREMENT_CONSUMER_ID,
+          reportingSet,
+          metricCalculationSpec,
+          reportSchedulesService
+        )
 
       val reportScheduleIteration =
         createReportScheduleIterationForRequest(reportSchedule).copy {
@@ -280,8 +312,15 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
   fun `listReportScheduleIterations lists 1 iteration when limit is specified`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
     val reportSchedule =
-      createReportSchedule(CMMS_MEASUREMENT_CONSUMER_ID, reportingSet, reportSchedulesService)
+      createReportSchedule(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        reportingSet,
+        metricCalculationSpec,
+        reportSchedulesService
+      )
 
     val reportScheduleIteration =
       createReportScheduleIterationForRequest(reportSchedule).copy {
@@ -319,8 +358,15 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
   fun `listReportScheduleIteration lists 1 iteration when after id is specified`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
     val reportSchedule =
-      createReportSchedule(CMMS_MEASUREMENT_CONSUMER_ID, reportingSet, reportSchedulesService)
+      createReportSchedule(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        reportingSet,
+        metricCalculationSpec,
+        reportSchedulesService
+      )
 
     val reportScheduleIteration =
       createReportScheduleIterationForRequest(reportSchedule).copy {
@@ -371,8 +417,15 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
   fun `setReportScheduleIterationState sets state to RETRYING_REPORT_CREATION`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
     val reportSchedule =
-      createReportSchedule(CMMS_MEASUREMENT_CONSUMER_ID, reportingSet, reportSchedulesService)
+      createReportSchedule(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        reportingSet,
+        metricCalculationSpec,
+        reportSchedulesService
+      )
     val reportScheduleIteration = createReportScheduleIterationForRequest(reportSchedule)
     val createdReportScheduleIteration =
       service.createReportScheduleIteration(reportScheduleIteration)
@@ -426,8 +479,15 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
   fun `setReportScheduleIterationState throws NOT_FOUND when iteration not found`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
     val reportSchedule =
-      createReportSchedule(CMMS_MEASUREMENT_CONSUMER_ID, reportingSet, reportSchedulesService)
+      createReportSchedule(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        reportingSet,
+        metricCalculationSpec,
+        reportSchedulesService
+      )
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -449,8 +509,15 @@ abstract class ReportScheduleIterationsServiceTest<T : ReportScheduleIterationsC
     runBlocking {
       createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
       val reportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+      val metricCalculationSpec =
+        createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
       val reportSchedule =
-        createReportSchedule(CMMS_MEASUREMENT_CONSUMER_ID, reportingSet, reportSchedulesService)
+        createReportSchedule(
+          CMMS_MEASUREMENT_CONSUMER_ID,
+          reportingSet,
+          metricCalculationSpec,
+          reportSchedulesService
+        )
       val reportScheduleIteration = createReportScheduleIterationForRequest(reportSchedule)
       val createdReportScheduleIteration =
         service.createReportScheduleIteration(reportScheduleIteration)

@@ -93,8 +93,8 @@ class MetricCalculationSpecReader(private val readContext: ReadContext) {
 
     val statement =
       boundStatement(sql.toString()) {
-        bind("$1", request.filter.cmmsMeasurementConsumerId)
-        bind("$2", request.filter.externalMetricCalculationSpecIdAfter)
+        bind("$1", request.cmmsMeasurementConsumerId)
+        bind("$2", request.externalMetricCalculationSpecIdAfter)
 
         if (request.limit > 0) {
           bind("$3", request.limit)

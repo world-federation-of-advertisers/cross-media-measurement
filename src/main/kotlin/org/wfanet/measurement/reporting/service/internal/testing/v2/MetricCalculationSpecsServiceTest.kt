@@ -252,10 +252,7 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
       service
         .listMetricCalculationSpecs(
           listMetricCalculationSpecsRequest {
-            filter =
-              ListMetricCalculationSpecsRequestKt.filter {
-                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              }
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
           }
         )
         .metricCalculationSpecsList
@@ -281,19 +278,17 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
       request.copy { externalMetricCalculationSpecId = "external-metric-calculation-spec-id-2" }
     )
 
-    val retrievedMetricCalculationSpecs =
+    val listResponse =
       service
         .listMetricCalculationSpecs(
           listMetricCalculationSpecsRequest {
-            filter =
-              ListMetricCalculationSpecsRequestKt.filter {
-                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              }
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             limit = 1
           }
         )
-        .metricCalculationSpecsList
+    val retrievedMetricCalculationSpecs = listResponse.metricCalculationSpecsList
 
+    assertThat(listResponse.hasMoreThanLimit).isTrue()
     assertThat(retrievedMetricCalculationSpecs).hasSize(1)
     assertThat(retrievedMetricCalculationSpecs[0].externalMetricCalculationSpecId)
       .isEqualTo(createdMetricCalculationSpec.externalMetricCalculationSpecId)
@@ -318,12 +313,9 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
       service
         .listMetricCalculationSpecs(
           listMetricCalculationSpecsRequest {
-            filter =
-              ListMetricCalculationSpecsRequestKt.filter {
-                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-                externalMetricCalculationSpecIdAfter =
-                  createdMetricCalculationSpec.externalMetricCalculationSpecId
-              }
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalMetricCalculationSpecIdAfter =
+              createdMetricCalculationSpec.externalMetricCalculationSpecId
           }
         )
         .metricCalculationSpecsList

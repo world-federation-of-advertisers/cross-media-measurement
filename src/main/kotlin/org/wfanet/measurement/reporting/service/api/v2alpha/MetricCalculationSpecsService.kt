@@ -18,7 +18,6 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import io.grpc.Status
 import io.grpc.StatusException
-import kotlin.math.min
 import org.projectnessie.cel.Env
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.base64UrlDecode
@@ -28,7 +27,7 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsRequest as InternalListMetricCalculationSpecsRequest
-import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsRequestKt
+import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsResponse as InternalListMetricCalculationSpecsResponse
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec as InternalMetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt as InternalMetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
@@ -180,11 +179,10 @@ class MetricCalculationSpecsService(
     val internalListMetricCalculationSpecsRequest =
       listMetricCalculationSpecsPageToken.toInternalListMetricCalculationSpecsRequest()
 
-    val results: List<InternalMetricCalculationSpec> =
+    val response: InternalListMetricCalculationSpecsResponse =
       try {
         internalMetricCalculationSpecsStub
           .listMetricCalculationSpecs(internalListMetricCalculationSpecsRequest)
-          .metricCalculationSpecsList
       } catch (e: StatusException) {
         throw when (e.status.code) {
             Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
@@ -196,13 +194,14 @@ class MetricCalculationSpecsService(
           .asRuntimeException()
       }
 
+    val results = response.metricCalculationSpecsList
     if (results.isEmpty()) {
       return ListMetricCalculationSpecsResponse.getDefaultInstance()
     }
 
     val nextPageToken: ListMetricCalculationSpecsPageToken? =
-      if (results.size > listMetricCalculationSpecsPageToken.pageSize) {
-        val lastResult = results[results.lastIndex - 1]
+      if (response.hasMoreThanLimit) {
+        val lastResult = results.last()
         listMetricCalculationSpecsPageToken.copy {
           lastMetricCalculationSpec =
             ListMetricCalculationSpecsPageTokenKt.previousPageEnd {
@@ -214,13 +213,10 @@ class MetricCalculationSpecsService(
         null
       }
 
-    val subResults: List<InternalMetricCalculationSpec> =
-      results.subList(0, min(results.size, listMetricCalculationSpecsPageToken.pageSize))
-
     return listMetricCalculationSpecsResponse {
       metricCalculationSpecs +=
         filterMetricCalculationSpecs(
-          subResults.map { internalMetricCalculationSpec ->
+          results.map { internalMetricCalculationSpec ->
             internalMetricCalculationSpec.toPublic()
           },
           request.filter
@@ -332,16 +328,12 @@ class MetricCalculationSpecsService(
       InternalListMetricCalculationSpecsRequest {
       val source = this
       return listMetricCalculationSpecsRequest {
-        // get one more than the actual page size for deciding whether to set page token
-        limit = pageSize + 1
-        filter =
-          ListMetricCalculationSpecsRequestKt.filter {
-            cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId
-            if (source.hasLastMetricCalculationSpec()) {
-              externalMetricCalculationSpecIdAfter =
-                source.lastMetricCalculationSpec.externalMetricCalculationSpecId
-            }
-          }
+        limit = pageSize
+        cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId
+        if (source.hasLastMetricCalculationSpec()) {
+          externalMetricCalculationSpecIdAfter =
+            source.lastMetricCalculationSpec.externalMetricCalculationSpecId
+        }
       }
     }
 

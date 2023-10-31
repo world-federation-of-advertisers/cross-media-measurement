@@ -29,6 +29,7 @@ import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsRe
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpecsResponse
+import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsResponse
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MetricCalculationSpecReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateMetricCalculationSpec
@@ -94,17 +95,30 @@ class PostgresMetricCalculationSpecsService(
   override suspend fun listMetricCalculationSpecs(
     request: ListMetricCalculationSpecsRequest
   ): ListMetricCalculationSpecsResponse {
-    grpcRequire(request.filter.cmmsMeasurementConsumerId.isNotEmpty()) {
+    grpcRequire(request.cmmsMeasurementConsumerId.isNotEmpty()) {
       "cmms_measurement_consumer_id is not set."
     }
 
     val readContext = client.readTransaction()
+    val plusOneLimit = request.limit + 1
     return try {
-      listMetricCalculationSpecsResponse {
-        metricCalculationSpecs +=
-          MetricCalculationSpecReader(readContext).readMetricCalculationSpecs(request).map {
-            it.metricCalculationSpec
-          }
+      val metricCalculationSpecs =
+        MetricCalculationSpecReader(readContext).readMetricCalculationSpecs(request.copy {
+          limit = plusOneLimit
+        }).map {
+          it.metricCalculationSpec
+        }
+
+      if (metricCalculationSpecs.size > request.limit) {
+        listMetricCalculationSpecsResponse {
+          this.metricCalculationSpecs += metricCalculationSpecs.subList(0, metricCalculationSpecs.size - 1)
+          hasMoreThanLimit = true
+        }
+      } else {
+        listMetricCalculationSpecsResponse {
+          this.metricCalculationSpecs += metricCalculationSpecs
+          hasMoreThanLimit = false
+        }
       }
     } finally {
       readContext.close()
