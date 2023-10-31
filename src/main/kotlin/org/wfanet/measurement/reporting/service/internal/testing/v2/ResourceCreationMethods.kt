@@ -1,0 +1,58 @@
+/*
+ * Copyright 2023 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.wfanet.measurement.reporting.service.internal.testing.v2
+
+import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.v2.ReportingSet
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
+import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
+import org.wfanet.measurement.internal.reporting.v2.reportingSet
+
+suspend fun createReportingSet(
+  cmmsMeasurementConsumerId: String,
+  reportingSetsService: ReportingSetsCoroutineImplBase,
+  externalReportingSetId: String = "external-reporting-set-id"
+): ReportingSet {
+  val reportingSet = reportingSet {
+    this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+    primitive =
+      ReportingSetKt.primitive {
+        eventGroupKeys +=
+          ReportingSetKt.PrimitiveKt.eventGroupKey {
+            cmmsDataProviderId = "1235"
+            cmmsEventGroupId = "1236"
+          }
+      }
+  }
+  return reportingSetsService.createReportingSet(
+    createReportingSetRequest {
+      this.reportingSet = reportingSet
+      this.externalReportingSetId = externalReportingSetId
+    }
+  )
+}
+
+suspend fun createMeasurementConsumer(
+  cmmsMeasurementConsumerId: String,
+  measurementConsumersService: MeasurementConsumersCoroutineImplBase,
+) {
+  measurementConsumersService.createMeasurementConsumer(
+    measurementConsumer { this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId }
+  )
+}

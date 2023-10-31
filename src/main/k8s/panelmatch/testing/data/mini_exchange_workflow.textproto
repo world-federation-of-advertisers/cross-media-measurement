@@ -1,0 +1,42 @@
+# proto-file: wfa/measurement/api/v2alpha/exchange_workflow.proto
+# proto-message: ExchangeWorkflow
+
+# EDP provides a previously generated pepper used in generating AES keys.
+steps {
+  step_id: "input-hkdf-pepper"
+  party: DATA_PROVIDER
+
+  input_step {}
+
+  output_labels { key: "input" value: "edp-hkdf-pepper" }
+}
+
+# EDP exports its hkdf pepper.
+steps {
+  step_id: "export-hkdf-pepper"
+  party: DATA_PROVIDER
+
+  copy_to_shared_storage_step {
+    copy_options {
+      label_type: BLOB
+    }
+  }
+
+  input_labels { key: "hkdf-pepper" value: "edp-hkdf-pepper" }
+  output_labels { key: "hkdf-pepper" value: "hkdf-pepper" }
+}
+
+# MP imports EDP's hkdf pepper.
+steps {
+  step_id: "import-hkdf-pepper"
+  party: MODEL_PROVIDER
+
+  copy_from_shared_storage_step {
+    copy_options {
+      label_type: BLOB
+    }
+  }
+
+  input_labels { key: "hkdf-pepper" value: "hkdf-pepper" }
+  output_labels { key: "hkdf-pepper" value: "mp-hkdf-pepper" }
+}

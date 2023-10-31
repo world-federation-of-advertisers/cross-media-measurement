@@ -18,13 +18,14 @@ package wfa.measurement.internal.kingdom;
 
 import "google/protobuf/timestamp.proto";
 import "google/type/date.proto";
-import "wfa/measurement/internal/common/provider.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
 // A manifestation of an ExchangeWorkflow.Step for a particular Exchange.
 message ExchangeStep {
+  reserved 5;
+
   // Internal identifier of the parent `RecurringExchange`.
   fixed64 external_recurring_exchange_id = 1;
 
@@ -68,7 +69,10 @@ message ExchangeStep {
   State state = 4;
 
   // Denormalized party that executes this ExchangeStep.
-  wfa.measurement.internal.common.Provider provider = 5;
+  oneof party {
+    fixed64 external_data_provider_id = 8;
+    fixed64 external_model_provider_id = 9;
+  }
 
   google.protobuf.Timestamp update_time = 6;
 

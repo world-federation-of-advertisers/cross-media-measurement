@@ -59,6 +59,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
     val setExpressionInfoMap: MutableMap<InternalId, SetExpressionInfo>,
     // Key is weightedSubsetUnionId.
     val weightedSubsetUnionInfoMap: MutableMap<InternalId, WeightedSubsetUnionInfo>,
+    val details: ReportingSet.Details
   )
 
   private data class SetExpressionInfo(
@@ -96,6 +97,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
       ReportingSets.SetExpressionId AS RootSetExpressionId,
       ReportingSets.DisplayName,
       ReportingSets.Filter AS ReportingSetFilter,
+      ReportingSets.ReportingSetDetails,
       WeightedSubsetUnionId,
       WeightedSubsetUnions.Weight,
       WeightedSubsetUnions.BinaryRepresentation,
@@ -248,6 +250,9 @@ class ReportingSetReader(private val readContext: ReadContext) {
       if (!reportingSetInfo.filter.isNullOrBlank()) {
         filter = reportingSetInfo.filter
       }
+      if (reportingSetInfo.details != ReportingSet.Details.getDefaultInstance()) {
+        details = reportingSetInfo.details
+      }
 
       if (reportingSetInfo.cmmsEventGroupIdsSet.size > 0) {
         primitive =
@@ -325,6 +330,8 @@ class ReportingSetReader(private val readContext: ReadContext) {
       val leftHandExternalReportingSetId: String? = row["LeftHandExternalReportingSetId"]
       val rightHandSetExpressionId: InternalId? = row["RightHandSetExpressionId"]
       val rightHandExternalReportingSetId: String? = row["RightHandExternalReportingSetId"]
+      val reportingSetDetails: ReportingSet.Details =
+        row.getProtoMessage("ReportingSetDetails", ReportingSet.Details.parser())
 
       val reportingSetInfo =
         reportingSetInfoMap.computeIfAbsent(externalReportingSetId) {
@@ -339,6 +346,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
             cmmsEventGroupIdsSet = mutableSetOf(),
             setExpressionInfoMap = mutableMapOf(),
             weightedSubsetUnionInfoMap = mutableMapOf(),
+            reportingSetDetails
           )
         }
 

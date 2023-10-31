@@ -21,9 +21,9 @@ import io.grpc.StatusException
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionResponse
@@ -40,20 +40,18 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.DuchyEntry
 import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
 import org.wfanet.measurement.api.v2alpha.Requisition.State
-import org.wfanet.measurement.api.v2alpha.RequisitionKey
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
+import org.wfanet.measurement.api.v2alpha.RequisitionParentKey
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
-import org.wfanet.measurement.api.v2alpha.getProviderFromContext
 import org.wfanet.measurement.api.v2alpha.listRequisitionsPageToken
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.signedData
-import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -62,7 +60,6 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.internal.common.Provider
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.Requisition.DuchyValue
@@ -81,18 +78,26 @@ private const val MAX_PAGE_SIZE = 1000
 
 class RequisitionsService(
   private val internalRequisitionStub: RequisitionsCoroutineStub,
-  private val callIdentityProvider: () -> Provider = ::getProviderFromContext,
 ) : RequisitionsCoroutineImplBase() {
+
+  private enum class Permission {
+    LIST,
+    REFUSE,
+    FULFILL;
+
+    fun deniedStatus(name: String): Status {
+      return Status.PERMISSION_DENIED.withDescription(
+        "Permission $this denied on resource $name (or it might not exist)."
+      )
+    }
+  }
 
   override suspend fun listRequisitions(
     request: ListRequisitionsRequest
   ): ListRequisitionsResponse {
-    fun permissionDeniedStatus() =
-      Status.PERMISSION_DENIED.withDescription(
-        "Permission ListRequisitions denied on resource ${request.parent} (or it might not exist)"
-      )
+    fun permissionDeniedStatus() = Permission.LIST.deniedStatus("${request.parent}/requisitions")
 
-    val parentKey =
+    val parentKey: RequisitionParentKey =
       DataProviderKey.fromName(request.parent)
         ?: MeasurementKey.fromName(request.parent)
         ?: throw Status.INVALID_ARGUMENT.withDescription("parent is invalid").asRuntimeException()
@@ -157,28 +162,17 @@ class RequisitionsService(
   }
 
   override suspend fun refuseRequisition(request: RefuseRequisitionRequest): Requisition {
-    val key: RequisitionKey =
-      grpcRequireNotNull(RequisitionKey.fromName(request.name)) {
+    val key: CanonicalRequisitionKey =
+      grpcRequireNotNull(CanonicalRequisitionKey.fromName(request.name)) {
         "Resource name unspecified or invalid"
       }
-
-    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
-      is DataProviderPrincipal -> {
-        if (principal.resourceKey.dataProviderId != key.dataProviderId) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot refuse Requisitions belonging to other DataProviders"
-          }
-        }
-      }
-      else -> {
-        failGrpc(Status.PERMISSION_DENIED) {
-          "Caller does not have permission to refuse Requisitions"
-        }
-      }
-    }
-
     grpcRequire(request.refusal.justification != Refusal.Justification.JUSTIFICATION_UNSPECIFIED) {
       "Refusal details must be present"
+    }
+
+    val authenticatedPrincipal = principalFromCurrentContext
+    if (key.parentKey != authenticatedPrincipal.resourceKey) {
+      throw Permission.REFUSE.deniedStatus(request.name).asRuntimeException()
     }
 
     val refuseRequest = refuseRequisitionRequest {
@@ -213,20 +207,15 @@ class RequisitionsService(
     request: FulfillDirectRequisitionRequest
   ): FulfillDirectRequisitionResponse {
     val key =
-      grpcRequireNotNull(RequisitionKey.fromName(request.name)) {
+      grpcRequireNotNull(CanonicalRequisitionKey.fromName(request.name)) {
         "Resource name unspecified or invalid."
       }
     grpcRequire(request.nonce != 0L) { "nonce unspecified" }
     grpcRequire(!request.encryptedData.isEmpty) { "encrypted_data must be provided" }
-    // Ensure that the caller is the data_provider who owns this requisition.
-    val caller = callIdentityProvider()
-    if (
-      caller.type != Provider.Type.DATA_PROVIDER ||
-        externalIdToApiId(caller.externalId) != key.dataProviderId
-    ) {
-      failGrpc(Status.PERMISSION_DENIED) {
-        "The data_provider id doesn't match the caller's identity."
-      }
+
+    val authenticatedPrincipal = principalFromCurrentContext
+    if (key.parentKey != authenticatedPrincipal.resourceKey) {
+      throw Permission.FULFILL.deniedStatus(request.name).asRuntimeException()
     }
 
     val fulfillRequest = fulfillRequisitionRequest {
@@ -266,7 +255,7 @@ private fun InternalRequisition.toRequisition(): Requisition {
 
   return requisition {
     name =
-      RequisitionKey(
+      CanonicalRequisitionKey(
           externalIdToApiId(externalDataProviderId),
           externalIdToApiId(externalRequisitionId)
         )
@@ -419,7 +408,7 @@ private fun Map.Entry<String, DuchyValue>.toDuchyEntry(): DuchyEntry {
 
 private fun buildInternalStreamRequisitionsRequest(
   filter: ListRequisitionsRequest.Filter,
-  parentKey: ResourceKey,
+  parentKey: RequisitionParentKey,
   pageSize: Int,
   pageToken: ListRequisitionsPageToken?
 ): StreamRequisitionsRequest {
