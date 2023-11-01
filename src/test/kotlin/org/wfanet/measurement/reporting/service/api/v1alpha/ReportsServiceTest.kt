@@ -76,7 +76,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
-import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultOutput
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
@@ -766,7 +766,7 @@ private val SUCCEEDED_REACH_MEASUREMENT =
 
     state = Measurement.State.SUCCEEDED
 
-    results += resultPair {
+    results += resultOutput {
       val result =
         MeasurementKt.result {
           reach = MeasurementKt.ResultKt.reach { value = REACH_VALUE }
@@ -894,7 +894,7 @@ private val SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT =
       signMeasurementSpec(REACH_FREQUENCY_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
 
     state = Measurement.State.SUCCEEDED
-    results += resultPair {
+    results += resultOutput {
       val result =
         MeasurementKt.result {
           reach = MeasurementKt.ResultKt.reach { value = REACH_VALUE }
@@ -981,7 +981,7 @@ private val SUCCEEDED_IMPRESSION_MEASUREMENT =
       DATA_PROVIDER_KEYS_IN_SET_OPERATION.zip(IMPRESSION_VALUES).map {
         (dataProviderKey, numImpressions) ->
         val dataProvider = DATA_PROVIDERS.getValue(dataProviderKey)
-        resultPair {
+        resultOutput {
           val result =
             MeasurementKt.result {
               impression = MeasurementKt.ResultKt.impression { value = numImpressions }
@@ -1070,7 +1070,7 @@ private val SUCCEEDED_WATCH_DURATION_MEASUREMENT =
       DATA_PROVIDER_KEYS_IN_SET_OPERATION.zip(WATCH_DURATION_LIST).map {
         (dataProviderKey, watchDuration) ->
         val dataProvider = DATA_PROVIDERS.getValue(dataProviderKey)
-        resultPair {
+        resultOutput {
           val result =
             MeasurementKt.result {
               this.watchDuration = MeasurementKt.ResultKt.watchDuration { value = watchDuration }

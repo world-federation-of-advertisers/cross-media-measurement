@@ -595,12 +595,14 @@ class MeasurementConsumerSimulator(
   }
 
   /** Gets the result of a [Measurement] if it is succeeded. */
-  private suspend fun getImpressionResults(measurementName: String): List<Measurement.ResultPair> {
+  private suspend fun getImpressionResults(
+    measurementName: String
+  ): List<Measurement.ResultOutput> {
     return checkNotFailed(getMeasurement(measurementName)).resultsList.toList()
   }
 
   /** Gets the result of a [Measurement] if it is succeeded. */
-  private suspend fun getDurationResults(measurementName: String): List<Measurement.ResultPair> {
+  private suspend fun getDurationResults(measurementName: String): List<Measurement.ResultOutput> {
     return checkNotFailed(getMeasurement(measurementName)).resultsList.toList()
   }
 
@@ -611,8 +613,8 @@ class MeasurementConsumerSimulator(
       return null
     }
 
-    val resultPair = measurement.resultsList[0]
-    val result = parseAndVerifyResult(resultPair)
+    val resultOutput = measurement.resultsList[0]
+    val result = parseAndVerifyResult(resultOutput)
     assertThat(result.hasReach()).isTrue()
     assertThat(result.hasFrequency()).isTrue()
 
@@ -626,8 +628,8 @@ class MeasurementConsumerSimulator(
       return null
     }
 
-    val resultPair = measurement.resultsList[0]
-    val result = parseAndVerifyResult(resultPair)
+    val resultOutput = measurement.resultsList[0]
+    val result = parseAndVerifyResult(resultOutput)
     assertThat(result.hasReach()).isTrue()
     assertThat(result.hasFrequency()).isFalse()
 
@@ -668,20 +670,20 @@ class MeasurementConsumerSimulator(
     return measurement.failure
   }
 
-  private suspend fun parseAndVerifyResult(resultPair: Measurement.ResultPair): Result {
+  private suspend fun parseAndVerifyResult(resultOutput: Measurement.ResultOutput): Result {
     val certificate =
-      certificateCache.getOrPut(resultPair.certificate) {
+      certificateCache.getOrPut(resultOutput.certificate) {
         try {
           certificatesClient
             .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-            .getCertificate(getCertificateRequest { name = resultPair.certificate })
+            .getCertificate(getCertificateRequest { name = resultOutput.certificate })
         } catch (e: StatusException) {
-          throw Exception("Error fetching certificate ${resultPair.certificate}", e)
+          throw Exception("Error fetching certificate ${resultOutput.certificate}", e)
         }
       }
 
     val signedResult =
-      decryptResult(resultPair.encryptedResult, measurementConsumerData.encryptionKey)
+      decryptResult(resultOutput.encryptedResult, measurementConsumerData.encryptionKey)
     val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
     val trustedIssuer =
       checkNotNull(trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]) {
