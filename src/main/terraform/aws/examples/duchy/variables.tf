@@ -33,7 +33,7 @@ variable "postgres_instance_tier" {
 }
 
 variable "duchy_name" {
-  description = "Name of this Duchy, which will be used as the prefix for most of the resources"
+  description = "Name of this Duchy"
   type        = string
   nullable    = false
 }

@@ -32,7 +32,7 @@ module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "~> 5.1.1"
 
-  name = local.vpc_name
+  name = var.vpc_name
   cidr = local.vpc_cidr
 
   azs              = local.azs
@@ -61,7 +61,7 @@ module "vpc" {
 module "storage" {
   source = "../../modules/s3-bucket"
 
-  bucket_name = local.bucket_name
+  bucket_name = var.bucket_name
 }
 
 module "postgres" {
@@ -78,7 +78,7 @@ module "cluster" {
   source = "../../modules/eks-cluster"
 
   aws_region               = var.aws_region
-  cluster_name             = "duchy"
+  cluster_name             = var.duchy_name
   cluster_version          = "1.28"
   kms_key_administrators   = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
   control_plane_subnet_ids = module.vpc.intra_subnets
