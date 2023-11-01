@@ -49,7 +49,7 @@
  */
 package org.wfanet.measurement.api.v2alpha.tools
 
-import com.google.protobuf.ByteString
+import com.google.protobuf.Any as ProtoAny
 import com.google.type.interval
 import io.grpc.ManagedChannel
 import java.io.File
@@ -65,7 +65,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
-import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.value as dataProviderEntryValue
@@ -83,6 +82,7 @@ import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.Hashing
@@ -175,7 +175,7 @@ private fun getPopulationDataProviderEntry(
     CreateMeasurementFlags.MeasurementParams.PopulationMeasurementParams.PopulationDataProviderInput,
   measurementParams: CreateMeasurementFlags.MeasurementParams.PopulationMeasurementParams,
   measurementConsumerSigningKey: SigningKeyHandle,
-  measurementEncryptionPublicKey: ByteString,
+  packedMeasurementEncryptionPublicKey: ProtoAny,
   secureRandom: SecureRandom,
   apiAuthenticationKey: String
 ): Measurement.DataProviderEntry {
@@ -190,7 +190,7 @@ private fun getPopulationDataProviderEntry(
           if (measurementParams.populationInputs.filter.isNotEmpty())
             filter = eventFilter { expression = measurementParams.populationInputs.filter }
         }
-      this.measurementPublicKey = measurementEncryptionPublicKey
+      this.measurementPublicKey = packedMeasurementEncryptionPublicKey
       nonce = secureRandom.nextLong()
     }
 
@@ -207,7 +207,7 @@ private fun getPopulationDataProviderEntry(
       encryptedRequisitionSpec =
         encryptRequisitionSpec(
           signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
-          EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
+          dataProvider.publicKey.unpack()
         )
       nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
     }
@@ -219,7 +219,7 @@ private fun getEventDataProviderEntry(
   dataProviderInput:
     CreateMeasurementFlags.MeasurementParams.EventMeasurementParams.EventDataProviderInput,
   measurementConsumerSigningKey: SigningKeyHandle,
-  measurementEncryptionPublicKey: ByteString,
+  packedMeasurementEncryptionPublicKey: ProtoAny,
   secureRandom: SecureRandom,
   apiAuthenticationKey: String
 ): Measurement.DataProviderEntry {
@@ -242,7 +242,7 @@ private fun getEventDataProviderEntry(
               }
             }
         }
-      this.measurementPublicKey = measurementEncryptionPublicKey
+      this.measurementPublicKey = packedMeasurementEncryptionPublicKey
       nonce = secureRandom.nextLong()
     }
 
@@ -259,7 +259,7 @@ private fun getEventDataProviderEntry(
       encryptedRequisitionSpec =
         encryptRequisitionSpec(
           signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
-          EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
+          dataProvider.publicKey.unpack()
         )
       nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
     }
@@ -271,7 +271,7 @@ private fun getMeasurementResult(
   privateKeyHandle: PrivateKeyHandle
 ): Measurement.Result {
   val signedResult = decryptResult(resultOutput.encryptedResult, privateKeyHandle)
-  return Measurement.Result.parseFrom(signedResult.data)
+  return signedResult.unpack()
 }
 
 class Benchmark(
@@ -348,7 +348,7 @@ class Benchmark(
       )
     val measurementConsumerSigningKey =
       SigningKeyHandle(measurementConsumerCertificate, measurementConsumerPrivateKey)
-    val measurementEncryptionPublicKey = measurementConsumer.publicKey.data
+    val packedMeasurementEncryptionPublicKey: ProtoAny = measurementConsumer.publicKey.message
     val charPool = ('a'..'z').toList()
     val referenceIdBase =
       (1..10)
@@ -370,13 +370,13 @@ class Benchmark(
                   .populationDataProviderInput,
                 createMeasurementFlags.measurementParams.populationMeasurementParams,
                 measurementConsumerSigningKey,
-                measurementEncryptionPublicKey,
+                packedMeasurementEncryptionPublicKey,
                 secureRandom,
                 apiAuthenticationKey
               )
 
             val unsignedMeasurementSpec = measurementSpec {
-              measurementPublicKey = measurementEncryptionPublicKey
+              measurementPublicKey = packedMeasurementEncryptionPublicKey
               nonceHashes += this@measurement.dataProviders.map { it.value.nonceHash }
               population = createMeasurementFlags.getPopulation()
               if (createMeasurementFlags.modelLine.isNotEmpty())
@@ -400,13 +400,13 @@ class Benchmark(
                   dataProviderStub,
                   it,
                   measurementConsumerSigningKey,
-                  measurementEncryptionPublicKey,
+                  packedMeasurementEncryptionPublicKey,
                   secureRandom,
                   apiAuthenticationKey
                 )
               }
             val unsignedMeasurementSpec = measurementSpec {
-              measurementPublicKey = measurementEncryptionPublicKey
+              measurementPublicKey = packedMeasurementEncryptionPublicKey
               nonceHashes += this@measurement.dataProviders.map { it.value.nonceHash }
               vidSamplingInterval = vidSamplingInterval {
                 start = vidSamplingStartForMeasurement

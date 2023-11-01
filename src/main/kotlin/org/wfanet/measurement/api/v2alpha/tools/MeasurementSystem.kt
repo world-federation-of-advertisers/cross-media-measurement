@@ -18,8 +18,12 @@ package org.wfanet.measurement.api.v2alpha.tools
 
 import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.CleartextKeysetHandle
+import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
+import com.google.protobuf.InvalidProtocolBufferException
+import com.google.protobuf.any
 import com.google.protobuf.kotlin.toByteString
+import com.google.protobuf.kotlin.unpack
 import com.google.type.interval
 import io.grpc.ManagedChannel
 import java.io.File
@@ -119,12 +123,15 @@ import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequ
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.revokeCertificateRequest
 import org.wfanet.measurement.api.v2alpha.scheduleModelRolloutFreezeRequest
+import org.wfanet.measurement.api.v2alpha.setMessage
 import org.wfanet.measurement.api.v2alpha.setModelLineActiveEndTimeRequest
 import org.wfanet.measurement.api.v2alpha.setModelLineHoldbackModelLineRequest
-import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.api.v2alpha.signedMessage
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.v2alpha.updatePublicKeyRequest
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.api.withIdToken
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
@@ -430,11 +437,21 @@ private class PublicKeys {
     certificate: String,
     @Parameters(index = "0", paramLabel = "<name>", description = ["Resource name"]) name: String,
   ) {
+    val packedEncryptionPublicKey = any {
+      value = publicKeyFile.readByteString()
+      typeUrl = ProtoReflection.getTypeUrl(EncryptionPublicKey.getDescriptor())
+    }
+    try {
+      packedEncryptionPublicKey.unpack<EncryptionPublicKey>()
+    } catch (e: InvalidProtocolBufferException) {
+      throw ParameterException(parentCommand.commandLine, "Invalid EncryptionPublicKey", e)
+    }
+
     val request = updatePublicKeyRequest {
       this.publicKey = publicKey {
         this.name = name
-        this.publicKey = signedData {
-          data = publicKeyFile.readByteString()
+        this.publicKey = signedMessage {
+          setMessage(packedEncryptionPublicKey)
           signature = publicKeySignatureFile.readByteString()
         }
         this.certificate = certificate
@@ -509,13 +526,23 @@ private class MeasurementConsumers {
     // TODO(remkop/picocli#882): Use built-in Picocli functionality once available.
     val idToken: String = idTokenOption ?: String(System.console().readPassword("ID Token: "))
 
+    val packedEncryptionPublicKey = any {
+      value = publicKeyFile.readByteString()
+      typeUrl = ProtoReflection.getTypeUrl(EncryptionPublicKey.getDescriptor())
+    }
+    try {
+      packedEncryptionPublicKey.unpack<EncryptionPublicKey>()
+    } catch (e: InvalidProtocolBufferException) {
+      throw ParameterException(parentCommand.commandLine, "Invalid EncryptionPublicKey", e)
+    }
+
     val certificate: X509Certificate = certificateFile.inputStream().use { readCertificate(it) }
     val request = createMeasurementConsumerRequest {
       measurementConsumer = measurementConsumer {
         measurementConsumerCreationToken = creationToken
         certificateDer = certificate.encoded.toByteString()
-        publicKey = signedData {
-          data = publicKeyFile.readByteString()
+        publicKey = signedMessage {
+          setMessage(packedEncryptionPublicKey)
           signature = publicKeySignatureFile.readByteString()
         }
         this.displayName = displayName
@@ -595,7 +622,7 @@ class CreateMeasurement : Runnable {
     populationMeasurementParams:
       CreateMeasurementFlags.MeasurementParams.PopulationMeasurementParams,
     measurementConsumerSigningKey: SigningKeyHandle,
-    measurementEncryptionPublicKey: ByteString
+    packedMeasurementEncryptionPublicKey: ProtoAny,
   ): Measurement.DataProviderEntry {
     return dataProviderEntry {
       val requisitionSpec = requisitionSpec {
@@ -610,7 +637,7 @@ class CreateMeasurement : Runnable {
                 expression = populationMeasurementParams.populationInputs.filter
               }
           }
-        this.measurementPublicKey = measurementEncryptionPublicKey
+        this.measurementPublicKey = packedMeasurementEncryptionPublicKey
         nonce = secureRandom.nextLong()
       }
 
@@ -628,7 +655,7 @@ class CreateMeasurement : Runnable {
           encryptedRequisitionSpec =
             encryptRequisitionSpec(
               signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
-              EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
+              dataProvider.publicKey.unpack()
             )
           nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
         }
@@ -639,7 +666,7 @@ class CreateMeasurement : Runnable {
     eventDataProviderInput:
       CreateMeasurementFlags.MeasurementParams.EventMeasurementParams.EventDataProviderInput,
     measurementConsumerSigningKey: SigningKeyHandle,
-    measurementEncryptionPublicKey: ByteString
+    packedMeasurementEncryptionPublicKey: ProtoAny
   ): Measurement.DataProviderEntry {
     return dataProviderEntry {
       val requisitionSpec = requisitionSpec {
@@ -659,7 +686,7 @@ class CreateMeasurement : Runnable {
             }
           }
         events = RequisitionSpecKt.events { this.eventGroups += eventGroups }
-        this.measurementPublicKey = measurementEncryptionPublicKey
+        this.measurementPublicKey = packedMeasurementEncryptionPublicKey
         nonce = secureRandom.nextLong()
       }
 
@@ -677,7 +704,7 @@ class CreateMeasurement : Runnable {
           encryptedRequisitionSpec =
             encryptRequisitionSpec(
               signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
-              EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
+              dataProvider.publicKey.unpack()
             )
           nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
         }
@@ -702,7 +729,7 @@ class CreateMeasurement : Runnable {
       )
     val measurementConsumerSigningKey =
       SigningKeyHandle(measurementConsumerCertificate, measurementConsumerPrivateKey)
-    val measurementEncryptionPublicKey = measurementConsumer.publicKey.data
+    val packedMeasurementEncryptionPublicKey = measurementConsumer.publicKey.message
 
     val measurement = measurement {
       this.measurementConsumerCertificate = measurementConsumer.certificate
@@ -713,7 +740,7 @@ class CreateMeasurement : Runnable {
               measurementParams.populationMeasurementParams.populationDataProviderInput,
               measurementParams.populationMeasurementParams,
               measurementConsumerSigningKey,
-              measurementEncryptionPublicKey
+              packedMeasurementEncryptionPublicKey
             )
           )
         } else {
@@ -721,12 +748,12 @@ class CreateMeasurement : Runnable {
             getEventDataProviderEntry(
               it,
               measurementConsumerSigningKey,
-              measurementEncryptionPublicKey
+              packedMeasurementEncryptionPublicKey
             )
           }
         }
       val unsignedMeasurementSpec = measurementSpec {
-        measurementPublicKey = measurementEncryptionPublicKey
+        measurementPublicKey = packedMeasurementEncryptionPublicKey
         nonceHashes += this@measurement.dataProviders.map { it.value.nonceHash }
         if (!measurementParams.populationMeasurementParams.selected) {
           vidSamplingInterval = vidSamplingInterval {
@@ -850,7 +877,7 @@ class GetMeasurement : Runnable {
     } catch (e: SignatureException) {
       throw Exception("Measurement result signature is invalid", e)
     }
-    return Measurement.Result.parseFrom(signedResult.data)
+    return signedResult.unpack()
   }
 
   private fun printMeasurementResult(result: Measurement.Result) {

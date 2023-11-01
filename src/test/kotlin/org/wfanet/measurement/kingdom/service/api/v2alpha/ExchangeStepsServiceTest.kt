@@ -18,6 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
+import com.google.protobuf.any
 import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -32,6 +33,7 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.verify
+import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequestKt
@@ -39,6 +41,7 @@ import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepsPageToken
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepsPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepsRequestKt
@@ -54,6 +57,7 @@ import org.wfanet.measurement.api.v2alpha.listExchangeStepsPageToken
 import org.wfanet.measurement.api.v2alpha.listExchangeStepsRequest
 import org.wfanet.measurement.api.v2alpha.listExchangeStepsResponse
 import org.wfanet.measurement.api.v2alpha.withPrincipal
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -382,7 +386,10 @@ class ExchangeStepsServiceTest {
       stepIndex = STEP_INDEX
       exchangeDate = DATE
       dataProvider = DATA_PROVIDER_KEY.toName()
-      serializedExchangeWorkflow = SERIALIZED_WORKFLOW
+      exchangeWorkflow = any {
+        value = SERIALIZED_WORKFLOW
+        typeUrl = ProtoReflection.getTypeUrl(ExchangeWorkflow.getDescriptor())
+      }
     }
     private val EXCHANGE_STEP_2 =
       EXCHANGE_STEP.copy {
@@ -411,6 +418,7 @@ class ExchangeStepsServiceTest {
       state = InternalExchangeStep.State.READY_FOR_RETRY
       serializedExchangeWorkflow = SERIALIZED_WORKFLOW
       updateTime = UPDATE_TIME
+      apiVersion = Version.V2_ALPHA.string
     }
     private val INTERNAL_EXCHANGE_STEP_2 =
       INTERNAL_EXCHANGE_STEP.copy {
