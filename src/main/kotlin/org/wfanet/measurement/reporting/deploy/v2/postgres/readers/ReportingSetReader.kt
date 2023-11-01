@@ -137,18 +137,20 @@ class ReportingSetReader(private val readContext: ReadContext) {
     request: BatchGetReportingSetsRequest,
   ): Flow<Result> {
     val sql =
-      StringBuilder(
-        baseSqlSelect +
+      StringBuilder(baseSqlSelect)
+        .append(
           """
-        FROM MeasurementConsumers
-          JOIN ReportingSets USING(MeasurementConsumerId)
-        """ +
-          baseSqlJoins +
+          FROM MeasurementConsumers
+            JOIN ReportingSets USING(MeasurementConsumerId)
           """
-        WHERE CmmsMeasurementConsumerId = $1
-          AND ReportingSets.ExternalReportingSetId IN
-        """
-      )
+        )
+        .append(baseSqlJoins)
+        .append(
+          """
+          WHERE CmmsMeasurementConsumerId = $1
+            AND ReportingSets.ExternalReportingSetId IN
+          """
+        )
 
     var i = 2
     val bindingMap = mutableMapOf<String, String>()
@@ -193,25 +195,30 @@ class ReportingSetReader(private val readContext: ReadContext) {
   fun readReportingSets(
     request: StreamReportingSetsRequest,
   ): Flow<Result> {
-    val statement =
-      boundStatement(
-        baseSqlSelect +
+    val sql =
+      StringBuilder(baseSqlSelect)
+        .append(
           """
-        FROM (
-          SELECT *
-          FROM MeasurementConsumers
-            JOIN ReportingSets USING (MeasurementConsumerId)
-          WHERE CmmsMeasurementConsumerId = $1
-            AND ExternalReportingSetId > $2
-          ORDER BY ExternalReportingSetId ASC
-          LIMIT $3
-        ) AS ReportingSets
-      """ +
-          baseSqlJoins +
+          FROM (
+            SELECT *
+            FROM MeasurementConsumers
+              JOIN ReportingSets USING (MeasurementConsumerId)
+            WHERE CmmsMeasurementConsumerId = $1
+              AND ExternalReportingSetId > $2
+            ORDER BY ExternalReportingSetId ASC
+            LIMIT $3
+          ) AS ReportingSets
+          """
+        )
+        .append(baseSqlJoins)
+        .append(
           """
         ORDER BY RootExternalReportingSetId ASC
         """
-      ) {
+        )
+
+    val statement =
+      boundStatement(sql.toString()) {
         bind("$1", request.filter.cmmsMeasurementConsumerId)
         bind("$2", request.filter.externalReportingSetIdAfter)
         if (request.limit > 0) {

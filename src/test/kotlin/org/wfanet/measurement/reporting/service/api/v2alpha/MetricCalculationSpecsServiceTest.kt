@@ -428,7 +428,7 @@ class MetricCalculationSpecsServiceTest {
         .thenReturn(
           internalListMetricCalculationSpecsResponse {
             metricCalculationSpecs += INTERNAL_METRIC_CALCULATION_SPEC
-            hasMoreThanLimit = true
+            limited = true
           }
         )
     }

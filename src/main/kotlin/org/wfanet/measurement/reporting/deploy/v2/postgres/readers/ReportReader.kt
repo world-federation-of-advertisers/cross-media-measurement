@@ -109,23 +109,23 @@ class ReportReader(private val readContext: ReadContext) {
     createReportRequestId: String,
   ): Result? {
     val sql =
-      StringBuilder(
-        baseSqlSelect +
-          "\n" +
+      StringBuilder(baseSqlSelect)
+        .append("\n")
+        .append(
           """
-        FROM MeasurementConsumers
-          JOIN Reports USING(MeasurementConsumerId)
-        """
-            .trimIndent() +
-          "\n" +
-          baseSqlJoins +
-          "\n" +
+          FROM MeasurementConsumers
+            JOIN Reports USING(MeasurementConsumerId)
           """
-        WHERE Reports.MeasurementConsumerId = $1
-          AND CreateReportRequestId = $2
-        """
-            .trimIndent()
-      )
+        )
+        .append("\n")
+        .append(baseSqlJoins)
+        .append("\n")
+        .append(
+          """
+          WHERE Reports.MeasurementConsumerId = $1
+            AND CreateReportRequestId = $2
+          """
+        )
 
     val statement =
       boundStatement(sql.toString()) {
@@ -141,23 +141,23 @@ class ReportReader(private val readContext: ReadContext) {
     externalReportId: String,
   ): Result? {
     val sql =
-      StringBuilder(
-        baseSqlSelect +
-          "\n" +
+      StringBuilder(baseSqlSelect)
+        .append("\n")
+        .append(
           """
-        FROM MeasurementConsumers
-          JOIN Reports USING(MeasurementConsumerId)
-        """
-            .trimIndent() +
-          "\n" +
-          baseSqlJoins +
-          "\n" +
+          FROM MeasurementConsumers
+            JOIN Reports USING(MeasurementConsumerId)
           """
-        WHERE CmmsMeasurementConsumerId = $1
-          AND ExternalReportId = $2
-        """
-            .trimIndent()
-      )
+        )
+        .append("\n")
+        .append(baseSqlJoins)
+        .append("\n")
+        .append(
+          """
+          WHERE CmmsMeasurementConsumerId = $1
+            AND ExternalReportId = $2
+          """
+        )
 
     val statement =
       boundStatement(sql.toString()) {
@@ -172,43 +172,49 @@ class ReportReader(private val readContext: ReadContext) {
     request: StreamReportsRequest,
   ): Flow<Result> {
     val fromClause =
-      """
+      StringBuilder(
+        """
         FROM (
           SELECT *
           FROM MeasurementConsumers
             JOIN Reports USING (MeasurementConsumerId)
-      """ +
-        if (request.filter.hasAfter()) {
-          """
-              WHERE CmmsMeasurementConsumerId = $1
-                AND ((CreateTime < $3) OR
-                (CreateTime = $3
-                AND ExternalReportId > $4))
-          """
-        } else {
-          """
-              WHERE CmmsMeasurementConsumerId = $1
-          """
-        } +
         """
+      )
+        .append(
+          if (request.filter.hasAfter()) {
+            """
+                WHERE CmmsMeasurementConsumerId = $1
+                  AND ((CreateTime < $3) OR
+                  (CreateTime = $3
+                  AND ExternalReportId > $4))
+            """
+          } else {
+            """
+                WHERE CmmsMeasurementConsumerId = $1
+            """
+          }
+        )
+        .append(
+          """
             ORDER BY CreateTime DESC, CmmsMeasurementConsumerId ASC, ExternalReportId ASC
             LIMIT $2
-          ) AS Reports
-        """
+            ) AS Reports
+          """
+        )
 
     val sql =
-      StringBuilder(
-        baseSqlSelect +
-          "\n" +
-          fromClause.trimIndent() +
-          "\n" +
-          baseSqlJoins +
-          "\n" +
+      StringBuilder(baseSqlSelect)
+        .append("\n")
+        .append(fromClause)
+        .append("\n")
+        .append(baseSqlJoins)
+        .append("\n")
+        .append(
           """
           ORDER BY CreateTime DESC, CmmsMeasurementConsumerId ASC, ExternalReportId ASC
           """
-            .trimIndent()
-      )
+        )
+
     val statement =
       boundStatement(sql.toString()) {
         bind("$1", request.filter.cmmsMeasurementConsumerId)

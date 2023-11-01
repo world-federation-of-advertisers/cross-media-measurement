@@ -83,8 +83,9 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
       throw ReportAlreadyExistsException()
     }
 
-    val externalReportingSetIds = mutableListOf<String>()
-    report.reportingMetricEntriesMap.entries.forEach { externalReportingSetIds += it.key }
+    val externalReportingSetIds: Set<String> = buildSet {
+      report.reportingMetricEntriesMap.entries.forEach { add(it.key) }
+    }
 
     val reportingSetMap: Map<String, InternalId> =
       ReportingSetReader(transactionContext)
@@ -96,10 +97,11 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
       throw ReportingSetNotFoundException()
     }
 
-    val externalMetricCalculationSpecIds = mutableSetOf<String>()
-    for (reportingMetricCalculationSpec in report.reportingMetricEntriesMap.values) {
-      reportingMetricCalculationSpec.metricCalculationSpecReportingMetricsList.forEach {
-        externalMetricCalculationSpecIds += it.externalMetricCalculationSpecId
+    val externalMetricCalculationSpecIds: Set<String> = buildSet {
+      for (reportingMetricCalculationSpec in report.reportingMetricEntriesMap.values) {
+        reportingMetricCalculationSpec.metricCalculationSpecReportingMetricsList.forEach {
+          add(it.externalMetricCalculationSpecId)
+        }
       }
     }
 

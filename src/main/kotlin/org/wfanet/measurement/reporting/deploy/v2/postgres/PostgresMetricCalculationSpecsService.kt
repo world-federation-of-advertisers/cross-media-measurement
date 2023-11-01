@@ -111,12 +111,12 @@ class PostgresMetricCalculationSpecsService(
         listMetricCalculationSpecsResponse {
           this.metricCalculationSpecs +=
             metricCalculationSpecs.subList(0, metricCalculationSpecs.size - 1)
-          hasMoreThanLimit = true
+          limited = true
         }
       } else {
         listMetricCalculationSpecsResponse {
           this.metricCalculationSpecs += metricCalculationSpecs
-          hasMoreThanLimit = false
+          limited = false
         }
       }
     } finally {

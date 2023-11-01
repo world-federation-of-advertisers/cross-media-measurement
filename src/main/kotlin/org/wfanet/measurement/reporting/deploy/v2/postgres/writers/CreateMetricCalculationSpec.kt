@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.deploy.v2.postgres.writers
 
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.internal.reporting.v2.CreateMetricCalculationSpecRequest
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
@@ -40,7 +41,7 @@ class CreateMetricCalculationSpec(private val request: CreateMetricCalculationSp
     val metricCalculationSpec = request.metricCalculationSpec
     val externalMetricCalculationSpecId = request.externalMetricCalculationSpecId
 
-    val measurementConsumerId =
+    val measurementConsumerId: InternalId =
       (MeasurementConsumerReader(transactionContext)
           .getByCmmsId(metricCalculationSpec.cmmsMeasurementConsumerId)
           ?: throw MeasurementConsumerNotFoundException())
@@ -59,7 +60,7 @@ class CreateMetricCalculationSpec(private val request: CreateMetricCalculationSp
       )
     }
 
-    val metricCalculationSpecId = idGenerator.generateInternalId()
+    val metricCalculationSpecId: InternalId = idGenerator.generateInternalId()
 
     val statement =
       boundStatement(

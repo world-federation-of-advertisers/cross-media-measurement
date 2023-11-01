@@ -82,9 +82,10 @@ class CreateReportSchedule(private val request: CreateReportScheduleRequest) :
       )
     }
 
-    val externalReportingSetIds = mutableListOf<String>()
-    reportSchedule.details.reportTemplate.reportingMetricEntriesMap.entries.forEach {
-      externalReportingSetIds += it.key
+    val externalReportingSetIds: Set<String> = buildSet {
+      reportSchedule.details.reportTemplate.reportingMetricEntriesMap.entries.forEach {
+        add(it.key)
+      }
     }
 
     val reportingSetMap: Map<String, InternalId> =
@@ -97,11 +98,12 @@ class CreateReportSchedule(private val request: CreateReportScheduleRequest) :
       throw ReportingSetNotFoundException()
     }
 
-    val externalMetricCalculationSpecIds = mutableSetOf<String>()
-    for (reportingMetricCalculationSpec in
+    val externalMetricCalculationSpecIds: Set<String> = buildSet {
+      for (reportingMetricCalculationSpec in
       reportSchedule.details.reportTemplate.reportingMetricEntriesMap.values) {
-      reportingMetricCalculationSpec.metricCalculationSpecReportingMetricsList.forEach {
-        externalMetricCalculationSpecIds += it.externalMetricCalculationSpecId
+        reportingMetricCalculationSpec.metricCalculationSpecReportingMetricsList.forEach {
+          add(it.externalMetricCalculationSpecId)
+        }
       }
     }
 

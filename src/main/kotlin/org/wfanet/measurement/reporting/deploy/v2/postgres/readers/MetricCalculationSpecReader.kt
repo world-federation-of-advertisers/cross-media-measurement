@@ -80,19 +80,16 @@ class MetricCalculationSpecReader(private val readContext: ReadContext) {
 
   suspend fun readMetricCalculationSpecs(request: ListMetricCalculationSpecsRequest): List<Result> {
     val sql =
-      StringBuilder(
-        baseSql +
-          """
-           WHERE CmmsMeasurementConsumerId = $1
+      baseSql +
+        """
+        WHERE CmmsMeasurementConsumerId = $1
           AND ExternalMetricCalculationSpecId > $2
-          ORDER BY ExternalMetricCalculationSpecId ASC
-          LIMIT $3
-          """
-            .trimIndent()
-      )
+        ORDER BY ExternalMetricCalculationSpecId ASC
+        LIMIT $3
+        """
 
     val statement =
-      boundStatement(sql.toString()) {
+      boundStatement(sql) {
         bind("$1", request.cmmsMeasurementConsumerId)
         bind("$2", request.externalMetricCalculationSpecIdAfter)
 
@@ -121,7 +118,6 @@ class MetricCalculationSpecReader(private val readContext: ReadContext) {
            WHERE CmmsMeasurementConsumerId = $1
           AND ExternalMetricCalculationSpecId IN
           """
-            .trimIndent()
       )
 
     var i = 2

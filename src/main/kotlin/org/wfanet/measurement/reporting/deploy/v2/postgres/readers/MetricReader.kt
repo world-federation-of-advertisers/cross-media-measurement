@@ -155,18 +155,20 @@ class MetricReader(private val readContext: ReadContext) {
     }
 
     val sql =
-      StringBuilder(
-        baseSqlSelect +
+      StringBuilder(baseSqlSelect)
+        .append(
           """
-        FROM MeasurementConsumers
-          JOIN Metrics USING(MeasurementConsumerId)
-        """ +
-          baseSqlJoins +
+          FROM MeasurementConsumers
+            JOIN Metrics USING(MeasurementConsumerId)
           """
-        WHERE Metrics.MeasurementConsumerId = $1
-          AND CreateMetricRequestId IN
-        """
-      )
+        )
+        .append(baseSqlJoins)
+        .append(
+          """
+          WHERE Metrics.MeasurementConsumerId = $1
+            AND CreateMetricRequestId IN
+          """
+        )
 
     var i = 2
     val bindingMap = mutableMapOf<String, String>()
@@ -210,18 +212,20 @@ class MetricReader(private val readContext: ReadContext) {
     request: BatchGetMetricsRequest,
   ): Flow<Result> {
     val sql =
-      StringBuilder(
-        baseSqlSelect +
+      StringBuilder(baseSqlSelect)
+        .append(
           """
-        FROM MeasurementConsumers
-          JOIN Metrics USING(MeasurementConsumerId)
-        """ +
-          baseSqlJoins +
+          FROM MeasurementConsumers
+            JOIN Metrics USING(MeasurementConsumerId)
           """
-        WHERE CmmsMeasurementConsumerId = $1
-          AND ExternalMetricId IN
-        """
-      )
+        )
+        .append(baseSqlJoins)
+        .append(
+          """
+          WHERE CmmsMeasurementConsumerId = $1
+            AND ExternalMetricId IN
+          """
+        )
 
     var i = 2
     val bindingMap = mutableMapOf<String, String>()

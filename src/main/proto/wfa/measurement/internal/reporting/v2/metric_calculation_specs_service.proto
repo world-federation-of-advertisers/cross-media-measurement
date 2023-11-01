@@ -29,6 +29,7 @@ service MetricCalculationSpecs {
   rpc GetMetricCalculationSpec(GetMetricCalculationSpecRequest)
       returns (MetricCalculationSpec);
 
+  // Response ordered by `external_metric_calculation_spec_id`, ascending.
   rpc ListMetricCalculationSpecs(ListMetricCalculationSpecsRequest)
       returns (ListMetricCalculationSpecsResponse);
 
@@ -59,7 +60,9 @@ message ListMetricCalculationSpecsRequest {
 message ListMetricCalculationSpecsResponse {
   // Ordered by `external_metric_calculation_spec_id`, ascending.
   repeated MetricCalculationSpec metric_calculation_specs = 1;
-  bool hasMoreThanLimit = 2;
+  // Whether there would have been more results returned if not for the request
+  // limit.
+  bool limited = 2;
 }
 
 message BatchGetMetricCalculationSpecsRequest {

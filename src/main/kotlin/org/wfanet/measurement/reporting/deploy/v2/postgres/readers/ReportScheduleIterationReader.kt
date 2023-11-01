@@ -78,18 +78,15 @@ class ReportScheduleIterationReader(private val readContext: ReadContext) {
     externalReportScheduleIterationId: String,
   ): Result? {
     val sql =
-      StringBuilder(
-        baseSql +
-          """
-           WHERE CmmsMeasurementConsumerId = $1
-           AND ExternalReportScheduleId = $2
-          AND ExternalReportScheduleIterationId = $3
-          """
-            .trimIndent()
-      )
+      baseSql +
+        """
+        WHERE CmmsMeasurementConsumerId = $1
+         AND ExternalReportScheduleId = $2
+         AND ExternalReportScheduleIterationId = $3
+        """
 
     val statement =
-      boundStatement(sql.toString()) {
+      boundStatement(sql) {
         bind("$1", cmmsMeasurementConsumerId)
         bind("$2", externalReportScheduleId)
         bind("$3", externalReportScheduleIterationId)

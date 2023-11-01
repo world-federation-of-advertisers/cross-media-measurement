@@ -201,7 +201,7 @@ class MetricCalculationSpecsService(
     }
 
     val nextPageToken: ListMetricCalculationSpecsPageToken? =
-      if (response.hasMoreThanLimit) {
+      if (response.limited) {
         val lastResult = results.last()
         listMetricCalculationSpecsPageToken.copy {
           lastMetricCalculationSpec =

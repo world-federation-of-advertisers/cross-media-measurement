@@ -83,17 +83,14 @@ class ReportScheduleReader(private val readContext: ReadContext) {
     createReportScheduleRequestId: String,
   ): Result? {
     val sql =
-      StringBuilder(
-        baseSql +
-          """
-           WHERE ReportSchedules.MeasurementConsumerId = $1
-          AND CreateReportScheduleRequestId = $2
-          """
-            .trimIndent()
-      )
+      baseSql +
+        """
+        WHERE ReportSchedules.MeasurementConsumerId = $1
+         AND CreateReportScheduleRequestId = $2
+        """
 
     val statement =
-      boundStatement(sql.toString()) {
+      boundStatement(sql) {
         bind("$1", measurementConsumerId)
         bind("$2", createReportScheduleRequestId)
       }

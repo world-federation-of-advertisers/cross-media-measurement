@@ -286,7 +286,7 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
       )
     val retrievedMetricCalculationSpecs = listResponse.metricCalculationSpecsList
 
-    assertThat(listResponse.hasMoreThanLimit).isTrue()
+    assertThat(listResponse.limited).isTrue()
     assertThat(retrievedMetricCalculationSpecs).hasSize(1)
     assertThat(retrievedMetricCalculationSpecs[0].externalMetricCalculationSpecId)
       .isEqualTo(createdMetricCalculationSpec.externalMetricCalculationSpecId)

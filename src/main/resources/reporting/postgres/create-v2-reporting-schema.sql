@@ -344,6 +344,7 @@ CREATE TABLE Reports (
 
   PRIMARY KEY(MeasurementConsumerId, ReportId),
   UNIQUE (MeasurementConsumerId, CreateReportRequestId),
+  UNIQUE (MeasurementConsumerId, CreateTime),
   UNIQUE (MeasurementConsumerId, ExternalReportId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId)
