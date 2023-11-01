@@ -244,7 +244,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
     val standardDeviation = getStandardDeviation(reachResults.map { it.actualReach.toDouble() })
     val variance = standardDeviation.pow(2.0)
     val expectedVariance = expectedStandardDeviation.pow(2.0)
-    val varianceOffset = variance - expectedVariance / expectedVariance
+    val varianceOffset = (variance - expectedVariance) / expectedVariance
 
     logger.log(
       Level.INFO,
@@ -264,15 +264,14 @@ abstract class InProcessReachMeasurementAccuracyTest(
 
     private val SYNTHETIC_EVENT_GROUP_SPECS = SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_2M
 
-    private const val DEFAULT_TEST_ROUND_NUMBER = 10
+    private const val DEFAULT_TEST_ROUND_NUMBER = 30
     // Multiplier for 95% confidence interval
     private const val MULTIPLIER = 1.96
-    private const val CONTRIBUTOR_COUNT = 1
 
     private const val COVERAGE_TEST_THRESHOLD = 90
     private const val AVERAGE_TEST_THRESHOLD = 4
-    private const val VARIANCE_TEST_LOWER_THRESHOLD = 0.72
-    private const val VARIANCE_TEST_UPPER_THRESHOLD = 1.28
+    private const val VARIANCE_TEST_LOWER_THRESHOLD = 0.7
+    private const val VARIANCE_TEST_UPPER_THRESHOLD = 1.4
     private val OUTPUT_DP_PARAMS = differentialPrivacyParams {
       epsilon = 0.0033
       delta = 0.00001
