@@ -173,13 +173,13 @@ class ReportReader(private val readContext: ReadContext) {
   ): Flow<Result> {
     val fromClause =
       StringBuilder(
-        """
+          """
         FROM (
           SELECT *
           FROM MeasurementConsumers
             JOIN Reports USING (MeasurementConsumerId)
         """
-      )
+        )
         .append(
           if (request.filter.hasAfter()) {
             """

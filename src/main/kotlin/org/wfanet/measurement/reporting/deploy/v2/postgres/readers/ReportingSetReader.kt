@@ -211,11 +211,9 @@ class ReportingSetReader(private val readContext: ReadContext) {
           """
         )
         .append(baseSqlJoins)
-        .append(
-          """
+        .append("""
         ORDER BY RootExternalReportingSetId ASC
-        """
-        )
+        """)
 
     val statement =
       boundStatement(sql.toString()) {

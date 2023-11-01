@@ -100,7 +100,7 @@ class CreateReportSchedule(private val request: CreateReportScheduleRequest) :
 
     val externalMetricCalculationSpecIds: Set<String> = buildSet {
       for (reportingMetricCalculationSpec in
-      reportSchedule.details.reportTemplate.reportingMetricEntriesMap.values) {
+        reportSchedule.details.reportTemplate.reportingMetricEntriesMap.values) {
         reportingMetricCalculationSpec.metricCalculationSpecReportingMetricsList.forEach {
           add(it.externalMetricCalculationSpecId)
         }
