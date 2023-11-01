@@ -48,7 +48,7 @@ page, and using the `Create` button and follow the instructions to create a new 
 Once created, follow this [doc](https://docs.aws.amazon.com/prometheus/latest/userguide/AMP-onboard-amg.html) to
 set up Amazon Managed Grafana for use with Amazon Managed Service for Prometheus
 
-## Setup EKS cluster to send metric to AMP
+## Set up EKS cluster to send metric to AMP
 
 [AWS Distro for OpenTelemetry (ADOT)](https://aws-otel.github.io/) is a secure, production-ready, AWS-supported
 distribution of the OpenTelemetry project that can help publishing EKS cluster metrics to

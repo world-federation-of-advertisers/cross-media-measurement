@@ -26,9 +26,6 @@ locals {
   az_count    = 2
   azs         = slice(data.aws_availability_zones.available.names, 0, local.az_count)
   vpc_cidr    = "10.0.0.0/16"
-  duchy_name  = "duchy"
-  vpc_name    = "duchy-dev"
-  bucket_name = "duchy-dev-bucket"
 }
 
 module "vpc" {

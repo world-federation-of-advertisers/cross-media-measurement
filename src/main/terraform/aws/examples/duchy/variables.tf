@@ -31,3 +31,21 @@ variable "postgres_instance_tier" {
   default     = "db.t3.micro"
   nullable    = false
 }
+
+variable "duchy_name" {
+  description = "Name of this Duchy, which will be used as the prefix for most of the resources"
+  type        = string
+  nullable    = false
+}
+
+variable "vpc_name" {
+  description = "Name of the AWS VPC to host the duchy services"
+  type        = string
+  nullable    = false
+}
+
+variable "bucket_name" {
+  description = "Name of the S3 bucket to be created for blob storage"
+  type        = string
+  nullable    = false
+}

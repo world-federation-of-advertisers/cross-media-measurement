@@ -137,12 +137,12 @@ bazel build //src/main/k8s/dev:worker2_duchy_aws.tar \
   --define s3_bucket=halo-cmm-dev-bucket \
   --define s3_region=us-west-2 \
   --define duchy_cert_id=Yq3IyKAQ5Qc \
-  --define container_registry=ghcr.io \
   --define postgres_host=dev-postgres.c7lbzsffeehq.us-west-2.rds.amazonaws.com \
   --define postgres_port=5432 \
   --define postgres_region=us-west-2 \
   --define postgres_credential_secret_name="rds\!db-b4bebc1a-b72d-4d6f-96d4-d3cde3c6af91" \
   --define computation_control_server_eips="eipalloc-09d7a0f47a1701600,eipalloc-05874583414024ddf" \
+  --define container_registry=ghcr.io \
   --define image_repo_prefix=world-federation-of-advertisers \
   --define image_tag=0.3.0
 ```
@@ -311,6 +311,7 @@ could be done through either aws web console or using
 `aws` cli tool.
 
 For example
+
 ```shell
 aws ec2 allocate-address
 ```
