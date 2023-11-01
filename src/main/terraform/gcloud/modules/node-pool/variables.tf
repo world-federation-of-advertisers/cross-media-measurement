@@ -50,3 +50,9 @@ variable "spot" {
   default     = false
   nullable    = false
 }
+
+variable "secure_boot_enabled" {
+  description = "Whether Secure Boot is enabled."
+  type        = bool
+  default     = false
+}

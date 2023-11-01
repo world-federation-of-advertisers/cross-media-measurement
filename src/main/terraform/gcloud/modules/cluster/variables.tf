@@ -30,3 +30,9 @@ variable "secret_key" {
     id   = string
   })
 }
+
+variable "service_external_ips_allowed" {
+  description = "Whether to allow external IP addresses for services."
+  type        = bool
+  default     = true
+}

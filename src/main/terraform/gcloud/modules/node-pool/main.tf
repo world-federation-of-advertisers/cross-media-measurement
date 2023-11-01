@@ -25,6 +25,9 @@ resource "google_container_node_pool" "node_pool" {
     machine_type    = var.machine_type
     disk_type       = "pd-balanced"
     spot            = var.spot
+    shielded_instance_config {
+      enable_secure_boot = var.secure_boot_enabled
+    }
 
     dynamic "taint" {
       for_each = var.spot ? [{
