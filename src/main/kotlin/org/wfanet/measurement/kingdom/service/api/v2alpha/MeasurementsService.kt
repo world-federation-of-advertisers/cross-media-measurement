@@ -16,9 +16,18 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
+import org.wfanet.measurement.internal.kingdom.Measurement.View as InternalMeasurementView
+import org.wfanet.measurement.internal.kingdom.createMeasurementRequest as internalCreateMeasurementRequest
+import com.google.protobuf.Any
 import com.google.protobuf.InvalidProtocolBufferException
+import com.google.rpc.ErrorInfo
+import com.google.rpc.errorInfo
+import com.google.rpc.status
+import io.grpc.Metadata
 import io.grpc.Status
 import io.grpc.StatusException
+import io.grpc.protobuf.StatusProto
 import java.util.AbstractMap
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
@@ -52,16 +61,14 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
-import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
-import org.wfanet.measurement.internal.kingdom.Measurement.View as InternalMeasurementView
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
-import org.wfanet.measurement.internal.kingdom.createMeasurementRequest as internalCreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
@@ -97,12 +104,7 @@ class MeasurementsService(
     val internalMeasurement =
       try {
         internalMeasurementsStub.getMeasurement(internalGetMeasurementRequest)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Measurement not found" }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-        }
-      }
+      } catch (ex: StatusException) { failAsExternalRuntimeException(ex) }
 
     return internalMeasurement.toMeasurement()
   }
@@ -192,7 +194,7 @@ class MeasurementsService(
   }
 
   override suspend fun listMeasurements(
-    request: ListMeasurementsRequest
+    request: ListMeasurementsRequest,
   ): ListMeasurementsResponse {
     val authenticatedMeasurementConsumerKey = getAuthenticatedMeasurementConsumerKey()
 
@@ -254,16 +256,7 @@ class MeasurementsService(
     val internalMeasurement =
       try {
         internalMeasurementsStub.cancelMeasurement(internalCancelMeasurementRequest)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.INVALID_ARGUMENT ->
-            failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid" }
-          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Measurement not found." }
-          Status.Code.FAILED_PRECONDITION ->
-            failGrpc(Status.FAILED_PRECONDITION, ex) { "Measurement state illegal." }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-        }
-      }
+      } catch (ex: StatusException) { failAsExternalRuntimeException(ex) }
 
     return internalMeasurement.toMeasurement()
   }
@@ -444,4 +437,64 @@ private fun getAuthenticatedMeasurementConsumerKey(): MeasurementConsumerKey {
   }
 
   return principal.resourceKey
+}
+
+fun failAsExternalRuntimeException(ex: StatusException): Nothing {
+  // Move from Population to Common grpc
+  val errorInfoFullName = ErrorInfo.getDescriptor().fullName
+  val errorInfoPacked =
+    StatusProto.fromStatusAndTrailers(ex.status, ex.trailers).detailsList.find {
+      it.typeUrl.endsWith("/$errorInfoFullName")
+    }
+  val errorInfo = errorInfoPacked?.unpack(ErrorInfo::class.java)
+  if (errorInfo != null && errorInfo.domain == "wfa.measurement.internal.kingdom.ErrorCode") {
+    val statusProto: com.google.rpc.Status = status {
+      code = ex.status.code.value()
+      message = ex.message.toString()
+      details +=
+        Any.pack(
+          errorInfo {
+            reason = ex.status.code.toString()
+            domain = errorInfoFullName
+            metadata.putAll(errorInfo.metadataMap)
+          }
+        )
+    }
+    val status: Status by lazy {
+      when (errorInfo.reason) {
+        ErrorCode.MEASUREMENT_NOT_FOUND.toString() -> Status.NOT_FOUND
+        ErrorCode.DUCHY_NOT_FOUND.toString() -> Status.FAILED_PRECONDITION
+        ErrorCode.CERTIFICATE_NOT_FOUND.toString() -> Status.FAILED_PRECONDITION
+        ErrorCode.MEASUREMENT_STATE_ILLEGAL.toString() -> Status.FAILED_PRECONDITION
+        else -> Status.UNKNOWN
+      }
+    }
+    val description: String by lazy {
+      when (errorInfo.reason) {
+        // Adjust for different causes of same error code
+        ErrorCode.MEASUREMENT_NOT_FOUND.toString() -> "Measurement for external computation ID ${errorInfo.metadataMap["external_computation_id"]} not found"
+        ErrorCode.DUCHY_NOT_FOUND.toString() -> "Duchy with external ID ${errorInfo.metadataMap["external_duchy_id"]} not found"
+        ErrorCode.CERTIFICATE_NOT_FOUND.toString() -> "Certificate with external ID ${errorInfo.metadataMap["external_certificate_id"]} not found"
+        ErrorCode.MEASUREMENT_STATE_ILLEGAL.toString() -> "Measurement with external ID ${errorInfo.metadataMap["external_measurement_id"]} was in illegal state: ${errorInfo.metadataMap["measurement_state"]}"
+        else -> "Unknown exception"
+      }
+    }
+    // generate metadata without using statusproto or use statusproto for status and description as well
+    throw status
+      .withDescription(description)
+      .withCause(ex.cause)
+      .asRuntimeException(StatusProto.toStatusRuntimeException(statusProto).trailers)
+
+
+  } else {
+    val status: Status by lazy {
+      when (ex.status.code) {
+        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+        else -> Status.UNKNOWN
+      }
+    }
+    throw status.withDescription(ex.message).withCause(ex.cause).asRuntimeException()
+  }
 }
