@@ -18,9 +18,18 @@ import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
 
 sealed interface CertificateKey : ChildResourceKey {
+  override val parentKey: CertificateParentKey
+
   val certificateId: String
 
-  override val parentKey: CertificateParentKey
+  companion object FACTORY : ResourceKey.Factory<CertificateKey> {
+    override fun fromName(resourceName: String): CertificateKey? {
+      return DataProviderCertificateKey.fromName(resourceName)
+        ?: MeasurementConsumerCertificateKey.fromName(resourceName)
+        ?: DuchyCertificateKey.fromName(resourceName)
+        ?: ModelProviderCertificateKey.fromName(resourceName)
+    }
+  }
 }
 
 sealed interface CertificateParentKey : ResourceKey
