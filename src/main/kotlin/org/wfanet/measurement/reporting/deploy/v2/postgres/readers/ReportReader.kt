@@ -196,7 +196,7 @@ class ReportReader(private val readContext: ReadContext) {
         )
         .append(
           """
-            ORDER BY CreateTime DESC, CmmsMeasurementConsumerId ASC, ExternalReportId ASC
+            ORDER BY MeasurementConsumerId ASC, CreateTime DESC, ExternalReportId ASC
             LIMIT $2
             ) AS Reports
           """
@@ -211,7 +211,7 @@ class ReportReader(private val readContext: ReadContext) {
         .append("\n")
         .append(
           """
-          ORDER BY CreateTime DESC, CmmsMeasurementConsumerId ASC, ExternalReportId ASC
+          ORDER BY MeasurementConsumerId ASC, CreateTime DESC, ExternalReportId ASC
           """
         )
 

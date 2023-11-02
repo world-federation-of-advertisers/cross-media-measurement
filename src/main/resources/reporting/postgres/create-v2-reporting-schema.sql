@@ -344,12 +344,15 @@ CREATE TABLE Reports (
 
   PRIMARY KEY(MeasurementConsumerId, ReportId),
   UNIQUE (MeasurementConsumerId, CreateReportRequestId),
-  UNIQUE (MeasurementConsumerId, CreateTime),
   UNIQUE (MeasurementConsumerId, ExternalReportId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId)
     ON DELETE CASCADE
 );
+
+-- changeset tristanvuong2021:add-report-create-time-index dbms:postgresl
+CREATE INDEX report_create_time
+  ON REPORTS (MeasurementConsumerId, CreateTime DESC, ExternalReportId);
 
 -- changeset riemanli:create-report-time-intervals-table dbms:postgresql
 CREATE TABLE ReportTimeIntervals (

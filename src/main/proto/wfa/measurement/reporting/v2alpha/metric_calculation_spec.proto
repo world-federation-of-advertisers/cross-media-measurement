@@ -66,13 +66,14 @@ message MetricCalculationSpec {
   }
 
   // The final set of groups is the Cartesian product of `groupings` and will
-  // fan out multiple metrics per metric spec and per time interval, i.e.
-  // one metric per element of the Cartesian product of the groupings with a
-  // single metric type and a single time interval. Predicates must be unique.
+  // fan out multiple metrics per metric spec and per time interval (time
+  // intervals are from `time` in `Report`), i.e. one metric per element of the
+  // Cartesian product of the groupings with a single metric type and a single
+  // time interval. Predicates must be unique.
   repeated Grouping groupings = 5 [(google.api.field_behavior) = IMMUTABLE];
 
-  // Whether the results for a given time interval is cumulative with those of
-  // previous time intervals.
-  // Only supported when using `PeriodicTimeInterval`.
+  // Whether the results for a given time interval (time intervals are from
+  // `time` in `Report`) is cumulative with those of previous time intervals.
+  // Only supported when using `PeriodicTimeInterval` in a `Report`.
   bool cumulative = 6 [(google.api.field_behavior) = IMMUTABLE];
 }
