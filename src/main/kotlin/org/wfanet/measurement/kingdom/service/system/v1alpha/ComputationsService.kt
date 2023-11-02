@@ -32,6 +32,7 @@ import kotlinx.coroutines.isActive
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -135,6 +136,7 @@ class ComputationsService(
       grpcRequireNotNull(ComputationKey.fromName(request.name)) {
         "Resource name unspecified or invalid."
       }
+    grpcRequire(request.publicApiVersion.isNotEmpty()) { "public_api_version unspecified" }
 
     // This assumes that the Certificate resource name is compatible with public API version
     // v2alpha.
@@ -156,6 +158,7 @@ class ComputationsService(
       externalAggregatorDuchyId = aggregatorCertificateKey.duchyId
       externalAggregatorCertificateId = apiIdToExternalId(aggregatorCertificateKey.certificateId)
       encryptedResult = request.encryptedResult
+      publicApiVersion = request.publicApiVersion
     }
     try {
       return measurementsClient.setMeasurementResult(internalRequest).toSystemComputation()

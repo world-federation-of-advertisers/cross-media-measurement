@@ -140,6 +140,9 @@ message Measurement {
     }
     fixed64 external_certificate_id = 3;
     bytes encrypted_result = 4;
+
+    // Version of the public API for serialized message definitions.
+    string api_version = 5;
   }
   repeated ResultInfo results = 11;
 
@@ -266,6 +269,11 @@ message Requisition {
     // Requisition. Set when Requisition state is FULFILLED and the protocol is
     // Direct.
     bytes encrypted_data = 7;
+
+    // Version of the public API for `encrypted_data`.
+    //
+    // If not specified, assume "v2alpha".
+    string encrypted_data_api_version = 9;
   }
   Details details = 10;
 

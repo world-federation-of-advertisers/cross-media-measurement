@@ -32,14 +32,16 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.PublicKey
 import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.publicKey
-import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.updatePublicKeyRequest
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.kingdom.PublicKeysGrpcKt
 import org.wfanet.measurement.internal.kingdom.UpdatePublicKeyResponse
@@ -61,10 +63,9 @@ private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
 
 @RunWith(JUnit4::class)
 class PublicKeysServiceTest {
-  private val internalPublicKeysMock: PublicKeysGrpcKt.PublicKeysCoroutineImplBase =
-    mockService() {
-      onBlocking { updatePublicKey(any()) }.thenReturn(UpdatePublicKeyResponse.getDefaultInstance())
-    }
+  private val internalPublicKeysMock: PublicKeysGrpcKt.PublicKeysCoroutineImplBase = mockService {
+    onBlocking { updatePublicKey(any()) }.thenReturn(UpdatePublicKeyResponse.getDefaultInstance())
+  }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalPublicKeysMock) }
 
@@ -77,15 +78,13 @@ class PublicKeysServiceTest {
   }
 
   @Test
-  fun `updatePublicKey returns the same public key when caller is data provider`() {
-    val request = updatePublicKeyRequest { publicKey = PUBLIC_KEY }
+  fun `updatePublicKey returns updated public key when caller is data provider`() {
+    val request = updatePublicKeyRequest { publicKey = DATA_PROVIDER_PUBLIC_KEY }
 
     val result =
       withDataProviderPrincipal(DATA_PROVIDERS_NAME) {
         runBlocking { service.updatePublicKey(request) }
       }
-
-    val expected = PUBLIC_KEY
 
     verifyProtoArgument(
         internalPublicKeysMock,
@@ -93,38 +92,26 @@ class PublicKeysServiceTest {
       )
       .isEqualTo(
         internalUpdatePublicKeyRequest {
-          val certificateKey = DataProviderCertificateKey.fromName(PUBLIC_KEY.certificate)!!
+          val certificateKey =
+            DataProviderCertificateKey.fromName(DATA_PROVIDER_PUBLIC_KEY.certificate)!!
           externalDataProviderId = apiIdToExternalId(certificateKey.dataProviderId)
           externalCertificateId = apiIdToExternalId(certificateKey.certificateId)
           apiVersion = Version.V2_ALPHA.toString()
-          publicKey = PUBLIC_KEY.publicKey.data
-          publicKeySignature = PUBLIC_KEY.publicKey.signature
-          publicKeySignatureAlgorithmOid = PUBLIC_KEY.publicKey.signatureAlgorithmOid
+          publicKey = DATA_PROVIDER_PUBLIC_KEY.publicKey.message.value
+          publicKeySignature = DATA_PROVIDER_PUBLIC_KEY.publicKey.signature
+          publicKeySignatureAlgorithmOid = DATA_PROVIDER_PUBLIC_KEY.publicKey.signatureAlgorithmOid
         }
       )
-
-    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+    assertThat(result).isEqualTo(DATA_PROVIDER_PUBLIC_KEY)
   }
 
   @Test
-  fun `updatePublicKey returns the same public key when caller is measurement consumer`() {
-    val request = updatePublicKeyRequest {
-      publicKey =
-        PUBLIC_KEY.copy {
-          name = MEASUREMENT_CONSUMER_PUBLIC_KEY_NAME
-          certificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
-        }
-    }
+  fun `updatePublicKey returns updated public key when caller is measurement consumer`() {
+    val request = updatePublicKeyRequest { publicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY }
 
-    val result =
+    val response =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
         runBlocking { service.updatePublicKey(request) }
-      }
-
-    val expected =
-      PUBLIC_KEY.copy {
-        name = MEASUREMENT_CONSUMER_PUBLIC_KEY_NAME
-        certificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
       }
 
     verifyProtoArgument(
@@ -138,13 +125,12 @@ class PublicKeysServiceTest {
           externalMeasurementConsumerId = apiIdToExternalId(certificateKey.measurementConsumerId)
           externalCertificateId = apiIdToExternalId(certificateKey.certificateId)
           apiVersion = Version.V2_ALPHA.toString()
-          publicKey = PUBLIC_KEY.publicKey.data
-          publicKeySignature = PUBLIC_KEY.publicKey.signature
-          publicKeySignatureAlgorithmOid = PUBLIC_KEY.publicKey.signatureAlgorithmOid
+          publicKey = DATA_PROVIDER_PUBLIC_KEY.publicKey.message.value
+          publicKeySignature = DATA_PROVIDER_PUBLIC_KEY.publicKey.signature
+          publicKeySignatureAlgorithmOid = DATA_PROVIDER_PUBLIC_KEY.publicKey.signatureAlgorithmOid
         }
       )
-
-    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+    assertThat(response).isEqualTo(MEASUREMENT_CONSUMER_PUBLIC_KEY)
   }
 
   @Test
@@ -152,9 +138,7 @@ class PublicKeysServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
-          service.updatePublicKey(
-            updatePublicKeyRequest { publicKey = PUBLIC_KEY.copy { clearName() } }
-          )
+          service.updatePublicKey(updatePublicKeyRequest { publicKey = DATA_PROVIDER_PUBLIC_KEY })
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
@@ -168,7 +152,8 @@ class PublicKeysServiceTest {
           runBlocking {
             service.updatePublicKey(
               updatePublicKeyRequest {
-                publicKey = PUBLIC_KEY.copy { name = MEASUREMENT_CONSUMER_PUBLIC_KEY_NAME }
+                publicKey =
+                  DATA_PROVIDER_PUBLIC_KEY.copy { name = MEASUREMENT_CONSUMER_PUBLIC_KEY_NAME }
               }
             )
           }
@@ -182,7 +167,9 @@ class PublicKeysServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking { service.updatePublicKey(updatePublicKeyRequest { publicKey = PUBLIC_KEY }) }
+          runBlocking {
+            service.updatePublicKey(updatePublicKeyRequest { publicKey = DATA_PROVIDER_PUBLIC_KEY })
+          }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
@@ -196,7 +183,8 @@ class PublicKeysServiceTest {
           runBlocking {
             service.updatePublicKey(
               updatePublicKeyRequest {
-                publicKey = PUBLIC_KEY.copy { name = DATA_PROVIDERS_PUBLIC_KEY_NAME_2 }
+                publicKey =
+                  DATA_PROVIDER_PUBLIC_KEY.copy { name = DATA_PROVIDERS_PUBLIC_KEY_NAME_2 }
               }
             )
           }
@@ -213,7 +201,8 @@ class PublicKeysServiceTest {
           runBlocking {
             service.updatePublicKey(
               updatePublicKeyRequest {
-                publicKey = PUBLIC_KEY.copy { name = MEASUREMENT_CONSUMER_PUBLIC_KEY_NAME_2 }
+                publicKey =
+                  DATA_PROVIDER_PUBLIC_KEY.copy { name = MEASUREMENT_CONSUMER_PUBLIC_KEY_NAME_2 }
               }
             )
           }
@@ -229,7 +218,7 @@ class PublicKeysServiceTest {
         withDataProviderPrincipal(DATA_PROVIDERS_NAME) {
           runBlocking {
             service.updatePublicKey(
-              updatePublicKeyRequest { publicKey = PUBLIC_KEY.copy { clearName() } }
+              updatePublicKeyRequest { publicKey = DATA_PROVIDER_PUBLIC_KEY.copy { clearName() } }
             )
           }
         }
@@ -244,7 +233,9 @@ class PublicKeysServiceTest {
         withDataProviderPrincipal(DATA_PROVIDERS_NAME) {
           runBlocking {
             service.updatePublicKey(
-              updatePublicKeyRequest { publicKey = PUBLIC_KEY.copy { clearPublicKey() } }
+              updatePublicKeyRequest {
+                publicKey = DATA_PROVIDER_PUBLIC_KEY.copy { clearPublicKey() }
+              }
             )
           }
         }
@@ -259,7 +250,9 @@ class PublicKeysServiceTest {
         withDataProviderPrincipal(DATA_PROVIDERS_NAME) {
           runBlocking {
             service.updatePublicKey(
-              updatePublicKeyRequest { publicKey = PUBLIC_KEY.copy { clearCertificate() } }
+              updatePublicKeyRequest {
+                publicKey = DATA_PROVIDER_PUBLIC_KEY.copy { clearCertificate() }
+              }
             )
           }
         }
@@ -276,7 +269,7 @@ class PublicKeysServiceTest {
             service.updatePublicKey(
               updatePublicKeyRequest {
                 publicKey =
-                  PUBLIC_KEY.copy {
+                  DATA_PROVIDER_PUBLIC_KEY.copy {
                     name = DATA_PROVIDERS_PUBLIC_KEY_NAME
                     certificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
                   }
@@ -297,7 +290,7 @@ class PublicKeysServiceTest {
             service.updatePublicKey(
               updatePublicKeyRequest {
                 publicKey =
-                  PUBLIC_KEY.copy {
+                  DATA_PROVIDER_PUBLIC_KEY.copy {
                     name = DATA_PROVIDERS_PUBLIC_KEY_NAME
                     certificate = DATA_PROVIDERS_CERTIFICATE_NAME_2
                   }
@@ -308,14 +301,22 @@ class PublicKeysServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
-}
 
-private val PUBLIC_KEY: PublicKey = publicKey {
-  name = DATA_PROVIDERS_PUBLIC_KEY_NAME
-  publicKey = signedData {
-    data = ByteString.copyFromUtf8("1")
-    signature = ByteString.copyFromUtf8("1")
-    signatureAlgorithmOid = "2.9999"
+  companion object {
+    private val DATA_PROVIDER_PUBLIC_KEY: PublicKey = publicKey {
+      name = DATA_PROVIDERS_PUBLIC_KEY_NAME
+      publicKey = signedMessage {
+        message = encryptionPublicKey { data = ByteString.copyFromUtf8("1") }.pack()
+        signature = ByteString.copyFromUtf8("1")
+        signatureAlgorithmOid = "2.9999"
+      }
+      certificate = DATA_PROVIDERS_CERTIFICATE_NAME
+    }
+
+    private val MEASUREMENT_CONSUMER_PUBLIC_KEY =
+      DATA_PROVIDER_PUBLIC_KEY.copy {
+        name = MEASUREMENT_CONSUMER_PUBLIC_KEY_NAME
+        certificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
+      }
   }
-  certificate = DATA_PROVIDERS_CERTIFICATE_NAME
 }
