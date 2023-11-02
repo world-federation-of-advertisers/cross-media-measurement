@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
 import "wfa/measurement/internal/kingdom/event_template.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
@@ -52,6 +53,8 @@ message EventGroup {
 
     // Data Provider-specific encrypted Event Group metadata.
     bytes encrypted_metadata = 6;
+
+    google.type.Interval data_availability_interval = 8;
   }
 
   Details details = 8;

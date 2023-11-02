@@ -40,8 +40,12 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
+import com.google.protobuf.util.Timestamps
+import org.wfanet.measurement.api.v2alpha.ReplaceDataAvailabilityIntervalRequest
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
+import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest
 
 class DataProvidersService(private val internalClient: DataProvidersCoroutineStub) :
@@ -125,6 +129,59 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
       }
     return internalDataProvider.toDataProvider()
   }
+
+  override suspend fun replaceDataAvailabilityInterval(
+    request: ReplaceDataAvailabilityIntervalRequest
+  ): DataProvider {
+    val key: DataProviderKey =
+      grpcRequireNotNull(DataProviderKey.fromName(request.name)) {
+        "Resource name unspecified or invalid"
+      }
+
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is DataProviderPrincipal -> {
+        if (principal.resourceKey.dataProviderId != key.dataProviderId) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Permission for method replaceDataAvailabilityInterval denied on resource $request.name"
+          }
+        }
+      }
+      else -> {
+        failGrpc(Status.PERMISSION_DENIED) {
+          "Permission for method replaceDataAvailabilityInterval denied on resource $request.name"
+        }
+      }
+    }
+
+    grpcRequire(request.dataAvailabilityInterval.startTime.seconds > 0 && request.dataAvailabilityInterval.endTime.seconds > 0) {
+      "Both start_time and end_time are required in data_availability_interval"
+    }
+
+    grpcRequire(Timestamps.compare(request.dataAvailabilityInterval.startTime, request.dataAvailabilityInterval.endTime) < 0) {
+      "data_availability_interval start_time must be before end_time"
+    }
+
+    val internalDataProvider: InternalDataProvider =
+      try {
+
+        internalClient.replaceDataAvailabilityInterval(
+          replaceDataAvailabilityIntervalRequest {
+            externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+            dataAvailabilityInterval = request.dataAvailabilityInterval
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          Status.Code.CANCELLED -> Status.CANCELLED
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("DataProvider not found")
+          else -> Status.UNKNOWN
+        }
+          .withCause(e)
+          .asRuntimeException()
+      }
+    return internalDataProvider.toDataProvider()
+  }
 }
 
 private fun InternalDataProvider.toDataProvider(): DataProvider {
@@ -151,5 +208,6 @@ private fun InternalDataProvider.toDataProvider(): DataProvider {
       signatureAlgorithmOid = source.details.publicKeySignatureAlgorithmOid
     }
     requiredDuchies += source.requiredExternalDuchyIdsList.map { DuchyKey(it).toName() }
+    dataAvailabilityInterval = source.details.dataAvailabilityInterval
   }
 }

@@ -18,6 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
+import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
@@ -40,6 +41,7 @@ import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
+import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
@@ -253,5 +255,125 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
         )
       )
       .isEqualTo(updatedDataProvider)
+  }
+
+  @Test
+  fun `replaceDataProviderRequiredDuchies throws NOT_FOUND when edp not found`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        dataProvidersService.replaceDataProviderRequiredDuchies(
+          replaceDataProviderRequiredDuchiesRequest {
+            externalDataProviderId = 123
+            requiredExternalDuchyIds += listOf(Population.AGGREGATOR_DUCHY.externalDuchyId)
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `replaceDataProviderRequiredDuchies throws INVALID_ARGUMENT when no edp id`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        dataProvidersService.replaceDataProviderRequiredDuchies(
+          replaceDataProviderRequiredDuchiesRequest {
+            requiredExternalDuchyIds += listOf(Population.AGGREGATOR_DUCHY.externalDuchyId)
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `replaceDataAvailabilityInterval modifies DataProvider`() = runBlocking {
+    val dataAvailabilityInterval = interval {
+      startTime = timestamp {
+        seconds = 200
+      }
+      endTime = timestamp {
+        seconds = 300
+      }
+    }
+    val dataProvider =
+      dataProvidersService.createDataProvider(
+        dataProvider {
+          certificate {
+            notValidBefore = timestamp { seconds = 12345 }
+            notValidAfter = timestamp { seconds = 23456 }
+            details = CertificateKt.details { x509Der = CERTIFICATE_DER }
+          }
+          details =
+            DataProviderKt.details {
+              apiVersion = "v2alpha"
+              publicKey = PUBLIC_KEY
+              publicKeySignature = PUBLIC_KEY_SIGNATURE
+              publicKeySignatureAlgorithmOid = PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
+              this.dataAvailabilityInterval = dataAvailabilityInterval
+            }
+          requiredExternalDuchyIds += DUCHIES.map { it.externalDuchyId }
+        }
+      )
+
+    val updatedDataProvider =
+      dataProvidersService.replaceDataAvailabilityInterval(
+        replaceDataAvailabilityIntervalRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          this.dataAvailabilityInterval = dataAvailabilityInterval
+        }
+      )
+
+    assertThat(updatedDataProvider.details.dataAvailabilityInterval).isEqualTo(dataAvailabilityInterval)
+    // Ensure changes were persisted.
+    assertThat(
+      dataProvidersService.getDataProvider(
+        getDataProviderRequest { externalDataProviderId = dataProvider.externalDataProviderId }
+      )
+    )
+      .isEqualTo(updatedDataProvider)
+  }
+
+  @Test
+  fun `replaceDataAvailabilityInterval throws NOT_FOUND when edp not found`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        dataProvidersService.replaceDataAvailabilityInterval(
+          replaceDataAvailabilityIntervalRequest {
+            externalDataProviderId = 123
+            dataAvailabilityInterval = interval {
+              startTime = timestamp {
+                seconds = 200
+              }
+              endTime = timestamp {
+                seconds = 300
+              }
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `replaceDataAvailabilityInterval throws NOT_FOUND when no edp id`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        dataProvidersService.replaceDataAvailabilityInterval(
+          replaceDataAvailabilityIntervalRequest {
+            dataAvailabilityInterval = interval {
+              startTime = timestamp {
+                seconds = 200
+              }
+              endTime = timestamp {
+                seconds = 300
+              }
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 }
