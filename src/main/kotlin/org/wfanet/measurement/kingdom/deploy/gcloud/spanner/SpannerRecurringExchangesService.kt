@@ -15,7 +15,9 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
+import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -33,6 +35,9 @@ class SpannerRecurringExchangesService(
   override suspend fun createRecurringExchange(
     request: CreateRecurringExchangeRequest
   ): RecurringExchange {
+    grpcRequireNotNull(Version.fromStringOrNull(request.recurringExchange.details.apiVersion)) {
+      "recurring_exchange.details.api_version is invalid or unspecified"
+    }
     return CreateRecurringExchange(request.recurringExchange).execute(client, idGenerator)
   }
 

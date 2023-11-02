@@ -234,6 +234,7 @@ private val INTERNAL_MEASUREMENT = internalMeasurement {
     externalAggregatorDuchyId = DUCHY_ID
     externalCertificateId = EXTERNAL_DUCHY_CERTIFICATE_ID
     encryptedResult = ENCRYPTED_RESULT
+    apiVersion = PUBLIC_API_VERSION
   }
   computationParticipants += INTERNAL_COMPUTATION_PARTICIPANT
   requisitions += INTERNAL_REQUISITION
@@ -571,6 +572,7 @@ class ComputationsServiceTest {
           aggregatorCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
           resultPublicKey = RESULT_PUBLIC_KEY
           encryptedResult = ENCRYPTED_RESULT
+          publicApiVersion = PUBLIC_API_VERSION
         }
         .build()
 
@@ -588,6 +590,7 @@ class ComputationsServiceTest {
             externalAggregatorCertificateId = EXTERNAL_DUCHY_CERTIFICATE_ID
             resultPublicKey = RESULT_PUBLIC_KEY
             encryptedResult = ENCRYPTED_RESULT
+            publicApiVersion = PUBLIC_API_VERSION
           }
           .build()
       )

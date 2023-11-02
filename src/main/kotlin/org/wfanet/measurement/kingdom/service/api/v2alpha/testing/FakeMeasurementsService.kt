@@ -15,10 +15,10 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha.testing
 
 import com.google.protobuf.duration
+import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import java.util.concurrent.ConcurrentHashMap
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
@@ -26,8 +26,9 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
-import org.wfanet.measurement.api.v2alpha.SignedData
+import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -91,7 +92,7 @@ class FakeMeasurementsService(
       measurementsApiIdMap[key.measurementId]
         ?: failGrpc(Status.NOT_FOUND) { "Measurement not found" }
 
-    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
+    val measurementSpec: MeasurementSpec = measurement.measurementSpec.unpack()
     val result =
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       when (measurementSpec.measurementTypeCase) {
@@ -111,16 +112,12 @@ class FakeMeasurementsService(
           failGrpc(Status.INVALID_ARGUMENT) { "MeasurementSpec MeasurementType not set" }
       }
 
-    val signedResult: SignedData = signResult(result, edpSigningKeyHandle)
-    val encryptedResult =
-      encryptResult(
-        signedResult,
-        EncryptionPublicKey.parseFrom(measurementSpec.measurementPublicKey)
-      )
+    val signedResult: SignedMessage = signResult(result, edpSigningKeyHandle)
+    val encryptedResult = encryptResult(signedResult, measurementSpec.measurementPublicKey.unpack())
 
     return measurement.copy {
       results +=
-        MeasurementKt.resultPair {
+        MeasurementKt.resultOutput {
           certificate = dataProviderCertificateName
           this.encryptedResult = encryptedResult
         }

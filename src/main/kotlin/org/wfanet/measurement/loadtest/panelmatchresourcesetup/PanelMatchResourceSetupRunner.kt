@@ -32,7 +32,6 @@ import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import picocli.CommandLine
 
 private val EXCHANGE_DATE = LocalDate.now()
-private const val API_VERSION = "v2alpha"
 private const val SCHEDULE = "@daily"
 
 @CommandLine.Command(
@@ -72,12 +71,10 @@ private fun run(@CommandLine.Mixin flags: PanelMatchResourceSetupFlags) {
     // Runs the resource setup job.
     PanelMatchResourceSetup(kingdomInternalApiChannel)
       .process(
-        dataProviderContent = dataProviderContent,
-        exchangeSchedule = SCHEDULE,
-        publicApiVersion = API_VERSION,
-        exchangeWorkflow = exchangeWorkflow,
         exchangeDate = EXCHANGE_DATE.toProtoDate(),
-        runId = flags.runId
+        exchangeWorkflow = exchangeWorkflow,
+        exchangeSchedule = SCHEDULE,
+        dataProviderContent = dataProviderContent
       )
   }
 }
