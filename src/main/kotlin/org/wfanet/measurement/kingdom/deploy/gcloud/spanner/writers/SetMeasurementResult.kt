@@ -82,6 +82,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
       set("CertificateId" to aggregatorCertificateId)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
       set("EncryptedResult" to request.encryptedResult.toGcloudByteArray())
+      set("PublicApiVersion" to request.publicApiVersion)
     }
 
     transactionContext.bufferUpdateMutation("Measurements") {
@@ -97,6 +98,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
         externalAggregatorDuchyId = request.externalAggregatorDuchyId
         externalCertificateId = request.externalAggregatorCertificateId
         encryptedResult = request.encryptedResult
+        apiVersion = request.publicApiVersion
       }
     }
   }

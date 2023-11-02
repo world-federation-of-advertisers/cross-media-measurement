@@ -118,15 +118,17 @@ abstract class LiquidLegionsV2Mill(
     details: KingdomComputationDetails,
     requisitions: Iterable<RequisitionMetadata>,
   ): List<String> {
-    when (Version.fromString(details.publicApiVersion)) {
-      Version.V2_ALPHA -> {}
-      Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
-    }
 
     val errorList = mutableListOf<String>()
-    val measurementSpec = MeasurementSpec.parseFrom(details.measurementSpec)
-    if (!verifyDataProviderParticipation(measurementSpec, requisitions.map { it.details.nonce })) {
-      errorList.add("Cannot verify participation of all DataProviders.")
+    when (Version.fromString(details.publicApiVersion)) {
+      Version.V2_ALPHA -> {
+        val measurementSpec = MeasurementSpec.parseFrom(details.measurementSpec)
+        if (
+          !verifyDataProviderParticipation(measurementSpec, requisitions.map { it.details.nonce })
+        ) {
+          errorList.add("Cannot verify participation of all DataProviders.")
+        }
+      }
     }
     for (requisition in requisitions) {
       if (requisition.details.externalFulfillingDuchyId == duchyId && requisition.path.isBlank()) {
@@ -174,7 +176,6 @@ abstract class LiquidLegionsV2Mill(
           return "Invalid ElGamal public key signature for Duchy ${duchy.duchyId}"
         }
       }
-      Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
     }
     return null
   }
@@ -196,22 +197,23 @@ abstract class LiquidLegionsV2Mill(
   ) {
     val kingdomComputation = token.computationDetails.kingdomComputation
     val serializedPublicApiEncryptionPublicKey: ByteString
-    val encryptedResult =
-      when (Version.fromString(kingdomComputation.publicApiVersion)) {
+    val publicApiVersion = Version.fromString(kingdomComputation.publicApiVersion)
+    val encryptedResultCiphertext: ByteString =
+      when (publicApiVersion) {
         Version.V2_ALPHA -> {
           val signedResult = signResult(computationResult.toV2AlphaMeasurementResult(), signingKey)
           val publicApiEncryptionPublicKey =
             kingdomComputation.measurementPublicKey.toV2AlphaEncryptionPublicKey()
           serializedPublicApiEncryptionPublicKey = publicApiEncryptionPublicKey.toByteString()
-          encryptResult(signedResult, publicApiEncryptionPublicKey)
+          encryptResult(signedResult, publicApiEncryptionPublicKey).ciphertext
         }
-        Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
       }
     sendResultToKingdom(
       globalId = token.globalComputationId,
       certificate = consentSignalCert,
       resultPublicKey = serializedPublicApiEncryptionPublicKey,
-      encryptedResult = encryptedResult
+      encryptedResult = encryptedResultCiphertext,
+      publicApiVersion = publicApiVersion
     )
   }
 

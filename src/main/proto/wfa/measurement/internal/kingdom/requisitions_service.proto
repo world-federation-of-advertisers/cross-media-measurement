@@ -82,6 +82,7 @@ message FulfillRequisitionRequest {
     // Encrypted `SignedData`containing the data for a direct and volumetric
     // measurement.
     bytes encrypted_data = 2;
+    string api_version = 3;
   }
 
   oneof params {

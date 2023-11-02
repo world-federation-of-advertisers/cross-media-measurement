@@ -28,7 +28,6 @@ import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeDetails
-import org.wfanet.measurement.internal.kingdom.RecurringExchangeDetails
 import org.wfanet.measurement.internal.kingdom.exchange
 
 /** Reads [Exchange] protos from Spanner. */
@@ -52,10 +51,6 @@ class ExchangeReader : SpannerReader<ExchangeReader.Result>() {
           date = struct.getDate("Date").toProtoDate()
           state = struct.getProtoEnum("State", Exchange.State::forNumber)
           details = struct.getProtoMessage("ExchangeDetails", ExchangeDetails.parser())
-          serializedRecurringExchange =
-            struct
-              .getProtoMessage("RecurringExchangeDetails", RecurringExchangeDetails.parser())
-              .externalExchangeWorkflow
         },
       recurringExchangeId = struct.getLong("RecurringExchangeId")
     )
@@ -106,7 +101,6 @@ class ExchangeReader : SpannerReader<ExchangeReader.Result>() {
         "Exchanges.ExchangeDetails",
         "Exchanges.ExchangeDetailsJson",
         "RecurringExchanges.ExternalRecurringExchangeId",
-        "RecurringExchanges.RecurringExchangeDetails"
       )
 
     private val SELECT_COLUMNS_SQL = SELECT_COLUMNS.joinToString(", ")

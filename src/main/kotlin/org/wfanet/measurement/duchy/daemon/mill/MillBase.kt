@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
+import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.flatten
@@ -303,13 +304,15 @@ abstract class MillBase(
     globalId: String,
     certificate: Certificate,
     resultPublicKey: ByteString,
-    encryptedResult: ByteString
+    encryptedResult: ByteString,
+    publicApiVersion: Version,
   ) {
     val request = setComputationResultRequest {
       name = ComputationKey(globalId).toName()
       aggregatorCertificate = certificate.name
       this.resultPublicKey = resultPublicKey
       this.encryptedResult = encryptedResult
+      this.publicApiVersion = publicApiVersion.string
     }
     try {
       systemComputationsClient.setComputationResult(request)

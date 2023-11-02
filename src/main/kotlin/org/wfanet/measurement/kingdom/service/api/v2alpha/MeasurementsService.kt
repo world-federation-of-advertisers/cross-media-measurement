@@ -17,6 +17,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.InvalidProtocolBufferException
+import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
 import java.util.AbstractMap
@@ -27,6 +28,7 @@ import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsPageToken
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsPageTokenKt.previousPageEnd
@@ -42,10 +44,13 @@ import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
+import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.isA
 import org.wfanet.measurement.api.v2alpha.listMeasurementsPageToken
 import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -137,13 +142,15 @@ class MeasurementsService(
 
     grpcRequire(request.measurement.hasMeasurementSpec()) { "measurement_spec is unspecified" }
 
-    val parsedMeasurementSpec =
+    val measurementSpec: MeasurementSpec =
       try {
-        MeasurementSpec.parseFrom(request.measurement.measurementSpec.data)
+        request.measurement.measurementSpec.unpack()
       } catch (e: InvalidProtocolBufferException) {
-        failGrpc(Status.INVALID_ARGUMENT) { "Failed to parse measurement spec" }
+        throw Status.INVALID_ARGUMENT.withCause(e)
+          .withDescription("measurement.measurement_spec does not contain a valid MeasurementSpec")
+          .asRuntimeException()
       }
-    parsedMeasurementSpec.validate()
+    measurementSpec.validate()
 
     grpcRequire(request.measurement.dataProvidersList.isNotEmpty()) {
       "Data Providers list is empty"
@@ -158,7 +165,7 @@ class MeasurementsService(
       }
     }
 
-    grpcRequire(parsedMeasurementSpec.nonceHashesCount == request.measurement.dataProvidersCount) {
+    grpcRequire(measurementSpec.nonceHashesCount == request.measurement.dataProvidersCount) {
       "nonce_hash list size is not equal to the data_providers list size."
     }
 
@@ -167,7 +174,7 @@ class MeasurementsService(
         request.measurement.toInternal(
           measurementConsumerCertificateKey,
           dataProvidersMap,
-          parsedMeasurementSpec,
+          measurementSpec,
           noiseMechanisms.map { it.toInternal() },
           reachOnlyLlV2Enabled
         )
@@ -275,7 +282,14 @@ private fun DifferentialPrivacyParams.hasValidEpsilonAndDelta(): Boolean {
 
 /** Validates a [MeasurementSpec] for a request. */
 private fun MeasurementSpec.validate() {
-  grpcRequire(!measurementPublicKey.isEmpty) { "Measurement public key is unspecified" }
+  grpcRequire(hasMeasurementPublicKey()) { "Measurement public key is unspecified" }
+  try {
+    measurementPublicKey.unpack<EncryptionPublicKey>()
+  } catch (e: InvalidProtocolBufferException) {
+    throw Status.INVALID_ARGUMENT.withCause(e)
+      .withDescription("measurement_public_key does not contain a valid EncryptionPublicKey")
+      .asRuntimeException()
+  }
 
   grpcRequire(nonceHashesCount == nonceHashesList.toSet().size) {
     "Duplicated values found in nonce_hashes"
@@ -343,21 +357,29 @@ private fun DataProviderEntry.validateAndMap(): Map.Entry<Long, DataProviderValu
     }
 
   val publicKey = value.dataProviderPublicKey
-  grpcRequire(!publicKey.data.isEmpty && !publicKey.signature.isEmpty) {
-    "Data Provider public key is unspecified"
+  grpcRequire(!publicKey.signature.isEmpty) { "data_provider_public_key.signature is unspecified" }
+  try {
+    publicKey.message.unpack<EncryptionPublicKey>()
+  } catch (e: InvalidProtocolBufferException) {
+    throw Status.INVALID_ARGUMENT.withCause(e)
+      .withDescription(
+        "data_provider_public_key.message does not contain a valid EncryptionPublicKey"
+      )
+      .asRuntimeException()
   }
 
-  grpcRequire(!value.encryptedRequisitionSpec.isEmpty) {
-    "Encrypted requisition spec is unspecified"
+  grpcRequire(value.hasEncryptedRequisitionSpec()) { "Encrypted requisition spec is unspecified" }
+  grpcRequire(value.encryptedRequisitionSpec.isA(SignedMessage.getDescriptor())) {
+    "encrypted_requisition_spec must contain a SignedMessage"
   }
   grpcRequire(!value.nonceHash.isEmpty) { "Nonce hash is unspecified" }
 
   val dataProviderValue = dataProviderValue {
     externalDataProviderCertificateId = apiIdToExternalId(dataProviderCertificateKey.certificateId)
-    dataProviderPublicKey = publicKey.data
+    dataProviderPublicKey = publicKey.message.value
     dataProviderPublicKeySignature = publicKey.signature
     dataProviderPublicKeySignatureAlgorithmOid = publicKey.signatureAlgorithmOid
-    encryptedRequisitionSpec = value.encryptedRequisitionSpec
+    encryptedRequisitionSpec = value.encryptedRequisitionSpec.ciphertext
     nonceHash = value.nonceHash
   }
 

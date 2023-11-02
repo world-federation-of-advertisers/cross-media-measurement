@@ -29,6 +29,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as CmmsEventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -103,10 +104,10 @@ class EventGroupsService(
     val eventGroups =
       cmmsEventGroups.map {
         val cmmsMetadata: CmmsEventGroup.Metadata? =
-          if (it.encryptedMetadata.isEmpty) {
-            null
-          } else {
+          if (it.hasEncryptedMetadata()) {
             decryptMetadata(it, principal.resourceKey.toName())
+          } else {
+            null
           }
 
         it.toEventGroup(cmmsMetadata)
@@ -200,8 +201,7 @@ class EventGroupsService(
         )
         .asRuntimeException()
     }
-    val encryptionKey =
-      EncryptionPublicKey.parseFrom(cmmsEventGroup.measurementConsumerPublicKey.data)
+    val encryptionKey: EncryptionPublicKey = cmmsEventGroup.measurementConsumerPublicKey.unpack()
     val decryptionKeyHandle: PrivateKeyHandle =
       encryptionKeyPairStore.getPrivateKeyHandle(principalName, encryptionKey.data)
         ?: throw Status.FAILED_PRECONDITION.withDescription(

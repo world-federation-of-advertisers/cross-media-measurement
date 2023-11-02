@@ -94,6 +94,8 @@ class ExchangeStepReader : SpannerReader<ExchangeStepReader.Result>() {
   }
 
   private fun buildExchangeStep(struct: Struct): ExchangeStep {
+    val recurringExchangeDetails =
+      struct.getProtoMessage("RecurringExchangeDetails", RecurringExchangeDetails.parser())
     return exchangeStep {
       externalRecurringExchangeId = struct.getLong("ExternalRecurringExchangeId")
       date = struct.getDate("Date").toProtoDate()
@@ -107,10 +109,8 @@ class ExchangeStepReader : SpannerReader<ExchangeStepReader.Result>() {
       }
 
       updateTime = struct.getTimestamp("UpdateTime").toProto()
-      serializedExchangeWorkflow =
-        struct
-          .getProtoMessage("RecurringExchangeDetails", RecurringExchangeDetails.parser())
-          .externalExchangeWorkflow
+      apiVersion = recurringExchangeDetails.apiVersion
+      serializedExchangeWorkflow = recurringExchangeDetails.externalExchangeWorkflow
     }
   }
 

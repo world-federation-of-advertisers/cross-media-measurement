@@ -29,6 +29,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
@@ -107,6 +108,7 @@ private val RECURRING_EXCHANGE = recurringExchange {
   details = recurringExchangeDetails {
     cronSchedule = "@daily"
     exchangeWorkflow = EXCHANGE_WORKFLOW
+    apiVersion = Version.V2_ALPHA.string
   }
   nextExchangeDate = EXCHANGE_DATE
 }
@@ -119,7 +121,7 @@ private val DATA_PROVIDER = dataProvider {
       CertificateKt.details { x509Der = ByteString.copyFromUtf8("This is a certificate der.") }
   }
   details = details {
-    apiVersion = "2"
+    apiVersion = Version.V2_ALPHA.string
     publicKey = ByteString.copyFromUtf8("This is a  public key.")
     publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
     publicKeySignatureAlgorithmOid = "2.9999"

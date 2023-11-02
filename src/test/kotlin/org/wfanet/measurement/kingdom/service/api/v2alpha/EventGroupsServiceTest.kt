@@ -48,22 +48,26 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.deleteEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.encryptedMessage
+import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
-import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
@@ -101,7 +105,10 @@ private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val MEASUREMENT_CONSUMER_NAME_2 = "measurementConsumers/BBBBBBBBBHs"
 private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
   "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
-private val ENCRYPTED_METADATA = ByteString.copyFromUtf8("encryptedMetadata")
+private val ENCRYPTED_METADATA = encryptedMessage {
+  ciphertext = ByteString.copyFromUtf8("encryptedMetadata")
+  typeUrl = ProtoReflection.getTypeUrl(EventGroup.Metadata.getDescriptor())
+}
 private val API_VERSION = Version.V2_ALPHA
 
 private val EVENT_GROUP_EXTERNAL_ID =
@@ -115,7 +122,9 @@ private val MEASUREMENT_CONSUMER_EXTERNAL_ID =
     MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
   )
 
-private val MEASUREMENT_CONSUMER_PUBLIC_KEY_DATA = ByteString.copyFromUtf8("foodata")
+private val MEASUREMENT_CONSUMER_PUBLIC_KEY = encryptionPublicKey {
+  data = ByteString.copyFromUtf8("foodata")
+}
 private val MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("foosig")
 private const val MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID = "2.9999"
 private val VID_MODEL_LINES = listOf("model1", "model2")
@@ -130,8 +139,8 @@ private val EVENT_GROUP: EventGroup = eventGroup {
   measurementConsumer = MEASUREMENT_CONSUMER_NAME
   measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
   eventGroupReferenceId = "aaa"
-  measurementConsumerPublicKey = signedData {
-    data = MEASUREMENT_CONSUMER_PUBLIC_KEY_DATA
+  measurementConsumerPublicKey = signedMessage {
+    message = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
     signature = MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE
     signatureAlgorithmOid = MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
   }
@@ -161,13 +170,13 @@ private val INTERNAL_EVENT_GROUP: InternalEventGroup = internalEventGroup {
   createTime = CREATE_TIME
   details = details {
     apiVersion = API_VERSION.string
-    measurementConsumerPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY_DATA
+    measurementConsumerPublicKey = EVENT_GROUP.measurementConsumerPublicKey.message.value
     measurementConsumerPublicKeySignature = MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE
     measurementConsumerPublicKeySignatureAlgorithmOid =
       MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
     vidModelLines.addAll(VID_MODEL_LINES)
     eventTemplates.addAll(INTERNAL_EVENT_TEMPLATES)
-    encryptedMetadata = ENCRYPTED_METADATA
+    encryptedMetadata = ENCRYPTED_METADATA.ciphertext
   }
   state = InternalEventGroup.State.ACTIVE
 }

@@ -108,6 +108,9 @@ message SetComputationResultRequest {
   // `Result` message from the public API, which can be verified using
   // `aggregator_certificate.
   bytes encrypted_result = 4 [(google.api.field_behavior) = REQUIRED];
+
+  // Version of the public API for serialized message definitions.
+  string public_api_version = 5 [(google.api.field_behavior) = REQUIRED];
 }
 
 // Continuation token for the streaming active computations

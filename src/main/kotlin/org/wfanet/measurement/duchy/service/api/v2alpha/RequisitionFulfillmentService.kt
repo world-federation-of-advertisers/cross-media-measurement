@@ -144,30 +144,32 @@ class RequisitionFulfillmentService(
     nonce: Long
   ): RequisitionMetadata {
     val kingdomComputation = computationToken.computationDetails.kingdomComputation
-    when (Version.fromString(kingdomComputation.publicApiVersion)) {
-      Version.V2_ALPHA -> {}
-      Version.VERSION_UNSPECIFIED ->
-        throw Status.FAILED_PRECONDITION.withDescription(
+    val requisitionMetadata =
+      checkNotNull(computationToken.requisitionsList.find { it.externalKey == requisitionKey })
+
+    val publicApiVersion =
+      Version.fromStringOrNull(kingdomComputation.publicApiVersion)
+        ?: throw Status.FAILED_PRECONDITION.withDescription(
             "Public API version invalid or unspecified"
           )
           .asRuntimeException()
-    }
-
-    val measurementSpec = MeasurementSpec.parseFrom(kingdomComputation.measurementSpec)
-    val requisitionMetadata =
-      checkNotNull(computationToken.requisitionsList.find { it.externalKey == requisitionKey })
-    if (
-      !verifyRequisitionFulfillment(
-        measurementSpec,
-        requisitionMetadata.toConsentSignalingRequisition(),
-        requisitionKey.requisitionFingerprint,
-        nonce
-      )
-    ) {
-      throw Status.FAILED_PRECONDITION.withDescription(
-          "Requisition fulfillment could not be verified"
-        )
-        .asRuntimeException()
+    when (publicApiVersion) {
+      Version.V2_ALPHA -> {
+        val measurementSpec = MeasurementSpec.parseFrom(kingdomComputation.measurementSpec)
+        if (
+          !verifyRequisitionFulfillment(
+            measurementSpec,
+            requisitionMetadata.toConsentSignalingRequisition(),
+            requisitionKey.requisitionFingerprint,
+            nonce
+          )
+        ) {
+          throw Status.FAILED_PRECONDITION.withDescription(
+              "Requisition fulfillment could not be verified"
+            )
+            .asRuntimeException()
+        }
+      }
     }
 
     return requisitionMetadata

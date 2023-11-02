@@ -121,6 +121,9 @@ message SetMeasurementResultRequest {
   // `Result` message from the public API, which can be verified using
   // `aggregator_certificate`.
   bytes encrypted_result = 5;
+
+  // Version of the public API for serialized message definitions.
+  string public_api_version = 6;
 }
 
 message CancelMeasurementRequest {

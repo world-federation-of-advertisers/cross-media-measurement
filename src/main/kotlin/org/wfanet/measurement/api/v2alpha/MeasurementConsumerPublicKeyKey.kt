@@ -20,7 +20,13 @@ import org.wfanet.measurement.common.api.ResourceKey
 private val parser = ResourceNameParser("measurementConsumers/{measurement_consumer}/publicKey")
 
 /** [ResourceKey] of a MeasurementConsumer PublicKey. */
-data class MeasurementConsumerPublicKeyKey(val measurementConsumerId: String) : ResourceKey {
+data class MeasurementConsumerPublicKeyKey(override val parentKey: MeasurementConsumerKey) :
+  PublicKeyKey {
+  constructor(measurementConsumerId: String) : this(MeasurementConsumerKey(measurementConsumerId))
+
+  val measurementConsumerId: String
+    get() = parentKey.measurementConsumerId
+
   override fun toName(): String {
     return parser.assembleName(mapOf(IdVariable.MEASUREMENT_CONSUMER to measurementConsumerId))
   }

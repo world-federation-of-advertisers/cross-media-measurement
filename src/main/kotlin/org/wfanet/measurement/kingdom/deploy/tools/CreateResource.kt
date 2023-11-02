@@ -22,11 +22,13 @@ import java.security.cert.X509Certificate
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.CanonicalRecurringExchangeKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.common.commandLineMain
@@ -62,11 +64,11 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.toInternal
 import picocli.CommandLine.ArgGroup
 import picocli.CommandLine.Command
 import picocli.CommandLine.HelpCommand
+import picocli.CommandLine.ITypeConverter
 import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
 import picocli.CommandLine.ParentCommand
 
-private const val API_VERSION = "v2alpha"
 private const val RECURRING_EXCHANGE_CRON_SCHEDULE = "@daily"
 
 @Command(name = "account", description = ["Creates an Account"])
@@ -127,6 +129,14 @@ private class CreateDataProviderCommand : Runnable {
   }
 
   @Option(
+    names = ["--encryption-public-key-api-version"],
+    description = ["API version of the EncryptionPublicKey message"],
+    defaultValue = "v2alpha",
+    converter = [VersionConverter::class],
+  )
+  private lateinit var publicKeyApiVersion: Version
+
+  @Option(
     names = ["--encryption-public-key-signature-file"],
     description = ["Principal's signature of serialized EncryptionPublicKey"],
     required = true
@@ -155,12 +165,17 @@ private class CreateDataProviderCommand : Runnable {
   private var requiredDuchies: List<String> = emptyList()
 
   override fun run() {
+    // Verify that serialized message can be parsed to an EncryptionPublicKey message.
+    when (publicKeyApiVersion) {
+      Version.V2_ALPHA -> EncryptionPublicKey.parseFrom(serializedEncryptionPublicKey)
+    }
+
     val dataProvider = dataProvider {
       certificate = this@CreateDataProviderCommand.certificate
 
       details =
         DataProviderKt.details {
-          apiVersion = API_VERSION
+          apiVersion = publicKeyApiVersion.string
           publicKey = serializedEncryptionPublicKey
           publicKeySignature = encryptionPublicKeySignature
           publicKeySignatureAlgorithmOid = signatureAlgorithm.oid
@@ -299,6 +314,7 @@ private class CreateRecurringExchangeCommand : Runnable {
       state = RecurringExchange.State.ACTIVE
       nextExchangeDate = this@CreateRecurringExchangeCommand.nextExchangeDate.toProtoDate()
       details = recurringExchangeDetails {
+        apiVersion = Version.V2_ALPHA.string
         this.externalExchangeWorkflow = serializedExchangeWorkflow.toByteString()
         exchangeWorkflow = v2AlphaExchangeWorkflow.toInternal()
         cronSchedule = RECURRING_EXCHANGE_CRON_SCHEDULE
@@ -352,6 +368,12 @@ private class CreateResource : Runnable {
 
   override fun run() {
     // No-op. Everything happens in subcommands.
+  }
+}
+
+private class VersionConverter : ITypeConverter<Version> {
+  override fun convert(value: String): Version {
+    return Version.fromString(value)
   }
 }
 

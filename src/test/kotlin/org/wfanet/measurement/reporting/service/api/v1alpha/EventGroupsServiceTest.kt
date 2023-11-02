@@ -16,7 +16,6 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -51,7 +50,8 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testParen
 import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse as cmmsListEventGroupsResponse
-import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.api.v2alpha.setMessage
+import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.crypto.tink.TinkPublicKeyHandle
@@ -60,6 +60,7 @@ import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
@@ -81,8 +82,9 @@ private val SECRET_FILES_PATH: Path =
       Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
     )
   )
-private val ENCRYPTION_PRIVATE_KEY = loadEncryptionPrivateKey("mc_enc_private.tink")
-private val ENCRYPTION_PUBLIC_KEY = loadEncryptionPublicKey("mc_enc_public.tink")
+private val ENCRYPTION_PRIVATE_KEY_HANDLE = loadEncryptionPrivateKey("mc_enc_private.tink")
+private val ENCRYPTION_PUBLIC_KEY =
+  loadEncryptionPublicKey("mc_enc_public.tink").toEncryptionPublicKey()
 private const val MEASUREMENT_CONSUMER_REFERENCE_ID = "measurementConsumerRefId"
 private val MEASUREMENT_CONSUMER_NAME =
   MeasurementConsumerKey(MEASUREMENT_CONSUMER_REFERENCE_ID).toName()
@@ -90,7 +92,7 @@ private val ENCRYPTION_KEY_PAIR_STORE =
   InMemoryEncryptionKeyPairStore(
     mapOf(
       MEASUREMENT_CONSUMER_NAME to
-        listOf(ENCRYPTION_PUBLIC_KEY.toByteString() to ENCRYPTION_PRIVATE_KEY)
+        listOf(ENCRYPTION_PUBLIC_KEY.data to ENCRYPTION_PRIVATE_KEY_HANDLE)
     )
   )
 private val TEST_MESSAGE = testMetadataMessage { publisherId = 15 }
@@ -99,36 +101,31 @@ private val CMMS_EVENT_GROUP = cmmsEventGroup {
   name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID"
   measurementConsumer = MEASUREMENT_CONSUMER_NAME
   eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
-  measurementConsumerPublicKey = signedData {
-    data = ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey().toByteString()
-  }
+  measurementConsumerPublicKey = signedMessage { setMessage(ENCRYPTION_PUBLIC_KEY.pack()) }
   encryptedMetadata =
     encryptMetadata(
       CmmsEventGroup.metadata {
         eventGroupMetadataDescriptor = METADATA_NAME
-        metadata = Any.pack(TEST_MESSAGE)
+        metadata = TEST_MESSAGE.pack()
       },
-      ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey()
+      ENCRYPTION_PUBLIC_KEY
     )
 }
 private val TEST_MESSAGE_2 = testMetadataMessage { publisherId = 5 }
 private const val CMMS_EVENT_GROUP_ID_2 = "AAAAAAAAAGs"
-private val CMMS_EVENT_GROUP_2 = cmmsEventGroup {
-  name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID_2"
-  measurementConsumer = MEASUREMENT_CONSUMER_NAME
-  eventGroupReferenceId = "id2"
-  measurementConsumerPublicKey = signedData {
-    data = ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey().toByteString()
+private val CMMS_EVENT_GROUP_2 =
+  CMMS_EVENT_GROUP.copy {
+    name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID_2"
+    eventGroupReferenceId = "id2"
+    encryptedMetadata =
+      encryptMetadata(
+        CmmsEventGroup.metadata {
+          eventGroupMetadataDescriptor = METADATA_NAME
+          metadata = TEST_MESSAGE_2.pack()
+        },
+        ENCRYPTION_PUBLIC_KEY
+      )
   }
-  encryptedMetadata =
-    encryptMetadata(
-      CmmsEventGroup.metadata {
-        eventGroupMetadataDescriptor = METADATA_NAME
-        metadata = Any.pack(TEST_MESSAGE_2)
-      },
-      ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey()
-    )
-}
 private val EVENT_GROUP = eventGroup {
   name =
     EventGroupKey(
@@ -141,7 +138,7 @@ private val EVENT_GROUP = eventGroup {
   eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
   metadata = metadata {
     eventGroupMetadataDescriptor = METADATA_NAME
-    metadata = Any.pack(TEST_MESSAGE)
+    metadata = TEST_MESSAGE.pack()
   }
 }
 private const val PAGE_TOKEN = "base64encodedtoken"
@@ -366,16 +363,14 @@ class EventGroupsServiceTest {
       name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID"
       measurementConsumer = MEASUREMENT_CONSUMER_NAME
       eventGroupReferenceId = "id1"
-      measurementConsumerPublicKey = signedData {
-        data = ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey().toByteString()
-      }
+      measurementConsumerPublicKey = signedMessage { setMessage(ENCRYPTION_PUBLIC_KEY.pack()) }
       encryptedMetadata =
         encryptMetadata(
           CmmsEventGroup.metadata {
             eventGroupMetadataDescriptor = METADATA_NAME
-            metadata = Any.pack(testParentMetadataMessage { name = "name" })
+            metadata = testParentMetadataMessage { name = "name" }.pack()
           },
-          ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey()
+          ENCRYPTION_PUBLIC_KEY
         )
     }
     cmmsEventGroupsServiceMock.stub {
@@ -410,16 +405,16 @@ class EventGroupsServiceTest {
       name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID"
       measurementConsumer = MEASUREMENT_CONSUMER_NAME
       eventGroupReferenceId = "id1"
-      measurementConsumerPublicKey = signedData {
-        data = encryptionPublicKey { data = ByteString.copyFromUtf8("consumerkey") }.toByteString()
+      measurementConsumerPublicKey = signedMessage {
+        setMessage(encryptionPublicKey { data = ByteString.copyFromUtf8("consumerkey") }.pack())
       }
       encryptedMetadata =
         encryptMetadata(
           CmmsEventGroup.metadata {
             eventGroupMetadataDescriptor = METADATA_NAME
-            metadata = Any.pack(testParentMetadataMessage { name = "name" })
+            metadata = testParentMetadataMessage { name = "name" }.pack()
           },
-          ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey()
+          ENCRYPTION_PUBLIC_KEY
         )
     }
     cmmsEventGroupsServiceMock.stub {

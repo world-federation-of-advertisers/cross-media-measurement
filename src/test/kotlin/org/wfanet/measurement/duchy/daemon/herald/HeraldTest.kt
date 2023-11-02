@@ -22,7 +22,6 @@ import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.Status
 import java.time.Clock
 import kotlin.test.assertNotNull
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.asFlow
@@ -54,6 +53,7 @@ import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
@@ -147,7 +147,7 @@ private val PUBLIC_API_ENCRYPTION_PUBLIC_KEY = encryptionPublicKey {
 }
 
 private val PUBLIC_API_MEASUREMENT_SPEC = measurementSpec {
-  measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toByteString()
+  measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.pack()
   reachAndFrequency = reachAndFrequency {
     reachPrivacyParams = cmmsDifferentialPrivacyParams {
       epsilon = 1.1
@@ -165,7 +165,7 @@ private val PUBLIC_API_MEASUREMENT_SPEC = measurementSpec {
 private val SERIALIZED_MEASUREMENT_SPEC: ByteString = PUBLIC_API_MEASUREMENT_SPEC.toByteString()
 
 private val PUBLIC_API_REACH_ONLY_MEASUREMENT_SPEC = measurementSpec {
-  measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toByteString()
+  measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.pack()
   reach = reach {
     privacyParams = cmmsDifferentialPrivacyParams {
       epsilon = 1.1
@@ -281,22 +281,20 @@ private val FAIL_COMPUTATION_PARTICIPANT_RESPONSE = computationParticipant {
 }
 
 @RunWith(JUnit4::class)
-@OptIn(ExperimentalCoroutinesApi::class) // For `runTest`.
 class HeraldTest {
 
   private val systemComputations: SystemComputationsCoroutineImplBase = mockService()
 
   private val systemComputationParticipants: SystemComputationParticipantsCoroutineImplBase =
-    mockService() {
+    mockService {
       onBlocking { failComputationParticipant(any()) }
         .thenReturn(FAIL_COMPUTATION_PARTICIPANT_RESPONSE)
     }
 
-  private val computationLogEntries: ComputationLogEntriesCoroutineImplBase =
-    mockService() {
-      onBlocking { createComputationLogEntry(any()) }
-        .thenReturn(ComputationLogEntry.getDefaultInstance())
-    }
+  private val computationLogEntries: ComputationLogEntriesCoroutineImplBase = mockService {
+    onBlocking { createComputationLogEntry(any()) }
+      .thenReturn(ComputationLogEntry.getDefaultInstance())
+  }
 
   private val fakeComputationDatabase = FakeComputationsDatabase()
 
@@ -1193,10 +1191,9 @@ class HeraldTest {
 
     nonAggregatorHerald.syncStatuses()
 
-    val failRequest =
-      captureFirst<FailComputationParticipantRequest> {
-        runBlocking { verify(systemComputationParticipants).failComputationParticipant(capture()) }
-      }
+    val failRequest: FailComputationParticipantRequest = captureFirst {
+      runBlocking { verify(systemComputationParticipants).failComputationParticipant(capture()) }
+    }
     assertThat(failRequest.name)
       .isEqualTo(
         ComputationParticipantKey(invalidComputation.key.computationId, NON_AGGREGATOR_DUCHY_ID)
@@ -1233,10 +1230,9 @@ class HeraldTest {
 
     herald.syncStatuses()
 
-    val failRequest =
-      captureFirst<FailComputationParticipantRequest> {
-        runBlocking { verify(systemComputationParticipants).failComputationParticipant(capture()) }
-      }
+    val failRequest: FailComputationParticipantRequest = captureFirst {
+      runBlocking { verify(systemComputationParticipants).failComputationParticipant(capture()) }
+    }
     assertThat(failRequest.name)
       .isEqualTo(
         ComputationParticipantKey(computation.key.computationId, AGGREGATOR_DUCHY_ID).toName()

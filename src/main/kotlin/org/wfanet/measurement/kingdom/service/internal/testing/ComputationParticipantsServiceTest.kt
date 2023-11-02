@@ -31,6 +31,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
@@ -816,6 +817,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         externalAggregatorCertificateId = request.externalDuchyCertificateId
         resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
         encryptedResult = ByteString.copyFromUtf8("encryptedResult")
+        publicApiVersion = Version.V2_ALPHA.string
       }
     )
 

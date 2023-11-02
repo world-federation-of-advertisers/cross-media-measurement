@@ -20,7 +20,12 @@ import org.wfanet.measurement.common.api.ResourceKey
 private val parser = ResourceNameParser("dataProviders/{data_provider}/publicKey")
 
 /** [ResourceKey] of a DataProvider PublicKey. */
-data class DataProviderPublicKeyKey(val dataProviderId: String) : ResourceKey {
+data class DataProviderPublicKeyKey(override val parentKey: DataProviderKey) : PublicKeyKey {
+  constructor(dataProviderId: String) : this(DataProviderKey(dataProviderId))
+
+  val dataProviderId: String
+    get() = parentKey.dataProviderId
+
   override fun toName(): String {
     return parser.assembleName(mapOf(IdVariable.DATA_PROVIDER to dataProviderId))
   }

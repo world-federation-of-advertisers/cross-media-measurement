@@ -27,6 +27,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
@@ -80,6 +81,7 @@ private val RECURRING_EXCHANGE: RecurringExchange =
       externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
       state = RecurringExchange.State.ACTIVE
       detailsBuilder.apply {
+        apiVersion = Version.V2_ALPHA.string
         cronSchedule = "some arbitrary cron_schedule"
         exchangeWorkflow = ExchangeWorkflow.getDefaultInstance()
       }
@@ -112,7 +114,7 @@ private val DATA_PROVIDER: DataProvider =
         detailsBuilder.x509Der = ByteString.copyFromUtf8("This is a certificate der.")
       }
       detailsBuilder.apply {
-        apiVersion = "2"
+        apiVersion = Version.V2_ALPHA.string
         publicKey = ByteString.copyFromUtf8("This is a  public key.")
         publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
       }

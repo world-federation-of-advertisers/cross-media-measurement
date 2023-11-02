@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.FieldScope
 import com.google.common.truth.extensions.proto.FieldScopes
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
@@ -22,31 +23,32 @@ import java.time.ZoneOffset
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
-import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
-import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.exchange
 import org.wfanet.measurement.internal.kingdom.exchangeDetails
-import org.wfanet.measurement.internal.kingdom.exchangeStep
-import org.wfanet.measurement.internal.kingdom.exchangeStepAttempt
-import org.wfanet.measurement.internal.kingdom.exchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.getExchangeRequest
-import org.wfanet.measurement.internal.kingdom.getExchangeStepAttemptRequest
 import org.wfanet.measurement.internal.kingdom.getExchangeStepRequest
 
 private const val EXTERNAL_RECURRING_EXCHANGE_ID = 222L
-private const val EXTERNAL_MODEL_PROVIDER_ID = 666L
 private const val STEP_INDEX = 1
 
 internal val EXCHANGE_DATE = LocalDate.now(ZoneOffset.UTC).toProtoDate()
 
 internal val EXCHANGE_STEP_RESPONSE_IGNORED_FIELDS: FieldScope =
-  FieldScopes.allowingFieldDescriptors(ExchangeStep.getDescriptor().findFieldByName("update_time"))
+  FieldScopes.allowingFieldDescriptors(
+    ExchangeStep.getDescriptor().findFieldByNumber(ExchangeStep.UPDATE_TIME_FIELD_NUMBER)
+  )
 
 internal val EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS: FieldScope =
   FieldScopes.allowingFieldDescriptors(
-    ExchangeStepAttempt.getDescriptor().findFieldByName("details")
+    ExchangeStepAttemptDetails.getDescriptor()
+      .findFieldByNumber(ExchangeStepAttemptDetails.START_TIME_FIELD_NUMBER),
+    ExchangeStepAttemptDetails.getDescriptor()
+      .findFieldByNumber(ExchangeStepAttemptDetails.UPDATE_TIME_FIELD_NUMBER),
+    ExchangeStepAttemptDetails.getDescriptor()
+      .findFieldByNumber(ExchangeStepAttemptDetails.DEBUG_LOG_ENTRIES_FIELD_NUMBER),
   )
 
 internal suspend fun ExchangesCoroutineImplBase.assertTestExchangeHasState(
@@ -76,48 +78,13 @@ internal suspend fun ExchangeStepsCoroutineImplBase.assertTestExchangeStepHasSta
 ) {
   assertThat(
       getExchangeStep(
-        getExchangeStepRequest {
-          externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-          date = EXCHANGE_DATE
-          stepIndex = exchangeStepIndex
-        }
-      )
+          getExchangeStepRequest {
+            externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+            date = EXCHANGE_DATE
+            stepIndex = exchangeStepIndex
+          }
+        )
+        .state
     )
-    .ignoringFieldScope(EXCHANGE_STEP_RESPONSE_IGNORED_FIELDS)
-    .isEqualTo(
-      exchangeStep {
-        externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-        date = EXCHANGE_DATE
-        stepIndex = exchangeStepIndex
-        state = exchangeStepState
-        externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-      }
-    )
-}
-
-internal suspend fun ExchangeStepAttemptsCoroutineImplBase.assertTestExchangeStepAttemptHasState(
-  exchangeStepAttemptState: ExchangeStepAttempt.State,
-  attemptIndex: Int = 1
-) {
-  assertThat(
-      getExchangeStepAttempt(
-        getExchangeStepAttemptRequest {
-          externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-          date = EXCHANGE_DATE
-          stepIndex = STEP_INDEX
-          attemptNumber = attemptIndex
-        }
-      )
-    )
-    .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS)
-    .isEqualTo(
-      exchangeStepAttempt {
-        externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-        date = EXCHANGE_DATE
-        stepIndex = STEP_INDEX
-        attemptNumber = attemptIndex
-        state = exchangeStepAttemptState
-        details = exchangeStepAttemptDetails {}
-      }
-    )
+    .isEqualTo(exchangeStepState)
 }

@@ -15,8 +15,10 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
+import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
+import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -35,11 +37,10 @@ class SpannerDataProvidersService(
   private val client: AsyncDatabaseClient
 ) : DataProvidersCoroutineImplBase() {
   override suspend fun createDataProvider(request: DataProvider): DataProvider {
-    grpcRequire(
-      request.details.apiVersion.isNotEmpty() &&
-        !request.details.publicKey.isEmpty &&
-        !request.details.publicKeySignature.isEmpty
-    ) {
+    grpcRequireNotNull(Version.fromStringOrNull(request.details.apiVersion)) {
+      "details.api_version is invalid or unspecified"
+    }
+    grpcRequire(!request.details.publicKey.isEmpty && !request.details.publicKeySignature.isEmpty) {
       "Details field of DataProvider is missing fields."
     }
     return CreateDataProvider(request).execute(client, idGenerator)

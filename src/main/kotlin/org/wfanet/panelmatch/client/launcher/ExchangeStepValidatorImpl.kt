@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.client.launcher
 
 import com.google.protobuf.InvalidProtocolBufferException
+import com.google.protobuf.kotlin.unpack
 import java.time.Clock
 import java.time.ZoneOffset
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepKey
@@ -33,7 +34,7 @@ class ExchangeStepValidatorImpl(
   private val clock: Clock
 ) : ExchangeStepValidator {
   override suspend fun validate(exchangeStep: ExchangeStep): ValidatedExchangeStep {
-    val serializedExchangeWorkflow = exchangeStep.serializedExchangeWorkflow
+    val packedExchangeWorkflow = exchangeStep.exchangeWorkflow
     val recurringExchangeId =
       requireNotNull(CanonicalExchangeStepKey.fromName(exchangeStep.name)).recurringExchangeId
     val existingExchangeWorkflow =
@@ -42,14 +43,13 @@ class ExchangeStepValidatorImpl(
           TRANSIENT,
           "No ExchangeWorkflow known for RecurringExchange $recurringExchangeId"
         )
-    if (existingExchangeWorkflow != serializedExchangeWorkflow) {
+    if (existingExchangeWorkflow != packedExchangeWorkflow.value) {
       throw InvalidExchangeStepException(PERMANENT, "Serialized ExchangeWorkflow unrecognized")
     }
 
-    val workflow =
+    val workflow: ExchangeWorkflow =
       try {
-        @Suppress("BlockingMethodInNonBlockingContext") // This is in-memory.
-        ExchangeWorkflow.parseFrom(serializedExchangeWorkflow)
+        packedExchangeWorkflow.unpack()
       } catch (e: InvalidProtocolBufferException) {
         throw InvalidExchangeStepException(PERMANENT, "Invalid ExchangeWorkflow")
       }

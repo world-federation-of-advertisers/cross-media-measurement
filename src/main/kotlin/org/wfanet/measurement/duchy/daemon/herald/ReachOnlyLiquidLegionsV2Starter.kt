@@ -331,7 +331,6 @@ object ReachOnlyLiquidLegionsV2Starter {
                   }
                 }
               }
-              Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
             }
           }
       }

@@ -16,7 +16,6 @@ package org.wfanet.measurement.api.v2alpha.tools
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.ByteString
 import com.google.protobuf.duration as protoDuration
 import com.google.protobuf.util.Durations
 import io.grpc.ServerInterceptors
@@ -38,12 +37,13 @@ import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
-import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultOutput
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
@@ -55,20 +55,21 @@ import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCorouti
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
-import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.api.v2alpha.setMessage
+import org.wfanet.measurement.api.v2alpha.signedMessage
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
-import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
 import org.wfanet.measurement.common.testing.captureFirst
@@ -95,28 +96,25 @@ private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/1"
 private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME = "measurementConsumers/1/certificates/1"
 private val MEASUREMENT_CONSUMER_CERTIFICATE_DER =
   SECRETS_DIR.resolve("mc_cs_cert.der").toFile().readByteString()
-private val MEASUREMENT_CONSUMER_CERTIFICATE = readCertificate(MEASUREMENT_CONSUMER_CERTIFICATE_DER)
 private val MEASUREMENT_PUBLIC_KEY =
-  SECRETS_DIR.resolve("mc_enc_public.tink").toFile().readByteString()
+  loadPublicKey(SECRETS_DIR.resolve("mc_enc_public.tink").toFile()).toEncryptionPublicKey()
 
 private const val DATA_PROVIDER_NAME = "dataProviders/1"
 private const val DATA_PROVIDER_CERTIFICATE_NAME = "dataProviders/1/certificates/1"
-private val DATA_PROVIDER_PUBLIC_KEY =
+private val DATA_PROVIDER_PUBLIC_KEY: EncryptionPublicKey =
   loadPublicKey(SECRETS_DIR.resolve("edp1_enc_public.tink").toFile()).toEncryptionPublicKey()
-private val DATA_PROVIDER_PRIVATE_KEY_HANDLE =
-  loadPrivateKey(SECRETS_DIR.resolve("edp1_enc_private.tink").toFile())
 
 private val MEASUREMENT_CONSUMER = measurementConsumer {
   name = MEASUREMENT_CONSUMER_NAME
   certificateDer = MEASUREMENT_CONSUMER_CERTIFICATE_DER
   certificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
-  publicKey = signedData { data = MEASUREMENT_PUBLIC_KEY }
+  publicKey = signedMessage { setMessage(MEASUREMENT_PUBLIC_KEY.pack()) }
 }
 
 private val DATA_PROVIDER = dataProvider {
   name = DATA_PROVIDER_NAME
   certificate = DATA_PROVIDER_CERTIFICATE_NAME
-  publicKey = signedData { data = DATA_PROVIDER_PUBLIC_KEY.toByteString() }
+  publicKey = signedMessage { setMessage(DATA_PROVIDER_PUBLIC_KEY.pack()) }
 }
 
 private const val TIME_STRING_1 = "2022-05-22T01:00:00.000Z"
@@ -141,13 +139,9 @@ private val SUCCEEDED_REACH_MEASUREMENT = measurement {
   name = MEASUREMENT_NAME
   state = Measurement.State.SUCCEEDED
 
-  val measurementPublicKey = encryptionPublicKey {
-    format = EncryptionPublicKey.Format.TINK_KEYSET
-    data = MEASUREMENT_PUBLIC_KEY
-  }
-  results += resultPair {
+  results += resultOutput {
     val result = result { reach = ResultKt.reach { value = 4096 } }
-    encryptedResult = getEncryptedResult(result, measurementPublicKey)
+    encryptedResult = getEncryptedResult(result, MEASUREMENT_PUBLIC_KEY)
     certificate = DATA_PROVIDER_CERTIFICATE_NAME
   }
 }
@@ -155,11 +149,7 @@ private val SUCCEEDED_REACH_AND_FREQUENCY_MEASUREMENT = measurement {
   name = MEASUREMENT_NAME
   state = Measurement.State.SUCCEEDED
 
-  val measurementPublicKey = encryptionPublicKey {
-    format = EncryptionPublicKey.Format.TINK_KEYSET
-    data = MEASUREMENT_PUBLIC_KEY
-  }
-  results += resultPair {
+  results += resultOutput {
     val result = result {
       reach = ResultKt.reach { value = 4096 }
       frequency =
@@ -169,7 +159,7 @@ private val SUCCEEDED_REACH_AND_FREQUENCY_MEASUREMENT = measurement {
           relativeFrequencyDistribution.put(3, 2.0 / 6)
         }
     }
-    encryptedResult = getEncryptedResult(result, measurementPublicKey)
+    encryptedResult = getEncryptedResult(result, MEASUREMENT_PUBLIC_KEY)
     certificate = DATA_PROVIDER_CERTIFICATE_NAME
   }
 }
@@ -177,13 +167,9 @@ private val SUCCEEDED_IMPRESSION_MEASUREMENT = measurement {
   name = MEASUREMENT_NAME
   state = Measurement.State.SUCCEEDED
 
-  val measurementPublicKey = encryptionPublicKey {
-    format = EncryptionPublicKey.Format.TINK_KEYSET
-    data = MEASUREMENT_PUBLIC_KEY
-  }
-  results += resultPair {
+  results += resultOutput {
     val result = result { impression = ResultKt.impression { value = 4096 } }
-    encryptedResult = getEncryptedResult(result, measurementPublicKey)
+    encryptedResult = getEncryptedResult(result, MEASUREMENT_PUBLIC_KEY)
     certificate = DATA_PROVIDER_CERTIFICATE_NAME
   }
 }
@@ -191,11 +177,7 @@ private val SUCCEEDED_DURATION_MEASUREMENT = measurement {
   name = MEASUREMENT_NAME
   state = Measurement.State.SUCCEEDED
 
-  val measurementPublicKey = encryptionPublicKey {
-    format = EncryptionPublicKey.Format.TINK_KEYSET
-    data = MEASUREMENT_PUBLIC_KEY
-  }
-  results += resultPair {
+  results += resultOutput {
     val result = result {
       watchDuration =
         ResultKt.watchDuration {
@@ -205,7 +187,7 @@ private val SUCCEEDED_DURATION_MEASUREMENT = measurement {
           }
         }
     }
-    encryptedResult = getEncryptedResult(result, measurementPublicKey)
+    encryptedResult = getEncryptedResult(result, MEASUREMENT_PUBLIC_KEY)
     certificate = DATA_PROVIDER_CERTIFICATE_NAME
   }
 }
@@ -213,13 +195,9 @@ private val SUCCEEDED_POPULATION_MEASUREMENT = measurement {
   name = MEASUREMENT_NAME
   state = Measurement.State.SUCCEEDED
 
-  val measurementPublicKey = encryptionPublicKey {
-    format = EncryptionPublicKey.Format.TINK_KEYSET
-    data = MEASUREMENT_PUBLIC_KEY
-  }
-  results += resultPair {
+  results += resultOutput {
     val result = result { population = ResultKt.population { value = 100 } }
-    encryptedResult = getEncryptedResult(result, measurementPublicKey)
+    encryptedResult = getEncryptedResult(result, MEASUREMENT_PUBLIC_KEY)
     certificate = DATA_PROVIDER_CERTIFICATE_NAME
   }
 }
@@ -227,27 +205,31 @@ private val SUCCEEDED_POPULATION_MEASUREMENT = measurement {
 private fun getEncryptedResult(
   result: Measurement.Result,
   publicKey: EncryptionPublicKey
-): ByteString {
+): EncryptedMessage {
   val signedResult = signResult(result, AGGREGATOR_SIGNING_KEY)
   return encryptResult(signedResult, publicKey)
 }
 
 @RunWith(JUnit4::class)
 class BenchmarkTest {
-  private val measurementConsumersServiceMock: MeasurementConsumersCoroutineImplBase =
-    mockService() { onBlocking { getMeasurementConsumer(any()) }.thenReturn(MEASUREMENT_CONSUMER) }
-  private val dataProvidersServiceMock: DataProvidersCoroutineImplBase =
-    mockService() { onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER) }
+  private val measurementConsumersServiceMock: MeasurementConsumersCoroutineImplBase = mockService {
+    onBlocking { getMeasurementConsumer(any()) }.thenReturn(MEASUREMENT_CONSUMER)
+  }
+  private val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService {
+    onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER)
+  }
   private lateinit var measurementsServiceMock: MeasurementsCoroutineImplBase
   private val certificatesServiceMock: CertificatesGrpcKt.CertificatesCoroutineImplBase =
-    mockService() { onBlocking { getCertificate(any()) }.thenReturn(AGGREGATOR_CERTIFICATE) }
+    mockService {
+      onBlocking { getCertificate(any()) }.thenReturn(AGGREGATOR_CERTIFICATE)
+    }
 
   private val port: Int
     get() = server.port
 
   private lateinit var server: CommonServer
 
-  fun initServer() {
+  private fun initServer() {
     val services: List<ServerServiceDefinition> =
       listOf(
         ServerInterceptors.intercept(measurementsServiceMock),
@@ -282,11 +264,10 @@ class BenchmarkTest {
 
   @Test
   fun `Benchmark reach and frequency`() {
-    measurementsServiceMock =
-      mockService() {
-        onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT)
-        onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_REACH_AND_FREQUENCY_MEASUREMENT)
-      }
+    measurementsServiceMock = mockService {
+      onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT)
+      onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_REACH_AND_FREQUENCY_MEASUREMENT)
+    }
     initServer()
     val clock = Clock.fixed(Instant.parse(TIME_STRING_1), ZoneId.of("UTC"))
     val tempFile = Files.createTempFile("benchmarks-reach", ".csv")
@@ -319,13 +300,12 @@ class BenchmarkTest {
 
     BenchmarkReport.main(args, clock)
 
-    val request =
-      captureFirst<CreateMeasurementRequest> {
-        runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
-      }
+    val request: CreateMeasurementRequest = captureFirst {
+      runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
+    }
 
     val measurement = request.measurement
-    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
+    val measurementSpec: MeasurementSpec = measurement.measurementSpec.unpack()
     assertThat(measurementSpec)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
@@ -363,11 +343,10 @@ class BenchmarkTest {
 
   @Test
   fun `Benchmark reach`() {
-    measurementsServiceMock =
-      mockService() {
-        onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT)
-        onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_REACH_MEASUREMENT)
-      }
+    measurementsServiceMock = mockService {
+      onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT)
+      onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_REACH_MEASUREMENT)
+    }
     initServer()
     val clock = Clock.fixed(Instant.parse(TIME_STRING_1), ZoneId.of("UTC"))
     val tempFile = Files.createTempFile("benchmarks-reach", ".csv")
@@ -397,13 +376,12 @@ class BenchmarkTest {
 
     BenchmarkReport.main(args, clock)
 
-    val request =
-      captureFirst<CreateMeasurementRequest> {
-        runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
-      }
+    val request: CreateMeasurementRequest = captureFirst {
+      runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
+    }
 
     val measurement = request.measurement
-    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
+    val measurementSpec: MeasurementSpec = measurement.measurementSpec.unpack()
     assertThat(measurementSpec)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
@@ -432,11 +410,10 @@ class BenchmarkTest {
 
   @Test
   fun `Benchmark impressions`() {
-    measurementsServiceMock =
-      mockService() {
-        onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT)
-        onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_IMPRESSION_MEASUREMENT)
-      }
+    measurementsServiceMock = mockService {
+      onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT)
+      onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_IMPRESSION_MEASUREMENT)
+    }
     initServer()
     val clock = Clock.fixed(Instant.parse(TIME_STRING_1), ZoneId.of("UTC"))
     val tempFile = Files.createTempFile("benchmarks-impressions", ".csv")
@@ -466,13 +443,12 @@ class BenchmarkTest {
       )
     BenchmarkReport.main(args, clock)
 
-    val request =
-      captureFirst<CreateMeasurementRequest> {
-        runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
-      }
+    val request: CreateMeasurementRequest = captureFirst {
+      runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
+    }
 
     val measurement = request.measurement
-    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
+    val measurementSpec: MeasurementSpec = measurement.measurementSpec.unpack()
     assertThat(measurementSpec)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
@@ -502,11 +478,10 @@ class BenchmarkTest {
 
   @Test
   fun `Benchmark duration`() {
-    measurementsServiceMock =
-      mockService() {
-        onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT)
-        onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_DURATION_MEASUREMENT)
-      }
+    measurementsServiceMock = mockService {
+      onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT)
+      onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_DURATION_MEASUREMENT)
+    }
     initServer()
     val clock = Clock.fixed(Instant.parse(TIME_STRING_1), ZoneId.of("UTC"))
     val tempFile = Files.createTempFile("benchmarks-duration", ".csv")
@@ -536,13 +511,12 @@ class BenchmarkTest {
       )
     BenchmarkReport.main(args, clock)
 
-    val request =
-      captureFirst<CreateMeasurementRequest> {
-        runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
-      }
+    val request: CreateMeasurementRequest = captureFirst {
+      runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
+    }
 
     val measurement = request.measurement
-    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
+    val measurementSpec: MeasurementSpec = measurement.measurementSpec.unpack()
     assertThat(measurementSpec)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
@@ -573,11 +547,10 @@ class BenchmarkTest {
 
   @Test
   fun `Benchmark population`() {
-    measurementsServiceMock =
-      mockService() {
-        onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT)
-        onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_POPULATION_MEASUREMENT)
-      }
+    measurementsServiceMock = mockService {
+      onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT)
+      onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_POPULATION_MEASUREMENT)
+    }
     initServer()
     val clock = Clock.fixed(Instant.parse(TIME_STRING_1), ZoneId.of("UTC"))
     val tempFile = Files.createTempFile("benchmarks-population", ".csv")
@@ -602,13 +575,12 @@ class BenchmarkTest {
       )
     BenchmarkReport.main(args, clock)
 
-    val request =
-      captureFirst<CreateMeasurementRequest> {
-        runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
-      }
+    val request: CreateMeasurementRequest = captureFirst {
+      runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
+    }
 
     val measurement = request.measurement
-    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
+    val measurementSpec: MeasurementSpec = measurement.measurementSpec.unpack()
     assertThat(measurementSpec)
       .comparingExpectedFieldsOnly()
       .isEqualTo(measurementSpec { population = population {} })

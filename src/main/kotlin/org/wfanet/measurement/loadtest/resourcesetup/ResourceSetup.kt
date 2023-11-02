@@ -249,7 +249,7 @@ class ResourceSetup(
             details =
               InternalDataProviderKt.details {
                 apiVersion = API_VERSION.string
-                publicKey = signedPublicKey.data
+                publicKey = signedPublicKey.message.value
                 publicKeySignature = signedPublicKey.signature
                 publicKeySignatureAlgorithmOid = signedPublicKey.signatureAlgorithmOid
               }

@@ -117,6 +117,7 @@ kt_jvm_library(
     deps = [
         ":certificates",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
@@ -268,6 +269,7 @@ kt_jvm_library(
         ":account_authentication_server_interceptor",
         ":certificates",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
@@ -294,6 +296,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:public_key_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:public_keys_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:public_keys_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
@@ -446,6 +449,7 @@ kt_jvm_library(
     srcs = ["ProtoConversions.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:llv2_protocol_config",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:ro_llv2_protocol_config",

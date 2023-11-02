@@ -33,6 +33,7 @@ import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
 import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.panelmatch.client.launcher.ApiClient.ClaimedExchangeStep
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
@@ -73,7 +74,7 @@ private val EXCHANGE_STEP: ExchangeStep = exchangeStep {
   name = EXCHANGE_STEP_KEY.toName()
   state = ExchangeStep.State.READY_FOR_RETRY
   stepIndex = 2
-  serializedExchangeWorkflow = WORKFLOW.toByteString()
+  exchangeWorkflow = WORKFLOW.pack()
   exchangeDate = DATE.toProtoDate()
 }
 

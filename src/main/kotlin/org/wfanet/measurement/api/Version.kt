@@ -15,14 +15,18 @@
 package org.wfanet.measurement.api
 
 enum class Version(val string: String) {
-  VERSION_UNSPECIFIED(""),
   V2_ALPHA("v2alpha");
 
   override fun toString(): String = string
 
   companion object {
     fun fromString(string: String): Version {
-      return values().find { it.string == string } ?: VERSION_UNSPECIFIED
+      return fromStringOrNull(string)
+        ?: throw IllegalArgumentException("$string is not a valid Version string")
+    }
+
+    fun fromStringOrNull(string: String): Version? {
+      return values().find { it.string == string }
     }
   }
 }

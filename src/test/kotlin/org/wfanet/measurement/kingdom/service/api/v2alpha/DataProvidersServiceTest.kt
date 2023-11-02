@@ -34,7 +34,8 @@ import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
-import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.api.v2alpha.setMessage
+import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withDuchyPrincipal
@@ -46,6 +47,7 @@ import org.wfanet.measurement.common.crypto.testing.TestData
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
@@ -75,11 +77,10 @@ private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
 
 @RunWith(JUnit4::class)
 class DataProvidersServiceTest {
-  private val internalServiceMock: InternalDataProvidersService =
-    mockService() {
-      onBlocking { getDataProvider(any()) }.thenReturn(INTERNAL_DATA_PROVIDER)
-      onBlocking { replaceDataProviderRequiredDuchies(any()) }.thenReturn(INTERNAL_DATA_PROVIDER)
-    }
+  private val internalServiceMock: InternalDataProvidersService = mockService {
+    onBlocking { getDataProvider(any()) }.thenReturn(INTERNAL_DATA_PROVIDER)
+    onBlocking { replaceDataProviderRequiredDuchies(any()) }.thenReturn(INTERNAL_DATA_PROVIDER)
+  }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalServiceMock) }
 
@@ -99,14 +100,7 @@ class DataProvidersServiceTest {
         }
       }
 
-    val expectedDataProvider = dataProvider {
-      name = DATA_PROVIDER_NAME
-      certificate = CERTIFICATE_NAME
-      certificateDer = SERVER_CERTIFICATE_DER
-      publicKey = SIGNED_PUBLIC_KEY
-      requiredDuchies += DUCHY_NAMES
-    }
-    assertThat(dataProvider).isEqualTo(expectedDataProvider)
+    assertThat(dataProvider).isEqualTo(DATA_PROVIDER)
     verifyProtoArgument(internalServiceMock, InternalDataProvidersService::getDataProvider)
       .isEqualTo(internalGetDataProviderRequest { externalDataProviderId = DATA_PROVIDER_ID })
   }
@@ -120,14 +114,7 @@ class DataProvidersServiceTest {
         }
       }
 
-    val expectedDataProvider = dataProvider {
-      name = DATA_PROVIDER_NAME
-      certificate = CERTIFICATE_NAME
-      certificateDer = SERVER_CERTIFICATE_DER
-      publicKey = SIGNED_PUBLIC_KEY
-      requiredDuchies += DUCHY_NAMES
-    }
-    assertThat(dataProvider).isEqualTo(expectedDataProvider)
+    assertThat(dataProvider).isEqualTo(DATA_PROVIDER)
     verifyProtoArgument(internalServiceMock, InternalDataProvidersService::getDataProvider)
       .isEqualTo(internalGetDataProviderRequest { externalDataProviderId = DATA_PROVIDER_ID })
   }
@@ -141,14 +128,7 @@ class DataProvidersServiceTest {
         }
       }
 
-    val expectedDataProvider = dataProvider {
-      name = DATA_PROVIDER_NAME
-      certificate = CERTIFICATE_NAME
-      certificateDer = SERVER_CERTIFICATE_DER
-      publicKey = SIGNED_PUBLIC_KEY
-      requiredDuchies += DUCHY_NAMES
-    }
-    assertThat(dataProvider).isEqualTo(expectedDataProvider)
+    assertThat(dataProvider).isEqualTo(DATA_PROVIDER)
     verifyProtoArgument(internalServiceMock, InternalDataProvidersService::getDataProvider)
       .isEqualTo(internalGetDataProviderRequest { externalDataProviderId = DATA_PROVIDER_ID })
   }
@@ -226,14 +206,7 @@ class DataProvidersServiceTest {
         }
       }
 
-    val expectedDataProvider = dataProvider {
-      name = DATA_PROVIDER_NAME
-      certificate = CERTIFICATE_NAME
-      certificateDer = SERVER_CERTIFICATE_DER
-      publicKey = SIGNED_PUBLIC_KEY
-      requiredDuchies += DUCHY_NAMES
-    }
-    assertThat(dataProvider).isEqualTo(expectedDataProvider)
+    assertThat(dataProvider).isEqualTo(DATA_PROVIDER)
     verifyProtoArgument(
         internalServiceMock,
         InternalDataProvidersService::replaceDataProviderRequiredDuchies
@@ -353,14 +326,16 @@ class DataProvidersServiceTest {
   }
 
   companion object {
+    private val API_VERSION = Version.V2_ALPHA
+
     private val serverCertificate: X509Certificate =
       readCertificate(TestData.FIXED_SERVER_CERT_PEM_FILE)
     private val SERVER_CERTIFICATE_DER = serverCertificate.encoded.toByteString()
 
     private val ENCRYPTION_PUBLIC_KEY =
       loadPublicKey(TestData.FIXED_ENCRYPTION_PUBLIC_KEYSET).toEncryptionPublicKey()
-    private val SIGNED_PUBLIC_KEY = signedData {
-      data = ENCRYPTION_PUBLIC_KEY.toByteString()
+    private val SIGNED_PUBLIC_KEY = signedMessage {
+      setMessage(ENCRYPTION_PUBLIC_KEY.pack())
       signature = ByteString.copyFromUtf8("Fake signature of public key")
       signatureAlgorithmOid = "2.9999"
     }
@@ -368,8 +343,8 @@ class DataProvidersServiceTest {
     private val INTERNAL_DATA_PROVIDER: InternalDataProvider = internalDataProvider {
       externalDataProviderId = DATA_PROVIDER_ID
       details = details {
-        apiVersion = Version.V2_ALPHA.string
-        publicKey = SIGNED_PUBLIC_KEY.data
+        apiVersion = API_VERSION.string
+        publicKey = SIGNED_PUBLIC_KEY.message.value
         publicKeySignature = SIGNED_PUBLIC_KEY.signature
         publicKeySignatureAlgorithmOid = SIGNED_PUBLIC_KEY.signatureAlgorithmOid
       }
@@ -382,6 +357,14 @@ class DataProvidersServiceTest {
         details = CertificateKt.details { x509Der = SERVER_CERTIFICATE_DER }
       }
       requiredExternalDuchyIds += EXTERNAL_DUCHY_ID
+    }
+
+    private val DATA_PROVIDER = dataProvider {
+      name = DATA_PROVIDER_NAME
+      certificate = CERTIFICATE_NAME
+      certificateDer = SERVER_CERTIFICATE_DER
+      publicKey = SIGNED_PUBLIC_KEY
+      requiredDuchies += DUCHY_NAMES
     }
   }
 }

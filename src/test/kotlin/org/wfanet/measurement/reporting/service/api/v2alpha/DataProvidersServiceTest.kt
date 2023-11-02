@@ -43,13 +43,15 @@ import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
-import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.api.v2alpha.setMessage
+import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.testing.TestData
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.HeaderCapturingInterceptor
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
@@ -171,8 +173,8 @@ class DataProvidersServiceTest {
 
     private val ENCRYPTION_PUBLIC_KEY =
       loadPublicKey(TestData.FIXED_ENCRYPTION_PUBLIC_KEYSET).toEncryptionPublicKey()
-    private val SIGNED_PUBLIC_KEY = signedData {
-      data = ENCRYPTION_PUBLIC_KEY.toByteString()
+    private val SIGNED_PUBLIC_KEY = signedMessage {
+      setMessage(ENCRYPTION_PUBLIC_KEY.pack())
       signature = ByteString.copyFromUtf8("Fake signature of public key")
       signatureAlgorithmOid = "2.9999"
     }

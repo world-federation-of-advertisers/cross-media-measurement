@@ -46,6 +46,7 @@ kt_jvm_library(
         ":create_measurement_flags",
         "//src/main/kotlin/org/wfanet/measurement/api:account_constants",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/proto/wfa/measurement/api/v2alpha:accounts_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:api_keys_service_kt_jvm_grpc_proto",
@@ -104,6 +105,7 @@ kt_jvm_library(
     deps = [
         ":create_measurement_flags",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:flags",
         "//src/main/proto/wfa/measurement/api/v2alpha:certificate_kt_jvm_proto",

@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.protobuf.any
 import io.grpc.Status
 import io.grpc.StatusException
 import org.wfanet.measurement.api.Version
@@ -23,6 +24,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as DataProvidersCoroutineService
 import org.wfanet.measurement.api.v2alpha.DuchyKey
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
@@ -30,7 +32,9 @@ import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.ReplaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
-import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.api.v2alpha.setMessage
+import org.wfanet.measurement.api.v2alpha.signedMessage
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -39,8 +43,6 @@ import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvi
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest
-
-private val API_VERSION = Version.V2_ALPHA
 
 class DataProvidersService(private val internalClient: DataProvidersCoroutineStub) :
   DataProvidersCoroutineService() {
@@ -126,23 +128,28 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
 }
 
 private fun InternalDataProvider.toDataProvider(): DataProvider {
-  check(Version.fromString(details.apiVersion) == API_VERSION) {
-    "Incompatible API version ${details.apiVersion}"
-  }
-  val internalDataProvider = this
+  val apiVersion = Version.fromString(details.apiVersion)
   val dataProviderId: String = externalIdToApiId(externalDataProviderId)
   val certificateId: String = externalIdToApiId(certificate.externalCertificateId)
 
+  val source = this
   return dataProvider {
     name = DataProviderKey(dataProviderId).toName()
     certificate = DataProviderCertificateKey(dataProviderId, certificateId).toName()
-    certificateDer = internalDataProvider.certificate.details.x509Der
-    publicKey = signedData {
-      data = internalDataProvider.details.publicKey
-      signature = internalDataProvider.details.publicKeySignature
-      signatureAlgorithmOid = internalDataProvider.details.publicKeySignatureAlgorithmOid
+    certificateDer = source.certificate.details.x509Der
+    publicKey = signedMessage {
+      setMessage(
+        any {
+          value = source.details.publicKey
+          typeUrl =
+            when (apiVersion) {
+              Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EncryptionPublicKey.getDescriptor())
+            }
+        }
+      )
+      signature = source.details.publicKeySignature
+      signatureAlgorithmOid = source.details.publicKeySignatureAlgorithmOid
     }
-    requiredDuchies +=
-      internalDataProvider.requiredExternalDuchyIdsList.map { DuchyKey(it).toName() }
+    requiredDuchies += source.requiredExternalDuchyIdsList.map { DuchyKey(it).toName() }
   }
 }

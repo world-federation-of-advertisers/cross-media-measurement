@@ -76,6 +76,8 @@ message ExchangeStep {
 
   google.protobuf.Timestamp update_time = 6;
 
-  // Serialized ExchangeWorkflow that this ExchangeStep corresponds to.
+  // Denormalized `api_version` from the ancestor `RecurringExchange`.
+  string api_version = 10;
+  // Denormalized `ExchangeWorkflow` from the ancestor `RecurringExchange`.
   bytes serialized_exchange_workflow = 7;
 }
