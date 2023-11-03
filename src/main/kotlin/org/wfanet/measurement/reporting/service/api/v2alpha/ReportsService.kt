@@ -284,9 +284,7 @@ class ReportsService(
       } catch (e: StatusException) {
         throw when (e.status.code) {
             Status.Code.DEADLINE_EXCEEDED ->
-              Status.DEADLINE_EXCEEDED.withDescription(
-                "Unable to create Report."
-              )
+              Status.DEADLINE_EXCEEDED.withDescription("Unable to create Report.")
             Status.Code.ALREADY_EXISTS ->
               Status.ALREADY_EXISTS.withDescription(
                 "Report with ID ${request.reportId} already exists under ${request.parent}"
