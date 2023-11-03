@@ -283,21 +283,21 @@ class ReportsService(
         internalReportsStub.createReport(internalCreateReportRequest)
       } catch (e: StatusException) {
         throw when (e.status.code) {
+            Status.Code.DEADLINE_EXCEEDED ->
+              Status.DEADLINE_EXCEEDED.withDescription(
+                "Unable to create Report."
+              )
             Status.Code.ALREADY_EXISTS ->
               Status.ALREADY_EXISTS.withDescription(
                 "Report with ID ${request.reportId} already exists under ${request.parent}"
               )
             Status.Code.NOT_FOUND ->
-              if (e.message == null) {
-                Status.NOT_FOUND.withDescription("Resource required for report creation not found.")
+              if (e.message!!.contains("external_report_schedule_id")) {
+                Status.NOT_FOUND.withDescription(
+                  "ReportSchedule associated with the Report not found."
+                )
               } else {
-                if (e.message!!.contains("external_report_schedule_id")) {
-                  Status.NOT_FOUND.withDescription(
-                    "ReportSchedule associated with the report not found."
-                  )
-                } else {
-                  Status.NOT_FOUND.withDescription("ReportingSet used in the report not found.")
-                }
+                Status.NOT_FOUND.withDescription("ReportingSet used in the Report not found.")
               }
             Status.Code.FAILED_PRECONDITION ->
               Status.FAILED_PRECONDITION.withDescription(
