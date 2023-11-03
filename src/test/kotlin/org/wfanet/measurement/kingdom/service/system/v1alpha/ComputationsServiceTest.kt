@@ -543,6 +543,7 @@ class ComputationsServiceTest {
             }
         }
       }
+      limit = ComputationsService.DEFAULT_STREAMING_LIMIT
     }
 
     inOrder(internalMeasurementsServiceMock) {
