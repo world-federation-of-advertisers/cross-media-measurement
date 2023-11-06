@@ -41,6 +41,7 @@ import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
 import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt.variance
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
 import org.wfanet.measurement.api.v2alpha.DeterministicDistribution
@@ -1326,7 +1327,9 @@ class EdpSimulator(
             // TODO: Calculate impression from data.
             value = apiIdToExternalId(DataProviderKey.fromName(edpData.name)!!.dataProviderId)
             noiseMechanism = protocolConfigNoiseMechanism
-            customDirectMethodology = customDirectMethodology { scalar = 0.0 }
+            customDirectMethodology = customDirectMethodology {
+              variance = variance { scalar = 0.0 }
+            }
           }
         }
       }
@@ -1341,7 +1344,9 @@ class EdpSimulator(
               seconds = log2(externalDataProviderId.toDouble()).toLong()
             }
             noiseMechanism = protocolConfigNoiseMechanism
-            customDirectMethodology = customDirectMethodology { scalar = 0.0 }
+            customDirectMethodology = customDirectMethodology {
+              variance = variance { scalar = 0.0 }
+            }
           }
         }
       }
