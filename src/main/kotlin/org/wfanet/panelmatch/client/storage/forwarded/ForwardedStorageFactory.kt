@@ -24,6 +24,7 @@ import org.wfanet.panelmatch.client.loadtest.ForwardedStorageConfig
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.storage.StorageFactory
+import org.wfanet.panelmatch.common.storage.withPrefix
 
 /**
  * Build a ForwardedStorageClient object using storageDetails information.
@@ -51,6 +52,6 @@ class ForwardedStorageFactory(
           forwardedStorage.forwardedStorageCertHost
         )
       )
-    )
+    )//.withPrefix(exchangeDateKey.recurringExchangeId)
   }
 }

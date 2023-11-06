@@ -25,15 +25,13 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
         "//src/main/kotlin/org/wfanet/panelmatch/common/certificates/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/common/storage/testing",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/panelmatch:simulator",
         "//src/main/proto/private_membership/batch:shared_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_java_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempt_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchanges_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchanges_service_kt_jvm_proto",
-        "//src/main/proto/wfa/panelmatch/client/loadtest:forwarded_storage_config_kt_jvm_proto",
-        "//src/main/proto/wfa/panelmatch/client/storage:storage_details_java_proto",
-        "//src/main/proto/wfa/panelmatch/client/storage:storage_details_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
@@ -47,6 +45,44 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/forwarded",
         "@wfa_common_jvm//src/main/proto/google/type:date_kt_jvm_proto",
     ],
+)
+
+kt_jvm_library(
+    name = "empty_cluster_panel_match_correctness_test",
+    srcs = ["EmptyClusterPanelMatchCorrectnessTest.kt"],
+    deps = [
+        ":abstract_panel_match_correctness_test",
+        "//src/main/proto/wfa/panelmatch/client/loadtest:forwarded_storage_config_kt_jvm_proto",
+        "//src/main/proto/wfa/panelmatch/client/storage:storage_details_java_proto",
+        "//src/main/proto/wfa/panelmatch/client/storage:storage_details_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/org/jetbrains/annotations",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:jdk8",
+    ],
+)
+
+java_test(
+    name = "EmptyClusterPanelMatchCorrectnessTest",
+    size = "enormous",
+    timeout = "long",
+    data = [
+        "//src/main/docker:push_all_local_images",
+        "//src/main/docker/panel_exchange_client:push_all_images",
+        "//src/main/k8s/local:kingdom_for_panelmatch_setup.tar",
+        "//src/main/k8s/panelmatch/local:edp_daemon.tar",
+        "//src/main/k8s/panelmatch/local:mp_daemon.tar",
+    ],
+    env_inherit = [
+        "DOCKER_HOST",
+        "KUBECONFIG",
+    ],
+    tags = [
+        "cpu:8",
+        "manual",
+    ],
+    test_class = "org.wfanet.panelmatch.integration.k8s.EmptyClusterPanelMatchCorrectnessTest",
+    runtime_deps = [":empty_cluster_panel_match_correctness_test"],
 )
 
 kt_jvm_library(

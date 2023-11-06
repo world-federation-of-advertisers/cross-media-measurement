@@ -93,18 +93,17 @@ class PanelMatchResourceSetup(
 
   suspend fun process(
     exchangeDate: Date,
-    exchangeWorkflow: ExchangeWorkflow,
     exchangeSchedule: String,
     publicApiVersion: String,
     dataProviderContent: EntityContent,
     modelProviderContent: EntityContent? = null,
-    runId: String = LocalDate.now().toString(),
+    exchangeWorkflow: ExchangeWorkflow? = null,
   ): PanelMatchResourceKeys {
     logger.info("Starting resource setup ...")
     val resources = mutableListOf<Resources.Resource>()
 
     val externalDataProviderId = createDataProvider(dataProviderContent)
-
+    dataProviderId = externalDataProviderId
     logger.info("Successfully created data provider: ${externalDataProviderId}")
 
     val dataProviderKey = DataProviderKey(externalIdToApiId(externalDataProviderId))
@@ -123,7 +122,7 @@ class PanelMatchResourceSetup(
 
     val externalModelProviderId = createModelProvider()
     val modelProviderKey = ModelProviderKey(externalIdToApiId(externalModelProviderId))
-
+    modelProviderId = externalModelProviderId
     if (modelProviderContent != null) {
       resources.add(
         resource {
@@ -140,24 +139,25 @@ class PanelMatchResourceSetup(
       )
     }
 
-    val externalRecurringExchangeId =
-      createRecurringExchange(
-        externalDataProviderId,
-        externalModelProviderId,
-        exchangeDate,
-        exchangeSchedule,
-        publicApiVersion,
-        exchangeWorkflow
-      )
+    if (exchangeWorkflow !== null) {
+      val externalRecurringExchangeId =
+        createRecurringExchange(
+          externalDataProviderId,
+          externalModelProviderId,
+          exchangeDate,
+          exchangeSchedule,
+          publicApiVersion,
+          exchangeWorkflow
+        )
 
-    val recurringExchangeKey =
-      CanonicalRecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))
+      //val recurringExchangeKey =
+      //  CanonicalRecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))
+    }
     withContext(Dispatchers.IO) { writeOutput(resources) }
     logger.info("Resource setup was successful.")
     return PanelMatchResourceKeys(
       dataProviderKey,
       modelProviderKey,
-      recurringExchangeKey,
       resources
     )
   }
@@ -234,7 +234,7 @@ class PanelMatchResourceSetup(
     return internalModelProvider.externalModelProviderId
   }
 
-  private suspend fun createRecurringExchange(
+  suspend fun createRecurringExchange(
     externalDataProvider: Long,
     externalModelProvider: Long,
     exchangeDate: Date,
@@ -323,13 +323,14 @@ class PanelMatchResourceSetup(
     const val RESOURCES_OUTPUT_FILE = "resources.textproto"
     const val AKID_PRINCIPAL_MAP_FILE = "authority_key_identifier_to_principal_map.textproto"
     const val BAZEL_RC_FILE = "resource-setup.bazelrc"
+    var dataProviderId: Long = 0L
+    var modelProviderId: Long = 0L
   }
 }
 
 data class PanelMatchResourceKeys(
   val dataProviderKey: DataProviderKey,
   val modelProviderKey: ModelProviderKey,
-  val recurringExchangeKey: RecurringExchangeKey,
   val resources: List<Resources.Resource>,
 )
 

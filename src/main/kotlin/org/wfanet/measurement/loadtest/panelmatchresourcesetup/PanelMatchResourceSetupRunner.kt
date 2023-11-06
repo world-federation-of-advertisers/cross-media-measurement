@@ -77,7 +77,6 @@ private fun run(@CommandLine.Mixin flags: PanelMatchResourceSetupFlags) {
         publicApiVersion = API_VERSION,
         exchangeWorkflow = exchangeWorkflow,
         exchangeDate = EXCHANGE_DATE.toProtoDate(),
-        runId = flags.runId
       )
   }
 }
