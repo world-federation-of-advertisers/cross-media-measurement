@@ -35,6 +35,7 @@ import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateReport
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.MetricCalculationSpecNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportAlreadyExistsException
+import org.wfanet.measurement.reporting.service.internal.ReportScheduleNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
 class PostgresReportsService(
@@ -57,6 +58,8 @@ class PostgresReportsService(
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Reporting Set not found.")
     } catch (e: MetricCalculationSpecNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Metric Calculation Spec not found.")
+    } catch (e: ReportScheduleNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Report Schedule not found.")
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,

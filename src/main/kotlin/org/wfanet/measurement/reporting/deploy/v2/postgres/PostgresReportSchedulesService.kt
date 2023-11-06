@@ -20,7 +20,6 @@ import io.grpc.Status
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.internal.reporting.v2.AddReportScheduleReportRequest
 import org.wfanet.measurement.internal.reporting.v2.CreateReportScheduleRequest
 import org.wfanet.measurement.internal.reporting.v2.GetReportScheduleRequest
 import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesRequest
@@ -128,12 +127,5 @@ class PostgresReportSchedulesService(
         "Report Schedule State is not ACTIVE."
       )
     }
-  }
-
-  override suspend fun addReportScheduleReport(
-    request: AddReportScheduleReportRequest
-  ): ReportSchedule {
-    // TODO(@tristanvuong2021): Not yet implemented
-    return super.addReportScheduleReport(request)
   }
 }

@@ -45,6 +45,7 @@ import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internal
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withPrincipalName
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleNameServerInterceptor.Companion.reportScheduleNameFromCurrentContext
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
@@ -327,7 +328,18 @@ class ReportsService(
               Status.ALREADY_EXISTS.withDescription(
                 "Report with ID ${request.reportId} already exists under ${request.parent}"
               )
-            Status.Code.NOT_FOUND -> Status.NOT_FOUND
+            Status.Code.NOT_FOUND ->
+              if (e.message!!.contains("external_report_schedule_id")) {
+                Status.NOT_FOUND.withDescription(
+                  "ReportSchedule associated with the Report not found."
+                )  
+              } else {
+                Status.NOT_FOUND.withDescription("ReportingSet or MetricCalculationSpec used in the Report not found.")
+              }
+            Status.Code.FAILED_PRECONDITION ->
+              Status.FAILED_PRECONDITION.withDescription(
+                "Unable to create Report. The measurement consumer not found."
+              )
             else -> Status.UNKNOWN.withDescription("Unable to create Report.")
           }
           .withCause(e)
@@ -375,11 +387,7 @@ class ReportsService(
           }
         )
       } catch (e: StatusException) {
-        throw when (e.status.code) {
-            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-            Status.Code.CANCELLED -> Status.CANCELLED
-            else -> Status.UNKNOWN
-          }
+        throw Status.UNKNOWN.withDescription("Unable to create Report.")
           .withCause(e)
           .withDescription("Report created, but error returning the Report.")
           .asRuntimeException()
@@ -478,6 +486,15 @@ class ReportsService(
             externalIdToMetricMap,
             externalIdToMetricCalculationMap,
           )
+      }
+
+      if (internalReport.externalReportScheduleId.isNotEmpty()) {
+        reportSchedule =
+          ReportScheduleKey(
+              internalReport.cmmsMeasurementConsumerId,
+              internalReport.externalReportScheduleId
+            )
+            .toName()
       }
     }
   }
@@ -637,6 +654,16 @@ class ReportsService(
       }
       requestId = request.requestId
       externalReportId = request.reportId
+
+      val reportScheduleName: String? = reportScheduleNameFromCurrentContext
+      if (reportScheduleName != null) {
+        val reportScheduleKey =
+          grpcRequireNotNull(ReportScheduleKey.fromName(reportScheduleName)) {
+            "reportScheduleName is invalid"
+          }
+
+        externalReportScheduleId = reportScheduleKey.reportScheduleId
+      }
     }
   }
 
