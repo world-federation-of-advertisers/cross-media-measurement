@@ -32,6 +32,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.toInstant
@@ -938,6 +939,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       externalAggregatorCertificateId = duchyCertificate.externalCertificateId
       resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
       encryptedResult = ByteString.copyFromUtf8("encryptedResult")
+      publicApiVersion = Version.V2_ALPHA.string
     }
 
     val exception =
@@ -969,6 +971,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       externalAggregatorCertificateId = 404L
       resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
       encryptedResult = ByteString.copyFromUtf8("encryptedResult")
+      publicApiVersion = Version.V2_ALPHA.string
     }
 
     val exception =
@@ -1002,6 +1005,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       externalAggregatorCertificateId = duchyCertificate.externalCertificateId
       resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
       encryptedResult = ByteString.copyFromUtf8("encryptedResult")
+      publicApiVersion = Version.V2_ALPHA.string
     }
 
     val response = measurementsService.setMeasurementResult(request)
@@ -1017,6 +1021,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             externalAggregatorDuchyId = aggregatorDuchyId
             externalCertificateId = duchyCertificate.externalCertificateId
             encryptedResult = request.encryptedResult
+            apiVersion = request.publicApiVersion
           }
         }
       )
@@ -1448,6 +1453,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           externalAggregatorCertificateId = aggregatorCertificate.externalCertificateId
           resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
           encryptedResult = ByteString.copyFromUtf8("encryptedResult")
+          publicApiVersion = Version.V2_ALPHA.string
         }
       )
 

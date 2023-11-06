@@ -54,7 +54,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.value
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
-import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultOutput
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.population
@@ -65,10 +65,13 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.reachOnlyLiquidLegionsV2
+import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.encryptedMessage
+import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.listMeasurementsPageToken
@@ -78,16 +81,19 @@ import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.reachOnlyLiquidLegionsSketchParams
-import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.api.v2alpha.setMessage
+import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.HexString
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toByteString
@@ -139,6 +145,10 @@ private val EXTERNAL_MEASUREMENT_CONSUMER_ID =
     MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
   )
 private val ENCRYPTED_DATA = ByteString.copyFromUtf8("data")
+private val ENCRYPTED_RESULT = encryptedMessage {
+  ciphertext = ENCRYPTED_DATA
+  typeUrl = ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
+}
 private const val DUCHY_CERTIFICATE_NAME = "duchies/AAAAAAAAAHs/certificates/AAAAAAAAAHs"
 private val DATA_PROVIDER_NONCE_HASH: ByteString =
   HexString("97F76220FEB39EE6F262B1F0C8D40F221285EEDE105748AE98F7DC241198D69F").bytes
@@ -365,12 +375,13 @@ class MeasurementsServiceTest {
 
         measurementSpec =
           measurementSpec.copy {
-            data =
+            setMessage(
               MEASUREMENT_SPEC.copy {
                   nonceHashes.clear()
                   nonceHashes += MEASUREMENT_SPEC.nonceHashesList.first()
                 }
-                .toByteString()
+                .pack()
+            )
           }
 
         protocolConfig =
@@ -400,7 +411,7 @@ class MeasurementsServiceTest {
 
             clearDuchyProtocolConfig()
             clearProtocolConfig()
-            measurementSpec = measurement.measurementSpec.data
+            measurementSpec = measurement.measurementSpec.message.value
           }
 
         dataProviders.clear()
@@ -459,7 +470,7 @@ class MeasurementsServiceTest {
         clearFailure()
         results.clear()
 
-        measurementSpec = measurementSpec.copy { data = IMPRESSION_MEASUREMENT_SPEC.toByteString() }
+        measurementSpec = measurementSpec.copy { setMessage(IMPRESSION_MEASUREMENT_SPEC.pack()) }
 
         protocolConfig =
           protocolConfig.copy {
@@ -487,7 +498,7 @@ class MeasurementsServiceTest {
 
             clearDuchyProtocolConfig()
             clearProtocolConfig()
-            measurementSpec = measurement.measurementSpec.data
+            measurementSpec = measurement.measurementSpec.message.value
           }
       }
     internalMeasurementsMock.stub {
@@ -540,7 +551,7 @@ class MeasurementsServiceTest {
         clearFailure()
         results.clear()
 
-        measurementSpec = measurementSpec.copy { data = DURATION_MEASUREMENT_SPEC.toByteString() }
+        measurementSpec = measurementSpec.copy { setMessage(DURATION_MEASUREMENT_SPEC.pack()) }
 
         protocolConfig =
           protocolConfig.copy {
@@ -568,7 +579,7 @@ class MeasurementsServiceTest {
 
             clearDuchyProtocolConfig()
             clearProtocolConfig()
-            measurementSpec = measurement.measurementSpec.data
+            measurementSpec = measurement.measurementSpec.message.value
           }
       }
     internalMeasurementsMock.stub {
@@ -623,13 +634,14 @@ class MeasurementsServiceTest {
 
         measurementSpec =
           measurementSpec.copy {
-            data =
+            setMessage(
               MEASUREMENT_SPEC.copy {
                   clearReachAndFrequency()
                   population = population {}
                   modelLine = "some-model-line"
                 }
-                .toByteString()
+                .pack()
+            )
           }
 
         protocolConfig =
@@ -658,7 +670,7 @@ class MeasurementsServiceTest {
 
             clearDuchyProtocolConfig()
             clearProtocolConfig()
-            measurementSpec = measurement.measurementSpec.data
+            measurementSpec = measurement.measurementSpec.message.value
           }
       }
     internalMeasurementsMock.stub {
@@ -716,12 +728,13 @@ class MeasurementsServiceTest {
                   MEASUREMENT.copy {
                     measurementSpec =
                       measurementSpec.copy {
-                        data =
+                        setMessage(
                           MEASUREMENT_SPEC.copy {
                               clearReachAndFrequency()
                               population = population {}
                             }
-                            .toByteString()
+                            .pack()
+                        )
                         signature = UPDATE_TIME.toByteString()
                       }
                   }
@@ -862,7 +875,7 @@ class MeasurementsServiceTest {
         MEASUREMENT.copy {
           measurementSpec =
             measurementSpec.copy {
-              data = MEASUREMENT_SPEC.copy { clearMeasurementPublicKey() }.toByteString()
+              setMessage(MEASUREMENT_SPEC.copy { clearMeasurementPublicKey() }.pack())
             }
         }
     }
@@ -886,11 +899,12 @@ class MeasurementsServiceTest {
         MEASUREMENT.copy {
           measurementSpec =
             measurementSpec.copy {
-              data =
+              setMessage(
                 MEASUREMENT_SPEC.copy {
                     reachAndFrequency = reachAndFrequency.copy { clearReachPrivacyParams() }
                   }
-                  .toByteString()
+                  .pack()
+              )
             }
         }
     }
@@ -914,11 +928,12 @@ class MeasurementsServiceTest {
         MEASUREMENT.copy {
           measurementSpec =
             measurementSpec.copy {
-              data =
+              setMessage(
                 MEASUREMENT_SPEC.copy {
                     reachAndFrequency = reachAndFrequency.copy { clearFrequencyPrivacyParams() }
                   }
-                  .toByteString()
+                  .pack()
+              )
             }
         }
     }
@@ -942,7 +957,7 @@ class MeasurementsServiceTest {
         MEASUREMENT.copy {
           measurementSpec =
             measurementSpec.copy {
-              data = MEASUREMENT_SPEC.copy { clearVidSamplingInterval() }.toByteString()
+              setMessage(MEASUREMENT_SPEC.copy { clearVidSamplingInterval() }.pack())
             }
         }
     }
@@ -966,14 +981,15 @@ class MeasurementsServiceTest {
         MEASUREMENT.copy {
           measurementSpec =
             measurementSpec.copy {
-              data =
+              setMessage(
                 MEASUREMENT_SPEC.copy {
                     reachAndFrequency =
                       reachAndFrequency.copy {
                         reachPrivacyParams = reachPrivacyParams.copy { clearEpsilon() }
                       }
                   }
-                  .toByteString()
+                  .pack()
+              )
             }
         }
     }
@@ -997,11 +1013,12 @@ class MeasurementsServiceTest {
         MEASUREMENT.copy {
           measurementSpec =
             measurementSpec.copy {
-              data =
+              setMessage(
                 MEASUREMENT_SPEC.copy {
                     reachAndFrequency = reachAndFrequency.copy { clearMaximumFrequency() }
                   }
-                  .toByteString()
+                  .pack()
+              )
             }
         }
     }
@@ -1025,11 +1042,12 @@ class MeasurementsServiceTest {
         MEASUREMENT.copy {
           measurementSpec =
             measurementSpec.copy {
-              data =
+              setMessage(
                 MEASUREMENT_SPEC.copy {
                     reachAndFrequency = reachAndFrequency.copy { maximumFrequency = 1 }
                   }
-                  .toByteString()
+                  .pack()
+              )
             }
         }
     }
@@ -1053,9 +1071,10 @@ class MeasurementsServiceTest {
         REACH_ONLY_MEASUREMENT.copy {
           measurementSpec =
             measurementSpec.copy {
-              data =
+              setMessage(
                 REACH_ONLY_MEASUREMENT_SPEC.copy { reach = reach.copy { clearPrivacyParams() } }
-                  .toByteString()
+                  .pack()
+              )
             }
         }
     }
@@ -1079,7 +1098,7 @@ class MeasurementsServiceTest {
         REACH_ONLY_MEASUREMENT.copy {
           measurementSpec =
             measurementSpec.copy {
-              data = REACH_ONLY_MEASUREMENT_SPEC.copy { clearVidSamplingInterval() }.toByteString()
+              setMessage(REACH_ONLY_MEASUREMENT_SPEC.copy { clearVidSamplingInterval() }.pack())
             }
         }
     }
@@ -1103,11 +1122,12 @@ class MeasurementsServiceTest {
         REACH_ONLY_MEASUREMENT.copy {
           measurementSpec =
             measurementSpec.copy {
-              data =
+              setMessage(
                 REACH_ONLY_MEASUREMENT_SPEC.copy {
                     reach = reach.copy { privacyParams = privacyParams.copy { clearEpsilon() } }
                   }
-                  .toByteString()
+                  .pack()
+              )
             }
         }
     }
@@ -1131,11 +1151,12 @@ class MeasurementsServiceTest {
         MEASUREMENT.copy {
           measurementSpec =
             measurementSpec.copy {
-              data =
+              setMessage(
                 IMPRESSION_MEASUREMENT_SPEC.copy {
                     impression = impression.copy { clearPrivacyParams() }
                   }
-                  .toByteString()
+                  .pack()
+              )
             }
         }
     }
@@ -1159,11 +1180,12 @@ class MeasurementsServiceTest {
         MEASUREMENT.copy {
           measurementSpec =
             measurementSpec.copy {
-              data =
+              setMessage(
                 IMPRESSION_MEASUREMENT_SPEC.copy {
                     impression = impression.copy { clearMaximumFrequencyPerUser() }
                   }
-                  .toByteString()
+                  .pack()
+              )
             }
         }
     }
@@ -1187,9 +1209,10 @@ class MeasurementsServiceTest {
         MEASUREMENT.copy {
           measurementSpec =
             measurementSpec.copy {
-              data =
+              setMessage(
                 DURATION_MEASUREMENT_SPEC.copy { duration = duration.copy { clearPrivacyParams() } }
-                  .toByteString()
+                  .pack()
+              )
             }
         }
     }
@@ -1213,11 +1236,12 @@ class MeasurementsServiceTest {
         MEASUREMENT.copy {
           measurementSpec =
             measurementSpec.copy {
-              data =
+              setMessage(
                 DURATION_MEASUREMENT_SPEC.copy {
                     duration = duration.copy { clearMaximumWatchDurationPerUser() }
                   }
-                  .toByteString()
+                  .pack()
+              )
             }
         }
     }
@@ -1241,7 +1265,7 @@ class MeasurementsServiceTest {
         MEASUREMENT.copy {
           measurementSpec =
             measurementSpec.copy {
-              data = MEASUREMENT_SPEC.copy { clearMeasurementType() }.toByteString()
+              setMessage(MEASUREMENT_SPEC.copy { clearMeasurementType() }.pack())
             }
         }
     }
@@ -1395,10 +1419,9 @@ class MeasurementsServiceTest {
       measurements += MEASUREMENT.copy { name = MEASUREMENT_NAME_3 }
     }
 
-    val streamMeasurementsRequest =
-      captureFirst<StreamMeasurementsRequest> {
-        verify(internalMeasurementsMock).streamMeasurements(capture())
-      }
+    val streamMeasurementsRequest: StreamMeasurementsRequest = captureFirst {
+      verify(internalMeasurementsMock).streamMeasurements(capture())
+    }
 
     assertThat(streamMeasurementsRequest)
       .ignoringRepeatedFieldOrder()
@@ -1472,10 +1495,9 @@ class MeasurementsServiceTest {
       nextPageToken = listMeasurementsPageToken.toByteArray().base64UrlEncode()
     }
 
-    val streamMeasurementsRequest =
-      captureFirst<StreamMeasurementsRequest> {
-        verify(internalMeasurementsMock).streamMeasurements(capture())
-      }
+    val streamMeasurementsRequest: StreamMeasurementsRequest = captureFirst {
+      verify(internalMeasurementsMock).streamMeasurements(capture())
+    }
 
     assertThat(streamMeasurementsRequest)
       .ignoringRepeatedFieldOrder()
@@ -1522,10 +1544,9 @@ class MeasurementsServiceTest {
       runBlocking { service.listMeasurements(request) }
     }
 
-    val streamMeasurementsRequest =
-      captureFirst<StreamMeasurementsRequest> {
-        verify(internalMeasurementsMock).streamMeasurements(capture())
-      }
+    val streamMeasurementsRequest: StreamMeasurementsRequest = captureFirst {
+      verify(internalMeasurementsMock).streamMeasurements(capture())
+    }
 
     assertThat(streamMeasurementsRequest)
       .ignoringRepeatedFieldOrder()
@@ -1568,10 +1589,9 @@ class MeasurementsServiceTest {
       runBlocking { service.listMeasurements(request) }
     }
 
-    val streamMeasurementsRequest =
-      captureFirst<StreamMeasurementsRequest> {
-        verify(internalMeasurementsMock).streamMeasurements(capture())
-      }
+    val streamMeasurementsRequest: StreamMeasurementsRequest = captureFirst {
+      verify(internalMeasurementsMock).streamMeasurements(capture())
+    }
 
     assertThat(streamMeasurementsRequest)
       .ignoringRepeatedFieldOrder()
@@ -1810,18 +1830,13 @@ class MeasurementsServiceTest {
       )
     }
 
+    private val API_VERSION = Version.V2_ALPHA
+
     private val NOISE_MECHANISMS =
       listOf(
         ProtocolConfig.NoiseMechanism.NONE,
         ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE,
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
-      )
-
-    private val INTERNAL_NOISE_MECHANISMS =
-      listOf(
-        InternalNoiseMechanism.NONE,
-        InternalNoiseMechanism.CONTINUOUS_LAPLACE,
-        InternalNoiseMechanism.CONTINUOUS_GAUSSIAN,
       )
 
     private val DIFFERENTIAL_PRIVACY_PARAMS = differentialPrivacyParams {
@@ -1908,8 +1923,11 @@ class MeasurementsServiceTest {
       reachOnlyLiquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
     }
 
+    private val DATA_PROVIDER_PUBLIC_KEY = encryptionPublicKey { data = UPDATE_TIME.toByteString() }
+    private val MEASUREMENT_PUBLIC_KEY = encryptionPublicKey { data = UPDATE_TIME.toByteString() }
+
     private val MEASUREMENT_SPEC = measurementSpec {
-      measurementPublicKey = UPDATE_TIME.toByteString()
+      measurementPublicKey = MEASUREMENT_PUBLIC_KEY.pack()
       reachAndFrequency = reachAndFrequency {
         reachPrivacyParams = differentialPrivacyParams {
           epsilon = 1.0
@@ -1952,8 +1970,8 @@ class MeasurementsServiceTest {
     private val MEASUREMENT = measurement {
       name = MEASUREMENT_NAME
       measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
-      measurementSpec = signedData {
-        data = MEASUREMENT_SPEC.toByteString()
+      measurementSpec = signedMessage {
+        setMessage(MEASUREMENT_SPEC.pack())
         signature = UPDATE_TIME.toByteString()
         signatureAlgorithmOid = "2.9999"
       }
@@ -1966,12 +1984,15 @@ class MeasurementsServiceTest {
             key = dataProviderKey.toName()
             value = value {
               dataProviderCertificate = certificateKey.toName()
-              dataProviderPublicKey = signedData {
-                data = UPDATE_TIME.toByteString()
+              dataProviderPublicKey = signedMessage {
+                setMessage(DATA_PROVIDER_PUBLIC_KEY.pack())
                 signature = UPDATE_TIME.toByteString()
                 signatureAlgorithmOid = "2.9999"
               }
-              encryptedRequisitionSpec = UPDATE_TIME.toByteString()
+              encryptedRequisitionSpec = encryptedMessage {
+                ciphertext = UPDATE_TIME.toByteString()
+                typeUrl = ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
+              }
               nonceHash = DATA_PROVIDER_NONCE_HASH
             }
           }
@@ -1982,13 +2003,13 @@ class MeasurementsServiceTest {
         reason = Failure.Reason.CERTIFICATE_REVOKED
         message = "Measurement Consumer Certificate has been revoked"
       }
-      results += resultPair {
+      results += resultOutput {
         certificate = DATA_PROVIDERS_RESULT_CERTIFICATE_NAME
-        encryptedResult = ENCRYPTED_DATA
+        encryptedResult = ENCRYPTED_RESULT
       }
-      results += resultPair {
+      results += resultOutput {
         certificate = DUCHY_CERTIFICATE_NAME
-        encryptedResult = ENCRYPTED_DATA
+        encryptedResult = ENCRYPTED_RESULT
       }
     }
 
@@ -2012,11 +2033,11 @@ class MeasurementsServiceTest {
                   DataProviderCertificateKey.fromName(it.value.dataProviderCertificate)!!
                     .certificateId
                 )
-              dataProviderPublicKey = it.value.dataProviderPublicKey.data
+              dataProviderPublicKey = it.value.dataProviderPublicKey.message.value
               dataProviderPublicKeySignature = it.value.dataProviderPublicKey.signature
               dataProviderPublicKeySignatureAlgorithmOid =
                 it.value.dataProviderPublicKey.signatureAlgorithmOid
-              encryptedRequisitionSpec = it.value.encryptedRequisitionSpec
+              encryptedRequisitionSpec = it.value.encryptedRequisitionSpec.ciphertext
               nonceHash = it.value.nonceHash
             }
           }
@@ -2024,8 +2045,8 @@ class MeasurementsServiceTest {
       )
       details =
         InternalMeasurementKt.details {
-          apiVersion = Version.V2_ALPHA.string
-          measurementSpec = MEASUREMENT.measurementSpec.data
+          apiVersion = API_VERSION.string
+          measurementSpec = MEASUREMENT.measurementSpec.message.value
           measurementSpecSignature = MEASUREMENT.measurementSpec.signature
           measurementSpecSignatureAlgorithmOid = MEASUREMENT.measurementSpec.signatureAlgorithmOid
           protocolConfig = LLV2_INTERNAL_PROTOCOL_CONFIG
@@ -2041,6 +2062,7 @@ class MeasurementsServiceTest {
         externalCertificateId =
           apiIdToExternalId(DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)!!.certificateId)
         encryptedResult = ENCRYPTED_DATA
+        apiVersion = API_VERSION.string
       }
       results += resultInfo {
         externalDataProviderId =
@@ -2054,6 +2076,7 @@ class MeasurementsServiceTest {
               .certificateId
           )
         encryptedResult = ENCRYPTED_DATA
+        apiVersion = API_VERSION.string
       }
     }
 
@@ -2065,11 +2088,7 @@ class MeasurementsServiceTest {
 
     private val REACH_ONLY_MEASUREMENT =
       MEASUREMENT.copy {
-        measurementSpec = signedData {
-          data = REACH_ONLY_MEASUREMENT_SPEC.toByteString()
-          signature = UPDATE_TIME.toByteString()
-          signatureAlgorithmOid = "2.9999"
-        }
+        measurementSpec = measurementSpec.copy { setMessage(REACH_ONLY_MEASUREMENT_SPEC.pack()) }
         protocolConfig = RO_LLV2_PUBLIC_PROTOCOL_CONFIG
       }
 
@@ -2077,8 +2096,8 @@ class MeasurementsServiceTest {
       INTERNAL_MEASUREMENT.copy {
         details =
           InternalMeasurementKt.details {
-            apiVersion = Version.V2_ALPHA.string
-            measurementSpec = REACH_ONLY_MEASUREMENT.measurementSpec.data
+            apiVersion = API_VERSION.string
+            measurementSpec = REACH_ONLY_MEASUREMENT.measurementSpec.message.value
             measurementSpecSignature = REACH_ONLY_MEASUREMENT.measurementSpec.signature
             measurementSpecSignatureAlgorithmOid =
               REACH_ONLY_MEASUREMENT.measurementSpec.signatureAlgorithmOid

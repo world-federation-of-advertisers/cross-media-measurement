@@ -82,6 +82,7 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
         if (request.hasDirectParams()) {
           encryptedData = request.directParams.encryptedData
           externalCertificateId = request.directParams.externalCertificateId
+          encryptedDataApiVersion = request.directParams.apiVersion
         }
       }
 

@@ -31,6 +31,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.toInstant
@@ -1003,6 +1004,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             externalDataProviderId = requisition.externalDataProviderId
             encryptedData = REQUISITION_ENCRYPTED_DATA
             externalCertificateId = requisition.details.externalCertificateId
+            apiVersion = PUBLIC_API_VERSION
           }
         }
       )
@@ -1057,6 +1059,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             externalDataProviderId = requisitions[0].externalDataProviderId
             encryptedData = REQUISITION_ENCRYPTED_DATA
             externalCertificateId = requisitions[0].details.externalCertificateId
+            apiVersion = PUBLIC_API_VERSION
           }
         }
       )
@@ -1069,6 +1072,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
               externalDataProviderId = requisitions[1].externalDataProviderId
               encryptedData = REQUISITION_ENCRYPTED_DATA
               externalCertificateId = requisitions[1].details.externalCertificateId
+              apiVersion = PUBLIC_API_VERSION
             }
           }
         )
@@ -1120,6 +1124,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             externalDataProviderId = requisitions[0].externalDataProviderId
             encryptedData = REQUISITION_ENCRYPTED_DATA
             externalCertificateId = requisitions[0].details.externalCertificateId
+            apiVersion = PUBLIC_API_VERSION
           }
         }
       )
@@ -1132,6 +1137,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             externalDataProviderId = requisitions[1].externalDataProviderId
             encryptedData = REQUISITION_ENCRYPTED_DATA
             externalCertificateId = requisitions[1].details.externalCertificateId
+            apiVersion = PUBLIC_API_VERSION
           }
         }
       )
@@ -1152,11 +1158,13 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             externalDataProviderId = requisitions[0].externalDataProviderId
             externalCertificateId = requisitions[0].dataProviderCertificate.externalCertificateId
             encryptedResult = REQUISITION_ENCRYPTED_DATA
+            apiVersion = PUBLIC_API_VERSION
           },
           resultInfo {
             externalDataProviderId = requisitions[1].externalDataProviderId
             externalCertificateId = requisitions[1].dataProviderCertificate.externalCertificateId
             encryptedResult = REQUISITION_ENCRYPTED_DATA
+            apiVersion = PUBLIC_API_VERSION
           }
         )
     }
@@ -1185,6 +1193,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
               externalDataProviderId = provider.externalDataProviderId
               encryptedData = REQUISITION_ENCRYPTED_DATA
               externalCertificateId = idGenerator.generateExternalId().value
+              apiVersion = PUBLIC_API_VERSION
             }
           }
         )
@@ -1388,5 +1397,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         2
       )
     }
+
+    private val PUBLIC_API_VERSION = Version.V2_ALPHA.string
   }
 }

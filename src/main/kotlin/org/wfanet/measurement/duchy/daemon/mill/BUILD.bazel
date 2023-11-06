@@ -12,6 +12,7 @@ kt_jvm_library(
     srcs = ["MillBase.kt"],
     deps = [
         "//imports/java/io/opentelemetry/api",
+        "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",

@@ -14,12 +14,12 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
-import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
 import com.google.protobuf.duration
 import com.google.protobuf.kotlin.toByteString
+import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
 import java.security.GeneralSecurityException
@@ -47,6 +47,7 @@ import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
 import org.wfanet.measurement.api.v2alpha.DeterministicDistribution
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
+import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.EventGroup
@@ -81,8 +82,8 @@ import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.Requisiti
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.certificate
+import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.createEventGroupMetadataDescriptorRequest
@@ -100,6 +101,7 @@ import org.wfanet.measurement.api.v2alpha.listCertificatesRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.v2alpha.updateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.common.ProtoReflection
@@ -110,13 +112,14 @@ import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.consent.client.common.NonceMismatchException
 import org.wfanet.measurement.consent.client.common.PublicKeyMismatchException
-import org.wfanet.measurement.consent.client.common.toPublicKeyHandle
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
+import org.wfanet.measurement.consent.client.dataprovider.encryptResult
 import org.wfanet.measurement.consent.client.dataprovider.signResult
 import org.wfanet.measurement.consent.client.dataprovider.verifyElGamalPublicKey
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
@@ -235,13 +238,13 @@ class EdpSimulator(
     descriptorResource: EventGroupMetadataDescriptor,
   ): EventGroup {
     val existingEventGroup: EventGroup? = getEventGroupByReferenceId(eventGroupReferenceId)
-    val encryptedMetadata: ByteString =
+    val encryptedMetadata: EncryptedMessage =
       encryptMetadata(
         metadata {
           eventGroupMetadataDescriptor = descriptorResource.name
-          metadata = Any.pack(eventGroupMetadata)
+          metadata = eventGroupMetadata.pack()
         },
-        EncryptionPublicKey.parseFrom(measurementConsumer.publicKey.data)
+        measurementConsumer.publicKey.message.unpack()
       )
 
     if (existingEventGroup == null) {
@@ -388,15 +391,15 @@ class EdpSimulator(
       throw InvalidConsentSignalException("MeasurementSpec signature is invalid", e)
     }
 
-    val measurementSpec = MeasurementSpec.parseFrom(requisition.measurementSpec.data)
+    val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
 
-    val signedRequisitionSpec: SignedData =
+    val signedRequisitionSpec: SignedMessage =
       try {
         decryptRequisitionSpec(requisition.encryptedRequisitionSpec, edpData.encryptionKey)
       } catch (e: GeneralSecurityException) {
         throw InvalidConsentSignalException("RequisitionSpec decryption failed", e)
       }
-    val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+    val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
     try {
       verifyRequisitionSpec(
         signedRequisitionSpec,
@@ -494,7 +497,7 @@ class EdpSimulator(
   }
 
   private fun verifyEncryptionPublicKey(
-    signedEncryptionPublicKey: SignedData,
+    signedEncryptionPublicKey: SignedMessage,
     measurementConsumerCertificate: Certificate
   ) {
     val x509Certificate = readCertificate(measurementConsumerCertificate.x509Der)
@@ -1150,15 +1153,16 @@ class EdpSimulator(
     logger.info("Getting combined public key...")
     val elGamalPublicKeys: List<AnySketchElGamalPublicKey> =
       this.duchiesList.map {
-        when (it.value.protocolCase) {
-          DuchyEntry.Value.ProtocolCase.LIQUID_LEGIONS_V2 ->
-            ElGamalPublicKey.parseFrom(it.value.liquidLegionsV2.elGamalPublicKey.data)
-              .toAnySketchElGamalPublicKey()
-          DuchyEntry.Value.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
-            ElGamalPublicKey.parseFrom(it.value.reachOnlyLiquidLegionsV2.elGamalPublicKey.data)
-              .toAnySketchElGamalPublicKey()
-          else -> throw Exception("Invalid protocol to get combined public key.")
-        }
+        val value: DuchyEntry.Value = it.value
+        val signedElGamalPublicKey: SignedMessage =
+          when (value.protocolCase) {
+            DuchyEntry.Value.ProtocolCase.LIQUID_LEGIONS_V2 ->
+              value.liquidLegionsV2.elGamalPublicKey
+            DuchyEntry.Value.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
+              value.reachOnlyLiquidLegionsV2.elGamalPublicKey
+            else -> throw Exception("Invalid protocol to get combined public key.")
+          }
+        signedElGamalPublicKey.unpack<ElGamalPublicKey>().toAnySketchElGamalPublicKey()
       }
 
     return SketchEncrypter.combineElGamalPublicKeys(curveId, elGamalPublicKeys)
@@ -1567,12 +1571,17 @@ class EdpSimulator(
       )
     }
 
-    val measurementEncryptionPublicKey =
-      EncryptionPublicKey.parseFrom(measurementSpec.measurementPublicKey)
+    val measurementEncryptionPublicKey: EncryptionPublicKey =
+      if (measurementSpec.hasMeasurementPublicKey()) {
+        measurementSpec.measurementPublicKey.unpack()
+      } else {
+        @Suppress("DEPRECATION") // Handle legacy resources.
+        EncryptionPublicKey.parseFrom(measurementSpec.serializedMeasurementPublicKey)
+      }
     val resultSigningKey = edpData.resultSigningKey ?: edpData.signingKey
-    val signedResult: SignedData = signResult(measurementResult, resultSigningKey)
-    val encryptedResult: ByteString =
-      measurementEncryptionPublicKey.toPublicKeyHandle().hybridEncrypt(signedResult.toByteString())
+    val signedResult: SignedMessage = signResult(measurementResult, resultSigningKey)
+    val encryptedResult: EncryptedMessage =
+      encryptResult(signedResult, measurementEncryptionPublicKey)
 
     val resultCertificate =
       if (edpData.resultSigningKey != null) {
@@ -1585,7 +1594,7 @@ class EdpSimulator(
       requisitionsStub.fulfillDirectRequisition(
         fulfillDirectRequisitionRequest {
           name = requisition.name
-          encryptedData = encryptedResult
+          this.encryptedResult = encryptedResult
           this.nonce = nonce
           if (resultCertificate != null) {
             this.certificate = resultCertificate.name

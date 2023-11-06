@@ -85,7 +85,6 @@ private val READY_STEP_STATES =
   )
 private val TERMINAL_EXCHANGE_STATES = setOf(Exchange.State.SUCCEEDED, Exchange.State.FAILED)
 
-private const val API_VERSION = "v2alpha"
 private const val SCHEDULE = "@daily"
 
 /** Base class to run a full, in-process end-to-end test of an ExchangeWorkflow. */
@@ -255,7 +254,6 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
     val keys =
       resourceSetup.createResourcesForWorkflow(
         SCHEDULE,
-        API_VERSION,
         workflow,
         EXCHANGE_DATE.toProtoDate(),
         EntityContent(
