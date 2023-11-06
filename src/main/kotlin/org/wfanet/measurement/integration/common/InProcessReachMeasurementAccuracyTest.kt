@@ -260,7 +260,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
 
     private val SYNTHETIC_EVENT_GROUP_SPECS = SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_2M
 
-    private const val DEFAULT_TEST_ROUND_NUMBER = 5
+    private const val DEFAULT_TEST_ROUND_NUMBER = 30
     // Multiplier for 95% confidence interval
     private const val MULTIPLIER = 1.96
 
