@@ -34,7 +34,7 @@ import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParams
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodology as InternalCustomDirectMethodology
-import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodologyKt
+import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodologyKt as InternalCustomDirectMethodologyKt
 import org.wfanet.measurement.internal.reporting.v2.DeterministicCount
 import org.wfanet.measurement.internal.reporting.v2.DeterministicCountDistinct
 import org.wfanet.measurement.internal.reporting.v2.DeterministicDistribution
@@ -821,22 +821,56 @@ fun ProtocolConfig.NoiseMechanism.toInternal(): InternalNoiseMechanism {
 /** Converts a CMMS [CustomDirectMethodology] to an internal [InternalCustomDirectMethodology]. */
 fun CustomDirectMethodology.toInternal(): InternalCustomDirectMethodology {
   val source = this
+  require(source.hasVariance()) { "Variance in CustomDirectMethodology is not set." }
   return customDirectMethodology {
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-    when (source.varianceCase) {
-      CustomDirectMethodology.VarianceCase.SCALAR -> {
-        scalar = source.scalar
-      }
-      CustomDirectMethodology.VarianceCase.FREQUENCY -> {
-        frequency =
-          CustomDirectMethodologyKt.frequencyVariances {
-            variances.putAll(source.frequency.variancesMap)
-            kPlusVariances.putAll(source.frequency.kPlusVariancesMap)
+    variance =
+      InternalCustomDirectMethodologyKt.variance {
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+        when (source.variance.typeCase) {
+          CustomDirectMethodology.Variance.TypeCase.SCALAR -> {
+            scalar = source.variance.scalar
           }
+          CustomDirectMethodology.Variance.TypeCase.FREQUENCY -> {
+            frequency =
+              InternalCustomDirectMethodologyKt.VarianceKt.frequencyVariances {
+                variances.putAll(source.variance.frequency.variancesMap)
+                kPlusVariances.putAll(source.variance.frequency.kPlusVariancesMap)
+              }
+          }
+          CustomDirectMethodology.Variance.TypeCase.UNAVAILABLE -> {
+            unavailable =
+              InternalCustomDirectMethodologyKt.VarianceKt.unavailable {
+                reason = source.variance.unavailable.reason.toInternal()
+              }
+          }
+          CustomDirectMethodology.Variance.TypeCase.TYPE_NOT_SET -> {
+            error("Variance in CustomDirectMethodology is not set.")
+          }
+        }
       }
-      CustomDirectMethodology.VarianceCase.VARIANCE_NOT_SET -> {
-        error("Variance in CustomDirectMethodology is not set.")
-      }
+  }
+}
+
+/**
+ * Converts a CMMS [CustomDirectMethodology.Variance.Unavailable.Reason] to an internal
+ * [InternalCustomDirectMethodology.Variance.Unavailable.Reason].
+ */
+private fun CustomDirectMethodology.Variance.Unavailable.Reason.toInternal():
+  InternalCustomDirectMethodology.Variance.Unavailable.Reason {
+  return when (this) {
+    CustomDirectMethodology.Variance.Unavailable.Reason.REASON_UNSPECIFIED -> {
+      error(
+        "There is no reason specified about the unavailable variance in CustomDirectMethodology."
+      )
+    }
+    CustomDirectMethodology.Variance.Unavailable.Reason.UNDERIVABLE -> {
+      InternalCustomDirectMethodology.Variance.Unavailable.Reason.UNDERIVABLE
+    }
+    CustomDirectMethodology.Variance.Unavailable.Reason.INACCESSIBLE -> {
+      InternalCustomDirectMethodology.Variance.Unavailable.Reason.INACCESSIBLE
+    }
+    CustomDirectMethodology.Variance.Unavailable.Reason.UNRECOGNIZED -> {
+      error("Unrecognized reason of unavailable variance in CustomDirectMethodology.")
     }
   }
 }
