@@ -37,7 +37,7 @@
 --       │        └── MetricCalculationSpecMetrics
 --       └── ReportSchedules
 --           ├── ReportScheduleIterations
---           └── ReportSchedulesReports
+--           └── ReportsReportSchedules
 
 -- changeset tristanvuong2021:create-report-schedules-table dbms:postgresql
 CREATE TABLE ReportSchedules (

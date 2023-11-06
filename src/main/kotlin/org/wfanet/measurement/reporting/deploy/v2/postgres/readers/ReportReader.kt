@@ -60,7 +60,8 @@ class ReportReader(private val readContext: ReadContext) {
     /** Map of external reporting set ID to [ReportingMetricCalculationSpecInfo]. */
     val reportingSetReportingMetricCalculationSpecInfoMap:
       MutableMap<String, ReportingMetricCalculationSpecInfo>,
-    val details: Report.Details
+    val details: Report.Details,
+    val externalReportScheduleId: String?
   )
 
   private data class ReportingMetricCalculationSpecInfo(
@@ -90,12 +91,15 @@ class ReportReader(private val readContext: ReadContext) {
       ReportingSets.ExternalReportingSetId,
       MetricCalculationSpecReportingMetrics.CreateMetricRequestId,
       MetricCalculationSpecReportingMetrics.ReportingMetricDetails,
-      Metrics.ExternalMetricId
+      Metrics.ExternalMetricId,
+      ReportSchedules.ExternalReportScheduleId
     """
       .trimIndent()
 
   private val baseSqlJoins: String =
     """
+    LEFT JOIN ReportsReportSchedules USING(MeasurementConsumerId, ReportId)
+    LEFT JOIN ReportSchedules USING(MeasurementConsumerId, ReportScheduleId)
     JOIN ReportTimeIntervals USING(MeasurementConsumerId, ReportId)
     JOIN MetricCalculationSpecs USING(MeasurementConsumerId, ReportId)
     JOIN ReportingSets USING(MeasurementConsumerId, ReportingSetId)
@@ -239,6 +243,7 @@ class ReportReader(private val readContext: ReadContext) {
       val periodic: Boolean = row["Periodic"]
       val reportDetails: Report.Details =
         row.getProtoMessage("ReportDetails", Report.Details.parser())
+      val externalReportScheduleId: String? = row["ExternalReportScheduleId"]
 
       var result: Result? = null
       if (accumulator == null) {
@@ -253,7 +258,8 @@ class ReportReader(private val readContext: ReadContext) {
             timeIntervals = mutableSetOf(),
             periodic = periodic,
             reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf(),
-            reportDetails
+            details = reportDetails,
+            externalReportScheduleId = externalReportScheduleId
           )
       } else if (
         accumulator!!.externalReportId != externalReportId ||
@@ -271,7 +277,8 @@ class ReportReader(private val readContext: ReadContext) {
             timeIntervals = mutableSetOf(),
             periodic = periodic,
             reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf(),
-            reportDetails
+            details = reportDetails,
+            externalReportScheduleId = externalReportScheduleId
           )
       }
 
@@ -387,6 +394,10 @@ class ReportReader(private val readContext: ReadContext) {
             }
           }
         }
+      }
+
+      if (source.externalReportScheduleId != null) {
+        externalReportScheduleId = source.externalReportScheduleId
       }
     }
 
