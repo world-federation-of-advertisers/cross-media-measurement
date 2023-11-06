@@ -155,7 +155,7 @@ class MetricCalculationSpecAlreadyExistsException(
 class MetricCalculationSpecNotFoundException(
   private val cmmsMeasurementConsumerId: String,
   private val externalMetricCalculationSpecId: String,
-  provideDescription: () -> String = { "Metric Calculation Spec already exists" }
+  provideDescription: () -> String = { "Metric Calculation Spec not found" }
 ) : ReportingInternalException(ErrorCode.METRIC_CALCULATION_SPEC_NOT_FOUND, provideDescription) {
   override val context: Map<String, String>
     get() =

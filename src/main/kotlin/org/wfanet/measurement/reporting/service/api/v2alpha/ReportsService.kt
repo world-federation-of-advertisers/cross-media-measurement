@@ -333,9 +333,13 @@ class ReportsService(
                 Status.NOT_FOUND.withDescription(
                   "ReportSchedule associated with the Report not found."
                 )
+              } else if (e.message!!.contains("external_metric_calculation_spec_id")) {
+                Status.NOT_FOUND.withDescription(
+                  "MetricCalculationSpec used in the Report not found."
+                )
               } else {
                 Status.NOT_FOUND.withDescription(
-                  "ReportingSet or MetricCalculationSpec used in the Report not found."
+                  "ReportingSet used in the Report not found."
                 )
               }
             else -> Status.UNKNOWN.withDescription("Unable to create Report.")

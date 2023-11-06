@@ -514,11 +514,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.createReport(
-          createReportRequest {
-            report = baseReport
-          }
-        )
+        service.createReport(createReportRequest { report = baseReport })
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
