@@ -18,6 +18,12 @@ variable "eks_oidc_provider_arn" {
   nullable    = false
 }
 
+variable "eks_oidc_provider" {
+  description = "The OpenID Connect identity provider (issuer URL without leading `https://`)"
+  type        = string
+  nullable    = false
+}
+
 variable "load_balancer_controller_sa_name" {
   description = "Service account name of the load balancer controller"
   type        = string

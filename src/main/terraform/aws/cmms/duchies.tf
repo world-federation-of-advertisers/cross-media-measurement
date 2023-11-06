@@ -88,6 +88,7 @@ module "worker2_cluster_addons" {
   aws_region                             = var.aws_region
   cluster_name                           = module.clusters[each.key].cluster_name
   eks_oidc_provider_arn                  = module.clusters[each.key].oidc_provider_arn
+  eks_oidc_provider                      = module.clusters[each.key].oidc_provider
   load_balancer_controller_irsa_role_arn = module.load_balancer_controller_irsa_role.iam_role_arn
   vpc_id                                 = module.vpc.vpc_id
 }
