@@ -36,6 +36,8 @@ message CreateReportRequest {
   Report report = 1;
   string external_report_id = 2;
   string request_id = 3;
+  // Only set if `Report` should be associated with a `ReportSchedule`.
+  string external_report_schedule_id = 4;
 }
 
 message GetReportRequest {
