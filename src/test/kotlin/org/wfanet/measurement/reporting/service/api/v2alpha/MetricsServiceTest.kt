@@ -60,6 +60,7 @@ import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodology
+import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
@@ -91,6 +92,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.customDirectMethodology
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
@@ -148,6 +150,7 @@ import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresR
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt.measurementResult
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodology as InternalCustomDirectMethodology
+import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodologyKt as InternalCustomDirectMethodologyKt
 import org.wfanet.measurement.internal.reporting.v2.DeterministicCount as InternalDeterministicCount
 import org.wfanet.measurement.internal.reporting.v2.DeterministicCountDistinct as InternalDeterministicCountDistinct
 import org.wfanet.measurement.internal.reporting.v2.DeterministicSum as InternalDeterministicSum
@@ -182,7 +185,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresR
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest as internalCreateMetricRequest
-import org.wfanet.measurement.internal.reporting.v2.customDirectMethodology
+import org.wfanet.measurement.internal.reporting.v2.customDirectMethodology as internalCustomDirectMethodology
 import org.wfanet.measurement.internal.reporting.v2.liquidLegionsDistribution as internalLiquidLegionsDistribution
 import org.wfanet.measurement.internal.reporting.v2.measurement as internalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.metric as internalMetric
@@ -4853,7 +4856,7 @@ class MetricsServiceTest {
     }
 
   @Test
-  fun `getMetric returns reach metric with statistics not set when meeasurement has no noise mechanism`() =
+  fun `getMetric returns reach metric with statistics not set when measurement has no noise mechanism`() =
     runBlocking {
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
@@ -4942,7 +4945,7 @@ class MetricsServiceTest {
     }
 
   @Test
-  fun `getMetric returns reach metric with statistics not set when meeasurement has no methodology`() =
+  fun `getMetric returns reach metric without statistics when reach methodology is unspecified`() =
     runBlocking {
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
@@ -5023,6 +5026,211 @@ class MetricsServiceTest {
             }
           }
         )
+    }
+
+  @Test
+  fun `getMetric returns reach metric without statistics when variance in custom methodology is unavailable`() =
+    runBlocking {
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics +=
+              INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+                weightedMeasurements.clear()
+                weightedMeasurements += weightedMeasurement {
+                  weight = -1
+                  binaryRepresentation = 2
+                  measurement = INTERNAL_SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+                }
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 3
+                  measurement =
+                    INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.copy {
+                      details =
+                        InternalMeasurementKt.details {
+                          results +=
+                            InternalMeasurementKt.result {
+                              reach =
+                                InternalMeasurementKt.ResultKt.reach {
+                                  value = UNION_ALL_REACH_VALUE
+                                  noiseMechanism = NoiseMechanism.DISCRETE_GAUSSIAN
+                                  customDirectMethodology = internalCustomDirectMethodology {
+                                    variance =
+                                      InternalCustomDirectMethodologyKt.variance {
+                                        unavailable =
+                                          InternalCustomDirectMethodologyKt.VarianceKt.unavailable {
+                                            reason =
+                                              InternalCustomDirectMethodology.Variance.Unavailable
+                                                .Reason
+                                                .UNDERIVABLE
+                                          }
+                                      }
+                                  }
+                                }
+                            }
+                        }
+                    }
+                }
+              }
+          }
+        )
+
+      val request = getMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+
+      assertThat(result)
+        .isEqualTo(
+          SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+            this.result = metricResult {
+              reach = MetricResultKt.reachResult { value = INCREMENTAL_REACH_VALUE }
+            }
+          }
+        )
+    }
+
+  @Test
+  fun `getMetric throw StatusRuntimeException when variance type in custom methodology is unspecified`() =
+    runBlocking {
+      whenever(
+          internalMetricsMock.batchGetMetrics(
+            eq(
+              internalBatchGetMetricsRequest {
+                cmmsMeasurementConsumerId =
+                  INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.cmmsMeasurementConsumerId
+                externalMetricIds +=
+                  INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.externalMetricId
+              }
+            )
+          )
+        )
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics += INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC
+          }
+        )
+
+      whenever(
+          measurementsMock.getMeasurement(
+            eq(getMeasurementRequest { name = PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.name })
+          )
+        )
+        .thenReturn(
+          PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.copy {
+            state = Measurement.State.SUCCEEDED
+
+            results +=
+              DATA_PROVIDERS.keys.zip(WATCH_DURATION_LIST).map { (dataProviderKey, watchDuration) ->
+                val dataProvider = DATA_PROVIDERS.getValue(dataProviderKey)
+                resultOutput {
+                  val result =
+                    MeasurementKt.result {
+                      this.watchDuration =
+                        MeasurementKt.ResultKt.watchDuration {
+                          value = watchDuration
+                          noiseMechanism = ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE
+                          customDirectMethodology = CustomDirectMethodology.getDefaultInstance()
+                        }
+                    }
+                  encryptedResult =
+                    encryptResult(
+                      signResult(result, DATA_PROVIDER_SIGNING_KEY),
+                      MEASUREMENT_CONSUMER_PUBLIC_KEY
+                    )
+                  certificate = dataProvider.certificate
+                }
+              }
+          }
+        )
+
+      val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+            runBlocking { service.getMetric(request) }
+          }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.UNKNOWN)
+      assertThat(exception.message).contains("Variance in CustomDirectMethodology is not set")
+    }
+
+  @Test
+  fun `getMetric throw StatusRuntimeException when unavailable variance has no reason specified`() =
+    runBlocking {
+      whenever(
+          internalMetricsMock.batchGetMetrics(
+            eq(
+              internalBatchGetMetricsRequest {
+                cmmsMeasurementConsumerId =
+                  INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.cmmsMeasurementConsumerId
+                externalMetricIds +=
+                  INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.externalMetricId
+              }
+            )
+          )
+        )
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics += INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC
+          }
+        )
+
+      whenever(
+          measurementsMock.getMeasurement(
+            eq(getMeasurementRequest { name = PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.name })
+          )
+        )
+        .thenReturn(
+          PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.copy {
+            state = Measurement.State.SUCCEEDED
+
+            results +=
+              DATA_PROVIDERS.keys.zip(WATCH_DURATION_LIST).map { (dataProviderKey, watchDuration) ->
+                val dataProvider = DATA_PROVIDERS.getValue(dataProviderKey)
+                resultOutput {
+                  val result =
+                    MeasurementKt.result {
+                      this.watchDuration =
+                        MeasurementKt.ResultKt.watchDuration {
+                          value = watchDuration
+                          noiseMechanism = ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE
+                          customDirectMethodology = customDirectMethodology {
+                            variance =
+                              CustomDirectMethodologyKt.variance {
+                                unavailable =
+                                  CustomDirectMethodology.Variance.Unavailable.getDefaultInstance()
+                              }
+                          }
+                        }
+                    }
+                  encryptedResult =
+                    encryptResult(
+                      signResult(result, DATA_PROVIDER_SIGNING_KEY),
+                      MEASUREMENT_CONSUMER_PUBLIC_KEY
+                    )
+                  certificate = dataProvider.certificate
+                }
+              }
+          }
+        )
+
+      val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+            runBlocking { service.getMetric(request) }
+          }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.UNKNOWN)
+      assertThat(exception.message).contains("no reason specified")
     }
 
   @Test
@@ -5128,10 +5336,13 @@ class MetricsServiceTest {
                               InternalMeasurementKt.ResultKt.reach {
                                 value = UNION_ALL_REACH_VALUE
                                 noiseMechanism = NoiseMechanism.DISCRETE_GAUSSIAN
-                                customDirectMethodology = customDirectMethodology {
-                                  frequency =
-                                    InternalCustomDirectMethodology.FrequencyVariances
-                                      .getDefaultInstance()
+                                customDirectMethodology = internalCustomDirectMethodology {
+                                  variance =
+                                    InternalCustomDirectMethodologyKt.variance {
+                                      frequency =
+                                        InternalCustomDirectMethodology.Variance.FrequencyVariances
+                                          .getDefaultInstance()
+                                    }
                                 }
                               }
                           }
@@ -5612,7 +5823,7 @@ class MetricsServiceTest {
     }
 
   @Test
-  fun `getMetric returns reach frequency metric with statistics not set when frequency methodolgoy is unspecified`() =
+  fun `getMetric returns reach frequency metric without statistics when frequency methodology is unspecified`() =
     runBlocking {
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
@@ -5642,6 +5853,95 @@ class MetricsServiceTest {
                                     REACH_FREQUENCY_FREQUENCY_VALUE
                                   )
                                   noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
+                                }
+                            }
+                        }
+                    }
+                }
+              }
+          }
+        )
+
+      val request = getMetricRequest {
+        name = SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name
+      }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+
+      assertThat(result)
+        .isEqualTo(
+          SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
+            this.result =
+              this.result.copy {
+                frequencyHistogram =
+                  MetricResultKt.histogramResult {
+                    bins +=
+                      (1..REACH_FREQUENCY_MAXIMUM_FREQUENCY).map { frequency ->
+                        MetricResultKt.HistogramResultKt.bin {
+                          label = frequency.toString()
+                          binResult =
+                            MetricResultKt.HistogramResultKt.binResult {
+                              value =
+                                REACH_FREQUENCY_REACH_VALUE *
+                                  REACH_FREQUENCY_FREQUENCY_VALUE.getOrDefault(
+                                    frequency.toLong(),
+                                    0.0
+                                  )
+                            }
+                        }
+                      }
+                  }
+              }
+          }
+        )
+    }
+
+  @Test
+  fun `getMetric returns reach frequency metric without statistics when variance in custom methodology is unavailable`() =
+    runBlocking {
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics +=
+              INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
+                weightedMeasurements.clear()
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 1
+                  measurement =
+                    INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.copy {
+                      details =
+                        InternalMeasurementKt.details {
+                          results +=
+                            InternalMeasurementKt.result {
+                              reach =
+                                InternalMeasurementKt.ResultKt.reach {
+                                  value = REACH_FREQUENCY_REACH_VALUE
+                                  noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
+                                  deterministicCountDistinct =
+                                    InternalDeterministicCountDistinct.getDefaultInstance()
+                                }
+                              frequency =
+                                InternalMeasurementKt.ResultKt.frequency {
+                                  relativeFrequencyDistribution.putAll(
+                                    REACH_FREQUENCY_FREQUENCY_VALUE
+                                  )
+                                  noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
+                                  customDirectMethodology = internalCustomDirectMethodology {
+                                    variance =
+                                      InternalCustomDirectMethodologyKt.variance {
+                                        unavailable =
+                                          InternalCustomDirectMethodologyKt.VarianceKt.unavailable {
+                                            reason =
+                                              InternalCustomDirectMethodology.Variance.Unavailable
+                                                .Reason
+                                                .UNDERIVABLE
+                                          }
+                                      }
+                                  }
                                 }
                             }
                         }
@@ -5765,7 +6065,10 @@ class MetricsServiceTest {
                               InternalMeasurementKt.ResultKt.reach {
                                 value = UNION_ALL_REACH_VALUE
                                 noiseMechanism = NoiseMechanism.DISCRETE_GAUSSIAN
-                                customDirectMethodology = customDirectMethodology { scalar = 10.0 }
+                                customDirectMethodology = internalCustomDirectMethodology {
+                                  variance =
+                                    InternalCustomDirectMethodologyKt.variance { scalar = 10.0 }
+                                }
                               }
                           }
                       }
@@ -6251,6 +6554,67 @@ class MetricsServiceTest {
     }
 
   @Test
+  fun `getMetric returns impression metric without statistics when variance in custom methodology is unavailable`() =
+    runBlocking {
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics +=
+              INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+                weightedMeasurements.clear()
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 1
+                  measurement =
+                    INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
+                      details =
+                        InternalMeasurementKt.details {
+                          results +=
+                            InternalMeasurementKt.result {
+                              impression =
+                                InternalMeasurementKt.ResultKt.impression {
+                                  value = IMPRESSION_VALUE
+                                  noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
+                                  customDirectMethodology = internalCustomDirectMethodology {
+                                    variance =
+                                      InternalCustomDirectMethodologyKt.variance {
+                                        unavailable =
+                                          InternalCustomDirectMethodologyKt.VarianceKt.unavailable {
+                                            reason =
+                                              InternalCustomDirectMethodology.Variance.Unavailable
+                                                .Reason
+                                                .UNDERIVABLE
+                                          }
+                                      }
+                                  }
+                                }
+                            }
+                        }
+                    }
+                }
+              }
+          },
+        )
+
+      val request = getMetricRequest { name = SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+
+      assertThat(result)
+        .isEqualTo(
+          SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+            this.result =
+              this.result.copy {
+                impressionCount = impressionCount.copy { clearUnivariateStatistics() }
+              }
+          }
+        )
+    }
+
+  @Test
   fun `getMetric throws StatusRuntimeException for impression metric when custom direct methodology has frequency`():
     Unit = runBlocking {
     whenever(internalMetricsMock.batchGetMetrics(any()))
@@ -6272,10 +6636,12 @@ class MetricsServiceTest {
                               InternalMeasurementKt.ResultKt.impression {
                                 value = IMPRESSION_VALUE
                                 noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
-                                customDirectMethodology = customDirectMethodology {
-                                  frequency =
-                                    InternalCustomDirectMethodology.FrequencyVariances
-                                      .getDefaultInstance()
+                                customDirectMethodology = internalCustomDirectMethodology {
+                                  InternalCustomDirectMethodologyKt.variance {
+                                    frequency =
+                                      InternalCustomDirectMethodology.Variance.FrequencyVariances
+                                        .getDefaultInstance()
+                                  }
                                 }
                               }
                           }
@@ -6491,6 +6857,71 @@ class MetricsServiceTest {
     }
 
   @Test
+  fun `getMetric returns duration metric without statistics when variance in custom methodology is unavailable`() =
+    runBlocking {
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics +=
+              INTERNAL_SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
+                weightedMeasurements.clear()
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 1
+                  measurement =
+                    INTERNAL_SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT.copy {
+                      details =
+                        InternalMeasurementKt.details {
+                          results +=
+                            WATCH_DURATION_LIST.map { duration ->
+                              InternalMeasurementKt.result {
+                                watchDuration =
+                                  InternalMeasurementKt.ResultKt.watchDuration {
+                                    value = duration
+                                    noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
+                                    customDirectMethodology = internalCustomDirectMethodology {
+                                      variance =
+                                        InternalCustomDirectMethodologyKt.variance {
+                                          unavailable =
+                                            InternalCustomDirectMethodologyKt.VarianceKt
+                                              .unavailable {
+                                                reason =
+                                                  InternalCustomDirectMethodology.Variance
+                                                    .Unavailable
+                                                    .Reason
+                                                    .UNDERIVABLE
+                                              }
+                                        }
+                                    }
+                                  }
+                              }
+                            }
+                        }
+                    }
+                }
+              }
+          }
+        )
+
+      val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+
+      assertThat(result)
+        .isEqualTo(
+          SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
+            this.result =
+              this.result.copy {
+                watchDuration = watchDuration.copy { clearUnivariateStatistics() }
+              }
+          }
+        )
+    }
+
+  @Test
   fun `getMetric throws throws StatusRuntimeException for watch duration metric when custom direct methodology has frequency`():
     Unit = runBlocking {
     whenever(internalMetricsMock.batchGetMetrics(any()))
@@ -6513,10 +6944,12 @@ class MetricsServiceTest {
                                 InternalMeasurementKt.ResultKt.watchDuration {
                                   value = duration
                                   noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
-                                  customDirectMethodology = customDirectMethodology {
-                                    frequency =
-                                      InternalCustomDirectMethodology.FrequencyVariances
-                                        .getDefaultInstance()
+                                  customDirectMethodology = internalCustomDirectMethodology {
+                                    InternalCustomDirectMethodologyKt.variance {
+                                      frequency =
+                                        InternalCustomDirectMethodology.Variance.FrequencyVariances
+                                          .getDefaultInstance()
+                                    }
                                   }
                                 }
                             }
