@@ -12,22 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+output "oidc_provider" {
+  description = "The OpenID Connect identity provider (issuer URL without leading `https://`)"
+  value       = module.eks.oidc_provider
+}
+
 output "oidc_provider_arn" {
   description = "ARN of the eks oidc provider"
-  value = module.eks.oidc_provider_arn
+  value       = module.eks.oidc_provider_arn
 }
 
 output "cluster_name" {
   description = "Name of the eks cluster"
-  value = module.eks.cluster_name
+  value       = module.eks.cluster_name
 }
 
 output "cluster_endpoint" {
   description = "Endpoint of the eks cluster"
-  value = module.eks.cluster_endpoint
+  value       = module.eks.cluster_endpoint
 }
 
 output "cluster_certificate_authority_data" {
   description = "Certificate authority of the eks cluster"
-  value = module.eks.cluster_certificate_authority_data
+  value       = module.eks.cluster_certificate_authority_data
 }
