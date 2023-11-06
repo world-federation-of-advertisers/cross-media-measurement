@@ -338,9 +338,7 @@ class ReportsService(
                   "MetricCalculationSpec used in the Report not found."
                 )
               } else {
-                Status.NOT_FOUND.withDescription(
-                  "ReportingSet used in the Report not found."
-                )
+                Status.NOT_FOUND.withDescription("ReportingSet used in the Report not found.")
               }
             else -> Status.UNKNOWN.withDescription("Unable to create Report.")
           }
