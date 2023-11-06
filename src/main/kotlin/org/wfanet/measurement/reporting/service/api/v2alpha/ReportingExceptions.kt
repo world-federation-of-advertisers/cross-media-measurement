@@ -24,6 +24,6 @@ class NoiseMechanismUnspecifiedException(message: String? = null, cause: Throwab
 class NoiseMechanismUnrecognizedException(message: String? = null, cause: Throwable? = null) :
   Exception(message, cause)
 
-/** [Exception] which indicates an error that measurement methodology is not set. */
-class MethodologyNotSetException(message: String? = null, cause: Throwable? = null) :
+/** [Exception] which indicates an error that measurement variance is not computable. */
+class MeasurementVarianceNotComputableException(message: String? = null, cause: Throwable? = null) :
   Exception(message, cause)
