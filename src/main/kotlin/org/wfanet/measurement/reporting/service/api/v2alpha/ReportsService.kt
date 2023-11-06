@@ -332,14 +332,12 @@ class ReportsService(
               if (e.message!!.contains("external_report_schedule_id")) {
                 Status.NOT_FOUND.withDescription(
                   "ReportSchedule associated with the Report not found."
-                )  
+                )
               } else {
-                Status.NOT_FOUND.withDescription("ReportingSet or MetricCalculationSpec used in the Report not found.")
+                Status.NOT_FOUND.withDescription(
+                  "ReportingSet or MetricCalculationSpec used in the Report not found."
+                )
               }
-            Status.Code.FAILED_PRECONDITION ->
-              Status.FAILED_PRECONDITION.withDescription(
-                "Unable to create Report. The measurement consumer not found."
-              )
             else -> Status.UNKNOWN.withDescription("Unable to create Report.")
           }
           .withCause(e)

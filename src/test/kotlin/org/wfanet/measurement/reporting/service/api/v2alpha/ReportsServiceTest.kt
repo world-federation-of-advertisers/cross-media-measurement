@@ -345,7 +345,7 @@ class ReportsServiceTest {
         runBlocking { service.createReport(request) }
       }
 
-    verifyProtoArgument(metricsMock, MetricsGrpcKt.MetricsCoroutineImplBase::batchCreateMetrics)
+    verifyProtoArgument(metricsMock, MetricsCoroutineImplBase::batchCreateMetrics)
       .isEqualTo(
         batchCreateMetricsRequest {
           parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
