@@ -14,21 +14,21 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.protobuf.InvalidProtocolBufferException
+import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.CertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
-import org.wfanet.measurement.api.v2alpha.DataProviderPublicKeyKey
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPublicKeyKey
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.PublicKey
+import org.wfanet.measurement.api.v2alpha.PublicKeyKey
 import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt.PublicKeysCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.UpdatePublicKeyRequest
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
-import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -39,76 +39,43 @@ import org.wfanet.measurement.internal.kingdom.updatePublicKeyRequest
 class PublicKeysService(private val internalPublicKeysStub: PublicKeysCoroutineStub) :
   PublicKeysCoroutineImplBase() {
 
-  override suspend fun updatePublicKey(request: UpdatePublicKeyRequest): PublicKey {
-    val principal: MeasurementPrincipal = principalFromCurrentContext
+  private enum class Permission {
+    UPDATE;
 
+    fun deniedStatus(name: String): Status =
+      Status.PERMISSION_DENIED.withDescription(
+        "Permission $this denied on resource $name (or it might not exist)"
+      )
+  }
+
+  override suspend fun updatePublicKey(request: UpdatePublicKeyRequest): PublicKey {
     val publicKeyKey =
-      grpcRequireNotNull(createPublicKeyResourceKey(request.publicKey.name)) {
+      grpcRequireNotNull(PublicKeyKey.fromName(request.publicKey.name)) {
         "Resource name is either unspecified or invalid"
       }
 
+    val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext
+    if (authenticatedPrincipal.resourceKey != publicKeyKey.parentKey) {
+      throw Permission.UPDATE.deniedStatus(request.publicKey.name).asRuntimeException()
+    }
+
     val certificateKey =
-      grpcRequireNotNull(createCertificateResourceKey(request.publicKey.certificate)) {
+      grpcRequireNotNull(CertificateKey.fromName(request.publicKey.certificate)) {
         "Certificate name is either unspecified or invalid"
       }
 
-    when (principal) {
-      is DataProviderPrincipal -> {
-        when (publicKeyKey) {
-          is DataProviderPublicKeyKey -> {
-            if (
-              apiIdToExternalId(principal.resourceKey.dataProviderId) !=
-                apiIdToExternalId(publicKeyKey.dataProviderId)
-            ) {
-              failGrpc(Status.PERMISSION_DENIED) {
-                "Cannot update Public Key belonging to another DataProvider"
-              }
-            }
-          }
-          else -> {
-            failGrpc(Status.PERMISSION_DENIED) { "Caller can only update Public Key for itself" }
-          }
-        }
-      }
-      is MeasurementConsumerPrincipal -> {
-        when (publicKeyKey) {
-          is MeasurementConsumerPublicKeyKey -> {
-            if (
-              apiIdToExternalId(principal.resourceKey.measurementConsumerId) !=
-                apiIdToExternalId(publicKeyKey.measurementConsumerId)
-            ) {
-              failGrpc(Status.PERMISSION_DENIED) {
-                "Cannot update Public Key belonging to another MeasurementConsumer"
-              }
-            }
-          }
-          else -> {
-            failGrpc(Status.PERMISSION_DENIED) { "Caller can only update Public Key for itself" }
-          }
-        }
-      }
-      else -> {
-        failGrpc(Status.PERMISSION_DENIED) {
-          "Caller does not have permission to update Public Key"
-        }
-      }
-    }
-
-    grpcRequire(
-      (publicKeyKey is MeasurementConsumerPublicKeyKey &&
-        certificateKey is MeasurementConsumerCertificateKey &&
-        publicKeyKey.measurementConsumerId == certificateKey.measurementConsumerId) ||
-        (publicKeyKey is DataProviderPublicKeyKey &&
-          certificateKey is DataProviderCertificateKey &&
-          publicKeyKey.dataProviderId == certificateKey.dataProviderId)
-    ) {
+    grpcRequire(certificateKey.parentKey == publicKeyKey.parentKey) {
       "Resource name does not have same parent as Certificate name"
     }
-
-    grpcRequire(
-      !request.publicKey.publicKey.data.isEmpty && !request.publicKey.publicKey.signature.isEmpty
-    ) {
-      "EncryptionPublicKey is unspecified"
+    grpcRequire(request.publicKey.hasPublicKey()) { "public_key.public_key unspecified" }
+    try {
+      request.publicKey.publicKey.message.unpack<EncryptionPublicKey>()
+    } catch (e: InvalidProtocolBufferException) {
+      throw Status.INVALID_ARGUMENT.withCause(e)
+        .withDescription(
+          "public_key.public_key.message does not contain a valid EncryptionPublicKey"
+        )
+        .asRuntimeException()
     }
 
     val updateRequest = updatePublicKeyRequest {
@@ -121,9 +88,10 @@ class PublicKeysService(private val internalPublicKeysStub: PublicKeysCoroutineS
           externalDataProviderId = apiIdToExternalId(certificateKey.dataProviderId)
           externalCertificateId = apiIdToExternalId(certificateKey.certificateId)
         }
+        else -> error("Unhandled CertificateKey type")
       }
-      apiVersion = Version.V2_ALPHA.toString()
-      publicKey = request.publicKey.publicKey.data
+      apiVersion = API_VERSION.string
+      publicKey = request.publicKey.publicKey.message.value
       publicKeySignature = request.publicKey.publicKey.signature
       publicKeySignatureAlgorithmOid = request.publicKey.publicKey.signatureAlgorithmOid
     }
@@ -142,24 +110,8 @@ class PublicKeysService(private val internalPublicKeysStub: PublicKeysCoroutineS
 
     return request.publicKey
   }
-}
 
-/** Checks the resource name against multiple public key [ResourceKey] to find the right one. */
-private fun createPublicKeyResourceKey(name: String): ResourceKey? {
-  return when {
-    DataProviderPublicKeyKey.fromName(name) != null -> DataProviderPublicKeyKey.fromName(name)
-    MeasurementConsumerPublicKeyKey.fromName(name) != null ->
-      MeasurementConsumerPublicKeyKey.fromName(name)
-    else -> null
-  }
-}
-
-/** Checks the resource name against multiple certificate [ResourceKey] to find the right one. */
-private fun createCertificateResourceKey(name: String): ResourceKey? {
-  return when {
-    DataProviderCertificateKey.fromName(name) != null -> DataProviderCertificateKey.fromName(name)
-    MeasurementConsumerCertificateKey.fromName(name) != null ->
-      MeasurementConsumerCertificateKey.fromName(name)
-    else -> null
+  companion object {
+    private val API_VERSION = Version.V2_ALPHA
   }
 }

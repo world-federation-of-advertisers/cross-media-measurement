@@ -18,8 +18,8 @@ package org.wfanet.measurement.api.v2alpha.tools
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
+import com.google.protobuf.any
 import com.google.protobuf.duration
 import com.google.protobuf.empty
 import com.google.protobuf.timestamp
@@ -66,6 +66,7 @@ import org.wfanet.measurement.api.v2alpha.DeleteModelOutageRequest
 import org.wfanet.measurement.api.v2alpha.DeleteModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.DeleteModelShardRequest
 import org.wfanet.measurement.api.v2alpha.DuchyKey
+import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.GetModelReleaseRequest
@@ -93,7 +94,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.watchDuration
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
-import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultOutput
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
@@ -165,10 +166,13 @@ import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequ
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.revokeCertificateRequest
 import org.wfanet.measurement.api.v2alpha.scheduleModelRolloutFreezeRequest
+import org.wfanet.measurement.api.v2alpha.setMessage
 import org.wfanet.measurement.api.v2alpha.setModelLineActiveEndTimeRequest
 import org.wfanet.measurement.api.v2alpha.setModelLineHoldbackModelLineRequest
-import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.api.v2alpha.signedMessage
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.v2alpha.updatePublicKeyRequest
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -179,6 +183,7 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.grpc.toServerTlsContext
 import org.wfanet.measurement.common.openid.createRequestUri
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.CommandLineTesting
@@ -265,7 +270,7 @@ private val MODEL_ROLLOUT_FREEZE_DATE = date {
 private val DATA_PROVIDER = dataProvider {
   name = DATA_PROVIDER_NAME
   certificate = DATA_PROVIDER_CERTIFICATE_NAME
-  publicKey = signedData { data = DATA_PROVIDER_PUBLIC_KEY.toByteString() }
+  publicKey = signedMessage { setMessage(DATA_PROVIDER_PUBLIC_KEY.pack()) }
 }
 private const val MODEL_PROVIDER_NAME = "modelProvider/1"
 private const val MODEL_SUITE_NAME = "$MODEL_PROVIDER_NAME/modelSuites/1"
@@ -829,10 +834,9 @@ class MeasurementSystemTest {
       .isEqualTo(AUTHENTICATION_KEY)
 
     // Verify request.
-    val request =
-      captureFirst<CreateMeasurementRequest> {
-        runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
-      }
+    val request: CreateMeasurementRequest = captureFirst {
+      runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
+    }
     assertThat(request)
       .ignoringFieldDescriptors(
         MEASUREMENT_SPEC_FIELD,
@@ -872,11 +876,11 @@ class MeasurementSystemTest {
       MEASUREMENT_CONSUMER_CERTIFICATE,
       TRUSTED_MEASUREMENT_CONSUMER_ISSUER
     )
-    val measurementSpec = MeasurementSpec.parseFrom(request.measurement.measurementSpec.data)
+    val measurementSpec: MeasurementSpec = request.measurement.measurementSpec.unpack()
     assertThat(measurementSpec)
       .isEqualTo(
         measurementSpec {
-          measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
+          measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.message
           this.nonceHashes += request.measurement.dataProvidersList.map { it.value.nonceHash }
           reachAndFrequency =
             MeasurementSpecKt.reachAndFrequency {
@@ -904,7 +908,7 @@ class MeasurementSystemTest {
         request.measurement.dataProvidersList[0].value.encryptedRequisitionSpec,
         DATA_PROVIDER_PRIVATE_KEY_HANDLE
       )
-    val requisitionSpec1 = RequisitionSpec.parseFrom(signedRequisitionSpec1.data)
+    val requisitionSpec1: RequisitionSpec = signedRequisitionSpec1.unpack()
     verifyRequisitionSpec(
       signedRequisitionSpec1,
       requisitionSpec1,
@@ -916,7 +920,7 @@ class MeasurementSystemTest {
       .ignoringFields(RequisitionSpec.NONCE_FIELD_NUMBER)
       .isEqualTo(
         requisitionSpec {
-          measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
+          measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.message
           events =
             RequisitionSpecKt.events {
               eventGroups +=
@@ -954,7 +958,7 @@ class MeasurementSystemTest {
         dataProviderEntry2.value.encryptedRequisitionSpec,
         DATA_PROVIDER_PRIVATE_KEY_HANDLE
       )
-    val requisitionSpec2 = RequisitionSpec.parseFrom(signedRequisitionSpec2.data)
+    val requisitionSpec2: RequisitionSpec = signedRequisitionSpec2.unpack()
     verifyRequisitionSpec(
       signedRequisitionSpec2,
       requisitionSpec2,
@@ -966,7 +970,7 @@ class MeasurementSystemTest {
       .ignoringFields(RequisitionSpec.NONCE_FIELD_NUMBER)
       .isEqualTo(
         requisitionSpec {
-          measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
+          measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.message
           events =
             RequisitionSpecKt.events {
               eventGroups +=
@@ -1035,10 +1039,9 @@ class MeasurementSystemTest {
       .isEqualTo(AUTHENTICATION_KEY)
 
     // Verify request.
-    val request =
-      captureFirst<CreateMeasurementRequest> {
-        runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
-      }
+    val request: CreateMeasurementRequest = captureFirst {
+      runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
+    }
     assertThat(request)
       .ignoringFieldDescriptors(
         MEASUREMENT_SPEC_FIELD,
@@ -1078,11 +1081,11 @@ class MeasurementSystemTest {
       MEASUREMENT_CONSUMER_CERTIFICATE,
       TRUSTED_MEASUREMENT_CONSUMER_ISSUER
     )
-    val measurementSpec = MeasurementSpec.parseFrom(request.measurement.measurementSpec.data)
+    val measurementSpec: MeasurementSpec = request.measurement.measurementSpec.unpack()
     assertThat(measurementSpec)
       .isEqualTo(
         measurementSpec {
-          measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
+          measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.message
           this.nonceHashes += request.measurement.dataProvidersList.map { it.value.nonceHash }
           reach =
             MeasurementSpecKt.reach {
@@ -1105,7 +1108,7 @@ class MeasurementSystemTest {
         request.measurement.dataProvidersList[0].value.encryptedRequisitionSpec,
         DATA_PROVIDER_PRIVATE_KEY_HANDLE
       )
-    val requisitionSpec1 = RequisitionSpec.parseFrom(signedRequisitionSpec1.data)
+    val requisitionSpec1: RequisitionSpec = signedRequisitionSpec1.unpack()
     verifyRequisitionSpec(
       signedRequisitionSpec1,
       requisitionSpec1,
@@ -1117,7 +1120,7 @@ class MeasurementSystemTest {
       .ignoringFields(RequisitionSpec.NONCE_FIELD_NUMBER)
       .isEqualTo(
         requisitionSpec {
-          measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
+          measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.message
           events =
             RequisitionSpecKt.events {
               eventGroups +=
@@ -1155,7 +1158,7 @@ class MeasurementSystemTest {
         dataProviderEntry2.value.encryptedRequisitionSpec,
         DATA_PROVIDER_PRIVATE_KEY_HANDLE
       )
-    val requisitionSpec2 = RequisitionSpec.parseFrom(signedRequisitionSpec2.data)
+    val requisitionSpec2: RequisitionSpec = signedRequisitionSpec2.unpack()
     verifyRequisitionSpec(
       signedRequisitionSpec2,
       requisitionSpec2,
@@ -1167,7 +1170,7 @@ class MeasurementSystemTest {
       .ignoringFields(RequisitionSpec.NONCE_FIELD_NUMBER)
       .isEqualTo(
         requisitionSpec {
-          measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
+          measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.message
           events =
             RequisitionSpecKt.events {
               eventGroups +=
@@ -1211,13 +1214,12 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<CreateMeasurementRequest> {
-        runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
-      }
+    val request: CreateMeasurementRequest = captureFirst {
+      runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
+    }
 
     val measurement = request.measurement
-    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
+    val measurementSpec: MeasurementSpec = measurement.measurementSpec.unpack()
     assertThat(measurementSpec)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
@@ -1263,13 +1265,12 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<CreateMeasurementRequest> {
-        runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
-      }
+    val request: CreateMeasurementRequest = captureFirst {
+      runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
+    }
 
     val measurement = request.measurement
-    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
+    val measurementSpec: MeasurementSpec = measurement.measurementSpec.unpack()
     assertThat(measurementSpec)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
@@ -1311,13 +1312,12 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<CreateMeasurementRequest> {
-        runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
-      }
+    val request: CreateMeasurementRequest = captureFirst {
+      runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
+    }
 
     val measurement = request.measurement
-    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
+    val measurementSpec: MeasurementSpec = measurement.measurementSpec.unpack()
     assertThat(measurementSpec)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
@@ -1333,7 +1333,7 @@ class MeasurementSystemTest {
         request.measurement.dataProvidersList.single().value.encryptedRequisitionSpec,
         DATA_PROVIDER_PRIVATE_KEY_HANDLE
       )
-    val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+    val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
     verifyRequisitionSpec(
       signedRequisitionSpec,
       requisitionSpec,
@@ -1345,7 +1345,7 @@ class MeasurementSystemTest {
       .ignoringFields(RequisitionSpec.NONCE_FIELD_NUMBER)
       .isEqualTo(
         requisitionSpec {
-          measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
+          measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.message
           population =
             RequisitionSpecKt.population {
               filter = RequisitionSpecKt.eventFilter { expression = "abcd" }
@@ -1379,10 +1379,9 @@ class MeasurementSystemTest {
       )
       .isEqualTo(AUTHENTICATION_KEY)
 
-    val request =
-      captureFirst<ListMeasurementsRequest> {
-        runBlocking { verify(measurementsServiceMock).listMeasurements(capture()) }
-      }
+    val request: ListMeasurementsRequest = captureFirst {
+      runBlocking { verify(measurementsServiceMock).listMeasurements(capture()) }
+    }
     assertThat(request)
       .comparingExpectedFieldsOnly()
       .isEqualTo(listMeasurementsRequest { parent = MEASUREMENT_CONSUMER_NAME })
@@ -1411,10 +1410,9 @@ class MeasurementSystemTest {
       )
       .isEqualTo(AUTHENTICATION_KEY)
 
-    val request =
-      captureFirst<GetMeasurementRequest> {
-        runBlocking { verify(measurementsServiceMock).getMeasurement(capture()) }
-      }
+    val request: GetMeasurementRequest = captureFirst {
+      runBlocking { verify(measurementsServiceMock).getMeasurement(capture()) }
+    }
     assertThat(request)
       .comparingExpectedFieldsOnly()
       .isEqualTo(getMeasurementRequest { name = MEASUREMENT_NAME })
@@ -1432,12 +1430,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<ReplaceDataProviderRequiredDuchiesRequest> {
-        runBlocking {
-          verify(dataProvidersServiceMock).replaceDataProviderRequiredDuchies(capture())
-        }
-      }
+    val request: ReplaceDataProviderRequiredDuchiesRequest = captureFirst {
+      runBlocking { verify(dataProvidersServiceMock).replaceDataProviderRequiredDuchies(capture()) }
+    }
 
     assertThat(request)
       .comparingExpectedFieldsOnly()
@@ -1466,10 +1461,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<CreateModelLineRequest> {
-        runBlocking { verify(modelLinesServiceMock).createModelLine(capture()) }
-      }
+    val request: CreateModelLineRequest = captureFirst {
+      runBlocking { verify(modelLinesServiceMock).createModelLine(capture()) }
+    }
 
     assertThat(request.modelLine)
       .ignoringFields(
@@ -1493,10 +1487,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<CreateModelLineRequest> {
-        runBlocking { verify(modelLinesServiceMock).createModelLine(capture()) }
-      }
+    val request: CreateModelLineRequest = captureFirst {
+      runBlocking { verify(modelLinesServiceMock).createModelLine(capture()) }
+    }
 
     assertThat(request.modelLine)
       .ignoringFields(
@@ -1526,10 +1519,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<SetModelLineHoldbackModelLineRequest> {
-        runBlocking { verify(modelLinesServiceMock).setModelLineHoldbackModelLine(capture()) }
-      }
+    val request: SetModelLineHoldbackModelLineRequest = captureFirst {
+      runBlocking { verify(modelLinesServiceMock).setModelLineHoldbackModelLine(capture()) }
+    }
 
     assertThat(request)
       .isEqualTo(
@@ -1552,10 +1544,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<SetModelLineActiveEndTimeRequest> {
-        runBlocking { verify(modelLinesServiceMock).setModelLineActiveEndTime(capture()) }
-      }
+    val request: SetModelLineActiveEndTimeRequest = captureFirst {
+      runBlocking { verify(modelLinesServiceMock).setModelLineActiveEndTime(capture()) }
+    }
 
     assertThat(request)
       .isEqualTo(
@@ -1580,10 +1571,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<ListModelLinesRequest> {
-        runBlocking { verify(modelLinesServiceMock).listModelLines(capture()) }
-      }
+    val request: ListModelLinesRequest = captureFirst {
+      runBlocking { verify(modelLinesServiceMock).listModelLines(capture()) }
+    }
 
     assertThat(request)
       .isEqualTo(
@@ -1607,10 +1597,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<ListModelLinesRequest> {
-        runBlocking { verify(modelLinesServiceMock).listModelLines(capture()) }
-      }
+    val request: ListModelLinesRequest = captureFirst {
+      runBlocking { verify(modelLinesServiceMock).listModelLines(capture()) }
+    }
 
     assertThat(request).isEqualTo(listModelLinesRequest { parent = MODEL_SUITE_NAME })
   }
@@ -1626,10 +1615,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<CreateModelReleaseRequest> {
-        runBlocking { verify(modelReleasesServiceMock).createModelRelease(capture()) }
-      }
+    val request: CreateModelReleaseRequest = captureFirst {
+      runBlocking { verify(modelReleasesServiceMock).createModelRelease(capture()) }
+    }
 
     assertThat(request.modelRelease)
       .ignoringFields(ModelRelease.CREATE_TIME_FIELD_NUMBER, ModelRelease.NAME_FIELD_NUMBER)
@@ -1647,10 +1635,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<GetModelReleaseRequest> {
-        runBlocking { verify(modelReleasesServiceMock).getModelRelease(capture()) }
-      }
+    val request: GetModelReleaseRequest = captureFirst {
+      runBlocking { verify(modelReleasesServiceMock).getModelRelease(capture()) }
+    }
 
     assertThat(request).isEqualTo(getModelReleaseRequest { name = MODEL_RELEASE_NAME })
   }
@@ -1668,10 +1655,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<ListModelReleasesRequest> {
-        runBlocking { verify(modelReleasesServiceMock).listModelReleases(capture()) }
-      }
+    val request: ListModelReleasesRequest = captureFirst {
+      runBlocking { verify(modelReleasesServiceMock).listModelReleases(capture()) }
+    }
 
     assertThat(request)
       .isEqualTo(
@@ -1694,10 +1680,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<ListModelReleasesRequest> {
-        runBlocking { verify(modelReleasesServiceMock).listModelReleases(capture()) }
-      }
+    val request: ListModelReleasesRequest = captureFirst {
+      runBlocking { verify(modelReleasesServiceMock).listModelReleases(capture()) }
+    }
 
     assertThat(request).isEqualTo(listModelReleasesRequest { parent = MODEL_SUITE_NAME })
   }
@@ -1715,10 +1700,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<CreateModelOutageRequest> {
-        runBlocking { verify(modelOutagesServiceMock).createModelOutage(capture()) }
-      }
+    val request: CreateModelOutageRequest = captureFirst {
+      runBlocking { verify(modelOutagesServiceMock).createModelOutage(capture()) }
+    }
 
     assertThat(request)
       .isEqualTo(
@@ -1750,10 +1734,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<ListModelOutagesRequest> {
-        runBlocking { verify(modelOutagesServiceMock).listModelOutages(capture()) }
-      }
+    val request: ListModelOutagesRequest = captureFirst {
+      runBlocking { verify(modelOutagesServiceMock).listModelOutages(capture()) }
+    }
 
     assertThat(request)
       .isEqualTo(
@@ -1784,10 +1767,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<ListModelOutagesRequest> {
-        runBlocking { verify(modelOutagesServiceMock).listModelOutages(capture()) }
-      }
+    val request: ListModelOutagesRequest = captureFirst {
+      runBlocking { verify(modelOutagesServiceMock).listModelOutages(capture()) }
+    }
 
     assertThat(request).isEqualTo(listModelOutagesRequest { parent = MODEL_LINE_NAME })
   }
@@ -1803,10 +1785,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<DeleteModelOutageRequest> {
-        runBlocking { verify(modelOutagesServiceMock).deleteModelOutage(capture()) }
-      }
+    val request: DeleteModelOutageRequest = captureFirst {
+      runBlocking { verify(modelOutagesServiceMock).deleteModelOutage(capture()) }
+    }
 
     assertThat(request.name).isEqualTo(MODEL_OUTAGE_NAME)
   }
@@ -1824,10 +1805,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<CreateModelShardRequest> {
-        runBlocking { verify(modelShardsServiceMock).createModelShard(capture()) }
-      }
+    val request: CreateModelShardRequest = captureFirst {
+      runBlocking { verify(modelShardsServiceMock).createModelShard(capture()) }
+    }
 
     assertThat(request)
       .isEqualTo(
@@ -1854,10 +1834,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<ListModelShardsRequest> {
-        runBlocking { verify(modelShardsServiceMock).listModelShards(capture()) }
-      }
+    val request: ListModelShardsRequest = captureFirst {
+      runBlocking { verify(modelShardsServiceMock).listModelShards(capture()) }
+    }
 
     assertThat(request)
       .isEqualTo(
@@ -1880,10 +1859,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<ListModelShardsRequest> {
-        runBlocking { verify(modelShardsServiceMock).listModelShards(capture()) }
-      }
+    val request: ListModelShardsRequest = captureFirst {
+      runBlocking { verify(modelShardsServiceMock).listModelShards(capture()) }
+    }
 
     assertThat(request).isEqualTo(listModelShardsRequest { parent = DATA_PROVIDER_NAME })
   }
@@ -1899,10 +1877,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<DeleteModelShardRequest> {
-        runBlocking { verify(modelShardsServiceMock).deleteModelShard(capture()) }
-      }
+    val request: DeleteModelShardRequest = captureFirst {
+      runBlocking { verify(modelShardsServiceMock).deleteModelShard(capture()) }
+    }
 
     assertThat(request.name).isEqualTo(MODEL_SHARD_NAME)
   }
@@ -1921,10 +1898,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<CreateModelRolloutRequest> {
-        runBlocking { verify(modelRolloutsServiceMock).createModelRollout(capture()) }
-      }
+    val request: CreateModelRolloutRequest = captureFirst {
+      runBlocking { verify(modelRolloutsServiceMock).createModelRollout(capture()) }
+    }
 
     assertThat(request)
       .isEqualTo(
@@ -1956,10 +1932,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<ListModelRolloutsRequest> {
-        runBlocking { verify(modelRolloutsServiceMock).listModelRollouts(capture()) }
-      }
+    val request: ListModelRolloutsRequest = captureFirst {
+      runBlocking { verify(modelRolloutsServiceMock).listModelRollouts(capture()) }
+    }
 
     assertThat(request)
       .isEqualTo(
@@ -1990,10 +1965,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<ScheduleModelRolloutFreezeRequest> {
-        runBlocking { verify(modelRolloutsServiceMock).scheduleModelRolloutFreeze(capture()) }
-      }
+    val request: ScheduleModelRolloutFreezeRequest = captureFirst {
+      runBlocking { verify(modelRolloutsServiceMock).scheduleModelRolloutFreeze(capture()) }
+    }
 
     assertThat(request)
       .isEqualTo(
@@ -2015,10 +1989,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<DeleteModelRolloutRequest> {
-        runBlocking { verify(modelRolloutsServiceMock).deleteModelRollout(capture()) }
-      }
+    val request: DeleteModelRolloutRequest = captureFirst {
+      runBlocking { verify(modelRolloutsServiceMock).deleteModelRollout(capture()) }
+    }
 
     assertThat(request).isEqualTo(deleteModelRolloutRequest { name = MODEL_ROLLOUT_NAME })
   }
@@ -2038,10 +2011,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<CreateModelSuiteRequest> {
-        runBlocking { verify(modelSuitesServiceMock).createModelSuite(capture()) }
-      }
+    val request: CreateModelSuiteRequest = captureFirst {
+      runBlocking { verify(modelSuitesServiceMock).createModelSuite(capture()) }
+    }
 
     assertThat(request.modelSuite)
       .ignoringFields(ModelSuite.CREATE_TIME_FIELD_NUMBER, ModelSuite.NAME_FIELD_NUMBER)
@@ -2061,10 +2033,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<CreateModelSuiteRequest> {
-        runBlocking { verify(modelSuitesServiceMock).createModelSuite(capture()) }
-      }
+    val request: CreateModelSuiteRequest = captureFirst {
+      runBlocking { verify(modelSuitesServiceMock).createModelSuite(capture()) }
+    }
 
     assertThat(request.modelSuite)
       .ignoringFields(ModelSuite.CREATE_TIME_FIELD_NUMBER, ModelSuite.NAME_FIELD_NUMBER)
@@ -2076,10 +2047,9 @@ class MeasurementSystemTest {
     val args = commonArgs + arrayOf("model-suites", "get", "--name", MODEL_SUITE_NAME)
     callCli(args)
 
-    val request =
-      captureFirst<GetModelSuiteRequest> {
-        runBlocking { verify(modelSuitesServiceMock).getModelSuite(capture()) }
-      }
+    val request: GetModelSuiteRequest = captureFirst {
+      runBlocking { verify(modelSuitesServiceMock).getModelSuite(capture()) }
+    }
 
     assertThat(request).isEqualTo(getModelSuiteRequest { name = MODEL_SUITE_NAME })
   }
@@ -2099,10 +2069,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<ListModelSuitesRequest> {
-        runBlocking { verify(modelSuitesServiceMock).listModelSuites(capture()) }
-      }
+    val request: ListModelSuitesRequest = captureFirst {
+      runBlocking { verify(modelSuitesServiceMock).listModelSuites(capture()) }
+    }
 
     assertThat(request)
       .isEqualTo(
@@ -2125,10 +2094,9 @@ class MeasurementSystemTest {
         )
     callCli(args)
 
-    val request =
-      captureFirst<ListModelSuitesRequest> {
-        runBlocking { verify(modelSuitesServiceMock).listModelSuites(capture()) }
-      }
+    val request: ListModelSuitesRequest = captureFirst {
+      runBlocking { verify(modelSuitesServiceMock).listModelSuites(capture()) }
+    }
 
     assertThat(request)
       .isEqualTo(
@@ -2161,8 +2129,13 @@ class MeasurementSystemTest {
         name = MEASUREMENT_CONSUMER_NAME
         certificateDer = MEASUREMENT_CONSUMER_CERTIFICATE_FILE.readByteString()
         certificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
-        publicKey = signedData {
-          data = MEASUREMENT_CONSUMER_PUBLIC_KEY_FILE.readByteString()
+        publicKey = signedMessage {
+          setMessage(
+            any {
+              value = MEASUREMENT_CONSUMER_PUBLIC_KEY_FILE.readByteString()
+              typeUrl = ProtoReflection.getTypeUrl(EncryptionPublicKey.getDescriptor())
+            }
+          )
           signature = MEASUREMENT_CONSUMER_PUBLIC_KEY_SIG_FILE.readByteString()
         }
         displayName = "MC Hammer"
@@ -2177,7 +2150,7 @@ class MeasurementSystemTest {
     }
 
     private val MEASUREMENT_CONSUMER_ENCRYPTION_PUBLIC_KEY: EncryptionPublicKey by lazy {
-      EncryptionPublicKey.parseFrom(MEASUREMENT_CONSUMER.publicKey.data)
+      MEASUREMENT_CONSUMER.publicKey.unpack()
     }
 
     /*
@@ -2190,12 +2163,12 @@ class MeasurementSystemTest {
         name = MEASUREMENT_NAME
         state = Measurement.State.SUCCEEDED
 
-        results += resultPair {
+        results += resultOutput {
           val result = result { reach = reach { value = 4096 } }
           encryptedResult = getEncryptedResult(result, measurementPublicKey)
           certificate = DATA_PROVIDER_CERTIFICATE_NAME
         }
-        results += resultPair {
+        results += resultOutput {
           val result = result {
             frequency = frequency {
               relativeFrequencyDistribution.put(1, 1.0 / 6)
@@ -2206,12 +2179,12 @@ class MeasurementSystemTest {
           encryptedResult = getEncryptedResult(result, measurementPublicKey)
           certificate = DATA_PROVIDER_CERTIFICATE_NAME
         }
-        results += resultPair {
+        results += resultOutput {
           val result = result { impression = impression { value = 4096 } }
           encryptedResult = getEncryptedResult(result, measurementPublicKey)
           certificate = DATA_PROVIDER_CERTIFICATE_NAME
         }
-        results += resultPair {
+        results += resultOutput {
           val result = result {
             watchDuration = watchDuration {
               value = duration {
@@ -2223,7 +2196,7 @@ class MeasurementSystemTest {
           encryptedResult = getEncryptedResult(result, measurementPublicKey)
           certificate = DATA_PROVIDER_CERTIFICATE_NAME
         }
-        results += resultPair {
+        results += resultOutput {
           val result = result { population = population { value = 100 } }
           encryptedResult = getEncryptedResult(result, measurementPublicKey)
           certificate = DATA_PROVIDER_CERTIFICATE_NAME
@@ -2236,7 +2209,7 @@ class MeasurementSystemTest {
 private fun getEncryptedResult(
   result: Measurement.Result,
   publicKey: EncryptionPublicKey
-): ByteString {
+): EncryptedMessage {
   val signedResult = signResult(result, AGGREGATOR_SIGNING_KEY)
   return encryptResult(signedResult, publicKey)
 }

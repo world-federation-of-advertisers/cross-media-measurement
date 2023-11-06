@@ -33,11 +33,6 @@ service ReportSchedules {
       returns (ListReportSchedulesResponse);
 
   rpc StopReportSchedule(StopReportScheduleRequest) returns (ReportSchedule);
-
-  // Associates a `Report` with a `ReportSchedule` and moves the
-  // `ReportSchedule` forward.
-  rpc AddReportScheduleReport(AddReportScheduleReportRequest)
-      returns (ReportSchedule);
 }
 
 message CreateReportScheduleRequest {
@@ -72,12 +67,4 @@ message StopReportScheduleRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
   string cmms_measurement_consumer_id = 1;
   string external_report_schedule_id = 2;
-}
-
-message AddReportScheduleReportRequest {
-  // `MeasurementConsumer` ID from the CMMS public API.
-  string cmms_measurement_consumer_id = 1;
-  string external_report_schedule_id = 2;
-  string external_report_id = 3;
-  google.protobuf.Timestamp next_report_creation_time = 4;
 }
