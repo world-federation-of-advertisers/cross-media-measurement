@@ -16,7 +16,6 @@ package org.wfanet.measurement.kingdom.service.system.v1alpha
 
 import io.grpc.Status
 import io.grpc.StatusException
-import java.util.logging.Logger
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -60,7 +59,8 @@ class ComputationsService(
   private val measurementsClient: MeasurementsCoroutineStub,
   private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext,
   private val streamingTimeout: Duration = 10.minutes,
-  private val streamingThrottle: Duration = 1.seconds
+  private val streamingThrottle: Duration = 1.seconds,
+  private val streamingLimit: Int = DEFAULT_STREAMING_LIMIT,
 ) : ComputationsCoroutineImplBase() {
   override suspend fun getComputation(request: GetComputationRequest): Computation {
     val computationKey =
@@ -189,6 +189,7 @@ class ComputationsService(
         externalDuchyId = duchyIdentityProvider().id
       }
       measurementView = Measurement.View.COMPUTATION
+      limit = streamingLimit
     }
     try {
       return measurementsClient.streamMeasurements(request)
@@ -204,23 +205,28 @@ class ComputationsService(
   }
 
   companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
+    /**
+     * Default limit for [org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest]
+     * messages.
+     */
+    const val DEFAULT_STREAMING_LIMIT = 50
+
+    private val STATES_SUBSCRIBED =
+      listOf(
+        Measurement.State.PENDING_REQUISITION_PARAMS,
+        Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
+        Measurement.State.PENDING_COMPUTATION,
+        Measurement.State.FAILED,
+        Measurement.State.CANCELLED,
+        Measurement.State.SUCCEEDED
+      )
   }
 }
-
-private val STATES_SUBSCRIBED =
-  listOf(
-    Measurement.State.PENDING_REQUISITION_PARAMS,
-    Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
-    Measurement.State.PENDING_COMPUTATION,
-    Measurement.State.FAILED,
-    Measurement.State.CANCELLED,
-    Measurement.State.SUCCEEDED
-  )
 
 private object ContinuationTokenConverter {
   fun encode(token: StreamActiveComputationsContinuationToken): String =
     token.toByteArray().base64UrlEncode()
+
   fun decode(token: String): StreamActiveComputationsContinuationToken =
     StreamActiveComputationsContinuationToken.parseFrom(token.base64UrlDecode())
 }

@@ -1288,25 +1288,25 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             }
         }
       )
-
-    val measurement2 =
-      measurementsService.createMeasurement(
-        createMeasurementRequest {
-          measurement =
-            MEASUREMENT.copy {
-              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-              externalMeasurementConsumerCertificateId =
-                measurementConsumer.certificate.externalCertificateId
-              details =
-                details.copy {
-                  protocolConfig = protocolConfig {
-                    direct = ProtocolConfig.Direct.getDefaultInstance()
-                  }
-                  clearDuchyProtocolConfig()
+    measurementsService.createMeasurement(
+      createMeasurementRequest {
+        measurement =
+          MEASUREMENT.copy {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            externalMeasurementConsumerCertificateId =
+              measurementConsumer.certificate.externalCertificateId
+            details =
+              details.copy {
+                protocolConfig = protocolConfig {
+                  direct = ProtocolConfig.Direct.getDefaultInstance()
                 }
-            }
-        }
-      )
+                clearDuchyProtocolConfig()
+              }
+          }
+      }
+    )
+    val measurement3 =
+      measurementsService.createMeasurement(createMeasurementRequest { measurement = measurement1 })
 
     val streamMeasurementsRequest = streamMeasurementsRequest {
       limit = 2
@@ -1317,13 +1317,24 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       measurementView = Measurement.View.COMPUTATION
     }
 
-    val measurements: List<Measurement> =
+    val responses: List<Measurement> =
       measurementsService.streamMeasurements(streamMeasurementsRequest).toList()
 
-    assertThat(measurements).hasSize(1)
-    assertThat(measurements[0].externalMeasurementId).isEqualTo(measurement1.externalMeasurementId)
-    assertThat(measurements[0].externalMeasurementId)
-      .isNotEqualTo(measurement2.externalMeasurementId)
+    val computationMeasurement1 =
+      measurementsService.getMeasurementByComputationId(
+        getMeasurementByComputationIdRequest {
+          externalComputationId = measurement1.externalComputationId
+        }
+      )
+    val computationMeasurement3 =
+      measurementsService.getMeasurementByComputationId(
+        getMeasurementByComputationIdRequest {
+          externalComputationId = measurement3.externalComputationId
+        }
+      )
+    assertThat(responses)
+      .containsExactly(computationMeasurement1, computationMeasurement3)
+      .inOrder()
   }
 
   @Test
@@ -1807,6 +1818,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception).hasMessageThat().contains("exceeds limit")
   }
+
   @Test
   fun `batchDeleteMeasurements deletes Measurements when all etags match`() = runBlocking {
     val measurementConsumer =
