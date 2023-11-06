@@ -43,7 +43,7 @@ import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerDa
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator.MeasurementInfo
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
-import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMethodology
+import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
@@ -144,10 +144,11 @@ abstract class InProcessReachMeasurementAccuracyTest(
   }
 
   private fun getReachVariance(measurementInfo: MeasurementInfo, reach: Long): Double {
-    val liquidLegionsSketchMethodology =
-      LiquidLegionsSketchMethodology(
+    val liquidLegionsMethodology =
+      LiquidLegionsV2Methodology(
         RoLlv2ProtocolConfig.protocolConfig.sketchParams.decayRate,
         RoLlv2ProtocolConfig.protocolConfig.sketchParams.maxSize,
+        RoLlv2ProtocolConfig.protocolConfig.sketchParams.samplingIndicatorSize
       )
     val reachMeasurementParams =
       ReachMeasurementParams(
@@ -160,10 +161,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
       )
     val reachMeasurementVarianceParams =
       ReachMeasurementVarianceParams(reach, reachMeasurementParams)
-    return computeMeasurementVariance(
-      liquidLegionsSketchMethodology,
-      reachMeasurementVarianceParams
-    )
+    return computeMeasurementVariance(liquidLegionsMethodology, reachMeasurementVarianceParams)
   }
 
   private fun getStandardDeviation(nums: List<Double>): Double {
@@ -242,21 +240,19 @@ abstract class InProcessReachMeasurementAccuracyTest(
     )
 
     val standardDeviation = getStandardDeviation(reachResults.map { it.actualReach.toDouble() })
-    val variance = standardDeviation.pow(2.0)
-    val expectedVariance = expectedStandardDeviation.pow(2.0)
-    val varianceOffset = (variance - expectedVariance) / expectedVariance
-
     logger.log(
       Level.INFO,
-      "variance=${"%.2f".format(variance)}, " +
-        "expected_variance=${"%.2f".format(expectedVariance)}, " +
-        "offset=${"%.2f".format(varianceOffset * 100)}%"
+      "std=${"%.2f".format(standardDeviation)}, " +
+        "expected_std=${"%.2f".format(expectedStandardDeviation)}, " +
+        "ratio=${"%.2f".format(standardDeviation / expectedStandardDeviation)}"
     )
 
     assertThat(withinIntervalPercentage).isAtLeast(COVERAGE_TEST_THRESHOLD)
     assertThat(averageDispersionRatio).isLessThan(AVERAGE_TEST_THRESHOLD)
-    assertThat(variance).isGreaterThan(expectedVariance * VARIANCE_TEST_LOWER_THRESHOLD)
-    assertThat(variance).isLessThan(expectedVariance * VARIANCE_TEST_UPPER_THRESHOLD)
+    assertThat(standardDeviation)
+      .isGreaterThan(expectedStandardDeviation * STANDARD_DEVIATION_TEST_LOWER_THRESHOLD)
+    assertThat(standardDeviation)
+      .isLessThan(expectedStandardDeviation * STANDARD_DEVIATION_TEST_UPPER_THRESHOLD)
   }
 
   companion object {
@@ -270,8 +266,8 @@ abstract class InProcessReachMeasurementAccuracyTest(
 
     private const val COVERAGE_TEST_THRESHOLD = 90
     private const val AVERAGE_TEST_THRESHOLD = 4
-    private const val VARIANCE_TEST_LOWER_THRESHOLD = 0.7
-    private const val VARIANCE_TEST_UPPER_THRESHOLD = 1.4
+    private const val STANDARD_DEVIATION_TEST_LOWER_THRESHOLD = 0.67
+    private const val STANDARD_DEVIATION_TEST_UPPER_THRESHOLD = 1.35
     private val OUTPUT_DP_PARAMS = differentialPrivacyParams {
       epsilon = 0.0033
       delta = 0.00001
