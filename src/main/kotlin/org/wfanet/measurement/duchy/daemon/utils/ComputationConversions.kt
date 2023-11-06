@@ -14,11 +14,11 @@
 
 package org.wfanet.measurement.duchy.daemon.utils
 
+import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.unpack
 import java.lang.IllegalArgumentException
-import org.wfanet.anysketch.crypto.ElGamalKeyPair as AnySketchElGamalKeyPair
 import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
-import org.wfanet.anysketch.crypto.elGamalKeyPair as anySketchElGamalKeyPair
 import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams as V2AlphaDifferentialPrivacyParams
@@ -29,14 +29,12 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.frequency
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec.MeasurementTypeCase
 import org.wfanet.measurement.api.v2alpha.elGamalPublicKey as v2AlphaElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey as v2alphaEncryptionPublicKey
 import org.wfanet.measurement.consent.client.duchy.computeRequisitionFingerprint
 import org.wfanet.measurement.internal.duchy.ComputationDetails.KingdomComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationDetailsKt.kingdomComputationDetails
 import org.wfanet.measurement.internal.duchy.DifferentialPrivacyParams
-import org.wfanet.measurement.internal.duchy.ElGamalKeyPair
 import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
 import org.wfanet.measurement.internal.duchy.EncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
@@ -55,49 +53,22 @@ import org.wfanet.measurement.system.v1alpha.DifferentialPrivacyParams as System
 import org.wfanet.measurement.system.v1alpha.Requisition as SystemRequisition
 import org.wfanet.measurement.system.v1alpha.RequisitionKey
 
-/** Supported measurement types in the duchy. */
-enum class MeasurementType {
-  REACH,
-  REACH_AND_FREQUENCY
-}
-
-/** Gets the measurement type from the system computation. */
-fun SystemComputation.toMeasurementType(): MeasurementType {
-  return when (Version.fromString(publicApiVersion)) {
-    Version.V2_ALPHA -> {
-      val v2AlphaMeasurementSpec = MeasurementSpec.parseFrom(measurementSpec)
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-      when (v2AlphaMeasurementSpec.measurementTypeCase) {
-        MeasurementTypeCase.REACH -> MeasurementType.REACH
-        MeasurementTypeCase.REACH_AND_FREQUENCY -> MeasurementType.REACH_AND_FREQUENCY
-        MeasurementTypeCase.DURATION,
-        MeasurementTypeCase.IMPRESSION,
-        MeasurementTypeCase.POPULATION ->
-          error("Unexpected MeasurementType for system API Computation.")
-        MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> error("Measurement type not set.")
-      }
-    }
-    Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
-  }
-}
-
 /** Creates a KingdomComputationDetails from the kingdom system API Computation. */
 fun SystemComputation.toKingdomComputationDetails(): KingdomComputationDetails {
+  val publicApiVersion = Version.fromString(publicApiVersion)
+
   val source = this
   return kingdomComputationDetails {
-    publicApiVersion = source.publicApiVersion
+    this.publicApiVersion = source.publicApiVersion
     measurementSpec = source.measurementSpec
     participantCount = source.computationParticipantsCount
-    when (Version.fromString(source.publicApiVersion)) {
-      Version.V2_ALPHA -> {
-        val measurementSpec = MeasurementSpec.parseFrom(source.measurementSpec)
-        measurementPublicKey =
-          measurementSpec.measurementPublicKey.toDuchyEncryptionPublicKey(
-            Version.fromString(source.publicApiVersion)
-          )
+    measurementPublicKey =
+      when (publicApiVersion) {
+        Version.V2_ALPHA -> {
+          val measurementSpec = MeasurementSpec.parseFrom(source.measurementSpec)
+          measurementSpec.measurementPublicKey.toDuchyEncryptionPublicKey(publicApiVersion)
+        }
       }
-      Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
-    }
   }
 }
 
@@ -112,13 +83,12 @@ val SystemComputation.key: ComputationKey
   }
 
 /**
- * Parses a serialized Public API EncryptionPublicKey and converts to duchy internal
- * EncryptionPublicKey.
+ * Converts this serialized EncryptionPublicKey from the public API to a Duchy internal
+ * [EncryptionPublicKey].
  */
-fun ByteString.toDuchyEncryptionPublicKey(publicApiVersion: Version): EncryptionPublicKey {
+fun ProtoAny.toDuchyEncryptionPublicKey(publicApiVersion: Version): EncryptionPublicKey {
   return when (publicApiVersion) {
-    Version.V2_ALPHA -> V2AlphaEncryptionPublicKey.parseFrom(this).toDuchyEncryptionPublicKey()
-    Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
+    Version.V2_ALPHA -> unpack<V2AlphaEncryptionPublicKey>().toDuchyEncryptionPublicKey()
   }
 }
 
@@ -128,7 +98,6 @@ fun ByteString.toDuchyEncryptionPublicKey(publicApiVersion: Version): Encryption
 fun ByteString.toDuchyElGamalPublicKey(publicApiVersion: Version): ElGamalPublicKey {
   return when (publicApiVersion) {
     Version.V2_ALPHA -> V2AlphaElGamalPublicKey.parseFrom(this).toDuchyElGamalPublicKey()
-    Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
   }
 }
 
@@ -296,13 +265,5 @@ fun ElGamalPublicKey.toAnySketchElGamalPublicKey(): AnySketchElGamalPublicKey {
   return anySketchElGamalPublicKey {
     generator = source.generator
     element = source.element
-  }
-}
-
-fun ElGamalKeyPair.toAnySketchElGamalKeyPair(): AnySketchElGamalKeyPair {
-  val source = this
-  return anySketchElGamalKeyPair {
-    publicKey = source.publicKey.toAnySketchElGamalPublicKey()
-    secretKey = source.secretKey
   }
 }

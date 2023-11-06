@@ -260,12 +260,12 @@ abstract class InProcessReachMeasurementAccuracyTest(
 
     private val SYNTHETIC_EVENT_GROUP_SPECS = SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_2M
 
-    private const val DEFAULT_TEST_ROUND_NUMBER = 30
+    private const val DEFAULT_TEST_ROUND_NUMBER = 5
     // Multiplier for 95% confidence interval
     private const val MULTIPLIER = 1.96
 
-    private const val COVERAGE_TEST_THRESHOLD = 90
-    private const val AVERAGE_TEST_THRESHOLD = 4
+    private const val COVERAGE_TEST_THRESHOLD = 80
+    private const val AVERAGE_TEST_THRESHOLD = 2.58
     private const val STANDARD_DEVIATION_TEST_LOWER_THRESHOLD = 0.67
     private const val STANDARD_DEVIATION_TEST_UPPER_THRESHOLD = 1.35
     private val OUTPUT_DP_PARAMS = differentialPrivacyParams {

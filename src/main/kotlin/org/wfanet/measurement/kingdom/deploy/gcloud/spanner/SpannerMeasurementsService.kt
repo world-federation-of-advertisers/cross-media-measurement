@@ -134,6 +134,7 @@ class SpannerMeasurementsService(
   }
 
   override suspend fun setMeasurementResult(request: SetMeasurementResultRequest): Measurement {
+    grpcRequire(request.publicApiVersion.isNotEmpty()) { "public_api_version not specified" }
     try {
       return SetMeasurementResult(request).execute(client, idGenerator)
     } catch (e: MeasurementNotFoundException) {
