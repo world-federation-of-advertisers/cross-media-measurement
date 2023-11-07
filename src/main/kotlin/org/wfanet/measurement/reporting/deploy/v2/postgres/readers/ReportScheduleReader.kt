@@ -83,11 +83,11 @@ class ReportScheduleReader(private val readContext: ReadContext) {
     createReportScheduleRequestId: String,
   ): Result? {
     val sql =
-      baseSql +
-        """
+      """
+        $baseSql
         WHERE ReportSchedules.MeasurementConsumerId = $1
-         AND CreateReportScheduleRequestId = $2
-        """
+          AND CreateReportScheduleRequestId = $2
+      """.trimIndent()
 
     val statement =
       boundStatement(sql) {
@@ -103,17 +103,14 @@ class ReportScheduleReader(private val readContext: ReadContext) {
     externalReportScheduleId: String,
   ): Result? {
     val sql =
-      StringBuilder(
-        baseSql +
-          """
-           WHERE CmmsMeasurementConsumerId = $1
+      """
+        $baseSql
+        WHERE CmmsMeasurementConsumerId = $1
           AND ExternalReportScheduleId = $2
-          """
-            .trimIndent()
-      )
+      """.trimIndent()
 
     val statement =
-      boundStatement(sql.toString()) {
+      boundStatement(sql) {
         bind("$1", cmmsMeasurementConsumerId)
         bind("$2", externalReportScheduleId)
       }
@@ -123,19 +120,16 @@ class ReportScheduleReader(private val readContext: ReadContext) {
 
   suspend fun readReportSchedules(request: ListReportSchedulesRequest): List<Result> {
     val sql =
-      StringBuilder(
-        baseSql +
-          """
-           WHERE CmmsMeasurementConsumerId = $1
+      """
+        $baseSql
+        WHERE CmmsMeasurementConsumerId = $1
           AND ExternalReportScheduleId > $2
-          ORDER BY CmmsMeasurementConsumerId ASC, ExternalReportScheduleId ASC
-          LIMIT $3
-          """
-            .trimIndent()
-      )
+        ORDER BY CmmsMeasurementConsumerId ASC, ExternalReportScheduleId ASC
+        LIMIT $3
+      """.trimIndent()
 
     val statement =
-      boundStatement(sql.toString()) {
+      boundStatement(sql) {
         bind("$1", request.filter.cmmsMeasurementConsumerId)
         bind("$2", request.filter.externalReportScheduleIdAfter)
 

@@ -1022,7 +1022,7 @@ class MetricsService(
     val principal: ReportingPrincipal = principalFromCurrentContext
     when (principal) {
       is MeasurementConsumerPrincipal -> {
-        if (metricKey.cmmsMeasurementConsumerId != principal.resourceKey.measurementConsumerId) {
+        if (metricKey.parentKey != principal.resourceKey) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot get a Metric for another MeasurementConsumer."
           }

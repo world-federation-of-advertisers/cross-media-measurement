@@ -69,12 +69,14 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     val report = request.report
 
     // Request IDs take precedence
-    val existingReportResult: ReportReader.Result? =
-      ReportReader(transactionContext)
-        .readReportByRequestId(measurementConsumerId, createReportRequestId)
+    if (createReportRequestId.isNotBlank()) {
+      val existingReportResult: ReportReader.Result? =
+        ReportReader(transactionContext)
+          .readReportByRequestId(measurementConsumerId, createReportRequestId)
 
-    if (existingReportResult != null) {
-      return existingReportResult.report
+      if (existingReportResult != null) {
+        return existingReportResult.report
+      }
     }
 
     // If we can't find a report given the request ID but found a report given the external ID,

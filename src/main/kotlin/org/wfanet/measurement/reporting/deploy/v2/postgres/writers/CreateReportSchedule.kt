@@ -59,12 +59,14 @@ class CreateReportSchedule(private val request: CreateReportScheduleRequest) :
     val reportSchedule = request.reportSchedule
 
     // Request IDs take precedence
-    val existingReportScheduleResult: ReportScheduleReader.Result? =
-      ReportScheduleReader(transactionContext)
-        .readReportScheduleByRequestId(measurementConsumerId, createReportScheduleRequestId)
+    if (createReportScheduleRequestId.isNotBlank()) {
+      val existingReportScheduleResult: ReportScheduleReader.Result? =
+        ReportScheduleReader(transactionContext)
+          .readReportScheduleByRequestId(measurementConsumerId, createReportScheduleRequestId)
 
-    if (existingReportScheduleResult != null) {
-      return existingReportScheduleResult.reportSchedule
+      if (existingReportScheduleResult != null) {
+        return existingReportScheduleResult.reportSchedule
+      }
     }
 
     // If we can't find a report schedule given the request ID but find a report schedule given the

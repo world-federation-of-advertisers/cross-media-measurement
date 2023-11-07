@@ -113,26 +113,17 @@ class ReportReader(private val readContext: ReadContext) {
     createReportRequestId: String,
   ): Result? {
     val sql =
-      StringBuilder(baseSqlSelect)
-        .append("\n")
-        .append(
-          """
-          FROM MeasurementConsumers
+      """
+        $baseSqlSelect
+        FROM MeasurementConsumers
             JOIN Reports USING(MeasurementConsumerId)
-          """
-        )
-        .append("\n")
-        .append(baseSqlJoins)
-        .append("\n")
-        .append(
-          """
-          WHERE Reports.MeasurementConsumerId = $1
+        $baseSqlJoins
+        WHERE Reports.MeasurementConsumerId = $1
             AND CreateReportRequestId = $2
-          """
-        )
+      """.trimIndent()
 
     val statement =
-      boundStatement(sql.toString()) {
+      boundStatement(sql) {
         bind("$1", measurementConsumerId)
         bind("$2", createReportRequestId)
       }
@@ -145,26 +136,17 @@ class ReportReader(private val readContext: ReadContext) {
     externalReportId: String,
   ): Result? {
     val sql =
-      StringBuilder(baseSqlSelect)
-        .append("\n")
-        .append(
-          """
-          FROM MeasurementConsumers
+      """
+        $baseSqlSelect
+        FROM MeasurementConsumers
             JOIN Reports USING(MeasurementConsumerId)
-          """
-        )
-        .append("\n")
-        .append(baseSqlJoins)
-        .append("\n")
-        .append(
-          """
-          WHERE CmmsMeasurementConsumerId = $1
+        $baseSqlJoins
+        WHERE CmmsMeasurementConsumerId = $1
             AND ExternalReportId = $2
-          """
-        )
+      """.trimIndent()
 
     val statement =
-      boundStatement(sql.toString()) {
+      boundStatement(sql) {
         bind("$1", cmmsMeasurementConsumerId)
         bind("$2", externalReportId)
       }
@@ -208,16 +190,12 @@ class ReportReader(private val readContext: ReadContext) {
 
     val sql =
       StringBuilder(baseSqlSelect)
-        .append("\n")
+        .appendLine()
         .append(fromClause)
-        .append("\n")
+        .appendLine()
         .append(baseSqlJoins)
-        .append("\n")
-        .append(
-          """
-          ORDER BY MeasurementConsumerId ASC, CreateTime DESC, ExternalReportId ASC
-          """
-        )
+        .appendLine()
+        .append("ORDER BY MeasurementConsumerId ASC, CreateTime DESC, ExternalReportId ASC")
 
     val statement =
       boundStatement(sql.toString()) {

@@ -190,7 +190,7 @@ class ReportsService(
     val principal: ReportingPrincipal = principalFromCurrentContext
     when (principal) {
       is MeasurementConsumerPrincipal -> {
-        if (reportKey.cmmsMeasurementConsumerId != principal.resourceKey.measurementConsumerId) {
+        if (reportKey.parentKey != principal.resourceKey) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot get Report belonging to other MeasurementConsumers."
           }

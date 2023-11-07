@@ -137,20 +137,16 @@ class ReportingSetReader(private val readContext: ReadContext) {
     request: BatchGetReportingSetsRequest,
   ): Flow<Result> {
     val sql =
-      StringBuilder(baseSqlSelect)
-        .append(
-          """
+      StringBuilder(
+        """
+          $baseSqlSelect
           FROM MeasurementConsumers
             JOIN ReportingSets USING(MeasurementConsumerId)
-          """
-        )
-        .append(baseSqlJoins)
-        .append(
-          """
+          $baseSqlJoins
           WHERE CmmsMeasurementConsumerId = $1
             AND ReportingSets.ExternalReportingSetId IN
-          """
-        )
+        """.trimIndent()
+      )
 
     var i = 2
     val bindingMap = mutableMapOf<String, String>()
@@ -196,10 +192,9 @@ class ReportingSetReader(private val readContext: ReadContext) {
     request: StreamReportingSetsRequest,
   ): Flow<Result> {
     val sql =
-      StringBuilder(baseSqlSelect)
-        .append(
-          """
-          FROM (
+      """
+        $baseSqlSelect
+        FROM (
             SELECT *
             FROM MeasurementConsumers
               JOIN ReportingSets USING (MeasurementConsumerId)
@@ -208,15 +203,12 @@ class ReportingSetReader(private val readContext: ReadContext) {
             ORDER BY ExternalReportingSetId ASC
             LIMIT $3
           ) AS ReportingSets
-          """
-        )
-        .append(baseSqlJoins)
-        .append("""
+        $baseSqlJoins
         ORDER BY RootExternalReportingSetId ASC
-        """)
+      """.trimIndent()
 
     val statement =
-      boundStatement(sql.toString()) {
+      boundStatement(sql) {
         bind("$1", request.filter.cmmsMeasurementConsumerId)
         bind("$2", request.filter.externalReportingSetIdAfter)
         if (request.limit > 0) {

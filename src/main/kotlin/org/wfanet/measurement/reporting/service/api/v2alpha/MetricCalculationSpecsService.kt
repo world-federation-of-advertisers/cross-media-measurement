@@ -123,10 +123,7 @@ class MetricCalculationSpecsService(
 
     when (val principal: ReportingPrincipal = principalFromCurrentContext) {
       is MeasurementConsumerPrincipal -> {
-        if (
-          metricCalculationSpecKey.cmmsMeasurementConsumerId !=
-            principal.resourceKey.measurementConsumerId
-        ) {
+        if (metricCalculationSpecKey.parentKey != principal.resourceKey) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot get MetricCalculationSpec belonging to other MeasurementConsumers."
           }

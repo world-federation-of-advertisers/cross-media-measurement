@@ -104,24 +104,24 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
     }
 
   @Test
-  fun `createReportSchedule throws INVALID_ARGUMENT when missing external ID`() = runBlocking {
-    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-    val metricCalculationSpec = createMetricCalculationSpecForRequest()
+  fun `createMetricCalculationSpec throws INVALID_ARGUMENT when missing external ID`() =
+    runBlocking {
+      createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+      val metricCalculationSpec = createMetricCalculationSpecForRequest()
 
-    val request = createMetricCalculationSpecRequest {
-      this.metricCalculationSpec = metricCalculationSpec
-      externalMetricCalculationSpecId = "external-metric-calculation-spec-id"
+      val request = createMetricCalculationSpecRequest {
+        this.metricCalculationSpec = metricCalculationSpec
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.createMetricCalculationSpec(request) }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.message).contains("external_metric_calculation_spec_id")
     }
 
-    val exception =
-      assertFailsWith<StatusRuntimeException> { service.createMetricCalculationSpec(request) }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
-    assertThat(exception.message).contains("external_metric_calculation_spec_id")
-  }
-
   @Test
-  fun `createReportSchedule throws INVALID_ARGUMENT when no reporting metric entries`() =
+  fun `createMetricCalculationSpec throws INVALID_ARGUMENT when no metric specs`() =
     runBlocking {
       createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
       val metricCalculationSpec =
@@ -293,7 +293,7 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
   }
 
   @Test
-  fun `listReportSchedules lists 1 schedule when after id is specified`() = runBlocking {
+  fun `listMetricCalculationSpecs lists 1 spec when after id is specified`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val metricCalculationSpec = createMetricCalculationSpecForRequest()
 

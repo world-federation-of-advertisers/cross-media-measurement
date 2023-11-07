@@ -129,6 +129,7 @@ class MetricReader(private val readContext: ReadContext) {
       PrimitiveReportingSets.ExternalReportingSetId AS PrimitiveExternalReportingSetId,
       PrimitiveReportingSetBasisFilters.Filter AS PrimitiveReportingSetBasisFilter
     """
+      .trimIndent()
 
   private val baseSqlJoins: String =
     """
@@ -155,20 +156,16 @@ class MetricReader(private val readContext: ReadContext) {
     }
 
     val sql =
-      StringBuilder(baseSqlSelect)
-        .append(
-          """
+      StringBuilder(
+        """
+          $baseSqlSelect
           FROM MeasurementConsumers
             JOIN Metrics USING(MeasurementConsumerId)
-          """
-        )
-        .append(baseSqlJoins)
-        .append(
-          """
+          $baseSqlJoins
           WHERE Metrics.MeasurementConsumerId = $1
             AND CreateMetricRequestId IN
-          """
-        )
+        """.trimIndent()
+      )
 
     var i = 2
     val bindingMap = mutableMapOf<String, String>()
@@ -212,20 +209,16 @@ class MetricReader(private val readContext: ReadContext) {
     request: BatchGetMetricsRequest,
   ): Flow<Result> {
     val sql =
-      StringBuilder(baseSqlSelect)
-        .append(
-          """
+      StringBuilder(
+        """
+          $baseSqlSelect
           FROM MeasurementConsumers
             JOIN Metrics USING(MeasurementConsumerId)
-          """
-        )
-        .append(baseSqlJoins)
-        .append(
-          """
+          $baseSqlJoins
           WHERE CmmsMeasurementConsumerId = $1
             AND ExternalMetricId IN
-          """
-        )
+        """.trimIndent()
+      )
 
     var i = 2
     val bindingMap = mutableMapOf<String, String>()
@@ -268,10 +261,9 @@ class MetricReader(private val readContext: ReadContext) {
   fun readMetrics(
     request: StreamMetricsRequest,
   ): Flow<Result> {
-    val statement =
-      boundStatement(
-        baseSqlSelect +
-          """
+    val sql =
+      """
+        $baseSqlSelect
         FROM (
           SELECT *
           FROM MeasurementConsumers
@@ -281,12 +273,12 @@ class MetricReader(private val readContext: ReadContext) {
           ORDER BY ExternalMetricId ASC
           LIMIT $3
         ) AS Metrics
-      """ +
-          baseSqlJoins +
-          """
-          ORDER BY ExternalMetricId ASC
-          """
-      ) {
+        $baseSqlJoins
+        ORDER BY ExternalMetricId ASC
+      """.trimIndent()
+
+    val statement =
+      boundStatement(sql) {
         bind("$1", request.filter.cmmsMeasurementConsumerId)
         bind("$2", request.filter.externalMetricIdAfter)
         if (request.limit > 0) {
