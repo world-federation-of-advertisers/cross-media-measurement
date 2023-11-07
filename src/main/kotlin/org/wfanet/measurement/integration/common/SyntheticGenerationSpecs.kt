@@ -51,6 +51,28 @@ object SyntheticGenerationSpecs {
     )
   }
 
+  /**
+   * EventGroup specs for synthetic generation based on [POPULATION_SPEC].
+   *
+   * The total reach is ~2,000,000.
+   */
+  val SYNTHETIC_DATA_SPECS_2M: List<SyntheticEventGroupSpec> by lazy {
+    listOf(
+      loadTestData(
+        "synthetic_event_group_spec_1.textproto",
+        SyntheticEventGroupSpec.getDefaultInstance()
+      ),
+      loadTestData(
+        "synthetic_event_group_spec_2.textproto",
+        SyntheticEventGroupSpec.getDefaultInstance()
+      ),
+      loadTestData(
+        "synthetic_event_group_spec_3.textproto",
+        SyntheticEventGroupSpec.getDefaultInstance()
+      )
+    )
+  }
+
   private fun <T : Message> loadTestData(fileName: String, defaultInstance: T): T {
     return parseTextProto(TEST_DATA_RUNTIME_PATH.resolve(fileName).toFile(), defaultInstance)
   }
