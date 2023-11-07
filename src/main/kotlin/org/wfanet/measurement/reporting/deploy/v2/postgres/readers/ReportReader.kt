@@ -191,12 +191,10 @@ class ReportReader(private val readContext: ReadContext) {
         )
 
     val sql =
-      StringBuilder(baseSqlSelect)
-        .appendLine()
-        .append(fromClause)
-        .appendLine()
-        .append(baseSqlJoins)
-        .appendLine()
+      StringBuilder("")
+        .appendLine(baseSqlSelect)
+        .appendLine(fromClause)
+        .appendLine(baseSqlJoins)
         .append("ORDER BY MeasurementConsumerId ASC, CreateTime DESC, ExternalReportId ASC")
 
     val statement =
