@@ -141,13 +141,13 @@ class MeasurementConsumerSimulator(
   /** Cache of resource name to [Certificate]. */
   private val certificateCache = mutableMapOf<String, Certificate>()
 
-  private data class RequisitionInfo(
+  data class RequisitionInfo(
     val dataProviderEntry: DataProviderEntry,
     val requisitionSpec: RequisitionSpec,
     val eventGroups: List<EventGroup>,
   )
 
-  private data class MeasurementInfo(
+  data class MeasurementInfo(
     val measurement: Measurement,
     val measurementSpec: MeasurementSpec,
     val requisitions: List<RequisitionInfo>,
@@ -181,8 +181,14 @@ class MeasurementConsumerSimulator(
       }
     }
 
+  data class ExecutionResult(
+    val actualResult: Result,
+    val expectedResult: Result,
+    val measurementInfo: MeasurementInfo,
+  )
+
   /** A sequence of operations done in the simulator involving a reach and frequency measurement. */
-  suspend fun executeReachAndFrequency(runId: String) {
+  suspend fun testReachAndFrequency(runId: String) {
     logger.info { "Creating reach and frequency Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -234,7 +240,7 @@ class MeasurementConsumerSimulator(
    * A sequence of operations done in the simulator involving a reach and frequency measurement with
    * invalid params.
    */
-  suspend fun executeInvalidReachAndFrequency(runId: String) {
+  suspend fun testInvalidReachAndFrequency(runId: String) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
 
@@ -262,7 +268,7 @@ class MeasurementConsumerSimulator(
    * A sequence of operations done in the simulator involving a direct reach and frequency
    * measurement.
    */
-  suspend fun executeDirectReachAndFrequency(runId: String) {
+  suspend fun testDirectReachAndFrequency(runId: String) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val measurementInfo =
@@ -315,7 +321,7 @@ class MeasurementConsumerSimulator(
   }
 
   /** A sequence of operations done in the simulator involving a direct reach measurement. */
-  suspend fun executeDirectReach(runId: String) {
+  suspend fun testDirectReach(runId: String) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val measurementInfo =
@@ -349,8 +355,7 @@ class MeasurementConsumerSimulator(
     logger.info("Direct reach result is equal to the expected result")
   }
 
-  /** A sequence of operations done in the simulator involving a reach-only measurement. */
-  suspend fun executeReachOnly(runId: String) {
+  suspend fun executeReachOnly(runId: String): ExecutionResult {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val measurementInfo =
@@ -368,29 +373,43 @@ class MeasurementConsumerSimulator(
       reachOnlyResult = getReachResult(measurementName)
     }
     checkNotNull(reachOnlyResult) { "Timed out waiting for response to reach-only request" }
-    logger.info("Actual result: $reachOnlyResult")
 
     val expectedResult: Result = getExpectedResult(measurementInfo)
-    logger.info("Expected result: $expectedResult")
+    return ExecutionResult(reachOnlyResult, expectedResult, measurementInfo)
+  }
 
-    val protocol = measurementInfo.measurement.protocolConfig.protocolsList.first()
+  /** A sequence of operations done in the simulator involving a reach-only measurement. */
+  suspend fun testReachOnly(runId: String) {
+    val result = executeReachOnly(runId)
+
+    val protocol = result.measurementInfo.measurement.protocolConfig.protocolsList.first()
 
     val reachVariance: Double =
       computeReachVariance(
-        reachOnlyResult,
-        measurementInfo.measurementSpec.vidSamplingInterval,
-        measurementInfo.measurementSpec.reach.privacyParams,
+        result.actualResult,
+        result.measurementInfo.measurementSpec.vidSamplingInterval,
+        result.measurementInfo.measurementSpec.reach.privacyParams,
         protocol
       )
     val reachTolerance = computeErrorMargin(reachVariance)
 
-    assertThat(reachOnlyResult).reachValue().isWithin(reachTolerance).of(expectedResult.reach.value)
+    assertThat(result.actualResult)
+      .reachValue()
+      .isWithin(reachTolerance)
+      .of(result.expectedResult.reach.value)
 
+    logger.info("Actual result: ${result.actualResult}")
+    logger.info("Expected result: ${result.expectedResult}")
+
+    assertThat(result.actualResult)
+      .reachValue()
+      .isWithin(reachTolerance)
+      .of(result.expectedResult.reach.value)
     logger.info("Reach-only result is equal to the expected result. Correctness Test passes.")
   }
 
   /** A sequence of operations done in the simulator involving an impression measurement. */
-  suspend fun executeImpression(runId: String) {
+  suspend fun testImpression(runId: String) {
     logger.info { "Creating impression Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -416,7 +435,7 @@ class MeasurementConsumerSimulator(
   }
 
   /** A sequence of operations done in the simulator involving a duration measurement. */
-  suspend fun executeDuration(runId: String) {
+  suspend fun testDuration(runId: String) {
     logger.info { "Creating duration Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)

@@ -23,8 +23,10 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.duchy.service.internal.testing.InMemoryContinuationTokensService
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
+import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsContinuationToken
 
 @RunWith(JUnit4::class)
 class ContinuationTokenManagerTest {
@@ -110,4 +112,11 @@ class ContinuationTokenManagerTest {
       assertThat(continuationTokenManager.getLatestContinuationToken()).isEqualTo("6")
       assertThat(inMemoryContinuationTokensService.latestContinuationToken).isEqualTo("6")
     }
+
+  @Test
+  fun `tmp`() = runBlocking {
+    val token = "CgsIgIDeqQYQmOiZBxED1UugjRsAZw"
+    val parsed = StreamActiveComputationsContinuationToken.parseFrom(token.base64UrlDecode())
+    print(parsed)
+  }
 }

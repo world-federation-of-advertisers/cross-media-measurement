@@ -38,17 +38,17 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
 
   @Test(timeout = 1 * 60 * 1000)
   fun `impression measurement completes with expected result`() = runBlocking {
-    testHarness.executeImpression("$runId-impression")
+    testHarness.testImpression("$runId-impression")
   }
 
   @Test(timeout = 1 * 60 * 1000)
   fun `duration measurement completes with expected result`() = runBlocking {
-    testHarness.executeDuration("$runId-duration")
+    testHarness.testDuration("$runId-duration")
   }
 
   @Test(timeout = 10 * 60 * 1000)
   fun `reach and frequency measurement completes with expected result`() = runBlocking {
-    testHarness.executeReachAndFrequency("$runId-reach-and-freq")
+    testHarness.testReachAndFrequency("$runId-reach-and-freq")
   }
 
   interface MeasurementSystem {
