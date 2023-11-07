@@ -145,7 +145,8 @@ class ReportingSetReader(private val readContext: ReadContext) {
           $baseSqlJoins
           WHERE CmmsMeasurementConsumerId = $1
             AND ReportingSets.ExternalReportingSetId IN
-        """.trimIndent()
+        """
+          .trimIndent()
       )
 
     var i = 2
@@ -205,7 +206,8 @@ class ReportingSetReader(private val readContext: ReadContext) {
           ) AS ReportingSets
         $baseSqlJoins
         ORDER BY RootExternalReportingSetId ASC
-      """.trimIndent()
+      """
+        .trimIndent()
 
     val statement =
       boundStatement(sql) {

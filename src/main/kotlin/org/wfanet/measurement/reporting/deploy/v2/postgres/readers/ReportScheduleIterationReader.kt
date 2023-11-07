@@ -83,7 +83,8 @@ class ReportScheduleIterationReader(private val readContext: ReadContext) {
         WHERE CmmsMeasurementConsumerId = $1
           AND ExternalReportScheduleId = $2
           AND ExternalReportScheduleIterationId = $3
-      """.trimIndent()
+      """
+        .trimIndent()
 
     val statement =
       boundStatement(sql) {
@@ -106,7 +107,8 @@ class ReportScheduleIterationReader(private val readContext: ReadContext) {
           AND ReportEventTime < $3
         ORDER BY ReportEventTime DESC
         LIMIT $4
-      """.trimIndent()
+      """
+        .trimIndent()
 
     val statement =
       boundStatement(sql) {

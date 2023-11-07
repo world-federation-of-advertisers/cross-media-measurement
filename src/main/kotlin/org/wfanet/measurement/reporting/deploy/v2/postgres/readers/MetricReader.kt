@@ -164,7 +164,8 @@ class MetricReader(private val readContext: ReadContext) {
           $baseSqlJoins
           WHERE Metrics.MeasurementConsumerId = $1
             AND CreateMetricRequestId IN
-        """.trimIndent()
+        """
+          .trimIndent()
       )
 
     var i = 2
@@ -217,7 +218,8 @@ class MetricReader(private val readContext: ReadContext) {
           $baseSqlJoins
           WHERE CmmsMeasurementConsumerId = $1
             AND ExternalMetricId IN
-        """.trimIndent()
+        """
+          .trimIndent()
       )
 
     var i = 2
@@ -275,7 +277,8 @@ class MetricReader(private val readContext: ReadContext) {
         ) AS Metrics
         $baseSqlJoins
         ORDER BY ExternalMetricId ASC
-      """.trimIndent()
+      """
+        .trimIndent()
 
     val statement =
       boundStatement(sql) {

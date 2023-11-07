@@ -21,7 +21,6 @@ import org.wfanet.measurement.common.ResourceNameParser
 import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
 
-
 /** [ResourceKey] of a ReportingSet. */
 data class ReportingSetKey(
   override val parentKey: MeasurementConsumerKey,

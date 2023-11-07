@@ -20,7 +20,6 @@ import org.wfanet.measurement.common.ResourceNameParser
 import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
 
-
 /** [ResourceKey] of a ReportScheduleIteration. */
 data class ReportScheduleIterationKey(
   override val parentKey: ReportScheduleKey,
@@ -30,7 +29,10 @@ data class ReportScheduleIterationKey(
     cmmsMeasurementConsumerId: String,
     reportScheduleId: String,
     reportScheduleIterationId: String
-  ) : this(ReportScheduleKey(cmmsMeasurementConsumerId, reportScheduleId), reportScheduleIterationId)
+  ) : this(
+    ReportScheduleKey(cmmsMeasurementConsumerId, reportScheduleId),
+    reportScheduleIterationId
+  )
 
   val cmmsMeasurementConsumerId: String
     get() = parentKey.cmmsMeasurementConsumerId

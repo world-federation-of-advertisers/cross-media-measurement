@@ -99,7 +99,8 @@ class MeasurementReader(private val readContext: ReadContext) {
           $baseSql
           WHERE Measurements.MeasurementConsumerId = $1
               AND CmmsCreateMeasurementRequestId::text IN
-        """.trimIndent()
+        """
+          .trimIndent()
       )
 
     var i = 2
@@ -136,7 +137,8 @@ class MeasurementReader(private val readContext: ReadContext) {
           $baseSql
           WHERE Measurements.MeasurementConsumerId = $1
             AND CmmsMeasurementId IN
-        """.trimIndent()
+        """
+          .trimIndent()
       )
 
     var i = 2

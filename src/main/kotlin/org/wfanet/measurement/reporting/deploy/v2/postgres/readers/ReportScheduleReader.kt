@@ -87,7 +87,8 @@ class ReportScheduleReader(private val readContext: ReadContext) {
         $baseSql
         WHERE ReportSchedules.MeasurementConsumerId = $1
           AND CreateReportScheduleRequestId = $2
-      """.trimIndent()
+      """
+        .trimIndent()
 
     val statement =
       boundStatement(sql) {
@@ -107,7 +108,8 @@ class ReportScheduleReader(private val readContext: ReadContext) {
         $baseSql
         WHERE CmmsMeasurementConsumerId = $1
           AND ExternalReportScheduleId = $2
-      """.trimIndent()
+      """
+        .trimIndent()
 
     val statement =
       boundStatement(sql) {
@@ -126,7 +128,8 @@ class ReportScheduleReader(private val readContext: ReadContext) {
           AND ExternalReportScheduleId > $2
         ORDER BY CmmsMeasurementConsumerId ASC, ExternalReportScheduleId ASC
         LIMIT $3
-      """.trimIndent()
+      """
+        .trimIndent()
 
     val statement =
       boundStatement(sql) {

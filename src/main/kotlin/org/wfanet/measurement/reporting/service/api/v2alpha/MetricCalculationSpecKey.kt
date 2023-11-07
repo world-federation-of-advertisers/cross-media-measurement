@@ -44,7 +44,8 @@ data class MetricCalculationSpecKey(
   }
 
   companion object FACTORY : ResourceKey.Factory<MetricCalculationSpecKey> {
-    const val PATTERN = "${MeasurementConsumerKey.PATTERN}/metricCalculationSpecs/{metric_calculation_spec}"
+    const val PATTERN =
+      "${MeasurementConsumerKey.PATTERN}/metricCalculationSpecs/{metric_calculation_spec}"
     private val parser = ResourceNameParser(PATTERN)
 
     override fun fromName(resourceName: String): MetricCalculationSpecKey? {

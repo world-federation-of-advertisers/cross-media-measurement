@@ -121,25 +121,24 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
     }
 
   @Test
-  fun `createMetricCalculationSpec throws INVALID_ARGUMENT when no metric specs`() =
-    runBlocking {
-      createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-      val metricCalculationSpec =
-        createMetricCalculationSpecForRequest().copy {
-          details = MetricCalculationSpecKt.details { metricSpecs.clear() }
-        }
-
-      val request = createMetricCalculationSpecRequest {
-        this.metricCalculationSpec = metricCalculationSpec
-        externalMetricCalculationSpecId = "external-metric-calculation-spec-id"
+  fun `createMetricCalculationSpec throws INVALID_ARGUMENT when no metric specs`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val metricCalculationSpec =
+      createMetricCalculationSpecForRequest().copy {
+        details = MetricCalculationSpecKt.details { metricSpecs.clear() }
       }
 
-      val exception =
-        assertFailsWith<StatusRuntimeException> { service.createMetricCalculationSpec(request) }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.message).contains("metric_specs")
+    val request = createMetricCalculationSpecRequest {
+      this.metricCalculationSpec = metricCalculationSpec
+      externalMetricCalculationSpecId = "external-metric-calculation-spec-id"
     }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.createMetricCalculationSpec(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("metric_specs")
+  }
 
   @Test
   fun `createMetricCalculationSpec throws FAILED_PRECONDITION when MC not found`() = runBlocking {

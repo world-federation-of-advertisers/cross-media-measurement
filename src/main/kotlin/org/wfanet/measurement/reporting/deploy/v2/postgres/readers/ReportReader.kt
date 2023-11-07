@@ -120,7 +120,8 @@ class ReportReader(private val readContext: ReadContext) {
         $baseSqlJoins
         WHERE Reports.MeasurementConsumerId = $1
             AND CreateReportRequestId = $2
-      """.trimIndent()
+      """
+        .trimIndent()
 
     val statement =
       boundStatement(sql) {
@@ -143,7 +144,8 @@ class ReportReader(private val readContext: ReadContext) {
         $baseSqlJoins
         WHERE CmmsMeasurementConsumerId = $1
             AND ExternalReportId = $2
-      """.trimIndent()
+      """
+        .trimIndent()
 
     val statement =
       boundStatement(sql) {
