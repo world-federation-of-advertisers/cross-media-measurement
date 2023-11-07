@@ -43,7 +43,6 @@ import org.wfanet.measurement.api.v2alpha.ListEventGroupsPageTokenKt.previousPag
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsResponse
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
@@ -55,7 +54,6 @@ import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
-import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
@@ -88,8 +86,6 @@ import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest as internalUpdateEventGroupRequest
 
 private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
-
-private const val DEFAULT_LIMIT = 50
 
 private val DATA_PROVIDER_NAME = makeDataProvider(123L)
 private val DATA_PROVIDER_NAME_2 = makeDataProvider(124L)
@@ -125,8 +121,6 @@ private val MEASUREMENT_CONSUMER_EXTERNAL_ID =
 private val MEASUREMENT_CONSUMER_PUBLIC_KEY = encryptionPublicKey {
   data = ByteString.copyFromUtf8("foodata")
 }
-private val MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("foosig")
-private const val MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID = "2.9999"
 private val VID_MODEL_LINES = listOf("model1", "model2")
 private val EVENT_TEMPLATE_TYPES = listOf("type1", "type2")
 private val EVENT_TEMPLATES =
@@ -137,13 +131,8 @@ private val INTERNAL_EVENT_TEMPLATES =
 private val EVENT_GROUP: EventGroup = eventGroup {
   name = EVENT_GROUP_NAME
   measurementConsumer = MEASUREMENT_CONSUMER_NAME
-  measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
   eventGroupReferenceId = "aaa"
-  measurementConsumerPublicKey = signedMessage {
-    message = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
-    signature = MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE
-    signatureAlgorithmOid = MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
-  }
+  measurementConsumerPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
   vidModelLines.addAll(VID_MODEL_LINES)
   eventTemplates.addAll(EVENT_TEMPLATES)
   encryptedMetadata = ENCRYPTED_METADATA
@@ -161,19 +150,11 @@ private val INTERNAL_EVENT_GROUP: InternalEventGroup = internalEventGroup {
   externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
   externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
   externalMeasurementConsumerId = MEASUREMENT_CONSUMER_EXTERNAL_ID
-  externalMeasurementConsumerCertificateId =
-    apiIdToExternalId(
-      MeasurementConsumerCertificateKey.fromName(MEASUREMENT_CONSUMER_CERTIFICATE_NAME)!!
-        .certificateId
-    )
   providedEventGroupId = EVENT_GROUP.eventGroupReferenceId
   createTime = CREATE_TIME
   details = details {
     apiVersion = API_VERSION.string
-    measurementConsumerPublicKey = EVENT_GROUP.measurementConsumerPublicKey.message.value
-    measurementConsumerPublicKeySignature = MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE
-    measurementConsumerPublicKeySignatureAlgorithmOid =
-      MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
+    measurementConsumerPublicKey = EVENT_GROUP.measurementConsumerPublicKey.value
     vidModelLines.addAll(VID_MODEL_LINES)
     eventTemplates.addAll(INTERNAL_EVENT_TEMPLATES)
     encryptedMetadata = ENCRYPTED_METADATA.ciphertext
@@ -193,21 +174,20 @@ private val INTERNAL_DELETED_EVENT_GROUP: InternalEventGroup = internalEventGrou
 @RunWith(JUnit4::class)
 class EventGroupsServiceTest {
 
-  private val internalEventGroupsMock: EventGroupsCoroutineImplBase =
-    mockService() {
-      onBlocking { getEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
-      onBlocking { createEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
-      onBlocking { updateEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
-      onBlocking { deleteEventGroup(any()) }.thenReturn(INTERNAL_DELETED_EVENT_GROUP)
-      onBlocking { streamEventGroups(any()) }
-        .thenReturn(
-          flowOf(
-            INTERNAL_EVENT_GROUP,
-            INTERNAL_EVENT_GROUP.copy { externalEventGroupId = EVENT_GROUP_EXTERNAL_ID_2 },
-            INTERNAL_EVENT_GROUP.copy { externalEventGroupId = EVENT_GROUP_EXTERNAL_ID_3 }
-          )
+  private val internalEventGroupsMock: EventGroupsCoroutineImplBase = mockService {
+    onBlocking { getEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
+    onBlocking { createEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
+    onBlocking { updateEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
+    onBlocking { deleteEventGroup(any()) }.thenReturn(INTERNAL_DELETED_EVENT_GROUP)
+    onBlocking { streamEventGroups(any()) }
+      .thenReturn(
+        flowOf(
+          INTERNAL_EVENT_GROUP,
+          INTERNAL_EVENT_GROUP.copy { externalEventGroupId = EVENT_GROUP_EXTERNAL_ID_2 },
+          INTERNAL_EVENT_GROUP.copy { externalEventGroupId = EVENT_GROUP_EXTERNAL_ID_3 }
         )
-    }
+      )
+  }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalEventGroupsMock) }
 
@@ -443,24 +423,6 @@ class EventGroupsServiceTest {
   }
 
   @Test
-  fun `createEventGroup throws INVALID_ARGUMENT if public key is set without certificate`() {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-          runBlocking {
-            service.createEventGroup(
-              createEventGroupRequest {
-                parent = DATA_PROVIDER_NAME
-                eventGroup = EVENT_GROUP.copy { clearMeasurementConsumerCertificate() }
-              }
-            )
-          }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  }
-
-  @Test
   fun `updateEventGroup returns event group`() {
     val request = updateEventGroupRequest { this.eventGroup = EVENT_GROUP }
 
@@ -549,27 +511,6 @@ class EventGroupsServiceTest {
                   EVENT_GROUP.copy {
                     name = EVENT_GROUP_NAME
                     clearMeasurementConsumerPublicKey()
-                  }
-              }
-            )
-          }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  }
-
-  @Test
-  fun `updateEventGroup throws INVALID_ARGUMENT if public key is set without certificate`() {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-          runBlocking {
-            service.updateEventGroup(
-              updateEventGroupRequest {
-                eventGroup =
-                  EVENT_GROUP.copy {
-                    name = EVENT_GROUP_NAME
-                    clearMeasurementConsumerCertificate()
                   }
               }
             )
@@ -683,10 +624,9 @@ class EventGroupsServiceTest {
           eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_3 }
         }
       )
-    val internalRequest =
-      captureFirst<StreamEventGroupsRequest> {
-        verify(internalEventGroupsMock).streamEventGroups(capture())
-      }
+    val internalRequest: StreamEventGroupsRequest = captureFirst {
+      verify(internalEventGroupsMock).streamEventGroups(capture())
+    }
     assertThat(internalRequest)
       .isEqualTo(
         streamEventGroupsRequest {
@@ -717,10 +657,9 @@ class EventGroupsServiceTest {
           eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_3 }
         }
       )
-    val internalRequest =
-      captureFirst<StreamEventGroupsRequest> {
-        verify(internalEventGroupsMock).streamEventGroups(capture())
-      }
+    val internalRequest: StreamEventGroupsRequest = captureFirst {
+      verify(internalEventGroupsMock).streamEventGroups(capture())
+    }
     assertThat(internalRequest)
       .isEqualTo(
         streamEventGroupsRequest {
@@ -754,10 +693,9 @@ class EventGroupsServiceTest {
           eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_2 }
         }
       )
-    val internalRequest =
-      captureFirst<StreamEventGroupsRequest> {
-        verify(internalEventGroupsMock).streamEventGroups(capture())
-      }
+    val internalRequest: StreamEventGroupsRequest = captureFirst {
+      verify(internalEventGroupsMock).streamEventGroups(capture())
+    }
     assertThat(internalRequest)
       .isEqualTo(
         streamEventGroupsRequest {
@@ -819,10 +757,9 @@ class EventGroupsServiceTest {
       nextPageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
     }
 
-    val streamEventGroupsRequest =
-      captureFirst<StreamEventGroupsRequest> {
-        verify(internalEventGroupsMock).streamEventGroups(capture())
-      }
+    val streamEventGroupsRequest: StreamEventGroupsRequest = captureFirst {
+      verify(internalEventGroupsMock).streamEventGroups(capture())
+    }
 
     assertThat(streamEventGroupsRequest)
       .ignoringRepeatedFieldOrder()
@@ -852,10 +789,9 @@ class EventGroupsServiceTest {
       runBlocking { service.listEventGroups(request) }
     }
 
-    val streamEventGroupsRequest =
-      captureFirst<StreamEventGroupsRequest> {
-        verify(internalEventGroupsMock).streamEventGroups(capture())
-      }
+    val streamEventGroupsRequest: StreamEventGroupsRequest = captureFirst {
+      verify(internalEventGroupsMock).streamEventGroups(capture())
+    }
     assertThat(streamEventGroupsRequest)
       .comparingExpectedFieldsOnly()
       .isEqualTo(streamEventGroupsRequest { limit = 51 })

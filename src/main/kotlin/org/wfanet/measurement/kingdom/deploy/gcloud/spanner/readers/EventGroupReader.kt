@@ -118,10 +118,6 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
     externalEventGroupId = struct.getLong("ExternalEventGroupId")
     externalDataProviderId = struct.getLong("ExternalDataProviderId")
     externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-    if (!struct.isNull("ExternalMeasurementConsumerCertificateId")) {
-      externalMeasurementConsumerCertificateId =
-        struct.getLong("ExternalMeasurementConsumerCertificateId")
-    }
     if (!struct.isNull("ProvidedEventGroupId")) {
       providedEventGroupId = struct.getString("ProvidedEventGroupId")
     }
@@ -147,13 +143,10 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
         EventGroups.EventGroupDetails,
         MeasurementConsumers.ExternalMeasurementConsumerId,
         DataProviders.ExternalDataProviderId,
-        MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId,
         EventGroups.State
       FROM EventGroups
       JOIN MeasurementConsumers USING (MeasurementConsumerId)
       JOIN DataProviders USING (DataProviderId)
-      LEFT JOIN MeasurementConsumerCertificates ON MeasurementConsumerCertificateId = CertificateId
-        AND EventGroups.MeasurementConsumerId = MeasurementConsumerCertificates.MeasurementConsumerId
       """
         .trimIndent()
 

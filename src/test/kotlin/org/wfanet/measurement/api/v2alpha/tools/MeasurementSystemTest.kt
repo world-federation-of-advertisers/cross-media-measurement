@@ -853,7 +853,7 @@ class MeasurementSystemTest {
               value =
                 MeasurementKt.DataProviderEntryKt.value {
                   dataProviderCertificate = DATA_PROVIDER.certificate
-                  dataProviderPublicKey = DATA_PROVIDER.publicKey
+                  dataProviderPublicKey = DATA_PROVIDER.publicKey.message
                 }
             }
             dataProviders += dataProviderEntry {
@@ -861,7 +861,7 @@ class MeasurementSystemTest {
               value =
                 MeasurementKt.DataProviderEntryKt.value {
                   dataProviderCertificate = DATA_PROVIDER.certificate
-                  dataProviderPublicKey = DATA_PROVIDER.publicKey
+                  dataProviderPublicKey = DATA_PROVIDER.publicKey.message
                 }
             }
             this.measurementReferenceId = measurementReferenceId
@@ -1058,7 +1058,7 @@ class MeasurementSystemTest {
               value =
                 MeasurementKt.DataProviderEntryKt.value {
                   dataProviderCertificate = DATA_PROVIDER.certificate
-                  dataProviderPublicKey = DATA_PROVIDER.publicKey
+                  dataProviderPublicKey = DATA_PROVIDER.publicKey.message
                 }
             }
             dataProviders += dataProviderEntry {
@@ -1066,7 +1066,7 @@ class MeasurementSystemTest {
               value =
                 MeasurementKt.DataProviderEntryKt.value {
                   dataProviderCertificate = DATA_PROVIDER.certificate
-                  dataProviderPublicKey = DATA_PROVIDER.publicKey
+                  dataProviderPublicKey = DATA_PROVIDER.publicKey.message
                 }
             }
             this.measurementReferenceId = measurementReferenceId

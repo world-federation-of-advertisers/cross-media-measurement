@@ -38,7 +38,6 @@ import org.wfanet.measurement.api.v2alpha.ListEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsResponse
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerEventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
@@ -49,7 +48,6 @@ import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
-import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
@@ -245,12 +243,8 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
       }
     }
     if (requestEventGroup.hasMeasurementConsumerPublicKey()) {
-      grpcRequire(requestEventGroup.measurementConsumerCertificate.isNotBlank()) {
-        "event_group.measurement_consumer_certificate must be specified if " +
-          "event_group.measurement_consumer_public_key is specified"
-      }
       try {
-        requestEventGroup.measurementConsumerPublicKey.message.unpack<EncryptionPublicKey>()
+        requestEventGroup.measurementConsumerPublicKey.unpack<EncryptionPublicKey>()
       } catch (e: InvalidProtocolBufferException) {
         throw Status.INVALID_ARGUMENT.withCause(e)
           .withDescription(
@@ -417,7 +411,7 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
               }
           }
           if (showDeleted) {
-            this.showDeleted = showDeleted
+            this.showDeleted = true
           }
           if (pageToken != null) {
             if (
@@ -460,27 +454,15 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
     measurementConsumer =
       MeasurementConsumerKey(externalIdToApiId(externalMeasurementConsumerId)).toName()
     eventGroupReferenceId = providedEventGroupId
-    if (externalMeasurementConsumerCertificateId != 0L) {
-      measurementConsumerCertificate =
-        MeasurementConsumerCertificateKey(
-            externalIdToApiId(externalMeasurementConsumerId),
-            externalIdToApiId(externalMeasurementConsumerCertificateId)
-          )
-          .toName()
-    }
     if (hasDetails()) {
       val apiVersion = Version.fromString(details.apiVersion)
       if (!details.measurementConsumerPublicKey.isEmpty) {
-        measurementConsumerPublicKey = signedMessage {
-          message = any {
-            value = details.measurementConsumerPublicKey
-            typeUrl =
-              when (apiVersion) {
-                Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EncryptionPublicKey.getDescriptor())
-              }
-          }
-          signature = details.measurementConsumerPublicKeySignature
-          signatureAlgorithmOid = details.measurementConsumerPublicKeySignatureAlgorithmOid
+        measurementConsumerPublicKey = any {
+          value = details.measurementConsumerPublicKey
+          typeUrl =
+            when (apiVersion) {
+              Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EncryptionPublicKey.getDescriptor())
+            }
         }
       }
       vidModelLines += details.vidModelLinesList
@@ -512,8 +494,6 @@ private fun EventGroup.toInternal(
     grpcRequireNotNull(MeasurementConsumerKey.fromName(measurementConsumer)) {
       "Measurement consumer is either unspecified or invalid"
     }
-  val measurementConsumerCertificateKey =
-    MeasurementConsumerCertificateKey.fromName(measurementConsumerCertificate)
 
   val source = this
   return internalEventGroup {
@@ -522,18 +502,11 @@ private fun EventGroup.toInternal(
       externalEventGroupId = apiIdToExternalId(eventGroupId)
     }
     externalMeasurementConsumerId = apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
-    if (measurementConsumerCertificateKey != null) {
-      externalMeasurementConsumerCertificateId =
-        apiIdToExternalId(measurementConsumerCertificateKey.certificateId)
-    }
 
     providedEventGroupId = source.eventGroupReferenceId
     details = details {
       apiVersion = Version.V2_ALPHA.string
-      measurementConsumerPublicKey = source.measurementConsumerPublicKey.message.value
-      measurementConsumerPublicKeySignature = source.measurementConsumerPublicKey.signature
-      measurementConsumerPublicKeySignatureAlgorithmOid =
-        source.measurementConsumerPublicKey.signatureAlgorithmOid
+      measurementConsumerPublicKey = source.measurementConsumerPublicKey.value
       vidModelLines += source.vidModelLinesList
       eventTemplates.addAll(
         source.eventTemplatesList.map { event ->

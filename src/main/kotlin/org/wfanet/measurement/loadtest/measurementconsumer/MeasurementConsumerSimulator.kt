@@ -926,7 +926,7 @@ class MeasurementConsumerSimulator(
       this.value =
         MeasurementKt.DataProviderEntryKt.value {
           dataProviderCertificate = source.certificate
-          dataProviderPublicKey = source.publicKey
+          dataProviderPublicKey = source.publicKey.message
           encryptedRequisitionSpec =
             encryptRequisitionSpec(
               signedRequisitionSpec,
