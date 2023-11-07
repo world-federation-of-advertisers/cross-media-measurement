@@ -30,6 +30,9 @@ resource "google_container_cluster" "cluster" {
   datapath_provider = "ADVANCED_DATAPATH"
   networking_mode   = "VPC_NATIVE"
   ip_allocation_policy {}
+  service_external_ips_config {
+    enabled = true
+  }
 
   logging_config {
     enable_components = ["SYSTEM_COMPONENTS", "WORKLOADS"]

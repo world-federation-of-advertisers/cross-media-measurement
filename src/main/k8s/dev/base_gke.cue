@@ -45,6 +45,13 @@ package k8s
 	}
 }
 
+#WorkloadIdentityServiceAccount: #ServiceAccount & {
+	_iamServiceAccountName: string
+
+	let Principal = "\(_iamServiceAccountName)@\(#GCloudConfig.project).iam.gserviceaccount.com"
+	metadata: annotations: "iam.gke.io/gcp-service-account": Principal
+}
+
 #ServiceAccountNodeSelector: {
 	"iam.gke.io/gke-metadata-server-enabled": "true"
 }
