@@ -29,11 +29,7 @@ import java.security.Security
 import java.time.Duration
 import java.time.LocalDate
 import java.util.logging.Logger
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.time.withTimeout
-import kotlinx.coroutines.withContext
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.copy
@@ -45,12 +41,6 @@ import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.loadtest.panelmatch.PanelMatchSimulator
 
 abstract class AbstractPanelMatchCorrectnessTest(private val localSystem: PanelMatchSystem) {
-
-  //protected abstract val initialDataProviderInputs: Map<String, ByteString>
-  //protected abstract val initialModelProviderInputs: Map<String, ByteString>
-  // TODO(@marcopremier): Add abstract expected output here to be checked during test validation
-  //protected abstract val workflow: ExchangeWorkflow
-
 
   private val runId: String
     get() = localSystem.runId

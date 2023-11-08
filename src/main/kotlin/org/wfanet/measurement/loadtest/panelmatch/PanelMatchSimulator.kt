@@ -18,7 +18,6 @@ package org.wfanet.measurement.loadtest.panelmatch
 
 import com.google.common.truth.Truth
 import com.google.protobuf.ByteString
-import io.grpc.ManagedChannel
 import io.grpc.StatusException
 import java.time.LocalDate
 import java.util.logging.Logger
@@ -36,14 +35,22 @@ import org.wfanet.measurement.api.v2alpha.getExchangeRequest
 import org.wfanet.measurement.api.v2alpha.listExchangeStepsRequest
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.internal.kingdom.RecurringExchange
+import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt
+import org.wfanet.measurement.internal.kingdom.createRecurringExchangeRequest
+import org.wfanet.measurement.internal.kingdom.recurringExchange
+import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
+import org.wfanet.measurement.kingdom.service.api.v2alpha.toInternal
 import org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourceSetup
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
 import org.wfanet.panelmatch.client.storage.StorageDetails
 
-class PanelMatchSimulator(private val panelMatchResourceSetup: PanelMatchResourceSetup,
+class PanelMatchSimulator(private val recurringExchangeClient: RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub,
+                          private val exchangeClient: ExchangesGrpcKt.ExchangesCoroutineStub,
+                          private val exchangeStepsClient: ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub,
                           private val schedule: String,
-                          private val apiVersion: String,
+                          private val publicApiVersion: String,
                           private val exchangeDate: LocalDate,
                           private val dataProviderPrivateStorageDetails: StorageDetails,
                           private val modelProviderPrivateStorageDetails: StorageDetails,
@@ -51,7 +58,6 @@ class PanelMatchSimulator(private val panelMatchResourceSetup: PanelMatchResourc
                           private val modelProviderSharedStorageDetails: StorageDetails,
                           private val dpForwardedStorage: StorageClient,
                           private val mpForwardedStorage: StorageClient,
-                          private val publicChannel: ManagedChannel,
                           private val dataProviderDefaults: DaemonStorageClientDefaults,
                           private val modelProviderDefaults: DaemonStorageClientDefaults,) {
 
@@ -91,9 +97,7 @@ class PanelMatchSimulator(private val panelMatchResourceSetup: PanelMatchResourc
   }
 
   private suspend fun waitForExchangeToComplete() {
-    val exchangeClient = ExchangesGrpcKt.ExchangesCoroutineStub(publicChannel)
-    val exchangeStepsClient = ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub(publicChannel)
-    while (!isDone(exchangeClient, exchangeStepsClient)) {
+    while (!isDone()) {
       delay(10000)
     }
   }
@@ -102,15 +106,7 @@ class PanelMatchSimulator(private val panelMatchResourceSetup: PanelMatchResourc
                                     initialDataProviderInputs: Map<String, ByteString>,
                                     initialModelProviderInputs: Map<String, ByteString>) {
 
-    val externalRecurringExchangeId =
-      panelMatchResourceSetup.createRecurringExchange(
-        externalDataProvider = PanelMatchResourceSetup.dataProviderId,
-        externalModelProvider = PanelMatchResourceSetup.modelProviderId,
-        exchangeDate = exchangeDate.toProtoDate(),
-        exchangeSchedule = schedule,
-        publicApiVersion = apiVersion,
-        exchangeWorkflow = exchangeWorkflow
-      )
+    val externalRecurringExchangeId = createRecurringExchange()
 
     val recurringExchangeKey =
       CanonicalRecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))
@@ -157,14 +153,34 @@ class PanelMatchSimulator(private val panelMatchResourceSetup: PanelMatchResourc
 
   }
 
-  private suspend fun isDone(
-    exchangesClient: ExchangesGrpcKt.ExchangesCoroutineStub,
-    exchangeStepsClient: ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
-  ): Boolean {
+  private suspend fun createRecurringExchange(): Long {
+    val recurringExchangeId =
+      recurringExchangeClient
+        .createRecurringExchange(
+          createRecurringExchangeRequest {
+            recurringExchange = recurringExchange {
+              externalDataProviderId = PanelMatchResourceSetup.dataProviderId
+              externalModelProviderId = PanelMatchResourceSetup.modelProviderId
+              state = RecurringExchange.State.ACTIVE
+              details = recurringExchangeDetails {
+                this.exchangeWorkflow = exchangeWorkflow.toInternal()
+                cronSchedule = schedule
+                externalExchangeWorkflow = exchangeWorkflow.toByteString()
+                apiVersion = publicApiVersion
+              }
+              nextExchangeDate = exchangeDate.toProtoDate()
+            }
+          }
+        )
+        .externalRecurringExchangeId
+    return recurringExchangeId
+  }
+
+  private suspend fun isDone(): Boolean {
     val request = getExchangeRequest { name = exchangeKey.toName() }
     return try {
-      val exchange = exchangesClient.getExchange(request)
-      val steps = getSteps(exchangeStepsClient)
+      val exchange = exchangeClient.getExchange(request)
+      val steps = getSteps()
       assertNotDeadlocked(steps)
       logger.info("Exchange is in state: ${exchange.state}.")
       exchange.state in TERMINAL_EXCHANGE_STATES
@@ -179,9 +195,7 @@ class PanelMatchSimulator(private val panelMatchResourceSetup: PanelMatchResourc
     }
   }
 
-  private suspend fun getSteps(
-    exchangeStepsClient: ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
-  ): List<ExchangeStep> {
+  private suspend fun getSteps(): List<ExchangeStep> {
     return exchangeStepsClient
       .listExchangeSteps(
         listExchangeStepsRequest {

@@ -52,6 +52,8 @@ import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt
+import org.wfanet.measurement.api.v2alpha.ExchangesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.common.crypto.jceProvider
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -151,17 +153,6 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
       logger.info { "Wait 20s for deployment to be ready" }
       delay(20000)
 
-      val publicForward = PortForwarder(getPod(KINGDOM_PUBLIC_DEPLOYMENT_NAME), SERVER_PORT)
-      val publicAddress: InetSocketAddress = withContext(Dispatchers.IO) { publicForward.start() }
-
-      publicChannel =
-        buildMutualTlsChannel(
-          publicAddress.toTarget(),
-          MP_SIGNING_CERTS,
-        )
-
-      portForwarders.add(publicForward)
-      channels.add(publicChannel)
     }
 
     protected suspend fun runResourceSetup(
@@ -374,6 +365,15 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
 
     private suspend fun createTestHarness(): PanelMatchSimulator {
 
+      val publicForward = PortForwarder(getPod(KINGDOM_PUBLIC_DEPLOYMENT_NAME), SERVER_PORT)
+      val publicAddress: InetSocketAddress = withContext(Dispatchers.IO) { publicForward.start() }.also { portForwarders.add(publicForward) }
+
+      publicChannel =
+        buildMutualTlsChannel(
+          publicAddress.toTarget(),
+          MP_SIGNING_CERTS,
+        ).also { channels.add(it) }
+
       val internalForward = PortForwarder(getPod(KINGDOM_INTERNAL_DEPLOYMENT_NAME), SERVER_PORT)
       val internalAddress: InetSocketAddress =
         withContext(Dispatchers.IO) { internalForward.start() }
@@ -383,20 +383,15 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
           channels.add(it)
         }
 
-      val panelMatchResourceSetup =
-        PanelMatchResourceSetup(
-          DataProvidersGrpcKt.DataProvidersCoroutineStub(internalChannel),
-          ModelProvidersGrpcKt.ModelProvidersCoroutineStub(internalChannel),
-          RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub(internalChannel),
-        )
-
-      return PanelMatchSimulator(panelMatchResourceSetup, SCHEDULE, API_VERSION, EXCHANGE_DATE, dataProviderPrivateStorageDetails,
+      return PanelMatchSimulator(RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub(internalChannel),
+        ExchangesGrpcKt.ExchangesCoroutineStub(publicChannel),
+        ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub(publicChannel),
+        SCHEDULE, API_VERSION, EXCHANGE_DATE, dataProviderPrivateStorageDetails,
         modelProviderPrivateStorageDetails,
         dataProviderSharedStorageDetails,
         modelProviderSharedStorageDetails,
         dpForwardedStorage,
         mpForwardedStorage,
-        publicChannel,
         dataProviderDefaults,
         modelProviderDefaults
       )
