@@ -102,14 +102,10 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
         duchyKey.duchyId
       }
 
-    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
-      is DataProviderPrincipal -> {
-        if (principal.resourceKey.dataProviderId != key.dataProviderId) {
-          failGrpc(Status.PERMISSION_DENIED) { "Cannot update other DataProviders" }
-        }
-      }
-      else -> {
-        failGrpc(Status.PERMISSION_DENIED) { "Only a DataProvider can update a DataProvider" }
+    val principal: MeasurementPrincipal = principalFromCurrentContext
+    if (principal.resourceKey != key) {
+      failGrpc(Status.PERMISSION_DENIED) {
+        "Permission for method replaceDataProviderRequiredDuchies denied on resource $request.name"
       }
     }
 
@@ -138,18 +134,10 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
         "Resource name unspecified or invalid"
       }
 
-    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
-      is DataProviderPrincipal -> {
-        if (principal.resourceKey.dataProviderId != key.dataProviderId) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Permission for method replaceDataAvailabilityInterval denied on resource $request.name"
-          }
-        }
-      }
-      else -> {
-        failGrpc(Status.PERMISSION_DENIED) {
-          "Permission for method replaceDataAvailabilityInterval denied on resource $request.name"
-        }
+    val principal: MeasurementPrincipal = principalFromCurrentContext
+    if (principal.resourceKey != key) {
+      failGrpc(Status.PERMISSION_DENIED) {
+        "Permission for method replaceDataAvailabilityInterval denied on resource $request.name"
       }
     }
 
@@ -171,7 +159,6 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
 
     val internalDataProvider: InternalDataProvider =
       try {
-
         internalClient.replaceDataAvailabilityInterval(
           replaceDataAvailabilityIntervalRequest {
             externalDataProviderId = apiIdToExternalId(key.dataProviderId)
