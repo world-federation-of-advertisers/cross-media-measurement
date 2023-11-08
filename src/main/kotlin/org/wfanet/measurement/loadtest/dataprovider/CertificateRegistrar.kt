@@ -23,6 +23,10 @@ import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 
+/**
+ * Used when an EDP wishes to use a separate consent signaling certificate than what was used when
+ * the data provider was registered.
+ */
 class CertificateRegistrar(
   private val parentResourceName: String,
   private val certificatesStub: CertificatesCoroutineStub
@@ -56,5 +60,4 @@ class CertificateRegistrar(
       throw Exception("Error creating certificate", e)
     }
   }
-
 }

@@ -17,6 +17,7 @@ package k8s
 #EdpConfig: {
 	displayName:  string
 	resourceName: string
+	certResourceName: string
 	publisherId:  int
 }
 
@@ -44,6 +45,7 @@ package k8s
 				"--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
 				"--data-provider-resource-name=\(_edpConfig.resourceName)",
 				"--data-provider-display-name=\(DisplayName)",
+				"--data-provider-certificate-resource-name=\(_edpConfig.certResourceName)",
 				"--data-provider-encryption-private-keyset=/var/run/secrets/files/\(DisplayName)_enc_private.tink",
 				"--data-provider-consent-signaling-private-key-der-file=/var/run/secrets/files/\(DisplayName)_cs_private.der",
 				"--data-provider-consent-signaling-certificate-der-file=/var/run/secrets/files/\(DisplayName)_cs_cert.der",
