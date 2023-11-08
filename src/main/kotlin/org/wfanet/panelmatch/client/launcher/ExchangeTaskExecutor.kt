@@ -109,6 +109,7 @@ class ExchangeTaskExecutor(
       privateStorageSelector.getStorageClient(exchangeDateKey)
     if (!isAlreadyComplete(step, privateStorageClient)) {
       runStep(privateStorageClient)
+      logger.severe { "-------------------------- Writing done blob for step id: ${step.stepId}" }
       writeDoneBlob(step, privateStorageClient)
     }
     // The Kingdom will be able to detect if it's handing out duplicate tasks because it will

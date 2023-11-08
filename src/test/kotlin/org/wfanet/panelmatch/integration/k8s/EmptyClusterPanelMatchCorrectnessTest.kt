@@ -45,6 +45,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.time.withTimeout
 import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.Blocking
+import org.junit.AfterClass
 import org.junit.ClassRule
 import org.junit.rules.TemporaryFolder
 import org.junit.rules.TestRule
@@ -159,9 +160,8 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
           MP_SIGNING_CERTS,
         )
 
-      //portForwarders.add(publicForward)
-      //channels.add(publicChannel)
-
+      portForwarders.add(publicForward)
+      channels.add(publicChannel)
     }
 
     protected suspend fun runResourceSetup(
@@ -214,7 +214,6 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
           buildMutualTlsChannel(dpStorageAddress.toTarget(), EDP_SIGNING_CERTS)
             .also { channels.add(it) }
             .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
-        // TODO(@marcopremier): Make dpForwardedStorage and mpForwardedStorage as abstract val
         dpForwardedStorage =
           ForwardedStorageClient(
             ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(dpStorageChannel)
@@ -403,6 +402,14 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
       )
     }
 
+    fun cleanChannels() {
+      for (channel in channels) {
+        channel.shutdown()
+      }
+      for (portForwarder in portForwarders) {
+        portForwarder.stop()
+      }
+    }
 
   }
 
@@ -435,6 +442,12 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
 
     @ClassRule
     @JvmField val chainedRule = chainRulesSequentially(tempDir, Images(), localSystem)
+
+    @JvmStatic
+    @AfterClass
+    fun tearDownClass() {
+      localSystem.cleanChannels()
+    }
 
     @Blocking
     protected fun kubectlApply(config: String, k8sClient: KubernetesClient): List<KubernetesObject> {

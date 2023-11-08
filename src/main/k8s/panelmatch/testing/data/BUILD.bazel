@@ -8,5 +8,6 @@ filegroup(
     srcs = [
         "double_blind_exchange_workflow.textproto",
         "mini_exchange_workflow.textproto",
+        "full_with_preprocessing.textproto",
     ],
 )

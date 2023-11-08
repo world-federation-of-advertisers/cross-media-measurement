@@ -18,7 +18,6 @@ package org.wfanet.measurement.loadtest.panelmatch
 
 import com.google.common.truth.Truth
 import com.google.protobuf.ByteString
-import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.ManagedChannel
 import io.grpc.StatusException
 import java.time.LocalDate
@@ -39,10 +38,7 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourceSetup
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.storage.forwarded.ForwardedStorageClient
-import org.wfanet.panelmatch.client.common.joinKeyAndIdOf
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
-import org.wfanet.panelmatch.client.exchangetasks.joinKeyAndIdCollection
 import org.wfanet.panelmatch.client.storage.StorageDetails
 
 class PanelMatchSimulator(private val panelMatchResourceSetup: PanelMatchResourceSetup,
@@ -71,45 +67,35 @@ class PanelMatchSimulator(private val panelMatchResourceSetup: PanelMatchResourc
   private val logger = Logger.getLogger(this::class.java.name)
 
   suspend fun executeDoubleBlindExchangeWorkflow(workflow: ExchangeWorkflow) {
-    val EDP_COMMUTATIVE_DETERMINISTIC_KEY = "some-key".toByteStringUtf8()
-    val PLAINTEXT_JOIN_KEYS = joinKeyAndIdCollection {
-      joinKeyAndIds +=
-        joinKeyAndIdOf("join-key-1".toByteStringUtf8(), "join-key-id-1".toByteStringUtf8())
-      joinKeyAndIds +=
-        joinKeyAndIdOf("join-key-2".toByteStringUtf8(), "join-key-id-2".toByteStringUtf8())
-    }
-    val initialDataProviderInputs: Map<String, ByteString> =
-      mapOf("edp-commutative-deterministic-key" to EDP_COMMUTATIVE_DETERMINISTIC_KEY)
+    val initialDataProviderInputs = PanelMatchCorectnessTestDataProvider.getInitialDataProviderInputsForTestType(PanelMatchCorectnessTestDataProvider.TestType.DOUBLE_BLIND)
+    val initialModelProviderInputs = PanelMatchCorectnessTestDataProvider.getInitialModelProviderInputsForTestType(PanelMatchCorectnessTestDataProvider.TestType.DOUBLE_BLIND)
 
-    val initialModelProviderInputs: Map<String, ByteString> =
-      mapOf("mp-plaintext-join-keys" to PLAINTEXT_JOIN_KEYS.toByteString())
     setupWorkflow(workflow, initialDataProviderInputs, initialModelProviderInputs)
-    waitForExchangeAndValidate()
+    waitForExchangeToComplete()
   }
 
-  suspend fun executeFullWithPreprocessingWorkflow(workflow: ExchangeWorkflow) {}
+  suspend fun executeFullWithPreprocessingWorkflow(workflow: ExchangeWorkflow) {
+    val initialDataProviderInputs = PanelMatchCorectnessTestDataProvider.getInitialDataProviderInputsForTestType(PanelMatchCorectnessTestDataProvider.TestType.FULL_WITH_PREPROCESSING)
+    val initialModelProviderInputs = PanelMatchCorectnessTestDataProvider.getInitialModelProviderInputsForTestType(PanelMatchCorectnessTestDataProvider.TestType.FULL_WITH_PREPROCESSING)
 
-  suspend fun executeFullWorkflow(workflow: ExchangeWorkflow) {}
+    setupWorkflow(workflow, initialDataProviderInputs, initialModelProviderInputs)
+    waitForExchangeToComplete()
+  }
 
   suspend fun executeMiniWorkflow(workflow: ExchangeWorkflow) {
-    val HKDF_PEPPER = "some-hkdf-pepper".toByteStringUtf8()
-    val initialDataProviderInputs: Map<String, ByteString> =
-      mapOf("edp-hkdf-pepper" to HKDF_PEPPER)
-    val initialModelProviderInputs: Map<String, ByteString> = emptyMap()
+    val initialDataProviderInputs = PanelMatchCorectnessTestDataProvider.getInitialDataProviderInputsForTestType(PanelMatchCorectnessTestDataProvider.TestType.MINI_EXCHANGE)
+    val initialModelProviderInputs = PanelMatchCorectnessTestDataProvider.getInitialModelProviderInputsForTestType(PanelMatchCorectnessTestDataProvider.TestType.MINI_EXCHANGE)
 
     setupWorkflow(workflow, initialDataProviderInputs, initialModelProviderInputs)
-    waitForExchangeAndValidate()
+    waitForExchangeToComplete()
   }
 
-  suspend fun executeSingleStepWorkflow(workflow: ExchangeWorkflow) {}
-
-  private suspend fun waitForExchangeAndValidate() {
+  private suspend fun waitForExchangeToComplete() {
     val exchangeClient = ExchangesGrpcKt.ExchangesCoroutineStub(publicChannel)
     val exchangeStepsClient = ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub(publicChannel)
     while (!isDone(exchangeClient, exchangeStepsClient)) {
       delay(10000)
     }
-    //validate()
   }
 
   private suspend fun setupWorkflow(exchangeWorkflow: ExchangeWorkflow,

@@ -16,7 +16,9 @@
 
 package org.wfanet.panelmatch.integration.k8s
 
+import com.google.privatemembership.batch.Shared
 import com.google.protobuf.Message
+import com.google.protobuf.TypeRegistry
 import io.kubernetes.client.openapi.models.V1Deployment
 import io.kubernetes.client.openapi.models.V1Pod
 import io.kubernetes.client.util.ClientBuilder
@@ -44,29 +46,11 @@ import org.wfanet.measurement.loadtest.panelmatch.PanelMatchSimulator
 
 abstract class AbstractPanelMatchCorrectnessTest(private val localSystem: PanelMatchSystem) {
 
-  /*private val channels = mutableListOf<ManagedChannel>()
-  private val portForwarders = mutableListOf<PortForwarder>()*/
-  //private lateinit var exchangeKey: ExchangeKey
   //protected abstract val initialDataProviderInputs: Map<String, ByteString>
   //protected abstract val initialModelProviderInputs: Map<String, ByteString>
   // TODO(@marcopremier): Add abstract expected output here to be checked during test validation
   //protected abstract val workflow: ExchangeWorkflow
 
-  // private val TERMINAL_STEP_STATES = setOf(ExchangeStep.State.SUCCEEDED, ExchangeStep.State.FAILED)
-  /*private val READY_STEP_STATES =
-    setOf(
-      ExchangeStep.State.IN_PROGRESS,
-      ExchangeStep.State.READY,
-      ExchangeStep.State.READY_FOR_RETRY
-    )
-  private val TERMINAL_EXCHANGE_STATES = setOf(Exchange.State.SUCCEEDED, Exchange.State.FAILED)*/
-
-  //private val API_VERSION = "v2alpha"
-  //private val SCHEDULE = "@daily"
-
-  //val EXCHANGE_DATE: LocalDate = LocalDate.now()
-
-  //private val DEFAULT_RPC_DEADLINE = Duration.ofSeconds(30)
 
   private val runId: String
     get() = localSystem.runId
@@ -76,22 +60,38 @@ abstract class AbstractPanelMatchCorrectnessTest(private val localSystem: PanelM
 
   @Test(timeout = 3 * 60 * 1000)
   fun `Double blind workflow completes with expected result`() = runBlocking {
+    logger.info { "Run Double Blind workflow test" }
     val workflow: ExchangeWorkflow by lazy {
       loadTestData("double_blind_exchange_workflow.textproto", ExchangeWorkflow.getDefaultInstance())
         .copy { firstExchangeDate = EXCHANGE_DATE.toProtoDate() }
     }
-    logger.info { "-------------------------------------- RUN TEST 1 !!!" }
     testHarness.executeDoubleBlindExchangeWorkflow(workflow)
-    logger.info { "-------------------------------------- RUN TEST 2 !!!" }
+  }
+
+  @Test(timeout = 3 * 60 * 1000)
+  fun `Mini workflow completes with expected result`() = runBlocking {
+    logger.info { "Run Mini workflow test" }
+    val workflow: ExchangeWorkflow by lazy {
+      loadTestData("mini_exchange_workflow.textproto", ExchangeWorkflow.getDefaultInstance())
+        .copy { firstExchangeDate = EXCHANGE_DATE.toProtoDate() }
+    }
+    testHarness.executeMiniWorkflow(workflow)
+  }
+
+  @Test(timeout = 25 * 60 * 1000)
+  fun `Full test with preprocessing workflow completes with expected result`() = runBlocking {
+    logger.info { "Run Full test with preprocessing workflow test" }
+    val workflow: ExchangeWorkflow by lazy {
+      loadTestData("full_with_preprocessing.textproto", ExchangeWorkflow.getDefaultInstance())
+        .copy { firstExchangeDate = EXCHANGE_DATE.toProtoDate() }
+    }
+    testHarness.executeFullWithPreprocessingWorkflow(workflow)
   }
 
   interface PanelMatchSystem {
     val runId: String
     val testHarness: PanelMatchSimulator
   }
-
-
-      // TODO(@marcopremier): Make dpForwardedStorage and mpForwardedStorage as abstract val
 
   companion object {
     init {
@@ -154,10 +154,13 @@ abstract class AbstractPanelMatchCorrectnessTest(private val localSystem: PanelM
       SigningCerts.fromPemFiles(cert, key, trustedCerts)
     }
 
+    private val typeRegistry =
+      TypeRegistry.newBuilder().add(Shared.Parameters.getDescriptor()).build()
+
     @JvmStatic
     private fun <T : Message> loadTestData(fileName: String, defaultInstance: T): T {
       val testDataRuntimePath = org.wfanet.measurement.common.getRuntimePath(TEST_DATA_PATH)!!
-      return parseTextProto(testDataRuntimePath.resolve(fileName).toFile(), defaultInstance)
+      return parseTextProto(testDataRuntimePath.resolve(fileName).toFile(), defaultInstance, typeRegistry)
     }
 
     protected suspend fun KubernetesClient.waitUntilDeploymentReady(name: String): V1Deployment {
