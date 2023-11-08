@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.reporting.deploy.v2.common.server
+package org.wfanet.measurement.reporting.deploy.v2.common
 
 import java.time.Duration
 import kotlin.properties.Delegates

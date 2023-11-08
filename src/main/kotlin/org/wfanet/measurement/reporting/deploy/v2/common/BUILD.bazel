@@ -32,3 +32,20 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/picocli",
     ],
 )
+
+kt_jvm_library(
+    name = "reporting_api_server_flags",
+    srcs = ["ReportingApiServerFlags.kt"],
+    deps = [
+        ":flags",
+        "@wfa_common_jvm//imports/java/picocli",
+    ],
+)
+
+kt_jvm_library(
+    name = "v2alpha_flags",
+    srcs = ["V2AlphaFlags.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/picocli",
+    ],
+)
