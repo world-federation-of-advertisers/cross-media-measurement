@@ -42,15 +42,15 @@ import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpcKt.ReportScheduleIterationsCoroutineStub as InternalReportScheduleIterationsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub as InternalReportSchedulesCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.v2.common.EncryptionKeyPairMap
 import org.wfanet.measurement.reporting.deploy.v2.common.KingdomApiFlags
-import org.wfanet.measurement.reporting.deploy.v2.common.V2AlphaFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.ReportingApiServerFlags
+import org.wfanet.measurement.reporting.deploy.v2.common.V2AlphaFlags
 import org.wfanet.measurement.reporting.job.ReportSchedulingJob
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withMetadataPrincipalIdentities
@@ -171,9 +171,10 @@ private fun run(
   InProcessServerBuilder.forName(inProcessReportsServerName)
     .apply {
       executor(reportsExecutor)
-      addService(reportsService
-                   .withMetadataPrincipalIdentities(measurementConsumerConfigs)
-                   .withReportScheduleNameInterceptor()
+      addService(
+        reportsService
+          .withMetadataPrincipalIdentities(measurementConsumerConfigs)
+          .withReportScheduleNameInterceptor()
       )
       if (commonServerFlags.debugVerboseGrpcLogging) {
         intercept(LoggingServerInterceptor)

@@ -19,9 +19,7 @@ package org.wfanet.measurement.reporting.deploy.v2.common
 import java.io.File
 import picocli.CommandLine
 
-/**
- * Flags specific to the V2Alpha API version.
- */
+/** Flags specific to the V2Alpha API version. */
 class V2AlphaFlags {
   @CommandLine.Option(
     names = ["--authority-key-identifier-to-principal-map-file"],
