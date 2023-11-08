@@ -26,9 +26,8 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 
-class ReplaceDataAvailabilityInterval(
-  private val request: ReplaceDataAvailabilityIntervalRequest
-) : SpannerWriter<DataProvider, DataProvider>() {
+class ReplaceDataAvailabilityInterval(private val request: ReplaceDataAvailabilityIntervalRequest) :
+  SpannerWriter<DataProvider, DataProvider>() {
   override suspend fun TransactionScope.runTransaction(): DataProvider {
     val externalDataProviderId = ExternalId(request.externalDataProviderId)
     val dataProviderResult =
@@ -38,9 +37,8 @@ class ReplaceDataAvailabilityInterval(
     val dataProvider = dataProviderResult.dataProvider
     val dataProviderId = dataProviderResult.dataProviderId
 
-    val updatedDetails = dataProvider.details.copy {
-      dataAvailabilityInterval = request.dataAvailabilityInterval
-    }
+    val updatedDetails =
+      dataProvider.details.copy { dataAvailabilityInterval = request.dataAvailabilityInterval }
 
     transactionContext.bufferUpdateMutation("DataProviders") {
       set("DataProviderId" to dataProviderId)
@@ -48,9 +46,7 @@ class ReplaceDataAvailabilityInterval(
       setJson("DataProviderDetailsJson" to updatedDetails)
     }
 
-    return dataProvider.copy {
-      details = updatedDetails
-    }
+    return dataProvider.copy { details = updatedDetails }
   }
 
   override fun ResultScope<DataProvider>.buildResult(): DataProvider {

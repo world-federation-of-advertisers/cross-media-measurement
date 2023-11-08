@@ -289,12 +289,8 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
   @Test
   fun `replaceDataAvailabilityInterval modifies DataProvider`() = runBlocking {
     val dataAvailabilityInterval = interval {
-      startTime = timestamp {
-        seconds = 200
-      }
-      endTime = timestamp {
-        seconds = 300
-      }
+      startTime = timestamp { seconds = 200 }
+      endTime = timestamp { seconds = 300 }
     }
     val dataProvider =
       dataProvidersService.createDataProvider(
@@ -324,13 +320,14 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
         }
       )
 
-    assertThat(updatedDataProvider.details.dataAvailabilityInterval).isEqualTo(dataAvailabilityInterval)
+    assertThat(updatedDataProvider.details.dataAvailabilityInterval)
+      .isEqualTo(dataAvailabilityInterval)
     // Ensure changes were persisted.
     assertThat(
-      dataProvidersService.getDataProvider(
-        getDataProviderRequest { externalDataProviderId = dataProvider.externalDataProviderId }
+        dataProvidersService.getDataProvider(
+          getDataProviderRequest { externalDataProviderId = dataProvider.externalDataProviderId }
+        )
       )
-    )
       .isEqualTo(updatedDataProvider)
   }
 
@@ -342,12 +339,8 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
           replaceDataAvailabilityIntervalRequest {
             externalDataProviderId = 123
             dataAvailabilityInterval = interval {
-              startTime = timestamp {
-                seconds = 200
-              }
-              endTime = timestamp {
-                seconds = 300
-              }
+              startTime = timestamp { seconds = 200 }
+              endTime = timestamp { seconds = 300 }
             }
           }
         )
@@ -363,12 +356,8 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
         dataProvidersService.replaceDataAvailabilityInterval(
           replaceDataAvailabilityIntervalRequest {
             dataAvailabilityInterval = interval {
-              startTime = timestamp {
-                seconds = 200
-              }
-              endTime = timestamp {
-                seconds = 300
-              }
+              startTime = timestamp { seconds = 200 }
+              endTime = timestamp { seconds = 300 }
             }
           }
         )

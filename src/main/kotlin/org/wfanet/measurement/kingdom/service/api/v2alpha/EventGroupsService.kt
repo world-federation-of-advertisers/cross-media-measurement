@@ -19,6 +19,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.any
 import com.google.protobuf.kotlin.unpack
+import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.math.min
@@ -75,7 +76,6 @@ import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
 import org.wfanet.measurement.internal.kingdom.eventGroupKey
 import org.wfanet.measurement.internal.kingdom.eventTemplate as internalEventTemplate
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest as internalGetEventGroupRequest
-import com.google.protobuf.util.Timestamps
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest
 
@@ -267,7 +267,12 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
       }
 
       if (requestEventGroup.dataAvailabilityInterval.hasEndTime()) {
-        grpcRequire(Timestamps.compare(requestEventGroup.dataAvailabilityInterval.startTime, requestEventGroup.dataAvailabilityInterval.endTime) < 0) {
+        grpcRequire(
+          Timestamps.compare(
+            requestEventGroup.dataAvailabilityInterval.startTime,
+            requestEventGroup.dataAvailabilityInterval.endTime
+          ) < 0
+        ) {
           "data_availability_interval start_time must be before end_time"
         }
       }

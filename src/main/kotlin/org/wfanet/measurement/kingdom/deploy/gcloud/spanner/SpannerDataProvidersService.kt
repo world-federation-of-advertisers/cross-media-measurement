@@ -65,10 +65,10 @@ class SpannerDataProvidersService(
     }
   }
 
-  override suspend fun replaceDataAvailabilityInterval(request: ReplaceDataAvailabilityIntervalRequest): DataProvider {
-    grpcRequire(request.externalDataProviderId != 0L) {
-      "external_data_provider_id is missing."
-    }
+  override suspend fun replaceDataAvailabilityInterval(
+    request: ReplaceDataAvailabilityIntervalRequest
+  ): DataProvider {
+    grpcRequire(request.externalDataProviderId != 0L) { "external_data_provider_id is missing." }
 
     try {
       return ReplaceDataAvailabilityInterval(request).execute(client, idGenerator)
