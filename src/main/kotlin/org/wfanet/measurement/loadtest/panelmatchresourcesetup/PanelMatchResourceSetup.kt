@@ -150,16 +150,12 @@ class PanelMatchResourceSetup(
           exchangeWorkflow
         )
 
-      //val recurringExchangeKey =
+      // val recurringExchangeKey =
       //  CanonicalRecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))
     }
     withContext(Dispatchers.IO) { writeOutput(resources) }
     logger.info("Resource setup was successful.")
-    return PanelMatchResourceKeys(
-      dataProviderKey,
-      modelProviderKey,
-      resources
-    )
+    return PanelMatchResourceKeys(dataProviderKey, modelProviderKey, resources)
   }
 
   /** Process to create resources. */

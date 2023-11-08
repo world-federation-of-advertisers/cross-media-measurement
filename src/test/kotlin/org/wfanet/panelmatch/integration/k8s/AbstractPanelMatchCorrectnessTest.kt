@@ -52,7 +52,10 @@ abstract class AbstractPanelMatchCorrectnessTest(private val localSystem: PanelM
   fun `Double blind workflow completes with expected result`() = runBlocking {
     logger.info { "Run Double Blind workflow test" }
     val workflow: ExchangeWorkflow by lazy {
-      loadTestData("double_blind_exchange_workflow.textproto", ExchangeWorkflow.getDefaultInstance())
+      loadTestData(
+          "double_blind_exchange_workflow.textproto",
+          ExchangeWorkflow.getDefaultInstance()
+        )
         .copy { firstExchangeDate = EXCHANGE_DATE.toProtoDate() }
     }
     testHarness.executeDoubleBlindExchangeWorkflow(workflow)
@@ -62,8 +65,9 @@ abstract class AbstractPanelMatchCorrectnessTest(private val localSystem: PanelM
   fun `Mini workflow completes with expected result`() = runBlocking {
     logger.info { "Run Mini workflow test" }
     val workflow: ExchangeWorkflow by lazy {
-      loadTestData("mini_exchange_workflow.textproto", ExchangeWorkflow.getDefaultInstance())
-        .copy { firstExchangeDate = EXCHANGE_DATE.toProtoDate() }
+      loadTestData("mini_exchange_workflow.textproto", ExchangeWorkflow.getDefaultInstance()).copy {
+        firstExchangeDate = EXCHANGE_DATE.toProtoDate()
+      }
     }
     testHarness.executeMiniWorkflow(workflow)
   }
@@ -91,30 +95,23 @@ abstract class AbstractPanelMatchCorrectnessTest(private val localSystem: PanelM
     }
 
     val k8sClient = KubernetesClient(ClientBuilder.defaultClient())
-    @JvmStatic
-    protected val READY_TIMEOUT = Duration.ofMinutes(2L)
+    @JvmStatic protected val READY_TIMEOUT = Duration.ofMinutes(2L)
     private val TEST_DATA_PATH =
       Paths.get("wfa_measurement_system", "src", "main", "k8s", "panelmatch", "testing", "data")
 
-    @JvmStatic
-    protected val logger = Logger.getLogger(this::class.java.name)
+    @JvmStatic protected val logger = Logger.getLogger(this::class.java.name)
 
-    @JvmStatic
-    protected val SERVER_PORT: Int = 8443
+    @JvmStatic protected val SERVER_PORT: Int = 8443
     private val WORKSPACE_PATH: Path = Paths.get("wfa_measurement_system")
 
-    @JvmStatic
-    protected val KINGDOM_INTERNAL_DEPLOYMENT_NAME = "gcp-kingdom-data-server-deployment"
-    @JvmStatic
-    protected val KINGDOM_PUBLIC_DEPLOYMENT_NAME = "v2alpha-public-api-server-deployment"
+    @JvmStatic protected val KINGDOM_INTERNAL_DEPLOYMENT_NAME = "gcp-kingdom-data-server-deployment"
+    @JvmStatic protected val KINGDOM_PUBLIC_DEPLOYMENT_NAME = "v2alpha-public-api-server-deployment"
     @JvmStatic
     protected val MP_PRIVATE_STORAGE_DEPLOYMENT_NAME = "mp-private-storage-server-deployment"
     @JvmStatic
     protected val DP_PRIVATE_STORAGE_DEPLOYMENT_NAME = "dp-private-storage-server-deployment"
-    @JvmStatic
-    protected val SHARED_STORAGE_DEPLOYMENT_NAME = "shared-storage-server-deployment"
-    @JvmStatic
-    protected val EXCHANGE_DATE: LocalDate = LocalDate.now()
+    @JvmStatic protected val SHARED_STORAGE_DEPLOYMENT_NAME = "shared-storage-server-deployment"
+    @JvmStatic protected val EXCHANGE_DATE: LocalDate = LocalDate.now()
 
     val SECRET_FILES_PATH: Path = Paths.get("src", "main", "k8s", "testing", "secretfiles")
     val PANELMATCH_SECRET_FILES_PATH: Path =
@@ -150,7 +147,11 @@ abstract class AbstractPanelMatchCorrectnessTest(private val localSystem: PanelM
     @JvmStatic
     private fun <T : Message> loadTestData(fileName: String, defaultInstance: T): T {
       val testDataRuntimePath = org.wfanet.measurement.common.getRuntimePath(TEST_DATA_PATH)!!
-      return parseTextProto(testDataRuntimePath.resolve(fileName).toFile(), defaultInstance, typeRegistry)
+      return parseTextProto(
+        testDataRuntimePath.resolve(fileName).toFile(),
+        defaultInstance,
+        typeRegistry
+      )
     }
 
     protected suspend fun KubernetesClient.waitUntilDeploymentReady(name: String): V1Deployment {

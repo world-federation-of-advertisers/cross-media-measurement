@@ -18,27 +18,18 @@ package org.wfanet.panelmatch.integration.k8s
 
 import com.google.common.util.concurrent.Futures.withTimeout
 import com.google.protobuf.Any
-import com.google.protobuf.ByteString
-import com.google.protobuf.Message
 import com.google.protobuf.kotlin.toByteString
-import io.grpc.Channel
 import io.grpc.ManagedChannel
-import io.grpc.StatusException
 import io.kubernetes.client.common.KubernetesObject
 import io.kubernetes.client.openapi.Configuration
-import io.kubernetes.client.openapi.models.V1Deployment
-import io.kubernetes.client.openapi.models.V1Pod
 import io.kubernetes.client.util.ClientBuilder
 import java.io.File
 import java.net.InetSocketAddress
 import java.nio.charset.StandardCharsets
-import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.Security
 import java.time.Duration
-import java.time.LocalDate
 import java.util.*
-import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -83,8 +74,8 @@ import org.wfanet.panelmatch.common.certificates.testing.TestCertificateManager
 import org.wfanet.panelmatch.common.storage.testing.FakeTinkKeyStorageProvider
 
 /**
- * Test for correctness of the CMMS for panel exchange on a single "empty" Kubernetes cluster using the `local`
- * configuration.
+ * Test for correctness of the CMMS for panel exchange on a single "empty" Kubernetes cluster using
+ * the `local` configuration.
  *
  * This will push the images to the container registry and populate the K8s cluster prior to running
  * the test methods. The cluster must already exist with the `KUBECONFIG` environment variable
@@ -108,14 +99,20 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
     private fun pushImages() {
       val pusherRuntimePath = getRuntimePath(IMAGE_PUSHER_PATH)
       Processes.runCommand(pusherRuntimePath.toString())
-      val panelMatchPusherRuntimePath =
-        getRuntimePath(IMAGE_PANEL_MATCH_PUSHER_PATH)
+      val panelMatchPusherRuntimePath = getRuntimePath(IMAGE_PANEL_MATCH_PUSHER_PATH)
       Processes.runCommand(panelMatchPusherRuntimePath.toString())
     }
   }
 
-  /** [TestRule] which populates a K8s cluster with the components of the CMMS and daemons for PanelMatch. */
-  class LocalSystem(k8sClient: Lazy<KubernetesClient>, tempDir: Lazy<TemporaryFolder>, runId: Lazy<String>) : TestRule, PanelMatchSystem {
+  /**
+   * [TestRule] which populates a K8s cluster with the components of the CMMS and daemons for
+   * PanelMatch.
+   */
+  class LocalSystem(
+    k8sClient: Lazy<KubernetesClient>,
+    tempDir: Lazy<TemporaryFolder>,
+    runId: Lazy<String>
+  ) : TestRule, PanelMatchSystem {
     private val k8sClient: KubernetesClient by k8sClient
     private val tempDir: TemporaryFolder by tempDir
 
@@ -137,13 +134,16 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
     private lateinit var _testHarness: PanelMatchSimulator
     override val testHarness: PanelMatchSimulator
       get() = _testHarness
+
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
         override fun evaluate() {
-          runBlocking { withTimeout(Duration.ofMinutes(5)) {
-            populateCluster()
-            _testHarness = createTestHarness()
-          } }
+          runBlocking {
+            withTimeout(Duration.ofMinutes(5)) {
+              populateCluster()
+              _testHarness = createTestHarness()
+            }
+          }
           base.evaluate()
         }
       }
@@ -164,7 +164,6 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
 
       logger.info { "Wait 20s for deployment to be ready" }
       delay(20000)
-
     }
 
     protected suspend fun runResourceSetup(
@@ -200,7 +199,7 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
               dataProviderContent = dataProviderContent,
               modelProviderContent = modelProviderContent,
               exchangeDate = EXCHANGE_DATE.toProtoDate(),
-              //exchangeWorkflow = workflow,
+              // exchangeWorkflow = workflow,
               exchangeSchedule = SCHEDULE,
               publicApiVersion = API_VERSION
             )
@@ -221,7 +220,8 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
           ForwardedStorageClient(
             ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(dpStorageChannel)
           )
-        dataProviderDefaults = DaemonStorageClientDefaults(dpForwardedStorage, "", FakeTinkKeyStorageProvider())
+        dataProviderDefaults =
+          DaemonStorageClientDefaults(dpForwardedStorage, "", FakeTinkKeyStorageProvider())
 
         dataProviderDefaults.rootCertificates.put(
           panelMatchResourceKey.dataProviderKey.toName(),
@@ -262,7 +262,8 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
           ForwardedStorageClient(
             ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(mpStorageChannel)
           )
-        modelProviderDefaults = DaemonStorageClientDefaults(mpForwardedStorage, "", FakeTinkKeyStorageProvider())
+        modelProviderDefaults =
+          DaemonStorageClientDefaults(mpForwardedStorage, "", FakeTinkKeyStorageProvider())
 
         modelProviderDefaults.rootCertificates.put(
           panelMatchResourceKey.modelProviderKey.toName(),
@@ -270,7 +271,7 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
         )
         val mpPrivateForwarderStorage = forwardedStorageConfig {
           target = mpPrivateStoragePod.status?.podIP + ":8443"
-                  certCollectionPath = "/var/run/secrets/files/mp_trusted_certs.pem"
+          certCollectionPath = "/var/run/secrets/files/mp_trusted_certs.pem"
           forwardedStorageCertHost = "localhost"
         }
         modelProviderPrivateStorageDetails = storageDetails {
@@ -289,9 +290,16 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
         }
 
         val akidPrincipalMap = outputDir.resolve(PanelMatchResourceSetup.AKID_PRINCIPAL_MAP_FILE)
-        loadDpDaemonForPanelMatch(k8sClient, panelMatchResourceKey.dataProviderKey, akidPrincipalMap)
-        loadMpDaemonForPanelMatch(k8sClient, panelMatchResourceKey.modelProviderKey, akidPrincipalMap)
-
+        loadDpDaemonForPanelMatch(
+          k8sClient,
+          panelMatchResourceKey.dataProviderKey,
+          akidPrincipalMap
+        )
+        loadMpDaemonForPanelMatch(
+          k8sClient,
+          panelMatchResourceKey.modelProviderKey,
+          akidPrincipalMap
+        )
       }
     }
 
@@ -323,7 +331,9 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
       withContext(Dispatchers.IO) {
         val outputDir = tempDir.newFolder("edp_daemon")
         extractTar(
-          AbstractPanelMatchCorrectnessTest.getRuntimePath(LOCAL_K8S_PANELMATCH_PATH.resolve("edp_daemon.tar"))
+          AbstractPanelMatchCorrectnessTest.getRuntimePath(
+              LOCAL_K8S_PANELMATCH_PATH.resolve("edp_daemon.tar")
+            )
             .toFile(),
           outputDir
         )
@@ -353,7 +363,9 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
       withContext(Dispatchers.IO) {
         val outputDir = tempDir.newFolder("mp_daemon")
         extractTar(
-          AbstractPanelMatchCorrectnessTest.getRuntimePath(LOCAL_K8S_PANELMATCH_PATH.resolve("mp_daemon.tar"))
+          AbstractPanelMatchCorrectnessTest.getRuntimePath(
+              LOCAL_K8S_PANELMATCH_PATH.resolve("mp_daemon.tar")
+            )
             .toFile(),
           outputDir
         )
@@ -378,13 +390,16 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
     private suspend fun createTestHarness(): PanelMatchSimulator {
 
       val publicForward = PortForwarder(getPod(KINGDOM_PUBLIC_DEPLOYMENT_NAME), SERVER_PORT)
-      val publicAddress: InetSocketAddress = withContext(Dispatchers.IO) { publicForward.start() }.also { portForwarders.add(publicForward) }
+      val publicAddress: InetSocketAddress =
+        withContext(Dispatchers.IO) { publicForward.start() }
+          .also { portForwarders.add(publicForward) }
 
       publicChannel =
         buildMutualTlsChannel(
-          publicAddress.toTarget(),
-          MP_SIGNING_CERTS,
-        ).also { channels.add(it) }
+            publicAddress.toTarget(),
+            MP_SIGNING_CERTS,
+          )
+          .also { channels.add(it) }
 
       val internalForward = PortForwarder(getPod(KINGDOM_INTERNAL_DEPLOYMENT_NAME), SERVER_PORT)
       val internalAddress: InetSocketAddress =
@@ -395,10 +410,14 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
           channels.add(it)
         }
 
-      return PanelMatchSimulator(RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub(internalChannel),
+      return PanelMatchSimulator(
+        RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub(internalChannel),
         ExchangesGrpcKt.ExchangesCoroutineStub(publicChannel),
         ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub(publicChannel),
-        SCHEDULE, API_VERSION, EXCHANGE_DATE, dataProviderPrivateStorageDetails,
+        SCHEDULE,
+        API_VERSION,
+        EXCHANGE_DATE,
+        dataProviderPrivateStorageDetails,
         modelProviderPrivateStorageDetails,
         dataProviderSharedStorageDetails,
         modelProviderSharedStorageDetails,
@@ -417,7 +436,6 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
         portForwarder.stop()
       }
     }
-
   }
 
   companion object {
@@ -445,10 +463,13 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
     private val tempDir = TemporaryFolder()
 
     private val localSystem =
-      LocalSystem(lazy { KubernetesClient(ClientBuilder.defaultClient()) }, lazy { tempDir }, lazy { UUID.randomUUID().toString() })
+      LocalSystem(
+        lazy { KubernetesClient(ClientBuilder.defaultClient()) },
+        lazy { tempDir },
+        lazy { UUID.randomUUID().toString() }
+      )
 
-    @ClassRule
-    @JvmField val chainedRule = chainRulesSequentially(tempDir, Images(), localSystem)
+    @ClassRule @JvmField val chainedRule = chainRulesSequentially(tempDir, Images(), localSystem)
 
     @JvmStatic
     @AfterClass
@@ -457,7 +478,10 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
     }
 
     @Blocking
-    protected fun kubectlApply(config: String, k8sClient: KubernetesClient): List<KubernetesObject> {
+    protected fun kubectlApply(
+      config: String,
+      k8sClient: KubernetesClient
+    ): List<KubernetesObject> {
       return k8sClient
         .kubectlApply(config)
         .onEach { logger.info { "Applied ${it.kind} ${it.metadata.name}" } }
@@ -487,5 +511,4 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
       Processes.runCommand("tar", "-xf", archive.toString(), "-C", outputDirectory.toString())
     }
   }
-
 }

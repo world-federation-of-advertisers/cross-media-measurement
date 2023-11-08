@@ -36,33 +36,35 @@ object PanelMatchCorectnessTestDataProvider {
     FULL_WITH_PREPROCESSING
   }
 
-  fun getInitialDataProviderInputsForTestType(testType: TestType) : Map<String, ByteString> {
+  fun getInitialDataProviderInputsForTestType(testType: TestType): Map<String, ByteString> {
     when (testType) {
       TestType.DOUBLE_BLIND -> return getInitialDataProviderInputsForDoubleBlind()
       TestType.MINI_EXCHANGE -> return getInitialDataProviderInputsForMiniExchange()
-      TestType.FULL_WITH_PREPROCESSING -> return getInitialDataProviderInputsForFullWithPreprocessing()
+      TestType.FULL_WITH_PREPROCESSING ->
+        return getInitialDataProviderInputsForFullWithPreprocessing()
     }
   }
 
-  fun getInitialModelProviderInputsForTestType(testType: TestType) : Map<String, ByteString> {
+  fun getInitialModelProviderInputsForTestType(testType: TestType): Map<String, ByteString> {
     when (testType) {
       TestType.DOUBLE_BLIND -> return getInitialModelProviderInputsForDoubleBlind()
       TestType.MINI_EXCHANGE -> return getInitialModelProviderInputsForMiniExchange()
-      TestType.FULL_WITH_PREPROCESSING -> return getInitialModelProviderInputsForFullWithPreprocessing()
+      TestType.FULL_WITH_PREPROCESSING ->
+        return getInitialModelProviderInputsForFullWithPreprocessing()
     }
   }
 
-  private fun getInitialDataProviderInputsForDoubleBlind() : Map<String, ByteString> {
+  private fun getInitialDataProviderInputsForDoubleBlind(): Map<String, ByteString> {
     val EDP_COMMUTATIVE_DETERMINISTIC_KEY = "some-key".toByteStringUtf8()
     return mapOf("edp-commutative-deterministic-key" to EDP_COMMUTATIVE_DETERMINISTIC_KEY)
   }
 
-  private fun getInitialDataProviderInputsForMiniExchange() : Map<String, ByteString> {
+  private fun getInitialDataProviderInputsForMiniExchange(): Map<String, ByteString> {
     val HKDF_PEPPER = "some-hkdf-pepper".toByteStringUtf8()
     return mapOf("edp-hkdf-pepper" to HKDF_PEPPER)
   }
 
-  private fun getInitialDataProviderInputsForFullWithPreprocessing() : Map<String, ByteString> {
+  private fun getInitialDataProviderInputsForFullWithPreprocessing(): Map<String, ByteString> {
     val EDP_COMPRESSION_PARAMETERS = compressionParameters {
       brotli = CompressionParametersKt.brotliCompressionParameters { dictionary = ByteString.EMPTY }
     }
@@ -84,14 +86,14 @@ object PanelMatchCorectnessTestDataProvider {
 
     val EDP_EVENT_DATA_BLOB = EDP_DATABASE_ENTRIES.map { it.toDelimitedByteString() }.flatten()
     return mapOf(
-        "edp-event-data" to EDP_EVENT_DATA_MANIFEST,
-        "edp-event-data-0-of-1" to EDP_EVENT_DATA_BLOB,
-        "edp-compression-parameters" to EDP_COMPRESSION_PARAMETERS.toByteString(),
-        "edp-previous-single-blinded-join-keys" to ByteString.EMPTY,
-      )
+      "edp-event-data" to EDP_EVENT_DATA_MANIFEST,
+      "edp-event-data-0-of-1" to EDP_EVENT_DATA_BLOB,
+      "edp-compression-parameters" to EDP_COMPRESSION_PARAMETERS.toByteString(),
+      "edp-previous-single-blinded-join-keys" to ByteString.EMPTY,
+    )
   }
 
-  private fun getInitialModelProviderInputsForDoubleBlind() : Map<String, ByteString> {
+  private fun getInitialModelProviderInputsForDoubleBlind(): Map<String, ByteString> {
     val PLAINTEXT_JOIN_KEYS = joinKeyAndIdCollection {
       joinKeyAndIds +=
         joinKeyAndIdOf("join-key-1".toByteStringUtf8(), "join-key-id-1".toByteStringUtf8())
@@ -101,11 +103,11 @@ object PanelMatchCorectnessTestDataProvider {
     return mapOf("mp-plaintext-join-keys" to PLAINTEXT_JOIN_KEYS.toByteString())
   }
 
-  private fun getInitialModelProviderInputsForMiniExchange() : Map<String, ByteString> {
+  private fun getInitialModelProviderInputsForMiniExchange(): Map<String, ByteString> {
     return emptyMap()
   }
 
-  private fun getInitialModelProviderInputsForFullWithPreprocessing() : Map<String, ByteString> {
+  private fun getInitialModelProviderInputsForFullWithPreprocessing(): Map<String, ByteString> {
     val PLAINTEXT_JOIN_KEYS = joinKeyAndIdCollection {
       joinKeyAndIds +=
         joinKeyAndIdOf("join-key-1".toByteStringUtf8(), "join-key-id-1".toByteStringUtf8())
@@ -116,5 +118,4 @@ object PanelMatchCorectnessTestDataProvider {
       "mp-plaintext-join-keys" to PLAINTEXT_JOIN_KEYS.toByteString(),
     )
   }
-
 }

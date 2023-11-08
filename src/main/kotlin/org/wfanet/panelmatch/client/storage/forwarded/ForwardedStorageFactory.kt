@@ -14,7 +14,6 @@
 
 package org.wfanet.panelmatch.client.storage.forwarded
 
-import io.grpc.ManagedChannel
 import java.io.File
 import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.grpc.buildTlsChannel
@@ -24,9 +23,7 @@ import org.wfanet.measurement.storage.forwarded.ForwardedStorageClient
 import org.wfanet.panelmatch.client.loadtest.ForwardedStorageConfig
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.common.ExchangeDateKey
-import org.wfanet.panelmatch.common.loggerFor
 import org.wfanet.panelmatch.common.storage.StorageFactory
-import org.wfanet.panelmatch.common.storage.withPrefix
 
 /**
  * Build a ForwardedStorageClient object using storageDetails information.
@@ -54,5 +51,4 @@ class ForwardedStorageFactory(
       )
     )
   }
-
 }

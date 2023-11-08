@@ -94,18 +94,20 @@ class DoubleBlindWorkflowTest : AbstractPanelMatchCorrectnessTest() {
     }
   }
 
-  @Test(timeout = 6 * 60 * 1000) fun `Double blind workflow test`() = runBlocking {
+  @Test(timeout = 6 * 60 * 1000)
+  fun `Double blind workflow test`() = runBlocking {
     runTest()
     val workflow: ExchangeWorkflow by lazy {
-      loadTestData("mini_exchange_workflow.textproto", ExchangeWorkflow.getDefaultInstance())
-        .copy { firstExchangeDate = EXCHANGE_DATE.toProtoDate() }
+      loadTestData("mini_exchange_workflow.textproto", ExchangeWorkflow.getDefaultInstance()).copy {
+        firstExchangeDate = EXCHANGE_DATE.toProtoDate()
+      }
     }
     val HKDF_PEPPER = "some-hkdf-pepper".toByteStringUtf8()
     val initialDataProviderInputsForTest: Map<String, ByteString> =
       mapOf("edp-hkdf-pepper" to HKDF_PEPPER)
 
     val initialModelProviderInputsForTest: Map<String, ByteString> = emptyMap()
-    runSecondTest(workflow, initialDataProviderInputsForTest, initialModelProviderInputsForTest )
+    runSecondTest(workflow, initialDataProviderInputsForTest, initialModelProviderInputsForTest)
   }
 
   override suspend fun validate() {

@@ -47,20 +47,22 @@ import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
 import org.wfanet.panelmatch.client.storage.StorageDetails
 
 /** Simulator for PanelMatch flows. */
-class PanelMatchSimulator(private val recurringExchangeClient: RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub,
-                          private val exchangeClient: ExchangesGrpcKt.ExchangesCoroutineStub,
-                          private val exchangeStepsClient: ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub,
-                          private val schedule: String,
-                          private val publicApiVersion: String,
-                          private val exchangeDate: LocalDate,
-                          private val dataProviderPrivateStorageDetails: StorageDetails,
-                          private val modelProviderPrivateStorageDetails: StorageDetails,
-                          private val dataProviderSharedStorageDetails: StorageDetails,
-                          private val modelProviderSharedStorageDetails: StorageDetails,
-                          private val dpForwardedStorage: StorageClient,
-                          private val mpForwardedStorage: StorageClient,
-                          private val dataProviderDefaults: DaemonStorageClientDefaults,
-                          private val modelProviderDefaults: DaemonStorageClientDefaults,) {
+class PanelMatchSimulator(
+  private val recurringExchangeClient: RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub,
+  private val exchangeClient: ExchangesGrpcKt.ExchangesCoroutineStub,
+  private val exchangeStepsClient: ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub,
+  private val schedule: String,
+  private val publicApiVersion: String,
+  private val exchangeDate: LocalDate,
+  private val dataProviderPrivateStorageDetails: StorageDetails,
+  private val modelProviderPrivateStorageDetails: StorageDetails,
+  private val dataProviderSharedStorageDetails: StorageDetails,
+  private val modelProviderSharedStorageDetails: StorageDetails,
+  private val dpForwardedStorage: StorageClient,
+  private val mpForwardedStorage: StorageClient,
+  private val dataProviderDefaults: DaemonStorageClientDefaults,
+  private val modelProviderDefaults: DaemonStorageClientDefaults,
+) {
 
   private lateinit var exchangeKey: ExchangeKey
   private val TERMINAL_STEP_STATES = setOf(ExchangeStep.State.SUCCEEDED, ExchangeStep.State.FAILED)
@@ -74,30 +76,48 @@ class PanelMatchSimulator(private val recurringExchangeClient: RecurringExchange
   private val logger = Logger.getLogger(this::class.java.name)
 
   suspend fun executeDoubleBlindExchangeWorkflow(workflow: ExchangeWorkflow) {
-    val initialDataProviderInputs = PanelMatchCorectnessTestDataProvider.getInitialDataProviderInputsForTestType(PanelMatchCorectnessTestDataProvider.TestType.DOUBLE_BLIND)
-    val initialModelProviderInputs = PanelMatchCorectnessTestDataProvider.getInitialModelProviderInputsForTestType(PanelMatchCorectnessTestDataProvider.TestType.DOUBLE_BLIND)
+    val initialDataProviderInputs =
+      PanelMatchCorectnessTestDataProvider.getInitialDataProviderInputsForTestType(
+        PanelMatchCorectnessTestDataProvider.TestType.DOUBLE_BLIND
+      )
+    val initialModelProviderInputs =
+      PanelMatchCorectnessTestDataProvider.getInitialModelProviderInputsForTestType(
+        PanelMatchCorectnessTestDataProvider.TestType.DOUBLE_BLIND
+      )
 
     setupWorkflow(workflow, initialDataProviderInputs, initialModelProviderInputs)
     waitForExchangeToComplete()
   }
 
   suspend fun executeFullWithPreprocessingWorkflow(workflow: ExchangeWorkflow) {
-    val initialDataProviderInputs = PanelMatchCorectnessTestDataProvider.getInitialDataProviderInputsForTestType(PanelMatchCorectnessTestDataProvider.TestType.FULL_WITH_PREPROCESSING)
-    val initialModelProviderInputs = PanelMatchCorectnessTestDataProvider.getInitialModelProviderInputsForTestType(PanelMatchCorectnessTestDataProvider.TestType.FULL_WITH_PREPROCESSING)
+    val initialDataProviderInputs =
+      PanelMatchCorectnessTestDataProvider.getInitialDataProviderInputsForTestType(
+        PanelMatchCorectnessTestDataProvider.TestType.FULL_WITH_PREPROCESSING
+      )
+    val initialModelProviderInputs =
+      PanelMatchCorectnessTestDataProvider.getInitialModelProviderInputsForTestType(
+        PanelMatchCorectnessTestDataProvider.TestType.FULL_WITH_PREPROCESSING
+      )
 
     setupWorkflow(workflow, initialDataProviderInputs, initialModelProviderInputs)
     waitForExchangeToComplete()
   }
 
   suspend fun executeMiniWorkflow(workflow: ExchangeWorkflow) {
-    val initialDataProviderInputs = PanelMatchCorectnessTestDataProvider.getInitialDataProviderInputsForTestType(PanelMatchCorectnessTestDataProvider.TestType.MINI_EXCHANGE)
-    val initialModelProviderInputs = PanelMatchCorectnessTestDataProvider.getInitialModelProviderInputsForTestType(PanelMatchCorectnessTestDataProvider.TestType.MINI_EXCHANGE)
+    val initialDataProviderInputs =
+      PanelMatchCorectnessTestDataProvider.getInitialDataProviderInputsForTestType(
+        PanelMatchCorectnessTestDataProvider.TestType.MINI_EXCHANGE
+      )
+    val initialModelProviderInputs =
+      PanelMatchCorectnessTestDataProvider.getInitialModelProviderInputsForTestType(
+        PanelMatchCorectnessTestDataProvider.TestType.MINI_EXCHANGE
+      )
 
     setupWorkflow(workflow, initialDataProviderInputs, initialModelProviderInputs)
     waitForExchangeToComplete()
   }
 
-  /** Block flow execution until the [Exchange] reaches a [TERMINAL_EXCHANGE_STATES]   */
+  /** Block flow execution until the [Exchange] reaches a [TERMINAL_EXCHANGE_STATES] */
   private suspend fun waitForExchangeToComplete() {
     while (!isDone()) {
       delay(10000)
@@ -141,9 +161,11 @@ class PanelMatchSimulator(private val recurringExchangeClient: RecurringExchange
   }
 
   /** Create resources needed to run a panel exchange. */
-  private suspend fun setupWorkflow(exchangeWorkflow: ExchangeWorkflow,
-                                    initialDataProviderInputs: Map<String, ByteString>,
-                                    initialModelProviderInputs: Map<String, ByteString>) {
+  private suspend fun setupWorkflow(
+    exchangeWorkflow: ExchangeWorkflow,
+    initialDataProviderInputs: Map<String, ByteString>,
+    initialModelProviderInputs: Map<String, ByteString>
+  ) {
 
     val externalRecurringExchangeId = createRecurringExchange(exchangeWorkflow)
 
@@ -189,7 +211,6 @@ class PanelMatchSimulator(private val recurringExchangeClient: RecurringExchange
     for ((blobKey, value) in initialModelProviderInputs) {
       mpForwardedStorage.writeBlob(blobKey, value)
     }
-
   }
 
   private fun assertNotDeadlocked(steps: Iterable<ExchangeStep>) {
@@ -204,12 +225,10 @@ class PanelMatchSimulator(private val recurringExchangeClient: RecurringExchange
         listExchangeStepsRequest {
           parent = exchangeKey.toName()
           pageSize = 50
-          filter =
-            ListExchangeStepsRequestKt.filter { exchangeDates += exchangeDate.toProtoDate() }
+          filter = ListExchangeStepsRequestKt.filter { exchangeDates += exchangeDate.toProtoDate() }
         }
       )
       .exchangeStepsList
       .sortedBy { step -> step.stepIndex }
   }
-
 }
