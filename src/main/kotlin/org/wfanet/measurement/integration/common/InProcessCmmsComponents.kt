@@ -38,6 +38,7 @@ import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
+import org.wfanet.measurement.loadtest.resourcesetup.DataProviderResources
 import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.loadtest.resourcesetup.ResourceSetup
@@ -71,11 +72,12 @@ class InProcessCmmsComponents(
   }
 
   private val edpSimulators: List<InProcessEdpSimulator> by lazy {
-    edpDisplayNameToResourceNameMap.entries.mapIndexed { index, (displayName, resourceName) ->
+    edpDisplayNameToResourceNameMap.entries.mapIndexed { index, (displayName, resourceNames) ->
       val specIndex = index % SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS.size
       InProcessEdpSimulator(
         displayName = displayName,
-        resourceName = resourceName,
+        resourceName = resourceNames.resourceName,
+        certResourceName = resourceNames.resourceName,
         mcResourceName = mcResourceName,
         kingdomPublicApiChannel = kingdom.publicApiChannel,
         duchyPublicApiChannel = duchies[1].publicApiChannel,
@@ -106,7 +108,7 @@ class InProcessCmmsComponents(
 
   private lateinit var mcResourceName: String
   private lateinit var apiAuthenticationKey: String
-  private lateinit var edpDisplayNameToResourceNameMap: Map<String, String>
+  private lateinit var edpDisplayNameToResourceNameMap: Map<String, DataProviderResources>
   private lateinit var duchyCertMap: Map<String, String>
   private lateinit var eventGroups: List<EventGroup>
   private lateinit var certificates: List<Certificate?>
@@ -159,7 +161,6 @@ class InProcessCmmsComponents(
     // Create all resources
     createAllResources()
     eventGroups = edpSimulators.map { it.ensureEventGroup() }
-    certificates = edpSimulators.map { it.ensureCertificate() }
 
     // Start daemons. Mills and EDP simulators can only be started after resources have been
     // created.

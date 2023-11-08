@@ -109,7 +109,7 @@ class RequisitionsService(
     val parentKey: RequisitionParentKey =
       DataProviderKey.fromName(request.parent)
         ?: MeasurementKey.fromName(request.parent)
-        ?: throw Status.INVALID_ARGUMENT.withDescription("parent is invalid").asRuntimeException()
+          ?: throw Status.INVALID_ARGUMENT.withDescription("parent is invalid").asRuntimeException()
 
     val principal: MeasurementPrincipal = principalFromCurrentContext
     when (parentKey) {
@@ -249,8 +249,12 @@ class RequisitionsService(
       directParams = directRequisitionParams {
         externalDataProviderId = apiIdToExternalId(key.dataProviderId)
         encryptedData = encryptedResultCiphertext
-        val dataProviderCertificateKey = DataProviderCertificateKey.fromName(request.certificate)
-        if (dataProviderCertificateKey !== null) {
+        if (request.certificate.isNotEmpty()) {
+          val dataProviderCertificateKey = DataProviderCertificateKey.fromName(request.certificate)
+            ?: throw Status.INVALID_ARGUMENT.withDescription(
+              "Invalid result certificate"
+            )
+              .asRuntimeException()
           externalCertificateId = apiIdToExternalId(dataProviderCertificateKey.certificateId)
         }
         apiVersion = Version.V2_ALPHA.string

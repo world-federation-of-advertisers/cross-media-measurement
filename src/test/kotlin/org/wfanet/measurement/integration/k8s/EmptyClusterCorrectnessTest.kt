@@ -75,6 +75,7 @@ import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
+import org.wfanet.measurement.loadtest.resourcesetup.DataProviderResources
 import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.loadtest.resourcesetup.ResourceSetup
@@ -115,7 +116,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     val worker2Cert: String,
     val measurementConsumer: String,
     val apiKey: String,
-    val dataProviders: Map<String, String>
+    val dataProviders: Map<String, DataProviderResources>
   ) {
     companion object {
       fun from(resources: Iterable<Resources.Resource>): ResourceInfo {
@@ -124,7 +125,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         var worker2Cert: String? = null
         var measurementConsumer: String? = null
         var apiKey: String? = null
-        val dataProviders = mutableMapOf<String, String>()
+        val dataProviders = mutableMapOf<String, DataProviderResources>()
 
         for (resource in resources) {
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields cannot be null.
@@ -135,7 +136,12 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
             }
             Resources.Resource.ResourceCase.DATA_PROVIDER -> {
               val displayName = resource.dataProvider.displayName
-              require(dataProviders.putIfAbsent(displayName, resource.name) == null) {
+              require(
+                dataProviders.putIfAbsent(
+                  displayName,
+                  DataProviderResources(resource.name, resource.dataProvider.certificate)
+                ) == null
+              ) {
                 "Entry already exists for DataProvider $displayName"
               }
             }
@@ -314,8 +320,14 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
               .replace("{mc_name}", resourceInfo.measurementConsumer)
               .let {
                 var config = it
-                for ((displayName, resourceName) in resourceInfo.dataProviders) {
-                  config = config.replace("{${displayName}_name}", resourceName)
+                for ((displayName, resourceNames) in resourceInfo.dataProviders) {
+                  config =
+                    config
+                      .replace("{${displayName}_name}", resourceNames.resourceName)
+                      .replace(
+                        "{${displayName}_name_cert_name}",
+                        resourceNames.certificateResourceName
+                      )
                 }
                 config
               }

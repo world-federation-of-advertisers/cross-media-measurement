@@ -867,6 +867,23 @@ class RequisitionsServiceTest {
   }
 
   @Test
+  fun `fulfillDirectRequisition throw INVALID_ARGUMENT when certificate resource is not valid`() =
+    runBlocking {
+      val request = fulfillDirectRequisitionRequest {
+        name = REQUISITION_NAME
+        encryptedResult = ENCRYPTED_RESULT
+        certificate = "some-invalid-certificate-resource"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+            runBlocking { service.fulfillDirectRequisition(request) }
+          }
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
   fun `fulfillDirectRequisition throw PERMISSION_DENIED when EDP doesn't match`() = runBlocking {
     val request = fulfillDirectRequisitionRequest {
       name = REQUISITION_NAME

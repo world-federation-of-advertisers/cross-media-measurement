@@ -23,7 +23,6 @@ import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.type.interval
 import io.grpc.Status
 import java.lang.UnsupportedOperationException
-import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
@@ -49,7 +48,6 @@ import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.crypto.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.CreateCertificateRequest
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -237,25 +235,6 @@ class EdpSimulatorTest {
         getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_CERTIFICATE.name }))
       }
       .thenReturn(DATA_PROVIDER_CERTIFICATE)
-    if (EDP_RESULT_CS_SIGNING_KEY != null) {
-      onBlocking {
-          listCertificates(
-            eq(
-              listCertificatesRequest {
-                parent = EDP_DATA.name
-                filter =
-                  ListCertificatesRequestKt.filter {
-                    subjectKeyIdentifiers +=
-                      EDP_RESULT_CS_SIGNING_KEY.certificate.subjectKeyIdentifier!!
-                  }
-              }
-            )
-          )
-        }
-        .thenReturn(
-          listCertificatesResponse { certificates += DATA_PROVIDER_RESULT_CS_CERTIFICATE!! }
-        )
-    }
   }
   private val measurementConsumersServiceMock:
     MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase =
@@ -347,37 +326,6 @@ class EdpSimulatorTest {
       }
     }
     return vidRange.map { vid -> LabeledTestEvent(timestamp, vid, message) }
-  }
-
-  @Test
-  fun `ensureCertificate creates Certificate`() {
-    val edpSimulator =
-      EdpSimulator(
-        EDP_DATA,
-        MEASUREMENT_CONSUMER_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStub,
-        InMemoryEventQuery(emptyList()),
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        compositionMechanism = COMPOSITION_MECHANISM
-      )
-
-    runBlocking { edpSimulator.ensureCertificate() }
-
-    // Verify certificate request contains information from EDP_DATA.
-    val createCertificateRequest: CreateCertificateRequest =
-      verifyAndCapture(certificatesServiceMock, CertificatesCoroutineImplBase::createCertificate)
-    assertThat(createCertificateRequest.parent).isEqualTo(EDP_DATA.name)
-    assertThat(createCertificateRequest.certificate.subjectKeyIdentifier)
-      .isEqualTo(EDP_DATA.resultSigningKey!!.certificate.subjectKeyIdentifier)
-    assertThat(createCertificateRequest.certificate.x509Der)
-      .isEqualTo(EDP_DATA.resultSigningKey!!.certificate.encoded.toByteString())
   }
 
   @Test
@@ -1685,7 +1633,7 @@ class EdpSimulatorTest {
     }
     val simulator =
       EdpSimulator(
-        EDP_DATA,
+        EDP_DATA.copy(resultSigningResource = null),
         MC_NAME,
         measurementConsumersStub,
         certificatesStub,
@@ -2240,42 +2188,39 @@ class EdpSimulatorTest {
       name = DuchyCertificateKey(DUCHY_ID, externalIdToApiId(6L)).toName()
       x509Der = DUCHY_SIGNING_KEY.certificate.encoded.toByteString()
     }
+    private val EDP_SIGNING_KEY =
+      loadSigningKey("${EDP_DISPLAY_NAME}_cs_cert.der", "${EDP_DISPLAY_NAME}_cs_private.der")
     private val EDP_RESULT_CS_SIGNING_KEY =
-      if (Files.exists(SECRET_FILES_PATH.resolve("${EDP_DISPLAY_NAME}_result_cs_cert.der"))) {
-        loadSigningKey(
-          "${EDP_DISPLAY_NAME}_result_cs_cert.der",
-          "${EDP_DISPLAY_NAME}_result_cs_private.der"
-        )
-      } else {
-        null
-      }
+      loadSigningKey(
+        "${EDP_DISPLAY_NAME}_result_cs_cert.der",
+        "${EDP_DISPLAY_NAME}_result_cs_private.der"
+      )
+    private val DATA_PROVIDER_CERTIFICATE_KEY =
+      DataProviderCertificateKey(EDP_ID, externalIdToApiId(8L))
+    private val DATA_PROVIDER_RESULT_CS_CERTIFICATE_KEY =
+      DataProviderCertificateKey(EDP_ID, externalIdToApiId(8L))
+
+    private val DATA_PROVIDER_CERTIFICATE = certificate {
+      name = DATA_PROVIDER_CERTIFICATE_KEY.toName()
+      x509Der = EDP_SIGNING_KEY.certificate.encoded.toByteString()
+      subjectKeyIdentifier = EDP_SIGNING_KEY.certificate.subjectKeyIdentifier!!
+    }
+    private val DATA_PROVIDER_RESULT_CS_CERTIFICATE = certificate {
+      name = DATA_PROVIDER_RESULT_CS_CERTIFICATE_KEY.toName()
+      x509Der = EDP_RESULT_CS_SIGNING_KEY.certificate.encoded.toByteString()
+      subjectKeyIdentifier = EDP_RESULT_CS_SIGNING_KEY.certificate.subjectKeyIdentifier!!
+    }
     private val EDP_DATA =
       EdpData(
         EDP_NAME,
         EDP_DISPLAY_NAME,
         loadEncryptionPrivateKey("${EDP_DISPLAY_NAME}_enc_private.tink"),
-        loadSigningKey("${EDP_DISPLAY_NAME}_cs_cert.der", "${EDP_DISPLAY_NAME}_cs_private.der"),
-        EDP_RESULT_CS_SIGNING_KEY,
+        mapOf(
+          DATA_PROVIDER_RESULT_CS_CERTIFICATE_KEY to EDP_RESULT_CS_SIGNING_KEY,
+          DATA_PROVIDER_CERTIFICATE_KEY to EDP_SIGNING_KEY
+        ),
+        DATA_PROVIDER_RESULT_CS_CERTIFICATE_KEY
       )
-    private val DATA_PROVIDER_CERTIFICATE_KEY =
-      DataProviderCertificateKey(EDP_ID, externalIdToApiId(7L))
-    private val DATA_PROVIDER_CERTIFICATE = certificate {
-      name = DATA_PROVIDER_CERTIFICATE_KEY.toName()
-      x509Der = EDP_DATA.signingKey.certificate.encoded.toByteString()
-      subjectKeyIdentifier = EDP_DATA.signingKey.certificate.subjectKeyIdentifier!!
-    }
-    private val DATA_PROVIDER_RESULT_CS_CERTIFICATE_KEY =
-      DataProviderCertificateKey(EDP_ID, externalIdToApiId(8L))
-    private val DATA_PROVIDER_RESULT_CS_CERTIFICATE =
-      if (EDP_RESULT_CS_SIGNING_KEY == null) {
-        null
-      } else {
-        certificate {
-          name = DATA_PROVIDER_RESULT_CS_CERTIFICATE_KEY.toName()
-          x509Der = EDP_RESULT_CS_SIGNING_KEY.certificate.encoded.toByteString()
-          subjectKeyIdentifier = EDP_RESULT_CS_SIGNING_KEY.certificate.subjectKeyIdentifier!!
-        }
-      }
 
     private val MC_PUBLIC_KEY =
       loadPublicKey(SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile())

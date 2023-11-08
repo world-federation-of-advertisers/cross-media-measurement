@@ -18,7 +18,6 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
 import com.google.protobuf.duration
-import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
@@ -42,6 +41,7 @@ import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
 import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
 import org.wfanet.measurement.api.v2alpha.DeterministicDistribution
@@ -60,7 +60,6 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
-import org.wfanet.measurement.api.v2alpha.ListCertificatesRequestKt
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.Measurement
@@ -85,7 +84,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
-import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.createEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.customDirectMethodology
@@ -97,7 +95,6 @@ import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
-import org.wfanet.measurement.api.v2alpha.listCertificatesRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
@@ -110,7 +107,6 @@ import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
-import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.throttler.Throttler
@@ -149,10 +145,13 @@ data class EdpData(
   val displayName: String,
   /** The EDP's consent signaling encryption key. */
   val encryptionKey: PrivateKeyHandle,
-  /** The EDP's consent signaling signing key. */
-  val signingKey: SigningKeyHandle,
-  /** Optional EDP result consent signaling signing key. */
-  val resultSigningKey: SigningKeyHandle?
+  /** The EDP's registered certificates. */
+  val registeredCertificates: Map<DataProviderCertificateKey, SigningKeyHandle>,
+  /**
+   * The CertificateKey to use for result signing. If not specified, the data provider certificate
+   * name from the requisition will be used.
+   */
+  val resultSigningResource: DataProviderCertificateKey?
 )
 
 /** A simulator handling EDP businesses. */
@@ -173,25 +172,10 @@ class EdpSimulator(
   private val random: Random = Random,
   private val compositionMechanism: CompositionMechanism,
 ) {
+
   /** A sequence of operations done in the simulator. */
   suspend fun run() {
     throttler.loopOnReady { executeRequisitionFulfillingWorkflow() }
-  }
-
-  /** Ensures that an appropriate [Certificate] exists for the [DataProvider]. */
-  suspend fun ensureCertificate(): Certificate? {
-    if (edpData.resultSigningKey == null) {
-      return null
-    }
-    return try {
-      val certificate = certificate {
-        x509Der = edpData.resultSigningKey.certificate.encoded.toByteString()
-        subjectKeyIdentifier = edpData.resultSigningKey.certificate.subjectKeyIdentifier!!
-      }
-      createCertificate(edpData.name, certificate)
-    } catch (e: StatusException) {
-      throw Exception("Error creating certificate", e)
-    }
   }
 
   /**
@@ -393,6 +377,9 @@ class EdpSimulator(
 
     val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
 
+    // TODO: A real EDP should verify the signed `data_provider_public_key`.
+    // TODO: A real EDP should map the `data_provider_public_key` to a known private key for
+    // decryption.
     val signedRequisitionSpec: SignedMessage =
       try {
         decryptRequisitionSpec(requisition.encryptedRequisitionSpec, edpData.encryptionKey)
@@ -528,42 +515,6 @@ class EdpSimulator(
       certificatesStub.getCertificate(getCertificateRequest { name = resourceName })
     } catch (e: StatusException) {
       throw Exception("Error fetching certificate $resourceName", e)
-    }
-  }
-
-  private suspend fun createCertificate(
-    dataProviderResourceName: String,
-    certificate: Certificate
-  ): Certificate {
-    return try {
-      certificatesStub.createCertificate(
-        createCertificateRequest {
-          parent = dataProviderResourceName
-          this.certificate = certificate
-        }
-      )
-    } catch (e: StatusException) {
-      throw Exception("Error creating certificate for $dataProviderResourceName", e)
-    }
-  }
-
-  private suspend fun getCertificate(
-    dataProviderResourceName: String,
-    subjectKeyIdentifier: ByteString
-  ): Certificate {
-    return try {
-      certificatesStub
-        .listCertificates(
-          listCertificatesRequest {
-            parent = dataProviderResourceName
-            filter =
-              ListCertificatesRequestKt.filter { subjectKeyIdentifiers += subjectKeyIdentifier }
-          }
-        )
-        .certificatesList
-        .single()
-    } catch (e: StatusException) {
-      throw Exception("Error getting certificate for $dataProviderResourceName", e)
     }
   }
 
@@ -1561,16 +1512,19 @@ class EdpSimulator(
     nonce: Long,
     measurementResult: Measurement.Result
   ) {
-    // Verify that the signing key we have matches the one from the Requisition. A real EDP would
-    // look up the matching signing key, but the simulator is only configured with one.
-    val certificate = getCertificate(requisition.dataProviderCertificate)
-    if (certificate.subjectKeyIdentifier != edpData.signingKey.certificate.subjectKeyIdentifier) {
-      throw RequisitionRefusalException(
-        Requisition.Refusal.Justification.UNFULFILLABLE,
-        "Private key not found for ${certificate.name}"
-      )
-    }
-
+    val resultSigningResource =
+      edpData.resultSigningResource
+        ?: DataProviderCertificateKey.fromName(requisition.dataProviderCertificate)
+          ?: throw RequisitionRefusalException(
+          Requisition.Refusal.Justification.UNFULFILLABLE,
+          "Invalid data provider certificate"
+        )
+    val resultSigningKey =
+      edpData.registeredCertificates[resultSigningResource]
+        ?: throw RequisitionRefusalException(
+          Requisition.Refusal.Justification.UNFULFILLABLE,
+          "Invalid result certificate signing resource"
+        )
     val measurementEncryptionPublicKey: EncryptionPublicKey =
       if (measurementSpec.hasMeasurementPublicKey()) {
         measurementSpec.measurementPublicKey.unpack()
@@ -1578,17 +1532,9 @@ class EdpSimulator(
         @Suppress("DEPRECATION") // Handle legacy resources.
         EncryptionPublicKey.parseFrom(measurementSpec.serializedMeasurementPublicKey)
       }
-    val resultSigningKey = edpData.resultSigningKey ?: edpData.signingKey
     val signedResult: SignedMessage = signResult(measurementResult, resultSigningKey)
     val encryptedResult: EncryptedMessage =
       encryptResult(signedResult, measurementEncryptionPublicKey)
-
-    val resultCertificate =
-      if (edpData.resultSigningKey != null) {
-        getCertificate(edpData.name, edpData.resultSigningKey.certificate.subjectKeyIdentifier!!)
-      } else {
-        null
-      }
 
     try {
       requisitionsStub.fulfillDirectRequisition(
@@ -1596,9 +1542,7 @@ class EdpSimulator(
           name = requisition.name
           this.encryptedResult = encryptedResult
           this.nonce = nonce
-          if (resultCertificate != null) {
-            this.certificate = resultCertificate.name
-          }
+          this.certificate = resultSigningResource.toName()
         }
       )
     } catch (e: StatusException) {

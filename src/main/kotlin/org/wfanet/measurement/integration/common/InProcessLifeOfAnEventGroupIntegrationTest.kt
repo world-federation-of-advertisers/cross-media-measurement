@@ -99,7 +99,8 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
     mcResourceName = measurementConsumer.name
     // Create EDP Resource
     edpDisplayName = ALL_EDP_DISPLAY_NAMES[0]
-    edpResourceName = resourceSetup.createInternalDataProvider(createEntityContent(edpDisplayName))
+    edpResourceName =
+      resourceSetup.createInternalDataProvider(createEntityContent(edpDisplayName)).resourceName
   }
 
   @Test
