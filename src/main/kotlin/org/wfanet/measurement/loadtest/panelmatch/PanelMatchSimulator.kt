@@ -46,6 +46,7 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
 import org.wfanet.panelmatch.client.storage.StorageDetails
 
+/** Simulator for PanelMatch flows. */
 class PanelMatchSimulator(private val recurringExchangeClient: RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub,
                           private val exchangeClient: ExchangesGrpcKt.ExchangesCoroutineStub,
                           private val exchangeStepsClient: ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub,
@@ -96,17 +97,55 @@ class PanelMatchSimulator(private val recurringExchangeClient: RecurringExchange
     waitForExchangeToComplete()
   }
 
+  /** Block flow execution until the [Exchange] reaches a [TERMINAL_EXCHANGE_STATES]   */
   private suspend fun waitForExchangeToComplete() {
     while (!isDone()) {
       delay(10000)
     }
   }
 
+  private suspend fun createRecurringExchange(exchangeWorkflow: ExchangeWorkflow): Long {
+    val recurringExchangeId =
+      recurringExchangeClient
+        .createRecurringExchange(
+          createRecurringExchangeRequest {
+            recurringExchange = recurringExchange {
+              externalDataProviderId = PanelMatchResourceSetup.dataProviderId
+              externalModelProviderId = PanelMatchResourceSetup.modelProviderId
+              state = RecurringExchange.State.ACTIVE
+              details = recurringExchangeDetails {
+                this.exchangeWorkflow = exchangeWorkflow.toInternal()
+                cronSchedule = schedule
+                externalExchangeWorkflow = exchangeWorkflow.toByteString()
+                apiVersion = publicApiVersion
+              }
+              nextExchangeDate = exchangeDate.toProtoDate()
+            }
+          }
+        )
+        .externalRecurringExchangeId
+    return recurringExchangeId
+  }
+
+  private suspend fun isDone(): Boolean {
+    val request = getExchangeRequest { name = exchangeKey.toName() }
+    return try {
+      val exchange = exchangeClient.getExchange(request)
+      val steps = getSteps()
+      assertNotDeadlocked(steps)
+      logger.info("Exchange is in state: ${exchange.state}.")
+      exchange.state in TERMINAL_EXCHANGE_STATES
+    } catch (e: StatusException) {
+      false
+    }
+  }
+
+  /** Create resources needed to run a panel exchange. */
   private suspend fun setupWorkflow(exchangeWorkflow: ExchangeWorkflow,
                                     initialDataProviderInputs: Map<String, ByteString>,
                                     initialModelProviderInputs: Map<String, ByteString>) {
 
-    val externalRecurringExchangeId = createRecurringExchange()
+    val externalRecurringExchangeId = createRecurringExchange(exchangeWorkflow)
 
     val recurringExchangeKey =
       CanonicalRecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))
@@ -151,42 +190,6 @@ class PanelMatchSimulator(private val recurringExchangeClient: RecurringExchange
       mpForwardedStorage.writeBlob(blobKey, value)
     }
 
-  }
-
-  private suspend fun createRecurringExchange(): Long {
-    val recurringExchangeId =
-      recurringExchangeClient
-        .createRecurringExchange(
-          createRecurringExchangeRequest {
-            recurringExchange = recurringExchange {
-              externalDataProviderId = PanelMatchResourceSetup.dataProviderId
-              externalModelProviderId = PanelMatchResourceSetup.modelProviderId
-              state = RecurringExchange.State.ACTIVE
-              details = recurringExchangeDetails {
-                this.exchangeWorkflow = exchangeWorkflow.toInternal()
-                cronSchedule = schedule
-                externalExchangeWorkflow = exchangeWorkflow.toByteString()
-                apiVersion = publicApiVersion
-              }
-              nextExchangeDate = exchangeDate.toProtoDate()
-            }
-          }
-        )
-        .externalRecurringExchangeId
-    return recurringExchangeId
-  }
-
-  private suspend fun isDone(): Boolean {
-    val request = getExchangeRequest { name = exchangeKey.toName() }
-    return try {
-      val exchange = exchangeClient.getExchange(request)
-      val steps = getSteps()
-      assertNotDeadlocked(steps)
-      logger.info("Exchange is in state: ${exchange.state}.")
-      exchange.state in TERMINAL_EXCHANGE_STATES
-    } catch (e: StatusException) {
-      false
-    }
   }
 
   private fun assertNotDeadlocked(steps: Iterable<ExchangeStep>) {

@@ -82,6 +82,17 @@ import org.wfanet.panelmatch.client.storage.storageDetails
 import org.wfanet.panelmatch.common.certificates.testing.TestCertificateManager
 import org.wfanet.panelmatch.common.storage.testing.FakeTinkKeyStorageProvider
 
+/**
+ * Test for correctness of the CMMS for panel exchange on a single "empty" Kubernetes cluster using the `local`
+ * configuration.
+ *
+ * This will push the images to the container registry and populate the K8s cluster prior to running
+ * the test methods. The cluster must already exist with the `KUBECONFIG` environment variable
+ * pointing to its kubeconfig.
+ *
+ * This assumes that the `tar` and `kubectl` executables are the execution path. The latter is only
+ * used for `kustomize`, as the Kubernetes API is used to interact with the cluster.
+ */
 class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(localSystem) {
 
   class Images : TestRule {
@@ -103,6 +114,7 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
     }
   }
 
+  /** [TestRule] which populates a K8s cluster with the components of the CMMS and daemons for PanelMatch. */
   class LocalSystem(k8sClient: Lazy<KubernetesClient>, tempDir: Lazy<TemporaryFolder>, runId: Lazy<String>) : TestRule, PanelMatchSystem {
     private val k8sClient: KubernetesClient by k8sClient
     private val tempDir: TemporaryFolder by tempDir

@@ -27,6 +27,7 @@ import org.wfanet.panelmatch.common.compression.CompressionParametersKt
 import org.wfanet.panelmatch.common.compression.compressionParameters
 import org.wfanet.panelmatch.common.toDelimitedByteString
 
+/** Provide utility functions to set up workflows in [PanelMatchSimulator]. */
 object PanelMatchCorectnessTestDataProvider {
 
   enum class TestType {

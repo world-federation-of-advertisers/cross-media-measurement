@@ -22,6 +22,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
         "//src/main/proto/wfa/panelmatch/client/storage:storage_details_java_proto",
         "//src/main/proto/wfa/panelmatch/client/storage:storage_details_kt_jvm_proto",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:proto_conversions",
         "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",

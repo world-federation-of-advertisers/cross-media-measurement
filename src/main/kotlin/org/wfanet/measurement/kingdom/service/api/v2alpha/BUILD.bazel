@@ -7,6 +7,7 @@ package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha/testing:__pkg__",
     "//src/main/kotlin/org/wfanet/measurement/loadtest/panelmatchresourcesetup:__pkg__",
+    "//src/main/kotlin/org/wfanet/measurement/loadtest/panelmatch:__pkg__",
     "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:__pkg__",
     "//src/test/kotlin/org/wfanet/measurement/integration/common:__pkg__",
 ])
