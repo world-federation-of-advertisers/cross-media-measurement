@@ -163,10 +163,7 @@ class InProcessEdpSimulator(
   private val registeredCertificates by lazy {
     val certificateMap = mutableMapOf(dataProviderCertificateKey to edpPublicKeySigningKey)
     if (separateResultSigningKey != null && separateResultCertificateKey != null) {
-      certificateMap.put(
-        separateResultCertificateKey,
-        separateResultSigningKey
-      )
+      certificateMap.put(separateResultCertificateKey, separateResultSigningKey)
     }
     certificateMap
   }
@@ -178,7 +175,7 @@ class InProcessEdpSimulator(
       name = resourceName,
       displayName = displayName,
       encryptionKey = loadEncryptionPrivateKey("${displayName}_enc_private.tink"),
-      resultSigningResource = separateResultCertificateKey?:dataProviderCertificateKey,
+      resultSigningResource = separateResultCertificateKey ?: dataProviderCertificateKey,
       registeredCertificates = registeredCertificates,
     )
 
