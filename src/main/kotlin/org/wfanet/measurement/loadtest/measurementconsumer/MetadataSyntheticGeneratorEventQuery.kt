@@ -19,6 +19,7 @@ package org.wfanet.measurement.loadtest.measurementconsumer
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptMetadata
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
@@ -29,7 +30,7 @@ import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 class MetadataSyntheticGeneratorEventQuery(
   populationSpec: SyntheticPopulationSpec,
   private val mcPrivateKey: PrivateKeyHandle
-) : SyntheticGeneratorEventQuery(populationSpec) {
+) : SyntheticGeneratorEventQuery(populationSpec, TestEvent.getDescriptor()) {
   override fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec {
     val metadata = decryptMetadata(eventGroup.encryptedMetadata, mcPrivateKey)
     return metadata.metadata.unpack(SyntheticEventGroupSpec::class.java)
