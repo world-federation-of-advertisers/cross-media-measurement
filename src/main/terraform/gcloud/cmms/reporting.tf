@@ -38,25 +38,8 @@ module "reporting_default_node_pool" {
   max_node_count  = 4
 }
 
-provider "kubernetes" {
-  # Due to the fact that this is using interpolation, the cluster must already exist.
-  # See https://registry.terraform.io/providers/hashicorp/kubernetes/2.20.0/docs
-
-  alias = "reporting"
-  host  = "https://${data.google_container_cluster.reporting.endpoint}"
-  token = data.google_client_config.default.access_token
-  cluster_ca_certificate = base64decode(
-    data.google_container_cluster.reporting.master_auth[0].cluster_ca_certificate,
-  )
-}
-
 module "reporting" {
   source = "../modules/reporting"
-
-  providers = {
-    google     = google
-    kubernetes = kubernetes.reporting
-  }
 
   postgres_instance = google_sql_database_instance.postgres
 }
