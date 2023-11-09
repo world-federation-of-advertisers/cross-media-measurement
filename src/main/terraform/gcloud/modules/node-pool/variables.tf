@@ -20,7 +20,7 @@ variable "name" {
 variable "cluster" {
   description = "`google_container_cluster` that the node pool is for."
   type = object({
-    name = string
+    id = string
   })
   nullable = false
 }
