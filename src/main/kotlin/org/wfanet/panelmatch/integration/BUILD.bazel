@@ -5,6 +5,7 @@ package(
     default_visibility = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/testing:__subpackages__",
         "//src/test/kotlin/org/wfanet/panelmatch/integration:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/panelmatch:__subpackages__",
     ],
 )
 

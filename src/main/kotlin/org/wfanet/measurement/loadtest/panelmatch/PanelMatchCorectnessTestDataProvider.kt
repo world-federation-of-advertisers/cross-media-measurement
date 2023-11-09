@@ -30,6 +30,7 @@ import org.wfanet.panelmatch.common.toDelimitedByteString
 /** Provide utility functions to set up workflows in [PanelMatchSimulator]. */
 object PanelMatchCorectnessTestDataProvider {
 
+  const val HKDF_PEPPER = "some-hkdf-pepper"
   enum class TestType {
     DOUBLE_BLIND,
     MINI_EXCHANGE,
@@ -60,8 +61,7 @@ object PanelMatchCorectnessTestDataProvider {
   }
 
   private fun getInitialDataProviderInputsForMiniExchange(): Map<String, ByteString> {
-    val HKDF_PEPPER = "some-hkdf-pepper".toByteStringUtf8()
-    return mapOf("edp-hkdf-pepper" to HKDF_PEPPER)
+    return mapOf("edp-hkdf-pepper" to HKDF_PEPPER.toByteStringUtf8())
   }
 
   private fun getInitialDataProviderInputsForFullWithPreprocessing(): Map<String, ByteString> {

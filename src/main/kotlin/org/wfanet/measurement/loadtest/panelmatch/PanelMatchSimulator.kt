@@ -18,9 +18,11 @@ package org.wfanet.measurement.loadtest.panelmatch
 
 import com.google.common.truth.Truth
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.StatusException
 import java.time.LocalDate
 import java.util.logging.Logger
+import kotlin.test.assertNotNull
 import kotlinx.coroutines.delay
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeKey
 import org.wfanet.measurement.api.v2alpha.CanonicalRecurringExchangeKey
@@ -41,10 +43,16 @@ import org.wfanet.measurement.internal.kingdom.createRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.recurringExchange
 import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
 import org.wfanet.measurement.kingdom.service.api.v2alpha.toInternal
+import org.wfanet.measurement.loadtest.panelmatch.PanelMatchCorectnessTestDataProvider.HKDF_PEPPER
 import org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourceSetup
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
+import org.wfanet.panelmatch.client.exchangetasks.JoinKeyAndIdCollection
+import org.wfanet.panelmatch.client.privatemembership.keyedDecryptedEventDataSet
 import org.wfanet.panelmatch.client.storage.StorageDetails
+import org.wfanet.panelmatch.common.parseDelimitedMessages
+import org.wfanet.panelmatch.common.storage.toByteString
+import org.wfanet.panelmatch.integration.testing.parsePlaintextResults
 
 /** Simulator for PanelMatch flows. */
 class PanelMatchSimulator(
@@ -87,6 +95,10 @@ class PanelMatchSimulator(
 
     setupWorkflow(workflow, initialDataProviderInputs, initialModelProviderInputs)
     waitForExchangeToComplete()
+
+    // TODO(@marcopremier): Check the specific parsed output
+    val result = mpForwardedStorage.getBlob("mp-decrypted-join-keys")
+    JoinKeyAndIdCollection.parseFrom(result?.toByteString())
   }
 
   suspend fun executeFullWithPreprocessingWorkflow(workflow: ExchangeWorkflow) {
@@ -101,6 +113,20 @@ class PanelMatchSimulator(
 
     setupWorkflow(workflow, initialDataProviderInputs, initialModelProviderInputs)
     waitForExchangeToComplete()
+
+    val blob = mpForwardedStorage.getBlob("decrypted-event-data-0-of-1")?.toByteString()
+    assertNotNull(blob)
+
+    val decryptedEvents =
+      parsePlaintextResults(blob!!.parseDelimitedMessages(keyedDecryptedEventDataSet {})).map {
+        it.joinKey to it.plaintexts
+      }
+
+    Truth.assertThat(decryptedEvents)
+      .containsExactly(
+        "join-key-1" to listOf("payload-1-for-join-key-1", "payload-2-for-join-key-1"),
+        "join-key-2" to listOf("payload-1-for-join-key-2", "payload-2-for-join-key-2"),
+      )
   }
 
   suspend fun executeMiniWorkflow(workflow: ExchangeWorkflow) {
@@ -115,6 +141,8 @@ class PanelMatchSimulator(
 
     setupWorkflow(workflow, initialDataProviderInputs, initialModelProviderInputs)
     waitForExchangeToComplete()
+
+    Truth.assertThat(mpForwardedStorage.getBlob("mp-hkdf-pepper")?.toByteString()).isEqualTo(HKDF_PEPPER.toByteStringUtf8())
   }
 
   /** Block flow execution until the [Exchange] reaches a [TERMINAL_EXCHANGE_STATES] */
