@@ -140,18 +140,14 @@ class PanelMatchResourceSetup(
     }
 
     if (exchangeWorkflow !== null) {
-      val externalRecurringExchangeId =
-        createRecurringExchange(
-          externalDataProviderId,
-          externalModelProviderId,
-          exchangeDate,
-          exchangeSchedule,
-          publicApiVersion,
-          exchangeWorkflow
-        )
-
-      // val recurringExchangeKey =
-      //  CanonicalRecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))
+      createRecurringExchange(
+        externalDataProviderId,
+        externalModelProviderId,
+        exchangeDate,
+        exchangeSchedule,
+        publicApiVersion,
+        exchangeWorkflow
+      )
     }
     withContext(Dispatchers.IO) { writeOutput(resources) }
     logger.info("Resource setup was successful.")
