@@ -14,10 +14,14 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.TypeRegistry
 import java.io.File
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.parseTextProto
 import picocli.CommandLine
@@ -30,6 +34,18 @@ import picocli.CommandLine
 )
 /** Implementation of [EdpSimulatorRunner] using [SyntheticGeneratorEventQuery]. */
 class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
+  @CommandLine.Option(
+    names = ["--event-message-descriptor-set"],
+    description =
+      [
+        "Serialized FileDescriptorSet for the event message and its dependencies.",
+        "This can be specified multiple times.",
+        "It need not be specified if the event message type is $TEST_EVENT_MESSAGE_TYPE.",
+      ],
+    required = false,
+  )
+  private lateinit var eventMessageDescriptorSetFiles: List<File>
+
   @CommandLine.Option(
     names = ["--population-spec"],
     description = ["Path to SyntheticPopulationSpec message in text format."],
@@ -49,15 +65,33 @@ class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
       parseTextProto(populationSpecFile, SyntheticPopulationSpec.getDefaultInstance())
     val eventGroupSpec =
       parseTextProto(eventGroupSpecFile, SyntheticEventGroupSpec.getDefaultInstance())
+    val eventMessageRegistry: TypeRegistry = buildEventMessageRegistry()
 
     val eventQuery =
-      object : SyntheticGeneratorEventQuery(populationSpec) {
+      object : SyntheticGeneratorEventQuery(populationSpec, eventMessageRegistry) {
         override fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec {
           return eventGroupSpec
         }
       }
 
     run(eventQuery, eventGroupSpec)
+  }
+
+  private fun buildEventMessageRegistry(): TypeRegistry {
+    val builder = TypeRegistry.newBuilder().add(TestEvent.getDescriptor())
+    if (::eventMessageDescriptorSetFiles.isInitialized) {
+      val fileDescriptorSets: List<DescriptorProtos.FileDescriptorSet> =
+        eventMessageDescriptorSetFiles.map {
+          parseTextProto(it, DescriptorProtos.FileDescriptorSet.getDefaultInstance())
+        }
+      builder.add(ProtoReflection.buildDescriptors(fileDescriptorSets))
+    }
+    return builder.build()
+  }
+
+  companion object {
+    private const val TEST_EVENT_MESSAGE_TYPE =
+      "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
   }
 }
 
