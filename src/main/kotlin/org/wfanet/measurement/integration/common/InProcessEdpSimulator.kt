@@ -39,6 +39,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.CompositionMechanism
@@ -89,7 +90,11 @@ class InProcessEdpSimulator(
       requisitionFulfillmentStub =
         RequisitionFulfillmentCoroutineStub(duchyPublicApiChannel).withPrincipalName(resourceName),
       eventQuery =
-        object : SyntheticGeneratorEventQuery(SyntheticGenerationSpecs.POPULATION_SPEC) {
+        object :
+          SyntheticGeneratorEventQuery(
+            SyntheticGenerationSpecs.POPULATION_SPEC,
+            TestEvent.getDescriptor()
+          ) {
           override fun getSyntheticDataSpec(eventGroup: EventGroup) = syntheticDataSpec
         },
       throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),

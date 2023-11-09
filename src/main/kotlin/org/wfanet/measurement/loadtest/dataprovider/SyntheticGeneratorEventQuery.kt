@@ -16,30 +16,47 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.protobuf.Descriptors
+import com.google.protobuf.DynamicMessage
+import com.google.protobuf.TypeRegistry
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.toRange
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 /** [EventQuery] that uses [SyntheticDataGeneration]. */
 abstract class SyntheticGeneratorEventQuery(
   private val populationSpec: SyntheticPopulationSpec,
-) : EventQuery<TestEvent> {
+  private val eventMessageDescriptor: Descriptors.Descriptor,
+) : EventQuery<DynamicMessage> {
+  init {
+    require(
+      populationSpec.eventMessageTypeUrl == ProtoReflection.getTypeUrl(eventMessageDescriptor)
+    ) {
+      "Incorrect event message descriptor for population spec"
+    }
+  }
+
+  constructor(
+    populationSpec: SyntheticPopulationSpec,
+    typeRegistry: TypeRegistry,
+  ) : this(populationSpec, typeRegistry.getDescriptorForTypeUrl(populationSpec.eventMessageTypeUrl))
+
   /** Returns the synthetic data spec for [eventGroup]. */
   abstract fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec
 
   override fun getLabeledEvents(
     eventGroupSpec: EventQuery.EventGroupSpec
-  ): Sequence<LabeledEvent<TestEvent>> {
+  ): Sequence<LabeledEvent<DynamicMessage>> {
     val timeRange = eventGroupSpec.spec.collectionInterval.toRange()
     val syntheticDataSpec: SyntheticEventGroupSpec = getSyntheticDataSpec(eventGroupSpec.eventGroup)
     val program: Program =
-      EventQuery.compileProgram(eventGroupSpec.spec.filter, TestEvent.getDescriptor())
+      EventQuery.compileProgram(eventGroupSpec.spec.filter, eventMessageDescriptor)
     return SyntheticDataGeneration.generateEvents(
-        TestEvent.getDefaultInstance(),
+        DynamicMessage.getDefaultInstance(eventMessageDescriptor),
         populationSpec,
         syntheticDataSpec
       )

@@ -50,6 +50,12 @@ message SyntheticPopulationSpec {
   // The overall range of VIDs for the synthetic population.
   VidRange vid_range = 1;
 
+  // Type URL of the event message type.
+  //
+  // This is the message type which `population_fields` and
+  // `non_population_fields` refer to.
+  string event_message_type_url = 5;
+
   // Set of field paths within a synthetic event that pertain to the population,
   // with `.` as the traversal operator.
   //
