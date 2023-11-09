@@ -39,6 +39,7 @@ cue_library(
     name = "config_gke",
     srcs = ["config_gke.cue"],
     deps = [
+        ":base_gke",
         ":config",
         "//src/main/k8s:postgres",
         "//src/main/k8s:spanner",

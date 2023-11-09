@@ -49,25 +49,8 @@ module "simulators_spot_node_pool" {
   spot            = true
 }
 
-provider "kubernetes" {
-  # Due to the fact that this is using interpolation, the cluster must already exist.
-  # See https://registry.terraform.io/providers/hashicorp/kubernetes/2.20.0/docs
-
-  alias = "simulators"
-  host  = "https://${data.google_container_cluster.simulators.endpoint}"
-  token = data.google_client_config.default.access_token
-  cluster_ca_certificate = base64decode(
-    data.google_container_cluster.simulators.master_auth[0].cluster_ca_certificate,
-  )
-}
-
 module "simulators" {
   source = "../modules/simulators"
-
-  providers = {
-    google     = google
-    kubernetes = kubernetes.simulators
-  }
 
   # TODO(hashicorp/terraform-provider-google#5693): Use data source once available.
   bigquery_table = {

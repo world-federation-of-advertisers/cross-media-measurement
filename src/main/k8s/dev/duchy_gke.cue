@@ -49,6 +49,7 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 
 objectSets: [
 	default_deny_ingress_and_egress,
+	duchy.serviceAccounts,
 	duchy.deployments,
 	duchy.services,
 	duchy.networkPolicies,
@@ -75,6 +76,16 @@ duchy: #SpannerDuchy & {
 	_blob_storage_flags:        _cloudStorageConfig.flags
 	_verbose_grpc_logging:      "false"
 	_duchyMillParallelism:      4
+
+	serviceAccounts: [string]: #WorkloadIdentityServiceAccount
+	serviceAccounts: {
+		"\(#InternalServerServiceAccount)": {
+			_iamServiceAccountName: "\(_duchy_name)-duchy-internal"
+		}
+		"\(#StorageServiceAccount)": {
+			_iamServiceAccountName: "\(_duchy_name)-duchy-storage"
+		}
+	}
 
 	deployments: {
 		"internal-api-server-deployment": {

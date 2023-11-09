@@ -61,50 +61,11 @@ module "storage" {
   location = local.storage_bucket_location
 }
 
-provider "kubernetes" {
-  # Due to the fact that this is using interpolation, the cluster must already exist.
-  # See https://registry.terraform.io/providers/hashicorp/kubernetes/2.20.0/docs
-
-  alias = "aggregator"
-  host  = "https://${data.google_container_cluster.clusters["aggregator"].endpoint}"
-  token = data.google_client_config.default.access_token
-  cluster_ca_certificate = base64decode(
-    data.google_container_cluster.clusters["aggregator"].master_auth[0].cluster_ca_certificate,
-  )
-}
-
-provider "kubernetes" {
-  # Due to the fact that this is using interpolation, the cluster must already exist.
-  # See https://registry.terraform.io/providers/hashicorp/kubernetes/2.20.0/docs
-
-  alias = "worker1"
-  host  = "https://${data.google_container_cluster.clusters["worker1"].endpoint}"
-  token = data.google_client_config.default.access_token
-  cluster_ca_certificate = base64decode(
-    data.google_container_cluster.clusters["worker1"].master_auth[0].cluster_ca_certificate,
-  )
-}
-
-provider "kubernetes" {
-  # Due to the fact that this is using interpolation, the cluster must already exist.
-  # See https://registry.terraform.io/providers/hashicorp/kubernetes/2.20.0/docs
-
-  alias = "worker2"
-  host  = "https://${data.google_container_cluster.clusters["worker2"].endpoint}"
-  token = data.google_client_config.default.access_token
-  cluster_ca_certificate = base64decode(
-    data.google_container_cluster.clusters["worker2"].master_auth[0].cluster_ca_certificate,
-  )
-}
-
 # TODO(hashicorp/terraform#24476): Use a for_each for the Duchy modules once
 # that works with providers.
 
 module "aggregator_duchy" {
   source = "../modules/duchy"
-  providers = {
-    kubernetes = kubernetes.aggregator
-  }
 
   name             = "aggregator"
   database_name    = "aggregator_duchy_computations"
@@ -114,9 +75,6 @@ module "aggregator_duchy" {
 
 module "worker1_duchy" {
   source = "../modules/duchy"
-  providers = {
-    kubernetes = kubernetes.worker1
-  }
 
   name             = "worker1"
   database_name    = "worker1_duchy_computations"
@@ -126,9 +84,6 @@ module "worker1_duchy" {
 
 module "worker2_duchy" {
   source = "../modules/duchy"
-  providers = {
-    kubernetes = kubernetes.worker2
-  }
 
   name             = "worker2"
   database_name    = "worker2_duchy_computations"

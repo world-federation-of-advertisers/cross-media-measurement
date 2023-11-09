@@ -41,6 +41,7 @@ _reportingMcConfigSecretName: string @tag("mc_config_secret_name")
 
 objectSets: [
 	default_deny_ingress_and_egress,
+	reporting.serviceAccounts,
 	reporting.deployments,
 	reporting.services,
 	reporting.networkPolicies,
@@ -58,6 +59,12 @@ reporting: #Reporting & {
 	}
 
 	_verboseGrpcServerLogging: true
+
+	serviceAccounts: {
+		"\(#InternalServerServiceAccount)": #WorkloadIdentityServiceAccount & {
+			_iamServiceAccountName: "reporting-internal"
+		}
+	}
 
 	deployments: {
 		"postgres-reporting-data-server": {

@@ -53,3 +53,10 @@ package k8s
 	instance: string @tag("postgres_instance")
 	region:   string @tag("postgres_region")
 }
+
+#WorkloadIdentityServiceAccount: #ServiceAccount & {
+	_iamServiceAccountName: string
+
+	let Principal = "\(_iamServiceAccountName)@\(#GCloudConfig.project).iam.gserviceaccount.com"
+	metadata: annotations: "iam.gke.io/gcp-service-account": Principal
+}

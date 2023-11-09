@@ -40,6 +40,7 @@ _secret_name: string @tag("secret_name")
 
 objectSets: [
 	default_deny_ingress_and_egress,
+	kingdom.serviceAccounts,
 	kingdom.deployments,
 	kingdom.services,
 	kingdom.networkPolicies,
@@ -52,6 +53,12 @@ kingdom: #Kingdom & {
 
 	_kingdom_image_pull_policy: "Always"
 	_verboseGrpcServerLogging:  true
+
+	serviceAccounts: {
+		"\(#InternalServerServiceAccount)": #WorkloadIdentityServiceAccount & {
+			_iamServiceAccountName: "kingdom-internal"
+		}
+	}
 
 	deployments: {
 		"gcp-kingdom-data-server": {

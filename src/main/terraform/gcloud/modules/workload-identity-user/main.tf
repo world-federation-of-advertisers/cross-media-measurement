@@ -27,16 +27,6 @@ resource "google_service_account" "iam" {
   description = var.iam_service_account_description
 }
 
-resource "kubernetes_service_account" "k8s" {
-  metadata {
-    name = var.k8s_service_account_name
-    annotations = {
-      "iam.gke.io/gcp-service-account" : local.iam_service_account.email
-    }
-    namespace = var.cluster_namespace
-  }
-}
-
 resource "google_service_account_iam_member" "workload_identity_user" {
   service_account_id = local.iam_service_account.name
   role               = "roles/iam.workloadIdentityUser"
