@@ -28,33 +28,35 @@ import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.ErrorLoggingServerInterceptor
 import org.wfanet.measurement.common.grpc.LoggingServerInterceptor
 
-fun startInProcessServerWithService(
-  commonServerFlags: CommonServer.Flags,
-  service: ServerServiceDefinition
-): Channel {
-  val inProcessServerName = InProcessServerBuilder.generateName()
+object InProcessServerMethods {
+  fun startInProcessServerWithService(
+    commonServerFlags: CommonServer.Flags,
+    service: ServerServiceDefinition
+  ): Channel {
+    val inProcessServerName = InProcessServerBuilder.generateName()
 
-  val executor: ExecutorService =
-    ThreadPoolExecutor(
-      1,
-      commonServerFlags.threadPoolSize,
-      60L,
-      TimeUnit.SECONDS,
-      LinkedBlockingQueue()
-    )
+    val executor: ExecutorService =
+      ThreadPoolExecutor(
+        1,
+        commonServerFlags.threadPoolSize,
+        60L,
+        TimeUnit.SECONDS,
+        LinkedBlockingQueue()
+      )
 
-  InProcessServerBuilder.forName(inProcessServerName)
-    .apply {
-      executor(executor)
-      addService(service)
-      if (commonServerFlags.debugVerboseGrpcLogging) {
-        intercept(LoggingServerInterceptor)
-      } else {
-        intercept(ErrorLoggingServerInterceptor)
+    InProcessServerBuilder.forName(inProcessServerName)
+      .apply {
+        executor(executor)
+        addService(service)
+        if (commonServerFlags.debugVerboseGrpcLogging) {
+          intercept(LoggingServerInterceptor)
+        } else {
+          intercept(ErrorLoggingServerInterceptor)
+        }
       }
-    }
-    .build()
-    .start()
+      .build()
+      .start()
 
-  return InProcessChannelBuilder.forName(inProcessServerName).directExecutor().build()
+    return InProcessChannelBuilder.forName(inProcessServerName).directExecutor().build()
+  }
 }
