@@ -28,7 +28,7 @@ import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.ErrorLoggingServerInterceptor
 import org.wfanet.measurement.common.grpc.LoggingServerInterceptor
 
-object InProcessServerMethods {
+object InProcessServersMethods {
   fun startInProcessServerWithService(
     commonServerFlags: CommonServer.Flags,
     service: ServerServiceDefinition
