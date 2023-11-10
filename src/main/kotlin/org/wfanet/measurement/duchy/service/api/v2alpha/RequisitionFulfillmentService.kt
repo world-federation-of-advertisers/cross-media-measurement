@@ -19,23 +19,20 @@ import io.grpc.StatusException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineImplBase
-import org.wfanet.measurement.api.v2alpha.RequisitionKey
-import org.wfanet.measurement.api.v2alpha.getProviderFromContext
+import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.consumeFirst
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
-import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.consent.client.duchy.Requisition as ConsentSignalingRequisition
 import org.wfanet.measurement.consent.client.duchy.verifyRequisitionFulfillment
 import org.wfanet.measurement.duchy.storage.RequisitionBlobContext
 import org.wfanet.measurement.duchy.storage.RequisitionStore
-import org.wfanet.measurement.internal.common.Provider
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
@@ -57,8 +54,17 @@ class RequisitionFulfillmentService(
   private val systemRequisitionsClient: RequisitionsCoroutineStub,
   private val computationsClient: ComputationsCoroutineStub,
   private val requisitionStore: RequisitionStore,
-  private val callIdentityProvider: () -> Provider = ::getProviderFromContext
 ) : RequisitionFulfillmentCoroutineImplBase() {
+
+  private enum class Permission {
+    FULFILL;
+
+    fun deniedStatus(name: String): Status {
+      return Status.PERMISSION_DENIED.withDescription(
+        "Permission $this denied on resource $name (or it might not exist)."
+      )
+    }
+  }
 
   override suspend fun fulfillRequisition(
     requests: Flow<FulfillRequisitionRequest>
@@ -67,20 +73,14 @@ class RequisitionFulfillmentService(
       .use { consumed ->
         val header = consumed.item.header
         val key =
-          grpcRequireNotNull(RequisitionKey.fromName(header.name)) {
+          grpcRequireNotNull(CanonicalRequisitionKey.fromName(header.name)) {
             "Resource name unspecified or invalid."
           }
         grpcRequire(header.nonce != 0L) { "nonce unspecified" }
 
-        // Ensure that the caller is the data_provider who owns this requisition.
-        val caller = callIdentityProvider()
-        if (
-          caller.type != Provider.Type.DATA_PROVIDER ||
-            externalIdToApiId(caller.externalId) != key.dataProviderId
-        ) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "The data_provider id doesn't match the caller's identity."
-          }
+        val authenticatedPrincipal = principalFromCurrentContext
+        if (key.parentKey != authenticatedPrincipal.resourceKey) {
+          throw Permission.FULFILL.deniedStatus(header.name).asRuntimeException()
         }
 
         val externalRequisitionKey = externalRequisitionKey {
@@ -144,30 +144,32 @@ class RequisitionFulfillmentService(
     nonce: Long
   ): RequisitionMetadata {
     val kingdomComputation = computationToken.computationDetails.kingdomComputation
-    when (Version.fromString(kingdomComputation.publicApiVersion)) {
-      Version.V2_ALPHA -> {}
-      Version.VERSION_UNSPECIFIED ->
-        throw Status.FAILED_PRECONDITION.withDescription(
+    val requisitionMetadata =
+      checkNotNull(computationToken.requisitionsList.find { it.externalKey == requisitionKey })
+
+    val publicApiVersion =
+      Version.fromStringOrNull(kingdomComputation.publicApiVersion)
+        ?: throw Status.FAILED_PRECONDITION.withDescription(
             "Public API version invalid or unspecified"
           )
           .asRuntimeException()
-    }
-
-    val measurementSpec = MeasurementSpec.parseFrom(kingdomComputation.measurementSpec)
-    val requisitionMetadata =
-      checkNotNull(computationToken.requisitionsList.find { it.externalKey == requisitionKey })
-    if (
-      !verifyRequisitionFulfillment(
-        measurementSpec,
-        requisitionMetadata.toConsentSignalingRequisition(),
-        requisitionKey.requisitionFingerprint,
-        nonce
-      )
-    ) {
-      throw Status.FAILED_PRECONDITION.withDescription(
-          "Requisition fulfillment could not be verified"
-        )
-        .asRuntimeException()
+    when (publicApiVersion) {
+      Version.V2_ALPHA -> {
+        val measurementSpec = MeasurementSpec.parseFrom(kingdomComputation.measurementSpec)
+        if (
+          !verifyRequisitionFulfillment(
+            measurementSpec,
+            requisitionMetadata.toConsentSignalingRequisition(),
+            requisitionKey.requisitionFingerprint,
+            nonce
+          )
+        ) {
+          throw Status.FAILED_PRECONDITION.withDescription(
+              "Requisition fulfillment could not be verified"
+            )
+            .asRuntimeException()
+        }
+      }
     }
 
     return requisitionMetadata

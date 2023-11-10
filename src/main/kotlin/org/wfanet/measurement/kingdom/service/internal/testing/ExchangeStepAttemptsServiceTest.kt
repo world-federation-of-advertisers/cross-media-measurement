@@ -29,14 +29,13 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
-import org.wfanet.measurement.internal.common.Provider
-import org.wfanet.measurement.internal.common.provider
 import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.DataProviderKt.details
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
@@ -109,6 +108,7 @@ private val RECURRING_EXCHANGE = recurringExchange {
   details = recurringExchangeDetails {
     cronSchedule = "@daily"
     exchangeWorkflow = EXCHANGE_WORKFLOW
+    apiVersion = Version.V2_ALPHA.string
   }
   nextExchangeDate = EXCHANGE_DATE
 }
@@ -121,7 +121,7 @@ private val DATA_PROVIDER = dataProvider {
       CertificateKt.details { x509Der = ByteString.copyFromUtf8("This is a certificate der.") }
   }
   details = details {
-    apiVersion = "2"
+    apiVersion = Version.V2_ALPHA.string
     publicKey = ByteString.copyFromUtf8("This is a  public key.")
     publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
     publicKeySignatureAlgorithmOid = "2.9999"
@@ -199,7 +199,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val claimReadyExchangeStepResponse =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = PROVIDER }
+        claimReadyExchangeStepRequest { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
       )
     assertThat(claimReadyExchangeStepResponse.exchangeStep.stepIndex).isEqualTo(1L)
     val response =
@@ -215,7 +215,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val claimReadyExchangeStepResponse2 =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = PROVIDER }
+        claimReadyExchangeStepRequest { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
       )
     assertThat(claimReadyExchangeStepResponse2.exchangeStep.stepIndex).isEqualTo(2L)
     val response2 =
@@ -223,7 +223,6 @@ abstract class ExchangeStepAttemptsServiceTest {
         makeRequest(
           attemptState = ExchangeStepAttempt.State.SUCCEEDED,
           attemptNumber = 1,
-          stepProvider = PROVIDER,
           stepIndex = 2
         )
       )
@@ -231,7 +230,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val claimReadyExchangeStepResponse3 =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = PROVIDER }
+        claimReadyExchangeStepRequest { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
       )
     assertThat(claimReadyExchangeStepResponse3.exchangeStep.stepIndex).isEqualTo(3L)
     val response3 =
@@ -239,7 +238,6 @@ abstract class ExchangeStepAttemptsServiceTest {
         makeRequest(
           attemptState = ExchangeStepAttempt.State.SUCCEEDED,
           attemptNumber = 1,
-          stepProvider = PROVIDER,
           stepIndex = 3
         )
       )
@@ -277,7 +275,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val claimReadyExchangeStepResponse =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = PROVIDER }
+        claimReadyExchangeStepRequest { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
       )
     assertThat(claimReadyExchangeStepResponse.exchangeStep.stepIndex).isEqualTo(1L)
     val response =
@@ -293,7 +291,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val claimReadyExchangeStepResponse2 =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = PROVIDER }
+        claimReadyExchangeStepRequest { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
       )
     assertThat(claimReadyExchangeStepResponse2)
       .isEqualTo(org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse {})
@@ -342,38 +340,11 @@ abstract class ExchangeStepAttemptsServiceTest {
   }
 
   @Test
-  fun `finishExchangeStepAttempt fails for wrong provider`() = runBlocking {
-    createRecurringExchange()
-
-    exchangeStepsService.claimReadyExchangeStep(
-      claimReadyExchangeStepRequest { provider = PROVIDER }
-    )
-
-    val request: FinishExchangeStepAttemptRequest =
-      makeRequest(
-        ExchangeStepAttempt.State.SUCCEEDED,
-        1,
-        provider {
-          externalId = EXTERNAL_DATA_PROVIDER_ID
-          type = Provider.Type.DATA_PROVIDER
-        }
-      )
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        exchangeStepAttemptsService.finishExchangeStepAttempt(request)
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    val errorInfo: ErrorInfo = checkNotNull(exception.errorInfo)
-    assertThat(errorInfo.reason).isEqualTo("EXCHANGE_STEP_NOT_FOUND")
-  }
-
-  @Test
   fun `getExchangeStepAttempt succeeds`() = runBlocking {
     createRecurringExchange()
 
     exchangeStepsService.claimReadyExchangeStep(
-      claimReadyExchangeStepRequest { provider = PROVIDER }
+      claimReadyExchangeStepRequest { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
     )
 
     val response =
@@ -383,7 +354,6 @@ abstract class ExchangeStepAttemptsServiceTest {
           date = EXCHANGE_DATE
           stepIndex = 1
           attemptNumber = 1
-          provider = PROVIDER
         }
       )
 
@@ -402,41 +372,12 @@ abstract class ExchangeStepAttemptsServiceTest {
   }
 
   @Test
-  fun `getExchangeStepAttempt fails with wrong provider`() = runBlocking {
-    createRecurringExchange()
-
-    exchangeStepsService.claimReadyExchangeStep(
-      claimReadyExchangeStepRequest { provider = PROVIDER }
-    )
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        exchangeStepAttemptsService.getExchangeStepAttempt(
-          getExchangeStepAttemptRequest {
-            externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-            date = EXCHANGE_DATE
-            stepIndex = 1
-            attemptNumber = 1
-            provider = provider {
-              externalId = EXTERNAL_DATA_PROVIDER_ID
-              type = Provider.Type.DATA_PROVIDER
-            }
-          }
-        )
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    val errorInfo: ErrorInfo = checkNotNull(exception.errorInfo)
-    assertThat(errorInfo.reason).isEqualTo("EXCHANGE_STEP_ATTEMPT_NOT_FOUND")
-  }
-
-  @Test
   fun `finishExchangeStepAttempt succeeds`() = runBlocking {
     createRecurringExchange()
 
     val claimReadyExchangeStepResponse =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = PROVIDER }
+        claimReadyExchangeStepRequest { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
       )
 
     val response =
@@ -461,7 +402,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val claimReadyExchangeStepResponse =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = PROVIDER }
+        claimReadyExchangeStepRequest { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
       )
 
     val response =
@@ -486,7 +427,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val claimReadyExchangeStepResponse =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = PROVIDER }
+        claimReadyExchangeStepRequest { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
       )
 
     val response =
@@ -511,7 +452,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val claimReadyExchangeStepResponse =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = PROVIDER }
+        claimReadyExchangeStepRequest { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
       )
     assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(1L)
 
@@ -525,7 +466,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val claimReadyExchangeStepResponse2 =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = PROVIDER }
+        claimReadyExchangeStepRequest { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
       )
     assertThat(claimReadyExchangeStepResponse.exchangeStep)
       .ignoringFieldScope(EXCHANGE_STEP_RESPONSE_IGNORED_FIELDS)
@@ -558,11 +499,9 @@ abstract class ExchangeStepAttemptsServiceTest {
   private fun makeRequest(
     attemptState: ExchangeStepAttempt.State,
     attemptNumber: Int = 1,
-    stepProvider: Provider = PROVIDER,
     stepIndex: Int = STEP_INDEX
   ): FinishExchangeStepAttemptRequest {
     return finishExchangeStepAttemptRequest {
-      provider = stepProvider
       externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
       date = EXCHANGE_DATE
       this.stepIndex = stepIndex

@@ -53,6 +53,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:context_keys",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:measurement_principal",
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/proto/wfa/measurement/api/v2alpha:duchy_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:model_provider_kt_jvm_proto",
@@ -62,17 +63,6 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/io/grpc/kotlin:stub",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
-    ],
-)
-
-kt_jvm_library(
-    name = "providers",
-    srcs = ["Providers.kt"],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:measurement_principal",
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal_server_interceptor",
-        "//src/main/proto/wfa/measurement/internal/common:provider_java_proto",
-        "//src/main/proto/wfa/measurement/internal/common:provider_kt_jvm_proto",
     ],
 )
 
@@ -87,6 +77,15 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/proto/wfa/measurement/config:authority_key_to_principal_map_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "packed_messages",
+    srcs = ["PackedMessages.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )

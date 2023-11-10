@@ -32,6 +32,8 @@ import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.time.Duration
 import java.time.Instant
+import kotlin.math.pow
+import kotlin.math.sqrt
 import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
@@ -61,6 +63,7 @@ import org.wfanet.measurement.api.v2alpha.CustomDirectMethodology
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
+import org.wfanet.measurement.api.v2alpha.DeterministicCount
 import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
 import org.wfanet.measurement.api.v2alpha.DeterministicSum
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
@@ -76,7 +79,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
-import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultOutput
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
@@ -102,6 +105,7 @@ import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.reachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.base64UrlEncode
@@ -118,6 +122,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toInterval
@@ -142,6 +147,8 @@ import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresR
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequestKt.measurementFailure
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt.measurementResult
+import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodology as InternalCustomDirectMethodology
+import org.wfanet.measurement.internal.reporting.v2.DeterministicCount as InternalDeterministicCount
 import org.wfanet.measurement.internal.reporting.v2.DeterministicCountDistinct as InternalDeterministicCountDistinct
 import org.wfanet.measurement.internal.reporting.v2.DeterministicSum as InternalDeterministicSum
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
@@ -175,6 +182,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresR
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest as internalCreateMetricRequest
+import org.wfanet.measurement.internal.reporting.v2.customDirectMethodology
 import org.wfanet.measurement.internal.reporting.v2.liquidLegionsDistribution as internalLiquidLegionsDistribution
 import org.wfanet.measurement.internal.reporting.v2.measurement as internalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.metric as internalMetric
@@ -183,6 +191,17 @@ import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsSketch
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
+import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.FrequencyMetricVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.FrequencyVariances
+import org.wfanet.measurement.measurementconsumer.stats.ImpressionMeasurementVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.ImpressionMetricVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.Methodology
+import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.Variances
+import org.wfanet.measurement.measurementconsumer.stats.WatchDurationMeasurementVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.WatchDurationMetricVarianceParams
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v2alpha.RequestIdMatcher.Companion.requestIdEq
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageTokenKt.previousPageEnd
@@ -208,6 +227,7 @@ import org.wfanet.measurement.reporting.v2alpha.listMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.metric
 import org.wfanet.measurement.reporting.v2alpha.metricResult
 import org.wfanet.measurement.reporting.v2alpha.metricSpec
+import org.wfanet.measurement.reporting.v2alpha.univariateStatistics
 
 private const val MAX_BATCH_SIZE = 1000
 private const val DEFAULT_PAGE_SIZE = 50
@@ -388,8 +408,7 @@ private val ENCRYPTION_KEY_PAIR_STORE =
       { it.name },
       {
         listOf(
-          EncryptionPublicKey.parseFrom(it.publicKey.data).data to
-            MEASUREMENT_CONSUMER_PRIVATE_KEY_HANDLE
+          it.publicKey.unpack<EncryptionPublicKey>().data to MEASUREMENT_CONSUMER_PRIVATE_KEY_HANDLE
         )
       }
     )
@@ -530,8 +549,14 @@ private val INTERNAL_INCREMENTAL_REPORTING_SET = internalReportingSet {
       filters += INCREMENTAL_REPORTING_SET_FILTER
       filters += INTERNAL_UNION_ALL_REPORTING_SET.filter
     }
+    primitiveReportingSetBases += primitiveReportingSetBasis {
+      externalReportingSetId =
+        INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET.externalReportingSetId
+      filters += INCREMENTAL_REPORTING_SET_FILTER
+      filters += INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET.filter
+    }
     weight = 1
-    binaryRepresentation = 1
+    binaryRepresentation = 3
   }
   weightedSubsetUnions += weightedSubsetUnion {
     primitiveReportingSetBases += primitiveReportingSetBasis {
@@ -573,7 +598,7 @@ private val REQUISITION_SPECS: Map<DataProviderKey, RequisitionSpec> =
     .mapValues {
       requisitionSpec {
         events = RequisitionSpecKt.events { eventGroups += it.value }
-        measurementPublicKey = MEASUREMENT_CONSUMERS.values.first().publicKey.data
+        measurementPublicKey = MEASUREMENT_CONSUMERS.values.first().publicKey.message
         nonce = SECURE_RANDOM_OUTPUT_LONG
       }
     }
@@ -591,7 +616,7 @@ private val DATA_PROVIDER_ENTRIES =
           encryptedRequisitionSpec =
             encryptRequisitionSpec(
               signRequisitionSpec(requisitionSpec, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE),
-              EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
+              dataProvider.publicKey.unpack()
             )
           nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
         }
@@ -616,7 +641,7 @@ private const val INCREMENTAL_REACH_VALUE =
   UNION_ALL_REACH_VALUE - UNION_ALL_BUT_LAST_PUBLISHER_REACH_VALUE
 private const val REACH_FREQUENCY_REACH_VALUE = 100_000L
 private val REACH_FREQUENCY_FREQUENCY_VALUE = mapOf(1L to 0.1, 2L to 0.2, 3L to 0.3, 4L to 0.4)
-
+private const val IMPRESSION_VALUE = 1_000_000L
 private val WATCH_DURATION_SECOND_LIST = listOf(100L, 200L, 300L)
 private val WATCH_DURATION_LIST = WATCH_DURATION_SECOND_LIST.map { duration { seconds = it } }
 private val TOTAL_WATCH_DURATION = duration { seconds = WATCH_DURATION_SECOND_LIST.sum() }
@@ -630,6 +655,11 @@ private val INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT = internalMeasurement {
   timeInterval = TIME_INTERVAL
   primitiveReportingSetBases += primitiveReportingSetBasis {
     externalReportingSetId = INTERNAL_UNION_ALL_REPORTING_SET.externalReportingSetId
+    filters += ALL_FILTERS
+  }
+  primitiveReportingSetBases += primitiveReportingSetBasis {
+    externalReportingSetId =
+      INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET.externalReportingSetId
     filters += ALL_FILTERS
   }
   state = InternalMeasurement.State.PENDING
@@ -658,7 +688,7 @@ private val INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT =
             reach =
               InternalMeasurementKt.ResultKt.reach {
                 value = UNION_ALL_REACH_VALUE
-                noiseMechanism = NoiseMechanism.GEOMETRIC
+                noiseMechanism = NoiseMechanism.DISCRETE_GAUSSIAN
                 reachOnlyLiquidLegionsV2 = reachOnlyLiquidLegionsV2 {
                   sketchParams = internalReachOnlyLiquidLegionsSketchParams {
                     decayRate = REACH_ONLY_LLV2_DECAY_RATE
@@ -680,7 +710,7 @@ private val INTERNAL_SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
             reach =
               InternalMeasurementKt.ResultKt.reach {
                 value = UNION_ALL_BUT_LAST_PUBLISHER_REACH_VALUE
-                noiseMechanism = NoiseMechanism.GEOMETRIC
+                noiseMechanism = NoiseMechanism.DISCRETE_GAUSSIAN
                 reachOnlyLiquidLegionsV2 = reachOnlyLiquidLegionsV2 {
                   sketchParams = internalReachOnlyLiquidLegionsSketchParams {
                     decayRate = REACH_ONLY_LLV2_DECAY_RATE
@@ -761,6 +791,23 @@ private val INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
       }
   }
 
+private val INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
+  INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
+    state = InternalMeasurement.State.SUCCEEDED
+    details =
+      InternalMeasurementKt.details {
+        results +=
+          InternalMeasurementKt.result {
+            impression =
+              InternalMeasurementKt.ResultKt.impression {
+                value = IMPRESSION_VALUE
+                noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
+                deterministicCount = InternalDeterministicCount.getDefaultInstance()
+              }
+          }
+      }
+  }
+
 // Internal cross-publisher watch duration measurements
 private val INTERNAL_REQUESTING_UNION_ALL_WATCH_DURATION_MEASUREMENT = internalMeasurement {
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
@@ -806,7 +853,7 @@ private val INTERNAL_SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT =
 
 // CMMS incremental reach measurements
 private val UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC = measurementSpec {
-  measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.toByteString()
+  measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
 
   nonceHashes +=
     listOf(
@@ -839,7 +886,7 @@ private val REACH_PROTOCOL_CONFIG: ProtocolConfig = protocolConfig {
             decayRate = REACH_ONLY_LLV2_DECAY_RATE
             maxSize = REACH_ONLY_LLV2_SKETCH_SIZE
           }
-          noiseMechanism = ProtocolConfig.NoiseMechanism.GEOMETRIC
+          noiseMechanism = ProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN
         }
     }
 }
@@ -894,7 +941,7 @@ private val SUCCEEDED_UNION_ALL_REACH_MEASUREMENT =
   PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
     state = Measurement.State.SUCCEEDED
 
-    results += resultPair {
+    results += resultOutput {
       val result =
         MeasurementKt.result {
           reach = MeasurementKt.ResultKt.reach { value = UNION_ALL_REACH_VALUE }
@@ -908,7 +955,7 @@ private val SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
   PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
     state = Measurement.State.SUCCEEDED
 
-    results += resultPair {
+    results += resultOutput {
       val result =
         MeasurementKt.result {
           reach = MeasurementKt.ResultKt.reach { value = UNION_ALL_BUT_LAST_PUBLISHER_REACH_VALUE }
@@ -921,7 +968,7 @@ private val SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
 
 // CMMS single publisher reach-frequency measurements
 private val SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT_SPEC = measurementSpec {
-  measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.toByteString()
+  measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
 
   nonceHashes.add(Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG))
 
@@ -990,7 +1037,7 @@ private val SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT =
   PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.copy {
     state = Measurement.State.SUCCEEDED
 
-    results += resultPair {
+    results += resultOutput {
       val result =
         MeasurementKt.result {
           reach =
@@ -1017,7 +1064,7 @@ private val SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT =
 
 // CMMS single publisher impression measurements
 private val SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC = measurementSpec {
-  measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.toByteString()
+  measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
 
   nonceHashes.add(Hashing.hashSha256(SECURE_RANDOM_OUTPUT_LONG))
 
@@ -1076,9 +1123,28 @@ private val PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
     state = Measurement.State.COMPUTING
   }
 
+private val SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
+  PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
+    state = Measurement.State.SUCCEEDED
+    results += resultOutput {
+      val result =
+        MeasurementKt.result {
+          impression =
+            MeasurementKt.ResultKt.impression {
+              value = IMPRESSION_VALUE
+              noiseMechanism = ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE
+              deterministicCount = DeterministicCount.getDefaultInstance()
+            }
+        }
+      encryptedResult =
+        encryptResult(signResult(result, AGGREGATOR_SIGNING_KEY), MEASUREMENT_CONSUMER_PUBLIC_KEY)
+      certificate = AGGREGATOR_CERTIFICATE.name
+    }
+  }
+
 // CMMS cross publisher watch duration measurements
 private val UNION_ALL_WATCH_DURATION_MEASUREMENT_SPEC = measurementSpec {
-  measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.toByteString()
+  measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
 
   nonceHashes +=
     listOf(
@@ -1148,6 +1214,33 @@ private val PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT =
     state = Measurement.State.COMPUTING
   }
 
+private val SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT =
+  PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.copy {
+    state = Measurement.State.SUCCEEDED
+
+    results +=
+      DATA_PROVIDERS.keys.zip(WATCH_DURATION_LIST).map { (dataProviderKey, watchDuration) ->
+        val dataProvider = DATA_PROVIDERS.getValue(dataProviderKey)
+        resultOutput {
+          val result =
+            MeasurementKt.result {
+              this.watchDuration =
+                MeasurementKt.ResultKt.watchDuration {
+                  value = watchDuration
+                  noiseMechanism = ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE
+                  deterministicSum = DeterministicSum.getDefaultInstance()
+                }
+            }
+          encryptedResult =
+            encryptResult(
+              signResult(result, DATA_PROVIDER_SIGNING_KEY),
+              MEASUREMENT_CONSUMER_PUBLIC_KEY
+            )
+          certificate = dataProvider.certificate
+        }
+      }
+  }
+
 // Metric Specs
 
 private val REACH_METRIC_SPEC: MetricSpec = metricSpec {
@@ -1197,7 +1290,7 @@ private val INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC = internalMetric {
   }
   weightedMeasurements += weightedMeasurement {
     weight = 1
-    binaryRepresentation = 1
+    binaryRepresentation = 3
     measurement =
       INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
         clearCmmsCreateMeasurementRequestId()
@@ -1225,7 +1318,7 @@ private val INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC =
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
-      binaryRepresentation = 1
+      binaryRepresentation = 3
       measurement = INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.copy { clearCmmsMeasurementId() }
     }
     weightedMeasurements += weightedMeasurement {
@@ -1243,7 +1336,7 @@ private val INTERNAL_PENDING_INCREMENTAL_REACH_METRIC =
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
-      binaryRepresentation = 1
+      binaryRepresentation = 3
       measurement = INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT
     }
     weightedMeasurements += weightedMeasurement {
@@ -1258,7 +1351,7 @@ private val INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC =
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
-      binaryRepresentation = 1
+      binaryRepresentation = 3
       measurement = INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT
     }
     weightedMeasurements += weightedMeasurement {
@@ -1409,6 +1502,16 @@ private val INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC =
     }
   }
 
+private val INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC =
+  INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+    weightedMeasurements.clear()
+    weightedMeasurements += weightedMeasurement {
+      weight = 1
+      binaryRepresentation = 1
+      measurement = INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+    }
+  }
+
 // Internal Cross Publisher Watch Duration Metrics
 private val INTERNAL_REQUESTING_CROSS_PUBLISHER_WATCH_DURATION_METRIC = internalMetric {
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
@@ -1432,6 +1535,7 @@ private val INTERNAL_REQUESTING_CROSS_PUBLISHER_WATCH_DURATION_METRIC = internal
   }
   weightedMeasurements += weightedMeasurement {
     weight = 1
+    binaryRepresentation = 1
     measurement = INTERNAL_REQUESTING_UNION_ALL_WATCH_DURATION_MEASUREMENT
   }
   details = InternalMetricKt.details { filters += listOf(METRIC_FILTER) }
@@ -1444,6 +1548,7 @@ private val INTERNAL_PENDING_INITIAL_CROSS_PUBLISHER_WATCH_DURATION_METRIC =
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
+      binaryRepresentation = 1
       measurement = INTERNAL_PENDING_NOT_CREATED_UNION_ALL_WATCH_DURATION_MEASUREMENT
     }
   }
@@ -1453,6 +1558,7 @@ private val INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC =
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
+      binaryRepresentation = 1
       measurement = INTERNAL_PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT
     }
   }
@@ -1462,6 +1568,7 @@ private val INTERNAL_SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC =
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
+      binaryRepresentation = 1
       measurement = INTERNAL_SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT
     }
   }
@@ -1502,10 +1609,24 @@ private val PENDING_INCREMENTAL_REACH_METRIC =
     createTime = INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.createTime
   }
 
+private const val VARIANCE_VALUE = 4.0
+
+private val FREQUENCY_VARIANCE: Map<Int, Double> =
+  (1..REACH_FREQUENCY_MAXIMUM_FREQUENCY).associateWith { it.toDouble().pow(2.0) }
+private val FREQUENCY_VARIANCES =
+  FrequencyVariances(FREQUENCY_VARIANCE, FREQUENCY_VARIANCE, FREQUENCY_VARIANCE, FREQUENCY_VARIANCE)
+
 private val SUCCEEDED_INCREMENTAL_REACH_METRIC =
   PENDING_INCREMENTAL_REACH_METRIC.copy {
     state = Metric.State.SUCCEEDED
-    result = metricResult { reach = MetricResultKt.reachResult { value = INCREMENTAL_REACH_VALUE } }
+
+    result = metricResult {
+      reach =
+        MetricResultKt.reachResult {
+          value = INCREMENTAL_REACH_VALUE
+          univariateStatistics = univariateStatistics { standardDeviation = sqrt(VARIANCE_VALUE) }
+        }
+    }
   }
 
 // Single publisher reach-frequency metrics
@@ -1564,6 +1685,21 @@ private val SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC =
                       REACH_FREQUENCY_REACH_VALUE *
                         REACH_FREQUENCY_FREQUENCY_VALUE.getOrDefault(frequency.toLong(), 0.0)
                   }
+                resultUnivariateStatistics = univariateStatistics {
+                  standardDeviation = sqrt(FREQUENCY_VARIANCES.countVariances.getValue(frequency))
+                }
+                relativeUnivariateStatistics = univariateStatistics {
+                  standardDeviation =
+                    sqrt(FREQUENCY_VARIANCES.relativeVariances.getValue(frequency))
+                }
+                kPlusUnivariateStatistics = univariateStatistics {
+                  standardDeviation =
+                    sqrt(FREQUENCY_VARIANCES.kPlusCountVariances.getValue(frequency))
+                }
+                relativeKPlusUnivariateStatistics = univariateStatistics {
+                  standardDeviation =
+                    sqrt(FREQUENCY_VARIANCES.kPlusRelativeVariances.getValue(frequency))
+                }
               }
             }
         }
@@ -1608,6 +1744,18 @@ private val PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC =
 private val FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC =
   PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { state = Metric.State.FAILED }
 
+private val SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC =
+  PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+    state = Metric.State.SUCCEEDED
+    result = metricResult {
+      impressionCount =
+        MetricResultKt.impressionCountResult {
+          value = IMPRESSION_VALUE
+          univariateStatistics = univariateStatistics { standardDeviation = sqrt(VARIANCE_VALUE) }
+        }
+    }
+  }
+
 // Cross publisher watch duration metrics
 private val REQUESTING_CROSS_PUBLISHER_WATCH_DURATION_METRIC = metric {
   reportingSet = INTERNAL_UNION_ALL_REPORTING_SET.resourceName
@@ -1648,7 +1796,12 @@ private val SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC =
     state = Metric.State.SUCCEEDED
     result = metricResult {
       watchDuration =
-        MetricResultKt.watchDurationResult { value = TOTAL_WATCH_DURATION.seconds.toDouble() }
+        MetricResultKt.watchDurationResult {
+          value = TOTAL_WATCH_DURATION.seconds.toDouble()
+          univariateStatistics = univariateStatistics {
+            standardDeviation = sqrt(WATCH_DURATION_LIST.sumOf { VARIANCE_VALUE })
+          }
+        }
     }
   }
 
@@ -1813,6 +1966,39 @@ class MetricsServiceTest {
 
   private val secureRandomMock: SecureRandom = mock()
 
+  private object VariancesMock : Variances {
+    override fun computeMetricVariance(params: ReachMetricVarianceParams): Double = VARIANCE_VALUE
+
+    override fun computeMeasurementVariance(
+      methodology: Methodology,
+      measurementVarianceParams: ReachMeasurementVarianceParams
+    ): Double = VARIANCE_VALUE
+
+    override fun computeMetricVariance(params: FrequencyMetricVarianceParams): FrequencyVariances =
+      FREQUENCY_VARIANCES
+
+    override fun computeMeasurementVariance(
+      methodology: Methodology,
+      measurementVarianceParams: FrequencyMeasurementVarianceParams
+    ): FrequencyVariances = FrequencyVariances(mapOf(), mapOf(), mapOf(), mapOf())
+
+    override fun computeMetricVariance(params: ImpressionMetricVarianceParams): Double =
+      VARIANCE_VALUE
+
+    override fun computeMeasurementVariance(
+      methodology: Methodology,
+      measurementVarianceParams: ImpressionMeasurementVarianceParams
+    ): Double = VARIANCE_VALUE
+
+    override fun computeMetricVariance(params: WatchDurationMetricVarianceParams): Double =
+      VARIANCE_VALUE
+
+    override fun computeMeasurementVariance(
+      methodology: Methodology,
+      measurementVarianceParams: WatchDurationMeasurementVarianceParams
+    ): Double = VARIANCE_VALUE
+  }
+
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(internalMetricsMock)
@@ -1838,6 +2024,7 @@ class MetricsServiceTest {
         METRIC_SPEC_CONFIG,
         InternalReportingSetsGrpcKt.ReportingSetsCoroutineStub(grpcTestServerRule.channel),
         InternalMetricsGrpcKt.MetricsCoroutineStub(grpcTestServerRule.channel),
+        VariancesMock,
         InternalMeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
         DataProvidersGrpcKt.DataProvidersCoroutineStub(grpcTestServerRule.channel),
         MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
@@ -1912,8 +2099,8 @@ class MetricsServiceTest {
       val dataProvidersList =
         capturedMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
 
-      val measurementSpec =
-        MeasurementSpec.parseFrom(capturedMeasurementRequest.measurement.measurementSpec.data)
+      val measurementSpec: MeasurementSpec =
+        capturedMeasurementRequest.measurement.measurementSpec.unpack()
       assertThat(measurementSpec)
         .isEqualTo(
           UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
@@ -1929,7 +2116,7 @@ class MetricsServiceTest {
             dataProviderEntry.value.encryptedRequisitionSpec,
             DATA_PROVIDER_PRIVATE_KEY_HANDLE
           )
-        val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+        val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
         verifyRequisitionSpec(
           signedRequisitionSpec,
           requisitionSpec,
@@ -2028,8 +2215,8 @@ class MetricsServiceTest {
         val dataProvidersList =
           capturedMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
 
-        val measurementSpec =
-          MeasurementSpec.parseFrom(capturedMeasurementRequest.measurement.measurementSpec.data)
+        val measurementSpec: MeasurementSpec =
+          capturedMeasurementRequest.measurement.measurementSpec.unpack()
         assertThat(measurementSpec).isEqualTo(SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT_SPEC)
 
         dataProvidersList.map { dataProviderEntry ->
@@ -2038,7 +2225,7 @@ class MetricsServiceTest {
               dataProviderEntry.value.encryptedRequisitionSpec,
               DATA_PROVIDER_PRIVATE_KEY_HANDLE
             )
-          val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+          val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
           verifyRequisitionSpec(
             signedRequisitionSpec,
             requisitionSpec,
@@ -2130,8 +2317,8 @@ class MetricsServiceTest {
       val dataProvidersList =
         capturedMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
 
-      val measurementSpec =
-        MeasurementSpec.parseFrom(capturedMeasurementRequest.measurement.measurementSpec.data)
+      val measurementSpec: MeasurementSpec =
+        capturedMeasurementRequest.measurement.measurementSpec.unpack()
       assertThat(measurementSpec).isEqualTo(SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC)
 
       dataProvidersList.map { dataProviderEntry ->
@@ -2140,7 +2327,7 @@ class MetricsServiceTest {
             dataProviderEntry.value.encryptedRequisitionSpec,
             DATA_PROVIDER_PRIVATE_KEY_HANDLE
           )
-        val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+        val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
         verifyRequisitionSpec(
           signedRequisitionSpec,
           requisitionSpec,
@@ -2326,8 +2513,8 @@ class MetricsServiceTest {
       val dataProvidersList =
         capturedMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
 
-      val measurementSpec =
-        MeasurementSpec.parseFrom(capturedMeasurementRequest.measurement.measurementSpec.data)
+      val measurementSpec: MeasurementSpec =
+        capturedMeasurementRequest.measurement.measurementSpec.unpack()
       assertThat(measurementSpec).isEqualTo(cmmsMeasurementSpec)
 
       dataProvidersList.map { dataProviderEntry ->
@@ -2336,7 +2523,7 @@ class MetricsServiceTest {
             dataProviderEntry.value.encryptedRequisitionSpec,
             DATA_PROVIDER_PRIVATE_KEY_HANDLE
           )
-        val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+        val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
         verifyRequisitionSpec(
           signedRequisitionSpec,
           requisitionSpec,
@@ -2431,8 +2618,8 @@ class MetricsServiceTest {
       val dataProvidersList =
         capturedMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
 
-      val measurementSpec =
-        MeasurementSpec.parseFrom(capturedMeasurementRequest.measurement.measurementSpec.data)
+      val measurementSpec: MeasurementSpec =
+        capturedMeasurementRequest.measurement.measurementSpec.unpack()
       assertThat(measurementSpec)
         .isEqualTo(
           UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
@@ -2448,7 +2635,7 @@ class MetricsServiceTest {
             dataProviderEntry.value.encryptedRequisitionSpec,
             DATA_PROVIDER_PRIVATE_KEY_HANDLE
           )
-        val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+        val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
         verifyRequisitionSpec(
           signedRequisitionSpec,
           requisitionSpec,
@@ -2582,7 +2769,7 @@ class MetricsServiceTest {
               dataProviderEntry.value.encryptedRequisitionSpec,
               DATA_PROVIDER_PRIVATE_KEY_HANDLE
             )
-          val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+          val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
 
           requisitionSpec.events.eventGroupsList.map { eventGroupEntry ->
             eventGroupEntry.value.filter.expression
@@ -2741,7 +2928,7 @@ class MetricsServiceTest {
 
     // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
     val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
-    verifyBlocking(dataProvidersMock, never()) { getDataProvider(dataProvidersCaptor.capture()) }
+    verifyBlocking(dataProvidersMock, times(3)) { getDataProvider(dataProvidersCaptor.capture()) }
 
     // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
     val measurementsCaptor: KArgumentCaptor<CreateMeasurementRequest> = argumentCaptor()
@@ -2789,7 +2976,7 @@ class MetricsServiceTest {
 
     // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
     val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
-    verifyBlocking(dataProvidersMock, never()) { getDataProvider(dataProvidersCaptor.capture()) }
+    verifyBlocking(dataProvidersMock, times(3)) { getDataProvider(dataProvidersCaptor.capture()) }
 
     // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
     val measurementsCaptor: KArgumentCaptor<CreateMeasurementRequest> = argumentCaptor()
@@ -3598,8 +3785,8 @@ class MetricsServiceTest {
       val dataProvidersList =
         capturedMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
 
-      val measurementSpec =
-        MeasurementSpec.parseFrom(capturedMeasurementRequest.measurement.measurementSpec.data)
+      val measurementSpec: MeasurementSpec =
+        capturedMeasurementRequest.measurement.measurementSpec.unpack()
       assertThat(measurementSpec)
         .isEqualTo(
           if (dataProvidersList.size == 1) SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC
@@ -3617,7 +3804,7 @@ class MetricsServiceTest {
             dataProviderEntry.value.encryptedRequisitionSpec,
             DATA_PROVIDER_PRIVATE_KEY_HANDLE
           )
-        val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+        val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
         verifyRequisitionSpec(
           signedRequisitionSpec,
           requisitionSpec,
@@ -4141,7 +4328,7 @@ class MetricsServiceTest {
               weightedMeasurements.clear()
               weightedMeasurements += weightedMeasurement {
                 weight = 1
-                binaryRepresentation = 1
+                binaryRepresentation = 3
                 measurement = INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT
               }
               weightedMeasurements += weightedMeasurement {
@@ -4572,8 +4759,7 @@ class MetricsServiceTest {
             measurementSpec =
               signMeasurementSpec(
                 UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
-                  measurementPublicKey =
-                    MEASUREMENT_CONSUMER_PUBLIC_KEY.copy { clearData() }.toByteString()
+                  measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.copy { clearData() }.pack()
                 },
                 MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
               )
@@ -4665,6 +4851,308 @@ class MetricsServiceTest {
 
       assertThat(result).isEqualTo(SUCCEEDED_INCREMENTAL_REACH_METRIC)
     }
+
+  @Test
+  fun `getMetric returns reach metric with statistics not set when meeasurement has no noise mechanism`() =
+    runBlocking {
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics +=
+              INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+                weightedMeasurements.clear()
+                weightedMeasurements += weightedMeasurement {
+                  weight = -1
+                  binaryRepresentation = 2
+                  measurement = INTERNAL_SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+                }
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 3
+                  measurement =
+                    INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.copy {
+                      details =
+                        InternalMeasurementKt.details {
+                          results +=
+                            InternalMeasurementKt.result {
+                              reach =
+                                InternalMeasurementKt.ResultKt.reach {
+                                  value = UNION_ALL_REACH_VALUE
+                                  reachOnlyLiquidLegionsV2 = reachOnlyLiquidLegionsV2 {
+                                    sketchParams = internalReachOnlyLiquidLegionsSketchParams {
+                                      decayRate = REACH_ONLY_LLV2_DECAY_RATE
+                                      maxSize = REACH_ONLY_LLV2_SKETCH_SIZE
+                                    }
+                                  }
+                                }
+                            }
+                        }
+                    }
+                }
+              }
+          }
+        )
+
+      val request = getMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+
+      // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
+      val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMetricsMock, times(1)) {
+        batchGetMetrics(batchGetInternalMetricsCaptor.capture())
+      }
+      val capturedInternalGetMetricRequests = batchGetInternalMetricsCaptor.allValues
+      assertThat(capturedInternalGetMetricRequests)
+        .containsExactly(
+          internalBatchGetMetricsRequest {
+            cmmsMeasurementConsumerId =
+              INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.cmmsMeasurementConsumerId
+            externalMetricIds += INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.externalMetricId
+          }
+        )
+
+      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, never()) {
+        batchSetMeasurementResults(batchSetMeasurementResultsCaptor.capture())
+      }
+
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementFailures
+      val batchSetMeasurementFailuresCaptor: KArgumentCaptor<BatchSetMeasurementFailuresRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, never()) {
+        batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
+      }
+
+      assertThat(result)
+        .isEqualTo(
+          SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+            this.result = metricResult {
+              reach = MetricResultKt.reachResult { value = INCREMENTAL_REACH_VALUE }
+            }
+          }
+        )
+    }
+
+  @Test
+  fun `getMetric returns reach metric with statistics not set when meeasurement has no methodology`() =
+    runBlocking {
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics +=
+              INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+                weightedMeasurements.clear()
+                weightedMeasurements += weightedMeasurement {
+                  weight = -1
+                  binaryRepresentation = 2
+                  measurement = INTERNAL_SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+                }
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 3
+                  measurement =
+                    INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.copy {
+                      details =
+                        InternalMeasurementKt.details {
+                          results +=
+                            InternalMeasurementKt.result {
+                              reach =
+                                InternalMeasurementKt.ResultKt.reach {
+                                  value = UNION_ALL_REACH_VALUE
+                                  noiseMechanism = NoiseMechanism.DISCRETE_GAUSSIAN
+                                }
+                            }
+                        }
+                    }
+                }
+              }
+          }
+        )
+
+      val request = getMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+
+      // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
+      val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMetricsMock, times(1)) {
+        batchGetMetrics(batchGetInternalMetricsCaptor.capture())
+      }
+      val capturedInternalGetMetricRequests = batchGetInternalMetricsCaptor.allValues
+      assertThat(capturedInternalGetMetricRequests)
+        .containsExactly(
+          internalBatchGetMetricsRequest {
+            cmmsMeasurementConsumerId =
+              INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.cmmsMeasurementConsumerId
+            externalMetricIds += INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.externalMetricId
+          }
+        )
+
+      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, never()) {
+        batchSetMeasurementResults(batchSetMeasurementResultsCaptor.capture())
+      }
+
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementFailures
+      val batchSetMeasurementFailuresCaptor: KArgumentCaptor<BatchSetMeasurementFailuresRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, never()) {
+        batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
+      }
+
+      assertThat(result)
+        .isEqualTo(
+          SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+            this.result = metricResult {
+              reach = MetricResultKt.reachResult { value = INCREMENTAL_REACH_VALUE }
+            }
+          }
+        )
+    }
+
+  @Test
+  fun `getMetric throws StatusRuntimeException for reach when the succeeded metric contains measurement with two results`():
+    Unit = runBlocking {
+    whenever(internalMetricsMock.batchGetMetrics(any()))
+      .thenReturn(
+        internalBatchGetMetricsResponse {
+          metrics +=
+            INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+              weightedMeasurements += weightedMeasurement {
+                weight = 1
+                binaryRepresentation = 3
+                measurement =
+                  INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.copy {
+                    details =
+                      InternalMeasurementKt.details {
+                        val result =
+                          InternalMeasurementKt.result {
+                            reach =
+                              InternalMeasurementKt.ResultKt.reach {
+                                value = UNION_ALL_REACH_VALUE
+                                noiseMechanism = NoiseMechanism.DISCRETE_GAUSSIAN
+                                reachOnlyLiquidLegionsV2 = reachOnlyLiquidLegionsV2 {
+                                  sketchParams = internalReachOnlyLiquidLegionsSketchParams {
+                                    decayRate = REACH_ONLY_LLV2_DECAY_RATE
+                                    maxSize = REACH_ONLY_LLV2_SKETCH_SIZE
+                                  }
+                                }
+                              }
+                          }
+                        results += result
+                        results += result
+                      }
+                  }
+              }
+            }
+        }
+      )
+
+    val request = getMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `getMetric throws StatusRuntimeException when the succeeded metric contains no measurement`():
+    Unit = runBlocking {
+    whenever(internalMetricsMock.batchGetMetrics(any()))
+      .thenReturn(
+        internalBatchGetMetricsResponse {
+          metrics +=
+            INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+              weightedMeasurements += weightedMeasurement {
+                weight = 1
+                binaryRepresentation = 3
+                measurement =
+                  INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.copy {
+                    details = InternalMeasurement.Details.getDefaultInstance()
+                  }
+              }
+            }
+        }
+      )
+
+    val request = getMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `getMetric throws StatusRuntimeException for reach metric when custom direct methodology has frequency`():
+    Unit = runBlocking {
+    whenever(internalMetricsMock.batchGetMetrics(any()))
+      .thenReturn(
+        internalBatchGetMetricsResponse {
+          metrics +=
+            INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+              weightedMeasurements += weightedMeasurement {
+                weight = 1
+                binaryRepresentation = 3
+                measurement =
+                  INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.copy {
+                    details =
+                      InternalMeasurementKt.details {
+                        results +=
+                          InternalMeasurementKt.result {
+                            reach =
+                              InternalMeasurementKt.ResultKt.reach {
+                                value = UNION_ALL_REACH_VALUE
+                                noiseMechanism = NoiseMechanism.DISCRETE_GAUSSIAN
+                                customDirectMethodology = customDirectMethodology {
+                                  frequency =
+                                    InternalCustomDirectMethodology.FrequencyVariances
+                                      .getDefaultInstance()
+                                }
+                              }
+                          }
+                      }
+                  }
+              }
+            }
+        }
+      )
+
+    val request = getMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
 
   @Test
   fun `getMetric calls batchSetMeasurementResults when request number is more than the limit`() =
@@ -4966,6 +5454,340 @@ class MetricsServiceTest {
     }
 
   @Test
+  fun `getMetric returns reach frequency metric with statistics not set when reach lacks info for variance`() =
+    runBlocking {
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics +=
+              INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
+                weightedMeasurements.clear()
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 1
+                  measurement =
+                    INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.copy {
+                      details =
+                        InternalMeasurementKt.details {
+                          results +=
+                            InternalMeasurementKt.result {
+                              reach =
+                                InternalMeasurementKt.ResultKt.reach {
+                                  value = REACH_FREQUENCY_REACH_VALUE
+                                }
+                              frequency =
+                                InternalMeasurementKt.ResultKt.frequency {
+                                  relativeFrequencyDistribution.putAll(
+                                    REACH_FREQUENCY_FREQUENCY_VALUE
+                                  )
+                                  noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
+                                  liquidLegionsDistribution = internalLiquidLegionsDistribution {
+                                    decayRate = LL_DISTRIBUTION_DECAY_RATE
+                                    maxSize = LL_DISTRIBUTION_SKETCH_SIZE
+                                  }
+                                }
+                            }
+                        }
+                    }
+                }
+              }
+          }
+        )
+
+      val request = getMetricRequest {
+        name = SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name
+      }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+
+      assertThat(result)
+        .isEqualTo(
+          SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
+            this.result =
+              this.result.copy {
+                frequencyHistogram =
+                  MetricResultKt.histogramResult {
+                    bins +=
+                      (1..REACH_FREQUENCY_MAXIMUM_FREQUENCY).map { frequency ->
+                        MetricResultKt.HistogramResultKt.bin {
+                          label = frequency.toString()
+                          binResult =
+                            MetricResultKt.HistogramResultKt.binResult {
+                              value =
+                                REACH_FREQUENCY_REACH_VALUE *
+                                  REACH_FREQUENCY_FREQUENCY_VALUE.getOrDefault(
+                                    frequency.toLong(),
+                                    0.0
+                                  )
+                            }
+                        }
+                      }
+                  }
+              }
+          }
+        )
+    }
+
+  @Test
+  fun `getMetric returns reach frequency metric with statistics not set when frequency noise mechanism is unspecified`() =
+    runBlocking {
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics +=
+              INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
+                weightedMeasurements.clear()
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 1
+                  measurement =
+                    INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.copy {
+                      details =
+                        InternalMeasurementKt.details {
+                          results +=
+                            InternalMeasurementKt.result {
+                              reach =
+                                InternalMeasurementKt.ResultKt.reach {
+                                  value = REACH_FREQUENCY_REACH_VALUE
+                                  noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
+                                  deterministicCountDistinct =
+                                    InternalDeterministicCountDistinct.getDefaultInstance()
+                                }
+                              frequency =
+                                InternalMeasurementKt.ResultKt.frequency {
+                                  relativeFrequencyDistribution.putAll(
+                                    REACH_FREQUENCY_FREQUENCY_VALUE
+                                  )
+                                  liquidLegionsDistribution = internalLiquidLegionsDistribution {
+                                    decayRate = LL_DISTRIBUTION_DECAY_RATE
+                                    maxSize = LL_DISTRIBUTION_SKETCH_SIZE
+                                  }
+                                }
+                            }
+                        }
+                    }
+                }
+              }
+          }
+        )
+
+      val request = getMetricRequest {
+        name = SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name
+      }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+
+      assertThat(result)
+        .isEqualTo(
+          SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
+            this.result =
+              this.result.copy {
+                frequencyHistogram =
+                  MetricResultKt.histogramResult {
+                    bins +=
+                      (1..REACH_FREQUENCY_MAXIMUM_FREQUENCY).map { frequency ->
+                        MetricResultKt.HistogramResultKt.bin {
+                          label = frequency.toString()
+                          binResult =
+                            MetricResultKt.HistogramResultKt.binResult {
+                              value =
+                                REACH_FREQUENCY_REACH_VALUE *
+                                  REACH_FREQUENCY_FREQUENCY_VALUE.getOrDefault(
+                                    frequency.toLong(),
+                                    0.0
+                                  )
+                            }
+                        }
+                      }
+                  }
+              }
+          }
+        )
+    }
+
+  @Test
+  fun `getMetric returns reach frequency metric with statistics not set when frequency methodolgoy is unspecified`() =
+    runBlocking {
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics +=
+              INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
+                weightedMeasurements.clear()
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 1
+                  measurement =
+                    INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.copy {
+                      details =
+                        InternalMeasurementKt.details {
+                          results +=
+                            InternalMeasurementKt.result {
+                              reach =
+                                InternalMeasurementKt.ResultKt.reach {
+                                  value = REACH_FREQUENCY_REACH_VALUE
+                                  noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
+                                  deterministicCountDistinct =
+                                    InternalDeterministicCountDistinct.getDefaultInstance()
+                                }
+                              frequency =
+                                InternalMeasurementKt.ResultKt.frequency {
+                                  relativeFrequencyDistribution.putAll(
+                                    REACH_FREQUENCY_FREQUENCY_VALUE
+                                  )
+                                  noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
+                                }
+                            }
+                        }
+                    }
+                }
+              }
+          }
+        )
+
+      val request = getMetricRequest {
+        name = SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name
+      }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+
+      assertThat(result)
+        .isEqualTo(
+          SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
+            this.result =
+              this.result.copy {
+                frequencyHistogram =
+                  MetricResultKt.histogramResult {
+                    bins +=
+                      (1..REACH_FREQUENCY_MAXIMUM_FREQUENCY).map { frequency ->
+                        MetricResultKt.HistogramResultKt.bin {
+                          label = frequency.toString()
+                          binResult =
+                            MetricResultKt.HistogramResultKt.binResult {
+                              value =
+                                REACH_FREQUENCY_REACH_VALUE *
+                                  REACH_FREQUENCY_FREQUENCY_VALUE.getOrDefault(
+                                    frequency.toLong(),
+                                    0.0
+                                  )
+                            }
+                        }
+                      }
+                  }
+              }
+          }
+        )
+    }
+
+  @Test
+  fun `getMetric throws StatusRuntimeException when the succeeded metric contains measurement with two reach frequency results`():
+    Unit = runBlocking {
+    whenever(internalMetricsMock.batchGetMetrics(any()))
+      .thenReturn(
+        internalBatchGetMetricsResponse {
+          metrics +=
+            INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
+              weightedMeasurements += weightedMeasurement {
+                weight = 1
+                binaryRepresentation = 1
+                measurement =
+                  INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.copy {
+                    details =
+                      InternalMeasurementKt.details {
+                        val result =
+                          InternalMeasurementKt.result {
+                            reach =
+                              InternalMeasurementKt.ResultKt.reach {
+                                value = REACH_FREQUENCY_REACH_VALUE
+                                noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
+                                deterministicCountDistinct =
+                                  InternalDeterministicCountDistinct.getDefaultInstance()
+                              }
+                            frequency =
+                              InternalMeasurementKt.ResultKt.frequency {
+                                relativeFrequencyDistribution.putAll(
+                                  REACH_FREQUENCY_FREQUENCY_VALUE
+                                )
+                                noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
+                                liquidLegionsDistribution = internalLiquidLegionsDistribution {
+                                  decayRate = LL_DISTRIBUTION_DECAY_RATE
+                                  maxSize = LL_DISTRIBUTION_SKETCH_SIZE
+                                }
+                              }
+                          }
+                        results += result
+                        results += result
+                      }
+                  }
+              }
+            }
+        }
+      )
+
+    val request = getMetricRequest { name = SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `getMetric throws StatusRuntimeException for reach frueqency metric when custom direct methodology has scalar`():
+    Unit = runBlocking {
+    whenever(internalMetricsMock.batchGetMetrics(any()))
+      .thenReturn(
+        internalBatchGetMetricsResponse {
+          metrics +=
+            INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
+              weightedMeasurements += weightedMeasurement {
+                weight = 1
+                binaryRepresentation = 3
+                measurement =
+                  INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.copy {
+                    details =
+                      InternalMeasurementKt.details {
+                        results +=
+                          InternalMeasurementKt.result {
+                            reach =
+                              InternalMeasurementKt.ResultKt.reach {
+                                value = UNION_ALL_REACH_VALUE
+                                noiseMechanism = NoiseMechanism.DISCRETE_GAUSSIAN
+                                customDirectMethodology = customDirectMethodology { scalar = 10.0 }
+                              }
+                          }
+                      }
+                  }
+              }
+            }
+        }
+      )
+
+    val request = getMetricRequest { name = SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
   fun `getMetric returns duration metric with SUCCEEDED when measurements are updated to SUCCEEDED`() =
     runBlocking {
       whenever(
@@ -4989,38 +5811,12 @@ class MetricsServiceTest {
           },
         )
 
-      val succeededUnionAllWatchDurationMeasurement =
-        PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.copy {
-          state = Measurement.State.SUCCEEDED
-
-          results +=
-            DATA_PROVIDERS.keys.zip(WATCH_DURATION_LIST).map { (dataProviderKey, watchDuration) ->
-              val dataProvider = DATA_PROVIDERS.getValue(dataProviderKey)
-              resultPair {
-                val result =
-                  MeasurementKt.result {
-                    this.watchDuration =
-                      MeasurementKt.ResultKt.watchDuration {
-                        value = watchDuration
-                        noiseMechanism = ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE
-                        deterministicSum = DeterministicSum.getDefaultInstance()
-                      }
-                  }
-                encryptedResult =
-                  encryptResult(
-                    signResult(result, DATA_PROVIDER_SIGNING_KEY),
-                    MEASUREMENT_CONSUMER_PUBLIC_KEY
-                  )
-                certificate = dataProvider.certificate
-              }
-            }
-        }
       whenever(
           measurementsMock.getMeasurement(
             eq(getMeasurementRequest { name = PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.name })
           )
         )
-        .thenReturn(succeededUnionAllWatchDurationMeasurement)
+        .thenReturn(SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT)
       whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
         .thenReturn(
           batchSetCmmsMeasurementResultsResponse {
@@ -5064,6 +5860,83 @@ class MetricsServiceTest {
       }
 
       assertThat(result).isEqualTo(SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC)
+    }
+
+  @Test
+  fun `getMetric returns impression metric with SUCCEEDED when measurements are updated to SUCCEEDED`() =
+    runBlocking {
+      whenever(
+          internalMetricsMock.batchGetMetrics(
+            eq(
+              internalBatchGetMetricsRequest {
+                cmmsMeasurementConsumerId =
+                  INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.cmmsMeasurementConsumerId
+                externalMetricIds +=
+                  INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
+              }
+            )
+          )
+        )
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
+          },
+          internalBatchGetMetricsResponse {
+            metrics += INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC
+          },
+        )
+
+      whenever(
+          measurementsMock.getMeasurement(
+            eq(
+              getMeasurementRequest { name = PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name }
+            )
+          )
+        )
+        .thenReturn(SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT)
+      whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
+        .thenReturn(
+          batchSetCmmsMeasurementResultsResponse {
+            measurements += INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+          }
+        )
+
+      val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+
+      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, times(1)) {
+        batchSetMeasurementResults(batchSetMeasurementResultsCaptor.capture())
+      }
+      assertThat(batchSetMeasurementResultsCaptor.allValues)
+        .containsExactly(
+          batchSetMeasurementResultsRequest {
+            cmmsMeasurementConsumerId =
+              INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementConsumerId
+            measurementResults += measurementResult {
+              cmmsMeasurementId =
+                INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId
+              this.results +=
+                INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.details.resultsList
+            }
+          }
+        )
+
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementFailures
+      val batchSetMeasurementFailuresCaptor: KArgumentCaptor<BatchSetMeasurementFailuresRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, never()) {
+        batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
+      }
+
+      assertThat(result).isEqualTo(SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC)
     }
 
   @Test
@@ -5209,6 +6082,223 @@ class MetricsServiceTest {
     }
 
   @Test
+  fun `getMetric returns impression metric without statistics when set expression is not union-only`() =
+    runBlocking {
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics +=
+              INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+                weightedMeasurements += weightedMeasurement {
+                  weight = -1
+                  binaryRepresentation = 1
+                  measurement = INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+                }
+              }
+          },
+        )
+
+      val request = getMetricRequest { name = SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+
+      // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
+      val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMetricsMock, times(1)) {
+        batchGetMetrics(batchGetInternalMetricsCaptor.capture())
+      }
+      val capturedInternalGetMetricRequests = batchGetInternalMetricsCaptor.allValues
+      assertThat(capturedInternalGetMetricRequests)
+        .containsExactly(
+          internalBatchGetMetricsRequest {
+            cmmsMeasurementConsumerId =
+              INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.cmmsMeasurementConsumerId
+            externalMetricIds +=
+              INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
+          },
+        )
+
+      // Verify proto argument of MeasurementsCoroutineImplBase::getMeasurement
+      val getMeasurementCaptor: KArgumentCaptor<GetMeasurementRequest> = argumentCaptor()
+      verifyBlocking(measurementsMock, never()) { getMeasurement(getMeasurementCaptor.capture()) }
+
+      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, never()) {
+        batchSetMeasurementResults(batchSetMeasurementResultsCaptor.capture())
+      }
+
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementFailures
+      val batchSetMeasurementFailuresCaptor: KArgumentCaptor<BatchSetMeasurementFailuresRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, never()) {
+        batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
+      }
+
+      assertThat(result)
+        .isEqualTo(
+          SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+            this.result = metricResult {
+              impressionCount = MetricResultKt.impressionCountResult { value = 0L }
+            }
+          }
+        )
+    }
+
+  @Test
+  fun `getMetric returns impression metric without statistics when noise mechanism is unspecified`() =
+    runBlocking {
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics +=
+              INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+                weightedMeasurements.clear()
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 1
+                  measurement =
+                    INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
+                      details =
+                        InternalMeasurementKt.details {
+                          results +=
+                            InternalMeasurementKt.result {
+                              impression =
+                                InternalMeasurementKt.ResultKt.impression {
+                                  value = IMPRESSION_VALUE
+                                  deterministicCount =
+                                    InternalDeterministicCount.getDefaultInstance()
+                                }
+                            }
+                        }
+                    }
+                }
+              }
+          },
+        )
+
+      val request = getMetricRequest { name = SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+
+      assertThat(result)
+        .isEqualTo(
+          SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+            this.result =
+              this.result.copy {
+                impressionCount = impressionCount.copy { clearUnivariateStatistics() }
+              }
+          }
+        )
+    }
+
+  @Test
+  fun `getMetric returns impression metric without statistics when methodology is not set`() =
+    runBlocking {
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics +=
+              INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+                weightedMeasurements.clear()
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 1
+                  measurement =
+                    INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
+                      details =
+                        InternalMeasurementKt.details {
+                          results +=
+                            InternalMeasurementKt.result {
+                              impression =
+                                InternalMeasurementKt.ResultKt.impression {
+                                  value = IMPRESSION_VALUE
+                                  noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
+                                }
+                            }
+                        }
+                    }
+                }
+              }
+          },
+        )
+
+      val request = getMetricRequest { name = SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+
+      assertThat(result)
+        .isEqualTo(
+          SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+            this.result =
+              this.result.copy {
+                impressionCount = impressionCount.copy { clearUnivariateStatistics() }
+              }
+          }
+        )
+    }
+
+  @Test
+  fun `getMetric throws StatusRuntimeException for impression metric when custom direct methodology has frequency`():
+    Unit = runBlocking {
+    whenever(internalMetricsMock.batchGetMetrics(any()))
+      .thenReturn(
+        internalBatchGetMetricsResponse {
+          metrics +=
+            INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+              weightedMeasurements.clear()
+              weightedMeasurements += weightedMeasurement {
+                weight = 1
+                binaryRepresentation = 1
+                measurement =
+                  INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
+                    details =
+                      InternalMeasurementKt.details {
+                        results +=
+                          InternalMeasurementKt.result {
+                            impression =
+                              InternalMeasurementKt.ResultKt.impression {
+                                value = IMPRESSION_VALUE
+                                noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
+                                customDirectMethodology = customDirectMethodology {
+                                  frequency =
+                                    InternalCustomDirectMethodology.FrequencyVariances
+                                      .getDefaultInstance()
+                                }
+                              }
+                          }
+                      }
+                  }
+              }
+            }
+        },
+      )
+
+    val request = getMetricRequest { name = SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
   fun `getMetric returns duration metric with SUCCEEDED when measurements are already SUCCEEDED`() =
     runBlocking {
       whenever(internalMetricsMock.batchGetMetrics(any()))
@@ -5265,6 +6355,192 @@ class MetricsServiceTest {
     }
 
   @Test
+  fun `getMetric returns duration metric without statistics when set expression is not union-only`() =
+    runBlocking {
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics +=
+              INTERNAL_SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
+                weightedMeasurements += weightedMeasurement {
+                  weight = -1
+                  binaryRepresentation = 1
+                  measurement = INTERNAL_SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT
+                }
+              }
+          }
+        )
+
+      val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+
+      assertThat(result)
+        .isEqualTo(
+          SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
+            this.result = metricResult {
+              watchDuration = MetricResultKt.watchDurationResult { value = 0.0 }
+            }
+          }
+        )
+    }
+
+  @Test
+  fun `getMetric returns duration metric without statistics when noise mechanism is unspecified`() =
+    runBlocking {
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics +=
+              INTERNAL_SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
+                weightedMeasurements.clear()
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 1
+                  measurement =
+                    INTERNAL_SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT.copy {
+                      details =
+                        InternalMeasurementKt.details {
+                          results +=
+                            WATCH_DURATION_LIST.map { duration ->
+                              InternalMeasurementKt.result {
+                                watchDuration =
+                                  InternalMeasurementKt.ResultKt.watchDuration {
+                                    value = duration
+                                    deterministicSum = InternalDeterministicSum.getDefaultInstance()
+                                  }
+                              }
+                            }
+                        }
+                    }
+                }
+              }
+          }
+        )
+
+      val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+
+      assertThat(result)
+        .isEqualTo(
+          SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
+            this.result =
+              this.result.copy {
+                watchDuration = watchDuration.copy { clearUnivariateStatistics() }
+              }
+          }
+        )
+    }
+
+  @Test
+  fun `getMetric returns duration metric without statistics when methodology is not set`() =
+    runBlocking {
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics +=
+              INTERNAL_SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
+                weightedMeasurements.clear()
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 1
+                  measurement =
+                    INTERNAL_SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT.copy {
+                      details =
+                        InternalMeasurementKt.details {
+                          results +=
+                            WATCH_DURATION_LIST.map { duration ->
+                              InternalMeasurementKt.result {
+                                watchDuration =
+                                  InternalMeasurementKt.ResultKt.watchDuration {
+                                    value = duration
+                                    noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
+                                  }
+                              }
+                            }
+                        }
+                    }
+                }
+              }
+          }
+        )
+
+      val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+
+      assertThat(result)
+        .isEqualTo(
+          SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
+            this.result =
+              this.result.copy {
+                watchDuration = watchDuration.copy { clearUnivariateStatistics() }
+              }
+          }
+        )
+    }
+
+  @Test
+  fun `getMetric throws throws StatusRuntimeException for watch duration metric when custom direct methodology has frequency`():
+    Unit = runBlocking {
+    whenever(internalMetricsMock.batchGetMetrics(any()))
+      .thenReturn(
+        internalBatchGetMetricsResponse {
+          metrics +=
+            INTERNAL_SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
+              weightedMeasurements.clear()
+              weightedMeasurements += weightedMeasurement {
+                weight = 1
+                binaryRepresentation = 1
+                measurement =
+                  INTERNAL_SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT.copy {
+                    details =
+                      InternalMeasurementKt.details {
+                        results +=
+                          WATCH_DURATION_LIST.map { duration ->
+                            InternalMeasurementKt.result {
+                              watchDuration =
+                                InternalMeasurementKt.ResultKt.watchDuration {
+                                  value = duration
+                                  noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
+                                  customDirectMethodology = customDirectMethodology {
+                                    frequency =
+                                      InternalCustomDirectMethodology.FrequencyVariances
+                                        .getDefaultInstance()
+                                  }
+                                }
+                            }
+                          }
+                      }
+                  }
+              }
+            }
+        }
+      )
+
+    val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
   fun `getMetric throws INVALID_ARGUMENT when Report name is invalid`() {
     val request = getMetricRequest { name = "invalid_metric_name" }
 
@@ -5315,8 +6591,7 @@ class MetricsServiceTest {
             measurementSpec =
               signMeasurementSpec(
                 UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
-                  measurementPublicKey =
-                    MEASUREMENT_CONSUMER_PUBLIC_KEY.copy { clearData() }.toByteString()
+                  measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.copy { clearData() }.pack()
                 },
                 MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
               )
@@ -5374,7 +6649,7 @@ class MetricsServiceTest {
         .thenReturn(
           SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.copy {
             results.clear()
-            results += resultPair {
+            results += resultOutput {
               val result =
                 MeasurementKt.result {
                   reach =

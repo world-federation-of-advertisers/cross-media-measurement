@@ -69,6 +69,7 @@ import org.wfanet.measurement.internal.reporting.v2.periodicTimeInterval as inte
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals as Intervals
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleNameServerInterceptor.Companion.withReportScheduleAndMeasurementConsumerPrincipal
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListReportsPageTokenKt
@@ -249,6 +250,88 @@ class ReportsServiceTest {
   }
 
   @Test
+  fun `createReport returns report with one metric created when report schedule name set`() {
+    val externalReportScheduleId = "external-report-schedule-id"
+    runBlocking {
+      whenever(
+          internalReportsMock.createReport(
+            eq(
+              internalCreateReportRequest {
+                report = INTERNAL_REACH_REPORTS.requestingReport
+                externalReportId = "report-id"
+                this.externalReportScheduleId = externalReportScheduleId
+              }
+            )
+          )
+        )
+        .thenReturn(
+          INTERNAL_REACH_REPORTS.initialReport.copy {
+            this.externalReportScheduleId = externalReportScheduleId
+          }
+        )
+
+      whenever(
+          internalReportsMock.getReport(
+            eq(
+              internalGetReportRequest {
+                cmmsMeasurementConsumerId =
+                  INTERNAL_REACH_REPORTS.initialReport.cmmsMeasurementConsumerId
+                externalReportId = INTERNAL_REACH_REPORTS.initialReport.externalReportId
+              }
+            )
+          )
+        )
+        .thenReturn(
+          INTERNAL_REACH_REPORTS.pendingReport.copy {
+            this.externalReportScheduleId = externalReportScheduleId
+          }
+        )
+    }
+
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearName()
+          clearCreateTime()
+          clearState()
+        }
+      reportId = "report-id"
+    }
+
+    val reportScheduleName =
+      ReportScheduleKey(
+          INTERNAL_REACH_REPORTS.initialReport.cmmsMeasurementConsumerId,
+          externalReportScheduleId
+        )
+        .toName()
+
+    val result =
+      withReportScheduleAndMeasurementConsumerPrincipal(
+        reportScheduleName,
+        MEASUREMENT_CONSUMER_KEYS.first().toName(),
+        CONFIG
+      ) {
+        runBlocking { service.createReport(request) }
+      }
+
+    verifyProtoArgument(metricsMock, MetricsGrpcKt.MetricsCoroutineImplBase::batchCreateMetrics)
+      .isEqualTo(
+        batchCreateMetricsRequest {
+          parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+          requests += createMetricRequest {
+            parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+            metric = REQUESTING_REACH_METRIC
+            requestId = ExternalId(REACH_METRIC_ID_BASE_LONG).apiId.value
+            metricId = "$METRIC_ID_PREFIX$requestId"
+          }
+        }
+      )
+
+    assertThat(result).isEqualTo(PENDING_REACH_REPORT.copy { reportSchedule = reportScheduleName })
+  }
+
+  @Test
   fun `createReport returns report when metric already succeeded`() = runBlocking {
     whenever(
         metricsMock.batchCreateMetrics(
@@ -326,11 +409,12 @@ class ReportsServiceTest {
 
       val (internalRequestingReport, internalInitialReport, internalPendingReport) =
         buildInternalReports(
-          MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-          intervals,
-          targetReportingSet.resourceId,
-          initialReportingMetrics,
-          listOf(),
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
+          timeIntervals = intervals,
+          reportingSetId = targetReportingSet.resourceId,
+          reportingMetrics = initialReportingMetrics,
+          groupings = listOf(),
+          filter = null,
         )
 
       whenever(
@@ -386,6 +470,7 @@ class ReportsServiceTest {
         )
 
       val requestingReport = report {
+        tags.putAll(REPORT_TAGS)
         reportingMetricEntries +=
           ReportKt.reportingMetricEntry {
             key = targetReportingSet.name
@@ -439,7 +524,7 @@ class ReportsServiceTest {
     }
 
   @Test
-  fun `createReport returns report with two metrics when there are two groupings`() = runBlocking {
+  fun `createReport returns report with two metrics when multiple filters`() = runBlocking {
     val displayName = DISPLAY_NAME
     val targetReportingSet = PRIMITIVE_REPORTING_SETS.first()
 
@@ -453,6 +538,7 @@ class ReportsServiceTest {
     val groupingsCartesianProduct: List<List<String>> =
       predicates1.flatMap { filter1 -> predicates2.map { filter2 -> listOf(filter1, filter2) } }
 
+    val filter = "device == MOBILE"
     val timeInterval = interval {
       startTime = START_TIME
       endTime = END_TIME
@@ -464,22 +550,23 @@ class ReportsServiceTest {
     }
 
     val initialReportingMetrics: List<InternalReport.ReportingMetric> =
-      groupingsCartesianProduct.map { filters ->
+      groupingsCartesianProduct.map { groupingPredicates ->
         buildInitialReportingMetric(
           targetReportingSet.resourceId,
           interval,
           INTERNAL_REACH_METRIC_SPEC,
-          filters
+          groupingPredicates
         )
       }
 
     val (internalRequestingReport, internalInitialReport, internalPendingReport) =
       buildInternalReports(
-        MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-        listOf(interval),
-        targetReportingSet.resourceId,
-        initialReportingMetrics,
-        internalGroupings,
+        cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
+        timeIntervals = listOf(interval),
+        reportingSetId = targetReportingSet.resourceId,
+        reportingMetrics = initialReportingMetrics,
+        groupings = internalGroupings,
+        filter = filter,
       )
 
     whenever(
@@ -507,12 +594,13 @@ class ReportsServiceTest {
       .thenReturn(internalPendingReport)
 
     val requestingMetrics: List<Metric> =
-      groupingsCartesianProduct.map { filters ->
+      groupingsCartesianProduct.map { groupingPredicates ->
         metric {
           reportingSet = targetReportingSet.name
           this.timeInterval = timeInterval
           metricSpec = REACH_METRIC_SPEC
-          this.filters += filters
+          this.filters += groupingPredicates
+          this.filters += filter
         }
       }
 
@@ -536,6 +624,7 @@ class ReportsServiceTest {
       )
 
     val requestingReport = report {
+      tags.putAll(REPORT_TAGS)
       reportingMetricEntries +=
         ReportKt.reportingMetricEntry {
           key = targetReportingSet.name
@@ -550,6 +639,7 @@ class ReportsServiceTest {
                       ReportKt.grouping { predicates += predicates1 },
                       ReportKt.grouping { predicates += predicates2 }
                     )
+                  this.filter = filter
                   cumulative = false
                 }
             }
@@ -617,11 +707,12 @@ class ReportsServiceTest {
 
       val (internalRequestingReport, internalInitialReport, internalPendingReport) =
         buildInternalReports(
-          MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-          listOf(interval),
-          targetReportingSet.resourceId,
-          initialReportingMetrics,
-          listOf(),
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
+          timeIntervals = listOf(interval),
+          reportingSetId = targetReportingSet.resourceId,
+          reportingMetrics = initialReportingMetrics,
+          groupings = listOf(),
+          filter = null,
         )
 
       whenever(
@@ -677,6 +768,7 @@ class ReportsServiceTest {
         )
 
       val requestingReport = report {
+        tags.putAll(REPORT_TAGS)
         reportingMetricEntries +=
           ReportKt.reportingMetricEntry {
             key = targetReportingSet.name
@@ -734,6 +826,7 @@ class ReportsServiceTest {
     runBlocking {
       val displayName = DISPLAY_NAME
       val targetReportingSet = PRIMITIVE_REPORTING_SETS.first()
+      val filter = "device == MOBILE"
 
       // Metric specs
       val metricSpecs = listOf(REACH_METRIC_SPEC, FREQUENCY_HISTOGRAM_METRIC_SPEC)
@@ -828,11 +921,12 @@ class ReportsServiceTest {
 
       val (internalRequestingReport, internalInitialReport, internalPendingReport) =
         buildInternalReports(
-          MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-          intervals,
-          targetReportingSet.resourceId,
-          initialReportingMetrics,
-          internalGroupings,
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
+          timeIntervals = intervals,
+          reportingSetId = targetReportingSet.resourceId,
+          reportingMetrics = initialReportingMetrics,
+          groupings = internalGroupings,
+          filter = filter,
         )
 
       whenever(
@@ -866,6 +960,7 @@ class ReportsServiceTest {
             timeInterval = metricConfig.timeInterval
             metricSpec = metricConfig.metricSpec
             filters += metricConfig.filters
+            filters += filter
           }
         }
 
@@ -889,6 +984,7 @@ class ReportsServiceTest {
         )
 
       val requestingReport = report {
+        tags.putAll(REPORT_TAGS)
         reportingMetricEntries +=
           ReportKt.reportingMetricEntry {
             key = targetReportingSet.name
@@ -899,6 +995,7 @@ class ReportsServiceTest {
                     this.displayName = displayName
                     this.metricSpecs += metricSpecs
                     this.groupings += groupings
+                    this.filter = filter
                     cumulative = false
                   }
               }
@@ -969,15 +1066,17 @@ class ReportsServiceTest {
       val internalRequestingReport = internalReport {
         cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
         timeIntervals = Intervals { timeIntervals += interval }
+        details = InternalReportKt.details { tags.putAll(REPORT_TAGS) }
         reportingSetToCreateMetricRequestMap.forEach { (reportingSet, reportingMetric) ->
           val initialReportingMetrics = listOf(reportingMetric)
           reportingMetricEntries.putAll(
             buildInternalReportingMetricEntryWithOneMetricCalculationSpec(
-              reportingSet.resourceId,
-              initialReportingMetrics,
-              reportingSet.name + displayName,
-              listOf(),
-              false
+              reportingSetId = reportingSet.resourceId,
+              reportingMetrics = initialReportingMetrics,
+              displayName = reportingSet.name + displayName,
+              groupings = listOf(),
+              filter = null,
+              cumulative = false
             )
           )
         }
@@ -991,16 +1090,17 @@ class ReportsServiceTest {
 
           var requestId = 0
           reportingSetToCreateMetricRequestMap.map { (reportingSet, createMetricRequest) ->
-            val updatedReportingCreateMetricRequests =
+            val updatedReportingMetrics =
               listOf(createMetricRequest.copy { this.createMetricRequestId = requestId.toString() })
             requestId++
             reportingMetricEntries.putAll(
               buildInternalReportingMetricEntryWithOneMetricCalculationSpec(
-                reportingSet.resourceId,
-                updatedReportingCreateMetricRequests,
-                reportingSet.name + displayName,
-                listOf(),
-                false
+                reportingSetId = reportingSet.resourceId,
+                reportingMetrics = updatedReportingMetrics,
+                displayName = reportingSet.name + displayName,
+                groupings = listOf(),
+                filter = null,
+                cumulative = false
               )
             )
           }
@@ -1012,7 +1112,7 @@ class ReportsServiceTest {
 
           var requestId = 0
           reportingSetToCreateMetricRequestMap.map { (reportingSet, createMetricRequest) ->
-            val updatedReportingCreateMetricRequests =
+            val updatedReportingMetrics =
               listOf(
                 createMetricRequest.copy {
                   this.createMetricRequestId = requestId.toString()
@@ -1022,11 +1122,12 @@ class ReportsServiceTest {
             requestId++
             reportingMetricEntries.putAll(
               buildInternalReportingMetricEntryWithOneMetricCalculationSpec(
-                reportingSet.resourceId,
-                updatedReportingCreateMetricRequests,
-                reportingSet.name + displayName,
-                listOf(),
-                false
+                reportingSetId = reportingSet.resourceId,
+                reportingMetrics = updatedReportingMetrics,
+                displayName = reportingSet.name + displayName,
+                groupings = listOf(),
+                filter = null,
+                cumulative = false
               )
             )
           }
@@ -1085,6 +1186,7 @@ class ReportsServiceTest {
         )
 
       val requestingReport = report {
+        tags.putAll(REPORT_TAGS)
         reportingMetricEntries +=
           targetReportingSets.map { reportingSet ->
             ReportKt.reportingMetricEntry {
@@ -1173,6 +1275,7 @@ class ReportsServiceTest {
         }
 
       val internalRequestingReport = internalReport {
+        details = InternalReportKt.details { tags.putAll(REPORT_TAGS) }
         cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
         timeIntervals = Intervals { timeIntervals += interval }
         reportingMetricEntries.putAll(
@@ -1292,6 +1395,7 @@ class ReportsServiceTest {
         )
 
       val requestingReport = report {
+        tags.putAll(REPORT_TAGS)
         reportingMetricEntries +=
           ReportKt.reportingMetricEntry {
             key = targetReportingSet.name
@@ -1368,7 +1472,7 @@ class ReportsServiceTest {
           }
         }
 
-      val reportingCreateMetricRequests =
+      val reportingMetrics =
         intervals.map { timeInterval ->
           buildInitialReportingMetric(
             PRIMITIVE_REPORTING_SETS.first().resourceId,
@@ -1379,6 +1483,7 @@ class ReportsServiceTest {
         }
 
       val internalRequestingReport = internalReport {
+        details = InternalReportKt.details { tags.putAll(REPORT_TAGS) }
         cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
 
         this.periodicTimeInterval = internalPeriodicTimeInterval {
@@ -1389,11 +1494,12 @@ class ReportsServiceTest {
 
         reportingMetricEntries.putAll(
           buildInternalReportingMetricEntryWithOneMetricCalculationSpec(
-            PRIMITIVE_REPORTING_SETS.first().resourceId,
-            reportingCreateMetricRequests,
-            DISPLAY_NAME,
-            listOf(),
-            true
+            reportingSetId = PRIMITIVE_REPORTING_SETS.first().resourceId,
+            reportingMetrics = reportingMetrics,
+            displayName = DISPLAY_NAME,
+            groupings = listOf(),
+            filter = null,
+            cumulative = true
           )
         )
       }
@@ -1403,26 +1509,27 @@ class ReportsServiceTest {
           externalReportId = "report-id"
           createTime = Instant.now().toProtoTime()
 
-          val updatedReportingCreateMetricRequests =
-            reportingCreateMetricRequests.mapIndexed { requestId, request ->
+          val updatedReportingMetrics =
+            reportingMetrics.mapIndexed { requestId, request ->
               request.copy { this.createMetricRequestId = requestId.toString() }
             }
 
           reportingMetricEntries.putAll(
             buildInternalReportingMetricEntryWithOneMetricCalculationSpec(
-              PRIMITIVE_REPORTING_SETS.first().resourceId,
-              updatedReportingCreateMetricRequests,
-              DISPLAY_NAME,
-              listOf(),
-              true
+              reportingSetId = PRIMITIVE_REPORTING_SETS.first().resourceId,
+              reportingMetrics = updatedReportingMetrics,
+              displayName = DISPLAY_NAME,
+              groupings = listOf(),
+              filter = null,
+              cumulative = true
             )
           )
         }
 
       val internalPendingReport =
         internalInitialReport.copy {
-          val updatedReportingCreateMetricRequests =
-            reportingCreateMetricRequests.mapIndexed { requestId, request ->
+          val updatedReportingMetrics =
+            reportingMetrics.mapIndexed { requestId, request ->
               request.copy {
                 this.createMetricRequestId = requestId.toString()
                 externalMetricId = ExternalId(REACH_METRIC_ID_BASE_LONG + requestId).apiId.value
@@ -1431,11 +1538,12 @@ class ReportsServiceTest {
 
           reportingMetricEntries.putAll(
             buildInternalReportingMetricEntryWithOneMetricCalculationSpec(
-              PRIMITIVE_REPORTING_SETS.first().resourceId,
-              updatedReportingCreateMetricRequests,
-              DISPLAY_NAME,
-              listOf(),
-              true
+              reportingSetId = PRIMITIVE_REPORTING_SETS.first().resourceId,
+              reportingMetrics = updatedReportingMetrics,
+              displayName = DISPLAY_NAME,
+              groupings = listOf(),
+              filter = null,
+              cumulative = true
             )
           )
         }
@@ -1493,6 +1601,7 @@ class ReportsServiceTest {
         parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
         reportId = "report-id"
         report = report {
+          tags.putAll(REPORT_TAGS)
           reportingMetricEntries +=
             ReportKt.reportingMetricEntry {
               key = PRIMITIVE_REPORTING_SETS.first().name
@@ -2297,6 +2406,82 @@ class ReportsServiceTest {
   }
 
   @Test
+  fun `createReport throws NOT_FOUND when report schedule not found`() = runBlocking {
+    val externalReportScheduleId = "external-report-schedule-id"
+
+    whenever(
+        internalReportsMock.createReport(
+          eq(
+            internalCreateReportRequest {
+              report = INTERNAL_REACH_REPORTS.requestingReport
+              externalReportId = "report-id"
+              this.externalReportScheduleId = externalReportScheduleId
+            }
+          )
+        )
+      )
+      .thenThrow(
+        Status.NOT_FOUND.withDescription("external_report_schedule_id").asRuntimeException()
+      )
+
+    val measurementConsumerKey = MEASUREMENT_CONSUMER_KEYS.first()
+    val request = createReportRequest {
+      parent = measurementConsumerKey.toName()
+      reportId = "report-id"
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearName()
+          clearCreateTime()
+          clearState()
+        }
+    }
+
+    val reportScheduleName =
+      ReportScheduleKey(measurementConsumerKey.measurementConsumerId, externalReportScheduleId)
+        .toName()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withReportScheduleAndMeasurementConsumerPrincipal(
+          reportScheduleName,
+          measurementConsumerKey.toName(),
+          CONFIG
+        ) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.message).contains("ReportSchedule")
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when report schedule name is invalid`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      reportId = "report-id"
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearName()
+          clearCreateTime()
+          clearState()
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withReportScheduleAndMeasurementConsumerPrincipal(
+          "name123",
+          MEASUREMENT_CONSUMER_KEYS.first().toName(),
+          CONFIG
+        ) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("reportScheduleName")
+  }
+
+  @Test
   fun `getReport returns the report with SUCCEEDED when all metrics are SUCCEEDED`() = runBlocking {
     whenever(
         metricsMock.batchGetMetrics(
@@ -2375,7 +2560,7 @@ class ReportsServiceTest {
         }
       }
 
-    val reportingCreateMetricRequests =
+    val reportingMetrics =
       intervals.map { timeInterval ->
         buildInitialReportingMetric(
           PRIMITIVE_REPORTING_SETS.first().resourceId,
@@ -2386,6 +2571,7 @@ class ReportsServiceTest {
       }
 
     val internalPendingReport = internalReport {
+      details = InternalReportKt.details { tags.putAll(REPORT_TAGS) }
       cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
 
       this.periodicTimeInterval = internalPeriodicTimeInterval {
@@ -2397,8 +2583,8 @@ class ReportsServiceTest {
       externalReportId = "report-id"
       createTime = Instant.now().toProtoTime()
 
-      val updatedReportingCreateMetricRequests =
-        reportingCreateMetricRequests.mapIndexed { requestId, request ->
+      val updatedReportingMetrics =
+        reportingMetrics.mapIndexed { requestId, request ->
           request.copy {
             this.createMetricRequestId = requestId.toString()
             externalMetricId = ExternalId(REACH_METRIC_ID_BASE_LONG + requestId).apiId.value
@@ -2407,11 +2593,12 @@ class ReportsServiceTest {
 
       reportingMetricEntries.putAll(
         buildInternalReportingMetricEntryWithOneMetricCalculationSpec(
-          PRIMITIVE_REPORTING_SETS.first().resourceId,
-          updatedReportingCreateMetricRequests,
-          DISPLAY_NAME,
-          listOf(),
-          true
+          reportingSetId = PRIMITIVE_REPORTING_SETS.first().resourceId,
+          reportingMetrics = updatedReportingMetrics,
+          displayName = DISPLAY_NAME,
+          groupings = listOf(),
+          filter = null,
+          cumulative = true
         )
       )
     }
@@ -3018,7 +3205,7 @@ class ReportsServiceTest {
       reportingSetId: String,
       timeInterval: Interval,
       metricSpec: InternalMetricSpec,
-      filters: List<String>,
+      groupingPredicates: List<String>,
     ): InternalReport.ReportingMetric {
       return InternalReportKt.reportingMetric {
         details =
@@ -3026,7 +3213,7 @@ class ReportsServiceTest {
             this.externalReportingSetId = reportingSetId
             this.metricSpec = metricSpec
             this.timeInterval = timeInterval
-            this.filters += filters
+            this.groupingPredicates += groupingPredicates
           }
       }
     }
@@ -3036,6 +3223,7 @@ class ReportsServiceTest {
       reportingMetrics: List<InternalReport.ReportingMetric>,
       displayName: String,
       groupings: List<InternalReport.MetricCalculationSpec.Grouping>,
+      filter: String?,
       cumulative: Boolean,
     ): Map<String, InternalReport.ReportingMetricCalculationSpec> {
       return mapOf(
@@ -3049,6 +3237,9 @@ class ReportsServiceTest {
                     this.displayName = displayName
                     metricSpecs += reportingMetrics.map { it.details.metricSpec }.distinct()
                     this.groupings += groupings
+                    if (filter != null) {
+                      this.filter = filter
+                    }
                     this.cumulative = cumulative
                   }
               }
@@ -3062,21 +3253,24 @@ class ReportsServiceTest {
       reportingSetId: String,
       reportingMetrics: List<InternalReport.ReportingMetric>,
       groupings: List<InternalReport.MetricCalculationSpec.Grouping>,
+      filter: String?,
       reportIdBase: String = "",
       metricIdBaseLong: Long = REACH_METRIC_ID_BASE_LONG
     ): InternalReports {
       // Internal reports of reach
       val internalRequestingReport = internalReport {
+        details = InternalReportKt.details { tags.putAll(REPORT_TAGS) }
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
         this.timeIntervals = Intervals { this.timeIntervals += timeIntervals }
 
         reportingMetricEntries.putAll(
           buildInternalReportingMetricEntryWithOneMetricCalculationSpec(
-            reportingSetId,
-            reportingMetrics,
-            DISPLAY_NAME,
-            groupings,
-            false
+            reportingSetId = reportingSetId,
+            reportingMetrics = reportingMetrics,
+            displayName = DISPLAY_NAME,
+            groupings = groupings,
+            filter = filter,
+            cumulative = false
           )
         )
       }
@@ -3085,7 +3279,7 @@ class ReportsServiceTest {
           externalReportId = reportIdBase + "report-id"
           createTime = Instant.now().toProtoTime()
 
-          val reportingCreateMetricRequests =
+          val initialReportingMetrics =
             reportingMetrics.mapIndexed { requestId, request ->
               request.copy {
                 createMetricRequestId = ExternalId(metricIdBaseLong + requestId).apiId.value
@@ -3094,17 +3288,18 @@ class ReportsServiceTest {
 
           reportingMetricEntries.putAll(
             buildInternalReportingMetricEntryWithOneMetricCalculationSpec(
-              reportingSetId,
-              reportingCreateMetricRequests,
-              DISPLAY_NAME,
-              groupings,
-              false
+              reportingSetId = reportingSetId,
+              reportingMetrics = initialReportingMetrics,
+              displayName = DISPLAY_NAME,
+              groupings = groupings,
+              filter = filter,
+              cumulative = false
             )
           )
         }
       val internalPendingReport =
         internalInitialReport.copy {
-          val reportingCreateMetricRequests =
+          val pendingReportingMetrics =
             reportingMetrics.mapIndexed { requestId, request ->
               request.copy {
                 createMetricRequestId = ExternalId(metricIdBaseLong + requestId).apiId.value
@@ -3114,11 +3309,12 @@ class ReportsServiceTest {
 
           reportingMetricEntries.putAll(
             buildInternalReportingMetricEntryWithOneMetricCalculationSpec(
-              reportingSetId,
-              reportingCreateMetricRequests,
-              DISPLAY_NAME,
-              groupings,
-              false
+              reportingSetId = reportingSetId,
+              reportingMetrics = pendingReportingMetrics,
+              displayName = DISPLAY_NAME,
+              groupings = groupings,
+              filter = filter,
+              cumulative = false
             )
           )
         }
@@ -3382,6 +3578,7 @@ class ReportsServiceTest {
 
     // Reports
     private const val DISPLAY_NAME = "DISPLAY_NAME"
+    private val REPORT_TAGS = mapOf("tag1" to "tag_value1", "tag2" to "tag_value2")
     // Internal reports
     private val INITIAL_REACH_REPORTING_METRIC =
       buildInitialReportingMetric(
@@ -3396,17 +3593,19 @@ class ReportsServiceTest {
 
     private val INTERNAL_REACH_REPORTS =
       buildInternalReports(
-        MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-        listOf(
-          interval {
-            startTime = START_TIME
-            endTime = END_TIME
-          }
-        ),
-        PRIMITIVE_REPORTING_SETS.first().resourceId,
-        listOf(INITIAL_REACH_REPORTING_METRIC),
-        listOf(),
-        "reach-"
+        cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
+        timeIntervals =
+          listOf(
+            interval {
+              startTime = START_TIME
+              endTime = END_TIME
+            }
+          ),
+        reportingSetId = PRIMITIVE_REPORTING_SETS.first().resourceId,
+        reportingMetrics = listOf(INITIAL_REACH_REPORTING_METRIC),
+        groupings = listOf(),
+        filter = null,
+        reportIdBase = "reach-"
       )
 
     private val INITIAL_WATCH_DURATION_REPORTING_METRIC =
@@ -3421,23 +3620,26 @@ class ReportsServiceTest {
       )
     private val INTERNAL_WATCH_DURATION_REPORTS =
       buildInternalReports(
-        MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-        listOf(
-          interval {
-            startTime = START_TIME
-            endTime = END_TIME
-          }
-        ),
-        PRIMITIVE_REPORTING_SETS.first().resourceId,
-        listOf(INITIAL_WATCH_DURATION_REPORTING_METRIC),
-        listOf(),
-        "duration-",
+        cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
+        timeIntervals =
+          listOf(
+            interval {
+              startTime = START_TIME
+              endTime = END_TIME
+            }
+          ),
+        reportingSetId = PRIMITIVE_REPORTING_SETS.first().resourceId,
+        reportingMetrics = listOf(INITIAL_WATCH_DURATION_REPORTING_METRIC),
+        groupings = listOf(),
+        filter = null,
+        reportIdBase = "duration-",
         metricIdBaseLong = WATCH_DURATION_METRIC_ID_BASE_LONG
       )
 
     // Public reports
     private val PENDING_REACH_REPORT: Report = report {
       name = INTERNAL_REACH_REPORTS.pendingReport.resourceName
+      tags.putAll(REPORT_TAGS)
       reportingMetricEntries +=
         ReportKt.reportingMetricEntry {
           key = PRIMITIVE_REPORTING_SETS.first().name
@@ -3480,6 +3682,7 @@ class ReportsServiceTest {
 
     private val PENDING_WATCH_DURATION_REPORT: Report = report {
       name = INTERNAL_WATCH_DURATION_REPORTS.pendingReport.resourceName
+      tags.putAll(REPORT_TAGS)
       reportingMetricEntries +=
         ReportKt.reportingMetricEntry {
           key = PRIMITIVE_REPORTING_SETS.first().name

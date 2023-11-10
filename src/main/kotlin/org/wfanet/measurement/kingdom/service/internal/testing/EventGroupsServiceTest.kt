@@ -889,8 +889,8 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         eventGroup.copy {
           this.externalMeasurementConsumerCertificateId = 0L
           this.updateTime = response.updateTime
-          this.details = EventGroup.Details.getDefaultInstance()
           this.state = EventGroup.State.DELETED
+          clearDetails()
         }
       )
     assertThat(response)
@@ -996,11 +996,9 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       population
         .createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
-
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId
-
-    val createdEventGroup =
+    val eventGroup =
       eventGroupsService.createEventGroup(
         createEventGroupRequest {
           eventGroup = eventGroup {
@@ -1009,24 +1007,23 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
           }
         }
       )
-
-    val deletedEventGroup =
+    val deletedEventGroup: EventGroup =
       eventGroupsService.deleteEventGroup(
         deleteEventGroupRequest {
           this.externalDataProviderId = externalDataProviderId
-          this.externalEventGroupId = createdEventGroup.externalEventGroupId
+          this.externalEventGroupId = eventGroup.externalEventGroupId
         }
       )
 
-    val readEventGroup =
+    val response: EventGroup =
       eventGroupsService.getEventGroup(
         getEventGroupRequest {
           this.externalDataProviderId = externalDataProviderId
-          this.externalEventGroupId = createdEventGroup.externalEventGroupId
+          this.externalEventGroupId = eventGroup.externalEventGroupId
         }
       )
 
-    assertThat(readEventGroup).isEqualTo(deletedEventGroup)
+    assertThat(response).isEqualTo(deletedEventGroup)
   }
 
   @Test

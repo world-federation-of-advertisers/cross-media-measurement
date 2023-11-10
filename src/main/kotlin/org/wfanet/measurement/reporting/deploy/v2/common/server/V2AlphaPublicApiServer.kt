@@ -57,6 +57,7 @@ import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCorouti
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
+import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.common.EncryptionKeyPairMap
 import org.wfanet.measurement.reporting.deploy.common.KingdomApiFlags
 import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
@@ -162,6 +163,7 @@ private fun run(
       metricSpecConfig,
       InternalReportingSetsCoroutineStub(channel),
       InternalMetricsCoroutineStub(channel),
+      VariancesImpl,
       InternalMeasurementsCoroutineStub(channel),
       KingdomDataProvidersCoroutineStub(kingdomChannel),
       KingdomMeasurementsCoroutineStub(kingdomChannel),

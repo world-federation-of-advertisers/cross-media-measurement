@@ -17,6 +17,7 @@ package k8s
 #EdpConfig: {
 	displayName:  string
 	resourceName: string
+	publisherId:  int
 }
 
 #EdpSimulator: {
@@ -66,5 +67,9 @@ package k8s
 				any: {}
 			}
 		}
+	}
+
+	serviceAccounts: [Name=string]: #ServiceAccount & {
+		metadata: name: Name
 	}
 }

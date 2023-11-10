@@ -14,22 +14,24 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.protobuf.any
 import com.google.protobuf.util.Timestamps
 import com.google.type.interval
 import java.time.ZoneOffset
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeKey
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.Exchange
-import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKt
-import org.wfanet.measurement.api.v2alpha.ExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
@@ -40,7 +42,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
-import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultOutput
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLine.Type
@@ -58,14 +60,20 @@ import org.wfanet.measurement.api.v2alpha.ModelShardKey
 import org.wfanet.measurement.api.v2alpha.ModelShardKt.modelBlob
 import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
+import org.wfanet.measurement.api.v2alpha.Population
+import org.wfanet.measurement.api.v2alpha.PopulationKey
+import org.wfanet.measurement.api.v2alpha.PopulationKt.populationBlob
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.protocol
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.reachOnlyLiquidLegionsV2
+import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.dateInterval
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.encryptedMessage
+import org.wfanet.measurement.api.v2alpha.eventTemplate
 import org.wfanet.measurement.api.v2alpha.exchange
 import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.api.v2alpha.exchangeStepAttempt
@@ -77,9 +85,14 @@ import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.api.v2alpha.modelSuite
+import org.wfanet.measurement.api.v2alpha.population
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.reachOnlyLiquidLegionsSketchParams
-import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.api.v2alpha.setMessage
+import org.wfanet.measurement.api.v2alpha.signedMessage
+import org.wfanet.measurement.api.v2alpha.unpack
+import org.wfanet.measurement.common.ProtoReflection
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toInstant
@@ -104,10 +117,13 @@ import org.wfanet.measurement.internal.kingdom.ModelRelease as InternalModelRele
 import org.wfanet.measurement.internal.kingdom.ModelRollout as InternalModelRollout
 import org.wfanet.measurement.internal.kingdom.ModelShard as InternalModelShard
 import org.wfanet.measurement.internal.kingdom.ModelSuite as InternalModelSuite
+import org.wfanet.measurement.internal.kingdom.Population as InternalPopulation
+import org.wfanet.measurement.internal.kingdom.PopulationKt.populationBlob as internalPopulationBlob
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt as InternalProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
+import org.wfanet.measurement.internal.kingdom.eventTemplate as internalEventTemplate
 import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
 import org.wfanet.measurement.internal.kingdom.modelLine as internalModelLine
@@ -116,6 +132,7 @@ import org.wfanet.measurement.internal.kingdom.modelRelease as internalModelRele
 import org.wfanet.measurement.internal.kingdom.modelRollout as internalModelRollout
 import org.wfanet.measurement.internal.kingdom.modelShard as internalModelShard
 import org.wfanet.measurement.internal.kingdom.modelSuite as internalModelSuite
+import org.wfanet.measurement.internal.kingdom.population as internalPopulation
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
@@ -513,6 +530,7 @@ fun ModelSuite.toInternal(modelProviderKey: ModelProviderKey): InternalModelSuit
 }
 
 /** Converts a public [ModelRelease] to an internal [InternalModelRelease] */
+@Suppress("UnusedReceiverParameter") //
 fun ModelRelease.toInternal(modelSuiteKey: ModelSuiteKey): InternalModelRelease {
   return internalModelRelease {
     externalModelProviderId = apiIdToExternalId(modelSuiteKey.modelProviderId)
@@ -805,12 +823,41 @@ fun ModelShard.toInternal(
   }
 }
 
+/** Converts an internal [InternaPopulation] to a public [Population]. */
+fun InternalPopulation.toPopulation(): Population {
+  val source = this
+
+  return population {
+    name =
+      PopulationKey(
+          externalIdToApiId(source.externalDataProviderId),
+          externalIdToApiId(source.externalPopulationId)
+        )
+        .toName()
+    description = source.description
+    createTime = source.createTime
+    populationBlob = populationBlob { modelBlobUri = source.populationBlob.modelBlobUri }
+    eventTemplate = eventTemplate { type = source.eventTemplate.fullyQualifiedType }
+  }
+}
+
+/** Converts a public [Population] to an internal [InternalPopulation] */
+fun Population.toInternal(dataProviderKey: DataProviderKey): InternalPopulation {
+  val source = this
+
+  return internalPopulation {
+    externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
+    description = source.description
+    populationBlob = internalPopulationBlob { modelBlobUri = source.populationBlob.modelBlobUri }
+    eventTemplate = internalEventTemplate { fullyQualifiedType = source.eventTemplate.type }
+  }
+}
+
 /** Converts an internal [InternalMeasurement] to a public [Measurement]. */
 fun InternalMeasurement.toMeasurement(): Measurement {
+  val apiVersion = Version.fromString(details.apiVersion)
+
   val source = this
-  check(Version.fromString(source.details.apiVersion) == Version.V2_ALPHA) {
-    "Incompatible API version ${source.details.apiVersion}"
-  }
   return measurement {
     name =
       MeasurementKey(
@@ -824,16 +871,22 @@ fun InternalMeasurement.toMeasurement(): Measurement {
           externalIdToApiId(source.externalMeasurementConsumerCertificateId)
         )
         .toName()
-    measurementSpec = signedData {
-      data = source.details.measurementSpec
+    measurementSpec = signedMessage {
+      setMessage(
+        any {
+          value = source.details.measurementSpec
+          typeUrl =
+            when (apiVersion) {
+              Version.V2_ALPHA -> ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
+            }
+        }
+      )
       signature = source.details.measurementSpecSignature
       signatureAlgorithmOid = source.details.measurementSpecSignatureAlgorithmOid
     }
-    dataProviders +=
-      source.dataProvidersMap.entries.map(Map.Entry<Long, DataProviderValue>::toDataProviderEntry)
+    dataProviders += source.dataProvidersMap.entries.map { it.toDataProviderEntry(apiVersion) }
 
-    val measurementTypeCase =
-      MeasurementSpec.parseFrom(this.measurementSpec.data).measurementTypeCase
+    val measurementTypeCase = measurementSpec.unpack<MeasurementSpec>().measurementTypeCase
 
     protocolConfig =
       source.details.protocolConfig.toProtocolConfig(
@@ -844,20 +897,30 @@ fun InternalMeasurement.toMeasurement(): Measurement {
     state = source.state.toState()
     results +=
       source.resultsList.map {
+        val resultApiVersion = Version.fromString(it.apiVersion)
         val certificateApiId = externalIdToApiId(it.externalCertificateId)
-        resultPair {
-          if (it.externalAggregatorDuchyId.isNotBlank()) {
-            certificate =
-              DuchyCertificateKey(it.externalAggregatorDuchyId, certificateApiId).toName()
-          } else if (it.externalDataProviderId != 0L) {
-            certificate =
-              DataProviderCertificateKey(
-                  externalIdToApiId(it.externalDataProviderId),
-                  certificateApiId
-                )
-                .toName()
+        resultOutput {
+          @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf oneof case fields cannot be null.
+          certificate =
+            when (it.certificateParentCase) {
+              InternalMeasurement.ResultInfo.CertificateParentCase.EXTERNAL_AGGREGATOR_DUCHY_ID ->
+                DuchyCertificateKey(it.externalAggregatorDuchyId, certificateApiId).toName()
+              InternalMeasurement.ResultInfo.CertificateParentCase.EXTERNAL_DATA_PROVIDER_ID ->
+                DataProviderCertificateKey(
+                    externalIdToApiId(it.externalDataProviderId),
+                    certificateApiId
+                  )
+                  .toName()
+              InternalMeasurement.ResultInfo.CertificateParentCase.CERTIFICATEPARENT_NOT_SET ->
+                error("certificate_parent not set")
+            }
+          encryptedResult = encryptedMessage {
+            ciphertext = it.encryptedResult
+            typeUrl =
+              when (resultApiVersion) {
+                Version.V2_ALPHA -> ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
+              }
           }
-          encryptedResult = it.encryptedResult
         }
       }
     measurementReferenceId = source.providedMeasurementId
@@ -871,7 +934,10 @@ fun InternalMeasurement.toMeasurement(): Measurement {
 }
 
 /** Converts an internal [DataProviderValue] to a public [DataProviderEntry.Value]. */
-fun DataProviderValue.toDataProviderEntryValue(dataProviderId: String): DataProviderEntry.Value {
+fun DataProviderValue.toDataProviderEntryValue(
+  dataProviderId: String,
+  apiVersion: Version
+): DataProviderEntry.Value {
   val dataProviderValue = this
   return DataProviderEntryKt.value {
     dataProviderCertificate =
@@ -880,22 +946,37 @@ fun DataProviderValue.toDataProviderEntryValue(dataProviderId: String): DataProv
           externalIdToApiId(externalDataProviderCertificateId)
         )
         .toName()
-    dataProviderPublicKey = signedData {
-      data = dataProviderValue.dataProviderPublicKey
+    dataProviderPublicKey = signedMessage {
+      setMessage(
+        value =
+          any {
+            value = dataProviderValue.dataProviderPublicKey
+            typeUrl =
+              when (apiVersion) {
+                Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EncryptionPublicKey.getDescriptor())
+              }
+          }
+      )
       signature = dataProviderPublicKeySignature
       signatureAlgorithmOid = dataProviderPublicKeySignatureAlgorithmOid
     }
-    encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
+    encryptedRequisitionSpec = encryptedMessage {
+      ciphertext = dataProviderValue.encryptedRequisitionSpec
+      typeUrl =
+        when (apiVersion) {
+          Version.V2_ALPHA -> ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
+        }
+    }
     nonceHash = dataProviderValue.nonceHash
   }
 }
 
 /** Converts an internal data provider map entry to a public [DataProviderEntry]. */
-fun Map.Entry<Long, DataProviderValue>.toDataProviderEntry(): DataProviderEntry {
+fun Map.Entry<Long, DataProviderValue>.toDataProviderEntry(apiVersion: Version): DataProviderEntry {
   val mapEntry = this
   return dataProviderEntry {
     key = DataProviderKey(externalIdToApiId(mapEntry.key)).toName()
-    value = mapEntry.value.toDataProviderEntryValue(externalIdToApiId(mapEntry.key))
+    value = mapEntry.value.toDataProviderEntryValue(externalIdToApiId(mapEntry.key), apiVersion)
   }
 }
 
@@ -911,8 +992,7 @@ fun Measurement.toInternal(
   internalNoiseMechanisms: List<InternalProtocolConfig.NoiseMechanism>,
   reachOnlyLlV2Enabled: Boolean,
 ): InternalMeasurement {
-  val publicMeasurement = this
-
+  val source = this
   return internalMeasurement {
     providedMeasurementId = measurementReferenceId
     externalMeasurementConsumerId =
@@ -922,9 +1002,9 @@ fun Measurement.toInternal(
     dataProviders.putAll(dataProvidersMap)
     details = details {
       apiVersion = Version.V2_ALPHA.string
-      measurementSpec = publicMeasurement.measurementSpec.data
-      measurementSpecSignature = publicMeasurement.measurementSpec.signature
-      measurementSpecSignatureAlgorithmOid = publicMeasurement.measurementSpec.signatureAlgorithmOid
+      measurementSpec = source.measurementSpec.message.value
+      measurementSpecSignature = source.measurementSpec.signature
+      measurementSpecSignatureAlgorithmOid = source.measurementSpec.signatureAlgorithmOid
 
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (measurementSpecProto.measurementTypeCase) {
@@ -1035,7 +1115,7 @@ fun Measurement.toInternal(
 fun InternalExchange.toExchange(): Exchange {
   val source = this
   val exchangeKey =
-    ExchangeKey(
+    CanonicalExchangeKey(
       recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
       exchangeId = date.toLocalDate().toString()
     )
@@ -1059,20 +1139,41 @@ fun InternalExchange.toExchange(): Exchange {
   }
 }
 
-/** @throws [IllegalStateException] if InternalExchangeStep.State not specified */
-fun InternalExchangeStep.toV2Alpha(): ExchangeStep {
+/** Converts this [InternalExchangeStep] to an [ExchangeStep]. */
+fun InternalExchangeStep.toExchangeStep(): ExchangeStep {
   val exchangeStepKey =
-    ExchangeStepKey(
+    CanonicalExchangeStepKey(
       recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
       exchangeId = date.toLocalDate().toString(),
       exchangeStepId = stepIndex.toString()
     )
+  val apiVersion = Version.fromString(apiVersion)
+
+  val source = this
   return exchangeStep {
     name = exchangeStepKey.toName()
-    state = v2AlphaState
-    stepIndex = this@toV2Alpha.stepIndex
-    exchangeDate = date
-    serializedExchangeWorkflow = this@toV2Alpha.serializedExchangeWorkflow
+    exchangeDate = source.date
+    stepIndex = source.stepIndex
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+    when (source.partyCase) {
+      InternalExchangeStep.PartyCase.EXTERNAL_DATA_PROVIDER_ID ->
+        dataProvider =
+          DataProviderKey(ExternalId(source.externalDataProviderId).apiId.value).toName()
+      InternalExchangeStep.PartyCase.EXTERNAL_MODEL_PROVIDER_ID ->
+        modelProvider =
+          ModelProviderKey(ExternalId(source.externalModelProviderId).apiId.value).toName()
+      InternalExchangeStep.PartyCase.PARTY_NOT_SET -> error("party not set")
+    }
+
+    state = source.state.toState()
+    exchangeWorkflow = any {
+      value = source.serializedExchangeWorkflow
+      typeUrl =
+        when (apiVersion) {
+          Version.V2_ALPHA -> ProtoReflection.getTypeUrl(ExchangeWorkflow.getDescriptor())
+        }
+    }
   }
 }
 
@@ -1098,26 +1199,25 @@ fun Iterable<ExchangeStepAttempt.DebugLogEntry>.toInternal():
   }
 }
 
-/** @throws [IllegalStateException] if InternalExchangeStepAttempt.State not specified */
-fun InternalExchangeStepAttempt.toV2Alpha(): ExchangeStepAttempt {
+fun InternalExchangeStepAttempt.toExchangeStepAttempt(): ExchangeStepAttempt {
   val key =
-    ExchangeStepAttemptKey(
+    CanonicalExchangeStepAttemptKey(
       recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
       exchangeId = date.toLocalDate().toString(),
       exchangeStepId = stepIndex.toString(),
-      exchangeStepAttemptId = this@toV2Alpha.attemptNumber.toString()
+      exchangeStepAttemptId = this@toExchangeStepAttempt.attemptNumber.toString()
     )
+  val source = this
   return exchangeStepAttempt {
     name = key.toName()
-    attemptNumber = this@toV2Alpha.attemptNumber
-    state = this@toV2Alpha.state.toV2Alpha()
-    debugLogEntries += details.debugLogEntriesList.map { it.toV2Alpha() }
-    startTime = details.startTime
-    updateTime = details.updateTime
+    attemptNumber = source.attemptNumber
+    state = source.state.toState()
+    debugLogEntries += source.details.debugLogEntriesList.map { it.toDebugLogEntry() }
+    startTime = source.details.startTime
+    updateTime = source.details.updateTime
   }
 }
 
-/** @throws [IllegalStateException] if State not specified */
 fun ExchangeStep.State.toInternal(): InternalExchangeStep.State {
   return when (this) {
     ExchangeStep.State.BLOCKED -> InternalExchangeStep.State.BLOCKED
@@ -1131,14 +1231,16 @@ fun ExchangeStep.State.toInternal(): InternalExchangeStep.State {
   }
 }
 
-private fun ExchangeStepAttemptDetails.DebugLog.toV2Alpha(): ExchangeStepAttempt.DebugLogEntry {
+private fun ExchangeStepAttemptDetails.DebugLog.toDebugLogEntry():
+  ExchangeStepAttempt.DebugLogEntry {
+  val source = this
   return ExchangeStepAttemptKt.debugLogEntry {
-    entryTime = this@toV2Alpha.time
-    message = this@toV2Alpha.message
+    entryTime = source.time
+    message = source.message
   }
 }
 
-private fun InternalExchangeStepAttempt.State.toV2Alpha(): ExchangeStepAttempt.State {
+private fun InternalExchangeStepAttempt.State.toState(): ExchangeStepAttempt.State {
   return when (this) {
     InternalExchangeStepAttempt.State.STATE_UNSPECIFIED,
     InternalExchangeStepAttempt.State.UNRECOGNIZED ->
@@ -1150,20 +1252,18 @@ private fun InternalExchangeStepAttempt.State.toV2Alpha(): ExchangeStepAttempt.S
   }
 }
 
-private val InternalExchangeStep.v2AlphaState: ExchangeStep.State
-  get() {
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-    return when (this.state) {
-      InternalExchangeStep.State.BLOCKED -> ExchangeStep.State.BLOCKED
-      InternalExchangeStep.State.READY -> ExchangeStep.State.READY
-      InternalExchangeStep.State.READY_FOR_RETRY -> ExchangeStep.State.READY_FOR_RETRY
-      InternalExchangeStep.State.IN_PROGRESS -> ExchangeStep.State.IN_PROGRESS
-      InternalExchangeStep.State.SUCCEEDED -> ExchangeStep.State.SUCCEEDED
-      InternalExchangeStep.State.FAILED -> ExchangeStep.State.FAILED
-      InternalExchangeStep.State.STATE_UNSPECIFIED,
-      InternalExchangeStep.State.UNRECOGNIZED -> error("Invalid InternalExchangeStep state: $this")
-    }
+private fun InternalExchangeStep.State.toState(): ExchangeStep.State {
+  return when (this) {
+    InternalExchangeStep.State.BLOCKED -> ExchangeStep.State.BLOCKED
+    InternalExchangeStep.State.READY -> ExchangeStep.State.READY
+    InternalExchangeStep.State.READY_FOR_RETRY -> ExchangeStep.State.READY_FOR_RETRY
+    InternalExchangeStep.State.IN_PROGRESS -> ExchangeStep.State.IN_PROGRESS
+    InternalExchangeStep.State.SUCCEEDED -> ExchangeStep.State.SUCCEEDED
+    InternalExchangeStep.State.FAILED -> ExchangeStep.State.FAILED
+    InternalExchangeStep.State.STATE_UNSPECIFIED,
+    InternalExchangeStep.State.UNRECOGNIZED -> error("Invalid InternalExchangeStep state: $this")
   }
+}
 
 /** @throws [IllegalArgumentException] if step dependencies invalid */
 fun ExchangeWorkflow.toInternal(): InternalExchangeWorkflow {

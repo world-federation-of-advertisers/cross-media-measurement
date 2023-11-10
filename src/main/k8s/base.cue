@@ -67,6 +67,13 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #OpenTelemetryPrometheusExporterPort: 8889
 #OpenTelemetryCollectorEndpoint:      "http://default-collector-headless.default.svc:\(#OpenTelemetryReceiverPort)"
 
+// K8s ServiceAccount.
+#ServiceAccount: {
+	apiVersion: "v1"
+	kind:       "ServiceAccount"
+	metadata:   #ObjectMeta
+}
+
 #ResourceQuantity: {
 	cpu?:    string
 	memory?: string
@@ -267,16 +274,18 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 // K8s ObjectMeta.
 #ObjectMeta: {
-	_component: string
+	_component?: string
 
 	name: string
 	labels: [_=string]:      string
 	annotations: [_=string]: string
 
 	labels: {
-		"app.kubernetes.io/name":      name
-		"app.kubernetes.io/part-of":   #AppName
-		"app.kubernetes.io/component": _component
+		"app.kubernetes.io/name":    name
+		"app.kubernetes.io/part-of": #AppName
+		if (_component != _|_) {
+			"app.kubernetes.io/component": _component
+		}
 	}
 }
 

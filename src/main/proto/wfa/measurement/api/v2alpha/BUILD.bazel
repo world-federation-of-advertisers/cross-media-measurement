@@ -402,8 +402,10 @@ proto_library(
     name = "page_token_proto",
     srcs = ["page_token.proto"],
     deps = [
+        "@com_google_googleapis//google/type:date_proto",
         "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:timestamp_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_proto",
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurement_proto",
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_line_proto",
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:requisition_proto",
@@ -678,6 +680,46 @@ alias(
 kt_jvm_grpc_proto_library(
     name = "model_shards_service_kt_jvm_grpc_proto",
     srcs = [":model_shards_service_proto"],
+)
+
+java_proto_library(
+    name = "population_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:population_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "population_kt_jvm_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:population_proto",
+    ],
+    deps = [":population_java_proto"],
+)
+
+alias(
+    name = "populations_service_proto",
+    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:populations_service_proto",
+)
+
+kt_jvm_grpc_proto_library(
+    name = "populations_service_kt_jvm_grpc_proto",
+    srcs = [":populations_service_proto"],
+)
+
+java_proto_library(
+    name = "event_template_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_template_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "event_template_kt_jvm_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_template_proto",
+    ],
+    deps = [":event_template_java_proto"],
 )
 
 java_proto_library(

@@ -50,6 +50,7 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
@@ -113,7 +114,10 @@ import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
+import org.wfanet.measurement.api.v2alpha.setMessage
+import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.ProtoReflection
@@ -121,6 +125,7 @@ import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificateCollection
+import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
@@ -130,6 +135,7 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -222,6 +228,10 @@ class EdpSimulatorTest {
       .thenReturn(MEASUREMENT_CONSUMER_CERTIFICATE)
     onBlocking { getCertificate(eq(getCertificateRequest { name = DUCHY_CERTIFICATE.name })) }
       .thenReturn(DUCHY_CERTIFICATE)
+    onBlocking {
+        getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_CERTIFICATE.name }))
+      }
+      .thenReturn(DATA_PROVIDER_CERTIFICATE)
   }
   private val measurementConsumersServiceMock:
     MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase =
@@ -1005,8 +1015,8 @@ class EdpSimulatorTest {
           name = REQUISITION.name
           requisitionFingerprint =
             computeRequisitionFingerprint(
-              REQUISITION.measurementSpec.data,
-              Hashing.hashSha256(REQUISITION.encryptedRequisitionSpec)
+              REQUISITION.measurementSpec.message.value,
+              Hashing.hashSha256(REQUISITION.encryptedRequisitionSpec.ciphertext)
             )
           nonce = REQUISITION_SPEC.nonce
         }
@@ -1594,6 +1604,62 @@ class EdpSimulatorTest {
   }
 
   @Test
+  fun `refuses Requisition with UNFULFILLABLE when certificate doesn't match private key`() {
+    val requisition =
+      REQUISITION.copy {
+        dataProviderCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
+        protocolConfig =
+          protocolConfig.copy {
+            protocols.clear()
+            protocols +=
+              ProtocolConfigKt.protocol {
+                direct =
+                  ProtocolConfigKt.direct {
+                    noiseMechanisms += ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+                    deterministicCountDistinct =
+                      ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
+                    deterministicDistribution =
+                      ProtocolConfig.Direct.DeterministicDistribution.getDefaultInstance()
+                  }
+              }
+          }
+      }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+    val simulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        syntheticGeneratorEventQuery,
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        random = Random(RANDOM_SEED),
+        compositionMechanism = COMPOSITION_MECHANISM
+      )
+
+    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+
+    val refuseRequest: RefuseRequisitionRequest =
+      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+    assertThat(refuseRequest)
+      .ignoringFields(RefuseRequisitionRequest.REFUSAL_FIELD_NUMBER)
+      .isEqualTo(refuseRequisitionRequest { name = REQUISITION.name })
+    assertThat(refuseRequest.refusal)
+      .ignoringFields(Refusal.MESSAGE_FIELD_NUMBER)
+      .isEqualTo(refusal { justification = Refusal.Justification.UNFULFILLABLE })
+    assertThat(refuseRequest.refusal.message).ignoringCase().contains("certificate")
+  }
+
+  @Test
   fun `fulfills direct reach and frequency Requisition`() {
     val noiseMechanismOption = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
     val requisition =
@@ -1643,8 +1709,7 @@ class EdpSimulatorTest {
         requisitionsServiceMock,
         RequisitionsCoroutineImplBase::fulfillDirectRequisition
       )
-    val result =
-      Measurement.Result.parseFrom(decryptResult(request.encryptedData, MC_PRIVATE_KEY).data)
+    val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
     assertThat(result.reach.noiseMechanism == noiseMechanismOption)
     assertThat(result.reach.hasDeterministicCountDistinct())
     assertThat(result.frequency.noiseMechanism == noiseMechanismOption)
@@ -1709,8 +1774,7 @@ class EdpSimulatorTest {
         requisitionsServiceMock,
         RequisitionsCoroutineImplBase::fulfillDirectRequisition
       )
-    val result =
-      Measurement.Result.parseFrom(decryptResult(request.encryptedData, MC_PRIVATE_KEY).data)
+    val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
 
     assertThat(result.reach.noiseMechanism == noiseMechanismOption)
     assertThat(result.reach.hasDeterministicCountDistinct())
@@ -1894,8 +1958,7 @@ class EdpSimulatorTest {
         requisitionsServiceMock,
         RequisitionsCoroutineImplBase::fulfillDirectRequisition
       )
-    val result =
-      Measurement.Result.parseFrom(decryptResult(request.encryptedData, MC_PRIVATE_KEY).data)
+    val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
 
     assertThat(result.reach.noiseMechanism == noiseMechanismOption)
     assertThat(result.reach.hasDeterministicCountDistinct())
@@ -1956,8 +2019,7 @@ class EdpSimulatorTest {
         requisitionsServiceMock,
         RequisitionsCoroutineImplBase::fulfillDirectRequisition
       )
-    val result =
-      Measurement.Result.parseFrom(decryptResult(request.encryptedData, MC_PRIVATE_KEY).data)
+    val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
 
     assertThat(result.reach.noiseMechanism == noiseMechanismOption)
     assertThat(result.reach.hasDeterministicCountDistinct())
@@ -2124,6 +2186,21 @@ class EdpSimulatorTest {
       x509Der = DUCHY_SIGNING_KEY.certificate.encoded.toByteString()
     }
 
+    private val EDP_DATA =
+      EdpData(
+        EDP_NAME,
+        EDP_DISPLAY_NAME,
+        loadEncryptionPrivateKey("${EDP_DISPLAY_NAME}_enc_private.tink"),
+        loadSigningKey("${EDP_DISPLAY_NAME}_cs_cert.der", "${EDP_DISPLAY_NAME}_cs_private.der")
+      )
+    private val DATA_PROVIDER_CERTIFICATE_KEY =
+      DataProviderCertificateKey(EDP_ID, externalIdToApiId(7L))
+    private val DATA_PROVIDER_CERTIFICATE = certificate {
+      name = DATA_PROVIDER_CERTIFICATE_KEY.toName()
+      x509Der = EDP_DATA.signingKey.certificate.encoded.toByteString()
+      subjectKeyIdentifier = EDP_DATA.signingKey.certificate.subjectKeyIdentifier!!
+    }
+
     private val MC_PUBLIC_KEY =
       loadPublicKey(SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile())
         .toEncryptionPublicKey()
@@ -2153,7 +2230,7 @@ class EdpSimulatorTest {
               }
           }
         }
-      measurementPublicKey = MC_PUBLIC_KEY.toByteString()
+      measurementPublicKey = MC_PUBLIC_KEY.pack()
       nonce = Random.Default.nextLong()
     }
     private val ENCRYPTED_REQUISITION_SPEC =
@@ -2167,7 +2244,7 @@ class EdpSimulatorTest {
       delta = 1E-12
     }
     private val MEASUREMENT_SPEC = measurementSpec {
-      measurementPublicKey = MC_PUBLIC_KEY.toByteString()
+      measurementPublicKey = MC_PUBLIC_KEY.pack()
       reachAndFrequency = reachAndFrequency {
         reachPrivacyParams = OUTPUT_DP_PARAMS
         frequencyPrivacyParams = OUTPUT_DP_PARAMS
@@ -2184,14 +2261,6 @@ class EdpSimulatorTest {
         clearReachAndFrequency()
         reach = reach { privacyParams = OUTPUT_DP_PARAMS }
       }
-
-    private val EDP_DATA =
-      EdpData(
-        EDP_NAME,
-        EDP_DISPLAY_NAME,
-        loadEncryptionPrivateKey("${EDP_DISPLAY_NAME}_enc_private.tink"),
-        loadSigningKey("${EDP_DISPLAY_NAME}_cs_cert.der", "${EDP_DISPLAY_NAME}_cs_private.der")
-      )
 
     private val LIQUID_LEGIONS_SKETCH_PARAMS = liquidLegionsSketchParams {
       decayRate = LLV2_DECAY_RATE
@@ -2217,6 +2286,8 @@ class EdpSimulatorTest {
               }
           }
       }
+      dataProviderCertificate = DATA_PROVIDER_CERTIFICATE.name
+      dataProviderPublicKey = signedMessage { setMessage(DATA_PROVIDER_PUBLIC_KEY.pack()) }
       duchies += duchyEntry {
         key = DUCHY_NAME
         value = value {
@@ -2249,7 +2320,11 @@ class EdpSimulatorTest {
         }
       }
     private val syntheticGeneratorEventQuery =
-      object : SyntheticGeneratorEventQuery(SyntheticGenerationSpecs.POPULATION_SPEC) {
+      object :
+        SyntheticGeneratorEventQuery(
+          SyntheticGenerationSpecs.POPULATION_SPEC,
+          TestEvent.getDescriptor()
+        ) {
         override fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec {
           return SYNTHETIC_DATA_SPEC
         }

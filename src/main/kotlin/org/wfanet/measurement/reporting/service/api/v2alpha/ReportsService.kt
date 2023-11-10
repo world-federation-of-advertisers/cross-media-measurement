@@ -43,6 +43,7 @@ import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internal
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withPrincipalName
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleNameServerInterceptor.Companion.reportScheduleNameFromCurrentContext
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
@@ -231,9 +232,11 @@ class ReportsService(
         )
     } catch (e: StatusException) {
       throw when (e.status.code) {
-          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT.withDescription(e.message)
-          Status.Code.PERMISSION_DENIED -> Status.PERMISSION_DENIED.withDescription(e.message)
-          else -> Status.UNKNOWN.withDescription("Unable to get Metrics.")
+          Status.Code.INVALID_ARGUMENT ->
+            Status.INVALID_ARGUMENT.withDescription("Unable to get Metrics.\n${e.message}")
+          Status.Code.PERMISSION_DENIED ->
+            Status.PERMISSION_DENIED.withDescription("Unable to get Metrics.\n${e.message}")
+          else -> Status.UNKNOWN.withDescription("Unable to get Metrics.\n${e.message}")
         }
         .withCause(e)
         .asRuntimeException()
@@ -279,7 +282,29 @@ class ReportsService(
       try {
         internalReportsStub.createReport(internalCreateReportRequest)
       } catch (e: StatusException) {
-        throw Exception("Unable to create Report.", e)
+        throw when (e.status.code) {
+            Status.Code.DEADLINE_EXCEEDED ->
+              Status.DEADLINE_EXCEEDED.withDescription("Unable to create Report.")
+            Status.Code.ALREADY_EXISTS ->
+              Status.ALREADY_EXISTS.withDescription(
+                "Report with ID ${request.reportId} already exists under ${request.parent}"
+              )
+            Status.Code.NOT_FOUND ->
+              if (e.message!!.contains("external_report_schedule_id")) {
+                Status.NOT_FOUND.withDescription(
+                  "ReportSchedule associated with the Report not found."
+                )
+              } else {
+                Status.NOT_FOUND.withDescription("ReportingSet used in the Report not found.")
+              }
+            Status.Code.FAILED_PRECONDITION ->
+              Status.FAILED_PRECONDITION.withDescription(
+                "Unable to create Report. The measurement consumer not found."
+              )
+            else -> Status.UNKNOWN.withDescription("Unable to create Report.")
+          }
+          .withCause(e)
+          .asRuntimeException()
       }
 
     // Create metrics.
@@ -288,10 +313,11 @@ class ReportsService(
         .flatMap { (_, reportingMetricCalculationSpec) ->
           reportingMetricCalculationSpec.metricCalculationSpecsList.flatMap { metricCalculationSpec
             ->
-            metricCalculationSpec.reportingMetricsList
+            metricCalculationSpec.reportingMetricsList.map {
+              it.toCreateMetricRequest(principal.resourceKey, metricCalculationSpec.details.filter)
+            }
           }
         }
-        .map { it.toCreateMetricRequest(principal.resourceKey) }
         .asFlow()
 
     val callRpc: suspend (List<CreateMetricRequest>) -> BatchCreateMetricsResponse = { items ->
@@ -315,19 +341,7 @@ class ReportsService(
           }
         )
       } catch (e: StatusException) {
-        throw when (e.status.code) {
-            Status.Code.ALREADY_EXISTS ->
-              Status.ALREADY_EXISTS.withDescription(
-                "Metric with ID ${request.reportId} already exists under ${request.parent}"
-              )
-            Status.Code.NOT_FOUND ->
-              Status.NOT_FOUND.withDescription("ReportingSet used in the report not found.")
-            Status.Code.FAILED_PRECONDITION ->
-              Status.FAILED_PRECONDITION.withDescription(
-                "Unable to create Report. The measurement consumer not found."
-              )
-            else -> Status.UNKNOWN.withDescription("Unable to create Report.")
-          }
+        throw Status.UNKNOWN.withDescription("Unable to create Report.")
           .withCause(e)
           .asRuntimeException()
       }
@@ -345,6 +359,8 @@ class ReportsService(
       name =
         ReportKey(internalReport.cmmsMeasurementConsumerId, internalReport.externalReportId)
           .toName()
+
+      tags.putAll(internalReport.details.tagsMap)
 
       reportingMetricEntries +=
         internalReport.reportingMetricEntriesMap.map { internalReportingMetricEntry ->
@@ -379,6 +395,15 @@ class ReportsService(
             externalIdToMetricMap
           )
       }
+
+      if (internalReport.externalReportScheduleId.isNotEmpty()) {
+        reportSchedule =
+          ReportScheduleKey(
+              internalReport.cmmsMeasurementConsumerId,
+              internalReport.externalReportScheduleId
+            )
+            .toName()
+      }
     }
   }
 
@@ -403,7 +428,8 @@ class ReportsService(
                 externalIdToMetricMap[reportingMetric.externalMetricId]
                   ?: error("Got a metric not associated with the report.")
               ReportKt.MetricCalculationResultKt.resultAttribute {
-                groupingPredicates += metric.filtersList
+                groupingPredicates += reportingMetric.details.groupingPredicatesList
+                filter = metricCalculationSpec.details.filter
                 metricSpec = metric.metricSpec
                 timeInterval = metric.timeInterval
                 metricResult = metric.result
@@ -523,9 +549,20 @@ class ReportsService(
           Report.TimeCase.TIME_NOT_SET ->
             failGrpc(Status.INVALID_ARGUMENT) { "The time in Report is not specified." }
         }
+        details = InternalReportKt.details { tags.putAll(request.report.tagsMap) }
       }
       requestId = request.requestId
       externalReportId = request.reportId
+
+      val reportScheduleName: String? = reportScheduleNameFromCurrentContext
+      if (reportScheduleName != null) {
+        val reportScheduleKey =
+          grpcRequireNotNull(ReportScheduleKey.fromName(reportScheduleName)) {
+            "reportScheduleName is invalid"
+          }
+
+        externalReportScheduleId = reportScheduleKey.reportScheduleId
+      }
     }
   }
 
@@ -617,7 +654,7 @@ class ReportsService(
       reportingMetrics +=
         timeIntervals.flatMap { timeInterval ->
           metricCalculationSpec.metricSpecsList.flatMap { metricSpec ->
-            groupingsCartesianProduct.map { predicateGroup ->
+            groupingsCartesianProduct.map { groupingPredicates ->
               InternalReportKt.reportingMetric {
                 details =
                   InternalReportKt.ReportingMetricKt.details {
@@ -634,8 +671,7 @@ class ReportsService(
                         failGrpc(Status.UNKNOWN) { "Failed to read the metric spec." }
                       }
                     this.timeInterval = timeInterval
-                    filters += predicateGroup
-
+                    this.groupingPredicates += groupingPredicates
                     internalMetricSpecs += this.metricSpec
                   }
               }
@@ -653,6 +689,9 @@ class ReportsService(
                 this.predicates += grouping.predicatesList
               }
             }
+          if (metricCalculationSpec.filter.isNotBlank()) {
+            filter = metricCalculationSpec.filter
+          }
           cumulative = metricCalculationSpec.cumulative
         }
     }

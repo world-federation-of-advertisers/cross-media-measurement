@@ -14,68 +14,106 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
-import com.google.protobuf.Timestamp
 import io.grpc.Status
+import io.grpc.StatusException
 import java.time.LocalDate
 import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.api.v2alpha.AccountPrincipal
+import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest
-import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest.PartyCase
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.DuchyPrincipal
 import org.wfanet.measurement.api.v2alpha.ExchangeKey
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ListExchangeStepsPageToken
+import org.wfanet.measurement.api.v2alpha.ListExchangeStepsPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepsRequest
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepsResponse
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
+import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
+import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.RecurringExchangeParentKey
 import org.wfanet.measurement.api.v2alpha.claimReadyExchangeStepResponse
-import org.wfanet.measurement.api.v2alpha.getProviderFromContext
+import org.wfanet.measurement.api.v2alpha.listExchangeStepsPageToken
 import org.wfanet.measurement.api.v2alpha.listExchangeStepsResponse
-import org.wfanet.measurement.api.v2alpha.validateRequestProvider
+import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
+import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
-import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.identity.ApiId
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoDate
-import org.wfanet.measurement.internal.common.Provider
-import org.wfanet.measurement.internal.common.Provider.Type.DATA_PROVIDER
-import org.wfanet.measurement.internal.common.Provider.Type.MODEL_PROVIDER
-import org.wfanet.measurement.internal.common.provider
+import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepResponse as InternalClaimReadyExchangeStepResponse
 import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.RecurringExchange
+import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub as InternalRecurringExchangesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequest
+import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest
-import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse as internalClaimReadyExchangeStepResponse
+import org.wfanet.measurement.internal.kingdom.getRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.streamExchangeStepsRequest
 
-private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 100
 
-class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeStepsCoroutineStub) :
-  ExchangeStepsCoroutineImplBase() {
+class ExchangeStepsService(
+  private val internalRecurringExchanges: InternalRecurringExchangesCoroutineStub,
+  private val internalExchangeSteps: InternalExchangeStepsCoroutineStub
+) : ExchangeStepsCoroutineImplBase() {
+  private enum class Permission {
+    LIST,
+    CLAIM_READY;
+
+    fun deniedStatus(name: String): Status {
+      return Status.PERMISSION_DENIED.withDescription(
+        "Permission $this denied on resource $name (or it might not exist)"
+      )
+    }
+  }
+
   override suspend fun claimReadyExchangeStep(
     request: ClaimReadyExchangeStepRequest
   ): ClaimReadyExchangeStepResponse {
-    val provider = validateRequestProvider(getProvider(request))
+    fun permissionDeniedStatus() =
+      Permission.CLAIM_READY.deniedStatus("${request.parent}/recurringExchanges")
 
-    val internalRequest = claimReadyExchangeStepRequest { this.provider = provider }
-    val internalResponse = internalExchangeSteps.claimReadyExchangeStep(internalRequest)
-    if (internalResponse == internalClaimReadyExchangeStepResponse {}) {
-      return claimReadyExchangeStepResponse {}
-    }
-    val externalExchangeStep =
-      try {
-        internalResponse.exchangeStep.toV2Alpha()
-      } catch (e: Throwable) {
-        failGrpc(Status.INVALID_ARGUMENT) { e.message ?: "Failed to convert ExchangeStep" }
+    val parentKey =
+      grpcRequireNotNull(RecurringExchangeParentKey.fromName(request.parent)) {
+        "parent not specified or invalid"
       }
-    val externalExchangeStepAttempt =
-      ExchangeStepAttemptKey(
+    val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext
+    if (parentKey != authenticatedPrincipal.resourceKey) {
+      throw permissionDeniedStatus().asRuntimeException()
+    }
+
+    val internalRequest = claimReadyExchangeStepRequest {
+      when (parentKey) {
+        is DataProviderKey -> {
+          externalDataProviderId = ApiId(parentKey.dataProviderId).externalId.value
+        }
+        is ModelProviderKey -> {
+          externalModelProviderId = ApiId(parentKey.modelProviderId).externalId.value
+        }
+      }
+    }
+    val internalResponse: InternalClaimReadyExchangeStepResponse =
+      internalExchangeSteps.claimReadyExchangeStep(internalRequest)
+    if (!internalResponse.hasExchangeStep()) {
+      return ClaimReadyExchangeStepResponse.getDefaultInstance()
+    }
+    val exchangeStep = internalResponse.exchangeStep.toExchangeStep()
+    val exchangeStepAttemptName =
+      CanonicalExchangeStepAttemptKey(
           recurringExchangeId =
             externalIdToApiId(internalResponse.exchangeStep.externalRecurringExchangeId),
           exchangeId = internalResponse.exchangeStep.date.toLocalDate().toString(),
@@ -84,8 +122,8 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
         )
         .toName()
     return claimReadyExchangeStepResponse {
-      exchangeStep = externalExchangeStep
-      exchangeStepAttempt = externalExchangeStepAttempt
+      this.exchangeStep = exchangeStep
+      exchangeStepAttempt = exchangeStepAttemptName
     }
   }
 
@@ -93,45 +131,88 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
     request: ListExchangeStepsRequest
   ): ListExchangeStepsResponse {
     grpcRequire(request.pageSize >= 0) { "Page size cannot be less than 0" }
-    grpcRequire(request.filter.recurringExchangeDataProvidersCount == 0) {
-      "filter.recurringExchangeDataProviders is not supported yet"
-    }
-    grpcRequire(request.filter.recurringExchangeModelProvidersCount == 0) {
-      "filter.recurringExchangeModelProviders is not supported yet"
+
+    fun permissionDeniedStatus() = Permission.LIST.deniedStatus("${request.parent}/exchangeSteps")
+
+    val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext
+    val parentKey =
+      grpcRequireNotNull(ExchangeKey.fromName(request.parent)) {
+        "Resource name not specified or invalid"
+      }
+    val internalRecurringExchange: RecurringExchange =
+      try {
+        internalRecurringExchanges.getRecurringExchange(
+          getRecurringExchangeRequest {
+            externalRecurringExchangeId = ApiId(parentKey.recurringExchangeId).externalId.value
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+            Status.Code.NOT_FOUND -> permissionDeniedStatus()
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            else -> Status.UNKNOWN
+          }
+          .withCause(e)
+          .asRuntimeException()
+      }
+    when (authenticatedPrincipal) {
+      is DataProviderPrincipal -> {
+        val authenticatedExternalId =
+          ApiId(authenticatedPrincipal.resourceKey.dataProviderId).externalId
+        if (
+          ExternalId(internalRecurringExchange.externalDataProviderId) != authenticatedExternalId
+        ) {
+          throw permissionDeniedStatus().asRuntimeException()
+        }
+      }
+      is ModelProviderPrincipal -> {
+        val authenticatedExternalId =
+          ApiId(authenticatedPrincipal.resourceKey.modelProviderId).externalId
+        if (
+          ExternalId(internalRecurringExchange.externalModelProviderId) != authenticatedExternalId
+        ) {
+          throw permissionDeniedStatus().asRuntimeException()
+        }
+      }
+      is AccountPrincipal,
+      is DuchyPrincipal,
+      is MeasurementConsumerPrincipal -> throw permissionDeniedStatus().asRuntimeException()
     }
 
-    val principal = getProviderFromContext()
-    val key =
-      grpcRequireNotNull(ExchangeKey.fromName(request.parent)) {
-        "Exchange resource name is either unspecified or invalid"
+    val pageToken =
+      if (request.pageToken.isEmpty()) {
+        null
+      } else {
+        ListExchangeStepsPageToken.parseFrom(request.pageToken.base64UrlDecode())
       }
     val pageSize =
-      when {
-        request.pageSize < MIN_PAGE_SIZE -> DEFAULT_PAGE_SIZE
-        request.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
-        else -> request.pageSize
-      }
+      if (request.pageSize == 0) DEFAULT_PAGE_SIZE else request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
 
     val streamExchangeStepsRequest = streamExchangeStepsRequest {
-      limit = pageSize
+      limit = pageSize + 1
       filter = filter {
-        this.principal = principal
+        externalRecurringExchangeId = internalRecurringExchange.externalRecurringExchangeId
 
-        if (request.pageToken.isNotBlank()) {
-          updatedAfter = Timestamp.parseFrom(request.pageToken.base64UrlDecode())
-        }
-
-        if (request.filter.hasDataProvider()) {
-          stepProvider = DataProviderKey.fromName(request.filter.dataProvider).toProvider()
-        }
-        if (request.filter.hasModelProvider()) {
-          stepProvider = ModelProviderKey.fromName(request.filter.modelProvider).toProvider()
+        if (request.filter.dataProvider.isNotEmpty()) {
+          val dataProviderKey =
+            DataProviderKey.fromName(request.filter.dataProvider)
+              ?: throw Status.INVALID_ARGUMENT.withDescription("filter.data_provider invalid")
+                .asRuntimeException()
+          externalDataProviderId = ApiId(dataProviderKey.dataProviderId).externalId.value
         }
 
-        externalRecurringExchangeIds += apiIdToExternalId(key.recurringExchangeId)
-        if (key.hasExchangeId()) {
-          dates += LocalDate.parse(key.exchangeId).toProtoDate()
+        if (request.filter.modelProvider.isNotEmpty()) {
+          val modelProviderKey =
+            ModelProviderKey.fromName(request.filter.modelProvider)
+              ?: throw Status.INVALID_ARGUMENT.withDescription("filter.model_provider invalid")
+                .asRuntimeException()
+          externalModelProviderId = ApiId(modelProviderKey.modelProviderId).externalId.value
         }
+
+        if (parentKey.exchangeId != ResourceKey.WILDCARD_ID) {
+          dates += LocalDate.parse(parentKey.exchangeId).toProtoDate()
+        }
+
         dates += request.filter.exchangeDatesList
         states +=
           request.filter.statesList.map {
@@ -143,6 +224,22 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
               }
             }
           }
+
+        if (pageToken != null) {
+          if (
+            pageToken.externalRecurringExchangeId != externalRecurringExchangeId ||
+              pageToken.externalDataProviderId != externalDataProviderId ||
+              pageToken.externalModelProviderId != externalModelProviderId ||
+              pageToken.datesList != dates ||
+              pageToken.statesList != request.filter.statesList
+          ) {
+            throw Status.INVALID_ARGUMENT.withDescription(
+                "Arguments other than page_size must remain the same for subsequent page requests"
+              )
+              .asRuntimeException()
+          }
+          after = pageToken.lastExchangeStep.toOrderedKey()
+        }
       }
     }
 
@@ -150,50 +247,51 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
       internalExchangeSteps.streamExchangeSteps(streamExchangeStepsRequest).toList()
 
     if (results.isEmpty()) {
-      return listExchangeStepsResponse {}
+      return ListExchangeStepsResponse.getDefaultInstance()
     }
 
+    val limitedResults = results.subList(0, results.size.coerceAtMost(pageSize))
     return listExchangeStepsResponse {
-      exchangeSteps +=
-        results.map {
-          try {
-            it.toV2Alpha()
-          } catch (e: Throwable) {
-            failGrpc(Status.INVALID_ARGUMENT) { e.message ?: "Failed to convert ExchangeStep" }
-          }
-        }
-      nextPageToken = results.last().updateTime.toByteArray().base64UrlEncode()
+      exchangeSteps += limitedResults.map { it.toExchangeStep() }
+      if (results.size > pageSize) {
+        nextPageToken =
+          buildNextPageToken(
+              request.filter,
+              streamExchangeStepsRequest.filter,
+              limitedResults.last()
+            )
+            .toByteString()
+            .base64UrlEncode()
+      }
     }
   }
-}
 
-private fun DataProviderKey?.toProvider(): Provider {
-  val id = grpcRequireNotNull(this) { "Incorrect data_provider resource name." }.dataProviderId
-  return provider {
-    type = DATA_PROVIDER
-    externalId = apiIdToExternalId(id)
-  }
-}
+  private fun buildNextPageToken(
+    filter: ListExchangeStepsRequest.Filter,
+    internalFilter: StreamExchangeStepsRequest.Filter,
+    lastResult: InternalExchangeStep
+  ) = listExchangeStepsPageToken {
+    externalRecurringExchangeId = internalFilter.externalRecurringExchangeId
+    dates += internalFilter.datesList
+    states += filter.statesList
+    externalDataProviderId = internalFilter.externalDataProviderId
+    externalModelProviderId = internalFilter.externalModelProviderId
 
-private fun ModelProviderKey?.toProvider(): Provider {
-  val id = grpcRequireNotNull(this) { "Incorrect model_provider resource name." }.modelProviderId
-  return provider {
-    type = MODEL_PROVIDER
-    externalId = apiIdToExternalId(id)
-  }
-}
-
-private fun ExchangeKey.hasExchangeId(): Boolean {
-  return exchangeId != "-"
-}
-
-private fun getProvider(request: ClaimReadyExchangeStepRequest): String {
-  return when (request.partyCase) {
-    PartyCase.DATA_PROVIDER -> request.dataProvider
-    PartyCase.MODEL_PROVIDER -> request.modelProvider
-    else ->
-      failGrpc(Status.UNAUTHENTICATED) {
-        "Caller identity is neither DataProvider nor ModelProvider"
+    lastExchangeStep =
+      ListExchangeStepsPageTokenKt.previousPageEnd {
+        externalRecurringExchangeId = lastResult.externalRecurringExchangeId
+        date = lastResult.date
+        stepIndex = lastResult.stepIndex
       }
+  }
+}
+
+private fun ListExchangeStepsPageToken.PreviousPageEnd.toOrderedKey():
+  StreamExchangeStepsRequest.OrderedKey {
+  val source = this
+  return StreamExchangeStepsRequestKt.orderedKey {
+    externalRecurringExchangeId = source.externalRecurringExchangeId
+    date = source.date
+    stepIndex = source.stepIndex
   }
 }

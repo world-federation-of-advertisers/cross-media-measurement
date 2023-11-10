@@ -16,8 +16,3 @@ output "iam_service_account" {
   description = "`google_service_account`"
   value       = local.iam_service_account
 }
-
-output "k8s_service_account" {
-  description = "`kubernetes_service_account`"
-  value       = kubernetes_service_account.k8s
-}

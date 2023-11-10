@@ -29,7 +29,7 @@ import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.gcloud.spanner.statement
-import org.wfanet.measurement.internal.common.Provider
+import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequestKt.filter
@@ -38,22 +38,28 @@ import org.wfanet.measurement.internal.kingdom.exchangeStepAttemptDetails
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamExchangeSteps
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep.Result
 
-private val DEFAULT_EXPIRATION_DURATION: Duration = Duration.ofDays(1)
-
 class ClaimReadyExchangeStep(
-  private val provider: Provider,
+  private val request: ClaimReadyExchangeStepRequest,
   private val clock: Clock,
 ) : SpannerWriter<Optional<Result>, Optional<Result>>() {
   data class Result(val step: ExchangeStep, val attemptIndex: Int)
 
   override suspend fun TransactionScope.runTransaction(): Optional<Result> {
-    // Get the first ExchangeStep with status: READY | READY_FOR_RETRY  by given Provider id.
+    // Get the first ExchangeStep with status: READY | READY_FOR_RETRY  by given party.
     val exchangeStepResult =
       StreamExchangeSteps(
           requestFilter =
             filter {
-              principal = provider
-              stepProvider = provider
+              @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+              when (request.partyCase) {
+                ClaimReadyExchangeStepRequest.PartyCase.EXTERNAL_DATA_PROVIDER_ID -> {
+                  externalDataProviderId = request.externalDataProviderId
+                }
+                ClaimReadyExchangeStepRequest.PartyCase.EXTERNAL_MODEL_PROVIDER_ID -> {
+                  externalModelProviderId = request.externalModelProviderId
+                }
+                ClaimReadyExchangeStepRequest.PartyCase.PARTY_NOT_SET -> error("party not set")
+              }
               states += ExchangeStep.State.READY_FOR_RETRY
               states += ExchangeStep.State.READY
             },
@@ -153,5 +159,9 @@ class ClaimReadyExchangeStep(
     val row: Struct = transactionContext.executeQuery(statement).single()
 
     return row.getLong("MaxAttemptIndex") + 1L
+  }
+
+  companion object {
+    private val DEFAULT_EXPIRATION_DURATION: Duration = Duration.ofDays(1)
   }
 }

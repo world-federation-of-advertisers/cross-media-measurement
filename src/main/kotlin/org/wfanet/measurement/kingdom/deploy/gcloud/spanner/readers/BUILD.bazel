@@ -19,5 +19,6 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
         "//src/main/kotlin/org/wfanet/measurement/common:flows",
+        "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
     ],
 )

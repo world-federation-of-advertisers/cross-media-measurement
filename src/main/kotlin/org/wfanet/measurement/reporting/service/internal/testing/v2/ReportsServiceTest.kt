@@ -34,51 +34,49 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt
+import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
-import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt
+import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.Report
 import org.wfanet.measurement.internal.reporting.v2.ReportKt
-import org.wfanet.measurement.internal.reporting.v2.ReportingSet
+import org.wfanet.measurement.internal.reporting.v2.ReportSchedule
+import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt
-import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest
-import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest
 import org.wfanet.measurement.internal.reporting.v2.measurement
-import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.metric
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.internal.reporting.v2.periodicTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.report
-import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals
 
 @RunWith(JUnit4::class)
-abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
+abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
   protected val idGenerator = RandomIdGenerator(Clock.systemUTC(), Random(1))
 
   protected data class Services<T>(
     val reportsService: T,
-    val metricsService: MetricsGrpcKt.MetricsCoroutineImplBase,
-    val reportingSetsService: ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase,
-    val measurementConsumersService:
-      MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase,
+    val metricsService: MetricsCoroutineImplBase,
+    val reportingSetsService: ReportingSetsCoroutineImplBase,
+    val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
+    val reportSchedulesService: ReportSchedulesCoroutineImplBase,
   )
 
   /** Instance of the service under test. */
   private lateinit var service: T
 
-  private lateinit var metricsService: MetricsGrpcKt.MetricsCoroutineImplBase
-  private lateinit var reportingSetsService: ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
-  private lateinit var measurementConsumersService:
-    MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+  private lateinit var metricsService: MetricsCoroutineImplBase
+  private lateinit var reportingSetsService: ReportingSetsCoroutineImplBase
+  private lateinit var measurementConsumersService: MeasurementConsumersCoroutineImplBase
+  private lateinit var reportSchedulesService: ReportSchedulesCoroutineImplBase
 
   /** Constructs the services being tested. */
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
@@ -90,6 +88,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
     metricsService = services.metricsService
     reportingSetsService = services.reportingSetsService
     measurementConsumersService = services.measurementConsumersService
+    reportSchedulesService = services.reportSchedulesService
   }
 
   @Test
@@ -119,7 +118,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         }
       )
 
-    assertThat(createdReport.externalReportId).isNotEqualTo(0)
+    assertThat(createdReport.externalReportId).isNotEmpty()
     assertThat(createdReport.hasCreateTime()).isTrue()
     createdReport.reportingMetricEntriesMap.values.forEach { reportingMetricCalculationSpec ->
       reportingMetricCalculationSpec.metricCalculationSpecsList.forEach { metricCalculationSpec ->
@@ -152,7 +151,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         }
       )
 
-    assertThat(createdReport.externalReportId).isNotEqualTo(0)
+    assertThat(createdReport.externalReportId).isNotEmpty()
     assertThat(createdReport.hasCreateTime()).isTrue()
     createdReport.reportingMetricEntriesMap.values.forEach { reportingMetricCalculationSpec ->
       reportingMetricCalculationSpec.metricCalculationSpecsList.forEach { metricCalculationSpec ->
@@ -207,6 +206,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                       startTime = timestamp { seconds = 100 }
                       endTime = timestamp { seconds = 200 }
                     }
+                    groupingPredicates += listOf("predicate1", "predicate2")
                   }
               }
             details =
@@ -228,6 +228,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                     }
                 }
                 groupings += ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                filter = "filter"
                 cumulative = false
               }
           }
@@ -261,6 +262,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                       startTime = timestamp { seconds = 100 }
                       endTime = timestamp { seconds = 200 }
                     }
+                    groupingPredicates += listOf("predicate3", "predicate4")
                   }
               }
             details =
@@ -282,6 +284,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                     }
                 }
                 groupings += ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                filter = "filter"
                 cumulative = false
               }
           }
@@ -303,6 +306,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
           endTime = timestamp { seconds = 400 }
         }
       }
+      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val createdReport =
@@ -313,7 +317,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         }
       )
 
-    assertThat(createdReport.externalReportId).isNotEqualTo(0)
+    assertThat(createdReport.externalReportId).isNotEmpty()
     assertThat(createdReport.hasCreateTime()).isTrue()
     createdReport.reportingMetricEntriesMap.entries.forEach { entry ->
       entry.value.metricCalculationSpecsList.forEach { metricCalculationSpec ->
@@ -362,6 +366,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                       startTime = timestamp { seconds = 100 }
                       endTime = timestamp { seconds = 200 }
                     }
+                    groupingPredicates += listOf("predicate1", "predicate2")
                   }
               }
             reportingMetrics +=
@@ -388,6 +393,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                       startTime = timestamp { seconds = 100 }
                       endTime = timestamp { seconds = 200 }
                     }
+                    groupingPredicates += listOf("predicate3", "predicate4")
                   }
               }
             details =
@@ -409,6 +415,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                     }
                 }
                 groupings += ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                filter = "filter"
                 cumulative = false
               }
           }
@@ -424,6 +431,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
           endTime = timestamp { seconds = 200 }
         }
       }
+      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val createdReport =
@@ -434,7 +442,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         }
       )
 
-    assertThat(createdReport.externalReportId).isNotEqualTo(0)
+    assertThat(createdReport.externalReportId).isNotEmpty()
     assertThat(createdReport.hasCreateTime()).isTrue()
     createdReport.reportingMetricEntriesMap.entries.forEach { entry ->
       entry.value.metricCalculationSpecsList.forEach { metricCalculationSpec ->
@@ -458,7 +466,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
     }
 
     val createdReport = service.createReport(request)
-    assertThat(createdReport.externalReportId).isNotEqualTo(0)
+    assertThat(createdReport.externalReportId).isNotEmpty()
     assertThat(createdReport.hasCreateTime()).isTrue()
     createdReport.reportingMetricEntriesMap.values.forEach { reportingMetricCalculationSpec ->
       reportingMetricCalculationSpec.metricCalculationSpecsList.forEach { metricCalculationSpec ->
@@ -470,6 +478,41 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
 
     val sameCreatedReport = service.createReport(request)
     assertThat(createdReport).isEqualTo(sameCreatedReport)
+  }
+
+  @Test
+  fun `createReport succeeds when externalReportScheduleId set`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val reportingSet =
+      createReportingSet(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        reportingSetsService,
+        "reporting-set-for-report-schedule"
+      )
+    val reportSchedule =
+      createReportSchedule(CMMS_MEASUREMENT_CONSUMER_ID, reportingSet, reportSchedulesService)
+    val baseReport = createReportForRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+
+    val createdReport =
+      service.createReport(
+        createReportRequest {
+          report = baseReport
+          externalReportId = "external-report-id"
+          externalReportScheduleId = reportSchedule.externalReportScheduleId
+        }
+      )
+
+    assertThat(createdReport.externalReportId).isNotEmpty()
+    assertThat(createdReport.externalReportScheduleId)
+      .isEqualTo(reportSchedule.externalReportScheduleId)
+    assertThat(createdReport.hasCreateTime()).isTrue()
+    createdReport.reportingMetricEntriesMap.values.forEach { reportingMetricCalculationSpec ->
+      reportingMetricCalculationSpec.metricCalculationSpecsList.forEach { metricCalculationSpec ->
+        metricCalculationSpec.reportingMetricsList.forEach {
+          assertThat(it.createMetricRequestId).isNotEmpty()
+        }
+      }
+    }
   }
 
   @Test
@@ -553,6 +596,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         increment = duration { seconds = 50 }
         intervalCount = 3
       }
+      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val exception =
@@ -692,6 +736,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         increment = duration { seconds = 50 }
         intervalCount = 3
       }
+      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val exception =
@@ -775,6 +820,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         increment = duration { seconds = 50 }
         intervalCount = 3
       }
+      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val exception =
@@ -823,6 +869,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         increment = duration { seconds = 50 }
         intervalCount = 3
       }
+      details = ReportKt.details { tags.putAll(REPORT_TAGS) }
     }
 
     val exception =
@@ -861,6 +908,26 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
   }
 
   @Test
+  fun `createReport throws NOT_FOUND when report schedule not found`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val baseReport = createReportForRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.createReport(
+          createReportRequest {
+            report = baseReport
+            externalReportId = "external-report-id"
+            externalReportScheduleId = "external-report-schedule-id"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.message).contains("Report Schedule")
+  }
+
+  @Test
   fun `getReport returns report with timeIntervals set`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val createdReport =
@@ -891,6 +958,37 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         service,
         reportingSetsService,
         usePeriodicTimeInterval = true
+      )
+
+    val retrievedReport =
+      service.getReport(
+        getReportRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportId = createdReport.externalReportId
+        }
+      )
+
+    assertThat(createdReport).ignoringRepeatedFieldOrder().isEqualTo(retrievedReport)
+  }
+
+  @Test
+  fun `getReport returns report with external_report_schedule_id set`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val reportingSet =
+      createReportingSet(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        reportingSetsService,
+        "reporting-set-for-report-schedule"
+      )
+    val reportSchedule =
+      createReportSchedule(CMMS_MEASUREMENT_CONSUMER_ID, reportingSet, reportSchedulesService)
+    val createdReport =
+      createReport(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        service,
+        reportingSetsService,
+        true,
+        reportSchedule
       )
 
     val retrievedReport =
@@ -950,6 +1048,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                         startTime = timestamp { seconds = 100 }
                         endTime = timestamp { seconds = 200 }
                       }
+                      groupingPredicates += listOf("predicate1", "predicate2")
                     }
                 }
               details =
@@ -972,6 +1071,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                   }
                   groupings +=
                     ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                  filter = "filter1"
                   cumulative = false
                 }
             }
@@ -1005,6 +1105,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                         startTime = timestamp { seconds = 100 }
                         endTime = timestamp { seconds = 200 }
                       }
+                      groupingPredicates += listOf("predicate3", "predicate4")
                     }
                 }
               details =
@@ -1027,6 +1128,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                   }
                   groupings +=
                     ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                  filter = "filter2"
                   cumulative = false
                 }
             }
@@ -1048,6 +1150,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
             endTime = timestamp { seconds = 400 }
           }
         }
+        details = ReportKt.details { tags.putAll(REPORT_TAGS) }
       }
 
       val createdReport =
@@ -1108,7 +1211,11 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                       }
                   }
                 }
-              details = MetricKt.details { filters += it.details.filtersList }
+              details =
+                MetricKt.details {
+                  filters +=
+                    it.details.groupingPredicatesList + metricCalculationSpec.details.filter
+                }
             }
           }
           metricsService.createMetric(request)
@@ -1127,7 +1234,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
     retrievedReport.reportingMetricEntriesMap.values.forEach { reportingMetricCalculationSpec ->
       reportingMetricCalculationSpec.metricCalculationSpecsList.forEach { metricCalculationSpec ->
         metricCalculationSpec.reportingMetricsList.forEach {
-          assertThat(it.externalMetricId).isNotEqualTo(0L)
+          assertThat(it.externalMetricId).isNotEmpty()
         }
       }
     }
@@ -1167,6 +1274,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         service,
         reportingSetsService,
         usePeriodicTimeInterval = false,
+        null,
         "external-report-id"
       )
     val createdReport2 =
@@ -1175,6 +1283,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         service,
         reportingSetsService,
         usePeriodicTimeInterval = true,
+        null,
         "external-report-id2"
       )
 
@@ -1204,6 +1313,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
           service,
           reportingSetsService,
           usePeriodicTimeInterval = false,
+          null,
           "external-report-id"
         )
       val createdReport2 =
@@ -1212,6 +1322,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
           service,
           reportingSetsService,
           usePeriodicTimeInterval = false,
+          null,
           "external-report-id2"
         )
 
@@ -1246,6 +1357,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
           service,
           reportingSetsService,
           usePeriodicTimeInterval = false,
+          null,
           "external-report-id"
         )
       val createdReport2 =
@@ -1254,6 +1366,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
           service,
           reportingSetsService,
           usePeriodicTimeInterval = false,
+          null,
           "external-report-id2"
         )
 
@@ -1283,6 +1396,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
       service,
       reportingSetsService,
       usePeriodicTimeInterval = false,
+      null,
       "external-report-id"
     )
     val createdReport2 =
@@ -1291,6 +1405,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
         service,
         reportingSetsService,
         usePeriodicTimeInterval = false,
+        null,
         "external-report-id2"
       )
 
@@ -1329,10 +1444,11 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
 
   companion object {
     private const val CMMS_MEASUREMENT_CONSUMER_ID = "1234"
+    private val REPORT_TAGS = mapOf("tag1" to "tag_value1", "tag2" to "tag_value2")
 
     private suspend fun createReportForRequest(
       cmmsMeasurementConsumerId: String,
-      reportingSetsService: ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase,
+      reportingSetsService: ReportingSetsCoroutineImplBase,
     ): Report {
       val createdReportingSet = createReportingSet(cmmsMeasurementConsumerId, reportingSetsService)
 
@@ -1366,6 +1482,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                           startTime = timestamp { seconds = 100 }
                           endTime = timestamp { seconds = 200 }
                         }
+                        groupingPredicates += listOf("predicate1", "predicate2")
                       }
                   }
                 details =
@@ -1388,6 +1505,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                     }
                     groupings +=
                       ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                    filter = "filter"
                     cumulative = false
                   }
               }
@@ -1402,14 +1520,16 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
             endTime = timestamp { seconds = 400 }
           }
         }
+        details = ReportKt.details { tags.putAll(REPORT_TAGS) }
       }
     }
 
     private suspend fun createReport(
       cmmsMeasurementConsumerId: String,
-      reportsService: ReportsGrpcKt.ReportsCoroutineImplBase,
-      reportingSetsService: ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase,
+      reportsService: ReportsCoroutineImplBase,
+      reportingSetsService: ReportingSetsCoroutineImplBase,
       usePeriodicTimeInterval: Boolean,
+      reportSchedule: ReportSchedule? = null,
       externalReportId: String = "external-report-id"
     ): Report {
       val createdReportingSet =
@@ -1447,6 +1567,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                         startTime = timestamp { seconds = 100 }
                         endTime = timestamp { seconds = 200 }
                       }
+                      groupingPredicates += listOf("predicate1", "predicate2")
                     }
                 }
               details =
@@ -1469,6 +1590,7 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
                   }
                   groupings +=
                     ReportKt.MetricCalculationSpecKt.grouping { predicates += "age > 10" }
+                  filter = "filter"
                   cumulative = false
                 }
             }
@@ -1496,46 +1618,17 @@ abstract class ReportsServiceTest<T : ReportsGrpcKt.ReportsCoroutineImplBase> {
             }
           }
         }
+        details = ReportKt.details { tags.putAll(REPORT_TAGS) }
       }
 
       return reportsService.createReport(
         createReportRequest {
           this.report = report
           this.externalReportId = externalReportId
-        }
-      )
-    }
-
-    private suspend fun createReportingSet(
-      cmmsMeasurementConsumerId: String,
-      reportingSetsService: ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase,
-      externalReportingSetId: String = "external-reporting-set-id"
-    ): ReportingSet {
-      val reportingSet = reportingSet {
-        this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-        primitive =
-          ReportingSetKt.primitive {
-            eventGroupKeys +=
-              ReportingSetKt.PrimitiveKt.eventGroupKey {
-                cmmsDataProviderId = "1235"
-                cmmsEventGroupId = cmmsMeasurementConsumerId + "123"
-              }
+          if (reportSchedule != null) {
+            externalReportScheduleId = reportSchedule.externalReportScheduleId
           }
-      }
-      return reportingSetsService.createReportingSet(
-        createReportingSetRequest {
-          this.reportingSet = reportingSet
-          this.externalReportingSetId = externalReportingSetId
         }
-      )
-    }
-
-    private suspend fun createMeasurementConsumer(
-      cmmsMeasurementConsumerId: String,
-      measurementConsumersService: MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase,
-    ) {
-      measurementConsumersService.createMeasurementConsumer(
-        measurementConsumer { this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId }
       )
     }
   }

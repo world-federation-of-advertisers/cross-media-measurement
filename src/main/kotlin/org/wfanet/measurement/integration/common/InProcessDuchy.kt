@@ -49,7 +49,7 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.daemon.herald.ContinuationTokenManager
 import org.wfanet.measurement.duchy.daemon.herald.Herald
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
-import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
+import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.ReachFrequencyLiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.ReachOnlyLiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniLiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniReachOnlyLiquidLegionsV2Encryption
@@ -216,8 +216,8 @@ class InProcessDuchy(
             val channel = computationControlChannel(it)
             SystemComputationControlCoroutineStub(channel).withDuchyId(externalDuchyId)
           }
-        val liquidLegionsV2Mill =
-          LiquidLegionsV2Mill(
+        val reachFrequencyLiquidLegionsV2Mill =
+          ReachFrequencyLiquidLegionsV2Mill(
             millId = "$externalDuchyId liquidLegionsV2 Mill",
             duchyId = externalDuchyId,
             signingKey = signingKey,
@@ -255,7 +255,7 @@ class InProcessDuchy(
 
         val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1))
         throttler.loopOnReady {
-          liquidLegionsV2Mill.pollAndProcessNextComputation()
+          reachFrequencyLiquidLegionsV2Mill.pollAndProcessNextComputation()
           reachOnlyLiquidLegionsV2Mill.pollAndProcessNextComputation()
         }
       }

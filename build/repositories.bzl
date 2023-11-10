@@ -27,22 +27,22 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_common_jvm",
         repo = "common-jvm",
-        sha256 = "d461f4109ef26c28dccfb8077e4c2c43d789344f660eb61ebf15886002220bb0",
-        version = "0.67.0",
+        sha256 = "d786cf15e4d97a0b862a75fecde6225507530fbba4bb702a3167f8316b4c89c7",
+        version = "0.68.0",
     )
 
     wfa_repo_archive(
         name = "wfa_common_cpp",
         repo = "common-cpp",
-        sha256 = "fd4475b587741fa8af65c580b783054d09bf3890197830290a22b3823c778eeb",
-        version = "0.10.0",
+        sha256 = "b500535306189d43a9ececd3889a0e2cb969619a46339007037360f2c1651323",
+        version = "0.10.1",
     )
 
     wfa_repo_archive(
         name = "wfa_measurement_proto",
         repo = "cross-media-measurement-api",
-        sha256 = "7fc35bd1b0504ae2168090d17da5480a86f0171c5e111549551e424dc1a89f6d",
-        version = "0.46.0",
+        sha256 = "929cfe5953b139a61f24b264a75a8c830ed010e4f661d5703eef57bd6c24e6aa",
+        version = "0.48.0",
     )
 
     wfa_repo_archive(
@@ -76,8 +76,8 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_consent_signaling_client",
         repo = "consent-signaling-client",
-        sha256 = "15ac09575ca232e83d81cc2b1013c3429fadc3fe717c6f24fa23b75cf14b2c3f",
-        version = "0.18.0",
+        sha256 = "28fab8c5facc265678dc54fe7a8ef59ca51d98b02a9f34df993731fe5c5b87e4",
+        version = "0.19.0",
     )
 
     wfa_repo_archive(

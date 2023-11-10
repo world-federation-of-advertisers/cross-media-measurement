@@ -32,18 +32,15 @@ import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.gcloud.spanner.statement
-import org.wfanet.measurement.internal.common.Provider
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
-import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ExchangeStepAttemptNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ExchangeStepNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RecurringExchangeNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamExchangeSteps
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepAttemptReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExchangeReader
@@ -57,7 +54,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExc
  * * [RecurringExchangeNotFoundException]
  */
 class FinishExchangeStepAttempt(
-  private val provider: Provider,
   private val externalRecurringExchangeId: ExternalId,
   private val exchangeDate: Date,
   private val stepIndex: Int,
@@ -82,23 +78,10 @@ class FinishExchangeStepAttempt(
     exchangeStepAttemptResult = getExchangeStepAttempt()
 
     // TODO: the above and below reads should be consolidated into a single query.
-    exchangeStepResult =
-      StreamExchangeSteps(
-          filter {
-            principal = provider
-            stepProvider = provider
-            externalRecurringExchangeIds += externalRecurringExchangeId.value
-            dates += exchangeDate
-            stepIndices += stepIndex
-          }
-        )
-        .execute(transactionContext)
-        .singleOrNull()
-        ?: throw ExchangeStepNotFoundException(externalRecurringExchangeId, exchangeDate, stepIndex)
+    exchangeStepResult = readExchangeStepResult()
 
     // TODO(yunyeng): Think about an ACTIVE case for auto-fail scenario.
     // See https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/190.
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     return when (terminalState) {
       ExchangeStepAttempt.State.SUCCEEDED -> succeed()
       ExchangeStepAttempt.State.FAILED -> temporarilyFail()
@@ -108,6 +91,12 @@ class FinishExchangeStepAttempt(
       ExchangeStepAttempt.State.UNRECOGNIZED ->
         throw IllegalArgumentException("Invalid request state: $terminalState")
     }
+  }
+
+  private suspend fun TransactionScope.readExchangeStepResult(): ExchangeStepReader.Result {
+    return ExchangeStepReader()
+      .readByExternalIds(txn, externalRecurringExchangeId, exchangeDate, stepIndex)
+      ?: throw ExchangeStepNotFoundException(externalRecurringExchangeId, exchangeDate, stepIndex)
   }
 
   private suspend fun TransactionScope.succeed(): ExchangeStepAttempt {
@@ -197,24 +186,13 @@ class FinishExchangeStepAttempt(
 
   private suspend fun TransactionScope.getExchangeStepAttempt(): ExchangeStepAttemptReader.Result {
     return ExchangeStepAttemptReader()
-      .fillStatementBuilder {
-        appendClause(
-          """
-          WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id
-            AND ExchangeStepAttempts.Date = @date
-            AND ExchangeStepAttempts.StepIndex = @step_index
-            AND ExchangeStepAttempts.AttemptIndex = @attempt_index
-          """
-            .trimIndent()
-        )
-        bind("external_recurring_exchange_id" to externalRecurringExchangeId.value)
-        bind("date" to exchangeDate.toCloudDate())
-        bind("step_index" to stepIndex.toLong())
-        bind("attempt_index" to attemptNumber.toLong())
-        appendClause("LIMIT 1")
-      }
-      .execute(transactionContext)
-      .singleOrNull()
+      .readByExternalIds(
+        transactionContext,
+        externalRecurringExchangeId,
+        exchangeDate,
+        stepIndex,
+        attemptNumber
+      )
       ?: throw ExchangeStepAttemptNotFoundException(
         externalRecurringExchangeId,
         exchangeDate,

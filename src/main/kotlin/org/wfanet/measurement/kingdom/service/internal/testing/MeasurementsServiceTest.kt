@@ -32,6 +32,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.toInstant
@@ -938,6 +939,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       externalAggregatorCertificateId = duchyCertificate.externalCertificateId
       resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
       encryptedResult = ByteString.copyFromUtf8("encryptedResult")
+      publicApiVersion = Version.V2_ALPHA.string
     }
 
     val exception =
@@ -969,6 +971,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       externalAggregatorCertificateId = 404L
       resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
       encryptedResult = ByteString.copyFromUtf8("encryptedResult")
+      publicApiVersion = Version.V2_ALPHA.string
     }
 
     val exception =
@@ -1002,6 +1005,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       externalAggregatorCertificateId = duchyCertificate.externalCertificateId
       resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
       encryptedResult = ByteString.copyFromUtf8("encryptedResult")
+      publicApiVersion = Version.V2_ALPHA.string
     }
 
     val response = measurementsService.setMeasurementResult(request)
@@ -1017,6 +1021,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             externalAggregatorDuchyId = aggregatorDuchyId
             externalCertificateId = duchyCertificate.externalCertificateId
             encryptedResult = request.encryptedResult
+            apiVersion = request.publicApiVersion
           }
         }
       )
@@ -1290,25 +1295,25 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             }
         }
       )
-
-    val measurement2 =
-      measurementsService.createMeasurement(
-        createMeasurementRequest {
-          measurement =
-            MEASUREMENT.copy {
-              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-              externalMeasurementConsumerCertificateId =
-                measurementConsumer.certificate.externalCertificateId
-              details =
-                details.copy {
-                  protocolConfig = protocolConfig {
-                    direct = ProtocolConfig.Direct.getDefaultInstance()
-                  }
-                  clearDuchyProtocolConfig()
+    measurementsService.createMeasurement(
+      createMeasurementRequest {
+        measurement =
+          MEASUREMENT.copy {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            externalMeasurementConsumerCertificateId =
+              measurementConsumer.certificate.externalCertificateId
+            details =
+              details.copy {
+                protocolConfig = protocolConfig {
+                  direct = ProtocolConfig.Direct.getDefaultInstance()
                 }
-            }
-        }
-      )
+                clearDuchyProtocolConfig()
+              }
+          }
+      }
+    )
+    val measurement3 =
+      measurementsService.createMeasurement(createMeasurementRequest { measurement = measurement1 })
 
     val streamMeasurementsRequest = streamMeasurementsRequest {
       limit = 2
@@ -1319,13 +1324,24 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       measurementView = Measurement.View.COMPUTATION
     }
 
-    val measurements: List<Measurement> =
+    val responses: List<Measurement> =
       measurementsService.streamMeasurements(streamMeasurementsRequest).toList()
 
-    assertThat(measurements).hasSize(1)
-    assertThat(measurements[0].externalMeasurementId).isEqualTo(measurement1.externalMeasurementId)
-    assertThat(measurements[0].externalMeasurementId)
-      .isNotEqualTo(measurement2.externalMeasurementId)
+    val computationMeasurement1 =
+      measurementsService.getMeasurementByComputationId(
+        getMeasurementByComputationIdRequest {
+          externalComputationId = measurement1.externalComputationId
+        }
+      )
+    val computationMeasurement3 =
+      measurementsService.getMeasurementByComputationId(
+        getMeasurementByComputationIdRequest {
+          externalComputationId = measurement3.externalComputationId
+        }
+      )
+    assertThat(responses)
+      .containsExactly(computationMeasurement1, computationMeasurement3)
+      .inOrder()
   }
 
   @Test
@@ -1448,6 +1464,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           externalAggregatorCertificateId = aggregatorCertificate.externalCertificateId
           resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
           encryptedResult = ByteString.copyFromUtf8("encryptedResult")
+          publicApiVersion = Version.V2_ALPHA.string
         }
       )
 
