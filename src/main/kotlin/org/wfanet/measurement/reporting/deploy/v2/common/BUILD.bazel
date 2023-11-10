@@ -49,3 +49,12 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/picocli",
     ],
 )
+
+kt_jvm_library(
+    name = "in_process_server_methods",
+    srcs = ["InProcessServerMethods.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)

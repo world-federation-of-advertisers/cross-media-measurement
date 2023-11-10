@@ -17,13 +17,7 @@
 package org.wfanet.measurement.reporting.deploy.v2.common.job
 
 import io.grpc.Channel
-import io.grpc.inprocess.InProcessChannelBuilder
-import io.grpc.inprocess.InProcessServerBuilder
 import java.security.SecureRandom
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.LinkedBlockingQueue
-import java.util.concurrent.ThreadPoolExecutor
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as KingdomCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as KingdomDataProvidersCoroutineStub
@@ -33,8 +27,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCorouti
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.grpc.ErrorLoggingServerInterceptor
-import org.wfanet.measurement.common.grpc.LoggingServerInterceptor
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.parseTextProto
@@ -51,6 +43,7 @@ import org.wfanet.measurement.reporting.deploy.v2.common.EncryptionKeyPairMap
 import org.wfanet.measurement.reporting.deploy.v2.common.KingdomApiFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.ReportingApiServerFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.V2AlphaFlags
+import org.wfanet.measurement.reporting.deploy.v2.common.startInProcessServerWithService
 import org.wfanet.measurement.reporting.job.ReportSchedulingJob
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withMetadataPrincipalIdentities
@@ -62,8 +55,8 @@ import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineSt
 import picocli.CommandLine
 
 @CommandLine.Command(
-  name = "Report Scheduling Job",
-  description = ["Daemon for Reporting V2Alpha Report Scheduling."],
+  name = "ReportSchedulingJobExecutor",
+  description = ["Process for Reporting V2Alpha Report Scheduling."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
@@ -123,32 +116,8 @@ private fun run(
       Dispatchers.IO
     )
 
-  val inProcessMetricsServerName = InProcessServerBuilder.generateName()
-
-  val metricsExecutor: ExecutorService =
-    ThreadPoolExecutor(
-      1,
-      commonServerFlags.threadPoolSize,
-      60L,
-      TimeUnit.SECONDS,
-      LinkedBlockingQueue()
-    )
-
-  InProcessServerBuilder.forName(inProcessMetricsServerName)
-    .apply {
-      executor(metricsExecutor)
-      addService(metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs))
-      if (commonServerFlags.debugVerboseGrpcLogging) {
-        intercept(LoggingServerInterceptor)
-      } else {
-        intercept(ErrorLoggingServerInterceptor)
-      }
-    }
-    .build()
-    .start()
-
   val inProcessMetricsChannel =
-    InProcessChannelBuilder.forName(inProcessMetricsServerName).directExecutor().build()
+    startInProcessServerWithService(commonServerFlags, metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs))
 
   val reportsService =
     ReportsService(
@@ -157,36 +126,10 @@ private fun run(
       metricSpecConfig
     )
 
-  val inProcessReportsServerName = InProcessServerBuilder.generateName()
-
-  val reportsExecutor: ExecutorService =
-    ThreadPoolExecutor(
-      1,
-      commonServerFlags.threadPoolSize,
-      60L,
-      TimeUnit.SECONDS,
-      LinkedBlockingQueue()
-    )
-
-  InProcessServerBuilder.forName(inProcessReportsServerName)
-    .apply {
-      executor(reportsExecutor)
-      addService(
-        reportsService
-          .withMetadataPrincipalIdentities(measurementConsumerConfigs)
-          .withReportScheduleNameInterceptor()
-      )
-      if (commonServerFlags.debugVerboseGrpcLogging) {
-        intercept(LoggingServerInterceptor)
-      } else {
-        intercept(ErrorLoggingServerInterceptor)
-      }
-    }
-    .build()
-    .start()
-
   val inProcessReportsChannel =
-    InProcessChannelBuilder.forName(inProcessReportsServerName).directExecutor().build()
+    startInProcessServerWithService(commonServerFlags, reportsService
+      .withMetadataPrincipalIdentities(measurementConsumerConfigs)
+      .withReportScheduleNameInterceptor())
 
   val reportSchedulingJob =
     ReportSchedulingJob(

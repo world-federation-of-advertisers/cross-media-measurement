@@ -21,13 +21,7 @@ import io.grpc.Channel
 import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import io.grpc.StatusException
-import io.grpc.inprocess.InProcessChannelBuilder
-import io.grpc.inprocess.InProcessServerBuilder
 import java.security.SecureRandom
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.LinkedBlockingQueue
-import java.util.concurrent.ThreadPoolExecutor
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as KingdomCertificatesCoroutineStub
@@ -43,8 +37,6 @@ import org.wfanet.measurement.common.api.memoizing
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.grpc.ErrorLoggingServerInterceptor
-import org.wfanet.measurement.common.grpc.LoggingServerInterceptor
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.parseTextProto
@@ -61,6 +53,7 @@ import org.wfanet.measurement.reporting.deploy.v2.common.EncryptionKeyPairMap
 import org.wfanet.measurement.reporting.deploy.v2.common.KingdomApiFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.ReportingApiServerFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.V2AlphaFlags
+import org.wfanet.measurement.reporting.deploy.v2.common.startInProcessServerWithService
 import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v2alpha.AkidPrincipalLookup
@@ -177,32 +170,8 @@ private fun run(
       Dispatchers.IO
     )
 
-  val inProcessServerName = InProcessServerBuilder.generateName()
-
-  val executor: ExecutorService =
-    ThreadPoolExecutor(
-      1,
-      commonServerFlags.threadPoolSize,
-      60L,
-      TimeUnit.SECONDS,
-      LinkedBlockingQueue()
-    )
-
-  InProcessServerBuilder.forName(inProcessServerName)
-    .apply {
-      executor(executor)
-      addService(metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs))
-      if (commonServerFlags.debugVerboseGrpcLogging) {
-        intercept(LoggingServerInterceptor)
-      } else {
-        intercept(ErrorLoggingServerInterceptor)
-      }
-    }
-    .build()
-    .start()
-
   val inProcessChannel =
-    InProcessChannelBuilder.forName(inProcessServerName).directExecutor().build()
+    startInProcessServerWithService(commonServerFlags, metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs))
 
   val services: List<ServerServiceDefinition> =
     listOf(

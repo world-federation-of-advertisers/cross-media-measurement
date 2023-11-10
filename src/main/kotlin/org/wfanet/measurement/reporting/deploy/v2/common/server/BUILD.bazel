@@ -28,6 +28,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/api:memoizing_principal_lookup",
         "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:variances",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:encryption_key_pair_map",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:in_process_server_methods",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:kingdom_flags",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:reporting_api_server_flags",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:v2alpha_flags",
