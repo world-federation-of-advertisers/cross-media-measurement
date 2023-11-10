@@ -117,7 +117,10 @@ private fun run(
     )
 
   val inProcessMetricsChannel =
-    startInProcessServerWithService(commonServerFlags, metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs))
+    startInProcessServerWithService(
+      commonServerFlags,
+      metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs)
+    )
 
   val reportsService =
     ReportsService(
@@ -127,9 +130,12 @@ private fun run(
     )
 
   val inProcessReportsChannel =
-    startInProcessServerWithService(commonServerFlags, reportsService
-      .withMetadataPrincipalIdentities(measurementConsumerConfigs)
-      .withReportScheduleNameInterceptor())
+    startInProcessServerWithService(
+      commonServerFlags,
+      reportsService
+        .withMetadataPrincipalIdentities(measurementConsumerConfigs)
+        .withReportScheduleNameInterceptor()
+    )
 
   val reportSchedulingJob =
     ReportSchedulingJob(

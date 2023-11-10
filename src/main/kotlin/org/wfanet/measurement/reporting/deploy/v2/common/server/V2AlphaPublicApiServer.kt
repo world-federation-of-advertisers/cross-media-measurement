@@ -171,7 +171,10 @@ private fun run(
     )
 
   val inProcessChannel =
-    startInProcessServerWithService(commonServerFlags, metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs))
+    startInProcessServerWithService(
+      commonServerFlags,
+      metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs)
+    )
 
   val services: List<ServerServiceDefinition> =
     listOf(
