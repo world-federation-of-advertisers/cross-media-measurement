@@ -2320,7 +2320,11 @@ class EdpSimulatorTest {
         }
       }
     private val syntheticGeneratorEventQuery =
-      object : SyntheticGeneratorEventQuery(SyntheticGenerationSpecs.POPULATION_SPEC) {
+      object :
+        SyntheticGeneratorEventQuery(
+          SyntheticGenerationSpecs.POPULATION_SPEC,
+          TestEvent.getDescriptor()
+        ) {
         override fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec {
           return SYNTHETIC_DATA_SPEC
         }
