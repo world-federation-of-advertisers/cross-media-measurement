@@ -38,25 +38,8 @@ module "kingdom_default_node_pool" {
   max_node_count  = 3
 }
 
-provider "kubernetes" {
-  # Due to the fact that this is using interpolation, the cluster must already exist.
-  # See https://registry.terraform.io/providers/hashicorp/kubernetes/2.20.0/docs
-
-  alias = "kingdom"
-  host  = "https://${data.google_container_cluster.kingdom.endpoint}"
-  token = data.google_client_config.default.access_token
-  cluster_ca_certificate = base64decode(
-    data.google_container_cluster.kingdom.master_auth[0].cluster_ca_certificate,
-  )
-}
-
 module "kingdom" {
   source = "../modules/kingdom"
-
-  providers = {
-    google     = google
-    kubernetes = kubernetes.kingdom
-  }
 
   spanner_instance = google_spanner_instance.spanner_instance
 }

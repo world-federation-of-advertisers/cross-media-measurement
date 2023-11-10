@@ -316,4 +316,8 @@ import ("strings")
 			]
 		}
 	}
+
+	serviceAccounts: [Name=string]: #ServiceAccount & {
+		metadata: name: Name
+	}
 }

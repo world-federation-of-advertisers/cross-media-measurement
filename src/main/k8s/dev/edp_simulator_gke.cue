@@ -26,10 +26,11 @@ _secret_name:            string @tag("secret_name")
 _kingdomPublicApiTarget: string @tag("kingdom_public_api_target")
 _duchyPublicApiTarget:   string @tag("duchy_public_api_target")
 
-#ServiceAccount: "simulator"
-
-objectSets: [ for edp in edp_simulators {[edp.deployment]}] +
-	[ for edp in edp_simulators {edp.networkPolicies}]
+objectSets: [
+	for edp in edp_simulators {edp.serviceAccounts},
+	for edp in edp_simulators {[edp.deployment]},
+	for edp in edp_simulators {edp.networkPolicies},
+]
 
 _edpConfigs: [...#EdpConfig]
 _edpConfigs: [
@@ -50,10 +51,9 @@ edp_simulators: {
 			_duchy_public_api_target:   _duchyPublicApiTarget
 			_kingdom_public_api_target: _kingdomPublicApiTarget
 			_mc_resource_name:          _mc_name
+
 			deployment: {
-				spec: template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
-					serviceAccountName: #ServiceAccount
-				}
+				spec: template: spec: #SpotVmPodSpec
 			}
 		}
 	}
