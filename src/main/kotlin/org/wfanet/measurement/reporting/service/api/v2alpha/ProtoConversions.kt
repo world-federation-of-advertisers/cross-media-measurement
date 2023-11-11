@@ -44,6 +44,7 @@ import org.wfanet.measurement.internal.reporting.v2.LiquidLegionsDistribution as
 import org.wfanet.measurement.internal.reporting.v2.LiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec as InternalMetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.NoiseMechanism as InternalNoiseMechanism
@@ -78,6 +79,8 @@ import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListReportsPageToken
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.PeriodicTimeInterval
@@ -88,6 +91,7 @@ import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.TimeIntervals
 import org.wfanet.measurement.reporting.v2alpha.createMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.metric
+import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.periodicTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
@@ -690,16 +694,16 @@ fun ListReportingSetsPageToken.toStreamReportingSetsRequest(): StreamReportingSe
   }
 }
 
-/** Converts an [InternalReport.MetricCalculationSpec] to a [Report.MetricCalculationSpec]. */
-fun InternalReport.MetricCalculationSpec.toMetricCalculationSpec(): Report.MetricCalculationSpec {
+/** Converts an [InternalMetricCalculationSpec] to a [MetricCalculationSpec]. */
+fun InternalMetricCalculationSpec.toMetricCalculationSpec(): MetricCalculationSpec {
   val source = this
 
-  return ReportKt.metricCalculationSpec {
+  return metricCalculationSpec {
     displayName = source.details.displayName
     metricSpecs += source.details.metricSpecsList.map(InternalMetricSpec::toMetricSpec)
     groupings +=
       source.details.groupingsList.map { grouping ->
-        ReportKt.grouping { predicates += grouping.predicatesList }
+        MetricCalculationSpecKt.grouping { predicates += grouping.predicatesList }
       }
     filter = source.details.filter
     cumulative = source.details.cumulative
@@ -741,6 +745,7 @@ fun PeriodicTimeInterval.toInternal(): InternalPeriodicTimeInterval {
 /** Converts an [InternalReport.ReportingMetric] to a public [CreateMetricRequest]. */
 fun InternalReport.ReportingMetric.toCreateMetricRequest(
   measurementConsumerKey: MeasurementConsumerKey,
+  externalReportingSetId: String,
   filter: String,
 ): CreateMetricRequest {
   val source = this
@@ -748,10 +753,7 @@ fun InternalReport.ReportingMetric.toCreateMetricRequest(
     this.parent = measurementConsumerKey.toName()
     metric = metric {
       reportingSet =
-        ReportingSetKey(
-            measurementConsumerKey.measurementConsumerId,
-            source.details.externalReportingSetId
-          )
+        ReportingSetKey(measurementConsumerKey.measurementConsumerId, externalReportingSetId)
           .toName()
       timeInterval = source.details.timeInterval
       metricSpec = source.details.metricSpec.toMetricSpec()
@@ -777,7 +779,13 @@ fun Map.Entry<String, InternalReport.ReportingMetricCalculationSpec>.toReporting
     value =
       ReportKt.reportingMetricCalculationSpec {
         metricCalculationSpecs +=
-          source.value.metricCalculationSpecsList.map { it.toMetricCalculationSpec() }
+          source.value.metricCalculationSpecReportingMetricsList.map {
+            MetricCalculationSpecKey(
+                cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+                metricCalculationSpecId = it.externalMetricCalculationSpecId
+              )
+              .toName()
+          }
       }
   }
 }

@@ -16,17 +16,24 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.ResourceNameParser
+import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
-
-private val parser =
-  ResourceNameParser("measurementConsumers/{measurement_consumer}/reports/{report}")
 
 /** [ResourceKey] of a Report. */
 data class ReportKey(
-  val cmmsMeasurementConsumerId: String,
+  override val parentKey: MeasurementConsumerKey,
   val reportId: String,
-) : ResourceKey {
+) : ChildResourceKey {
+  constructor(
+    cmmsMeasurementConsumerId: String,
+    reportId: String
+  ) : this(MeasurementConsumerKey(cmmsMeasurementConsumerId), reportId)
+
+  val cmmsMeasurementConsumerId: String
+    get() = parentKey.measurementConsumerId
+
   override fun toName(): String {
     return parser.assembleName(
       mapOf(
@@ -37,12 +44,15 @@ data class ReportKey(
   }
 
   companion object FACTORY : ResourceKey.Factory<ReportKey> {
-    val defaultValue = ReportKey("", "")
+    const val PATTERN = "${MeasurementConsumerKey.PATTERN}/reports/{report}"
+    private val parser = ResourceNameParser(PATTERN)
 
     override fun fromName(resourceName: String): ReportKey? {
-      return parser.parseIdVars(resourceName)?.let {
-        ReportKey(it.getValue(IdVariable.MEASUREMENT_CONSUMER), it.getValue(IdVariable.REPORT))
-      }
+      val idVars: Map<IdVariable, String> = parser.parseIdVars(resourceName) ?: return null
+      return ReportKey(
+        idVars.getValue(IdVariable.MEASUREMENT_CONSUMER),
+        idVars.getValue(IdVariable.REPORT)
+      )
     }
   }
 }

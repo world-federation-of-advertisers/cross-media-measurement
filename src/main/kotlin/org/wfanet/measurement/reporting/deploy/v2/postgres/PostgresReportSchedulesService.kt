@@ -32,6 +32,7 @@ import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportSchedul
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateReportSchedule
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.StopReportSchedule
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.reporting.service.internal.MetricCalculationSpecNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportScheduleAlreadyExistsException
 import org.wfanet.measurement.reporting.service.internal.ReportScheduleNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportScheduleStateInvalidException
@@ -54,6 +55,8 @@ class PostgresReportSchedulesService(
       CreateReportSchedule(request).execute(client, idGenerator)
     } catch (e: ReportingSetNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Reporting Set not found.")
+    } catch (e: MetricCalculationSpecNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Metric Calculation Spec not found.")
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,

@@ -95,11 +95,12 @@ class MeasurementReader(private val readContext: ReadContext) {
 
     val sql =
       StringBuilder(
-        baseSql +
-          """
+        """
+          $baseSql
           WHERE Measurements.MeasurementConsumerId = $1
-            AND CmmsCreateMeasurementRequestId::text IN
-          """
+              AND CmmsCreateMeasurementRequestId::text IN
+        """
+          .trimIndent()
       )
 
     var i = 2
@@ -132,11 +133,12 @@ class MeasurementReader(private val readContext: ReadContext) {
 
     val sql =
       StringBuilder(
-        baseSql +
-          """
+        """
+          $baseSql
           WHERE Measurements.MeasurementConsumerId = $1
             AND CmmsMeasurementId IN
-          """
+        """
+          .trimIndent()
       )
 
     var i = 2
