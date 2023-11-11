@@ -68,9 +68,7 @@ class ReportSchedulesService(
 
     when (val principal: ReportingPrincipal = principalFromCurrentContext) {
       is MeasurementConsumerPrincipal -> {
-        if (
-          reportScheduleKey.cmmsMeasurementConsumerId != principal.resourceKey.measurementConsumerId
-        ) {
+        if (reportScheduleKey.parentKey != principal.resourceKey) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot stop ReportSchedule belonging to other MeasurementConsumers."
           }
@@ -109,9 +107,7 @@ class ReportSchedulesService(
 
     when (val principal: ReportingPrincipal = principalFromCurrentContext) {
       is MeasurementConsumerPrincipal -> {
-        if (
-          reportScheduleKey.cmmsMeasurementConsumerId != principal.resourceKey.measurementConsumerId
-        ) {
+        if (reportScheduleKey.parentKey != principal.resourceKey) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot get ReportSchedule belonging to other MeasurementConsumers."
           }

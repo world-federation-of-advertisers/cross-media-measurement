@@ -2,18 +2,5 @@
 # proto-message: Report.ReportingMetricEntry
 key: "measurementConsumers/Dipo47pr5to/reportingSets/abc"
 value {
-  metric_calculation_specs {
-    display_name: "spec_1"
-    metric_specs {
-      reach {
-        privacy_params {
-          epsilon: 0.0041
-          delta: 1.0E-12
-        }
-      }
-      vid_sampling_interval {
-        width: 0.01
-      }
-    }
-  }
+  metric_calculation_specs: "measurementConsumers/Dipo47pr5to/metricCalculationSpecs/abc"
 }

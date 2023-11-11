@@ -16,50 +16,43 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.ResourceNameParser
 import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
 
-/** [ResourceKey] of a ReportScheduleIteration. */
-data class ReportScheduleIterationKey(
-  override val parentKey: ReportScheduleKey,
-  val reportScheduleIterationId: String,
+/** [ResourceKey] of a MetricCalculationSpec. */
+data class MetricCalculationSpecKey(
+  override val parentKey: MeasurementConsumerKey,
+  val metricCalculationSpecId: String,
 ) : ChildResourceKey {
   constructor(
     cmmsMeasurementConsumerId: String,
-    reportScheduleId: String,
-    reportScheduleIterationId: String
-  ) : this(
-    ReportScheduleKey(cmmsMeasurementConsumerId, reportScheduleId),
-    reportScheduleIterationId
-  )
+    metricCalculationSpecId: String
+  ) : this(MeasurementConsumerKey(cmmsMeasurementConsumerId), metricCalculationSpecId)
 
   val cmmsMeasurementConsumerId: String
-    get() = parentKey.cmmsMeasurementConsumerId
-
-  val reportScheduleId: String
-    get() = parentKey.reportScheduleId
+    get() = parentKey.measurementConsumerId
 
   override fun toName(): String {
     return parser.assembleName(
       mapOf(
         IdVariable.MEASUREMENT_CONSUMER to cmmsMeasurementConsumerId,
-        IdVariable.REPORT_SCHEDULE to reportScheduleId,
-        IdVariable.REPORT_SCHEDULE_ITERATION to reportScheduleIterationId,
+        IdVariable.METRIC_CALCULATION_SPEC to metricCalculationSpecId,
       )
     )
   }
 
-  companion object FACTORY : ResourceKey.Factory<ReportScheduleIterationKey> {
-    const val PATTERN = "${ReportScheduleKey.PATTERN}/iterations/{report_schedule_iteration}"
+  companion object FACTORY : ResourceKey.Factory<MetricCalculationSpecKey> {
+    const val PATTERN =
+      "${MeasurementConsumerKey.PATTERN}/metricCalculationSpecs/{metric_calculation_spec}"
     private val parser = ResourceNameParser(PATTERN)
 
-    override fun fromName(resourceName: String): ReportScheduleIterationKey? {
+    override fun fromName(resourceName: String): MetricCalculationSpecKey? {
       val idVars: Map<IdVariable, String> = parser.parseIdVars(resourceName) ?: return null
-      return ReportScheduleIterationKey(
+      return MetricCalculationSpecKey(
         idVars.getValue(IdVariable.MEASUREMENT_CONSUMER),
-        idVars.getValue(IdVariable.REPORT_SCHEDULE),
-        idVars.getValue(IdVariable.REPORT_SCHEDULE_ITERATION)
+        idVars.getValue(IdVariable.METRIC_CALCULATION_SPEC)
       )
     }
   }

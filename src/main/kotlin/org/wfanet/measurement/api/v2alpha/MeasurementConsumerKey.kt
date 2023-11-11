@@ -27,9 +27,10 @@ data class MeasurementConsumerKey(
 
   companion object FACTORY : ResourceKey.Factory<MeasurementConsumerKey> {
     const val COLLECTION_NAME = "measurementConsumers"
+    const val PATTERN = "$COLLECTION_NAME/{measurement_consumer}"
     val defaultValue = MeasurementConsumerKey("")
 
-    private val parser = ResourceNameParser("$COLLECTION_NAME/{measurement_consumer}")
+    private val parser = ResourceNameParser(PATTERN)
 
     override fun fromName(resourceName: String): MeasurementConsumerKey? {
       return parser.parseIdVars(resourceName)?.let {

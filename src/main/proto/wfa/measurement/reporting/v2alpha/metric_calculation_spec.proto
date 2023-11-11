@@ -1,0 +1,79 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.v2alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "wfa/measurement/reporting/v2alpha/metric.proto";
+
+option java_package = "org.wfanet.measurement.reporting.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "MetricCalculationSpecProto";
+
+// Resource representing a MetricCalculationSpec.
+//
+// Reused across Reports.
+message MetricCalculationSpec {
+  option (google.api.resource) = {
+    type: "reporting.halo-cmm.org/MetricCalculationSpec"
+    pattern: "measurementConsumers/{measurement_consumer}/metricCalculationSpecs/{metric_calculation_spec}"
+  };
+
+  // Resource name.
+  string name = 1;
+
+  // The display name will be used as the display name in
+  // `Report.MetricCalculationResult`.
+  string display_name = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // A collection of metrics.
+  repeated MetricSpec metric_specs = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // An additional event filter that will be conjoined to any filters
+  // present on the `ReportingSet` provided as part of the
+  // `Report.ReportingMetricEntry`.
+  string filter = 4 [(google.api.field_behavior) = IMMUTABLE];
+
+  // Contain the grouping predicates.
+  message Grouping {
+    // The CEL expressions that are applied to the corresponding event message
+    // for the specified event groups. Each predicate is an element of this
+    // grouping set. They will used in the Cartesian product with the elements
+    // in other groupings.
+    // All fields referenced in one of these predicate expressions must be
+    // defined for events from all of the event groups referenced.
+    repeated string predicates = 1 [(google.api.field_behavior) = REQUIRED];
+  }
+
+  // The final set of groups is the Cartesian product of `groupings` and will
+  // fan out multiple metrics per metric spec and per time interval (time
+  // intervals are from `time` in `Report`), i.e. one metric per element of the
+  // Cartesian product of the groupings with a single metric type and a single
+  // time interval. Predicates must be unique.
+  repeated Grouping groupings = 5 [(google.api.field_behavior) = IMMUTABLE];
+
+  // Whether the results for a given time interval (time intervals are from
+  // `time` in `Report`) is cumulative with those of previous time intervals.
+  // Only supported when using `PeriodicTimeInterval` in a `Report`.
+  bool cumulative = 6 [(google.api.field_behavior) = IMMUTABLE];
+}

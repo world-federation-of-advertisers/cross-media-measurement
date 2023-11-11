@@ -790,6 +790,10 @@ class ReportSchedulesServiceTest {
     private const val REPORTING_SET_NAME =
       "$MEASUREMENT_CONSUMER_NAME/reportingSets/$REPORTING_SET_ID"
 
+    private const val METRIC_CALCULATION_SPEC_ID = "D123"
+    private const val METRIC_CALCULATION_SPEC_NAME =
+      "$MEASUREMENT_CONSUMER_NAME/metricCalculationSpecs/$METRIC_CALCULATION_SPEC_ID"
+
     private const val EPSILON = 0.0033
     private const val DELTA = 1e-12
     private const val NUMBER_VID_BUCKETS = 300
@@ -839,18 +843,9 @@ class ReportSchedulesServiceTest {
           reportTemplate = internalReport {
             reportingMetricEntries[REPORTING_SET_ID] =
               InternalReportKt.reportingMetricCalculationSpec {
-                metricCalculationSpecs +=
-                  InternalReportKt.metricCalculationSpec {
-                    details =
-                      InternalReportKt.MetricCalculationSpecKt.details {
-                        this.displayName = "display-name"
-                        metricSpecs += INTERNAL_METRIC_SPEC
-                        this.groupings +=
-                          InternalReportKt.MetricCalculationSpecKt.grouping {
-                            predicates += "gender.value == MALE"
-                          }
-                        this.cumulative = false
-                      }
+                metricCalculationSpecReportingMetrics +=
+                  InternalReportKt.metricCalculationSpecReportingMetrics {
+                    externalMetricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
                   }
               }
           }
@@ -894,13 +889,7 @@ class ReportSchedulesServiceTest {
             key = REPORTING_SET_NAME
             value =
               ReportKt.reportingMetricCalculationSpec {
-                metricCalculationSpecs +=
-                  ReportKt.metricCalculationSpec {
-                    displayName = "display-name"
-                    metricSpecs += METRIC_SPEC
-                    this.groupings += ReportKt.grouping { predicates += "gender.value == MALE" }
-                    cumulative = false
-                  }
+                metricCalculationSpecs += METRIC_CALCULATION_SPEC_NAME
               }
           }
       }

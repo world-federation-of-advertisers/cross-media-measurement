@@ -31,10 +31,10 @@
 --       │   └── MetricMeasurements
 --       ├── Measurements
 --       │   └── MeasurementPrimitiveReportingSetBases
+--       ├── MetricCalculationSpecs
 --       └── Reports
 --           ├── ReportTimeIntervals
---           └── MetricCalculationSpecs
---               └── MetricCalculationSpecMetrics
+--           └── MetricCalculationSpecReportingMetrics
 
 -- changeset riemanli:create-measurement-consumers-table dbms:postgresql
 CREATE TABLE MeasurementConsumers (
@@ -350,6 +350,10 @@ CREATE TABLE Reports (
     ON DELETE CASCADE
 );
 
+-- changeset tristanvuong2021:add-report-create-time-index dbms:postgresl
+CREATE INDEX report_create_time
+  ON REPORTS (MeasurementConsumerId, CreateTime DESC, ExternalReportId);
+
 -- changeset riemanli:create-report-time-intervals-table dbms:postgresql
 CREATE TABLE ReportTimeIntervals (
   MeasurementConsumerId bigint NOT NULL,
@@ -366,9 +370,8 @@ CREATE TABLE ReportTimeIntervals (
 -- changeset riemanli:create-metric-calculation-specs-table dbms:postgresql
 CREATE TABLE MetricCalculationSpecs (
   MeasurementConsumerId bigint NOT NULL,
-  ReportId bigint NOT NULL,
   MetricCalculationSpecId bigint NOT NULL,
-  ReportingSetId bigint NOT NULL,
+  ExternalMetricCalculationSpecId text NOT NULL,
 
   -- Serialized byte string of a proto3 protobuf with details about the
   -- metric calculation which do not need to be indexed by the database.
@@ -381,12 +384,10 @@ CREATE TABLE MetricCalculationSpecs (
   -- debugging purposes.
   MetricCalculationSpecDetailsJson text NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, ReportId, MetricCalculationSpecId),
-  FOREIGN KEY(MeasurementConsumerId, ReportId)
-    REFERENCES Reports(MeasurementConsumerId, ReportId)
-    ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
-    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
+  PRIMARY KEY(MeasurementConsumerId, MetricCalculationSpecId),
+  UNIQUE(MeasurementConsumerId, ExternalMetricCalculationSpecId),
+  FOREIGN KEY(MeasurementConsumerId)
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
     ON DELETE CASCADE
 );
 
@@ -394,6 +395,7 @@ CREATE TABLE MetricCalculationSpecs (
 CREATE TABLE MetricCalculationSpecReportingMetrics (
   MeasurementConsumerId bigint NOT NULL,
   ReportId bigint NOT NULL,
+  ReportingSetId bigint NOT NULL,
   MetricCalculationSpecId bigint NOT NULL,
   CreateMetricRequestId uuid NOT NULL,
   MetricId bigint,
@@ -409,9 +411,15 @@ CREATE TABLE MetricCalculationSpecReportingMetrics (
   -- debugging purposes.
   ReportingMetricDetailsJson text NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, ReportId, MetricCalculationSpecId, CreateMetricRequestId),
-  FOREIGN KEY(MeasurementConsumerId, ReportId, MetricCalculationSpecId)
-    REFERENCES MetricCalculationSpecs(MeasurementConsumerId, ReportId, MetricCalculationSpecId)
+  PRIMARY KEY(MeasurementConsumerId, ReportId, ReportingSetId, MetricCalculationSpecId, CreateMetricRequestId),
+  FOREIGN KEY(MeasurementConsumerId, ReportId)
+    REFERENCES Reports(MeasurementConsumerId, ReportId)
+    ON DELETE CASCADE,
+  FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
+    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
+    ON DELETE CASCADE,
+  FOREIGN KEY(MeasurementConsumerId, MetricCalculationSpecId)
+    REFERENCES MetricCalculationSpecs(MeasurementConsumerId, MetricCalculationSpecId)
     ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, MetricId)
     REFERENCES Metrics(MeasurementConsumerId, MetricId)

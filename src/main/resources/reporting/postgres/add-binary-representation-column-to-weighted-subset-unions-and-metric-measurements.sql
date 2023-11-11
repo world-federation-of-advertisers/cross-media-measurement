@@ -31,10 +31,10 @@
 --       │   └── MetricMeasurements
 --       ├── Measurements
 --       │   └── MeasurementPrimitiveReportingSetBases
+--       ├── MetricCalculationSpecs
 --       └── Reports
 --           ├── ReportTimeIntervals
---           └── MetricCalculationSpecs
---               └── MetricCalculationSpecMetrics
+--           └── MetricCalculationSpecReportingMetrics
 
 -- changeset riemanli:alter-weighted-subset-unions-table dbms:postgresql
 ALTER TABLE WeightedSubsetUnions

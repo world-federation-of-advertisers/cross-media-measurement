@@ -29,9 +29,11 @@ import org.wfanet.measurement.internal.reporting.v2.CreateReportScheduleRequest
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedule
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementConsumerReader
+import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MetricCalculationSpecReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportScheduleReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.reporting.service.internal.MetricCalculationSpecNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportScheduleAlreadyExistsException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
@@ -40,6 +42,7 @@ import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundExc
  *
  * Throws the following on [execute]:
  * * [ReportingSetNotFoundException] ReportingSet not found
+ * * [MetricCalculationSpecNotFoundException] MetricCalculationSpec not found
  * * [MeasurementConsumerNotFoundException] MeasurementConsumer not found
  * * [ReportScheduleAlreadyExistsException] ReportSchedule already exists
  */
@@ -56,12 +59,14 @@ class CreateReportSchedule(private val request: CreateReportScheduleRequest) :
     val reportSchedule = request.reportSchedule
 
     // Request IDs take precedence
-    val existingReportScheduleResult: ReportScheduleReader.Result? =
-      ReportScheduleReader(transactionContext)
-        .readReportScheduleByRequestId(measurementConsumerId, createReportScheduleRequestId)
+    if (createReportScheduleRequestId.isNotBlank()) {
+      val existingReportScheduleResult: ReportScheduleReader.Result? =
+        ReportScheduleReader(transactionContext)
+          .readReportScheduleByRequestId(measurementConsumerId, createReportScheduleRequestId)
 
-    if (existingReportScheduleResult != null) {
-      return existingReportScheduleResult.reportSchedule
+      if (existingReportScheduleResult != null) {
+        return existingReportScheduleResult.reportSchedule
+      }
     }
 
     // If we can't find a report schedule given the request ID but find a report schedule given the
@@ -79,9 +84,10 @@ class CreateReportSchedule(private val request: CreateReportScheduleRequest) :
       )
     }
 
-    val externalReportingSetIds = mutableListOf<String>()
-    reportSchedule.details.reportTemplate.reportingMetricEntriesMap.entries.forEach {
-      externalReportingSetIds += it.key
+    val externalReportingSetIds: Set<String> = buildSet {
+      reportSchedule.details.reportTemplate.reportingMetricEntriesMap.entries.forEach {
+        add(it.key)
+      }
     }
 
     val reportingSetMap: Map<String, InternalId> =
@@ -92,6 +98,37 @@ class CreateReportSchedule(private val request: CreateReportScheduleRequest) :
 
     if (reportingSetMap.size < externalReportingSetIds.size) {
       throw ReportingSetNotFoundException()
+    }
+
+    val externalMetricCalculationSpecIds: Set<String> = buildSet {
+      for (reportingMetricCalculationSpec in
+        reportSchedule.details.reportTemplate.reportingMetricEntriesMap.values) {
+        reportingMetricCalculationSpec.metricCalculationSpecReportingMetricsList.forEach {
+          add(it.externalMetricCalculationSpecId)
+        }
+      }
+    }
+
+    val metricCalculationSpecMap: Map<String, InternalId> =
+      MetricCalculationSpecReader(transactionContext)
+        .batchReadByExternalIds(
+          reportSchedule.cmmsMeasurementConsumerId,
+          externalMetricCalculationSpecIds
+        )
+        .associateBy(
+          { it.metricCalculationSpec.externalMetricCalculationSpecId },
+          { it.metricCalculationSpecId }
+        )
+
+    if (metricCalculationSpecMap.size < externalMetricCalculationSpecIds.size) {
+      externalMetricCalculationSpecIds.forEach {
+        if (!metricCalculationSpecMap.containsKey(it)) {
+          throw MetricCalculationSpecNotFoundException(
+            cmmsMeasurementConsumerId = reportSchedule.cmmsMeasurementConsumerId,
+            externalMetricCalculationSpecId = it
+          )
+        }
+      }
     }
 
     val reportScheduleId = idGenerator.generateInternalId()

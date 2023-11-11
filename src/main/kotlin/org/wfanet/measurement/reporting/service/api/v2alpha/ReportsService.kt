@@ -33,11 +33,13 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.CreateReportRequest as InternalCreateReportRequest
-import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec as InternalMetricCalculationSpec
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.Report as InternalReport
 import org.wfanet.measurement.internal.reporting.v2.ReportKt as InternalReportKt
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest as internalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
@@ -77,6 +79,7 @@ private typealias InternalReportingMetricEntries =
 
 class ReportsService(
   private val internalReportsStub: ReportsCoroutineStub,
+  private val internalMetricCalculationSpecsStub: MetricCalculationSpecsCoroutineStub,
   private val metricsStub: MetricsCoroutineStub,
   private val metricSpecConfig: MetricSpecConfig,
 ) : ReportsCoroutineImplBase() {
@@ -118,7 +121,14 @@ class ReportsService(
       try {
         internalReportsStub.streamReports(streamInternalReportsRequest).toList()
       } catch (e: StatusException) {
-        throw Exception("Unable to list Reports.", e)
+        throw when (e.status.code) {
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            Status.Code.CANCELLED -> Status.CANCELLED
+            else -> Status.UNKNOWN
+          }
+          .withCause(e)
+          .withDescription("Unable to list Reports.")
+          .asRuntimeException()
       }
 
     if (results.isEmpty()) {
@@ -180,7 +190,7 @@ class ReportsService(
     val principal: ReportingPrincipal = principalFromCurrentContext
     when (principal) {
       is MeasurementConsumerPrincipal -> {
-        if (reportKey.cmmsMeasurementConsumerId != principal.resourceKey.measurementConsumerId) {
+        if (reportKey.parentKey != principal.resourceKey) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot get Report belonging to other MeasurementConsumers."
           }
@@ -197,7 +207,15 @@ class ReportsService(
           }
         )
       } catch (e: StatusException) {
-        throw Exception("Unable to get Report.", e)
+        throw when (e.status.code) {
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            Status.Code.CANCELLED -> Status.CANCELLED
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND
+            else -> Status.UNKNOWN
+          }
+          .withCause(e)
+          .withDescription("Unable to get Report.")
+          .asRuntimeException()
       }
 
     // Get metrics.
@@ -268,11 +286,27 @@ class ReportsService(
       "No ReportingMetricEntry is specified."
     }
 
+    val externalMetricCalculationSpecIds: List<String> =
+      request.report.reportingMetricEntriesList.flatMap { reportingMetricEntry ->
+        reportingMetricEntry.value.metricCalculationSpecsList.map {
+          val key =
+            grpcRequireNotNull(MetricCalculationSpecKey.fromName(it)) {
+              "MetricCalculationSpec name $it is invalid."
+            }
+          key.metricCalculationSpecId
+        }
+      }
+    val externalIdToMetricCalculationSpecMap: Map<String, InternalMetricCalculationSpec> =
+      createExternalIdToMetricCalculationSpecMap(
+        parentKey.measurementConsumerId,
+        externalMetricCalculationSpecIds
+      )
+
     // Build an internal CreateReportRequest.
     //  The internal report in CreateReportRequest has several
-    //  MetricCalculationSpec.ReportingMetrics without request IDs and external metric IDs.
+    //  ReportingMetrics without request IDs and external metric IDs.
     val internalCreateReportRequest: InternalCreateReportRequest =
-      buildInternalCreateReportRequest(request)
+      buildInternalCreateReportRequest(request, externalIdToMetricCalculationSpecMap)
 
     // Create an internal report
     //  The internal report service will fill request IDs in
@@ -285,6 +319,11 @@ class ReportsService(
         throw when (e.status.code) {
             Status.Code.DEADLINE_EXCEEDED ->
               Status.DEADLINE_EXCEEDED.withDescription("Unable to create Report.")
+            Status.Code.CANCELLED -> Status.CANCELLED.withDescription("Unable to create Report.")
+            Status.Code.FAILED_PRECONDITION ->
+              Status.FAILED_PRECONDITION.withDescription(
+                "Unable to create Report. The measurement consumer not found."
+              )
             Status.Code.ALREADY_EXISTS ->
               Status.ALREADY_EXISTS.withDescription(
                 "Report with ID ${request.reportId} already exists under ${request.parent}"
@@ -294,13 +333,13 @@ class ReportsService(
                 Status.NOT_FOUND.withDescription(
                   "ReportSchedule associated with the Report not found."
                 )
+              } else if (e.message!!.contains("external_metric_calculation_spec_id")) {
+                Status.NOT_FOUND.withDescription(
+                  "MetricCalculationSpec used in the Report not found."
+                )
               } else {
                 Status.NOT_FOUND.withDescription("ReportingSet used in the Report not found.")
               }
-            Status.Code.FAILED_PRECONDITION ->
-              Status.FAILED_PRECONDITION.withDescription(
-                "Unable to create Report. The measurement consumer not found."
-              )
             else -> Status.UNKNOWN.withDescription("Unable to create Report.")
           }
           .withCause(e)
@@ -310,11 +349,18 @@ class ReportsService(
     // Create metrics.
     val createMetricRequests: Flow<CreateMetricRequest> =
       internalReport.reportingMetricEntriesMap
-        .flatMap { (_, reportingMetricCalculationSpec) ->
-          reportingMetricCalculationSpec.metricCalculationSpecsList.flatMap { metricCalculationSpec
-            ->
-            metricCalculationSpec.reportingMetricsList.map {
-              it.toCreateMetricRequest(principal.resourceKey, metricCalculationSpec.details.filter)
+        .flatMap { (reportingSetId, reportingMetricCalculationSpec) ->
+          reportingMetricCalculationSpec.metricCalculationSpecReportingMetricsList.flatMap {
+            metricCalculationSpecReportingMetrics ->
+            metricCalculationSpecReportingMetrics.reportingMetricsList.map {
+              it.toCreateMetricRequest(
+                principal.resourceKey,
+                reportingSetId,
+                externalIdToMetricCalculationSpecMap
+                  .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
+                  .details
+                  .filter
+              )
             }
           }
         }
@@ -343,6 +389,7 @@ class ReportsService(
       } catch (e: StatusException) {
         throw Status.UNKNOWN.withDescription("Unable to create Report.")
           .withCause(e)
+          .withDescription("Report created, but error returning the Report.")
           .asRuntimeException()
       }
 
@@ -350,8 +397,40 @@ class ReportsService(
     return convertInternalReportToPublic(updatedInternalReport, externalIdToMetricMap)
   }
 
+  /** Returns a map of external IDs to [InternalMetricCalculationSpec]. */
+  private suspend fun createExternalIdToMetricCalculationSpecMap(
+    cmmsMeasurementConsumerId: String,
+    externalMetricCalculationSpecIds: List<String>
+  ): Map<String, InternalMetricCalculationSpec> {
+    return try {
+      internalMetricCalculationSpecsStub
+        .batchGetMetricCalculationSpecs(
+          batchGetMetricCalculationSpecsRequest {
+            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+            this.externalMetricCalculationSpecIds += externalMetricCalculationSpecIds.toHashSet()
+          }
+        )
+        .metricCalculationSpecsList
+        .associateBy({ it.externalMetricCalculationSpecId }, { it })
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+          Status.Code.DEADLINE_EXCEEDED ->
+            Status.DEADLINE_EXCEEDED.withDescription(
+              "Unable to get MetricCalculationSpecs in Report."
+            )
+          Status.Code.CANCELLED ->
+            Status.CANCELLED.withDescription("Unable to get MetricCalculationSpecs in Report.")
+          Status.Code.NOT_FOUND ->
+            Status.NOT_FOUND.withDescription("MetricCalculationSpec in Report not found.")
+          else -> Status.UNKNOWN.withDescription("Unable to get MetricCalculationSpecs in Report.")
+        }
+        .withCause(e)
+        .asRuntimeException()
+    }
+  }
+
   /** Converts an internal [InternalReport] to a public [Report]. */
-  private fun convertInternalReportToPublic(
+  private suspend fun convertInternalReportToPublic(
     internalReport: InternalReport,
     externalIdToMetricMap: Map<String, Metric>,
   ): Report {
@@ -388,11 +467,24 @@ class ReportsService(
       createTime = internalReport.createTime
 
       if (state == Report.State.SUCCEEDED) {
+        val externalMetricCalculationSpecIds =
+          internalReport.reportingMetricEntriesMap.flatMap { reportingMetricCalculationSpec ->
+            reportingMetricCalculationSpec.value.metricCalculationSpecReportingMetricsList.map {
+              it.externalMetricCalculationSpecId
+            }
+          }
+        val externalIdToMetricCalculationMap: Map<String, InternalMetricCalculationSpec> =
+          createExternalIdToMetricCalculationSpecMap(
+            internalReport.cmmsMeasurementConsumerId,
+            externalMetricCalculationSpecIds
+          )
+
         this.metricCalculationResults +=
           buildMetricCalculationResults(
             internalReport.cmmsMeasurementConsumerId,
             internalReport.reportingMetricEntriesMap,
-            externalIdToMetricMap
+            externalIdToMetricMap,
+            externalIdToMetricCalculationMap,
           )
       }
 
@@ -412,18 +504,24 @@ class ReportsService(
     cmmsMeasurementConsumerId: String,
     internalReportingMetricEntries: InternalReportingMetricEntries,
     externalIdToMetricMap: Map<String, Metric>,
+    externalIdToMetricCalculationMap: Map<String, InternalMetricCalculationSpec>,
   ): List<Report.MetricCalculationResult> {
     return internalReportingMetricEntries.flatMap { (reportingSetId, reportingMetricCalculationSpec)
       ->
       val reportingSetName = ReportingSetKey(cmmsMeasurementConsumerId, reportingSetId).toName()
 
-      reportingMetricCalculationSpec.metricCalculationSpecsList.map { metricCalculationSpec ->
+      reportingMetricCalculationSpec.metricCalculationSpecReportingMetricsList.map {
+        metricCalculationSpecReportingMetrics ->
+        val metricCalculationSpec =
+          externalIdToMetricCalculationMap.getValue(
+            metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId
+          )
         ReportKt.metricCalculationResult {
           displayName = metricCalculationSpec.details.displayName
           reportingSet = reportingSetName
           cumulative = metricCalculationSpec.details.cumulative
           resultAttributes +=
-            metricCalculationSpec.reportingMetricsList.map { reportingMetric ->
+            metricCalculationSpecReportingMetrics.reportingMetricsList.map { reportingMetric ->
               val metric =
                 externalIdToMetricMap[reportingMetric.externalMetricId]
                   ?: error("Got a metric not associated with the report.")
@@ -529,6 +627,7 @@ class ReportsService(
   /** Builds an [InternalCreateReportRequest]. */
   private fun buildInternalCreateReportRequest(
     request: CreateReportRequest,
+    externalIdToMetricCalculationMap: Map<String, InternalMetricCalculationSpec>,
   ): InternalCreateReportRequest {
     val cmmsMeasurementConsumerId =
       checkNotNull(MeasurementConsumerKey.fromName(request.parent)).measurementConsumerId
@@ -536,7 +635,9 @@ class ReportsService(
     return internalCreateReportRequest {
       report = internalReport {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-        reportingMetricEntries.putAll(buildInternalReportingMetricEntries(request))
+        reportingMetricEntries.putAll(
+          buildInternalReportingMetricEntries(request, externalIdToMetricCalculationMap)
+        )
 
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
         when (request.report.timeCase) {
@@ -569,6 +670,7 @@ class ReportsService(
   /** Builds an [InternalReportingMetricEntries] from a [CreateReportRequest]. */
   private fun buildInternalReportingMetricEntries(
     request: CreateReportRequest,
+    externalIdToMetricCalculationMap: Map<String, InternalMetricCalculationSpec>,
   ): InternalReportingMetricEntries {
     val internalTimeRange: InternalTimeRange = request.report.internalTimeRange()
     val measurementConsumerKey = checkNotNull(MeasurementConsumerKey.fromName(request.parent))
@@ -598,11 +700,16 @@ class ReportsService(
 
       reportingSetId to
         InternalReportKt.reportingMetricCalculationSpec {
-          metricCalculationSpecs +=
-            reportingMetricEntry.value.metricCalculationSpecsList.map { metricCalculationSpec ->
-              buildInternalMetricCalculationSpec(
-                reportingSetId,
-                metricCalculationSpec,
+          metricCalculationSpecReportingMetrics +=
+            reportingMetricEntry.value.metricCalculationSpecsList.map { metricCalculationSpecName ->
+              val metricCalculationSpecKey =
+                grpcRequireNotNull(MetricCalculationSpecKey.fromName(metricCalculationSpecName)) {
+                  "MetricCalculationSpec name $metricCalculationSpecName is invalid."
+                }
+              buildInternalMetricCalculationSpecReportingMetrics(
+                externalIdToMetricCalculationMap.getValue(
+                  metricCalculationSpecKey.metricCalculationSpecId
+                ),
                 createReportInfo,
               )
             }
@@ -610,21 +717,16 @@ class ReportsService(
     }
   }
 
-  /** Builds an [InternalReport.MetricCalculationSpec] from a [Report.MetricCalculationSpec]. */
-  private fun buildInternalMetricCalculationSpec(
-    reportingSetId: String,
-    metricCalculationSpec: Report.MetricCalculationSpec,
+  /**
+   * Builds an [InternalReport.MetricCalculationSpecReportingMetrics] from a
+   * [Report.ReportingMetricEntry].
+   */
+  private fun buildInternalMetricCalculationSpecReportingMetrics(
+    internalMetricCalculationSpec: InternalMetricCalculationSpec,
     createReportInfo: CreateReportInfo,
-  ): InternalReport.MetricCalculationSpec {
-    grpcRequire(metricCalculationSpec.displayName.isNotEmpty()) {
-      "Display name of MetricCalculationSpec must be set."
-    }
-    grpcRequire(metricCalculationSpec.metricSpecsList.isNotEmpty()) {
-      "No metric spec in MetricCalculationSpec [${metricCalculationSpec.displayName}] is specified."
-    }
-
+  ): InternalReport.MetricCalculationSpecReportingMetrics {
     val timeIntervals: List<Interval> =
-      if (metricCalculationSpec.cumulative) {
+      if (internalMetricCalculationSpec.details.cumulative) {
         grpcRequire(createReportInfo.internalTimeRange.canBeCumulative) {
           "Cumulative can only be used with PeriodicTimeInterval."
         }
@@ -635,33 +737,24 @@ class ReportsService(
 
     // Expand groupings to predicate groups in Cartesian product
     val groupings: List<List<String>> =
-      metricCalculationSpec.groupingsList.map {
-        grpcRequire(it.predicatesList.isNotEmpty()) {
-          "The predicates in Grouping must be specified."
-        }
-        it.predicatesList
-      }
-    val allGroupingPredicates = groupings.flatten()
-    grpcRequire(allGroupingPredicates.size == allGroupingPredicates.distinct().size) {
-      "Cannot have duplicate predicates in different groupings."
-    }
+      internalMetricCalculationSpec.details.groupingsList.map { it.predicatesList }
     val groupingsCartesianProduct: List<List<String>> = cartesianProduct(groupings)
 
-    return InternalReportKt.metricCalculationSpec {
-      val internalMetricSpecs = mutableListOf<InternalMetricSpec>()
+    return InternalReportKt.metricCalculationSpecReportingMetrics {
+      externalMetricCalculationSpecId =
+        internalMetricCalculationSpec.externalMetricCalculationSpecId
       // Fan out to a list of reportingMetrics with the Cartesian product of metric specs,
       // predicate groups, and time intervals.
       reportingMetrics +=
         timeIntervals.flatMap { timeInterval ->
-          metricCalculationSpec.metricSpecsList.flatMap { metricSpec ->
+          internalMetricCalculationSpec.details.metricSpecsList.flatMap { metricSpec ->
             groupingsCartesianProduct.map { groupingPredicates ->
               InternalReportKt.reportingMetric {
                 details =
                   InternalReportKt.ReportingMetricKt.details {
-                    this.externalReportingSetId = reportingSetId
                     this.metricSpec =
                       try {
-                        metricSpec.withDefaults(metricSpecConfig).toInternal()
+                        metricSpec.toMetricSpec().withDefaults(metricSpecConfig).toInternal()
                       } catch (e: MetricSpecDefaultsException) {
                         failGrpc(Status.INVALID_ARGUMENT) {
                           listOfNotNull("Invalid metric spec.", e.message, e.cause?.message)
@@ -672,27 +765,10 @@ class ReportsService(
                       }
                     this.timeInterval = timeInterval
                     this.groupingPredicates += groupingPredicates
-                    internalMetricSpecs += this.metricSpec
                   }
               }
             }
           }
-        }
-
-      details =
-        InternalReportKt.MetricCalculationSpecKt.details {
-          displayName = metricCalculationSpec.displayName
-          metricSpecs += internalMetricSpecs.distinct()
-          this.groupings +=
-            metricCalculationSpec.groupingsList.map { grouping ->
-              InternalReportKt.MetricCalculationSpecKt.grouping {
-                this.predicates += grouping.predicatesList
-              }
-            }
-          if (metricCalculationSpec.filter.isNotBlank()) {
-            filter = metricCalculationSpec.filter
-          }
-          cumulative = metricCalculationSpec.cumulative
         }
     }
   }
@@ -753,10 +829,8 @@ private fun inferReportState(metrics: Collection<Metric>): Report.State {
 private val InternalReport.externalMetricIds: List<String>
   get() =
     reportingMetricEntriesMap.flatMap { (_, reportingMetricCalculationSpec) ->
-      reportingMetricCalculationSpec.metricCalculationSpecsList.flatMap { metricCalculationSpec ->
-        metricCalculationSpec.reportingMetricsList.map { reportingMetric ->
-          reportingMetric.externalMetricId
-        }
+      reportingMetricCalculationSpec.metricCalculationSpecReportingMetricsList.flatMap {
+        it.reportingMetricsList.map { reportingMetric -> reportingMetric.externalMetricId }
       }
     }
 

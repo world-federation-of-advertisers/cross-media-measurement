@@ -21,6 +21,7 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer.Services
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementConsumersService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementsService
+import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMetricCalculationSpecsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMetricsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportsService
@@ -33,7 +34,8 @@ object PostgresServices {
       PostgresMeasurementsService(idGenerator, client),
       PostgresMetricsService(idGenerator, client),
       PostgresReportingSetsService(idGenerator, client),
-      PostgresReportsService(idGenerator, client)
+      PostgresReportsService(idGenerator, client),
+      PostgresMetricCalculationSpecsService(idGenerator, client),
     )
   }
 }

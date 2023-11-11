@@ -22,6 +22,7 @@ import kotlinx.coroutines.runInterruptible
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineImplBase
@@ -33,7 +34,8 @@ abstract class InternalReportingServer : Runnable {
     val measurementsService: MeasurementsCoroutineImplBase,
     val metricsService: MetricsCoroutineImplBase,
     val reportingSetsService: ReportingSetsCoroutineImplBase,
-    val reportsService: ReportsCoroutineImplBase
+    val reportsService: ReportsCoroutineImplBase,
+    val metricCalculationSpecsService: MetricCalculationSpecsCoroutineImplBase,
   )
 
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags

@@ -73,4 +73,10 @@ enum ErrorCode {
 
   /** Report Schedule Iteration state is not the right state for the op. */
   REPORT_SCHEDULE_ITERATION_STATE_INVALID = 17;
+
+  /** Metric Calculation Spec with the provided IDs does not exist. */
+  METRIC_CALCULATION_SPEC_NOT_FOUND = 18;
+
+  /** Metric Calculation Spec with same IDs already exists. */
+  METRIC_CALCULATION_SPEC_ALREADY_EXISTS = 19;
 }
