@@ -34,6 +34,7 @@ import kotlin.random.Random
 import kotlinx.coroutines.time.delay
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -428,7 +429,9 @@ class MeasurementConsumerSimulator(
           apiIdToExternalId(DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId)
         )
       assertThat(result.impression.customDirectMethodology)
-        .isEqualTo(customDirectMethodology { scalar = 0.0 })
+        .isEqualTo(
+          customDirectMethodology { variance = CustomDirectMethodologyKt.variance { scalar = 0.0 } }
+        )
       assertThat(result.impression.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
     }
     logger.info("Impression result is equal to the expected result")
@@ -457,7 +460,9 @@ class MeasurementConsumerSimulator(
         )
       // EdpSimulator hasn't had an implementation for watch duration.
       assertThat(result.watchDuration.customDirectMethodology)
-        .isEqualTo(customDirectMethodology { scalar = 0.0 })
+        .isEqualTo(
+          customDirectMethodology { variance = CustomDirectMethodologyKt.variance { scalar = 0.0 } }
+        )
       assertThat(result.watchDuration.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
     }
     logger.info("Duration result is equal to the expected result")

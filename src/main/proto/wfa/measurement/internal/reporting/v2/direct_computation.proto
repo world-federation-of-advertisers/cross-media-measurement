@@ -21,23 +21,57 @@ option java_multiple_files = true;
 
 // Information about the custom direct methodology.
 message CustomDirectMethodology {
-  // Different types of variances of a frequency distribution result.
-  message FrequencyVariances {
-    // The variances of a frequency distribution from frequency 1 to maximum
-    // frequency specified in the measurement spec.
-    map<int64, double> variances = 1;
-    // The variances of a k+ frequency distribution from frequency 1 to
-    // maximum frequency specified in the measurement spec.
-    map<int64, double> k_plus_variances = 2;
+  // The information about a variance.
+  message Variance {
+    // Different types of variances of a frequency distribution result.
+    message FrequencyVariances {
+      // The variances of a frequency distribution from frequency 1 to maximum
+      // frequency specified in the measurement spec.
+      map<int64, double> variances = 1;
+      // The variances of a k+ frequency distribution from frequency 1 to
+      // maximum frequency specified in the measurement spec.
+      //
+      // A K+ frequency distribution is derived from the frequency distribution
+      // by calculating the reach ratio of frequency K and above, i.e. reversed
+      // cumulative sum of the frequency distribution. For example, a frequency
+      // distribution {1: 0.4, 2: 0.3, 3: 0.2, 4:0.1, 5: 0.0} will have a K+
+      // frequency distribution {1: 1.0, 2: 0.6, 3: 0.3, 4:0.1, 5: 0.0}.
+      map<int64, double> k_plus_variances = 2;
+    }
+
+    // Information about lack of variance.
+    message Unavailable {
+      // Reason for a `Unavailable`.
+      enum Reason {
+        // Default value used if the reason is omitted.
+        //
+        // Used to capture unset reason which is invalid. This enum constant
+        // should never be set.
+        REASON_UNSPECIFIED = 0;
+        // When the variance is mathematically not derivable from a custom
+        // direct methodology.
+        UNDERIVABLE = 1;
+        // When the variance is obtained by upstream providers and not
+        // accessible.
+        INACCESSIBLE = 2;
+      }
+      // Reason for this `Unavailable`.
+      Reason reason = 1;
+    }
+
+    // The type of variance associated with a result. Required.
+    oneof type {
+      // The variance when the computation result is a scalar type.
+      double scalar = 1;
+      // The variance when the computation result is a frequency type.
+      FrequencyVariances frequency = 2;
+      // The variance is unavailable for a custom direct methodology.
+      Unavailable unavailable = 3;
+    }
   }
 
-  // The variance of the result computed from the custom direct methodology.
-  oneof variance {
-    // The variance when the result is a scalar type.
-    double scalar = 1;
-    // The variance when the result is a frequency type.
-    FrequencyVariances frequency = 2;
-  }
+  // The variance of the result computed from this custom direct methodology.
+  Variance variance = 1;
 }
 
 // Parameters used when applying the deterministic count distinct methodology.
