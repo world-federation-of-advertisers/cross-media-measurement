@@ -138,16 +138,15 @@ class ReportingSetReader(private val readContext: ReadContext) {
   ): Flow<Result> {
     val sql =
       StringBuilder(
-        baseSqlSelect +
-          """
-        FROM MeasurementConsumers
-          JOIN ReportingSets USING(MeasurementConsumerId)
-        """ +
-          baseSqlJoins +
-          """
-        WHERE CmmsMeasurementConsumerId = $1
-          AND ReportingSets.ExternalReportingSetId IN
         """
+          $baseSqlSelect
+          FROM MeasurementConsumers
+            JOIN ReportingSets USING(MeasurementConsumerId)
+          $baseSqlJoins
+          WHERE CmmsMeasurementConsumerId = $1
+            AND ReportingSets.ExternalReportingSetId IN
+        """
+          .trimIndent()
       )
 
     var i = 2
@@ -193,25 +192,25 @@ class ReportingSetReader(private val readContext: ReadContext) {
   fun readReportingSets(
     request: StreamReportingSetsRequest,
   ): Flow<Result> {
-    val statement =
-      boundStatement(
-        baseSqlSelect +
-          """
+    val sql =
+      """
+        $baseSqlSelect
         FROM (
-          SELECT *
-          FROM MeasurementConsumers
-            JOIN ReportingSets USING (MeasurementConsumerId)
-          WHERE CmmsMeasurementConsumerId = $1
-            AND ExternalReportingSetId > $2
-          ORDER BY ExternalReportingSetId ASC
-          LIMIT $3
-        ) AS ReportingSets
-      """ +
-          baseSqlJoins +
-          """
+            SELECT *
+            FROM MeasurementConsumers
+              JOIN ReportingSets USING (MeasurementConsumerId)
+            WHERE CmmsMeasurementConsumerId = $1
+              AND ExternalReportingSetId > $2
+            ORDER BY ExternalReportingSetId ASC
+            LIMIT $3
+          ) AS ReportingSets
+        $baseSqlJoins
         ORDER BY RootExternalReportingSetId ASC
-        """
-      ) {
+      """
+        .trimIndent()
+
+    val statement =
+      boundStatement(sql) {
         bind("$1", request.filter.cmmsMeasurementConsumerId)
         bind("$2", request.filter.externalReportingSetIdAfter)
         if (request.limit > 0) {

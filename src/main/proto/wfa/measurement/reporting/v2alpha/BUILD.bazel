@@ -56,6 +56,28 @@ kt_jvm_proto_library(
 )
 
 proto_library(
+    name = "metric_calculation_spec_proto",
+    srcs = ["metric_calculation_spec.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":metric_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+java_proto_library(
+    name = "metric_calculation_spec_java_proto",
+    deps = [":metric_calculation_spec_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "metric_calculation_spec_kt_jvm_proto",
+    srcs = [":metric_calculation_spec_proto"],
+    deps = [":metric_calculation_spec_java_proto"],
+)
+
+proto_library(
     name = "report_proto",
     srcs = ["report.proto"],
     strip_import_prefix = IMPORT_PREFIX,
@@ -220,6 +242,24 @@ proto_library(
 kt_jvm_grpc_proto_library(
     name = "metrics_service_kt_jvm_grpc_proto",
     srcs = [":metrics_service_proto"],
+)
+
+proto_library(
+    name = "metric_calculation_specs_service_proto",
+    srcs = ["metric_calculation_specs_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":metric_calculation_spec_proto",
+        "@com_google_googleapis//google/api:annotations_proto",
+        "@com_google_googleapis//google/api:client_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "metric_calculation_specs_service_kt_jvm_grpc_proto",
+    srcs = [":metric_calculation_specs_service_proto"],
 )
 
 proto_library(
