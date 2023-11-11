@@ -81,6 +81,22 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "PostgresMetricCalculationSpecsServiceTest",
+    srcs = ["PostgresMetricCalculationSpecsServiceTest.kt"],
+    tags = ["cpu:2"],
+    test_class = "org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMetricCalculationSpecsServiceTest",
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres:services",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal/testing/v2:testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
+    ],
+)
+
+kt_jvm_test(
     name = "PostgresReportSchedulesServiceTest",
     srcs = ["PostgresReportSchedulesServiceTest.kt"],
     tags = ["cpu:2"],

@@ -60,10 +60,7 @@ class ReportScheduleIterationsService(
 
     when (val principal: ReportingPrincipal = principalFromCurrentContext) {
       is MeasurementConsumerPrincipal -> {
-        if (
-          reportScheduleIterationKey.cmmsMeasurementConsumerId !=
-            principal.resourceKey.measurementConsumerId
-        ) {
+        if (reportScheduleIterationKey.parentKey.parentKey != principal.resourceKey) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot get ReportScheduleIteration belonging to other MeasurementConsumers."
           }
