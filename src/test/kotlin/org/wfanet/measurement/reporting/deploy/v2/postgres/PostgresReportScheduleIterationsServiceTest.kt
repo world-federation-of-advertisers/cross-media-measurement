@@ -36,6 +36,7 @@ class PostgresReportScheduleIterationsServiceTest :
       PostgresReportScheduleIterationsService(idGenerator, client),
       PostgresMeasurementConsumersService(idGenerator, client),
       PostgresReportingSetsService(idGenerator, client),
+      PostgresMetricCalculationSpecsService(idGenerator, client),
       PostgresReportSchedulesService(idGenerator, client),
     )
   }

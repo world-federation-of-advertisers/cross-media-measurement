@@ -78,18 +78,16 @@ class ReportScheduleIterationReader(private val readContext: ReadContext) {
     externalReportScheduleIterationId: String,
   ): Result? {
     val sql =
-      StringBuilder(
-        baseSql +
-          """
-           WHERE CmmsMeasurementConsumerId = $1
-           AND ExternalReportScheduleId = $2
+      """
+        $baseSql
+        WHERE CmmsMeasurementConsumerId = $1
+          AND ExternalReportScheduleId = $2
           AND ExternalReportScheduleIterationId = $3
-          """
-            .trimIndent()
-      )
+      """
+        .trimIndent()
 
     val statement =
-      boundStatement(sql.toString()) {
+      boundStatement(sql) {
         bind("$1", cmmsMeasurementConsumerId)
         bind("$2", externalReportScheduleId)
         bind("$3", externalReportScheduleIterationId)
@@ -102,20 +100,18 @@ class ReportScheduleIterationReader(private val readContext: ReadContext) {
     request: ListReportScheduleIterationsRequest
   ): List<Result> {
     val sql =
-      StringBuilder(
-        baseSql +
-          """
-           WHERE CmmsMeasurementConsumerId = $1
+      """
+        $baseSql
+        WHERE CmmsMeasurementConsumerId = $1
           AND ExternalReportScheduleId = $2
           AND ReportEventTime < $3
-          ORDER BY ReportEventTime DESC
-          LIMIT $4
-          """
-            .trimIndent()
-      )
+        ORDER BY ReportEventTime DESC
+        LIMIT $4
+      """
+        .trimIndent()
 
     val statement =
-      boundStatement(sql.toString()) {
+      boundStatement(sql) {
         bind("$1", request.filter.cmmsMeasurementConsumerId)
         bind("$2", request.filter.externalReportScheduleId)
         if (request.filter.hasReportEventTimeBefore()) {
