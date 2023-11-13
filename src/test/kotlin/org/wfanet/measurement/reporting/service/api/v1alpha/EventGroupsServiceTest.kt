@@ -50,8 +50,6 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testParen
 import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse as cmmsListEventGroupsResponse
-import org.wfanet.measurement.api.v2alpha.setMessage
-import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.crypto.tink.TinkPublicKeyHandle
@@ -101,7 +99,7 @@ private val CMMS_EVENT_GROUP = cmmsEventGroup {
   name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID"
   measurementConsumer = MEASUREMENT_CONSUMER_NAME
   eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
-  measurementConsumerPublicKey = signedMessage { setMessage(ENCRYPTION_PUBLIC_KEY.pack()) }
+  measurementConsumerPublicKey = ENCRYPTION_PUBLIC_KEY.pack()
   encryptedMetadata =
     encryptMetadata(
       CmmsEventGroup.metadata {
@@ -363,7 +361,7 @@ class EventGroupsServiceTest {
       name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID"
       measurementConsumer = MEASUREMENT_CONSUMER_NAME
       eventGroupReferenceId = "id1"
-      measurementConsumerPublicKey = signedMessage { setMessage(ENCRYPTION_PUBLIC_KEY.pack()) }
+      measurementConsumerPublicKey = ENCRYPTION_PUBLIC_KEY.pack()
       encryptedMetadata =
         encryptMetadata(
           CmmsEventGroup.metadata {
@@ -405,9 +403,8 @@ class EventGroupsServiceTest {
       name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID"
       measurementConsumer = MEASUREMENT_CONSUMER_NAME
       eventGroupReferenceId = "id1"
-      measurementConsumerPublicKey = signedMessage {
-        setMessage(encryptionPublicKey { data = ByteString.copyFromUtf8("consumerkey") }.pack())
-      }
+      measurementConsumerPublicKey =
+        encryptionPublicKey { data = ByteString.copyFromUtf8("consumerkey") }.pack()
       encryptedMetadata =
         encryptMetadata(
           CmmsEventGroup.metadata {

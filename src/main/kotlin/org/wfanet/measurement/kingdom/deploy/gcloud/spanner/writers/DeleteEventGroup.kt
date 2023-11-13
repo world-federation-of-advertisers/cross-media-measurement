@@ -64,7 +64,6 @@ class DeleteEventGroup(private val request: DeleteEventGroupRequest) :
     }
 
     return result.eventGroup.copy {
-      this.externalMeasurementConsumerCertificateId = 0L
       this.state = EventGroup.State.DELETED
       clearDetails()
     }

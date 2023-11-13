@@ -946,19 +946,12 @@ fun DataProviderValue.toDataProviderEntryValue(
           externalIdToApiId(externalDataProviderCertificateId)
         )
         .toName()
-    dataProviderPublicKey = signedMessage {
-      setMessage(
-        value =
-          any {
-            value = dataProviderValue.dataProviderPublicKey
-            typeUrl =
-              when (apiVersion) {
-                Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EncryptionPublicKey.getDescriptor())
-              }
-          }
-      )
-      signature = dataProviderPublicKeySignature
-      signatureAlgorithmOid = dataProviderPublicKeySignatureAlgorithmOid
+    dataProviderPublicKey = any {
+      value = dataProviderValue.dataProviderPublicKey
+      typeUrl =
+        when (apiVersion) {
+          Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EncryptionPublicKey.getDescriptor())
+        }
     }
     encryptedRequisitionSpec = encryptedMessage {
       ciphertext = dataProviderValue.encryptedRequisitionSpec

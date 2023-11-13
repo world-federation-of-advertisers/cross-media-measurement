@@ -53,8 +53,6 @@ import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsRespo
 import org.wfanet.measurement.api.v2alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
-import org.wfanet.measurement.api.v2alpha.setMessage
-import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.base64UrlEncode
@@ -595,9 +593,7 @@ class EventGroupsServiceTest {
       name = CMMS_EVENT_GROUP_NAME
       measurementConsumer = MEASUREMENT_CONSUMER_NAME
       eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
-      measurementConsumerPublicKey = signedMessage {
-        setMessage(ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey().pack())
-      }
+      measurementConsumerPublicKey = ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey().pack()
       eventTemplates += CmmsEventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
       encryptedMetadata =
         encryptMetadata(
@@ -618,9 +614,7 @@ class EventGroupsServiceTest {
       name = CMMS_EVENT_GROUP_NAME_2
       measurementConsumer = MEASUREMENT_CONSUMER_NAME
       eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID_2
-      measurementConsumerPublicKey = signedMessage {
-        setMessage(ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey().pack())
-      }
+      measurementConsumerPublicKey = ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey().pack()
       eventTemplates += CmmsEventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
       encryptedMetadata =
         encryptMetadata(

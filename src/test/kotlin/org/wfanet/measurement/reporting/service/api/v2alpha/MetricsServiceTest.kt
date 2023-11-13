@@ -615,7 +615,7 @@ private val DATA_PROVIDER_ENTRIES =
       value =
         MeasurementKt.DataProviderEntryKt.value {
           dataProviderCertificate = dataProvider.certificate
-          dataProviderPublicKey = dataProvider.publicKey
+          dataProviderPublicKey = dataProvider.publicKey.message
           encryptedRequisitionSpec =
             encryptRequisitionSpec(
               signRequisitionSpec(requisitionSpec, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE),

@@ -891,11 +891,14 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             }
             details = details {
               dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
+              encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
+              nonceHash = dataProviderValue.nonceHash
+
+              // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting
+              // these fields.
               dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
               dataProviderPublicKeySignatureAlgorithmOid =
                 dataProviderValue.dataProviderPublicKeySignatureAlgorithmOid
-              encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
-              nonceHash = dataProviderValue.nonceHash
             }
             duchies[Population.AGGREGATOR_DUCHY.externalDuchyId] =
               Requisition.DuchyValue.getDefaultInstance()

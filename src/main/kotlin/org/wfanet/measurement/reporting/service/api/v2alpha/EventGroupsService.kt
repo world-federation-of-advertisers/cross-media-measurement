@@ -17,6 +17,7 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.DynamicMessage
+import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
 import java.security.GeneralSecurityException

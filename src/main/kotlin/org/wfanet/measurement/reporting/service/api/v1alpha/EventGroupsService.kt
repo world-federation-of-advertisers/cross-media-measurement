@@ -15,6 +15,7 @@
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import com.google.protobuf.DynamicMessage
+import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
 import java.security.GeneralSecurityException
@@ -28,7 +29,6 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey as CmmsMeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
-import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle

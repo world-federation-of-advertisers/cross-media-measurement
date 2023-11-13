@@ -29,7 +29,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementCo
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.checkValidCertificate as checkValidCertificate
 
 /**
  * Creates a EventGroup in the database
@@ -63,27 +62,16 @@ class CreateEventGroup(private val request: CreateEventGroupRequest) :
     return createNewEventGroup(dataProviderId, measurementConsumerId)
   }
 
-  private suspend fun TransactionScope.createNewEventGroup(
+  private fun TransactionScope.createNewEventGroup(
     dataProviderId: InternalId,
     measurementConsumerId: InternalId
   ): EventGroup {
     val internalEventGroupId: InternalId = idGenerator.generateInternalId()
     val externalEventGroupId: ExternalId = idGenerator.generateExternalId()
-    val measurementConsumerCertificateId =
-      if (request.eventGroup.externalMeasurementConsumerCertificateId > 0L)
-        checkValidCertificate(
-          request.eventGroup.externalMeasurementConsumerCertificateId,
-          request.eventGroup.externalMeasurementConsumerId,
-          transactionContext
-        )
-      else null
     transactionContext.bufferInsertMutation("EventGroups") {
       set("EventGroupId" to internalEventGroupId)
       set("ExternalEventGroupId" to externalEventGroupId)
       set("MeasurementConsumerId" to measurementConsumerId)
-      if (measurementConsumerCertificateId != null) {
-        set("MeasurementConsumerCertificateId" to measurementConsumerCertificateId)
-      }
       set("DataProviderId" to dataProviderId)
       if (request.requestId.isNotEmpty()) {
         set("CreateRequestId" to request.requestId)

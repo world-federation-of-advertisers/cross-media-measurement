@@ -25,7 +25,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNot
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.checkValidCertificate as checkValidCertificate
 
 /**
  * Update [EventGroup] in the database.
@@ -60,15 +59,6 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
         ExternalId(eventGroup.externalMeasurementConsumerId)
       )
     }
-    val measurementConsumerCertificateId =
-      if (eventGroup.externalMeasurementConsumerCertificateId > 0L)
-        checkValidCertificate(
-            eventGroup.externalMeasurementConsumerCertificateId,
-            eventGroup.externalMeasurementConsumerId,
-            transactionContext
-          )
-          .value
-      else null
     val providedEventGroupId =
       if (eventGroup.providedEventGroupId.isNotBlank()) {
         eventGroup.providedEventGroupId
@@ -77,7 +67,6 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
     transactionContext.bufferUpdateMutation("EventGroups") {
       set("DataProviderId" to internalEventGroupResult.internalDataProviderId.value)
       set("EventGroupId" to internalEventGroupResult.internalEventGroupId.value)
-      set("MeasurementConsumerCertificateId" to measurementConsumerCertificateId)
       set("ProvidedEventGroupId" to providedEventGroupId)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("EventGroupDetails" to eventGroup.details)

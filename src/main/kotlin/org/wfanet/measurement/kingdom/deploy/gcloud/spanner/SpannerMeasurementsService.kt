@@ -97,9 +97,6 @@ class SpannerMeasurementsService(
       grpcRequire(!dataProvider.dataProviderPublicKey.isEmpty) {
         "data_provider_public_key unspecified for ${ExternalId(externalDataProviderId)}"
       }
-      grpcRequire(!dataProvider.dataProviderPublicKeySignature.isEmpty) {
-        "data_provider_public_key_signature unspecified for ${ExternalId(externalDataProviderId)}"
-      }
       grpcRequire(!dataProvider.encryptedRequisitionSpec.isEmpty) {
         "encrypted_requisition_spec unspecified for ${ExternalId(externalDataProviderId)}"
       }

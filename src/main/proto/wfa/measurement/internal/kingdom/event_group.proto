@@ -28,7 +28,7 @@ message EventGroup {
   fixed64 external_event_group_id = 2;
 
   fixed64 external_measurement_consumer_id = 3;
-  fixed64 external_measurement_consumer_certificate_id = 4;
+  fixed64 external_measurement_consumer_certificate_id = 4 [deprecated = true];
 
   // Reference ID provided by the Data Provider.
   string provided_event_group_id = 5;
@@ -42,8 +42,9 @@ message EventGroup {
 
     // Serialized `EncryptionPublicKey` message from the public API.
     bytes measurement_consumer_public_key = 2;
-    bytes measurement_consumer_public_key_signature = 3;
-    string measurement_consumer_public_key_signature_algorithm_oid = 7;
+    bytes measurement_consumer_public_key_signature = 3 [deprecated = true];
+    string measurement_consumer_public_key_signature_algorithm_oid = 7
+        [deprecated = true];
 
     // The set of VID model lines used to label events in this Event Group.
     repeated string vid_model_lines = 4;

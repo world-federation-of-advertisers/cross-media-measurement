@@ -398,10 +398,13 @@ private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
     dataProviders[externalDataProviderId] = dataProviderValue {
       this.externalDataProviderCertificateId = externalDataProviderCertificateId
       dataProviderPublicKey = requisitionDetails.dataProviderPublicKey
+      encryptedRequisitionSpec = requisitionDetails.encryptedRequisitionSpec
+
+      // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting these
+      // fields.
       dataProviderPublicKeySignature = requisitionDetails.dataProviderPublicKeySignature
       dataProviderPublicKeySignatureAlgorithmOid =
         requisitionDetails.dataProviderPublicKeySignatureAlgorithmOid
-      encryptedRequisitionSpec = requisitionDetails.encryptedRequisitionSpec
     }
 
     if (measurementSucceeded && !requisitionDetails.encryptedData.isEmpty) {

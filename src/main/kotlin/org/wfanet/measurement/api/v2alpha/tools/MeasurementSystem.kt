@@ -651,7 +651,7 @@ class CreateMeasurement : Runnable {
       value =
         DataProviderEntries.value {
           dataProviderCertificate = dataProvider.certificate
-          dataProviderPublicKey = dataProvider.publicKey
+          dataProviderPublicKey = dataProvider.publicKey.message
           encryptedRequisitionSpec =
             encryptRequisitionSpec(
               signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
@@ -700,7 +700,7 @@ class CreateMeasurement : Runnable {
       value =
         DataProviderEntries.value {
           dataProviderCertificate = dataProvider.certificate
-          dataProviderPublicKey = dataProvider.publicKey
+          dataProviderPublicKey = dataProvider.publicKey.message
           encryptedRequisitionSpec =
             encryptRequisitionSpec(
               signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),

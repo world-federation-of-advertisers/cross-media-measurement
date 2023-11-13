@@ -1222,7 +1222,7 @@ class ReportsService(
         value =
           DataProviderEntryKt.value {
             dataProviderCertificate = dataProviderInfo.certificateName
-            dataProviderPublicKey = dataProviderInfo.publicKey
+            dataProviderPublicKey = dataProviderInfo.publicKey.message
             this.encryptedRequisitionSpec = encryptRequisitionSpec
             nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
           }

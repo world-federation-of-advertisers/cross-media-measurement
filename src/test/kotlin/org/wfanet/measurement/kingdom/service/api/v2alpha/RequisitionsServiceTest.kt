@@ -1016,13 +1016,12 @@ class RequisitionsServiceTest {
             externalIdToApiId(INTERNAL_REQUISITION.dataProviderCertificate.externalCertificateId)
           )
           .toName()
-      dataProviderPublicKey = signedMessage {
-        setMessage(PACKED_DATA_PROVIDER_PUBLIC_KEY)
-        signature = INTERNAL_REQUISITION.details.dataProviderPublicKeySignature
-        signatureAlgorithmOid =
-          INTERNAL_REQUISITION.details.dataProviderPublicKeySignatureAlgorithmOid
-      }
+      dataProviderPublicKey = PACKED_DATA_PROVIDER_PUBLIC_KEY
       encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
+
+      // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
+      // field.
+      signedDataProviderPublicKey = signedMessage { setMessage(PACKED_DATA_PROVIDER_PUBLIC_KEY) }
 
       duchies += duchyEntry {
         key = DUCHY_ID
