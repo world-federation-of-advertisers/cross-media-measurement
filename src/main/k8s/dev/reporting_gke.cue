@@ -42,6 +42,7 @@ _reportingMcConfigSecretName: string @tag("mc_config_secret_name")
 objectSets: [
 	default_deny_ingress_and_egress,
 	reporting.serviceAccounts,
+	reporting.configMaps,
 	reporting.deployments,
 	reporting.services,
 	reporting.networkPolicies,
@@ -65,6 +66,8 @@ reporting: #Reporting & {
 			_iamServiceAccountName: "reporting-internal"
 		}
 	}
+
+	configMaps: "java": #JavaConfigMap
 
 	deployments: {
 		"postgres-reporting-data-server": {
