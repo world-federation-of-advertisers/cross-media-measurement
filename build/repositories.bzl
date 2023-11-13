@@ -41,10 +41,8 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_measurement_proto",
         repo = "cross-media-measurement-api",
-        #TDOD(tristanvuong2021): DO NOT SUBMIT
-        sha256 = "f6add3c1966f7a9fa1b77909c5b661ae14ca82f02c6e5ad051a9dd6d5ddd41a2",
-        #version = "0.48.0",
-        commit = "6ff16d8710d367641893b8b479944f18bfbdc599",
+        sha256 = "00085554004989f970bdf8f963d381bf9978a34fb5d119e94ef505a182470b48",
+        version = "0.50.0",
     )
 
     wfa_repo_archive(
