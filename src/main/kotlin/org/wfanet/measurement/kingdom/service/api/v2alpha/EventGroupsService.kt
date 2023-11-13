@@ -19,6 +19,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.any
 import com.google.protobuf.kotlin.unpack
+import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.math.min
@@ -259,6 +260,23 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
           .asRuntimeException()
       }
     }
+
+    if (requestEventGroup.hasDataAvailabilityInterval()) {
+      grpcRequire(requestEventGroup.dataAvailabilityInterval.startTime.seconds > 0) {
+        "start_time required in data_availability_interval"
+      }
+
+      if (requestEventGroup.dataAvailabilityInterval.hasEndTime()) {
+        grpcRequire(
+          Timestamps.compare(
+            requestEventGroup.dataAvailabilityInterval.startTime,
+            requestEventGroup.dataAvailabilityInterval.endTime
+          ) < 0
+        ) {
+          "data_availability_interval start_time must be before end_time"
+        }
+      }
+    }
   }
 
   override suspend fun deleteEventGroup(request: DeleteEventGroupRequest): EventGroup {
@@ -416,9 +434,7 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
                 ApiId(dataProviderKey.dataProviderId).externalId.value
               }
           }
-          if (showDeleted) {
-            this.showDeleted = showDeleted
-          }
+          this.showDeleted = showDeleted
           if (pageToken != null) {
             if (
               pageToken.externalDataProviderId != externalDataProviderId ||
@@ -498,6 +514,9 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
             }
         }
       }
+      if (details.hasDataAvailabilityInterval()) {
+        dataAvailabilityInterval = details.dataAvailabilityInterval
+      }
     }
     state = this@toEventGroup.state.toV2Alpha()
   }
@@ -541,6 +560,9 @@ private fun EventGroup.toInternal(
         }
       )
       encryptedMetadata = source.encryptedMetadata.ciphertext
+      if (source.hasDataAvailabilityInterval()) {
+        dataAvailabilityInterval = source.dataAvailabilityInterval
+      }
     }
   }
 }

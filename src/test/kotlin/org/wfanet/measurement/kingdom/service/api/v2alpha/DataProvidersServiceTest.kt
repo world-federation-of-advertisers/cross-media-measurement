@@ -18,6 +18,8 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
+import com.google.protobuf.timestamp
+import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.security.cert.X509Certificate
@@ -29,10 +31,13 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DuchyKey
+import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
+import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.setMessage
 import org.wfanet.measurement.api.v2alpha.signedMessage
@@ -57,8 +62,10 @@ import org.wfanet.measurement.internal.kingdom.DataProviderKt.details
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as InternalDataProvidersService
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersClient
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
+import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest as internalGetDataProviderRequest
+import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalRequest as internalReplaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest as internalReplaceDataProviderRequiredDuchiesRequest
 
 private const val DATA_PROVIDER_ID = 123L
@@ -80,6 +87,7 @@ class DataProvidersServiceTest {
   private val internalServiceMock: InternalDataProvidersService = mockService {
     onBlocking { getDataProvider(any()) }.thenReturn(INTERNAL_DATA_PROVIDER)
     onBlocking { replaceDataProviderRequiredDuchies(any()) }.thenReturn(INTERNAL_DATA_PROVIDER)
+    onBlocking { replaceDataAvailabilityInterval(any()) }.thenReturn(INTERNAL_DATA_PROVIDER)
   }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalServiceMock) }
@@ -325,6 +333,200 @@ class DataProvidersServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
+  @Test
+  fun `replaceDataAvailabilityInterval returns data provider`() {
+    val newDataAvailabilityInterval = interval {
+      startTime = timestamp { seconds = 300 }
+      endTime = timestamp { seconds = 500 }
+    }
+
+    runBlocking {
+      whenever(internalServiceMock.replaceDataAvailabilityInterval(any()))
+        .thenReturn(
+          INTERNAL_DATA_PROVIDER.copy {
+            details =
+              INTERNAL_DATA_PROVIDER.details.copy {
+                dataAvailabilityInterval = newDataAvailabilityInterval
+              }
+          }
+        )
+    }
+
+    val dataProvider =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking {
+          service.replaceDataAvailabilityInterval(
+            replaceDataAvailabilityIntervalRequest {
+              name = DATA_PROVIDER_NAME
+              dataAvailabilityInterval = newDataAvailabilityInterval
+            }
+          )
+        }
+      }
+
+    assertThat(dataProvider)
+      .isEqualTo(DATA_PROVIDER.copy { dataAvailabilityInterval = newDataAvailabilityInterval })
+
+    verifyProtoArgument(
+        internalServiceMock,
+        InternalDataProvidersService::replaceDataAvailabilityInterval
+      )
+      .isEqualTo(
+        internalReplaceDataAvailabilityIntervalRequest {
+          externalDataProviderId = DATA_PROVIDER_ID
+          dataAvailabilityInterval = newDataAvailabilityInterval
+        }
+      )
+  }
+
+  @Test
+  fun `replaceDataAvailabilityInterval throws INVALID_ARGUMENT when name is invalid`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.replaceDataAvailabilityInterval(
+              replaceDataAvailabilityIntervalRequest {
+                name = "foo"
+                dataAvailabilityInterval = DATA_PROVIDER.dataAvailabilityInterval
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `replaceDataAvailabilityInterval throws INVALID_ARGUMENT when start_time missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.replaceDataAvailabilityInterval(
+              replaceDataAvailabilityIntervalRequest {
+                name = DATA_PROVIDER_NAME
+                dataAvailabilityInterval = interval { endTime = timestamp { seconds = 500 } }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("Both")
+  }
+
+  @Test
+  fun `replaceDataAvailabilityInterval throws INVALID_ARGUMENT when end_time missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.replaceDataAvailabilityInterval(
+              replaceDataAvailabilityIntervalRequest {
+                name = DATA_PROVIDER_NAME
+                dataAvailabilityInterval = interval { startTime = timestamp { seconds = 300 } }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("Both")
+  }
+
+  @Test
+  fun `replaceDataAvailabilityInterval throws INVALID_ARGUMENT when end_time invalid`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.replaceDataAvailabilityInterval(
+              replaceDataAvailabilityIntervalRequest {
+                name = DATA_PROVIDER_NAME
+                dataAvailabilityInterval = interval {
+                  startTime = timestamp { seconds = 300 }
+                  endTime = timestamp { seconds = 200 }
+                }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("before")
+  }
+
+  @Test
+  fun `replaceDataAvailabilityInterval throws UNAUTHENTICATED when no principal found`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.replaceDataAvailabilityInterval(
+            replaceDataAvailabilityIntervalRequest {
+              name = DATA_PROVIDER_NAME
+              dataAvailabilityInterval = DATA_PROVIDER.dataAvailabilityInterval
+            }
+          )
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `replaceDataAvailabilityInterval throws PERMISSION_DENIED when edp caller doesn't match`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME_2) {
+          runBlocking {
+            service.replaceDataAvailabilityInterval(
+              replaceDataAvailabilityIntervalRequest {
+                name = DATA_PROVIDER_NAME
+                dataAvailabilityInterval = DATA_PROVIDER.dataAvailabilityInterval
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `replaceDataAvailabilityInterval throws PERMISSION_DENIED when mc caller`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.replaceDataAvailabilityInterval(
+              replaceDataAvailabilityIntervalRequest {
+                name = DATA_PROVIDER_NAME
+                dataAvailabilityInterval = DATA_PROVIDER.dataAvailabilityInterval
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `replaceDataAvailabilityInterval throws PERMISSION_DENIED when model provider caller`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking {
+            service.replaceDataAvailabilityInterval(
+              replaceDataAvailabilityIntervalRequest {
+                name = DATA_PROVIDER_NAME
+                dataAvailabilityInterval = DATA_PROVIDER.dataAvailabilityInterval
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
   companion object {
     private val API_VERSION = Version.V2_ALPHA
 
@@ -347,6 +549,10 @@ class DataProvidersServiceTest {
         publicKey = SIGNED_PUBLIC_KEY.message.value
         publicKeySignature = SIGNED_PUBLIC_KEY.signature
         publicKeySignatureAlgorithmOid = SIGNED_PUBLIC_KEY.signatureAlgorithmOid
+        dataAvailabilityInterval = interval {
+          startTime = timestamp { seconds = 100 }
+          endTime = timestamp { seconds = 200 }
+        }
       }
       certificate = internalCertificate {
         externalDataProviderId = DATA_PROVIDER_ID
@@ -365,6 +571,7 @@ class DataProvidersServiceTest {
       certificateDer = SERVER_CERTIFICATE_DER
       publicKey = SIGNED_PUBLIC_KEY
       requiredDuchies += DUCHY_NAMES
+      dataAvailabilityInterval = INTERNAL_DATA_PROVIDER.details.dataAvailabilityInterval
     }
   }
 }
