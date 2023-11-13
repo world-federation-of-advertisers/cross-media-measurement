@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.any
+import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
 import org.wfanet.measurement.api.Version
@@ -29,6 +30,7 @@ import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.ReplaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.api.v2alpha.ReplaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
@@ -36,12 +38,14 @@ import org.wfanet.measurement.api.v2alpha.setMessage
 import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
+import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest
 
 class DataProvidersService(private val internalClient: DataProvidersCoroutineStub) :
@@ -98,14 +102,10 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
         duchyKey.duchyId
       }
 
-    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
-      is DataProviderPrincipal -> {
-        if (principal.resourceKey.dataProviderId != key.dataProviderId) {
-          failGrpc(Status.PERMISSION_DENIED) { "Cannot update other DataProviders" }
-        }
-      }
-      else -> {
-        failGrpc(Status.PERMISSION_DENIED) { "Only a DataProvider can update a DataProvider" }
+    val principal: MeasurementPrincipal = principalFromCurrentContext
+    if (principal.resourceKey != key) {
+      failGrpc(Status.PERMISSION_DENIED) {
+        "Permission for method replaceDataProviderRequiredDuchies denied on resource $request.name"
       }
     }
 
@@ -122,6 +122,58 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
           Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "DataProvider not found" }
           else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
         }
+      }
+    return internalDataProvider.toDataProvider()
+  }
+
+  override suspend fun replaceDataAvailabilityInterval(
+    request: ReplaceDataAvailabilityIntervalRequest
+  ): DataProvider {
+    val key: DataProviderKey =
+      grpcRequireNotNull(DataProviderKey.fromName(request.name)) {
+        "Resource name unspecified or invalid"
+      }
+
+    val principal: MeasurementPrincipal = principalFromCurrentContext
+    if (principal.resourceKey != key) {
+      failGrpc(Status.PERMISSION_DENIED) {
+        "Permission for method replaceDataAvailabilityInterval denied on resource $request.name"
+      }
+    }
+
+    grpcRequire(
+      request.dataAvailabilityInterval.startTime.seconds > 0 &&
+        request.dataAvailabilityInterval.endTime.seconds > 0
+    ) {
+      "Both start_time and end_time are required in data_availability_interval"
+    }
+
+    grpcRequire(
+      Timestamps.compare(
+        request.dataAvailabilityInterval.startTime,
+        request.dataAvailabilityInterval.endTime
+      ) < 0
+    ) {
+      "data_availability_interval start_time must be before end_time"
+    }
+
+    val internalDataProvider: InternalDataProvider =
+      try {
+        internalClient.replaceDataAvailabilityInterval(
+          replaceDataAvailabilityIntervalRequest {
+            externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+            dataAvailabilityInterval = request.dataAvailabilityInterval
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            Status.Code.CANCELLED -> Status.CANCELLED
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("DataProvider not found")
+            else -> Status.UNKNOWN
+          }
+          .withCause(e)
+          .asRuntimeException()
       }
     return internalDataProvider.toDataProvider()
   }
@@ -151,5 +203,6 @@ private fun InternalDataProvider.toDataProvider(): DataProvider {
       signatureAlgorithmOid = source.details.publicKeySignatureAlgorithmOid
     }
     requiredDuchies += source.requiredExternalDuchyIdsList.map { DuchyKey(it).toName() }
+    dataAvailabilityInterval = source.details.dataAvailabilityInterval
   }
 }

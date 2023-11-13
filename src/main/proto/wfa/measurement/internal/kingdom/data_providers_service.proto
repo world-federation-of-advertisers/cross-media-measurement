@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
+import "google/type/interval.proto";
 import "wfa/measurement/internal/kingdom/data_provider.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
@@ -29,6 +30,9 @@ service DataProviders {
 
   rpc ReplaceDataProviderRequiredDuchies(
       ReplaceDataProviderRequiredDuchiesRequest) returns (DataProvider);
+
+  rpc ReplaceDataAvailabilityInterval(ReplaceDataAvailabilityIntervalRequest)
+      returns (DataProvider);
 }
 
 message ReplaceDataProviderRequiredDuchiesRequest {
@@ -38,4 +42,9 @@ message ReplaceDataProviderRequiredDuchiesRequest {
 
 message GetDataProviderRequest {
   fixed64 external_data_provider_id = 1;
+}
+
+message ReplaceDataAvailabilityIntervalRequest {
+  fixed64 external_data_provider_id = 1;
+  google.type.Interval data_availability_interval = 2;
 }

@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
+import "google/type/interval.proto";
 import "wfa/measurement/internal/kingdom/certificate.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
@@ -37,6 +38,8 @@ message DataProvider {
     bytes public_key = 2;
     bytes public_key_signature = 3;
     string public_key_signature_algorithm_oid = 4;
+
+    google.type.Interval data_availability_interval = 5;
   }
   Details details = 3;
 

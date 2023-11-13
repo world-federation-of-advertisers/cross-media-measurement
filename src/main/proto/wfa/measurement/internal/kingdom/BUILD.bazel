@@ -54,7 +54,10 @@ proto_and_java_proto_library(
 
 proto_and_java_proto_library(
     name = "data_provider",
-    deps = [":certificate_proto"],
+    deps = [
+        ":certificate_proto",
+        "@com_google_googleapis//google/type:interval_proto",
+    ],
 )
 
 proto_and_java_proto_library(
@@ -84,6 +87,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":data_provider_proto",
+        "@com_google_googleapis//google/type:interval_proto",
     ],
 )
 
@@ -193,6 +197,7 @@ proto_and_java_proto_library(
     name = "event_group",
     deps = [
         ":event_template_proto",
+        "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
