@@ -10,7 +10,7 @@ package(
 kt_jvm_library(
     name = "simulator",
     srcs = [
-        "PanelMatchCorectnessTestDataProvider.kt",
+        "PanelMatchCorrectnessTestInputProvider.kt",
         "PanelMatchSimulator.kt",
     ],
     deps = [

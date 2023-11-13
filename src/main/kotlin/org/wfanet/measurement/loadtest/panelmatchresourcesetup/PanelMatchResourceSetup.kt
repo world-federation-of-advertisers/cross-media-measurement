@@ -103,7 +103,6 @@ class PanelMatchResourceSetup(
     val resources = mutableListOf<Resources.Resource>()
 
     val externalDataProviderId = createDataProvider(dataProviderContent)
-    dataProviderId = externalDataProviderId
     logger.info("Successfully created data provider: ${externalDataProviderId}")
 
     val dataProviderKey = DataProviderKey(externalIdToApiId(externalDataProviderId))
@@ -122,7 +121,6 @@ class PanelMatchResourceSetup(
 
     val externalModelProviderId = createModelProvider()
     val modelProviderKey = ModelProviderKey(externalIdToApiId(externalModelProviderId))
-    modelProviderId = externalModelProviderId
     if (modelProviderContent != null) {
       resources.add(
         resource {
@@ -315,8 +313,6 @@ class PanelMatchResourceSetup(
     const val RESOURCES_OUTPUT_FILE = "resources.textproto"
     const val AKID_PRINCIPAL_MAP_FILE = "authority_key_identifier_to_principal_map.textproto"
     const val BAZEL_RC_FILE = "resource-setup.bazelrc"
-    var dataProviderId: Long = 0L
-    var modelProviderId: Long = 0L
   }
 }
 

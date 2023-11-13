@@ -35,6 +35,8 @@ import org.wfanet.measurement.api.v2alpha.ExchangesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepsRequestKt
 import org.wfanet.measurement.api.v2alpha.getExchangeRequest
 import org.wfanet.measurement.api.v2alpha.listExchangeStepsRequest
+import org.wfanet.measurement.common.crypto.PrivateKeyHandle
+import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
@@ -43,7 +45,7 @@ import org.wfanet.measurement.internal.kingdom.createRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.recurringExchange
 import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
 import org.wfanet.measurement.kingdom.service.api.v2alpha.toInternal
-import org.wfanet.measurement.loadtest.panelmatch.PanelMatchCorectnessTestDataProvider.HKDF_PEPPER
+import org.wfanet.measurement.loadtest.panelmatch.PanelMatchCorrectnessTestInputProvider.HKDF_PEPPER
 import org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourceSetup
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
@@ -54,8 +56,14 @@ import org.wfanet.panelmatch.common.parseDelimitedMessages
 import org.wfanet.panelmatch.common.storage.toByteString
 import org.wfanet.panelmatch.integration.testing.parsePlaintextResults
 
+data class EntitiesData(
+  val externalDataProviderId: Long,
+  val externalModelProviderId: Long,
+)
+
 /** Simulator for PanelMatch flows. */
 class PanelMatchSimulator(
+  private val entitiesData: EntitiesData,
   private val recurringExchangeClient: RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub,
   private val exchangeClient: ExchangesGrpcKt.ExchangesCoroutineStub,
   private val exchangeStepsClient: ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub,
@@ -85,12 +93,12 @@ class PanelMatchSimulator(
 
   suspend fun executeDoubleBlindExchangeWorkflow(workflow: ExchangeWorkflow) {
     val initialDataProviderInputs =
-      PanelMatchCorectnessTestDataProvider.getInitialDataProviderInputsForTestType(
-        PanelMatchCorectnessTestDataProvider.TestType.DOUBLE_BLIND
+      PanelMatchCorrectnessTestInputProvider.getInitialDataProviderInputsForTestType(
+        PanelMatchCorrectnessTestInputProvider.TestType.DOUBLE_BLIND
       )
     val initialModelProviderInputs =
-      PanelMatchCorectnessTestDataProvider.getInitialModelProviderInputsForTestType(
-        PanelMatchCorectnessTestDataProvider.TestType.DOUBLE_BLIND
+      PanelMatchCorrectnessTestInputProvider.getInitialModelProviderInputsForTestType(
+        PanelMatchCorrectnessTestInputProvider.TestType.DOUBLE_BLIND
       )
 
     setupWorkflow(workflow, initialDataProviderInputs, initialModelProviderInputs)
@@ -103,12 +111,12 @@ class PanelMatchSimulator(
 
   suspend fun executeFullWithPreprocessingWorkflow(workflow: ExchangeWorkflow) {
     val initialDataProviderInputs =
-      PanelMatchCorectnessTestDataProvider.getInitialDataProviderInputsForTestType(
-        PanelMatchCorectnessTestDataProvider.TestType.FULL_WITH_PREPROCESSING
+      PanelMatchCorrectnessTestInputProvider.getInitialDataProviderInputsForTestType(
+        PanelMatchCorrectnessTestInputProvider.TestType.FULL_WITH_PREPROCESSING
       )
     val initialModelProviderInputs =
-      PanelMatchCorectnessTestDataProvider.getInitialModelProviderInputsForTestType(
-        PanelMatchCorectnessTestDataProvider.TestType.FULL_WITH_PREPROCESSING
+      PanelMatchCorrectnessTestInputProvider.getInitialModelProviderInputsForTestType(
+        PanelMatchCorrectnessTestInputProvider.TestType.FULL_WITH_PREPROCESSING
       )
 
     setupWorkflow(workflow, initialDataProviderInputs, initialModelProviderInputs)
@@ -131,12 +139,12 @@ class PanelMatchSimulator(
 
   suspend fun executeMiniWorkflow(workflow: ExchangeWorkflow) {
     val initialDataProviderInputs =
-      PanelMatchCorectnessTestDataProvider.getInitialDataProviderInputsForTestType(
-        PanelMatchCorectnessTestDataProvider.TestType.MINI_EXCHANGE
+      PanelMatchCorrectnessTestInputProvider.getInitialDataProviderInputsForTestType(
+        PanelMatchCorrectnessTestInputProvider.TestType.MINI_EXCHANGE
       )
     val initialModelProviderInputs =
-      PanelMatchCorectnessTestDataProvider.getInitialModelProviderInputsForTestType(
-        PanelMatchCorectnessTestDataProvider.TestType.MINI_EXCHANGE
+      PanelMatchCorrectnessTestInputProvider.getInitialModelProviderInputsForTestType(
+        PanelMatchCorrectnessTestInputProvider.TestType.MINI_EXCHANGE
       )
 
     setupWorkflow(workflow, initialDataProviderInputs, initialModelProviderInputs)
@@ -158,8 +166,8 @@ class PanelMatchSimulator(
         .createRecurringExchange(
           createRecurringExchangeRequest {
             recurringExchange = recurringExchange {
-              externalDataProviderId = PanelMatchResourceSetup.dataProviderId
-              externalModelProviderId = PanelMatchResourceSetup.modelProviderId
+              externalDataProviderId = entitiesData.externalDataProviderId
+              externalModelProviderId = entitiesData.externalModelProviderId
               state = RecurringExchange.State.ACTIVE
               details = recurringExchangeDetails {
                 this.exchangeWorkflow = exchangeWorkflow.toInternal()

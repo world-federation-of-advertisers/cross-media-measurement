@@ -28,7 +28,7 @@ import org.wfanet.panelmatch.common.compression.compressionParameters
 import org.wfanet.panelmatch.common.toDelimitedByteString
 
 /** Provide utility functions to set up workflows in [PanelMatchSimulator]. */
-object PanelMatchCorectnessTestDataProvider {
+object PanelMatchCorrectnessTestInputProvider {
 
   const val HKDF_PEPPER = "some-hkdf-pepper"
   enum class TestType {

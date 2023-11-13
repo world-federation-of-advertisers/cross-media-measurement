@@ -50,6 +50,7 @@ import org.wfanet.measurement.common.crypto.jceProvider
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withContext
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
+import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.k8s.KubernetesClient
 import org.wfanet.measurement.common.k8s.testing.PortForwarder
 import org.wfanet.measurement.common.k8s.testing.Processes
@@ -60,6 +61,7 @@ import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt
 import org.wfanet.measurement.internal.testing.ForwardedStorageGrpcKt
+import org.wfanet.measurement.loadtest.panelmatch.EntitiesData
 import org.wfanet.measurement.loadtest.panelmatch.PanelMatchSimulator
 import org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourceSetup
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
@@ -140,8 +142,8 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
         override fun evaluate() {
           runBlocking {
             withTimeout(Duration.ofMinutes(5)) {
-              populateCluster()
-              _testHarness = createTestHarness()
+              var entitiesData = populateCluster()
+              _testHarness = createTestHarness(entitiesData)
             }
           }
           base.evaluate()
@@ -149,7 +151,7 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
       }
     }
 
-    private suspend fun populateCluster() {
+    private suspend fun populateCluster(): EntitiesData {
       val apiClient = k8sClient.apiClient
       apiClient.httpClient =
         apiClient.httpClient.newBuilder().readTimeout(Duration.ofHours(1L)).build()
@@ -160,22 +162,26 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
       k8sClient.waitForServiceAccount("default", timeout = READY_TIMEOUT)
 
       loadKingdomForPanelMatch()
-      runResourceSetup(createEntityContent("edp1"), createEntityContent("mp1"))
+      val entitiesData = runResourceSetup(createEntityContent("edp1"), createEntityContent("mp1"))
 
       logger.info { "Wait 20s for deployment to be ready" }
       delay(20000)
+
+      return entitiesData
+
     }
 
     protected suspend fun runResourceSetup(
       dataProviderContent: EntityContent,
       modelProviderContent: EntityContent,
-    ) {
+    ): EntitiesData {
       val outputDir = withContext(Dispatchers.IO) { tempDir.newFolder("resource-setup") }
 
       val kingdomInternalPod = getPod(KINGDOM_INTERNAL_DEPLOYMENT_NAME)
       val mpPrivateStoragePod = getPod(MP_PRIVATE_STORAGE_DEPLOYMENT_NAME)
       val dpPrivateStoragePod = getPod(DP_PRIVATE_STORAGE_DEPLOYMENT_NAME)
       val sharedStoragePod = getPod(SHARED_STORAGE_DEPLOYMENT_NAME)
+      var entitiesData: EntitiesData
 
       PortForwarder(kingdomInternalPod, SERVER_PORT).use { internalForward ->
         val internalAddress: InetSocketAddress =
@@ -199,7 +205,6 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
               dataProviderContent = dataProviderContent,
               modelProviderContent = modelProviderContent,
               exchangeDate = EXCHANGE_DATE.toProtoDate(),
-              // exchangeWorkflow = workflow,
               exchangeSchedule = SCHEDULE,
               publicApiVersion = API_VERSION
             )
@@ -300,7 +305,11 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
           panelMatchResourceKey.modelProviderKey,
           akidPrincipalMap
         )
+
+        entitiesData = EntitiesData(apiIdToExternalId(panelMatchResourceKey.dataProviderKey.dataProviderId),
+          apiIdToExternalId(panelMatchResourceKey.modelProviderKey.modelProviderId))
       }
+      return entitiesData
     }
 
     private suspend fun loadKingdomForPanelMatch() {
@@ -387,7 +396,7 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
       }
     }
 
-    private suspend fun createTestHarness(): PanelMatchSimulator {
+    private suspend fun createTestHarness(entitiesData: EntitiesData): PanelMatchSimulator {
 
       val publicForward = PortForwarder(getPod(KINGDOM_PUBLIC_DEPLOYMENT_NAME), SERVER_PORT)
       val publicAddress: InetSocketAddress =
@@ -411,6 +420,7 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
         }
 
       return PanelMatchSimulator(
+        entitiesData,
         RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub(internalChannel),
         ExchangesGrpcKt.ExchangesCoroutineStub(publicChannel),
         ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub(publicChannel),
@@ -451,6 +461,12 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
     private val LOCAL_K8S_PATH = Paths.get("src", "main", "k8s", "local")
     private val LOCAL_K8S_PANELMATCH_PATH = Paths.get("src", "main", "k8s", "panelmatch", "local")
     private val CONFIG_FILES_PATH = LOCAL_K8S_PANELMATCH_PATH.resolve("config_files")
+
+    private const val KINGDOM_INTERNAL_DEPLOYMENT_NAME = "gcp-kingdom-data-server-deployment"
+    private const val KINGDOM_PUBLIC_DEPLOYMENT_NAME = "v2alpha-public-api-server-deployment"
+    private const val MP_PRIVATE_STORAGE_DEPLOYMENT_NAME = "mp-private-storage-server-deployment"
+    private const val DP_PRIVATE_STORAGE_DEPLOYMENT_NAME = "dp-private-storage-server-deployment"
+    private const val SHARED_STORAGE_DEPLOYMENT_NAME = "shared-storage-server-deployment"
 
     private val DEFAULT_RPC_DEADLINE = Duration.ofSeconds(30)
     private val IMAGE_PUSHER_PATH = Paths.get("src", "main", "docker", "push_all_local_images")

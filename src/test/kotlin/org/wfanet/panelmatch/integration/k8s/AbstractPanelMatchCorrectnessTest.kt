@@ -104,13 +104,6 @@ abstract class AbstractPanelMatchCorrectnessTest(private val localSystem: PanelM
     @JvmStatic protected val SERVER_PORT: Int = 8443
     private val WORKSPACE_PATH: Path = Paths.get("wfa_measurement_system")
 
-    @JvmStatic protected val KINGDOM_INTERNAL_DEPLOYMENT_NAME = "gcp-kingdom-data-server-deployment"
-    @JvmStatic protected val KINGDOM_PUBLIC_DEPLOYMENT_NAME = "v2alpha-public-api-server-deployment"
-    @JvmStatic
-    protected val MP_PRIVATE_STORAGE_DEPLOYMENT_NAME = "mp-private-storage-server-deployment"
-    @JvmStatic
-    protected val DP_PRIVATE_STORAGE_DEPLOYMENT_NAME = "dp-private-storage-server-deployment"
-    @JvmStatic protected val SHARED_STORAGE_DEPLOYMENT_NAME = "shared-storage-server-deployment"
     @JvmStatic protected val EXCHANGE_DATE: LocalDate = LocalDate.now()
 
     val SECRET_FILES_PATH: Path = Paths.get("src", "main", "k8s", "testing", "secretfiles")
